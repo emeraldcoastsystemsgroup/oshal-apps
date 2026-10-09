@@ -1,0 +1,217 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — fantasy-football ("Fantasy Football")
+# 0.1.0 | maintainer@emeraldcoastsystemsgroup.com | Initial — the fantasy management engine moved out of sports-edge into its own package (ADR-146 D1; operator decisions 2026-09-27: Q2 per-user ownership, Q4 package name, suite and group). Every table is user_sub-keyed under FORCED exact-owner row-level security with no operator arm; the ESPN connection used is the caller's own personal one, read through the fantasy-leagues kernel skill; the lineup optimiser is now exact (Hungarian assignment) where the moved greedy one lost points on 6 of 3,000 brute-force rosters.
+# 0.2.0 | maintainer@emeraldcoastsystemsgroup.com | The P0 residuals (ADR-146 Amendment A): rest-of-season value SV/MV over the weeks that remain, a waiver board ranked by swap value with a FAAB bid (scarcity premium, reserve cap) and a drop on every row plus a one-week streaming lane, a two-sided trade finder that never surfaces a trade the other manager loses on, leagues typed in by hand that run every board with no ESPN connection (migration 002, ff_manual_leagues), and the week ledger (ff_weeks) graded from stored actuals against the lineup actually started. gradeCall's subtraction is typed: PostgreSQL refused the statement moved from sports-edge ('operator is not unique: unknown - unknown'), so no call could ever have been graded. Read-only PAT smokes for the season value, waiver board and trade finder of the caller's own most recently linked league, and an own-lineup PAT smoke for that league's weekly P(win) lineup beside the mean-maximising one. A season-long board whose league shape (budget, last week, playoff start) could not be read answers 503 or 502 instead of pricing on an assumed shape.
+#
+# MANAGE THE TEAM YOU HAVE. The operator's draft went badly — "we picked up running backs first
+# round 2 times that were specifically left over by the other team owners" — so the first thing
+# this package does is fix a roster that already exists: the lineup with the best chance of beating
+# the team you actually play this week, not the highest-projected one, with the safest lineup's own
+# chance shown beside it so a recommendation that gives up points has to visibly buy something.
+#
+# OWNERSHIP IS PER PERSON (ADR-146 Q2): "only i can control my team.. no one else can see my team
+# and connection." Every table here is keyed by the signed-in subject under FORCED exact-owner row
+# security with no operator arm, and the ESPN connection is the caller's own — a household-shared
+# connection is refused rather than spent.
+#
+# ⚠ THE CREDENTIAL IS NOT AN API KEY. ESPN publishes no OAuth for fantasy: the only credential is the
+# SWID + espn_s2 BROWSER COOKIES, which authenticate the whole ESPN account. They are resolved per
+# request from the encrypted connector broker, handed to the fantasy-leagues kernel skill's reads,
+# and never logged, returned, cached, or placed anywhere a model can read.
+#
+# NOTHING IS SUBMITTED. There is no route that changes a lineup on ESPN, claims a player or proposes
+# a trade. Every start/sit call is registered before kickoff and graded against what actually
+# happened, with the projected gain kept beside the actual one.
+#
+# Grouped with sports-edge as the ADR-141 application group `intelligent-sports`.
+#
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md, docs/adr/146-fantasy-football-draft-platform.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: fantasy-football
+suite: ai-productivity   # ADR-097: primary catalog shelf (operator decision Q4, 2026-09-27)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features: []   # no model in the loop (T0)
+displayName: Fantasy Football
+description: >-
+  Manage the fantasy football team you actually have. It reads your own ESPN league with your own
+  connection, scores ESPN's raw projections with your league's own scoring rules (ESPN publishes
+  stats, not points, and this package holds no stat table), and sets the lineup with the best chance
+  of beating the team you play this week - which starts the volatile player when you are an underdog
+  and the steady one when you are favoured, always beside what the safest lineup would have won.
+  It prices every roster move over the rest of the season: a waiver board with a bid and a drop on
+  every row, trades both managers gain from, and a one-week streaming lane. A league typed in by hand
+  works with no ESPN connection at all. Your team, your leagues and your ledger are yours alone: no
+  other user, operator included, can see them. Every lineup is recorded before kickoff and graded
+  against what was actually started. It advises; you act.
+version: 0.2.1
+status: active
+# Fantasy Football packages no agent; the stable framework concierge owns its right rail.
+chatBot: general-bot
+uses: [test-catalog, app-dependencies, fantasy-leagues]
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: fantasy-football
+  ref: main
+
+# CORE-05 install readiness: service-authenticated, package metadata only. No user data, no
+# provider call, no state mutation, no tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/fantasy-football/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+  # The caller's OWN status on the installed package, read as the signed-in operator (the Test Lab's
+  # operator automation PAT). Read-only: it resolves the caller's own ESPN connection and lists their
+  # own linked leagues; it reads no league from ESPN and writes nothing.
+  - name: own-status
+    method: GET
+    path: /api/fantasy-football/status
+    auth: pat
+    requiresUser: true
+    expect:
+      status: 200
+      jsonPointer: /season
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+  # The caller's OWN real league's weekly lineup, read as the signed-in operator: GET /lineup naming
+  # no league means their most recently linked ESPN league, read with their own connection. This is
+  # the P0 clause "a start/sit with the win probability it buys against the mean-maximising lineup":
+  # a 200 carries the league (/league/name), the P(win) lineup (/optimal), the mean-maximising lineup
+  # beside it (/meanOptimal) and both win probabilities (/matchup). Read-only toward ESPN. It DOES
+  # write, to the caller's own rows only: the projection cache refresh every board does, and, in the
+  # caller's own ledger, that week's decision (ff_weeks, one row per week, updated in place until
+  # graded) and its start/sit calls (ff_calls, one row per pair), after grading the caller's own
+  # completed weeks. That registration is the behaviour under test, and a repeat run re-registers the
+  # same week rather than adding one. The smoke format holds one JSON pointer: /meanOptimal/starters,
+  # non-empty only when the league resolved, the caller's own team was found, projections were read
+  # and both lineups were built.
+  - name: own-lineup
+    method: GET
+    path: /api/fantasy-football/lineup
+    auth: pat
+    requiresUser: true
+    expect:
+      status: 200
+      jsonPointer: /meanOptimal/starters
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+  # The caller's OWN real league, read as the signed-in operator: naming no league means their most
+  # recently linked ESPN league, read with their own connection. Read-only toward ESPN (no claim, bid,
+  # offer or lineup change); the only write is the caller's own projection cache refresh. Each fails
+  # with 400 until a league is linked, which is itself the answer to "is there a real league here".
+  - name: own-season-value
+    method: GET
+    path: /api/fantasy-football/season
+    auth: pat
+    requiresUser: true
+    expect:
+      status: 200
+      jsonPointer: /league/name
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+  - name: own-waiver-board
+    method: GET
+    path: /api/fantasy-football/waivers
+    auth: pat
+    requiresUser: true
+    expect:
+      status: 200
+      jsonPointer: /league/name
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+  - name: own-trade-finder
+    method: GET
+    path: /api/fantasy-football/trades
+    auth: pat
+    requiresUser: true
+    expect:
+      status: 200
+      jsonPointer: /league/name
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+# ONE connector, and only for a private league. The projection feed needs no credential.
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    # The caller's OWN ESPN Fantasy cookies (SWID + espn_s2) for reading a private league.
+    connectors: [espn-fantasy]
+
+theme: midnight
+
+# ROUTES — every data route is oidc: a person's team is never reachable by a service identity.
+# Handlers ALSO self-gate via callerSub.
+routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/fantasy-football/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/fantasy-football/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/fantasy-routes.js
+    factory: createFantasyFootballRoutes
+    mountPath: /api/fantasy-football
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+# DATABASE MIGRATIONS — applied idempotently on load. The routes also self-heal the schema (with
+# the same owner policies), so the app works whether or not APP_PACKAGE_MIGRATIONS is on.
+migrations:
+  - migrations/001-fantasy-football.sql
+  - migrations/002-fantasy-manual-and-weeks.sql
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon icon opens your team.
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: fantasy-football
+      label: Fantasy Football
+      icon: codicon codicon-organization
+      iframeUrl: /api/fantasy-football/
+      section: top
+
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - calendar
+    - addressbook
+    - logs
+    - operations
+  defaultView: fantasy-football
+
+summary:
+  path: /api/fantasy-football/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items

@@ -14,6 +14,141 @@
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shell opens this page with ?audience=company: the signed-in account's OWN
+     objects (how many, which are printable, which failed, the newest ones with their state, source, extents and printable
+     verdict, and what needs attention), its registered printers and the prints sent in the last seven days, from the
+     SAME GET /api/scan-to-print/jobs and GET /api/scan-to-print/printers the full page reads plus the Home tile's
+     GET /api/scan-to-print/home-summary, painted by the shared kit in the company grammar. On open it makes only those
+     three reads, owner-scoped SELECTs under the caller's session. It never reconstructs, slices, reads a model file or a
+     photo, asks for view suggestions, contacts a printer or creates an object (the ?artifact intake belongs to the full
+     page). Any other request runs the full Scan to Print page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var BASE = '/api/scan-to-print', KICKER = 'Engineering · Scan to Print', ROWS = 8, NOTED = 6, CAP = 200;
+  var STATES = { capturing: 'Capturing', reconstructed: 'Reconstructed', failed: 'Failed' };
+  var SOURCES = { photos: 'Photos', video: 'Video frames', pointcloud: 'Point cloud' };
+  var KINDS = { octoprint: 'OctoPrint', moonraker: 'Moonraker (Klipper)', prusalink: 'PrusaLink', 'bambu-lan': 'Bambu Lab (home network)' };
+  // One GET under the caller's session: an HTTP answer resolves with its status and parsed body (null when not JSON); a network failure rejects.
+  function read(path) {
+    return fetch(BASE + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }, function () { return { ok: r.ok, status: r.status, body: null }; });
+    });
+  }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  // home-summary sends each count as digits in a string ('0', '12'), or the word 'Unavailable' when that source failed.
+  function count(value) { return typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : null; }
+  function metric(summary, id) {
+    var m = ((summary && (summary.metrics || summary.tiles)) || []).filter(function (x) { return x && x.id === id; })[0];
+    return m ? count(m.value) : null;
+  }
+  // As on the full page, a report counts only while the object reads reconstructed: any input change retires it (capturing, no report).
+  function report(job) { return job.state === 'reconstructed' && job.report && typeof job.report === 'object' ? job.report : null; }
+  function printable(job, verdict) { var r = report(job); return !!r && r.printable === verdict; }
+  function tally(rows) {
+    var n = function (test) { return rows.filter(test).length; };
+    return { capturing: n(function (j) { return j.state === 'capturing'; }), failed: n(function (j) { return j.state === 'failed'; }),
+      good: n(function (j) { return printable(j, true); }), bad: n(function (j) { return printable(j, false); }) };
+  }
+  function mm(v) { var n = Number(v); return v !== null && v !== '' && isFinite(n) ? n.toFixed(1) : '?'; }
+  function extents(r) { return r && r.sizeMm ? mm(r.sizeMm.x) + ' × ' + mm(r.sizeMm.y) + ' × ' + mm(r.sizeMm.z) : '—'; }
+  function source(job) {
+    var s = SOURCES[job.source_kind] || (job.source_kind ? String(job.source_kind) : '—'), r = report(job);
+    return r && r.lane === 'depth' ? s + ' + depth' : s;
+  }
+  function state(job) { return STATES[job.state] || (job.state ? 'State: ' + job.state : 'No state'); }
+  function row(job) {
+    var verdict = printable(job, true) ? { text: 'Yes', tone: 'ok' } : printable(job, false) ? { text: 'No', tone: 'warn' } : '—';
+    return [job.title || 'Untitled object', { text: state(job), tone: job.state === 'failed' ? 'bad' : null }, source(job), extents(report(job)), verdict, A.when(job.updated_at)];
+  }
+  // Why a mesh is not printable, only in the terms its validation block records (the full page names open edges and degenerate facets).
+  function faults(r) {
+    var v = r.validation || {}, out = [];
+    if (Number(v.openEdges) > 0) out.push(plural(Number(v.openEdges), 'open edge', 'open edges'));
+    if (Number(v.degenerate) > 0) out.push(plural(Number(v.degenerate), 'degenerate facet', 'degenerate facets'));
+    if (v.consistentWinding === false) out.push('inconsistent winding');
+    if (v.outwardFacing === false) out.push('facets facing inward');
+    return out.length ? out.join(', ') : 'the mesh did not pass validation';
+  }
+  function checks(r) { return r && r.printChecks && Array.isArray(r.printChecks.failures) ? r.printChecks.failures : []; }
+  function attention(job) {
+    var r = report(job), c = checks(r), item = { title: job.title || 'Untitled object', meta: A.when(job.updated_at) };
+    if (job.state === 'failed') return Object.assign(item, { text: job.failure_reason || 'The reconstruction failed.', badge: 'Failed', tone: 'bad' });
+    if (r && r.printable === false) return Object.assign(item, { text: 'Not printable: ' + faults(r) + '.', badge: 'Not printable', tone: 'warn' });
+    if (r && c.length) return Object.assign(item, { text: String(c[0]) + (c.length > 1 ? ' (' + (c.length - 1) + ' more)' : ''), badge: 'Print check', tone: 'warn' });
+    return null;
+  }
+  function trouble(res) {
+    if (!res) return 'The printers could not be reached just now.';
+    if (res.status === 401 || res.status === 403) return 'The printers route refused this account (HTTP ' + res.status + ').';
+    return res.ok ? 'The printers answer could not be read.' : 'The printers could not be read (HTTP ' + res.status + ').';
+  }
+  // The printers route never returns a key; the view shows each host's label and kind, not its address.
+  function printers(res) {
+    var ok = !!(res && res.ok && res.body && Array.isArray(res.body.printers)), list = ok ? res.body.printers : [];
+    var slicer = ok && res.body.slicerConfigured === true ? 'A slicer is configured on this swarm, so G-code is produced on demand.' : 'No slicer is configured on this swarm: send the STL to a host that slices, or slice it yourself.';
+    return { kind: 'list', id: 'printers', title: 'Printers', note: ok ? slicer + ' Sending a job asks for a confirmation in the full page.' : null,
+      empty: ok ? 'No printers registered yet. Register an OctoPrint, Moonraker, PrusaLink or Bambu Lab printer in the full page.' : trouble(res),
+      items: list.map(function (p) { return { title: p.label || 'Unnamed printer', text: KINDS[p.kind] || (p.kind ? String(p.kind) : 'Unknown host'), meta: 'added ' + A.when(p.created_at) }; }) };
+  }
+  function stat(id, label, n, tone, hint) { return { id: id, label: label, value: n === null ? '—' : n, tone: n === null ? null : tone, hint: n === null ? 'Could not check' : hint }; }
+  // GET /jobs lists the newest 200 objects; a count read from it says so when the list is full.
+  function stats(rows, t, summary) {
+    var full = rows.length >= CAP, among = full ? 'Among the newest ' + CAP : null;
+    return [
+      stat('objects', 'Objects', rows.length, null, full ? 'Newest ' + CAP + ' only' : t.capturing ? t.capturing + ' still capturing' : null),
+      stat('printable', 'Printable models', t.good, t.good ? 'ok' : null, among || 'Watertight meshes'),
+      stat('failed', 'Failed reconstructions', t.failed, t.failed ? 'bad' : null, among),
+      stat('sent', 'Sent to a printer, 7 days', metric(summary, 'prints-week'), null, 'Uploads the host accepted')
+    ];
+  }
+  function headline(rows, t) {
+    if (!rows.length) return 'No objects scanned yet';
+    if (t.good) return plural(t.good, 'printable model', 'printable models') + ' ready to print';
+    if (t.capturing) return plural(t.capturing, 'object', 'objects') + ' still capturing';
+    if (t.failed) return plural(t.failed, 'reconstruction', 'reconstructions') + ' failed';
+    return plural(rows.length, 'object scanned', 'objects scanned') + ', none printable yet';
+  }
+  function lede(rows) {
+    var j = rows[0];
+    if (!j) return 'Scan to Print turns photos, a short video or a LiDAR point cloud of an object into an engineering drawing, a printable model and a job on your own printer. Objects saved there show up here.';
+    return 'Latest: ' + (j.title || 'Untitled object') + ' (' + state(j).toLowerCase() + '), updated ' + A.when(j.updated_at) + '. Reconstructing, slicing and printing happen in the full page, and every print asks for a confirmation.';
+  }
+  function model(rows, summary, printerRes) {
+    var t = tally(rows);
+    return { kicker: KICKER, title: headline(rows, t), lede: lede(rows),
+      actions: [{ label: 'Open the full scanner', primary: true, onClick: function () { window.location.assign(window.location.pathname); } }],
+      stats: stats(rows, t, summary),
+      sections: [
+        { kind: 'table', id: 'objects', title: 'Newest objects', columns: ['Object', 'State', 'Source', 'Extents (mm)', 'Printable', 'Updated'], rows: rows.slice(0, ROWS).map(row),
+          note: 'This account’s objects, most recently changed first. Extents and the printable verdict come from the last reconstruction and show only while it is current: changing the photos, views, scale or settings retires it.',
+          empty: 'No objects yet. Start one in the full page from six photos, a short video or a LiDAR point cloud.' },
+        { kind: 'list', id: 'attention', title: 'Needs attention', items: rows.map(attention).filter(Boolean).slice(0, NOTED), empty: 'No failed reconstructions, unprintable meshes or print-check warnings.' },
+        printers(printerRes)
+      ] };
+  }
+  function refusal(status) {
+    return status === 401 ? { kicker: KICKER, title: 'Sign in to see the saved scans', lede: 'Scan to Print shows the objects of whoever is signed in, and this session is not signed in.' }
+      : { kicker: KICKER, title: 'This account cannot open Scan to Print', lede: 'The Scan to Print routes refused this account (HTTP 403).' };
+  }
+  function company() {
+    // The printers and the seven-day count are extra: when either read fails, the objects still show and that part says why.
+    var summary = read('/home-summary').then(function (res) { return res.ok && res.body ? res.body : null; }, function () { return null; });
+    var printerRes = read('/printers').then(function (res) { return res; }, function () { return null; });
+    return Promise.all([read('/jobs'), summary, printerRes]).then(function (r) {
+      var res = r[0];
+      if (res.status === 401 || res.status === 403) return refusal(res.status);
+      if (!res.ok) throw new Error('Scan to Print could not read the saved objects (HTTP ' + res.status + ').');
+      if (!res.body || !Array.isArray(res.body.jobs)) throw new Error('Scan to Print sent an answer this view could not read.');
+      return model(res.body.jobs, r[1], r[2]);
+    }, function () { throw new Error('Scan to Print could not be reached just now.'); });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'scan-to-print', escapeLabel: 'Open Scan to Print in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
   :root { --stp-bg: var(--bg, var(--bg-primary, #12151c)); --stp-panel: var(--panel, var(--bg-card, #1b1f29)); --stp-panel2: var(--panel2, var(--bg-tertiary, #232836));
           --stp-text: var(--text, var(--text-primary, #e6e9ef)); --stp-muted: var(--muted, var(--text-muted, #9aa3b2)); --stp-line: var(--line, var(--border-color, #2f3646));
@@ -25,6 +160,14 @@
   header .spacer { flex: 1; }
   .layout { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 49px); }
   aside { border-right: 1px solid var(--stp-line); padding: 12px; background: var(--stp-panel); overflow: auto; }
+  .printers { margin: 0 0 12px; border-bottom: 1px solid var(--stp-line); padding-bottom: 8px; }
+  .printers summary { cursor: pointer; font-weight: 600; }
+  .printers h2 { margin: 10px 0 4px; font-size: 13px; }
+  .printers ul { padding-left: 18px; margin: 4px 0 8px; }
+  .printers form { display: grid; gap: 6px; margin: 6px 0; }
+  .printers form .row { display: grid; gap: 6px; margin: 0; }
+  .printers form .row[hidden] { display: none; }
+  .printers input, .printers select { width: 100%; box-sizing: border-box; }
   main { padding: 16px 20px 40px; overflow: auto; }
   .job-item { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--stp-line); border-radius: 8px; background: var(--stp-panel2); color: var(--stp-text); cursor: pointer; }
   .job-item.active { border-color: var(--stp-accent); }
@@ -45,6 +188,7 @@
   label.file { display: inline-block; border: 1px dashed var(--stp-line); border-radius: 8px; padding: 8px 12px; cursor: pointer; margin-right: 8px; }
   label.file input { display: none; }
   .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 6px 0; }
+  .row[hidden] { display: none; }   /* .row's display:flex would otherwise override the hidden attribute */
   .muted { color: var(--stp-muted); }
   .small { font-size: 12px; }
   .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 8px; }
@@ -94,6 +238,26 @@
 </header>
 <div class="layout">
   <aside>
+    <details id="printers" class="printers">
+      <summary>Printers</summary>
+      <p id="engine-note" class="small muted" hidden></p>
+      <ul id="printer-list" class="small"></ul>
+      <h2 class="small muted">Register a printer</h2>
+      <form id="printer-form">
+        <input id="p-label" type="text" placeholder="label" required />
+        <select id="p-kind"><option value="octoprint">OctoPrint</option><option value="moonraker">Moonraker (Klipper)</option><option value="prusalink">PrusaLink</option><option value="bambu-lan">Bambu Lab (home network)</option></select>
+        <span id="http-fields" class="row">
+          <input id="p-url" type="url" placeholder="http://printer.local" required />
+          <input id="p-key" type="password" placeholder="API key" required autocomplete="off" />
+        </span>
+        <span id="bambu-fields" class="row" hidden>
+          <input id="p-host" type="text" placeholder="printer address, e.g. 192.168.1.20" autocomplete="off" />
+          <input id="p-code" type="password" placeholder="LAN access code" autocomplete="off" />
+        </span>
+        <button class="ghost" type="submit">Save printer</button>
+      </form>
+      <p id="bambu-help" class="small muted" hidden>On a P2S or an H2 printer, Settings → Settings → LAN Only shows its address (IP) and the 8-character Access Code; other Bambu Lab printers show both on their LAN Only (LAN mode) settings page. The printer's serial and model are read from the printer itself. Jobs are sliced for it here and sent over your home network. To let oshal start prints, not just upload them, turn on LAN Only and then Developer Mode on that same page.</p>
+    </details>
     <div id="job-list"></div>
   </aside>
   <main>
@@ -187,7 +351,7 @@
       </section>
 
       <section id="print-step" class="step" hidden>
-        <h2>4 · Print <small>your own OctoPrint, Klipper/Moonraker or PrusaLink host</small></h2>
+        <h2>4 · Print <small>your own OctoPrint, Klipper/Moonraker, PrusaLink or Bambu Lab printer</small></h2>
         <p id="slicer-note" class="small muted"></p>
         <div class="row">
           <select id="printer"></select>
@@ -196,17 +360,7 @@
           <button id="send" class="primary">Send to printer…</button>
         </div>
         <ul id="submissions" class="small"></ul>
-        <details>
-          <summary class="small muted">Register a printer</summary>
-          <form id="printer-form" class="row">
-            <input id="p-label" type="text" placeholder="label" required />
-            <select id="p-kind"><option value="octoprint">OctoPrint</option><option value="moonraker">Moonraker (Klipper)</option><option value="prusalink">PrusaLink</option></select>
-            <input id="p-url" type="url" placeholder="http://printer.local" required />
-            <input id="p-key" type="password" placeholder="API key" required autocomplete="off" />
-            <button class="ghost" type="submit">Save printer</button>
-          </form>
-          <ul id="printer-list" class="small"></ul>
-        </details>
+        <p class="small muted">Register and manage printers under Printers, at the top of the list of objects.</p>
       </section>
     </div>
   </main>

@@ -10,6 +10,10 @@ SEQ                 | AUTHOR                      | DESCRIPTION
   |                                           | momentum-theory hover power, and the
   |                                           | actuator-disk turbine power/drag PAIR that
   |                                           | makes negative control D impossible to fake.
+2 | maintainer@emeraldcoastsystemsgroup.com   | FreeEnergyError declares its structured
+  |                                           | validity code (free_energy_refused) on the
+  |                                           | class; still a leaf -- a plain string, no
+  |                                           | project import.
 -------------------------------------------------------------------------------
 
 MODULE: aerosim.powerplant  --  every energy conversion in the system.
@@ -184,6 +188,9 @@ class NoConvergenceError(RuntimeError):
 
 class FreeEnergyError(RuntimeError):
     """Raised when a configuration would produce net energy from uniform still air."""
+
+    #: aerosim.validity code this refusal carries (read by validity.reason_of).
+    VALIDITY_CODE = "free_energy_refused"
 
 
 # -----------------------------------------------------------------------------

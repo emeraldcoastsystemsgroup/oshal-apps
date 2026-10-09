@@ -1,8 +1,96 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Submission Review</title><style>
-:root{color-scheme:dark;--accent:#b0b8ff;--ink:#edf0fa;--muted:#a2adc5;--border:#ffffff1c}*{box-sizing:border-box}body{margin:0;background:#10131e;color:var(--ink);font:15px/1.55 system-ui}main{max-width:1180px;margin:auto;padding:40px 24px}header{margin-bottom:30px}h1{font-size:clamp(28px,5vw,44px);letter-spacing:-.035em;margin:8px 0}h2{font-size:19px;margin:0 0 18px}.eyebrow{color:var(--accent);text-transform:uppercase;font-size:11px;letter-spacing:.16em}.hint{color:var(--muted);font-size:13px}#metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}.metric,.panel{border:1px solid var(--border);border-radius:18px;background:linear-gradient(135deg,#202638,#171b28)}.metric{padding:18px}.metric strong{display:block;font-size:27px;font-weight:650}.metric span{color:var(--muted);font-size:12px}.layout{display:grid;grid-template-columns:1.05fr 1fr;gap:22px}.panel{padding:24px;min-width:0}.record{border-bottom:1px solid var(--border);padding:16px 0;overflow-wrap:anywhere}.record:first-child{padding-top:0}.record p{color:var(--muted);margin:5px 0 12px;font-size:13px}label{display:block;color:var(--muted);font-size:12px;margin:15px 0 6px}input,textarea,select{font:inherit;color:var(--ink);background:#0e1320;border:1px solid #ffffff26;border-radius:10px;width:100%;padding:11px;display:block;margin-top:7px}textarea{min-height:190px;resize:vertical}button,a{font:inherit}button{color:var(--ink);background:#ffffff0c;border:1px solid #ffffff25;border-radius:9px;padding:9px 13px;cursor:pointer;margin:5px 6px 5px 0}button:hover{background:#ffffff1c}button:disabled{opacity:.5;cursor:wait}.primary{background:#b7beff;color:#151b34;font-weight:650}a{color:var(--accent)}#status{min-height:24px;color:var(--accent);overflow-wrap:anywhere}.connected-app-actions{display:flex;flex-wrap:wrap;margin-top:16px}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:720px){main{padding:22px 16px}.layout{grid-template-columns:1fr}.panel{padding:18px}}
+<!doctype html><html lang="en" data-theme="midnight"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Submission Review</title><link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shell opens this page with ?audience=company: the signed-in account's
+     OWN submission runs (active, failed or unknown, manually marked, verified in 24 hours and in 5 days, and the newest
+     three runs with their company, state and last update) from the SAME GET /api/job-apply/home-summary the full page
+     reads, painted by the shared kit in the company grammar. On open it makes only that one read, an owner-scoped
+     SELECT under the caller's session. It never fetches connected-actions offers, binds no handoff listener and writes
+     nothing (this page has no write; retrying a submission is Career's job). Any other request runs the full
+     Submission Review page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var KICKER = 'Knowledge · Job Apply';
+  var LEDE = 'Submission runs for the signed-in account, read from the authoritative Apply run ledger rather than workflow completion. This view never retries a submission; review in Career first.';
+  function read() {
+    return fetch('/api/job-apply/home-summary', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j || {} }; });
+    });
+  }
+  function refused(res) { return res.status === 401 || res.status === 403; }
+  function openFull() { window.location.assign(window.location.pathname); }
+  // A run item carries the route's two continuation offers; the trailing ledger, partial and no-work notes carry none.
+  function isRun(item) { return Array.isArray(item.actions) && item.actions.length > 0; }
+  // A run item's detail is '<company> / <state> / <updated>' (routes/home-summary.js): updated is an ISO instant or the route's
+  // own 'date unavailable'; the company is clipped text that may itself contain a slash, so state and updated are read from the end.
+  function parse(detail) {
+    var parts = String(detail || '').split(' / ');
+    if (parts.length < 3) return { company: parts.join(' / '), state: '', updated: '' };
+    return { company: parts.slice(0, -2).join(' / '), state: parts[parts.length - 2], updated: parts[parts.length - 1] };
+  }
+  // The route sends each count as digits in a string ('0', '12'), or the word 'Unavailable' when that source failed.
+  function count(value) { return typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : null; }
+  function metrics(body) { return body.metrics || body.tiles || []; }
+  function value(body, id) { var m = metrics(body).filter(function (x) { return x.id === id; })[0]; return m ? count(m.value) : null; }
+  function isPartial(body) { return body.partial === true || metrics(body).some(function (m) { return count(m.value) === null; }); }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function title(body, runs, partial) {
+    var review = value(body, 'runs-review'), active = value(body, 'runs-active'), five = value(body, 'verified-5d');
+    if (partial) return 'Some saved sources cannot be checked';
+    if (review > 0) return plural(review, 'failed or unknown run', 'failed or unknown runs') + ' to review';
+    if (active > 0) return plural(active, 'submission run', 'submission runs') + ' active';
+    if (five > 0) return plural(five, 'verified submission', 'verified submissions') + ' in 5 days';
+    return runs.length ? 'No submission runs active' : 'No submission runs yet';
+  }
+  // Failed or unknown runs want attention; a verified count is the one figure backed by retained confirmation evidence.
+  function tone(id, n) {
+    if (n === null) return 'warn';
+    if (n === 0) return null;
+    return id === 'runs-review' ? 'warn' : /^verified-/.test(id) ? 'ok' : null;
+  }
+  function stats(body) {
+    return metrics(body).map(function (m) { var n = count(m.value); return { id: m.id, label: m.label, value: m.value, tone: tone(m.id, n), hint: n === null ? 'Could not be checked' : null }; });
+  }
+  function when(updated) { return /^\d{4}-\d{2}-\d{2}T/.test(updated) ? A.when(updated) : (updated || '—'); }
+  function row(item) {
+    var p = parse(item.detail), state = p.state.replace(/_/g, ' ');
+    return [item.text || 'Application', p.company || '—', { text: state || '—', tone: item.tone === 'warn' ? 'warn' : p.state === 'submitted_verified' ? 'ok' : null }, when(p.updated)];
+  }
+  function runsSection(runs, partial) {
+    return { kind: 'table', id: 'runs', title: 'Newest submission runs',
+      note: 'The newest three runs from the Apply run ledger, failed and unknown outcomes first. Only submitted_verified has retained confirmation evidence; a manual mark or a completed workflow is not a verified submission. Review in Career before retrying or contacting anyone.',
+      empty: partial ? 'Some saved sources cannot be checked.' : 'No submission runs recorded yet. Runs appear here once a job-apply ticket has been pushed.',
+      columns: ['Application', 'Company', 'State', 'Updated'], rows: runs.map(row) };
+  }
+  function notesSection(items) {
+    return { kind: 'list', id: 'notes', title: 'What these numbers mean', empty: 'The ledger note could not be read.',
+      items: items.filter(function (i) { return !isRun(i) && i.text; }).map(function (i) { return { title: String(i.text), tone: i.tone === 'warn' ? 'warn' : null }; }) };
+  }
+  function company() {
+    return read().then(function (res) {
+      if (refused(res)) return { kicker: KICKER, title: res.status === 401 ? 'Sign in to see submission runs' : 'This account cannot open Job Apply',
+        lede: res.status === 401 ? 'This view shows the submission runs of whoever is signed in, and this session is not signed in.' : 'The Job Apply routes refused this account (HTTP 403).' };
+      if (!res.ok) throw new Error(typeof res.body.error === 'string' && res.body.error ? res.body.error : 'Saved evidence cannot be checked right now (HTTP ' + res.status + ').');
+      var items = res.body.items || [], runs = items.filter(isRun), partial = isPartial(res.body), review = value(res.body, 'runs-review');
+      return { kicker: KICKER, title: title(res.body, runs, partial), lede: LEDE,
+        actions: [{ label: review > 0 ? 'Review the failed runs' : 'Open Submission Review', primary: true, onClick: openFull }],
+        stats: stats(res.body), sections: [runsSection(runs, partial), notesSection(items)] };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'job-apply', escapeLabel: 'Open Job Apply in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
+<style>
+:root{color-scheme:dark;--accent:var(--accent-primary,#b0b8ff);--ink:var(--text-primary,#edf0fa);--muted:var(--text-muted,#a2adc5);--border:var(--border-color,#ffffff1c)}*{box-sizing:border-box}body{margin:0;background:var(--bg-primary,#10131e);color:var(--ink);font:15px/1.55 system-ui}main{max-width:1180px;margin:auto;padding:40px 24px}header{margin-bottom:30px}h1{font-size:clamp(28px,5vw,44px);letter-spacing:-.035em;margin:8px 0}h2{font-size:19px;margin:0 0 18px}.eyebrow{color:var(--accent);text-transform:uppercase;font-size:11px;letter-spacing:.16em}.hint{color:var(--muted);font-size:13px}#metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}.metric,.panel{border:1px solid var(--border);border-radius:18px;background:var(--bg-card,linear-gradient(135deg,#202638,#171b28))}.metric{padding:18px}.metric strong{display:block;font-size:27px;font-weight:650}.metric span{color:var(--muted);font-size:12px}.layout{display:grid;grid-template-columns:1.05fr 1fr;gap:22px}.panel{padding:24px;min-width:0}.record{border-bottom:1px solid var(--border);padding:16px 0;overflow-wrap:anywhere}.record:first-child{padding-top:0}.record p{color:var(--muted);margin:5px 0 12px;font-size:13px}label{display:block;color:var(--muted);font-size:12px;margin:15px 0 6px}input,textarea,select{font:inherit;color:var(--ink);background:var(--bg-secondary,#0e1320);border:1px solid var(--border-color,#ffffff26);border-radius:10px;width:100%;padding:11px;display:block;margin-top:7px}textarea{min-height:190px;resize:vertical}button,a{font:inherit}button{color:var(--ink);background:var(--glass-bg,#ffffff0c);border:1px solid var(--border-color,#ffffff25);border-radius:9px;padding:9px 13px;cursor:pointer;margin:5px 6px 5px 0}button:hover{background:var(--bg-card-hover,#ffffff1c)}button:disabled{opacity:.5;cursor:wait}.primary{background:var(--accent-primary,#b7beff);color:var(--text-on-accent,#151b34);font-weight:650}a{color:var(--accent)}#status{min-height:24px;color:var(--accent);overflow-wrap:anywhere}.connected-app-actions{display:flex;flex-wrap:wrap;margin-top:16px}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:720px){main{padding:22px 16px}.layout{grid-template-columns:1fr}.panel{padding:18px}}
 </style></head><body><main><header><div class="eyebrow">Connected career workspace</div><h1>Submission Review</h1><p class="hint">Review recorded work. Shape the next brief. Continue in the app that owns the next step.</p></header><div id="metrics" aria-label="Saved work metrics"></div><div class="layout"><section class="panel"><h2>Recorded work</h2><div id="records">Loading saved evidence…</div><button id="refresh">Refresh evidence</button></section><section class="panel"><h2>Your next brief</h2><label>Title<input id="title" maxlength="120" placeholder="What should happen next?"></label><label>Brief<textarea id="notes" maxlength="2000" placeholder="Select recorded work or write a new brief."></textarea></label><label>Source link<input id="sourceUrl" type="url" maxlength="2000"></label><div class="connected-app-actions"></div><p id="status" role="status" aria-live="polite"></p><p class="hint">Connected actions open editable drafts. Review and approve any publishing or generation in the destination app.</p></section></div></main><script type="module">
 import {receiveHandoff} from '/cockpit/js/app-handoff.js';
 import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
+// The full page only: under an audience view the shared kit paints instead (see the head script), so no handoff listener
+// is bound, no connected-actions offer is fetched, no Refresh handler is bound and the summary is not read a second time.
+if (!window.AppView || !AppView.active()) {
 const app="job-apply",title=document.querySelector('#title'),notes=document.querySelector('#notes'),sourceUrl=document.querySelector('#sourceUrl'),status=document.querySelector('#status');
 const fill=c=>{title.value=String(c.title||'').slice(0,120);notes.value=String(c.notes||'').slice(0,2000);sourceUrl.value=c.sourceUrl||'';};
 receiveHandoff({app,action:'prepare-brief',version:1,contextType:'research-brief',fields:['title','notes','sourceUrl']},fill);
@@ -10,4 +98,5 @@ await mountConnectedActions({app,element:document.querySelector('.connected-app-
 async function refresh(){const list=document.querySelector('#records'),metrics=document.querySelector('#metrics');try{const r=await fetch('/api/'+app+'/home-summary',{cache:'no-store'}),data=await r.json();if(!r.ok)throw Error('Saved evidence cannot be checked right now.');list.replaceChildren();metrics.replaceChildren();for(const m of data.metrics||[]){const card=document.createElement('div');card.className='metric';const v=document.createElement('strong'),l=document.createElement('span');v.textContent=m.value;l.textContent=m.label;card.append(v,l);metrics.append(card);}for(const item of data.items||[]){const el=document.createElement('div'),heading=document.createElement('strong'),detail=document.createElement('p');el.className='record';heading.textContent=item.text;detail.textContent=item.detail||'';el.append(heading,detail);const context=item.actions?.[0]?.context;if(context){const b=document.createElement('button');b.textContent='Use this evidence';b.addEventListener('click',()=>{fill(context);status.textContent='Evidence loaded. Edit the brief before continuing.';});el.append(b);}list.append(el);}}catch(e){list.textContent=e.message;metrics.replaceChildren();}}
 document.querySelector('#refresh').addEventListener('click',refresh);
 await refresh();
+}
 </script></body></html>

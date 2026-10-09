@@ -1,0 +1,109 @@
+<!doctype html>
+<!-- CHANGE LOG
+1 | maintainer@emeraldcoastsystemsgroup.com | The manual video editor screen (CREATE-EDIT-05d): media, preview, timeline, selected-segment, title, music and export panels over the shared theme tokens, with every control labelled and a keyboard equivalent for every timeline action.
+-->
+<html lang="en" data-theme="midnight">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Video editor · Video Studio</title>
+  <!-- Framework theme tokens and the bootstrap that follows the portal theme live; the default above keeps tokens present. -->
+  <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+  <script src="/shared/ui/js/surface-theme.js"></script>
+  <link rel="stylesheet" href="/api/video/editor/assets/editor.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="identity"><span class="eyebrow">VIDEO STUDIO</span><h1>Video editor</h1></div>
+    <label class="title-field"><span class="sr-only">Project name</span><input id="projectName" maxlength="160" value="Untitled video" autocomplete="off" disabled></label>
+    <div class="actions">
+      <select id="projectList" aria-label="Open a saved project" disabled><option value="">Open a saved project…</option></select>
+      <button id="newProject" type="button" disabled>New</button>
+      <button id="undo" type="button" disabled title="Undo (Ctrl+Z)">Undo</button>
+      <button id="redo" type="button" disabled title="Redo (Ctrl+Shift+Z)">Redo</button>
+      <button id="saveProject" type="button" class="primary" disabled title="Save (Ctrl+S)">Save</button>
+      <button id="saveAsNew" type="button" disabled>Save as new</button>
+    </div>
+  </header>
+  <div class="status-strip"><span id="status" role="status" aria-live="polite">Checking your access…</span> <span id="dirtyFlag" class="dirty" hidden>Unsaved changes</span></div>
+  <div id="error" class="notice" role="alert" hidden></div>
+  <div id="conflictActions" class="notice-actions" hidden>
+    <button id="reloadSaved" type="button">Open the saved version</button>
+  </div>
+  <main class="workspace">
+    <section class="panel media" aria-labelledby="mediaHeading">
+      <h2 id="mediaHeading">Your media</h2>
+      <label class="file-button">Add a clip (MP4) <input id="addClip" type="file" accept="video/mp4" disabled></label>
+      <label class="file-button">Add music (WAV) <input id="addBed" type="file" accept="audio/wav,audio/x-wav,.wav" disabled></label>
+      <p class="muted small">Up to two clips of 30 seconds and one music file; the video can be up to 60 seconds long.</p>
+      <ul id="sources" class="list"></ul>
+    </section>
+    <section class="panel preview" aria-labelledby="previewHeading">
+      <h2 id="previewHeading">Preview</h2>
+      <div class="screen">
+        <video id="viewer" playsinline preload="auto"></video>
+        <div id="titleOverlay" class="title-overlay" hidden></div>
+        <p id="noPicture" class="no-picture" hidden>This browser cannot show this clip. Timing and titles still work, and the export includes it.</p>
+      </div>
+      <audio id="bedAudio" preload="auto"></audio>
+      <div class="transport">
+        <button id="stepBack" type="button" aria-label="Back one frame (Left arrow)">◀</button>
+        <button id="play" type="button" title="Play or pause (Space)">Play</button>
+        <button id="stepForward" type="button" aria-label="Forward one frame (Right arrow)">▶</button>
+        <output id="clock" aria-label="Playhead time">0:00.00 / 0:00.00</output>
+      </div>
+    </section>
+    <section class="panel timeline" aria-labelledby="timelineHeading">
+      <h2 id="timelineHeading">Timeline</h2>
+      <div id="track" class="track" role="listbox" aria-label="Segments in playback order"></div>
+      <label class="playhead"><span class="sr-only">Playhead in frames</span><input id="playhead" type="range" min="0" max="0" step="1" value="0"></label>
+      <div id="titleTrack" class="title-track" aria-label="Titles on the timeline"></div>
+      <p class="muted small">Keys: Space play · ←/→ one frame (Shift: one second) · S split at the playhead · [ and ] move · Delete remove · Ctrl+Z undo · Ctrl+S save</p>
+    </section>
+    <section class="panel inspector" aria-labelledby="inspectorHeading">
+      <h2 id="inspectorHeading">Selected segment</h2>
+      <p id="noSelection" class="muted">Choose a segment on the timeline.</p>
+      <div id="segmentControls" hidden>
+        <div class="row">
+          <label>Starts at clip frame <input id="trimIn" type="number" min="0" step="1"></label>
+          <label>Ends at clip frame <input id="trimOut" type="number" min="1" step="1"></label>
+        </div>
+        <label>Clip volume <input id="segmentVolume" type="range" min="0" max="200" step="5"> <output id="segmentVolumeValue">100%</output></label>
+        <div class="row">
+          <button id="split" type="button">Split at playhead (S)</button>
+          <button id="moveLeft" type="button">Move earlier ([)</button>
+          <button id="moveRight" type="button">Move later (])</button>
+          <button id="removeSegment" type="button">Remove (Delete)</button>
+        </div>
+      </div>
+      <h2 id="titlesHeading">Titles</h2>
+      <form id="titleForm" class="title-form" aria-labelledby="titlesHeading">
+        <label>Text <input id="titleText" maxlength="120" required autocomplete="off"></label>
+        <label>Seconds <input id="titleSeconds" type="number" min="0.1" max="60" step="0.1" value="2"></label>
+        <label>Position <select id="titlePosition"><option value="bottom">Bottom</option><option value="center">Center</option><option value="top">Top</option></select></label>
+        <label>Size <select id="titleSize"><option value="medium">Medium</option><option value="small">Small</option><option value="large">Large</option></select></label>
+        <button id="addTitle" type="submit" disabled>Add title at playhead</button>
+      </form>
+      <ul id="titles" class="list"></ul>
+      <h2>Music</h2>
+      <div class="row">
+        <label>Music bed <select id="bedSource"><option value="">No music</option></select></label>
+        <label>Music volume <input id="bedVolume" type="range" min="0" max="100" step="5" value="40"> <output id="bedVolumeValue">40%</output></label>
+      </div>
+    </section>
+    <section class="panel export" aria-labelledby="exportHeading">
+      <h2 id="exportHeading">Export</h2>
+      <p id="exportHint" class="muted">Save first: an export renders the last saved version.</p>
+      <div class="row">
+        <button id="renderPreview" type="button" disabled>Render preview</button>
+        <button id="exportMp4" type="button" class="primary" disabled>Export MP4</button>
+        <button id="cancelExport" type="button" hidden>Cancel</button>
+      </div>
+      <progress id="exportProgress" max="1" value="0" hidden></progress>
+      <p id="exportStatus" role="status" aria-live="polite"></p>
+      <div class="row"><a id="watchExport" target="_blank" rel="noopener" hidden>Watch</a> <a id="downloadExport" download hidden>Download MP4</a></div>
+    </section>
+  </main>
+  <script type="module" src="/api/video/editor/assets/editor.mjs"></script>
+</body>
+</html>

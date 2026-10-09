@@ -2,7 +2,7 @@
 
 This is the handover for the package. It says what is built, where it is proven, how to run it,
 and how to pick up each open item. It describes the package as it is on `origin/main` of the
-store on 2026-09-13 (version **0.3.0**). Anything not on main is named as in flight, with its
+store on 2026-10-06 (version **0.7.0**). Anything not on main is named as in flight, with its
 owner. If a sentence here and the code disagree, the code is right and this file is stale.
 
 Read in this order: [README.md](../README.md) (what it does, how to use it) →
@@ -12,14 +12,14 @@ Read in this order: [README.md](../README.md) (what it does, how to use it) →
 
 | | State |
 |---|---|
-| Store `origin/main` | `scan-to-print` 0.3.0 (store #194, 2026-09-13) |
-| Local box (`oshal-local-api`) | 0.3.0 installed at `/app/workspace-shared/deployed-apps/scan-to-print`, api restarted 2026-09-13 04:45 UTC; `@app-admin` for the app granted 2026-09-12 (ADR-149 enforce) so the ribbon tile answers for the operator |
-| Core | ADR-150 (decision record, docs only). No core code was changed for this package. ADR-153 records CAD Studio, the consumer of the 0.3.0 contours |
-| Engine tests | `node --test "tests/*-*.test.js"` — dependency-free; runs in store-ci; also passes inside the api container |
-| Route tests | `OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/routes.core.test.js` — framework-coupled, local only |
-| In flight (not mine, not on main) | 0.3.1 on Codex root's branch `feat/package-test-catalog-pilots` (store PR #185): upload identity re-bind after multer (0.2.2), output freshness (0.2.1), shared core STL viewer, `CAD-PLAN.md`, `surface-cad-handoff` and `upload-identity` suites. Land it through that PR, not by copying |
-| Not configured on the box | `SCAN_TO_PRINT_SLICER_CMD` (G-code answers 409 `needs_gcode`; STL-to-OctoPrint works); ffmpeg is in the api image but the video lane has not been exercised on a real clip |
-| Not yet proven | a real phone camera session in the cockpit; a real iPhone/iPad LiDAR `.ply` through the point-cloud lane; a real printer host (the adapters are proven against a fake network only) |
+| Store `origin/main` | `scan-to-print` 0.7.0 (store #427, 2026-10-06) |
+| Local box (`oshal-local-api`), 2026-10-06 15:21 CDT | 0.7.0 installed, with its slicer engine container `oshal-scan-to-print-engine` (OrcaSlicer 2.4.2, self-test passed). The catalog review 40e2df13 was approved by the operator and the migration applied; he holds `maker`. The operator bot's tools are seeded (reads auto, print ask). The studio, jarvis, orbit and commons experiences run 1.1.1. The operator's Bambu Lab P2S is registered in the app. |
+| Core | No core code was changed for this package. ADR-150 is the decision record and ADR-153 records CAD Studio, the consumer of the contours. 0.7.0 uses core's existing package tools and ADR-149 catalogs |
+| Engine and surface tests | `node --test "tests/*-*.test.js"` — dependency-free; runs in store-ci and the pre-push store gate |
+| Framework-coupled tests | `OSHAL_CORE_DIR=<oshal checkout> node --test tests/*.core.test.js` — routes, depth, frames, markers, freshness, identity, the print service, the package tools and the real-core authorization harness (`kernel.core`); local and Test Lab only |
+| In flight | none |
+| Not configured on the box | `SCAN_TO_PRINT_SLICER_CMD` (HTTP hosts get G-code only from a configured slicer; Bambu Lab printers are sliced by the engine container instead) |
+| Not yet proven | a print started by oshal on a real printer (BACKLOG B19; the P2S's registration, status and an FTPS upload are live-proven, and the operator printed the uploaded files from the printer screen); a real phone camera session in the cockpit; a real iPhone/iPad LiDAR `.ply` through the point-cloud lane |
 
 ## 2. Release lineage
 
@@ -30,6 +30,12 @@ Read in this order: [README.md](../README.md) (what it does, how to use it) →
 | 0.4.0 | `feat/package-test-catalog-pilots` (2026-09-14) | BACKLOG B7, base sealing: `fillSolidFromSurface` takes `sealBase`, the point-cloud route exposes the flag, the report records `sealedBase` and says the base face is an assumption. Three engine cases and one route case |
 | 0.5.0 | `feat/package-backlog-sweep` (2026-09-14) | BACKLOG B1 + B8 (`POST /jobs/:id/depth`: a 16-bit PNG or float32 range image refines the job's current photo hull), B2 (perspective → canonical re-projection, engine), B10 (joint least-squares registration with per-view residuals), B11 (opt-in symmetry completion, engine), B12 (`GET /jobs/:id/frame-suggestions` + "Suggest views from the video"), B13 (`printChecks` on every report), B9 (orientation-cube face markers: a photo upload assigns its own view). Evidence per item in BACKLOG |
 | 0.3.0 | store #194 (2026-09-13) | The CAD bridge: `contours` artifact (front/top/right outlines in world mm, simplified within half a voxel, ≤ 1500 points) written on every reconstruction, "Open in CAD Studio" in the report card, `tests/engine-contours.test.js`. CAD Studio (`cad-studio` package, ADR-153) turns the outlines into a B-rep part |
+| 0.5.1 | store #236 (2026-09-17) | The manifest declares what the package reaches: CAD Studio as an optional app (the "Open in CAD Studio" hand-off), checked by the store's reach gate. |
+| 0.5.2 | store #355 (2026-09-28) | The company audience view for the Business shell (ADR-164 D6): the shared kit paints the account's objects and printers. |
+| 0.5.3 | store #387 (2026-09-28) | The family audience view beside the company one. |
+| 0.6.0 | store #424 (2026-10-06) | The swarm print service (`/api/scan-to-print/service`), Bambu Lab printers on the home network (certificate-pinned FTPS upload, MQTT status and start), the OrcaSlicer engine container, per-printer slice settings and the owner's auto-start. Migration 002. |
+| 0.6.1 | store #425 (2026-10-06) | Every connection to a Bambu Lab printer offers TLS 1.2 at most (a P2S broker on 01.02.00.00 was reported to hang on TLS 1.3); a Printers panel at the top of the object list, so printers are managed with no object open; the P2S menu path in the help. |
+| 0.7.0 | store #427 (2026-10-06) | Agents use the print tools: the five tools are in-process package tools under an ADR-149 catalog (`authorization.yaml`, one `maker` role), and the operator bot is the printer bot (reads auto, print ask). The studio, jarvis, orbit and commons experiences name `maker` (1.1.1). |
 
 ## 3. What is complete, with evidence
 
@@ -58,6 +64,19 @@ A3 third-angle sheet with dimensions, title block, provenance notes; binary STL 
 `tests/engine-print.test.js` (fake network), `tests/routes.core.test.js` (428 without confirm,
 409 without a slicer, STL never auto-started, ciphertext-only printer keys).
 
+**Bambu Lab printers and the print service** (0.6.x) — identity and a SHA-256 pin from the printer's
+certificate, implicit FTPS with the session reuse the printer requires, MQTT status and start with
+every start rule, the OrcaSlicer engine bridge, the owner's auto-start re-read at start time, TLS 1.2
+on every printer connection. Evidence: `tests/printing-bambu.test.js` (a fake printer on real local
+TLS, including one that never answers a TLS 1.3 hello), `tests/printing-slicer.test.js`,
+`tests/service.core.test.js`; live against the operator's P2S on 2026-10-06: probe and pin, status,
+an upload and a refused wrong pin.
+
+**Agent tools and the catalog** (0.7.0) — the five package tools run under the verified actor; the
+ADR-149 catalog binds every route exactly once. Evidence: `tests/catalog-bindings.test.js`,
+`tests/tools.core.test.js`, `tests/kernel.core.test.js` (activation, the maker grant, executor runs,
+refusals, the HTTP guard and the reviewed migration through the real core runtime).
+
 **Camera capture** — `tools/scan-to-print-camera.js`; every browser object is a parameter.
 Evidence: `tests/surface-camera.test.js` (sequence, guidance, frame bounds, countdown on a fake clock).
 
@@ -84,7 +103,13 @@ through the personal-data vault. Evidence: `migrations/001-scan-to-print.sql`, `
 | Printers, slicer | `engine/print/printer-adapters.ts`, `slicer.ts` | `adapterFor`, `validatePrinterBaseUrl`, `sliceStl` | `engine-print` |
 | The lanes' common tail and the report | `engine/pipeline.ts` | `finishFromGrid`, `reconstructFromSilhouettes`, `refineWithDepth`, `exportArtifacts` | every engine suite |
 | HTTP: jobs, uploads, reconstruct, artifacts | `job-routes.ts` | `createJobRoutes` | `routes.core` |
-| HTTP: printers, print | `print-routes.ts` | `createPrintRoutes` | `routes.core` |
+| HTTP: printers, print | `print-routes.ts` | `createPrintRoutes` | `routes.core`, `service.core` |
+| Bambu Lab on the LAN | `printing/bambu-lan.ts`, `bambu-mqtt.ts`, `bambu-ftps.ts` | `probeBambuPrinter`, `bambuStatus`, `bambuUpload`, `bambuStart` | `printing-bambu` |
+| Slicing for Bambu Lab | `printing/slicer-engine.ts`, `engine/` (container) | `sliceToArchive`, `slicerEngineBuildHash` | `printing-slicer` |
+| Sending a print, recording it | `print-service.ts`, `printer-registration.ts` | `sendToBambu`, `sendToHttpPrinter`, `recordAttempt`, `registerBambuPrinter` | `service.core` |
+| HTTP: the print service | `service-routes.ts` | `createPrintServiceRouter` | `service.core` |
+| Agent tools | `print-tools.ts` | `registerPrintTools`, `PRINT_TOOL_SPECS` | `tools.core`, `kernel.core` |
+| Authorization | `scan-authorization.ts`, `../authorization.yaml` | `registerScanToPrintAuthorization` | `catalog-bindings`, `kernel.core` |
 | SQL (owner-scoped) | `job-store.ts` | one function per statement | `routes.core` (SQL-dispatching double) |
 | Files on disk | `data-dir.ts` | `resolveDataRoot`, `jobDir`, `artifactPath` | `routes.core` |
 | Decoding, ffmpeg | `image-ingest.ts` | `decodeToRaster`, `extractFrames`, `pngToMask` | `routes.core` |
@@ -146,7 +171,8 @@ docker restart oshal-local-api
 Prove it from the boot log, not from a probe: `Manifest loaded`, `Package migration applied`,
 three `Mounted package route` lines, `App loaded … active`. A PAT and the service secret answer
 `401 authorization_identity_required` on every package route under ADR-149 enforce; only a browser
-session with the app provisioned in `/access` reaches the surface.
+session reaches the surface — since 0.7.0 one holding the catalog's `maker` role. Agents reach the
+print service through the in-process package tools instead (docs/PRINTERS.md §6).
 
 **Configuration** (all env, none hard-coded): `SCAN_TO_PRINT_DATA_DIR`, `SCAN_TO_PRINT_SLICER_CMD`
 (+ `_TIMEOUT_MS`), `SCAN_TO_PRINT_FFMPEG_BIN`, `SCAN_TO_PRINT_FRAME_FPS`, `SCAN_TO_PRINT_MAX_FRAMES`.
@@ -165,7 +191,10 @@ See [PRINTERS.md](PRINTERS.md).
 - **`contours.json`** — world millimetres, footprint centred, Z from 0, outer outlines only.
 - **Determinism** — no model, seed, randomness or iteration-to-tolerance in `engine/`. The
   byte-identity tests exist to catch anyone who adds one.
-- **Printing is a human click behind `confirm: true`.** No bot tool prints.
+- **Printing from the app is a human click behind `confirm: true`.** Since 0.6.0 the print service
+  (PRINTERS.md §5/§6) also prints for agents and apps, and it starts a machine only on a printer whose
+  owner turned auto-start on (OIDC-only, with confirmation, re-read at start time); a caller's own
+  sliced archive or G-code is uploaded, never auto-started. Keep both properties.
 
 ## 7. Known limits (as built)
 
@@ -207,6 +236,9 @@ reason:
    nozzle or layer height yet).
 8. **B4, B5, B6, B14, B16** — independent; take by demand. (B9, B11 and B12 are done in 0.5.0; B3,
    the fiducial scale, remains.)
+9. **B19 the live print test**, deferred by the operator on 2026-10-06 after printing the uploaded
+   files from the printer screen: install 0.7.0, then an agent sends a job and the printer starts.
+   **B20** gives the printer bot its own node so it answers the operator directly.
 
 For each item: write the pure engine function first with its spec in `tests/engine-*.test.js`,
 then the route with its case in `routes.core.test.js`, then register the case in
@@ -216,7 +248,8 @@ route was added, and land through a PR. The engine stays free of framework impor
 ## 9. Related documents
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — the geometry contract, frames, lanes, limits.
-- [PRINTERS.md](PRINTERS.md) — printer hosts, API keys, slicer configuration, video sampling.
+- [PRINTERS.md](PRINTERS.md) — printer hosts, Bambu Lab setup and Developer Mode, the slicer engine,
+  the print service, the agent tools and the catalog, video sampling.
 - [BACKLOG.md](../BACKLOG.md) — every open item with done-when criteria.
 - Core `docs/adr/150-deterministic-object-reconstruction-scan-to-print.md` — the decision record.
 - Core `docs/adr/153-iterative-cad-kernel-cad-studio.md` and the `cad-studio` package — the

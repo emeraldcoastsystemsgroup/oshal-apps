@@ -1,0 +1,30 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Extract the approved Home layout while preserving the established shared renderer and member ownership.
+ */
+body[data-skin="family"], [data-layout][data-skin="family"], .experience[data-skin="family"], [data-skin="family"],
+body[data-skin="cozy"], [data-layout][data-skin="cozy"], .experience[data-skin="cozy"], [data-skin="cozy"],
+body[data-theme="cozy"], [data-theme="cozy"] {
+  --bg: #f6f5f0;
+  --surface: #fffefa;
+  --surface-2: #e9eee1;
+  --chrome: #fffefa;
+  --ink: #283f38;
+  --muted: #64756c;
+  --line: #dce1d6;
+  --accent: #3e6854;
+  --on-accent: #ffffff;
+  --soft: #e9eee1;
+  --paper: #fffefa;
+  --on: #ffffff;
+  --feature: #e8eddd;
+  --teal: #3e6854;
+  --gold: #d4b07b;
+  --radius-custom: 20px;
+  --radius: 20px;
+  --theme-brand: "Family Homebase";
+  color-scheme: light;
+}

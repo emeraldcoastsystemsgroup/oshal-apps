@@ -1,0 +1,191 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | First Intelligent Career authorization catalog (ADR-149, 1.25.1). The engine's model rail moves onto the kernel's signed-package-callbacks rail, which the loader admits only for a package that declares a catalog, so every mounted route, the eight framework tools, the Career bot and the Send-to-Career artifact action are bound to named permissions here. Until now the package had no catalog and, under enforce, admitted only callers holding the application's app-admin assignment; that posture is mirrored, not widened: one member role carries the whole app, admin adds the operator-only routes.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Bind the Companies ribbon surface (GET /companies-admin, the page the manifest's iframe opens) beside its list and seturl data routes: the first catalog bound only the data routes, so under enforce the kernel answered the operator's Companies page 403 authorization_operation_unbound before the handler's own admin gate ran. Bind the classic-board wildcard one depth further (four segments) and say what a deeper legacy path gets. Both gaps were invisible to oshal-app validate, which sees the catalog and not the routers; tests/career-catalog-route-bindings.test.mjs now enumerates every literal route in src-routes and requires exactly one binding under the kernel's segment rule.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Bind the two owner-scoped removals 1.26.0 adds, each once, to career.change (a state write that spends nothing): DELETE /stories/test-lab/:tag removes only the caller's stories carrying that acceptance run's Test Lab mark, and DELETE /jobs/:id/packet discards the caller's own generated packet for one posting. Both exist so the story review's live acceptance can leave the owner's store exactly as it found it. A new catalog revision: the install needs its AUTH-07 review.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Bind the Test Lab application seam 1.27.0 adds, each route once, to career.change (a state write that spends nothing; the approve that follows is its own binding): POST /test-lab/applications plants one application marked with an acceptance run's tag on one untouched posting of the caller, and DELETE /test-lab/applications/:postingId/:tag removes only the caller's application whose ticket carries that tag. Both exist so the Career worker rail's live acceptance can drive a real approve -> draft and leave the owner's store as it found it. A new catalog revision: the install needs its AUTH-07 review.
+#
+# One resource with `own` scope only. Row ownership stays where it always was: every route reads
+# and writes the caller's own store, the Postgres tables are FORCE-RLS per user_sub, and the
+# operator-only handlers (cutover status, the portal companies table, the shared refresh) keep
+# their own checks. The catalog decides which named permission a request needs.
+#
+# Bindings are matched on the path relative to whichever mount owns the request, and the runtime
+# also tries every shorter mount, so one entry covers every mount that serves that method and
+# path: GET / is the Home summary and the install-readiness smoke; POST /complete is the engine
+# rail; POST /ingest and GET /insights are the graph mount; GET /status is the cutover mount.
+# Where Express serves a literal beside a parameter (GET /jobs/stats beside GET /jobs/:id,
+# GET /resume/state and /resume/doc beside GET /resume/:id, POST /run/refresh beside
+# POST /run/:verb) only the parameter form is bound: the kernel refuses overlapping bindings, and
+# the parameter binding matches the literal request with the same permission.
+#
+# Effects: read for every GET; change for a state write; execute for anything that launches the
+# engine or dispatches the Career bot (it spends the caller's provider money); administer for the
+# operator-only routes. The engine rail's callback runs as the run owner the grant names and needs
+# that owner's current career.execute.
+
+version: 1
+resources:
+  career: { scopes: [own] }
+permissions:
+  app.open: { resource: career, effect: read, minimumTier: viewer }
+  career.read: { resource: career, effect: read, minimumTier: viewer }
+  career.change: { resource: career, effect: write, minimumTier: editor }
+  career.execute: { resource: career, effect: execute, minimumTier: editor }
+  career.administer: { resource: career, effect: administer, minimumTier: admin }
+roles:
+  member:
+    tier: editor
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: career.read, scope: own }
+      - { permission: career.change, scope: own }
+      - { permission: career.execute, scope: own }
+  admin:
+    tier: admin
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: career.read, scope: own }
+      - { permission: career.change, scope: own }
+      - { permission: career.execute, scope: own }
+      - { permission: career.administer, scope: own }
+bindings:
+  http:
+    # Surfaces (career-surface-routes, career-profile-studio-routes): the app's own pages and assets.
+    - { id: board-native, method: GET, path: /board-native, allOf: [app.open] }
+    - { id: search-ui, method: GET, path: /search-ui, allOf: [app.open] }
+    - { id: recruiters-ui, method: GET, path: /recruiters-ui, allOf: [app.open] }
+    - { id: strengthen-ui, method: GET, path: /strengthen-ui, allOf: [app.open] }
+    - { id: insights-ui, method: GET, path: /insights-ui, allOf: [app.open] }
+    - { id: approvals-ui, method: GET, path: /approvals, allOf: [app.open] }
+    - { id: settings-ui, method: GET, path: /settings, allOf: [app.open] }
+    - { id: resume-studio-ui, method: GET, path: /resume-studio, allOf: [app.open] }
+    - { id: mobile-ui, method: GET, path: /mobile, allOf: [app.open] }
+    - { id: submissions-ui, method: GET, path: /submissions, allOf: [app.open] }
+    - { id: profile-studio-ui, method: GET, path: /profile-studio, allOf: [app.open] }
+    - { id: static-asset, method: GET, path: /static/:file, allOf: [app.open] }
+    # The classic-board redirect (GET /board/*boardPath, a 308 to /board-native for legacy
+    # bookmarks): the kernel's matcher has no wildcard grammar, so the wildcard is bound one depth
+    # at a time, one to four segments under /board. A legacy path deeper than that is refused
+    # authorization_operation_unbound (403) before the redirect runs.
+    # tests/career-catalog-route-bindings.test.mjs checks exactly these depths.
+    - { id: classic-board, method: GET, path: /board, allOf: [app.open] }
+    - { id: classic-board-1, method: GET, path: /board/:a, allOf: [app.open] }
+    - { id: classic-board-2, method: GET, path: /board/:a/:b, allOf: [app.open] }
+    - { id: classic-board-3, method: GET, path: /board/:a/:b/:c, allOf: [app.open] }
+    - { id: classic-board-4, method: GET, path: /board/:a/:b/:c/:d, allOf: [app.open] }
+    # Home summary (its own mount) and the install-readiness smoke (its own mount): both GET /.
+    - { id: summary, method: GET, path: /, allOf: [career.read] }
+    - { id: review, method: GET, path: /review, allOf: [career.read] }
+    - { id: readiness, method: GET, path: /readiness, allOf: [career.read] }
+    # Board, search and job detail (career-board-routes, career-browse-routes, career-job-guide).
+    - { id: jobs, method: GET, path: /jobs, allOf: [career.read] }
+    - { id: job, method: GET, path: /jobs/:id, allOf: [career.read] }
+    - { id: job-status, method: POST, path: /jobs/:id/status, allOf: [career.change] }
+    - { id: job-generate, method: POST, path: /jobs/:id/generate, allOf: [career.execute] }
+    - { id: job-packet-remove, method: DELETE, path: /jobs/:id/packet, allOf: [career.change] }
+    - { id: job-guide, method: POST, path: /jobs/:id/guide, allOf: [career.execute] }
+    - { id: analytics, method: GET, path: /analytics, allOf: [career.read] }
+    - { id: browse, method: GET, path: /browse, allOf: [career.read] }
+    - { id: company-referral, method: POST, path: /company/:id/referral, allOf: [career.change] }
+    # Applications (career-application-routes).
+    - { id: applications, method: GET, path: /applications, allOf: [career.read] }
+    - { id: application-approve, method: POST, path: /applications/:postingId/approve, allOf: [career.change] }
+    - { id: application-applied, method: POST, path: /applications/:postingId/applied, allOf: [career.change] }
+    - { id: application-deny, method: POST, path: /applications/:postingId/deny, allOf: [career.change] }
+    - { id: enqueue-drafts, method: POST, path: /enqueue-drafts, allOf: [career.execute] }
+    - { id: test-lab-application-plant, method: POST, path: /test-lab/applications, allOf: [career.change] }
+    - { id: test-lab-application-remove, method: DELETE, path: /test-lab/applications/:postingId/:tag, allOf: [career.change] }
+    # Resume, onboarding and the resume studio (career-board-routes, career-onboarding-routes,
+    # career-resume-studio-routes, career-resume-upload).
+    - { id: resume, method: GET, path: /resume, allOf: [career.read] }
+    - { id: resume-item, method: GET, path: /resume/:id, allOf: [career.read] }
+    - { id: resume-upload, method: POST, path: /resume/upload, allOf: [career.execute] }
+    - { id: resume-guide, method: POST, path: /resume/guide, allOf: [career.execute] }
+    - { id: resume-save, method: POST, path: /resume/save, allOf: [career.change] }
+    # Artifacts, including the ADR-139 Send-to-Career destination (career-artifacts).
+    - { id: artifacts, method: GET, path: /artifacts, allOf: [career.read] }
+    - { id: artifact-upload, method: POST, path: /artifacts/upload, allOf: [career.execute] }
+    - { id: artifact-import, method: POST, path: /artifacts/import, allOf: [career.execute] }
+    - { id: autofill-bookmarklet, method: GET, path: /autofill/bookmarklet, allOf: [career.read] }
+    # Profile studio (career-profile-studio-routes).
+    - { id: profile-plan, method: GET, path: /profile-studio/plan, allOf: [career.read] }
+    - { id: profile-plan-save, method: POST, path: /profile-studio/plan, allOf: [career.change] }
+    - { id: profile-draft, method: POST, path: /profile-studio/draft, allOf: [career.execute] }
+    - { id: profile-background, method: GET, path: /profile-studio/background, allOf: [career.read] }
+    - { id: profile-background-save, method: PUT, path: /profile-studio/background, allOf: [career.change] }
+    - { id: profile-photo, method: GET, path: /profile-studio/photo, allOf: [career.read] }
+    - { id: profile-photo-save, method: PUT, path: /profile-studio/photo, allOf: [career.change] }
+    - { id: profile-resume-save, method: PUT, path: /profile-studio/resume, allOf: [career.change] }
+    - { id: profile-approve, method: POST, path: /profile-studio/approve, allOf: [career.change] }
+    - { id: profile-dispatch, method: POST, path: /profile-studio/dispatch, allOf: [career.execute] }
+    - { id: profile-reset, method: POST, path: /profile-studio/reset, allOf: [career.change] }
+    - { id: profile-abandon, method: POST, path: /profile-studio/abandon, allOf: [career.change] }
+    # Stories and Strengthen (career-stories-routes, career-strengthen-routes).
+    - { id: stories, method: GET, path: /stories, allOf: [career.read] }
+    - { id: stories-answer, method: POST, path: /stories/answer, allOf: [career.execute] }
+    - { id: stories-test-lab-remove, method: DELETE, path: /stories/test-lab/:tag, allOf: [career.change] }
+    - { id: strengthen, method: GET, path: /strengthen, allOf: [career.read] }
+    - { id: strengthen-changelog, method: GET, path: /strengthen/changelog, allOf: [career.read] }
+    - { id: strengthen-scan, method: POST, path: /strengthen/scan, allOf: [career.execute] }
+    - { id: strengthen-answer, method: POST, path: /strengthen/answer, allOf: [career.execute] }
+    - { id: strengthen-status, method: POST, path: /strengthen/:key/status, allOf: [career.change] }
+    # Recruiters (career-recruiter-routes).
+    - { id: recruiters, method: GET, path: /recruiters, allOf: [career.read] }
+    - { id: recruiter-create, method: POST, path: /recruiters, allOf: [career.change] }
+    - { id: recruiter-update, method: POST, path: /recruiters/:id, allOf: [career.change] }
+    - { id: recruiter-delete, method: DELETE, path: /recruiters/:id, allOf: [career.change] }
+    # Settings, targets, automation, digest and the title profile.
+    - { id: settings-state, method: GET, path: /settings/state, allOf: [career.read] }
+    - { id: settings-anthropic, method: POST, path: /settings/anthropic, allOf: [career.change] }
+    - { id: settings-firecrawl, method: POST, path: /settings/firecrawl, allOf: [career.change] }
+    - { id: settings-key-delete, method: DELETE, path: /settings/key/:provider, allOf: [career.change] }
+    - { id: settings-targets, method: GET, path: /settings/targets, allOf: [career.read] }
+    - { id: settings-target-add, method: POST, path: /settings/targets, allOf: [career.change] }
+    - { id: settings-target-delete, method: DELETE, path: /settings/targets/:id, allOf: [career.change] }
+    - { id: settings-automation, method: POST, path: /settings/automation, allOf: [career.change] }
+    - { id: automation-state, method: GET, path: /automation/state, allOf: [career.read] }
+    - { id: settings-digest, method: POST, path: /settings/digest, allOf: [career.change] }
+    - { id: digest-state, method: GET, path: /digest/state, allOf: [career.read] }
+    - { id: digest-preview, method: GET, path: /digest/preview, allOf: [career.read] }
+    - { id: digest-send-now, method: POST, path: /digest/send-now, allOf: [career.change] }
+    - { id: settings-remote-only, method: POST, path: /settings/remote-only, allOf: [career.change] }
+    - { id: settings-title-profile, method: POST, path: /settings/title-profile, allOf: [career.change] }
+    - { id: title-profile-state, method: GET, path: /title-profile/state, allOf: [career.read] }
+    - { id: title-pass-run-now, method: POST, path: /title-pass/run-now, allOf: [career.execute] }
+    # Engine runs (career-run-routes): the owner's own runs; POST /run/:verb also matches the
+    # administrator refresh (POST /run/refresh), whose handler keeps its own admin gate.
+    - { id: runs, method: GET, path: /runs, allOf: [career.read] }
+    - { id: run-refresh-state, method: GET, path: /run/refresh, allOf: [career.read] }
+    - { id: run-verb, method: POST, path: /run/:verb, allOf: [career.execute] }
+    - { id: run-cancel, method: POST, path: /run/:runId/cancel, allOf: [career.change] }
+    # The guest tier's seed (handler admits guest subjects only).
+    - { id: guest-seed, method: POST, path: /guest-seed, allOf: [career.change] }
+    # Graph mount (career-graph-routes).
+    - { id: graph-ingest, method: POST, path: /ingest, allOf: [career.change] }
+    - { id: graph-insights, method: GET, path: /insights, allOf: [career.read] }
+    # The engine worker rail: signed per-run callbacks running as the run owner.
+    - { id: engine-complete, method: POST, path: /complete, allOf: [career.execute] }
+    # Operator-only: the portal companies table (CAREER_HUNTER_ADMIN_SUBS) and the storage-cutover
+    # observation status (swarm operator); both handlers keep their own checks. The Companies
+    # ribbon item opens the page itself (GET /companies-admin, career-companies.html) before the
+    # page calls the list; the page is bound like the data it shows.
+    - { id: companies-admin-ui, method: GET, path: /companies-admin, allOf: [career.administer] }
+    - { id: companies-admin-list, method: GET, path: /companies-admin/list, allOf: [career.administer] }
+    - { id: companies-admin-seturl, method: POST, path: /companies-admin/seturl, allOf: [career.administer] }
+    - { id: cutover-status, method: GET, path: /status, allOf: [career.administer] }
+  tools:
+    - { id: career_database, allOf: [career.read] }
+    - { id: career_draft, allOf: [career.execute] }
+    - { id: career_draft_oshal, allOf: [career.execute] }
+    - { id: career_score, allOf: [career.execute] }
+    - { id: career_refresh, allOf: [career.execute] }
+    - { id: career_refresh_status, allOf: [career.read] }
+    - { id: career_resume_read, allOf: [career.read] }
+    - { id: career_resume_save, allOf: [career.change] }
+  bots:
+    - { id: cb000000-0000-0000-0000-000000000001, allOf: [app.open, career.execute] }
+  artifactActions:
+    - { id: absorb, allOf: [app.open, career.execute] }

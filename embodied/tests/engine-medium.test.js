@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | ADR-160 S1's guard, and it crosses the boundary the slice claims: the REAL MJCF generators are driven with each of the three media and the emitted scene is asserted to differ accordingly (the gravity vector the plant reads, and which medium answered), never a string match on a constant. Each named refusal is raised and checked by its own name. The committed property rows are checked against the values the other labs hold — 1025 kg/m^3 and 1.05e-6 m^2/s from ocean-lab, ISA sea level from aero-lab — and the package is checked for a SECOND copy of either, which is the defect ADR-160 exists to stop. The explorer hull's numbers are checked against the published design study, and the fall against h - g t^2 / 2.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 D5: a run result carries its medium id and engine fingerprints or is not displayed. The compiled engine tree's build hash is a sha256 that is stable, recomputable over a copy, and moves when one byte of one module moves (a mutation on the copy); the package version is read from the real manifest and is null on a tree that has none; fingerprintRun stamps a drop and requireDisplayable refuses one missing its medium id or either fingerprint, naming the field.
  */
 'use strict';
 const test = require('node:test');
@@ -262,4 +263,64 @@ test('the envelope is checked before the properties, so a declining model says s
   // flotation's envelope admits every medium, so the same medium answers with the PROPERTY refusal instead.
   assert.deepEqual([...E.HULL_FLOTATION.validIn], ['vacuum', 'air', 'seawater']);
   assert.throws(() => E.hullFlotation(E.mediumById('seawater')), (e) => e.code === 'medium_property_unavailable');
+});
+
+// ── the run result's fingerprints (D5) ────────────────────────────────────────
+
+const os = require('node:os');
+
+/** A disposable copy of a compiled tree, so a mutation never touches the real engine. */
+function copyTree(src) {
+  const dst = fs.mkdtempSync(path.join(os.tmpdir(), 'embodied-engine-copy-'));
+  fs.cpSync(src, dst, { recursive: true });
+  return dst;
+}
+
+test('the compiled engine tree has a build hash that is stable, recomputable and moves with one byte', () => {
+  const engineRoot = path.join(__dirname, '..', 'routes', 'engine');
+  const hash = E.routesEngineBuildHash();
+  assert.match(hash, /^[0-9a-f]{64}$/);
+  assert.equal(E.routesEngineBuildHash(), hash, 'cached per process for the tree this module answers from');
+  assert.equal(E.routesEngineBuildHash(engineRoot), hash, 'the default is the tree the compiled module lives in');
+  const copy = copyTree(engineRoot);
+  try {
+    assert.equal(E.routesEngineBuildHash(copy), hash, 'a byte-identical copy hashes the same wherever it sits');
+    const target = path.join(copy, 'medium', 'medium-properties.json');
+    fs.writeFileSync(target, fs.readFileSync(target, 'utf8').replace('"densityKgM3": 1025', '"densityKgM3": 1026'));
+    assert.notEqual(E.routesEngineBuildHash(copy), hash, 'one changed byte in one module is another engine');
+    fs.rmSync(path.join(copy, 'medium', 'run-fingerprint.js'));
+    assert.notEqual(E.routesEngineBuildHash(copy), hash, 'a missing module is another engine too');
+  } finally { fs.rmSync(copy, { recursive: true, force: true }); }
+});
+
+test('the package version is read from the real manifest, and a tree without one yields null rather than an invented version', () => {
+  const manifest = fs.readFileSync(path.join(__dirname, '..', 'oshal-app.yaml'), 'utf8');
+  const declared = /^version:\s*([^#\r\n]+)/m.exec(manifest)[1].trim();
+  assert.equal(E.readPackageVersion(path.join(__dirname, '..')), declared);
+  assert.match(declared, /^\d+\.\d+\.\d+/);
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'embodied-no-manifest-'));
+  try { assert.equal(E.readPackageVersion(empty), null); } finally { fs.rmSync(empty, { recursive: true, force: true }); }
+});
+
+test('a run result is displayable only with its medium id and engine fingerprints, and the refusal names what is missing', () => {
+  const engine = { package: 'embodied', packageVersion: E.readPackageVersion(path.join(__dirname, '..')), routesBuildHash: E.routesEngineBuildHash(), plant: { kind: 'analytic', mujocoEngineTreeBuildHash: null } };
+  const drop = E.dropExplorerHull(E.mediumById('air'), { dropHeightM: 2 });
+  const stamped = E.fingerprintRun(drop, engine);
+  assert.equal(stamped.schema, 'oshal.run-result/1');
+  assert.equal(stamped.medium.id, 'air', 'the medium id is the run\'s own, never the fingerprint\'s');
+  assert.deepEqual(stamped.engine, engine);
+  assert.equal(E.requireDisplayable(stamped), stamped);
+
+  // Unstamped: the drop alone carries a medium but no engine, and is refused by name.
+  assert.throws(() => E.requireDisplayable(drop), (e) => {
+    assert.ok(e instanceof E.RunNotDisplayable);
+    assert.equal(e.code, 'run_not_displayable');
+    assert.deepEqual([...e.missing], ['engine.packageVersion', 'engine.routesBuildHash']);
+    return true;
+  });
+  // A stamped result whose medium id was dropped is refused too.
+  assert.throws(() => E.requireDisplayable({ ...stamped, medium: { label: 'Air' } }), (e) => e.missing.length === 1 && e.missing[0] === 'medium.id');
+  // A fingerprint that is not a real hash is not a fingerprint.
+  assert.throws(() => E.requireDisplayable({ ...stamped, engine: { ...engine, routesBuildHash: 'deadbeef' } }), (e) => e.missing[0] === 'engine.routesBuildHash');
+  assert.throws(() => E.requireDisplayable(null), (e) => e.missing.length === 3);
 });

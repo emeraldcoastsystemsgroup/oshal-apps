@@ -11,7 +11,7 @@
 const assert = require('node:assert');
 const {
   buildRecommendation, proposeTitle, ruleMatches, ruleMayAutoApprove,
-  destinationCatalog, destinationsForCaller, isOperatorIdentity,
+  destinationCatalog, destinationsForCaller,
 } = require('../routes/print-classify.js');
 
 const CATALOG = [
@@ -88,7 +88,7 @@ function run() {
     });
     const swarm = rec.proposals.find((p) => p.id === 'swarm');
     assert.strictEqual(swarm.recommended, false, 'the world-readable level is never recommended by content alone');
-    assert.match(swarm.reason, /everyone in this swarm/i, 'and says who would be able to read it');
+    assert.match(swarm.reason, /current named readers in your tenant/i, 'and says who would be able to read it');
   });
 
   // --- the swarm level is withheld from a non-admin ------------------------
@@ -160,72 +160,30 @@ function run() {
     assert.strictEqual(ruleMayAutoApprove(rec, CATALOG), false, 'auto-approve is opt-in per rule');
   });
 
-  // --- the destination catalog is configuration ---------------------------
+  // Current native declarations are already admitted before this pure adapter.
   check(() => {
-    const catalog = destinationCatalog({
-      PRINT_INGEST_BOT_DESTINATIONS: 'maintenance|Maintenance bot|agent-knowledge-maintenance|heat exchanger,valve',
-    });
-    assert.deepStrictEqual(catalog.map((d) => d.id), ['private', 'swarm', 'maintenance'],
-      'adding a bot destination is configuration, not a release');
-    const bot = catalog[2];
-    assert.deepStrictEqual(bot.topics, ['heat exchanger', 'valve']);
-    assert.strictEqual(bot.collection, 'agent-knowledge-maintenance');
-    assert.match(bot.readableBy, /routing, not privacy/,
-      'a bot corpus states at the point of choice that it is not private');
+    const botId = 'a0000000-0000-0000-0000-000000000050';
+    const catalog = destinationCatalog([
+      {id:'private',label:'Private to me',kind:'private',collection:'my-knowledge'},
+      {id:'swarm',label:'Swarm knowledge',kind:'swarm',collection:'swarm-knowledge'},
+      {id:`bot:${botId}`,label:'OSHAL Assistant',kind:'bot',collection:'assistant-knowledge',botId},
+    ]);
+    assert.deepStrictEqual(catalog.map(d=>d.collection), ['my-knowledge','swarm-knowledge','assistant-knowledge']);
+    assert.match(catalog[2].readableBy, /current named readers in your tenant/);
+    assert.match(catalog[2].readableBy, /routing, not privacy/);
+    assert.deepStrictEqual(destinationsForCaller(catalog,false).map(d=>d.kind), ['private','bot']);
+    assert.strictEqual(destinationsForCaller(catalog,true).length, 3);
   });
   check(() => {
-    // A half-registered destination would fail at WRITE time, after the person
-    // believed they had filed the document. Drop it instead.
-    const catalog = destinationCatalog({
-      PRINT_INGEST_BOT_DESTINATIONS: 'nocollection|Broken||;BAD ID|x|c;|Nameless|c;good|Good|agent-knowledge-good',
-    });
-    assert.deepStrictEqual(catalog.map((d) => d.id), ['private', 'swarm', 'good'],
-      'malformed entries are dropped, never half-registered');
+    assert.throws(()=>destinationCatalog({OSHAL_OPERATOR_SUBS:'forged',PRINT_INGEST_BOT_DESTINATIONS:'forged'}), /unavailable/);
+    assert.deepStrictEqual(destinationCatalog([]), [], 'no current native destinations means no guessed fallback');
   });
   check(() => {
-    const catalog = destinationCatalog({
-      PRINT_INGEST_BOT_DESTINATIONS: 'private|Impostor|somewhere-else',
-    });
-    assert.strictEqual(catalog.filter((d) => d.id === 'private').length, 1,
-      'configuration cannot redefine a built-in destination');
-    assert.strictEqual(catalog[0].collection, 'my-knowledge', 'and cannot repoint it');
-  });
-  check(() => {
-    const catalog = destinationCatalog({});
-    assert.deepStrictEqual(destinationsForCaller(catalog, false).map((d) => d.id), ['private'],
-      'a non-admin is never offered the kernel-reserved swarm level');
-    assert.deepStrictEqual(destinationsForCaller(catalog, true).map((d) => d.id), ['private', 'swarm']);
-  });
-
-  // --- operator identity, from the kernel's allowlist ---------------------
-  check(() => {
-    // Regression: the first live test denied a genuine operator the swarm
-    // destination because this read an OIDC `roles` claim, and a
-    // personal-access-token session carries none. The allowlist is the signal.
-    const env = {
-      OSHAL_OPERATOR_SUBS: 'example-user-sub,auth0|second',
-      OSHAL_OPERATOR_EMAILS: 'Op@Example.com , other@example.com',
-    };
-    assert.strictEqual(isOperatorIdentity('example-user-sub', null, env), true, 'sub on the allowlist');
-    assert.strictEqual(isOperatorIdentity('auth0|second', null, env), true, 'second sub on the allowlist');
-    assert.strictEqual(isOperatorIdentity(null, 'op@example.com', env), true, 'email match is case-insensitive');
-    assert.strictEqual(isOperatorIdentity(null, '  OP@EXAMPLE.COM  ', env), true, 'and whitespace-tolerant');
-    assert.strictEqual(isOperatorIdentity('someone-else', 'nobody@example.com', env), false, 'anyone else is not');
-  });
-  check(() => {
-    // An OIDC subject is case-sensitive; treating it otherwise would admit a
-    // different principal than the one allowlisted.
-    const env = { OSHAL_OPERATOR_SUBS: 'auth0|AbC' };
-    assert.strictEqual(isOperatorIdentity('auth0|AbC', null, env), true);
-    assert.strictEqual(isOperatorIdentity('auth0|abc', null, env), false, 'subs compare exactly');
-  });
-  check(() => {
-    assert.strictEqual(isOperatorIdentity('anyone', 'anyone@example.com', {}), false,
-      'no allowlist configured means nobody is an operator - fails closed');
-    assert.strictEqual(isOperatorIdentity(null, null, { OSHAL_OPERATOR_SUBS: 'x' }), false,
-      'an anonymous caller is never an operator');
-    assert.strictEqual(isOperatorIdentity('', '', { OSHAL_OPERATOR_EMAILS: '' }), false,
-      'empty values never match an empty allowlist entry');
+    const row={id:'private',label:'Private',kind:'private',collection:'my-knowledge'};
+    assert.throws(()=>destinationCatalog([row,row]), /Invalid/);
+    assert.throws(()=>destinationCatalog([{...row,collection:'foreign:*'}]), /Invalid/);
+    assert.throws(()=>destinationCatalog([{...row,kind:'bot',botId:'forged'}]), /Invalid/);
+    assert.throws(()=>destinationCatalog(Array(33).fill(row)), /unavailable/);
   });
 
   // --- ownership is never inferred ---------------------------------------

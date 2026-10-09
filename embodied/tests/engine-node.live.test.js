@@ -6,6 +6,8 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The real plant on the rail (B20): the Python engine bridge is started as a node (EMBODIED_PYTHON names an interpreter with the requirements pins; OSHAL_CORE_DIR a framework checkout) pointed at the real package routes on loopback — it heartbeats into /api/embodied/nodes/heartbeat under a secret minted for the run, the fleet lists it online with the package's own engine tree hash, an owner's world is reset onto it, and a drone-first exploration runs to done on MuJoCo through every unchanged guard, every step a command envelope to the node. Without the interpreter it does not run and says so.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | The node carries its owner (EMBODIED_NODE_OWNER_SUB) as the trusted service user sub; the fleet records it.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Resolve the framework checkout from OSHAL_CORE_ROOT first (what the Test Lab sandbox sets, /app) and OSHAL_CORE_DIR second, and fail loud when neither is set. The old default C:/Projects/oshal existed on one Windows box only and turned a missing variable into a confusing module error.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | ADR-175: the real Python node heartbeats with its device credential (EMBODIED_NODE_TOKEN) through nodeCredentialMirror; the owner comes from the credential.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | ADR-175 hardening: the real node runs without SWARM_SERVICE_SECRET and is commanded with the key from its heartbeat reply; the fleet allows 127.0.0.1 endpoints here.
  */
 'use strict';
 const test = require('node:test');
@@ -25,16 +27,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 test('the MuJoCo plant joins the rail by heartbeat and the sim explores on it through the real routes', { skip: SKIP, timeout: 600000 }, async () => {
   const { loadRoutes, fakePool, PKG } = require('./routes.harness');
   const { E } = require('./helpers');
-  const { trustedSubMirror } = require('./routes.harness');
+  const { nodeCredentialMirror } = require('./routes.harness');
   const { express, createEmbodiedRoutes, createEmbodiedNodeRoutes, restore } = loadRoutes();
   const secret = randomBytes(16).toString('hex');
-  const fleet = new E.DroneNodeFleet();
+  const fleet = new E.DroneNodeFleet({ endpointHosts: ['127.0.0.1'] });
   let wall = 1_800_000_000_000;
   const pool = fakePool();
   const app = express(); app.use(express.json({ limit: '2mb' }));
-  app.use('/api/embodied/nodes', trustedSubMirror(), createEmbodiedNodeRoutes({ pool, appPackageDir: PKG }, { now: () => wall, fleet }));
+  app.use('/api/embodied/nodes', nodeCredentialMirror({ 'live-credential': { clientId: 'plant-live', sub: 'live-owner' } }), createEmbodiedNodeRoutes({ pool, appPackageDir: PKG }, { now: () => wall, fleet }));
   app.use((req, _res, next) => { req.oidc = { user: { sub: 'live-owner' }, isAuthenticated: () => true }; next(); });
-  app.use('/api/embodied', createEmbodiedRoutes({ pool, appPackageDir: PKG }, { now: () => wall, noTimer: true, engineAddr: '127.0.0.1:1', fleet, serviceSecret: () => secret }));
+  app.use('/api/embodied', createEmbodiedRoutes({ pool, appPackageDir: PKG }, { now: () => wall, noTimer: true, engineAddr: '127.0.0.1:1', fleet }));
   const server = await new Promise((r) => { const sv = app.listen(0, '127.0.0.1', () => r(sv)); });
   const base = `http://127.0.0.1:${server.address().port}`;
   const call = async (p, init = {}) => { const res = await fetch(`${base}/api/embodied${p}`, init); const text = await res.text(); let body = null; try { body = text ? JSON.parse(text) : null; } catch (_) { body = text; } return { status: res.status, body }; };
@@ -42,7 +44,7 @@ test('the MuJoCo plant joins the rail by heartbeat and the sim explores on it th
   const nodePort = await freePort(); const bridgePort = await freePort();
   const logs = [];
   const proc = spawn(PYTHON, [path.join(PKG, 'engine', 'container', 'embodied_engine_bridge.py'), '--host', '127.0.0.1', '--port', String(bridgePort)], {
-    env: { ...process.env, SWARM_SERVICE_SECRET: secret, OSHAL_API_URL: base, EMBODIED_NODE_ID: 'plant-live', EMBODIED_NODE_HOST: '127.0.0.1', EMBODIED_NODE_PORT: String(nodePort), EMBODIED_NODE_ENDPOINT: `http://127.0.0.1:${nodePort}`, EMBODIED_NODE_OWNER_SUB: 'live-owner', PYTHONUTF8: '1' },
+    env: { ...process.env, SWARM_SERVICE_SECRET: '', OSHAL_API_URL: base, EMBODIED_NODE_ID: 'plant-live', EMBODIED_NODE_TOKEN: 'live-credential', EMBODIED_NODE_HOST: '127.0.0.1', EMBODIED_NODE_PORT: String(nodePort), EMBODIED_NODE_ENDPOINT: `http://127.0.0.1:${nodePort}`, PYTHONUTF8: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   proc.stdout.on('data', (d) => logs.push(String(d))); proc.stderr.on('data', (d) => logs.push(String(d)));
@@ -53,7 +55,7 @@ test('the MuJoCo plant joins the rail by heartbeat and the sim explores on it th
     assert.equal(row.engine, 'mujoco'); assert.equal(row.protocol, E.BRIDGE_PROTOCOL);
     assert.equal(row.stale, false, 'the running engine tree is this package\'s');
     assert.equal(row.endpointUrl, `http://127.0.0.1:${nodePort}`);
-    assert.equal(row.ownerSub, 'live-owner', 'the node carried its owner as the trusted service user sub');
+    assert.equal(row.ownerSub, 'live-owner', 'the node belongs to the owner its credential was enrolled by');
     const reset = await call('/world/reset', json('POST', { backend: 'node', node: 'plant-live', sensorSet: 'recon-mini', seed: 5 }));
     assert.equal(reset.status, 200, JSON.stringify(reset.body).slice(0, 400));
     assert.equal(reset.body.drone.backend, 'node'); assert.equal(reset.body.drone.plant.engine, 'mujoco');

@@ -15,3 +15,14 @@ After installation, open:
 ```
 
 The toolbar inherits the operator's selected swarm control-plane theme.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+No model in the loop (T0): every feature of this application is deterministic code.
+<!-- oshal-rating:end -->

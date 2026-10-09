@@ -1,0 +1,152 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | The package's first suites (TLAB-07 "locate/create behavior coverage"): the readiness smoke, the assistant-rail and order-total unit suites, the compiled-route money and hand-off boundary, and the 390 px Chromium commerce smoke with its real prerequisites.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register the family audience view contract (ADR-164 D6): the shared kit after the theme bootstrap, the boot with exactly the family audience, every start path of the full page gated on the kit's decision, and the view's reads confined to this package's routes.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.2: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | GET /cart is read-only under the native admission rule: the route and Chromium cases now expect a fresh diner's cart read to create nothing while the first add still creates the cart.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed eats package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: commerce-bridge
+    name: Eats assistant rail contract
+    purpose: Prove the manifest declares its surface-bridge ops from the closed vocabulary, the page loads the shared client and producer, advertises exactly the custom ops it applies, opens Uber Eats only from the explicit order button, sends ids only when adding a dish, wires chat-shown dishes and keeps its context digest under the contract cap.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-commerce-bridge.test.js
+    expected:
+      - surface.ops lists context, set_field, field_change, custom, propose, submit and notify, all from the bridge vocabulary.
+      - The only window.open is inside requestOrder(); the chat reply turns a proposal into a propose card.
+      - A 30-line order over a 40-dish menu digests to at most 4000 characters.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: cart-totals
+    name: Integer-cent order totals
+    purpose: Known-value checks on the compiled cart-totals module that every Eats total goes through.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-cart-totals.test.js
+    expected:
+      - 4.35 is 435 cents, 0.10 + 0.20 is exactly 30 cents, an unpriced line is counted not zero-priced, and cents format without floating point.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: routes-money-handoff
+    name: Menu-priced lines and the confirmation-gated order
+    purpose: Drive the compiled Eats routes with an in-memory pool and a recording Uber Eats provider through menu pricing, store switching, totals, ownership, the chat order proposal and the confirmed hand-off.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-routes.test.js
+    expected:
+      - A dish is priced from the restaurant's menu by exact storeId and productId; a browser-sent price, title or store is ignored and an unlisted dish is 422 with nothing stored.
+      - One diner cannot remove another's line; an anonymous caller is 401 before any query.
+      - A chat checkout returns a proposal with the integer-cent total and neither builds the deep link nor writes eats_orders; POST /order builds it once and records the exact total.
+      - Under the native read-only admission a fresh diner's GET /cart answers 200 with cartId, storeId and storeName null and creates nothing, every GET route answers without attempting a SQL write, and the cart the first add creates is the one the next GET /cart reads.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/eats-routes-harness.js
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: surface-mobile-commerce
+    name: Eats at phone width in Chromium
+    purpose: Drive the actual Eats surface at 390 x 844 inside a parent frame over the compiled router and the real core bridge client - search, a menu and scroll, two adds and their exact total, a chat order that waits for Confirm, the floating assistant's relayed ops, a chat-shown dish's Add button, and the context envelopes the parent receives.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/surface.core.spec.mjs
+    expected:
+      - No horizontal overflow; a menu fills a grid the page scrolls to the end of.
+      - Two adds show $9.98 from the server and the request bodies carry only storeId, productId and quantity.
+      - A chat order renders a confirm card with no hand-off POST and no window.open; Confirm fires exactly one POST /order and opens Uber Eats once; Cancel on a relayed proposal hands off nothing.
+      - The parent frame receives context envelopes with the order total and a submit for the confirm; the page raises no errors.
+      - Under the native admission rule no GET in the session attempts a SQL write; the adds create the cart.
+    prerequisites:
+      - runner:playwright
+      - harness:oshal-core-root
+      - browser:chromium
+      - core:dependencies
+      - core:surface-bridge
+      - core:shared-theme-assets
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/surface.core.fixture.mjs
+        - tests/eats-routes-harness.js
+      cleanup: Close the owned Chromium process and the loopback HTTP server; carts, orders and the recorded hand-off stay in the disposable in-memory pool, with no database, provider or model.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its family (Home shell) and company (Business shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

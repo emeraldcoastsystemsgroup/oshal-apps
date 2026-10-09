@@ -1,5 +1,7 @@
 # Spaces (spaces) — OSHAL app package
 
+0.9.2 adds the company audience view beside the family one (ADR-164 D6): Studio, Orbit and Commons (the Business shells) open this package's first surface with `?audience=company`, and the shared kit paints the same account-scoped card in the company grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 <!--
 CHANGE LOG
 1 | maintainer@emeraldcoastsystemsgroup.com | Clarified that this installed package is the sole
@@ -16,6 +18,11 @@ CHANGE LOG
   | never reaches the kernel converter. A 117 MB .ply had collapsed the Docker VM. .splat keeps the
   | 300 MB ceiling; guard tests/ply-import-off-loop.core.test.js. Needs a core carrying the
   | spatial-mapping limits export.
+5 | maintainer@emeraldcoastsystemsgroup.com | 0.9.1: the family audience view for the Home shell (ADR-164 D6).
+  | /api/spaces/app?audience=family paints the account's saved scans from GET /home-summary alone
+  | through the shared kit; the page's main and connected-actions scripts are gated on the kit's
+  | decision. Guards tests/audience-view.test.cjs + tests/audience-view.fixture.cjs; new Lab catalog
+  | tests/test-lab.yaml (manifest gains testing: and uses: test-catalog).
 -->
 
 Turn a real space into an explorable 3D scene, then reason over it (`?app=spaces`,
@@ -62,7 +69,74 @@ built image for as long as any installed app declares it.
 |---|---|---|
 | Spaces | `/api/spaces/app` | The Spaces home: capture/import/drone-scan, scan list, brief |
 | (embedded) | `/api/spaces/viewer` | Self-contained WebGL splat viewer |
-| (phone) | `/api/spaces/capture` | Live guided-capture HUD (walk vs pan arrows) |
+| (phone) | `/api/spaces/capture` | Live guided-capture HUD (walk vs pan arrows); remembers its session for the upload |
+
+## Family audience view (0.9.1)
+
+The Home shell opens the surface as `/api/spaces/app?audience=family` (ADR-164 D6). The shared kit
+(`/shared/ui/js/app-view.js`, loaded right after the theme bootstrap) paints the signed-in account's own saved
+scans in plain words: how many real spaces are ready to explore (imported scans and video builds), how many
+practice rooms there are (the sim engine's made-up rooms, not measured), how many scans are being built and how
+many did not finish, a title that names the account's state, and up to three of the most recently updated scans
+as tiles saying how each was made and where it stands. On open it makes exactly one read, `GET /home-summary`, an
+owner-scoped SELECT under the caller's session that the full page's evidence panel already makes. It never reads
+the scan or scene list (`GET /scans` and `GET /scenes` run the orphaned-scan self-heal, an UPDATE), a scan's
+dimensions, scene, artifact or geometry (each reads the whole model file), the viewer or a capture plan, and it
+never uploads, imports, flies a drone scan, computes coverage or mounts connected actions. Tiles carry no link or
+action; the one action and the escape open Spaces in the cockpit. Signed out, refused, a count the route could not
+check, a scan query it could not run, the route's own failure, an unreadable answer and an unreachable server are
+each named. Any other request runs the full page unchanged; its main script and its connected-actions script run
+only when the kit renders no view.
+
+```bash
+node --test spaces/tests/audience-view.test.cjs
+OSHAL_FRAMEWORK=<core checkout> node scripts/audience-views.browser.cjs spaces
+```
+
+The first runs from the store root with no browser: the static kit contract, the view's behaviour over the
+package's real `GET /home-summary` route (express stubbed, a stub pool), and the gates of both page scripts. The
+second drives `tests/audience-view.fixture.cjs` over the real page and the real kit in headless Chromium. The first
+is registered as the `audience-view` case of the Lab catalog (`tests/test-lab.yaml`).
+
+## A scan is anchored to where it was captured (0.10.0)
+
+A scan made after a guided capture is recorded with where it was captured, so it can be found again by
+position on a later visit
+([ADR-169](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/adr/169-location-places-and-proximity.md)
+slice L7, `uses: location`).
+
+1. The guided capture page (`/api/spaces/capture`) posts its readings, GPS included when the phone allows
+   it, to `POST /api/spaces/capture-telemetry` under a session id, and remembers that id in the browser.
+2. The upload that follows (`POST /api/spaces/scans` or `POST /api/spaces/scans/import`) carries the id
+   in the optional text field `captureSessionId`, when the capture was within the last two hours. An
+   optional `placeId` names a saved place to group the scan under.
+3. The route registers the scan naming its session, the kernel joins that session's GPS to the scan, and
+   the kernel's `anchorMap` records the anchor: the most accurate fix as the origin, the heading the
+   capture began with, and a footprint from how far the fixes spread.
+
+The upload answers `anchor` beside `scan`, with ids and a reason and never a coordinate:
+
+```json
+{ "scan": { "id": "…", "status": "queued" }, "anchor": { "anchored": true, "anchorId": "…", "placeId": null } }
+```
+
+| `anchor.reason` | The scan was registered without an anchor because |
+|---|---|
+| `no_capture_session` | the upload named no capture session |
+| `no_capture_gps` | the session recorded no GPS fix (indoors, or location was not allowed) |
+| `location_precision_stores_no_coordinates` | your location precision is place-only, which stores no coordinates |
+| `location_not_found` | the `placeId` is not a place of yours or your groups |
+| `location_invalid_input` | the `placeId` is not an id |
+| `location_principal_required` | the caller is not a signed-in person with a verified issuer (a phone pairing token, for instance) |
+| `anchor_failed` | the anchor could not be written; the log names the scan and the error class |
+
+The anchor is stored by the kernel at the precision class you chose in Settings, Location (block by
+default), and only you read it. The simulated drone scan is not anchored: it is not a capture of a place.
+
+`tests/spaces-capture-session.test.js` runs both surfaces' own scripts and proves the session reaches the
+upload. `tests/capture-anchor.core.test.js` drives the compiled route over loopback HTTP with the kernel's
+real telemetry sanitizer, sidecar and capture reader (`OSHAL_CORE_DIR=<framework checkout>`); the scan
+store and `anchorMap` are recorded there, and the kernel's own suites prove what is stored and who reads it.
 
 ## Importing a pre-built capture (`POST /api/spaces/scans/import`)
 
@@ -151,3 +225,14 @@ The cockpit page follows the deployment theme. The two full-screen embeds intent
 
 `tests/spaces-surfaces.test.js` protects the source-of-truth boundary in both source and compiled
 routes, parses every inline surface script, and pins this stylesheet split.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+No model in the loop (T0): every feature of this application is deterministic code.
+<!-- oshal-rating:end -->

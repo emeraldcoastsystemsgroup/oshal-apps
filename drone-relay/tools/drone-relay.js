@@ -30,6 +30,12 @@
  *                     |                             | grid's slots and each drone at its own point; the facts card
  *                     |                             | shows the grid, its cover and its depth. Sized through the
  *                     |                             | API / the concierge (`area`).
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | ADR-164 D6: boot, the surface's only start path (the catalog
+ *                     |                             | and chain reads, the first chain's open and every control's
+ *                     |                             | binding), runs only when the shared kit renders no audience
+ *                     |                             | view, so under ?audience=company nothing but the company
+ *                     |                             | view's own GET /plans runs; without the parameter, or with
+ *                     |                             | a core that lacks the kit, the full page boots as before.
  */
 (function () {
   'use strict';
@@ -327,5 +333,7 @@
     await loadPlans();
     if (state.plans.length) await openPlan(state.plans[0].plan_id);
   }
-  boot().catch(fail);
+  // The full page only: under ?audience=company the shared kit paints the company view instead (see the page's head
+  // script), so boot — the one start path, which reads the catalog and the chains and binds every control — never runs.
+  if (!window.AppView || !AppView.active()) boot().catch(fail);
 })();

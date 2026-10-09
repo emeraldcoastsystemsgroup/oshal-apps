@@ -20,6 +20,18 @@ DATE/TIME           | AUTHOR                      | DESCRIPTION
                     |                             | any invalid target STL is written. Reports
                     |                             | retain the exact count and a bounded pair
                     |                             | sample for diagnosis.
+2026-09-27 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Physical build-certification gate:
+                    |                             | every export writes a buildCertification
+                    |                             | block (build_certification.py) into
+                    |                             | design_snapshot.json and BUILD_SHEET.md --
+                    |                             | "not certified", the pressure / material /
+                    |                             | purity / mass evidence this design needs,
+                    |                             | one blocker per applicable class. The BOM's
+                    |                             | helium line said "balloon-grade" with no
+                    |                             | purity, while BACKLOG C records that 80 %
+                    |                             | party helium drops f 0.800 -> 0.703; it now
+                    |                             | states the minimum purity, and the film
+                    |                             | line names the relief a sealed cell needs.
 
 export_build_files -- physical build package for an evaluated aero-lab design.
 
@@ -61,6 +73,30 @@ SELF_INTERSECTION_SAMPLE_LIMIT = 20
 
 class MeshValidationError(ValueError):
     """Raised when an exported STL fails a closed/manifold/intersection check."""
+
+
+def _build_certification():
+    """@description Load build_certification.py from THIS directory by explicit
+        path -- this module is itself loaded by path (service.py), so the
+        sibling is never resolved through sys.path.
+    @returns The build_certification module."""
+    import importlib.util
+    import sys
+    cached = sys.modules.get("build_certification")
+    if cached is not None:
+        return cached
+    spec = importlib.util.spec_from_file_location(
+        "build_certification",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     "build_certification.py"))
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["build_certification"] = mod
+    try:
+        spec.loader.exec_module(mod)
+    except BaseException:
+        sys.modules.pop("build_certification", None)
+        raise
+    return mod
 
 
 # ---------------------------------------------------------------------------
@@ -622,8 +658,13 @@ def _bom_csv(vector: dict, evaluation: dict, out_dir: str) -> None:
         "payload + avionics": f"draw {vector['payload_W']:.2f} W",
         "fuselage / boom / tail": f"{vector['fus_over_floor']:.2f} x the "
                                   f"structural floor at carried mass",
-        "envelope film + tapes": "38 um LLDPE + tapes/valve (hull_gore.dxf)",
-        "helium": "balloon-grade He fill",
+        "envelope film + tapes": "38 um LLDPE + tapes/valve (hull_gore.dxf); "
+                                 "a sealed cell also needs a vented relief or "
+                                 "a rated superpressure structure (not in this "
+                                 "ledger -- see buildCertification)",
+        "helium": f"helium fill, purity >= "
+                  f"{_build_certification().HELIUM_PURITY_MIN_FRAC * 100:.3f} % "
+                  f"(party 'balloon' helium is >= 80 % and does not fly)",
     }
     for row in evaluation["build"]["massBreakdown"]:
         rows.append([row["label"], g(row["kg"]),
@@ -639,10 +680,26 @@ def _bom_csv(vector: dict, evaluation: dict, out_dir: str) -> None:
     assert abs(tot - float(back[-1][1])) < 0.5, (tot, back[-1][1])
 
 
+def _certification_lines(cert: dict) -> list:
+    """@description The build sheet's certification section: status, rule and
+        one line per blocker, straight from the buildCertification block.
+    @param cert build_certification.build_certification_block output.
+    @returns Markdown lines."""
+    lines = ["", "## Build certification",
+             f"- status: **{cert['status']}**", f"- {cert['rule']}"]
+    for req in cert["requirements"]:
+        if not req["applies"]:
+            lines.append(f"- {req['class']}: not applicable to this design")
+    for blocker in cert["blockers"]:
+        lines.append(f"- blocker: {blocker['class']} -- {blocker['code']}")
+    return lines
+
+
 def _build_sheet(vector: dict, evaluation: dict, spar: dict,
-                 out_dir: str) -> None:
+                 out_dir: str, cert: dict) -> None:
     """@description BUILD_SHEET.md -- dimensions, ledger and the engine's own
-        verdict, stated as evaluated (never aspirational)."""
+        verdict, stated as evaluated (never aspirational), and the physical
+        build-certification state (never certified at export)."""
     b = evaluation["build"]
     e = evaluation["energy"]
     v = evaluation["verdict"]
@@ -687,6 +744,7 @@ def _build_sheet(vector: dict, evaluation: dict, spar: dict,
                   f"{h['helium_kg'] * 1000:.0f} g "
                   f"(f = {h['buoyancy_fraction']:.2f})",
                   "- gore pattern: hull_gore.dxf / .svg"]
+    lines += _certification_lines(cert)
     lines += ["", "## Files", "See design_snapshot.json for full provenance; "
               "verify_*.json are the re-parse checks run at export time.", ""]
     with open(os.path.join(out_dir, "BUILD_SHEET.md"), "w") as fh:
@@ -728,8 +786,10 @@ def generate(vector: dict, design, evaluation: dict, out_dir: str) -> list:
             json.dump(gore_report, fh, indent=1)
         files += ["hull_gore.dxf", "hull_gore.svg", "verify_gore.json"]
 
+    cert = _build_certification().build_certification_block(
+        {"design_vector": vector, "evaluation": evaluation})
     _bom_csv(vector, evaluation, out_dir)
-    _build_sheet(vector, evaluation, spar, out_dir)
+    _build_sheet(vector, evaluation, spar, out_dir, cert)
     files += ["BOM.csv", "BUILD_SHEET.md"]
 
     snapshot = {
@@ -754,6 +814,7 @@ def generate(vector: dict, design, evaluation: dict, out_dir: str) -> list:
         "spar": spar,
         "ribs": ribs_report,
         "evaluation": evaluation,
+        "buildCertification": cert,
     }
     with open(os.path.join(out_dir, "design_snapshot.json"), "w") as fh:
         json.dump(snapshot, fh, indent=1)

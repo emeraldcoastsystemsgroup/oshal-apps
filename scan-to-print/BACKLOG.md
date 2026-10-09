@@ -407,3 +407,76 @@ prerequisite in place of `harness:core-test-fixtures`, and one Lab run of it pas
 real run of a few seconds, not a sub-second decline under load.
 
 When it can run: the runner image's Chromium requests `/favicon.ico` and logs a 404 as a console error, so the fixture server must answer it (204), as animatronics' and circuit-lab's fixtures do - otherwise every "no page errors" assertion fails in the sandbox and passes on a host browser.
+
+## B18 — Agent identity for the print service under enforce-mode application authorization
+
+**Status: built in 0.7.0 and installed on the operator's box (2026-10-06); the live print is B19.**
+The print tools moved to core's package-tool executor with an `authorization:` catalog
+(`authorization.yaml`, src-routes/print-tools.ts), the second route below.
+`tests/kernel.core.test.js` proves it across the real core runtime, registry, executor and HTTP
+guard. The catalog review is approved and the operator holds `maker`; what remains is the live
+criterion at the end of this entry, which B19 tracks.
+
+
+The print service (0.6.0, `/api/scan-to-print/service`, docs/PRINTERS.md §6) is mounted
+`service-or-oidc`, and its agent tools are `type: api`. Core's api tool executor calls it with the
+service secret plus the trusted user header and nothing else. Under core application authorization
+in `enforce` mode (ADR-149, the default, and the mode the operator's box runs), core's actor
+resolver (`application-authorization-identity.ts`) admits a package request only with an OIDC
+session or a verified workload delegation, so such a call is refused `401
+authorization_identity_required` before this package runs. The same holds for every store package's
+service-secret path; it is not specific to printing. Today the service works from a signed-in
+session in both modes, and for agents and scripts only on a `legacy`-mode box.
+
+**Done when:** core gives an agent's call into a store package a verified identity bound to the user
+it acts for — for example the api tool executor attaching a route-scoped workload delegation for
+the tool's own endpoint, or the print tools moving to core's `package` tool executor with an
+`authorization:` catalog (a core-and-package change that needs operator approval) — and, on an
+enforce-mode box, an agent holding an auto grant on `print-to-3d-printer` sends a printable job to a
+Bambu printer whose owner turned auto-start on: the submission row reads `requested_by: service`,
+`state: printing`, and the printer reports the job, while the same call with the grant at ask waits
+for approval and with auto-start off records `state: uploaded`.
+
+## B19 — Live print test: an agent prints on the operator's P2S through oshal
+
+**Status: deferred by the operator on 2026-10-06** ("backlog the testing to print"), after printing
+`michael_myers_tekky_linkage_revA` and `revB` from the printer screen; both files were on its USB stick. Everything up to the start command is live-proven on that P2S: certificate probe and
+pin, status, an FTPS upload, a refused wrong pin, and registration in Scan to Print through the app's
+own route. oshal has never started a print on a real printer.
+
+Preconditions, in order:
+1. ~~Install 0.7.0~~ — **done 2026-10-06 15:21 CDT**: the catalog review was approved and the migration
+   applied, the operator holds `maker`, and the studio, jarvis, orbit and commons experiences run 1.1.1.
+2. On the printer: LAN Only and Developer Mode on (Settings → Settings → LAN Only). It was on at
+   09:30 CDT on 2026-10-06 and read off again by 14:10 CDT the same day, with no firmware change.
+3. A clear Textured PEI plate and the job's filament in AMS slot 4. The printer reports one AMS with
+   filament only in slot index 3 and no RFID type (its material is unknown to the printer), so
+   `chooseTray` sends `ams_mapping: [3]`.
+
+**Done when:**
+- Jarvis or the operator bot runs `print-service-printers` and `print-service-printer-status`, which
+  reports `signatureRequired: false`.
+- It sends a printable scan job with `print-to-3d-printer`. The send waits for the operator's approval
+  (ask).
+- With auto-start off, the reply says uploaded, not started, and the submission records
+  `requested_by: service`.
+- With auto-start on, `outcome.started` is true, the printer reports the job printing, and the
+  physical print runs from AMS slot 4 without an HMS slot error.
+- The README records the outcome.
+- If the P2S rejects the mapping, fix `chooseTray`/`projectFileCommand` with a guard in
+  `printing-bambu.test.js` that reproduces the printer's answer.
+
+## B20 — The printer bot on its own node
+
+The operator bot holds the print tools (0.7.0), but it is an inline concierge. On the operator's box
+the hosted operator lane is off (2026-10-06), so inline concierges answer 422 `NO_HOSTED_BRAIN` for the
+operator. Jarvis can call the print tools today on his own brain. For the printer bot to answer him
+directly it needs what scene-studio's director got in core #1094/#1095 (live 2026-10-06):
+- a core compose service with its own profile;
+- `bots[].container` in this manifest;
+- the operator's node brain stamped on its turns.
+This is a core change, and it needs the operator's go.
+
+**Done when:** the operator asks the Scan to Print operator in the cockpit rail to list his printers.
+It answers on his own brain (node log: protected direct turn, the tool finished), and a print request
+reaches the ask approval.

@@ -1,0 +1,110 @@
+{
+  "schema": "aero-lab.reference-presets/1",
+  "source": "tools/aero-lab.html window.AERO_LAB_DATA.presets (key, name, v) - tests/aero-surface-contract.spec.ts holds the two equal",
+  "presets": [
+    {
+      "key": "tier1",
+      "name": "Tier-1 sketch",
+      "v": {
+        "area_m2": 0.52,
+        "aspect_ratio": 12.019230769230768,
+        "taper_ratio": 1,
+        "twist_root_deg": 0,
+        "twist_tip_deg": 0,
+        "extra_CD0": 0.006136666480766675,
+        "fus_over_floor": 1,
+        "battery_mass_kg": 0.4,
+        "pack_Wh_per_kg": 250,
+        "cell_eff": 0.227,
+        "pv_density": 0.45,
+        "pv_packing": 0.6923076923076923,
+        "prop_max_W": 100,
+        "prop_diameter_m": 0.3,
+        "payload_W": 2.1728368444666417,
+        "payload_mass_kg": 0.1,
+        "buoyancy_fraction": 0,
+        "latitude_deg": 47.6,
+        "day_of_year": 195,
+        "altitude_m": 500
+      }
+    },
+    {
+      "key": "fixedwing",
+      "name": "Fixed wing (AtlantikSolar class)",
+      "v": {
+        "area_m2": 1.72,
+        "aspect_ratio": 18.559593023255815,
+        "taper_ratio": 0.7,
+        "twist_root_deg": 2,
+        "twist_tip_deg": 0,
+        "extra_CD0": 0.006,
+        "fus_over_floor": 1,
+        "battery_mass_kg": 2.9170124481327804,
+        "pack_Wh_per_kg": 241,
+        "cell_eff": 0.237,
+        "pv_density": 0.72,
+        "pv_packing": 0.802,
+        "prop_max_W": 150,
+        "prop_diameter_m": 0.36,
+        "payload_W": 5.8,
+        "payload_mass_kg": 0.15,
+        "buoyancy_fraction": 0,
+        "latitude_deg": 47.6,
+        "day_of_year": 195,
+        "altitude_m": 500
+      }
+    },
+    {
+      "key": "hybrid80",
+      "name": "Hybrid f = 0.80",
+      "v": {
+        "area_m2": 0.52,
+        "aspect_ratio": 12.019230769230768,
+        "taper_ratio": 1,
+        "twist_root_deg": 0,
+        "twist_tip_deg": 0,
+        "extra_CD0": 0.00744,
+        "fus_over_floor": 1,
+        "battery_mass_kg": 0.3182307005178919,
+        "pack_Wh_per_kg": 250,
+        "cell_eff": 0.227,
+        "pv_density": 0.45,
+        "pv_packing": 0.6923076923076923,
+        "prop_max_W": 100,
+        "prop_diameter_m": 0.3,
+        "payload_W": 2.5308494022630583,
+        "payload_mass_kg": 0.1,
+        "buoyancy_fraction": 0.8,
+        "latitude_deg": 47.6,
+        "day_of_year": 195,
+        "altitude_m": 500
+      }
+    },
+    {
+      "key": "r7winner",
+      "name": "Search winner (R7)",
+      "v": {
+        "area_m2": 0.9,
+        "aspect_ratio": 12.019034280644231,
+        "taper_ratio": 0.5696602084249895,
+        "twist_root_deg": 2.016585559960721,
+        "twist_tip_deg": -0.9304424167105616,
+        "extra_CD0": 0.00593255229613831,
+        "fus_over_floor": 1.0111216067442907,
+        "battery_mass_kg": 2.042409251864678,
+        "pack_Wh_per_kg": 441.83662268579803,
+        "cell_eff": 0.2917705887042008,
+        "pv_density": 0.2959381212322341,
+        "pv_packing": 0.8993617418925418,
+        "prop_max_W": 2102.663198038077,
+        "prop_diameter_m": 0.498378639833007,
+        "payload_W": 4.572881277474006,
+        "payload_mass_kg": 0.24391240534152336,
+        "buoyancy_fraction": 0,
+        "latitude_deg": -10.433485948285286,
+        "day_of_year": 90,
+        "altitude_m": 163.73303275489067
+      }
+    }
+  ]
+}

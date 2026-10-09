@@ -1,5 +1,7 @@
 # Spotify — OSHAL app package
 
+1.1.3 adds the company audience view beside the family one (ADR-164 D6): Studio, Orbit and Commons (the Business shells) open this package's first surface with `?audience=company`, and the shared kit paints the same account-scoped card in the company grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 AI music concierge, carved out of OSHAL core 2026-07-18 (ADR-085 Wave 2 carve #2 — the
 first packaged `service-or-oidc` route mount).
 
@@ -38,3 +40,19 @@ foundation personas, and the `spotifyToolKit.js` / `scripts/oshal-spotify.js` to
 That quadruple is the operator-applied first-party fragment and does not ship in this
 package. `workflow.workerBot: spotify-concierge` resolves against the framework's static
 registry; the packaged `/chat` route reaches the same bot through `ctx.orchestrator`.
+
+Spotify 1.1.1 loads the shared theme bootstrap (`/shared/ui/css/surface-themes.css` + `/shared/ui/js/surface-theme.js`) in `tools/spotify-app.html` and derives its palette from the framework tokens with the previous colors as fallbacks, so the surface follows the operator's chosen cockpit or experience skin whether embedded or opened standalone. No route, data or permission change.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **64 / 256 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| music-concierge-chat | concierge chat turn | T2 | none | disable | not yet measured | none recorded |
+| spotify-ticket | music request ticket | T4 | none | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

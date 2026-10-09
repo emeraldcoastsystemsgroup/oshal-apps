@@ -14,5 +14,8 @@
  *                     |                             | left here is what is genuinely tidal — harmonics and a rotor
  *                     |                             | — plus the two marine widenings (currentMs, siteName) that
  *                     |                             | keep this slice's public API byte-compatible.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 D8: the medium the budget integrates in is a parameter of
+ *                     |                             | the unit config (`densityKgM3`, the seawater row by default), not a
+ *                     |                             | constant the sibling module bakes in at multiplication time.
  */
 Object.defineProperty(exports, "__esModule", { value: true });

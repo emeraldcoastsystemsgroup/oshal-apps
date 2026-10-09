@@ -21,7 +21,20 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Two ways the readout could still mislead. (a) The row prints the quantity the VENUE reports while the engine's answer is about the shares the autopilot can act on; for a partially pinned symbol those differ, so the row said 400 and the sentence beside it said 250 and nothing on the screen reconciled them. The payload now carries both numbers (heldQty / governedQty, measured on the kernel's own subtraction) and the explanation opens by saying which is which - it is not subtracted here, because that residual rule already has one implementation. (b) A holding whose every share is pinned is dropped by that subtraction before anything governs it, so it fell through to the NOT KNOWN fallback: a position the operator deliberately protected, shown as one nobody examined. That is its own state now, with the kernel's own words, and its own line under the table - a setting like the ring-fence, so it is counted and explained apart from the holdings the engine WILL NOT trade rather than swelling that headline. The unread state is untouched and still catches a genuinely failed look.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-159 - the positions views say which holdings the engine will NOT trade. Since #486/#497 the engine emits no order at all for a position its own filled orders cannot account for, and TRADING_CORE_SYMBOLS has always withheld for a ring-fenced name; neither was visible anywhere, so a holding could sit with no stop, no exit and no trim and look exactly like one under full management. window.GOVERNANCE_BY_SYMBOL is the KERNEL's answer, published straight from the /ledger payload - the surface never derives "can the engine account for this?", because that question has one definition and it lives with the order paths that enforce it. A managed row shows nothing; a withheld one wears its reason as a badge whose title is the whole sentence, AND the sentence is repeated in the open under the table, because a badge nobody hovers is another coloured dot. A symbol with no entry reads NOT KNOWN, never managed: a payload without the field, or a book whose answer could not be read, must never turn "could not look" into a clean bill of health. The table foot no longer claims the AI manages these positions - for a badged row that is false, which is the whole point.
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.3 - this file predates the log and its earlier history is in git. Sub-tab race close-out (ADR-136 D2 tail): loadSignalModel captures RENDER_TOKEN before its await and bails after it (and still checks CURRENT), so a slow /signal-latest answer for a symbol the operator has moved off cannot paint the focus pane. The header note above about token-less legacy loaders no longer applies to it.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | ADR-143 D9: the Last / Mkt value / Total $ / Total % cells carry data-col and data-stream-symbol so quote-stream.js's stale sweep can grey exactly the cells a print patches (no index arithmetic); the table foot says which columns move on prints and that Today $/% stay the broker's values. Nothing else in the row changes; the print patch itself still re-renders through this function.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | ADR-052 addendum P4: each open position's exit plan beside its governance badge. This file loads tools/ui/position-plans.js once (the page's script list is unchanged), asks it for the selected book's open plans after the positions table has painted (loadPositionPlans repaints the table when they arrive), and renders planPill(symbol) right after governancePills in the table row. Both calls are typeof-guarded, so the table paints exactly as before until the module has loaded, and a book with no plans shows no pill.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | ADR-052 addendum P6 (trading 1.33.0): the armed yield sleeve's fund on the positions table. From 1.33.0 the /ledger payload answers kind 'yield-sleeve' for that fund (no exits, orders still applying), and this file handled it as an unnamed kind in two places. GOV_PILL_CLASS had no entry, so the badge fell back to the NOT KNOWN style while the Exits card painted the same state in the settings style; it now maps to that style. governanceNotice counted the fund under 'N positions the engine will not trade ... still counts toward exposure and drawdown - only the orders are withheld', which contradicts the answer beside it (the sleeve trades the fund, and the engine counts it as parked cash). The fund is now reported in its own block, as a holding pinned in full is: the block states the count and the explanation is the server's detail, unchanged. Every other state renders as before.
  */
+
+/* ADR-052 addendum P4: the per-position plan pill lives in its own module (tools/ui/position-plans.js),
+ * loaded once from here so the page's script list does not change. Same origin, so the strict CSP holds. */
+(function loadPositionPlanModule() {
+  if (typeof document === 'undefined' || !document.head || document.querySelector('script[data-position-plans]')) return;
+  const s = document.createElement('script');
+  s.src = '/api/trading/ui/position-plans.js';
+  s.setAttribute('data-position-plans', '1');
+  document.head.appendChild(s);
+})();
 
 /* ── KPI strip + positions → universe seed ───────────────────── */
 async function loadKpisAndPositions() {
@@ -81,6 +94,8 @@ async function loadKpisAndPositions() {
       held:true, qty:p.qty, avg:Number(p.avgEntryPrice||0), retPct:p.retPct, mktValue:Number(p.marketValue||0),
       uPl:Number(p.unrealizedPl||0), uPlDay:(p.unrealizedIntradayPl!=null?Number(p.unrealizedIntradayPl):null) }); });
     renderPortfolioTable();   // the hero table at the top — lead with the open book
+    // ADR-052 addendum P4: the book's open exit plans, beside each governance badge (repaints on arrival).
+    if (typeof loadPositionPlans === 'function') loadPositionPlans();
     loadRealized();
   } catch (e) { if (!stale(token)) { const k = $('kpis'); if (k) k.innerHTML = '<div class="panel err">' + esc(e.message) + '</div>'; } }
 }
@@ -163,7 +178,7 @@ function posSortVal(p) {
  * A symbol with no entry is NOT KNOWN - never "managed" - so a failed read can never read as a clean
  * bill of health. A managed holding has an empty reasons[] and shows nothing at all. */
 var GOV_PILL_CLASS = { 'unaccounted': 'unmanaged', 'ring-fenced': 'fenced', 'core-holding': 'fenced',
-  'pinned-in-full': 'pinned', 'accountability-unknown': 'unknown' };
+  'yield-sleeve': 'fenced', 'pinned-in-full': 'pinned', 'accountability-unknown': 'unknown' };
 var GOV_UNREAD = "Whether the engine manages this position is NOT KNOWN: its answer for this book could not be read, so this row is not claiming the position is managed and is not claiming it is unmanaged either. The engine keeps trading the book from the venue's cost basis when that read fails - it is this readout that is blind, not the engine. Reload; if it persists, the engine's order ledger or the protected-lot ledger is unreadable.";
 function governanceOf(sym) {
   var m = window.GOVERNANCE_BY_SYMBOL;
@@ -212,12 +227,17 @@ function govRowsHtml(list, limit) {
  * failed book read marks every row, and fifteen copies of the same sentence hides the real ones.
  * A holding held entirely in protected lots is counted and explained APART from both: it is a
  * setting the operator made, nothing is wrong with it, and folding it into 'the engine will not
- * trade these' would make that headline say something it does not mean. */
+ * trade these' would make that headline say something it does not mean. An armed yield sleeve's
+ * fund is the same kind of thing and gets its own block too: the sleeve trades it and the engine
+ * counts it as parked cash, so that headline's two claims - no orders, still exposure - are both
+ * false for it. Its block states only the count; what the state means stays the server's sentence. */
 function governanceNotice(pos) {
   var marked = pos.map(function (p) { return governanceOf(p.symbol); }).filter(function (g) { return g.reasons.length; });
   if (!marked.length) return '';
-  var pinnedAll = marked.filter(function (g) { return g.reasons.some(function (r) { return r.kind === 'pinned-in-full'; }); });
-  var rest = marked.filter(function (g) { return pinnedAll.indexOf(g) < 0; });
+  var has = function (g, kind) { return g.reasons.some(function (r) { return r.kind === kind; }); };
+  var pinnedAll = marked.filter(function (g) { return has(g, 'pinned-in-full'); });
+  var sleeveFunds = marked.filter(function (g) { return pinnedAll.indexOf(g) < 0 && has(g, 'yield-sleeve'); });
+  var rest = marked.filter(function (g) { return pinnedAll.indexOf(g) < 0 && sleeveFunds.indexOf(g) < 0; });
   var named = rest.filter(function (g) { return g.reasons.some(function (r) { return r.kind !== 'accountability-unknown'; }); });
   var unread = rest.filter(function (g) { return named.indexOf(g) < 0; });
   var rows = govRowsHtml(named, 6);
@@ -226,6 +246,10 @@ function governanceNotice(pos) {
       ' held entirely in protected lots.</strong> The autopilot does not act on these at all - it never sees them. ' +
       'Each lot works the exits it was opened with, and those are real orders at the venue, so this is a setting ' +
       'and not a finding. They return to the autopilot when the lots are released.</div>' + govRowsHtml(pinnedAll, 6)
+    : '';
+  var sleeveBlock = sleeveFunds.length
+    ? '<div style="margin-top:9px"><strong>' + sleeveFunds.length + (sleeveFunds.length === 1 ? ' position is' : ' positions are') +
+      ' held as the fund of an armed yield sleeve.</strong></div>' + govRowsHtml(sleeveFunds, 6)
     : '';
   var head = named.length
     ? '<strong>' + named.length + (named.length === 1 ? ' position the engine will not trade.' : ' positions the engine will not trade.') +
@@ -237,7 +261,7 @@ function governanceNotice(pos) {
       '</strong><div style="margin-top:2px">' + esc(GOV_UNREAD) + '</div></div>'
     : '';
   return '<div class="foot" style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">' +
-    head + rows + pinnedBlock + blind + '</div>';
+    head + rows + pinnedBlock + sleeveBlock + blind + '</div>';
 }
 
 /* ADR-138: 'pinned N' after a symbol whose shares (in part or whole) sit in protected lots. */
@@ -262,16 +286,16 @@ function renderPortfolioTable() {
     const dayPl = p.unrealizedIntradayPl!=null?Number(p.unrealizedIntradayPl):null;
     const dayPct = p.changeToday!=null?Number(p.changeToday)*100:null;
     return '<tr data-fsym="' + esc(p.symbol) + '" class="pos-row' + (p.symbol===CURRENT?' active':'') + '" style="cursor:pointer">' +
-      '<td><strong>' + esc(p.symbol) + '</strong>' + pinnedPill(p.symbol) + governancePills(p.symbol) + '</td>' +
+      '<td><strong>' + esc(p.symbol) + '</strong>' + pinnedPill(p.symbol) + governancePills(p.symbol) + (typeof planPill === 'function' ? planPill(p.symbol) : '') + '</td>' +
       '<td>' + sigPill + '</td>' +
       '<td class="num">' + (p.qty) + '</td>' +
       '<td class="num">' + money(p.avgEntryPrice) + '</td>' +
-      '<td class="num">' + money(p.price) + '</td>' +
-      '<td class="num">' + money(p.marketValue) + '</td>' +
+      '<td class="num" data-col="last" data-stream-symbol="' + esc(p.symbol) + '">' + money(p.price) + '</td>' +
+      '<td class="num" data-col="marketValue" data-stream-symbol="' + esc(p.symbol) + '">' + money(p.marketValue) + '</td>' +
       '<td class="num ' + (dayPl==null?'':(dayPl>=0?'ok':'err')) + '">' + (dayPl==null?'—':money(dayPl)) + '</td>' +
       '<td class="num ' + (dayPct==null?'':(dayPct>=0?'ok':'err')) + '">' + (dayPct==null?'—':pct(dayPct)) + '</td>' +
-      '<td class="num ' + (p.unrealizedPl>=0?'ok':'err') + '">' + money(p.unrealizedPl) + '</td>' +
-      '<td class="num ' + (p.retPct>=0?'ok':'err') + '">' + pct(p.retPct) + '</td>' +
+      '<td class="num ' + (p.unrealizedPl>=0?'ok':'err') + '" data-col="uPl" data-stream-symbol="' + esc(p.symbol) + '">' + money(p.unrealizedPl) + '</td>' +
+      '<td class="num ' + (p.retPct>=0?'ok':'err') + '" data-col="retPct" data-stream-symbol="' + esc(p.symbol) + '">' + pct(p.retPct) + '</td>' +
     '</tr>';
   }).join('');
   host.innerHTML = '<div class="panel"><div class="panel head2"><h2 style="margin:0">Portfolio — ' + esc(DISP) + '</h2>' +
@@ -286,13 +310,15 @@ function renderPortfolioTable() {
       '<td class="num ' + (tot.upl>=0?'ok':'err') + '"><strong>' + money(tot.upl) + '</strong></td><td></td></tr></tfoot>' +
     '</table></div>' +
     '<div class="foot" style="margin-top:8px">Click any row to open its chart, signal model and order ticket below. This table is your read-only ledger of what the book holds and how each name is doing. ' +
-      'The engine manages every row that carries no badge; a badged row it does not, and says why.</div>' + governanceNotice(pos) + '</div>';
+      'The engine manages every row that carries no badge; a badged row it does not, and says why. ' +
+      'While the market stream is live, Last, Mkt value and Total move on prints and grey when no print has arrived lately; Today $ and % stay the broker\'s values.</div>' + governanceNotice(pos) + '</div>';
   host.querySelectorAll('th[data-sort]').forEach(t => t.onclick = () => {
     const k = t.getAttribute('data-sort');
     if (STATE.posSort.key===k) STATE.posSort.dir *= -1; else STATE.posSort = { key:k, dir:-1 };
     renderPortfolioTable();
   });
   host.querySelectorAll('tr[data-fsym]').forEach(r => r.onclick = () => { focus(r.getAttribute('data-fsym')); const f=$('focus'); if (f) f.scrollIntoView({ behavior:'smooth', block:'start' }); });
+  if (typeof qsSync === 'function') qsSync();
 }
 
 /* ── detail pane (RIGHT) — chart + signal model + ticket ─────── */

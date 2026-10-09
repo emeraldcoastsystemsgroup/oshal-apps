@@ -23,8 +23,15 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com   | The printed arm in the Build panel: its joints and what drives them, its parts (each opens in CAD Studio), and Check on physics - the container's measured hold beside the design's.
  * 12 | maintainer@emeraldcoastsystemsgroup.com   | B23: the Room selector is filled from /capabilities.scenarios, so a Spaces scan this owner sent here (Send to… → Fly it in Embodied) stands beside the built-in rooms with its solid count, and Reset world flies it.
  * 13 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 S1: the Medium panel — choose a medium, drop the explorer hull as one solid. In air the fall is drawn and the numbers are the analytic free fall the plant reproduces; in seawater the answer is the REFUSAL, rendered by its own name with the reason, because nothing here models a free surface and a plausible float would disprove the contract.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 D5: a run result is displayed only with its medium id and engine fingerprints. The drop result names the medium, the package version, the compiled engine tree's build hash and the plant that answered; a result that arrives without any of them is NOT drawn and the tile says which field is missing instead — a number without its engine is a fabrication, not a result.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com   | ADR-164 D6: the surface starts only when no audience view renders. The Jarvis Home shell opens the page with ?audience=family and the shared kit paints the saved robot jobs from the page's head block; the whole surface (every listener, the reads the start makes and the four polls) is now one function called behind the kit's decision, so under the view nothing here runs: GET /state, /world/voxels and /picture would create the owner's simulation (and /state and /picture advance it), and /physics/status and /physics/reports would dial the physics engine. Without the parameter, or on a core without the kit, the surface starts exactly as before.
  */
-(function embodiedSurface() {
+/**
+ * @description The whole Embodied Swarm surface: binds every control, makes the start reads and starts the polls.
+ * Called once, and only when no audience view renders (see the gate at the end of this file).
+ * @returns {void}
+ */
+function embodiedSurface() {
   'use strict';
   const API = '/api/embodied';
   const $ = (id) => document.getElementById(id);
@@ -496,6 +503,26 @@
     svg.innerHTML = parts.join('');
   }
 
+  /**
+   * ADR-160 D5: the fields a run result must carry to be displayed at all. The same three checks the
+   * routes' requireDisplayable applies; a run missing any of them is refused here, not drawn.
+   */
+  function undisplayable(run) {
+    const missing = [];
+    if (!run || !run.medium || typeof run.medium.id !== 'string' || !run.medium.id) missing.push('medium.id');
+    const eng = run && run.engine;
+    if (!eng || typeof eng.packageVersion !== 'string' || !eng.packageVersion) missing.push('engine.packageVersion');
+    if (!eng || typeof eng.routesBuildHash !== 'string' || !/^[0-9a-f]{64}$/.test(eng.routesBuildHash)) missing.push('engine.routesBuildHash');
+    return missing;
+  }
+
+  /** The run's provenance line: which medium, which package version, which engine tree, which plant. */
+  function fingerprintLine(run) {
+    const eng = run.engine; const plant = eng.plant || {};
+    const mujoco = plant.mujocoEngineTreeBuildHash ? ` \u00b7 MuJoCo tree ${plant.mujocoEngineTreeBuildHash.slice(0, 12)}${plant.kind === 'mujoco' ? '' : ' (targeted, not run for this answer)'}` : '';
+    return `<span class="muted">Run: medium <b>${run.medium.id}</b> \u00b7 ${eng.package} ${eng.packageVersion} \u00b7 engine ${eng.routesBuildHash.slice(0, 12)} \u00b7 plant ${plant.kind}${mujoco}</span>`;
+  }
+
   /** Drop the hull in the chosen medium. In air it falls at g; in seawater this renders the REFUSAL, by name. */
   async function dropHull() {
     const medium = $('medium').value;
@@ -504,13 +531,21 @@
     out.innerHTML = 'Dropping\u2026';
     try {
       const d = await call(`/physics/hull?medium=${encodeURIComponent(medium)}&dropHeightM=${encodeURIComponent(dropHeightM)}`);
+      const missing = undisplayable(d);
+      if (missing.length) {
+        $('fall').innerHTML = '';
+        out.innerHTML = `<span style="color:var(--em-danger)"><b>Not displayed:</b> this run result carries no ${missing.join(', ')}.</span><br>`
+          + '<span class="muted">A run is (vehicle, medium, plant), and a number shown without which medium and which engine produced it is a fabrication (ADR-160 D5). Nothing is drawn.</span>';
+        return;
+      }
       drawFall(d.fall);
       out.innerHTML = `<b>It falls.</b> ${d.hull.envelopeM * 1000} mm envelope, ${d.hull.allUpMassKg} kg all-up, one solid \u2014 `
         + `${fmt(d.fall.dropHeightM, 2)} m in ${fmt(d.fall.fallTimeS, 3)} s, hitting the floor at ${fmt(d.fall.impactSpeedMs, 2)} m/s `
         + `under |g| = ${fmt(d.fall.gMagnitudeMps2, 2)} m/s\u00b2 from the ${d.medium.label} record.<br>`
         + `<span class="muted">${d.fall.basis}</span><br>`
         + `<span style="color:var(--em-warn)">Does it float? <b>${d.flotation.refusal}</b> \u2014 ${d.flotation.because}</span><br>`
-        + `<span class="muted">Not modelled: ${d.notModelled.join('; ')}. Simulated \u2014 nothing was built or wetted.</span>`;
+        + `<span class="muted">Not modelled: ${d.notModelled.join('; ')}. Simulated \u2014 nothing was built or wetted.</span><br>`
+        + fingerprintLine(d);
     } catch (e) {
       $('fall').innerHTML = '';
       const b = e.body || {};
@@ -528,4 +563,6 @@
 
   pollState(); pollVoxels(); pollPictures(); pollLog(); pollPhysics(); pollPolicies(); pollScenarios(); pollMedia();
   setInterval(pollState, 600); setInterval(pollVoxels, 2000); setInterval(pollPictures, 2500); setInterval(pollLog, 3000);
-})();
+}
+// The full page only: under an audience view (ADR-164 D6) the shared kit paints instead (see the page's head block).
+if (!window.AppView || !AppView.active()) embodiedSurface();

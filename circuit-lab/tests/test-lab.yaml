@@ -14,6 +14,10 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.8.0 (BACKLOG B2, B7, B9): register the canvas-geometry suite (bends, group turns); the contract case covers a wire's bend points and the solver knobs; the board model covers turned footprints, shorts and jumper lengths; the solver suite 52 cases (the knobs written into the deck, a hard-switched inductor refused at the defaults and solved with gear); the browser suite 15 cases.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Rename the drifted framework-checkout prerequisites to the Test Lab's own vocabulary so these cases can run: node-test cases declare fixture:core-checkout (the sealed Node profile runs on the oshal image, where /app is the checkout); browser cases declare harness:oshal-core-root and core:dependencies, as create does. A case that imports core's tests/fixtures, which the image does not ship, also declares harness:core-test-fixtures and stays pending with that exact reason instead of an unknown name.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | A shared row's owner is not always installed, and these cases now say so. The driver-catalog and routes-http cases described a fixed five rows, which is the environment this repository happens to have; the Lab runs a package case against a snapshot of ONE package directory, where the SG90's owner is absent and four rows is the correct answer. The shared-parts case gains the guard for that environment - the package copied alone into an empty directory and its own catalog suite run there - and declares the temporary tree it writes.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 0.8.4: the two brushless motors READ embodied's owned rows. driver-catalog asserts a read-through equality with embodied's own compiled parts model instead of a name match; shared-parts gains the motor cases (a fixture embodied moves the answer, embodied absent or unable to answer withholds the row, restating name, mass, price, source, KV or noLoadRpm is refused); installed alone the package withholds three rows.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 0.8.5: register the audience-view case (ADR-164 D6): the classroom view's static contract, its model and starter tap as behaviour, and the full lab's start paths off under a view.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 0.8.6: the audience-view case covers the company view for the Business shells beside the classroom one: its two reads and no write, the ledger, stats and failed-run list as behaviour, failure reasons named by code with only the solver refusal quoted, the named states, and the lab's start paths off under the company view too.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 0.8.7: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -200,7 +204,7 @@ cases:
     installation: never
   - id: driver-catalog
     name: Shaft-driver catalog
-    purpose: Prove the catalog of motors, servos and steppers (catalog/drivers.json) — every row's nameplate validates against the part contract with the field named when it drifts, rows filter by type, every row says where its numbers came from, and the motors embodied's parts model names are present with the same name, mass and price (read-only cross-package import of embodied/routes/engine/design/parts-model.js). The row count asserted is the one the environment implies — a shared row whose owner is not installed is withheld on purpose, so the case reads which owners are there rather than pinning five.
+    purpose: Prove the catalog of motors, servos and steppers (catalog/drivers.json) — every row's nameplate validates against the part contract with the field named when it drifts, rows filter by type, every row says where its numbers came from, and the motors embodied's fits fly are READ from embodied's own rows — the resolved row, embodied's row reader (routes/engine/design/parts-catalog.js) and the fit its parts model builds (parts-model.js) agree on name, mass, price and KV, read-only. The row count asserted is the one the environment implies — a shared row whose owner is not installed is withheld on purpose, so the case reads which owners are there rather than pinning five.
     level: unit
     runner:
       kind: node-test
@@ -208,8 +212,8 @@ cases:
       files:
         - tests/driver-catalog.test.js
     expected:
-      - Every declared row loads except one whose owner package is not installed beside this one, which is withheld with a reason naming the owner and nothing put in its place; with Animatronics present that is all five rows, and installed alone it is the four this package owns outright.
-      - A stall current of 0 or an unknown nameplate key fails the load naming drivers[i].props.<key>; the two embodied fit motors match embodied's own name, mass and price.
+      - Every declared row loads except those whose owner package is not installed beside this one, each withheld with a reason naming the owner and nothing put in its place; with Animatronics and Embodied present that is all five rows, and installed alone it is the two this package owns outright.
+      - A stall current of 0 or an unknown nameplate key fails the load naming drivers[i].props.<key>; each embodied fit's motor row resolves to embodied's own name, mass, price and KV, with noLoadRpm = KV x this lab's operating point (26640 rpm for the 2306 at 14.8 V).
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -221,7 +225,7 @@ cases:
     installation: never
   - id: shared-parts
     name: A part another package owns is READ, not restated
-    purpose: Prove the shared-part row (catalog/drivers.json sharedPart) against real package trees on disk. The SG90 is animatronics' row - identity, mass, price, source and the pulse, travel, speed, torque and current block - and this lab declares only the operating point it solves at and the reflected rotor inertia. Against the real tree the resolved row equals animatronics' own row read back through animatronics' own loader; against a fixture packages root whose owner declares different numbers the answer moves with it, which a frozen copy could not do. Store packages install one at a time, so an absent or unanswerable owner withholds that one row with a reason naming the owner while every row this package owns outright still loads, and restating an owned field or choosing an operating point outside the owner's voltage window is refused at load with the field named.
+    purpose: Prove the shared-part row (catalog/drivers.json sharedPart) against real package trees on disk. The SG90 is animatronics' row - identity, mass, price, source and the pulse, travel, speed, torque and current block - and this lab declares only the operating point it solves at and the reflected rotor inertia. The two brushless motors are embodied's rows - identity, mass, price, source and the propulsion block's KV - and this lab declares only its electrical block and operating point; noLoadRpm is derived as KV x that voltage. Against the real tree the SG90 equals animatronics' own row read through animatronics' own loader; against a fixture packages root whose owners declare different numbers the answer moves, which a frozen copy could not do. An absent or unanswerable owner withholds its rows naming the owner while every row this package owns outright still loads, and restating an owned field or leaving the owner's voltage window is refused with the field named.
     level: unit
     runner:
       kind: node-test
@@ -231,8 +235,10 @@ cases:
     expected:
       - The resolved SG90 row carries the owner's name, mass, price and source line, and its pulse, travel, speed, torque and current nameplate fields are derived from the owner's numbers in this lab's units.
       - A fixture owner declaring different numbers changes the resolved row; an absent owner withholds it naming animatronics and leaves the other four rows loading.
+      - A fixture embodied with different numbers moves each motor's name, mass, price, source, KV and noLoadRpm while this lab's electrical block stays its own; embodied absent withholds exactly the two motor rows naming embodied.
+      - An embodied with no such row, no motors list, an unreadable file, no propulsion block or a non-numeric KV, mass or source withholds the motor row with that reason; restating name, massG, approxUsd, source, kv or noLoadRpm, or dropping nominalVolts, is refused naming the field.
       - Restating name, massG, approxUsd, source or an owned nameplate field is refused naming drivers[0].<field>, and a nominalVolts outside the owner's window is refused naming drivers[0].nameplate.nominalVolts.
-      - This package copied ALONE into an empty directory, with no sibling packages, still passes its own tests/driver-catalog.test.js in a child process; putting back the assumption that the owner is always installed makes that isolated run fail, which is also what proves the child's verdict is read at all.
+      - This package copied ALONE into an empty directory, with no sibling packages (three rows withheld), still passes its own tests/driver-catalog.test.js in a child process; putting back the assumption that the owner is always installed makes that isolated run fail, which is also what proves the child's verdict is read at all.
     prerequisites:
       - runner:node-test
     sideEffects: fixture-write
@@ -284,4 +290,36 @@ cases:
     limits:
       timeoutMs: 30000
       maxMemoryMb: 256
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its classroom (Classroom shell) and company (Business shells) audience views through
+      the shared kit: kit loaded after the theme bootstrap, boot with this application's own name and exactly its
+      audiences, full-page start gated on the kit's decision, head block parses and reads only this package's own
+      routes; the classroom model and its starter tap and the company ledger run against a stub kit, and the lab's
+      main script against DOM stubs.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - The classroom view reads only /designs, /examples and /capabilities, offers four starters in order, badges each circuit by its last run, shows the simulator note without the install command or raw error, and names the empty, no-examples and unreadable states.
+      - A starter tap posts one copy with run:false and opens it in the full lab; a second tap while pending is ignored; a failed tap is named, never navigates and can be tried again.
+      - The company view reads only /designs and /capabilities and writes nothing; its four stats, ledger rows (last run, runs kept, parts and wires, warnings of the last solve only) and failed-run list match the saved circuits, and a row opens that circuit in the full lab.
+      - The company view names a failed run by its code, quotes only the solver's refusal and never the engine address or install command, and names the none-saved, signed-out, refused, unreadable, malformed and unreachable states, the simulator note and the row cap.
+      - Under an audience view the lab's main script reads nothing and binds no assistant-rail listener, and the page attaches the rail only for the full lab.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

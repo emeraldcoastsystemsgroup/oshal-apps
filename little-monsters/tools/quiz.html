@@ -6,96 +6,135 @@
   -----------------------------------------------------------------------------
   1   | roger.murphy@agenticfederal.us              | Added the grounded auto-quiz page
   2   | maintainer@emeraldcoastsystemsgroup.com     | Submit answer indexes for one-time server grading instead of trusting browser scores
+  3   | maintainer@emeraldcoastsystemsgroup.com     | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the pinned midnight skin, its private palette and glass; hero, progress, choice buttons, callout, result card and review list use the system and read on light and dark skins. Without a classId the page now offers a real class chooser (GET /api/education/classes → reload with ?classId=) instead of a dead-end sentence; the server-graded flow is unchanged
+  -----------------------------------------------------------------------------
 -->
-<html lang="en" data-theme="midnight">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Practice Quiz — Little Monsters</title>
-<link rel="stylesheet" href="/api/education/education.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
+<link rel="stylesheet" href="/api/education/education.css">
 <style>
-  :root { --bg:#0a0e1a; --panel:#141a2e; --panel2:#1b2540; --txt:#e6edf6; --mut:#9fb3c8;
-          --acc:#7c5cff; --acc2:#5fdcc0; --ok:#34d399; --bad:#f87171; --warn:#fbbf24; }
-  * { box-sizing:border-box; }
-  body { margin:0; font-family:'Segoe UI',system-ui,Arial,sans-serif; background:var(--bg); color:var(--txt); }
-  .top { display:flex; align-items:center; gap:12px; padding:16px 22px; border-bottom:1px solid #1f2c4a; }
-  .logo { width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--acc2));
-          display:flex;align-items:center;justify-content:center;font-weight:800;color:#0a0e1a; }
-  .top h1 { font-size:18px;margin:0; } .top .sub { font-size:12px;color:var(--mut); }
-  .wrap { max-width:760px; margin:30px auto; padding:0 18px; }
-  .card { background:var(--panel); border:1px solid #243154; border-radius:16px; padding:26px; }
-  .bar { height:8px;background:var(--panel2);border-radius:99px;overflow:hidden;margin-bottom:20px; }
-  .bar > i { display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));width:0;transition:width .3s; }
-  .q { font-size:20px;font-weight:700;margin:6px 0 20px;line-height:1.4; }
-  .opt { display:block;width:100%;text-align:left;background:var(--panel2);border:1px solid #2b3a63;color:var(--txt);
-         border-radius:12px;padding:14px 16px;margin-bottom:11px;font-size:15px;cursor:pointer;transition:.15s; }
-  .opt:hover { border-color:var(--acc); transform:translateY(-1px); }
-  .opt.correct { border-color:var(--ok); background:rgba(52,211,153,.16); }
-  .opt.wrong { border-color:var(--bad); background:rgba(248,113,113,.16); }
-  .opt.selected { border-color:var(--acc2); background:rgba(95,220,192,.14); }
-  .opt:disabled { cursor:default; }
-  .explain { margin-top:12px;font-size:14px;color:var(--mut);background:var(--panel2);border-radius:10px;padding:12px 14px;display:none; }
-  .next { margin-top:18px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#0a0e1a;border:0;border-radius:12px;
-          padding:12px 22px;font-weight:700;font-size:15px;cursor:pointer;float:right;display:none; }
-  .pill { display:inline-flex;align-items:center;gap:6px;background:rgba(94,220,192,.14);color:var(--acc2);
-          border:1px solid rgba(94,220,192,.4);border-radius:999px;padding:3px 11px;font-size:12px;font-weight:600; }
-  .muted { color:var(--mut); } .center { text-align:center; }
-  .score { font-size:54px;font-weight:800;background:linear-gradient(135deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent; }
-  .btn { background:linear-gradient(135deg,var(--acc),var(--acc2));color:#0a0e1a;border:0;border-radius:12px;padding:12px 24px;font-weight:700;cursor:pointer;font-size:15px; }
-  .rev { text-align:left;background:var(--panel2);border-radius:10px;padding:12px 14px;margin-bottom:10px;font-size:14px; }
-  .rev .badge { font-weight:700; } .rev .ok { color:var(--ok); } .rev .bad { color:var(--bad); }
-  .dots span { display:inline-block;width:8px;height:8px;margin:0 3px;border-radius:50%;background:var(--acc2);animation:b 1s infinite; }
-  .dots span:nth-child(2){animation-delay:.2s} .dots span:nth-child(3){animation-delay:.4s}
-  @keyframes b { 0%,80%,100%{opacity:.3} 40%{opacity:1} }
+  .dots { display: inline-flex; gap: 6px; padding-top: 6px; }
+  .dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--lm-accent); animation: lm-dot 1s infinite; }
+  .dots span:nth-child(2) { animation-delay: .2s; } .dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes lm-dot { 0%, 80%, 100% { opacity: .3; } 40% { opacity: 1; } }
+  .tile-body { flex: 1; min-width: 0; }
+  .q { font-size: 20px; font-weight: 700; line-height: 1.4; margin: 8px 0 16px; }
+  #opts { display: grid; gap: 10px; }
+  /* Answer choice: a full-width, left-aligned option the design system has no component for. */
+  .opt {
+    display: block; width: 100%; text-align: left; min-height: var(--lm-touch); padding: 12px 16px;
+    border-radius: var(--lm-radius-md); border: 1px solid var(--lm-line-strong); background: var(--lm-card); color: var(--lm-ink);
+    font-size: 15px; font-weight: 600; cursor: pointer; transition: border-color 160ms ease, background 160ms ease, transform 120ms ease;
+  }
+  .opt:hover { border-color: var(--lm-accent-line); background: var(--lm-accent-wash); transform: translateY(-1px); }
+  .opt.selected { border-color: var(--lm-accent); background: var(--lm-accent-soft); color: var(--lm-accent); }
+  .opt:disabled { cursor: default; transform: none; }
+  .opt:disabled:not(.selected) { opacity: .6; }
+  .next-row { display: flex; justify-content: flex-end; margin-top: 16px; }
+  .score { font-size: 56px; font-weight: 800; letter-spacing: -1px; color: var(--lm-accent); line-height: 1; margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+  .result-msg { margin: 0 auto 18px; }
+  .review { text-align: left; margin-bottom: 18px; }
+  .review .lm-item { align-items: flex-start; }
+  .review .lm-item strong { white-space: normal; }
+  .review .lm-pill { margin-top: 2px; }
+  .result-actions { justify-content: center; margin-top: 0; }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
-<div class="top">
-  <div class="logo">LM</div>
-  <div><h1>Practice Quiz</h1><div class="sub" id="sub">Grounded in your class materials</div></div>
-</div>
-<div class="wrap">
-  <div class="card" id="loadCard">
-    <div class="center"><div class="dots"><span></span><span></span><span></span></div>
-    <p class="muted" id="loadMsg">Generating your quiz from your textbook…</p></div>
+<main class="lm-page is-narrow">
+  <header class="lm-hero">
+    <div>
+      <div class="lm-eyebrow">Practice quiz</div>
+      <h1 class="lm-display">Show what you know.</h1>
+      <p class="lm-lead" id="sub">Five questions, grounded in your class materials.</p>
+    </div>
+    <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
+  </header>
+
+  <div class="lm-card lm-text-center" id="loadCard">
+    <div class="dots" id="dots" aria-hidden="true"><span></span><span></span><span></span></div>
+    <p class="lm-loading" id="loadMsg">Generating your quiz from your textbook…</p>
+    <div class="hide" id="loadActions"><a class="lm-btn lm-btn-ghost" href="/api/education/quiz">Pick a different class</a></div>
   </div>
-  <div class="card" id="quizCard" style="display:none">
-    <div class="bar"><i id="prog"></i></div>
-    <div class="muted" id="counter" style="font-size:13px;margin-bottom:6px"></div>
+
+  <section class="lm-section hide" id="chooseCard">
+    <div class="lm-section-head"><h2>Pick a class to quiz</h2></div>
+    <div class="lm-grid" id="classList" style="--min:220px"><div class="lm-loading">Loading your classes…</div></div>
+  </section>
+
+  <div class="lm-card hide" id="quizCard">
+    <div class="lm-progress lm-mb-sm" aria-hidden="true"><span id="prog"></span></div>
+    <div class="lm-help" id="counter"></div>
     <div class="q" id="qText"></div>
     <div id="opts"></div>
-    <div class="explain" id="explain"></div>
-    <button class="next" id="nextBtn" onclick="next()">Next →</button>
-    <div style="clear:both"></div>
+    <div class="lm-callout lm-mt-md hide" id="explain"></div>
+    <div class="next-row"><button type="button" class="lm-btn lm-btn-primary hide" id="nextBtn" onclick="next()">Next →</button></div>
   </div>
-  <div class="card center" id="resultCard" style="display:none">
+
+  <div class="lm-card is-feature lm-text-center hide" id="resultCard">
     <div class="score" id="scoreVal"></div>
-    <p class="muted" id="scoreMsg"></p>
-    <div id="review" style="margin:18px 0"></div>
-    <button class="btn" onclick="location.reload()">Try another quiz</button>
+    <p class="lm-lead result-msg" id="scoreMsg"></p>
+    <div id="review" class="lm-list review"></div>
+    <div class="lm-hero-actions result-actions">
+      <button type="button" class="lm-btn lm-btn-primary" onclick="location.reload()">Try another quiz</button>
+      <a class="lm-btn lm-btn-ghost" href="/api/education/quiz">Pick a different class</a>
+    </div>
   </div>
-</div>
+</main>
+
+<script src="/api/education/mascot.js?v=4"></script>
 <script>
 var classId = new URLSearchParams(location.search).get('classId') || '';
 var questions = [], answers = [], idx = 0, answered = false, attemptId = '';
 
+function show(id) { ['loadCard', 'chooseCard', 'quizCard', 'resultCard'].forEach(function (k) { document.getElementById(k).classList.toggle('hide', k !== id); }); }
+function loadFail(msg) {
+  document.getElementById('loadMsg').textContent = msg;
+  document.getElementById('dots').classList.add('hide');
+  document.getElementById('loadActions').classList.remove('hide');
+}
+
+/** No class in the URL: offer the caller's real classes and reload with the chosen one. */
+async function chooseClass() {
+  show('chooseCard');
+  document.getElementById('sub').textContent = 'Pick a class and your monster writes five questions from its materials.';
+  var list = document.getElementById('classList'), classes = [], failed = false;
+  try { var r = await fetch('/api/education/classes'); if (r.ok) classes = (await r.json()).classes || []; else failed = true; } catch (e) { failed = true; }
+  if (failed) { list.innerHTML = '<div class="lm-empty"><div class="lm-empty-icon">☁️</div><strong>Your classes could not be loaded right now.</strong>Nothing is assumed in their place; try again in a moment.</div>'; return; }
+  if (!classes.length) {
+    list.innerHTML = '<div class="lm-empty"><div class="lm-empty-icon">🌱</div><strong>No classes yet.</strong>Once you are in a class, its quizzes appear here.<div><button type="button" class="lm-btn lm-btn-ghost" id="dashBtn">Open my dashboard</button></div></div>';
+    document.getElementById('dashBtn').onclick = function () { window.LM.navigate('dashboard'); };
+    return;
+  }
+  list.innerHTML = classes.map(function (c) {
+    var meta = [c.subject, c.grade_level].filter(Boolean).map(escapeHtml).join(' · ');
+    return '<button type="button" class="lm-tile" data-id="' + escapeHtml(c.class_id) + '"><span class="lm-tile-icon">📘</span><span class="tile-body"><strong>' + escapeHtml(c.name) + '</strong>' + (meta ? '<small>' + meta + '</small>' : '') + '</span></button>';
+  }).join('');
+  list.querySelectorAll('.lm-tile').forEach(function (t) {
+    t.addEventListener('click', function () { location.href = '/api/education/quiz?classId=' + encodeURIComponent(t.getAttribute('data-id')); });
+  });
+}
+
 async function start() {
-  if (!classId) { document.getElementById('loadMsg').textContent = 'Open a class to take a quiz.'; return; }
+  if (!classId) { chooseClass(); return; }
   try {
     var resp = await fetch('/api/education/quiz/generate', {
       method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ classId: classId, count: 5 })
     });
     var data = await resp.json();
-    if (!resp.ok || data.error) { document.getElementById('loadMsg').textContent = data.reason || data.error || 'Could not build a quiz.'; return; }
+    if (!resp.ok || data.error) { loadFail(data.reason || data.error || 'Could not build a quiz.'); return; }
     questions = data.questions || [];
     attemptId = data.attemptId || '';
-    if (!attemptId || !questions.length) { document.getElementById('loadMsg').textContent = 'The quiz attempt could not be started safely.'; return; }
-    document.getElementById('sub').innerHTML = (data.className ? data.className + ' · ' : '') + '<span class="pill"><span class="codicon codicon-book"></span> Grounded in your textbook</span>';
-    document.getElementById('loadCard').style.display = 'none';
-    document.getElementById('quizCard').style.display = 'block';
+    if (!attemptId || !questions.length) { loadFail('The quiz attempt could not be started safely.'); return; }
+    document.getElementById('sub').innerHTML = (data.className ? escapeHtml(data.className) + ' · ' : '') + '<span class="lm-pill is-info">📖 Grounded in your textbook</span>';
+    show('quizCard');
     render();
-  } catch (e) { document.getElementById('loadMsg').textContent = 'Error: ' + e.message; }
+  } catch (e) { loadFail('Error: ' + e.message); }
 }
 
 function render() {
@@ -107,12 +146,12 @@ function render() {
   var opts = document.getElementById('opts'); opts.innerHTML = '';
   q.options.forEach(function(o, i) {
     var b = document.createElement('button');
-    b.className = 'opt'; b.textContent = o;
+    b.type = 'button'; b.className = 'opt'; b.textContent = o;
     b.onclick = function(){ choose(i, b); };
     opts.appendChild(b);
   });
-  document.getElementById('explain').style.display = 'none';
-  document.getElementById('nextBtn').style.display = 'none';
+  document.getElementById('explain').classList.add('hide');
+  document.getElementById('nextBtn').classList.add('hide');
 }
 
 function choose(i, btn) {
@@ -126,9 +165,9 @@ function choose(i, btn) {
   // progress and rewards authoritative without changing the student flow.
   var ex = document.getElementById('explain');
   ex.textContent = 'Answer saved. You will see the explanation after the quiz.';
-  ex.style.display = 'block';
+  ex.classList.remove('hide');
   document.getElementById('nextBtn').textContent = idx + 1 < questions.length ? 'Next →' : 'See results →';
-  document.getElementById('nextBtn').style.display = 'inline-block';
+  document.getElementById('nextBtn').classList.remove('hide');
 }
 
 function next() {
@@ -137,8 +176,7 @@ function next() {
 }
 
 async function finish() {
-  document.getElementById('quizCard').style.display = 'none';
-  document.getElementById('resultCard').style.display = 'block';
+  show('resultCard');
   document.getElementById('scoreVal').textContent = '…';
   document.getElementById('scoreMsg').textContent = 'Checking your answers securely…';
   try {
@@ -157,15 +195,15 @@ async function finish() {
 
 /** Render the answer key only after the server has consumed the attempt. */
 function showServerGrade(data) {
-  var pct = Number(data.scorePercent || 0);
-  document.getElementById('scoreVal').textContent = pct + '%';
+  var pct = data.scorePercent != null ? Number(data.scorePercent) : null;
+  document.getElementById('scoreVal').textContent = pct != null ? pct + '%' : '—';
   document.getElementById('scoreMsg').textContent = data.correctAnswers + ' of ' + data.totalQuestions + ' correct — ' +
     (pct >= 80 ? 'Monster Win! 🎉' : pct >= 50 ? 'Solid effort — review the misses below.' : "Let's review these together.");
   document.getElementById('review').innerHTML = (data.review || []).map(function(r, i){
     var selected = questions[i] && questions[i].options[r.selectedIndex] || 'No answer';
-    return '<div class="rev"><div class="badge ' + (r.correct?'ok':'bad') + '">' + (r.correct?'✓':'✗') + ' ' + escapeHtml(r.question) + '</div>'
-      + (r.correct ? '' : '<div class="muted" style="margin-top:4px">Your answer: ' + escapeHtml(selected) + ' · Correct: ' + escapeHtml(r.correctAnswer) + '</div>')
-      + (r.explanation ? '<div class="muted" style="margin-top:4px">' + escapeHtml(r.explanation) + '</div>' : '') + '</div>';
+    return '<div class="lm-item"><span class="lm-pill ' + (r.correct ? 'is-success' : 'is-danger') + '">' + (r.correct ? '✓' : '✗') + '</span><div class="lm-item-body"><strong>' + escapeHtml(r.question) + '</strong>'
+      + (r.correct ? '' : '<small>Your answer: ' + escapeHtml(selected) + ' · Correct: ' + escapeHtml(r.correctAnswer) + '</small>')
+      + (r.explanation ? '<small>' + escapeHtml(r.explanation) + '</small>' : '') + '</div></div>';
   }).join('');
 }
 

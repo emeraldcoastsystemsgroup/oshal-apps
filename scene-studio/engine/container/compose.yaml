@@ -1,0 +1,32 @@
+# Scene Studio engine -- its OWN compose project (never the core stack's: a core deploy's
+# --remove-orphans would sweep it), joined to the stack network under the alias the api's
+# client dials. No host port: only containers on the stack network can reach the bridge, and
+# the jobs it runs have no IP networking at all (engine/sandbox_exec.py).
+# CPU and memory are capped so a render cannot crowd the rest of the box.
+name: oshal-scene-studio-engine
+services:
+  scene-studio-engine:
+    image: oshal-scene-studio-engine:local
+    container_name: oshal-scene-studio-engine
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=2g,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: ${SCENE_ENGINE_MEM_LIMIT:-6g}
+    cpus: ${SCENE_ENGINE_CPUS:-6}
+    labels:
+      oshal.app: scene-studio
+    networks:
+      oshal:
+        aliases:
+          - scene-studio-engine
+networks:
+  oshal:
+    external: true
+    name: ${OSHAL_NETWORK:-oshal-local_oshal}

@@ -6,6 +6,112 @@
 <title>Sat Ops — Fleet Plane</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shell opens this page with ?audience=company: the simulated fleet (sim
+     nodes, recent and stale heartbeats, each node's last reported ADCS mode, pointing error and wheel momentum) and the
+     loaded orbit catalog, from the SAME GET /api/sat/fleet and GET /api/sat/catalog the full page reads on boot,
+     painted by the shared kit in the company grammar. On open it makes only those two reads, both listings of the API
+     process's in-memory registries with no side effect. It never computes a ground track, a pass window or a
+     conjunction screen, never asks the sat-operator concierge, never registers or removes a TLE, never sends a node
+     command and mounts no connected actions. Any other request runs the full Sat Ops page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<style>
+  /* The console pins its body to one screen (a two-row grid with overflow hidden) and styles bare main and section
+     elements; under an audience view the kit's root is a plain block that grows and scrolls. */
+  html[data-audience] body { display: block; height: auto; overflow: visible; }
+  html[data-audience] main#av-root { display: block; }
+  html[data-audience] #av-root section.av-stats { padding: 0; }
+</style>
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=sat-ops', KICKER = 'Engineering · Sat Ops';
+  var ENGINES = { rk4: 'RK4 sim', nasa42: 'NASA 42 sim' };
+  // Both reads answer { ok, status, body }: body is null when the answer is not JSON, status 0 when nothing answered.
+  function read(path) {
+    return fetch('/api/sat' + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }, function () { return { ok: r.ok, status: r.status, body: null }; });
+    }, function () { return { ok: false, status: 0, body: null }; });
+  }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function finite(v) { return typeof v === 'number' && isFinite(v); }
+  // A node is recent while the fleet registry still counts its heartbeat as fresh (online); otherwise it is stale.
+  function recent(f) { return f.online === true; }
+  function byRecent(a, b) { return (recent(b) - recent(a)) || ((Number(b.lastSeenMs) || 0) - (Number(a.lastSeenMs) || 0)) || String(a.satId).localeCompare(String(b.satId)); }
+  function byRegistered(a, b) { return ((Number(b.updatedUtcMs) || 0) - (Number(a.updatedUtcMs) || 0)) || String(a.satId).localeCompare(String(b.satId)); }
+  // One fleet row: the node's LAST report (a stale node keeps what it said before its heartbeats stopped).
+  function fleetRow(f) {
+    var t = f.telemetry && typeof f.telemetry === 'object' ? f.telemetry : null, adcs = t && t.adcs && typeof t.adcs === 'object' ? t.adcs : null;
+    return [String(f.satId || '—'), ENGINES[f.engine] || (f.engine ? String(f.engine) : '—'),
+      recent(f) ? { text: 'Recent', tone: 'ok' } : { text: 'Stale', tone: 'warn' },
+      t && t.mode ? String(t.mode) : 'No telemetry yet',
+      { text: t && finite(t.pointingErrorDeg) ? t.pointingErrorDeg.toFixed(2) + '°' : '—' },
+      { text: adcs && finite(adcs.momentumFrac) ? Math.round(adcs.momentumFrac * 100) + '%' : '—' },
+      finite(f.lastSeenMs) ? A.when(f.lastSeenMs) : 'never'];
+  }
+  // One catalog row, joined to its attitude node by sat id the way the full page joins the two views.
+  function orbitRow(c, rows) {
+    var node = rows.filter(function (f) { return f.satId === c.satId; })[0];
+    return [String(c.satId || '—'), c.name ? String(c.name) : '—', finite(c.satnum) ? String(c.satnum) : '—',
+      node ? (recent(node) ? { text: 'Recent heartbeat', tone: 'ok' } : { text: 'Stale heartbeat', tone: 'warn' }) : 'None',
+      finite(c.updatedUtcMs) ? A.when(c.updatedUtcMs) : '—'];
+  }
+  function stats(rows, orbits) {
+    var fresh = rows.filter(recent).length, stale = rows.length - fresh;
+    return [
+      { id: 'nodes', label: 'Sim nodes', value: rows.length },
+      { id: 'recent', label: 'Recent heartbeats', value: fresh },
+      { id: 'stale', label: 'Stale heartbeats', value: stale, tone: stale > 0 ? 'warn' : null },
+      { id: 'orbits', label: 'Orbits loaded', value: orbits ? orbits.length : '—', hint: orbits ? 'TLE records' : 'Could not check' }
+    ];
+  }
+  function headline(rows, orbits) {
+    var fresh = rows.filter(recent).length;
+    if (fresh > 0) return (fresh === rows.length ? plural(fresh, 'simulated sat', 'simulated sats') : fresh + ' of ' + rows.length + ' simulated sats') + ' heartbeating';
+    if (rows.length) return 'No recent heartbeat from ' + plural(rows.length, 'simulated sat', 'simulated sats');
+    if (orbits && orbits.length) return plural(orbits.length, 'orbit', 'orbits') + ' loaded, no sat node heartbeating';
+    return orbits ? 'No sat nodes or orbits yet' : 'No sat nodes heartbeating';
+  }
+  function lede(rows, orbits) {
+    if (rows.length || (orbits && orbits.length)) return 'Simulation only: every engine is a simulator and nothing here sends a command. The fleet and the orbit catalog are held in the API process’s memory and reset when it restarts.';
+    return 'A sat shows here once its sat node heartbeats in, and an orbit once a TLE is registered in Sat Ops. Every engine is a simulator and nothing here sends a command.';
+  }
+  function model(rows, orbits) {
+    var sats = rows.slice().sort(byRecent), loaded = orbits ? orbits.slice().sort(byRegistered) : [];
+    return { kicker: KICKER, title: headline(rows, orbits), lede: lede(rows, orbits),
+      actions: [{ label: 'Open the fleet plane', primary: true, onClick: function () { A.open(FULL); } }],
+      stats: stats(rows, orbits),
+      sections: [
+        { kind: 'table', id: 'fleet', title: 'Fleet (attitude nodes)', empty: 'No sat node has heartbeated since the API process started.',
+          note: 'Heartbeat is the fleet registry’s own reading. Mode, pointing error and wheel momentum are each node’s last report, so a stale row shows what that node reported before its heartbeats stopped. Pointing error reads — when the node reports no pointing target.',
+          columns: ['Sat', 'Engine', 'Heartbeat', 'Mode', { label: 'Pointing error', align: 'right' }, { label: 'Wheel momentum', align: 'right' }, 'Last heard'],
+          rows: sats.map(fleetRow) },
+        { kind: 'table', id: 'orbits', title: 'Orbit catalog (TLE)', empty: orbits ? 'No orbits loaded yet.' : 'The orbit catalog could not be read just now.',
+          note: 'TLE records are loaded inputs, not orbit-quality certification. Ground tracks, pass windows and conjunction screening are computed on request in Sat Ops, never from this view.',
+          columns: ['Sat', 'Name', 'NORAD no.', 'Attitude node', 'Registered'],
+          rows: loaded.map(function (c) { return orbitRow(c, rows); }) }
+      ] };
+  }
+  function refused(res) {
+    if (res.status === 401) return { kicker: KICKER, title: 'Sign in to see the sat fleet', lede: 'Sat Ops shows its simulated fleet to a signed-in operator, and this session is not signed in.' };
+    if (res.status === 403) return { kicker: KICKER, title: 'This account cannot open Sat Ops', lede: 'The Sat Ops routes refused this account (HTTP 403).' };
+    return null;
+  }
+  function company() {
+    // The catalog is the second read: when it fails, the fleet still shows and the orbit count reads Could not check.
+    return Promise.all([read('/fleet'), read('/catalog')]).then(function (r) {
+      var fleet = r[0], catalog = r[1], stop = refused(fleet) || refused(catalog);
+      if (stop) return stop;
+      if (!fleet.status) throw new Error('Sat Ops could not be reached just now.');
+      if (!fleet.ok) throw new Error('Sat Ops could not read the fleet (HTTP ' + fleet.status + ').');
+      if (!fleet.body || !Array.isArray(fleet.body.fleet)) throw new Error('Sat Ops sent an answer this view could not read.');
+      return model(fleet.body.fleet, catalog.ok && catalog.body && Array.isArray(catalog.body.catalog) ? catalog.body.catalog : null);
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'sat-ops', escapeLabel: 'Open Sat Ops in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
   /* Self-contained surface theme (embedded-surface rule: own your CSS). */
   :root {
@@ -751,30 +857,34 @@ function drawMap(nowMs) {
 }
 
 /* ── camera interaction ──────────────────────────────────────────────────── */
-V3D.addEventListener('mousedown', (e) => { state.drag = { x: e.clientX, y: e.clientY }; });
-window.addEventListener('mousemove', (e) => {
+// Every top-level start step of the full page (this camera wiring, the catalog, screening, pass, concierge, command
+// and help wiring, and the boot that reads the fleet and catalog, computes tracks and starts the fleet poll and the
+// render loop) runs only when no audience view renders: under ?audience=company the shared kit paints instead (see
+// the head script), and a core without the shared kit runs the full page.
+if (!window.AppView || !AppView.active()) V3D.addEventListener('mousedown', (e) => { state.drag = { x: e.clientX, y: e.clientY }; });
+if (!window.AppView || !AppView.active()) window.addEventListener('mousemove', (e) => {
   if (!state.drag) return;
   state.cam.yaw -= (e.clientX - state.drag.x) * 0.006;
   state.cam.pitch = Math.max(-1.45, Math.min(1.45, state.cam.pitch + (e.clientY - state.drag.y) * 0.006));
   state.drag = { x: e.clientX, y: e.clientY };
 });
-window.addEventListener('mouseup', () => { state.drag = null; });
-V3D.addEventListener('wheel', (e) => {
+if (!window.AppView || !AppView.active()) window.addEventListener('mouseup', () => { state.drag = null; });
+if (!window.AppView || !AppView.active()) V3D.addEventListener('wheel', (e) => {
   e.preventDefault();
   state.cam.dist = Math.max(1.6, Math.min(14, state.cam.dist * (e.deltaY > 0 ? 1.1 : 0.9)));
 }, { passive: false });
-$('btnAutoRot').onclick = () => {
+if (!window.AppView || !AppView.active()) $('btnAutoRot').onclick = () => {
   state.cam.auto = !state.cam.auto;
   $('btnAutoRot').textContent = 'auto-rotate: ' + (state.cam.auto ? 'on' : 'off');
 };
-$('btnFrame').onclick = () => {
+if (!window.AppView || !AppView.active()) $('btnFrame').onclick = () => {
   state.frame = state.frame === 'inertial' ? 'earth' : 'inertial';
   $('btnFrame').textContent = 'frame: ' + state.frame;
   $('ovl3d').textContent = (state.frame === 'inertial' ? 'ECI (TEME)' : 'Earth-fixed') + ' · drag to orbit · wheel to zoom';
 };
 
 /* ── catalog + screening + passes actions ────────────────────────────────── */
-$('catAdd').onclick = async () => {
+if (!window.AppView || !AppView.active()) $('catAdd').onclick = async () => {
   const satId = $('catId').value.trim();
   const tle = $('catTle').value.trim();
   if (!satId || !tle) { toast('sat id and TLE are required', true); return; }
@@ -786,7 +896,7 @@ $('catAdd').onclick = async () => {
 };
 
 /* Seed a demo trio: ISS-class leader + a 0.05° trailing chaser (conjunction demo) + a polar bird. */
-$('catSeed').onclick = async () => {
+if (!window.AppView || !AppView.active()) $('catSeed').onclick = async () => {
   const cs = (s) => s + String(s.slice(0, 68).split('').map(c => c === '-' ? 1 : /\d/.test(c) ? Number(c) : 0).reduce((a, b) => a + b, 0) % 10);
   const epoch = (() => {
     const now = new Date();
@@ -811,7 +921,7 @@ $('catSeed').onclick = async () => {
   } catch (e) { toast(e.message, true); }
 };
 
-$('cjRun').onclick = async () => {
+if (!window.AppView || !AppView.active()) $('cjRun').onclick = async () => {
   if (state.catalog.length < 2) { toast('need ≥2 catalog sats to screen', true); return; }
   $('cjRun').disabled = true;
   try {
@@ -832,7 +942,7 @@ $('cjRun').onclick = async () => {
   $('cjRun').disabled = false;
 };
 
-$('passRun').onclick = async () => {
+if (!window.AppView || !AppView.active()) $('passRun').onclick = async () => {
   const satId = $('passSat').value;
   const cat = state.catalog.find(c => c.satId === satId);
   if (!cat) { toast('pick a catalog sat', true); return; }
@@ -862,7 +972,7 @@ function chatLine(role, text) {
   $('chatLog').appendChild(div);
   $('chatLog').scrollTop = $('chatLog').scrollHeight;
 }
-$('chatSend').onclick = async () => {
+if (!window.AppView || !AppView.active()) $('chatSend').onclick = async () => {
   const msg = $('chatMsg').value.trim();
   if (!msg) return;
   $('chatMsg').value = '';
@@ -900,13 +1010,13 @@ $('chatSend').onclick = async () => {
   } catch (e) { chatLine('assistant', '(error: ' + e.message + ')'); }
   $('chatSend').disabled = false;
 };
-$('chatMsg').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('chatSend').click(); });
+if (!window.AppView || !AppView.active()) $('chatMsg').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('chatSend').click(); });
 
 /* ── command buttons ─────────────────────────────────────────────────────── */
-$('cmdSafe').onclick = () => sendCommand(state.selected, 'SAFE', { mode: 'safe' }, 'Force SAFE: zero torque, sticky until a new operator command.');
-$('cmdDetumble').onclick = () => sendCommand(state.selected, 'DETUMBLE', { mode: 'detumble' }, 'Rate-damp the body; auto-completes to SAFE (or resumes a latched target).');
-$('cmdDesat').onclick = () => sendCommand(state.selected, 'DESAT', { mode: 'desat' }, 'Dump wheel momentum through the magnetorquers, then return to the latched target.');
-$('cmdPoint').onclick = () => {
+if (!window.AppView || !AppView.active()) $('cmdSafe').onclick = () => sendCommand(state.selected, 'SAFE', { mode: 'safe' }, 'Force SAFE: zero torque, sticky until a new operator command.');
+if (!window.AppView || !AppView.active()) $('cmdDetumble').onclick = () => sendCommand(state.selected, 'DETUMBLE', { mode: 'detumble' }, 'Rate-damp the body; auto-completes to SAFE (or resumes a latched target).');
+if (!window.AppView || !AppView.active()) $('cmdDesat').onclick = () => sendCommand(state.selected, 'DESAT', { mode: 'desat' }, 'Dump wheel momentum through the magnetorquers, then return to the latched target.');
+if (!window.AppView || !AppView.active()) $('cmdPoint').onclick = () => {
   const axis = { x: Number($('axX').value), y: Number($('axY').value), z: Number($('axZ').value) };
   const angleDeg = Number($('angDeg').value);
   sendCommand(state.selected, 'POINT', { axis, angleDeg },
@@ -914,9 +1024,9 @@ $('cmdPoint').onclick = () => {
 };
 
 /* ── help modal ──────────────────────────────────────────────────────────── */
-$('btnHelp').onclick = () => { $('helpModal').style.display = 'flex'; };
-$('helpClose').onclick = () => { $('helpModal').style.display = 'none'; };
-$('helpModal').addEventListener('click', (e) => { if (e.target === $('helpModal')) $('helpModal').style.display = 'none'; });
+if (!window.AppView || !AppView.active()) $('btnHelp').onclick = () => { $('helpModal').style.display = 'flex'; };
+if (!window.AppView || !AppView.active()) $('helpClose').onclick = () => { $('helpModal').style.display = 'none'; };
+if (!window.AppView || !AppView.active()) $('helpModal').addEventListener('click', (e) => { if (e.target === $('helpModal')) $('helpModal').style.display = 'none'; });
 
 /* ── main loop ───────────────────────────────────────────────────────────── */
 function frame() {
@@ -928,10 +1038,14 @@ function frame() {
   requestAnimationFrame(frame);
 }
 
-pollFleet();
-refreshCatalog();
-setInterval(pollFleet, 2000);
-requestAnimationFrame(frame);
+// The full page only (see the gate note above the camera wiring): behind an audience view no fleet or catalog read,
+// no track computation, no fleet poll and no render loop starts.
+if (!window.AppView || !AppView.active()) {
+  pollFleet();
+  refreshCatalog();
+  setInterval(pollFleet, 2000);
+  requestAnimationFrame(frame);
+}
 </script>
 
 <details id="evidenceReview" style="position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px));max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box;box-shadow:0 8px 30px #0005">
@@ -942,7 +1056,8 @@ requestAnimationFrame(frame);
  <div id="evidenceActions"></div>
 </details>
 <script>
-(async()=>{
+// The full page only: behind an audience view no connected-actions plan is fetched, no offer is mounted and no evidence listener is bound.
+if (!window.AppView || !AppView.active()) (async()=>{
 const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');
 const panel=document.getElementById('evidenceReview'),pick=document.getElementById('evidenceChoice'),notes=document.getElementById('evidenceNotes'),state=document.getElementById('evidenceState');let records=[],loaded=false;
 await mountConnectedActions({element:document.getElementById('evidenceActions'),app:"sat-ops",contextForOffer:()=>({title:records[pick.selectedIndex]?.text||'Diagnostic review',notes:notes.value})});

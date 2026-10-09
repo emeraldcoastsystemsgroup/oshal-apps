@@ -1,16 +1,43 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add pointer and keyboard transforms with one undo entry per completed gesture.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep modal browsing from applying editor shortcuts to the underlying canvas.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Region mode: drag a lasso, Shift-drag a box or click for the whole image; the gesture becomes a source-pixel selection of one image layer and never edits the document. Escape clears it.
  */
 import { $, state, canEdit, edit, notify, error, handle } from './editor-state.mjs';
 import { applyOperation } from './model.mjs';
 import { hitTest } from './renderer.mjs';
-import { paint, selectedLayer } from './editor-view.mjs';
+import { paint, paintRegionDraft, selectedLayer } from './editor-view.mjs';
+import { clientToCanvas, targetImageLayer, selectionFromCanvas, selectionFromLayer } from './region-select.mjs';
 let gesture = null;
 
 function point(event) {
-  const rect = $('artboard').getBoundingClientRect();
-  return { x: (event.clientX - rect.left) * state.project.width / rect.width, y: (event.clientY - rect.top) * state.project.height / rect.height };
+  return clientToCanvas({ x: event.clientX, y: event.clientY }, $('artboard').getBoundingClientRect(), state.project);
+}
+
+/** Start a region gesture on the one image layer it applies to; an ambiguous target is refused before any drawing. */
+function beginRegion(event, at) {
+  try {
+    const layer = targetImageLayer(state.project, state.selected, at);
+    state.selected = layer.id; error(''); notify();
+    gesture = { pointer: event.pointerId, region: true, layerId: layer.id, box: event.shiftKey, points: [at] };
+    $('artboard').setPointerCapture(event.pointerId); $('artboard').focus(); event.preventDefault();
+  } catch (failure) { error(failure.message); }
+}
+
+function moveRegion(at) {
+  const last = gesture.points.at(-1);
+  if (Math.hypot(at.x - last.x, at.y - last.y) >= 2 && gesture.points.length < 20000) gesture.points.push(at);
+  paint(); paintRegionDraft(gesture.box ? [gesture.points[0], at] : gesture.points, gesture.box);
+}
+
+/** A click (no real drag) selects the whole visible image; otherwise the lasso or box becomes the region. */
+function finishRegion() {
+  const xs = gesture.points.map(item => item.x), ys = gesture.points.map(item => item.y);
+  const dragged = Math.max(...xs) - Math.min(...xs) >= 4 || Math.max(...ys) - Math.min(...ys) >= 4;
+  const points = gesture.box ? [gesture.points[0], gesture.points.at(-1)] : gesture.points;
+  state.region = !dragged ? selectionFromLayer(state.project, gesture.layerId)
+    : selectionFromCanvas(state.project, gesture.layerId, points, { kind: gesture.box ? 'box' : 'lasso' });
+  error(''); notify();
 }
 function rotate(x, y, radians) { return { x: x * Math.cos(radians) - y * Math.sin(radians), y: x * Math.sin(radians) + y * Math.cos(radians) }; }
 
@@ -23,6 +50,7 @@ function onHandle(layer, at) {
 
 function begin(event) {
   if (event.button !== 0 || gesture || !canEdit()) return;
+  if (state.regionMode) { beginRegion(event, point(event)); return; }
   const at = point(event), selected = selectedLayer(), resize = onHandle(selected, at);
   const layer = resize ? selected : hitTest(state.project, at, { tolerance: 5 });
   state.selected = state.draw ? null : layer?.id ?? null; notify();
@@ -48,6 +76,7 @@ function move(event) {
   if (!gesture || event.pointerId !== gesture.pointer) return;
   const at = point(event);
   try {
+    if (gesture.region) { moveRegion(at); return; }
     if (state.draw) {
       if (gesture.points.length < 10000) gesture.points.push(at);
       paint(applyOperation(gesture.original, { type: 'add', layer: strokeLayer() })); return;
@@ -61,7 +90,8 @@ function move(event) {
 function finish(event, cancelled = false) {
   if (!gesture || event.pointerId !== gesture.pointer) return;
   try {
-    if (!cancelled && state.draw) edit({ type: 'add', layer: { ...strokeLayer(), id: crypto.randomUUID() } });
+    if (gesture.region) { if (!cancelled) finishRegion(); }
+    else if (!cancelled && state.draw) edit({ type: 'add', layer: { ...strokeLayer(), id: crypto.randomUUID() } });
     else if (!cancelled && gesture.patch) edit({ type: 'update', id: gesture.layer.id, patch: gesture.patch });
   } catch (failure) { error(failure.message); }
   finally { gesture = null; paint(); }
@@ -70,6 +100,7 @@ function finish(event, cancelled = false) {
 function keyboard(event) {
   if (event.target.closest('input,textarea,select,[contenteditable]') || document.querySelector('dialog[open]') || !canEdit()) return;
   const key = event.key.toLowerCase(), modifier = event.ctrlKey || event.metaKey;
+  if (key === 'escape' && (state.region || state.regionMode)) { event.preventDefault(); state.region = null; state.regionMode = false; notify(); return; }
   if (modifier && ['z', 'y', 's'].includes(key)) {
     event.preventDefault(); if (key === 's') { $('saveProject').click(); return; }
     state.project = key === 'y' || event.shiftKey ? state.history.redo() : state.history.undo(); notify(); return;

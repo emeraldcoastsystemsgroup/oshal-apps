@@ -20,6 +20,12 @@
 # 16 | maintainer@emeraldcoastsystemsgroup.com | routes-scene-import points at its renamed suite, tests/routes-scene-import.core.test.js.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 0.16.0: ADR-160 S1 - the medium record and the falling hull get a case of their own; the routes and browser cases already registered above also cover the new /physics/media and /physics/hull answers.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | Name engine/tests/test_hull_fall.py in the Python case (BACKLOG B25). It has now been run on the real plant in oshal-embodied-engine (MuJoCo 3.3.5): 3 cases, 3 passed. The image ships no pytest, so the file carries its own runner and the case records that exact command rather than one that cannot run there.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 0.16.2: the owned bought-part rows (ADR-152 D1) get a case of their own - the drone motors and the arm servo are built by id from engine/design/parts-catalog.json, no number moved, and the model reads the row rather than holding a copy.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 0.16.3: ADR-160 D5 - a run result carries its medium id and engine fingerprints or is not displayed. The medium case pins the fingerprint (a stable, recomputable engine-tree hash that moves with one byte; the version read from the manifest; the refusal naming the missing field), the routes case pins the answer's shape and the 503 for a package that cannot name itself, and the browser case proves the tile draws nothing for a run that arrives without its fingerprints.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 0.17.0: B28 - the PX4 cross-check. The harness and its divergence get a node-test case of their own (the Python suite under the first python that starts, red if a declared case did not run), the Python file joins the plant's Python case, and the SIH leg flown standalone on a private docker network is registered as the external case it is, with the two recorded runs of 2026-09-28 as its expected shape. The PteroSim leg is not registered: it needs a licence consent this package cannot give.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 0.17.1: every expected line at most 500 characters. The framework's catalog loader refused the WHOLE 0.17.0 package at install (`Application embodied testing.cases[19].expected[7]: must be non-empty text of at most 500 characters`, 575 characters; engine-px4-crosscheck-sih expected[0] was 550 behind it), so embodied was unmounted until 0.16.3 was restored. Each over-long line is split in two with its meaning kept; scripts/check-test-catalogs.mjs now runs that loader over every package on every push.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | 0.17.2: ADR-164 D6 - the family audience view the Jarvis Home shell opens gets the audience-view case: the static kit contract, the view's two reads over the package's real GET /tasks and GET /home-summary routes, its plain-word model and named states, and the gate on the surface script's one start statement.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | 0.17.3: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -283,6 +289,31 @@ cases:
       timeoutMs: 60000
       maxMemoryMb: 512
     installation: never
+  - id: engine-parts-catalog
+    name: The bought parts this package owns are data rows, read by id
+    purpose: Prove ADR-152 D1 for the parts embodied owns. The two drone motors and the arm's 12 V STS3215 are one committed row each in engine/design/parts-catalog.json - identity, mass, price and a source line, plus the propulsion block (KV) or the joint-drive block - and DRONE_FITS and STS3215_12V are built from those rows by id, so Circuit Lab can read the same compiled file as data instead of restating the part. The case pins every figure the design documents print at its pre-change value, edits the row in a copy of the compiled engine to show the model reads it rather than holding a copy, and refuses a missing or malformed row by name.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-parts-catalog.test.js
+    expected:
+      - Every owned row carries id, name, mass, price and a source line; each fit's motor and STS3215_12V expose exactly their row's values, and the motor keeps bill id motor.
+      - "No number moved: recon-mini 746 g all-up and USD 582, recon-3d 1193 g and USD 1447, the arm servo 55 g, USD 20, 30 kg cm and 0.222 s per 60 deg, the arm 961 g moving and USD 240."
+      - In a copy of the compiled engine with an edited row, recon-mini's mass budget, price and hover sizing move with the row and the arm's servo line, moving mass, stall torque and price move with it.
+      - A missing row, a non-numeric mass, a missing source or propulsion block, a two-number case or a missing list each fails the load naming the list, row and field.
+      - The compiled routes/engine/design/parts-catalog.json equals the committed source rows, and no .ts under src-routes restates a row name.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Every edited copy of the compiled engine is a fresh mkdtemp directory removed after its case; the repository tree is only read.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
   - id: routes-http
     name: Packaged routes over loopback HTTP
     purpose: Drive the compiled routes with express from a framework checkout — the caller gate, owner scoping, draft → rehearsal row → confirm-gated execute → deterministic time through GET /state → done, take/release/e-stop/reset, a refused manual command in the log, world reset refused mid-run, the physics backend and the certification gate on a plant double, and a node on the rail (heartbeat ingest, the fleet listed, a world reset onto the node, a drone-first exploration over its command channel, silence taking it offline, the manifest's service-secret posture for the mount).
@@ -297,6 +328,7 @@ cases:
       - A task reaches status done with every dish on the rack and the log carrying every step.
       - A node that heartbeat in is online with the package's engine tree hash, belongs to the owner its heartbeats carried (another owner sees no node and gets 404), flies an exploration to done, and after 20 s of silence a reset onto it is 503 node_offline.
       - Capabilities list the two scenarios; a reset onto the studio answers scenario studio; an unknown scene is 400.
+      - GET /physics/hull answers as oshal.run-result/1 carrying medium.id and engine (the manifest's version, the compiled engine tree's hash, plant analytic) that GET /physics/media also publishes; a mount whose package dir has no manifest answers 503 run_unfingerprinted.
     prerequisites:
       - runner:node-test
       - fixture:core-checkout
@@ -374,6 +406,7 @@ cases:
       - Outside command every manual button is disabled while the designer's buttons stay live.
       - The header names the node online, the truth-model selector offers it, and after Reset world onto it the node panel reads physics on rail node tile-plant.
       - The Build panel lists the printed arm's six joints and its parts, and Check on physics puts the container's measured hold in the joint's row.
+      - The drop result renders its run fingerprint line (medium id, package version, engine hash, plant), and a hull answer with `engine` stripped in flight renders "Not displayed" naming the missing fields with nothing drawn.
     prerequisites:
       - runner:playwright
       - harness:oshal-core-root
@@ -430,6 +463,7 @@ cases:
       - "explorerHullMjcf writes the chosen medium's gravity vector into the scene, a zero-g or tilted medium changes that line, and neither density nor viscosity is ever emitted."
       - "The hull is one 300 mm solid of 24.7 kg and falls 2 m in sqrt(2h/g) seconds in air; droneMjcf is byte-identical to its shipped fixture now that its medium is named vacuum."
       - "Seawater raises model_not_valid_in_medium (rigid-body-plant), every medium raises medium_property_unavailable for freeSurface, and a release height outside the band raises medium_outside_validity."
+      - "The compiled engine tree's build hash is a sha256 that is stable, recomputable over a byte-identical copy and moves when one byte of one module moves; the package version is read from the real manifest and null without one; fingerprintRun stamps a drop as oshal.run-result/1 and requireDisplayable refuses a result missing medium.id, engine.packageVersion or engine.routesBuildHash, naming the field."
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -455,6 +489,7 @@ cases:
         - engine/tests/test_px4_node.py
         - engine/tests/test_arm.py
         - engine/tests/test_hull_fall.py
+        - engine/tests/test_px4_crosscheck.py
     expected:
       - Six worker cases pass under `python -m pytest -q engine/tests` in oshal-embodied-engine (or a venv with the requirements pins); the resting height is 0.03 m; the hover holds within 8 cm; two plants with one seed replay one trajectory.
       - Five task cases pass; a zero residual flies exactly the controller's trajectory; a tiny trained policy loaded through set_controller flies the plant with snapshot/restore exact; the verdict needs every facet.
@@ -463,6 +498,8 @@ cases:
       - Seven printed-arm cases pass - the model is the arm the design describes; inverse kinematics reaches over the bench and refuses a pose through it; a servo holding the payload in the worst pose carries what the design said within 15 percent; a move trims the servos' sag to 8 mm at the tool; the taught pick-and-place places the block inside every servo's continuous torque; the check returns four verdicts and calls a wrong design figure a disagreement; the environment steps the same way twice.
       - The ctbr task cases pass - collective thrust and body rates through the plant's own rate loop, the look-ahead observation, the smoothness penalty and thrust jitter in the reward.
       - "Three hull cases pass under `python engine/tests/test_hull_fall.py` in oshal-embodied-engine, which ships no pytest - that file drives its own test functions and exits non-zero on any failure. The scene carries the air row's gravity and no fluid model; the hull is one 300 mm solid of 24.7 kg; and it falls at g - qvel is -g*t exactly, cvel trails it by one step of g*dt, the height leads h - g t^2/2 by g*dt*t/2, and it rests 5.7e-5 m into the floor."
+      - Fourteen cross-check cases pass under `python engine/tests/test_px4_crosscheck.py` (standard library only, its own runner) - the vehicle file follows from its declared inputs and maps to PARAM_SET per backend, and a non-SITL airframe and an unconfirmed parameter stop the run before anything is armed.
+      - In those cross-check cases segments are timed on the vehicle's clock, alignment removes a boot-time offset, a command sent a tick late is not a model difference, a known 0.5 m offset is measured exactly and goes red, step metrics match a closed form, every refusal is named, and the CLI exits by verdict.
     prerequisites:
       - engine-container:oshal-embodied-engine
     sideEffects: none
@@ -623,4 +660,84 @@ cases:
     limits:
       timeoutMs: 180000
       maxMemoryMb: 1024
+    installation: never
+
+  - id: engine-crosscheck
+    name: The PX4 cross-check harness and its divergence, without a flight stack (B28)
+    purpose: The cross-check's own Python suite (engine/tests/test_px4_crosscheck.py) run under the first python that starts, so the harness that flies both legs of the comparison and the divergence that judges them are guarded wherever the package's engine-* suites run - a PX4 double in simulated time drives the real harness end to end, and the divergence is proved on runs with a known answer (a copied run agrees exactly, a 0.5 m offset reads as 0.5 m and goes red, a command a tick late is harness timing, every refusal is named).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-crosscheck.test.js
+    expected:
+      - The wrapper finds a python that starts, runs the suite and requires its own summary line to read every declared case as passed - a runner that discovered nothing, or a count that shrank, is red.
+      - With the divergence's tolerance check disabled the known-offset and CLI cases go red; with the harness's SITL-airframe refusal disabled the never-armed case goes red (mutation-proved 2026-09-28).
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 512
+    installation: never
+
+  - id: engine-px4-crosscheck-sih
+    name: The SIH leg of the PX4 cross-check, flown standalone and recorded (B28)
+    purpose: The half of the cross-check this package can fly by itself - the official PX4 SITL image (SIH physics) as the vehicle and the harness in the engine image, on a private docker network of their own, never the stack network, never the api rail, everything removed when the script exits. The declared F450 (engine/crosscheck/f450-sih.params.json) goes in by PARAM_SET and is confirmed by the vehicle before it is armed; the trajectory is recorded on the vehicle's clock. Two consecutive runs of the same vehicle file give the comparison its repeatability floor. The external (PteroSim) leg is deliberately not registered here - it needs a licence consent an automated case cannot give.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/crosscheck/run-leg.sh
+        - engine/crosscheck/px4_crosscheck.py
+        - engine/crosscheck/divergence.py
+        - engine/crosscheck/f450-sih.params.json
+    expected:
+      - "`bash engine/crosscheck/run-leg.sh sih <out>` exits 0 and writes <out>/sih-trajectory.json with complete true, px4.version 1.18.0, px4.sysAutostart 10040, vehicle.confirmed true (the eight SIH values and the eight allocator positions echoed back) and the events offboard-armed, takeoff, leg-north, yaw-90, hover, land, landed."
+      - "That leg's PX4 log reads Armed by external command, Takeoff detected, Landing at current position, Landing detected, Disarmed by landing (2026-09-28 03:49 and 03:50 UTC: 2210 and 2211 position samples, 2234 attitude samples each)."
+      - "`python engine/crosscheck/divergence.py --self-check <out>/sih-trajectory.json` reports ok; the two consecutive runs compare as agree - per-phase position RMS 0.02 m (max 0.06 m north-east, 0.18 m up), yaw RMS 0.26 deg (max 3.0 deg), leg rise, overshoot and settling within 0.09 s, 0.3 percent and 0.09 s of each other; a run of an earlier vehicle file is refused as different_vehicle."
+      - The private network and both containers are gone when the script exits, whatever happened; no container joined the stack network and no host port was published.
+    prerequisites:
+      - docker:oshal-local
+      - image:px4io.px4-sitl
+      - engine-container:oshal-embodied-engine
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its family (Home shell) and company (Business shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the family view reads only GET /api/embodied/tasks and GET /api/embodied/home-summary, and the package's real routes answer both with SELECTs of the caller's own rows; it never reads /state, /world, /world/voxels, /picture, /camera, /capabilities, /physics/status, /physics/reports or /log.
+      - The saved jobs paint as four plain counts, a title naming the newest job's state, and tiles saying what each job was, how far it got, whether its dry run passed and when; no tile opens, runs or stops anything.
+      - A count the summary could not check, odd rows, signed out, refused, the route's own 500, an unreadable answer and an unreachable server each read as what they are.
+      - The surface script's one start statement carries the gate; under the view it binds, reads and starts nothing, without it the page makes its start reads and starts its four polls, and removing the gate turns the test red.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

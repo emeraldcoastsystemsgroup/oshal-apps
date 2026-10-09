@@ -165,6 +165,19 @@
   #exportList a:hover { text-decoration: underline; }
   .note { font-size: 11px; color: var(--dim); white-space: pre-wrap; }
 
+  /* ADR-160 S4: the vehicle record card. */
+  #vehicleCard .stage { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
+  #vehicleCard .ladder { font-size: 10.5px; color: var(--dim); margin: 4px 0; }
+  #vehicleCard .ladder b { color: var(--text); }
+  #vehicleCard .budget-red { color: var(--bad); font-weight: 600; }
+  #vehicleCard .budget-green { color: var(--ok); font-weight: 600; }
+  #vehicleCard ul { margin: 4px 0 0 16px; font-size: 11px; color: var(--dim); }
+  #vehicleCard li { margin: 2px 0; white-space: pre-wrap; }
+  #vehicleCard table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+  #vehicleCard th, #vehicleCard td { text-align: left; padding: 2px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  #vehicleCard .fabricable { font-size: 11px; color: var(--warn); margin-top: 6px; white-space: pre-wrap; }
+  #vehicleCard .withheld { font-size: 11px; color: var(--bad); }
+
   /* Stack the three-column lab when the surface is narrow (single media block — append here). */
   @media (max-width: 1080px) {
     html, body { height: auto; min-height: 100%; }
@@ -267,6 +280,10 @@
       <h2>Verdict</h2>
       <div id="verdictCard"><div class="note">No run yet. The verdict — closed / admissible, with the engine's named reasons — appears after Run 24 h Energy Loop or Run Screen.</div></div>
       <div id="fingerprint"></div>
+    </section>
+    <section>
+      <h2>The Floater &mdash; a record</h2>
+      <div id="vehicleCard"><div class="note">Loading the record…</div></div>
     </section>
     <section>
       <h2>Engine</h2>

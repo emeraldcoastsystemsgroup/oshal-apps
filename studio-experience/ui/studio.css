@@ -1,0 +1,28 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Own the established skin palette while respecting saved appearance.
+ */
+body[data-skin="studio"], [data-layout][data-skin="studio"], .experience[data-skin="studio"], [data-skin="studio"], body[data-theme="studio"], [data-theme="studio"] {
+  --bg: #181b1b;
+  --surface: #202424;
+  --surface-2: #2a2e2e;
+  --chrome: #151818;
+  --ink: #e8eeea;
+  --muted: #9ba8a2;
+  --line: #323b37;
+  --accent: #b9dfb2;
+  --on-accent: #20311f;
+  --soft: #2d3d31;
+  --paper: #202424;
+  --on: #20311f;
+  --feature: #243026;
+  --teal: #b9dfb2;
+  --gold: #d8c39d;
+  --radius-custom: 10px;
+  --radius: 10px;
+  --theme-brand: "Studio";
+  color-scheme: dark;
+}

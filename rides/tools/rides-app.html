@@ -1,24 +1,119 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>OSHAL Rides</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the household's planned rides
+     (the newest rides handed to Uber, where they went, the ride type and the estimate saved with each, the places
+     they go most) and the five-day count, from the SAME /api/rides routes the full page reads, painted by the shared
+     kit in the family grammar. On open it reads only /history and /home-summary: no map, no map config, no address
+     lookup, no fare estimate, no concierge, no Uber link and no write. A saved ride opens nothing (its Uber link
+     would start a booking); the one action escapes to Get a Ride in the cockpit. Any other request runs the full
+     map page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<style>
+  /* This page's body clips its overflow for the full-height map; under an audience view the kit's root scrolls. */
+  html[data-audience] body { overflow: auto; }
+</style>
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=rides', CAP = 20, KICKER = 'Getting around';
+  var TYPES = { uberx: 'UberX', comfort: 'Comfort', xl: 'UberXL', black: 'Black' };
+  function call(path) {
+    return fetch('/api/rides' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; });
+    });
+  }
+  function refused(e) { return !!e && (e.status === 401 || e.status === 403); }
+  // The home summary is its own mount and may fail on its own: the saved rides still show and the count reads as unknown.
+  function summary() { return call('/home-summary').catch(function (e) { if (refused(e)) throw e; return null; }); }
+  function words(value, fallback) { var s = String(value === null || value === undefined ? '' : value).replace(/\s+/g, ' ').trim(); return s || fallback; }
+  function kind(row) { var t = words(row.ride_type, ''); return TYPES[t.toLowerCase()] || t || null; }
+  function given(v) { return v !== null && v !== undefined && v !== '' && isFinite(Number(v)); }
+  function fare(row) { return given(row.est_fare_low) && given(row.est_fare_high) ? 'about ' + A.money(Number(row.est_fare_low)) + '–' + A.money(Number(row.est_fare_high)) : 'no fare estimate saved'; }
+  function line(row) {
+    return { icon: '🚗', title: 'To ' + words(row.dropoff, 'a place not named'), text: ['From ' + words(row.pickup, 'my location'), kind(row), fare(row)].filter(Boolean).join(' · '), meta: 'planned ' + A.when(row.created_at) };
+  }
+  // Destinations by how often they were asked for; the rows arrive newest first, so a tie keeps the most recent place first.
+  function places(rows) {
+    var seen = {}, out = [];
+    rows.forEach(function (row) {
+      var name = words(row.dropoff, ''), key = name.toLowerCase(); if (!name) return;
+      if (!seen[key]) { seen[key] = { name: name, count: 0, last: row.created_at }; out.push(seen[key]); }
+      seen[key].count += 1;
+    });
+    return out.sort(function (a, b) { return b.count - a.count; }).slice(0, 6).map(function (p) {
+      return { icon: '📍', title: p.name, text: p.count === 1 ? '1 ride' : p.count + ' rides', meta: 'last ' + A.when(p.last) };
+    });
+  }
+  function usual(rows) {
+    var counts = {}, best = null;
+    rows.forEach(function (row) { var t = kind(row); if (!t) return; counts[t] = (counts[t] || 0) + 1; if (!best || counts[t] > counts[best]) best = t; });
+    return best;
+  }
+  function fiveDays(sum) { var m = ((sum && sum.metrics) || []).filter(function (x) { return x.id === 'ride-handoffs-5d'; })[0]; return m && given(m.value) ? String(m.value) : null; }
+  function stats(rows, sum) {
+    var five = fiveDays(sum), full = rows.length >= CAP, best = usual(rows);
+    return [
+      { id: 'planned', label: 'Rides planned', value: full ? CAP + '+' : rows.length, hint: full ? 'Showing the newest ' + CAP : null },
+      { id: 'recent', label: 'Last 5 days', value: five === null ? '—' : five, hint: five === null ? 'Could not check' : 'Handed to Uber' },
+      { id: 'last', label: 'Last planned', value: rows[0] ? A.when(rows[0].created_at) : '—' },
+      { id: 'usual', label: 'Usual ride', value: best || '—' }
+    ];
+  }
+  function note(rows, sum) {
+    var parts = [];
+    if (rows.length) parts.push('Each ride was handed to Uber to confirm and pay; this list cannot tell whether the ride happened.');
+    if (sum && sum.partial) parts.push('Some saved ride data could not be checked.');
+    return parts.length ? parts.join(' ') : null;
+  }
+  function model(rows, sum) {
+    var first = rows[0], count = rows.length >= CAP ? CAP + '+' : String(rows.length);
+    return {
+      kicker: KICKER,
+      title: rows.length ? count + (rows.length === 1 ? ' ride planned' : ' rides planned') : 'No rides planned yet',
+      lede: first ? 'Newest: to ' + words(first.dropoff, 'a place not named') + ', planned ' + A.when(first.created_at) + '.' : 'Open Get a Ride to plan one. It shows an estimate and hands the ride to Uber, where you confirm and pay.',
+      actions: [{ label: 'Open Get a Ride', primary: true, onClick: function () { A.open(FULL); } }],
+      stats: stats(rows, sum),
+      sections: [
+        { kind: 'list', id: 'rides', title: 'Recent rides', empty: 'No rides planned yet.', items: rows.slice(0, 10).map(line), note: note(rows, sum) },
+        rows.length ? { kind: 'tiles', id: 'places', title: 'Places we go', items: places(rows) } : null
+      ]
+    };
+  }
+  function family() {
+    return Promise.all([call('/history'), summary()]).then(function (r) {
+      return model(Array.isArray(r[0].trips) ? r[0].trips : [], r[1]);
+    }).catch(function (e) {
+      if (!refused(e)) throw e && e.status >= 500 ? new Error('Get a Ride could not read the saved rides (HTTP ' + e.status + ').') : e;
+      return { kicker: KICKER, title: e.status === 401 ? 'Sign in to see your rides' : 'This account cannot open Get a Ride',
+        lede: e.status === 401 ? 'Get a Ride shows the rides of whoever is signed in, and this session is not signed in.' : 'The Get a Ride routes refused this account (HTTP 403).' };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'rides', escapeLabel: 'Open Get a Ride in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
 <!-- Leaflet ships inside this package (tools/vendor/leaflet, BSD-2-Clause). Not a CDN tag: an
      external host is refused under OSHAL_STRICT_CSP and unreachable on an air-gapped install,
      and either way the failure mode is a map that silently never draws. -->
 <link rel="stylesheet" href="/api/rides/vendor/leaflet/leaflet.css" />
 <style>
   :root {
-    --bg: #0d0f14;
-    --panel: #171923;
-    --panel-2: #202330;
-    --line: rgba(255, 255, 255, 0.1);
-    --text: #f7f7fb;
-    --muted: #a8adbd;
-    --dim: #747b8d;
-    --accent: #8b7cf6;
-    --accent-2: #6f5ce8;
+    --bg: var(--bg-primary, #0d0f14);
+    --panel: var(--bg-card, #171923);
+    --panel-2: var(--bg-card-hover, #202330);
+    --line: var(--border-color, rgba(255, 255, 255, 0.1));
+    --text: var(--text-primary, #f7f7fb);
+    --muted: var(--text-secondary, #a8adbd);
+    --dim: var(--text-muted, #747b8d);
+    --accent: var(--accent-primary, #8b7cf6);
+    --accent-2: var(--accent-primary-hover, #6f5ce8);
     --ok: #30c48d;
     --warn: #f4b64a;
     --bad: #f06278;
@@ -623,6 +718,21 @@
     border-color: color-mix(in srgb, var(--accent) 72%, var(--line));
     background: color-mix(in srgb, var(--accent) 12%, var(--panel));
   }
+
+  /* The assistant rail's cards. Class names are the ones the SHARED surface-bridge client renders
+     (bridge-propose / bridge-confirm / bridge-cancel / bridge-notice); a ride the concierge or the
+     floating assistant proposes lands here and opens nothing until the rider confirms. */
+  .bridge-dock:empty { display: none; }
+  .bridge-dock { display: grid; gap: 8px; }
+  .bridge-propose { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--accent); border-radius: 10px; background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+  .bridge-propose p { margin: 0; font-size: 13px; line-height: 1.4; }
+  .bridge-confirm, .bridge-cancel { min-height: 36px; border-radius: 8px; font-weight: 850; border: 1px solid var(--line); background: var(--rides-control); color: var(--text); }
+  .bridge-confirm { border-color: transparent; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; }
+  .bridge-option { display: grid; gap: 2px; text-align: left; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--rides-control); color: var(--text); }
+  .bridge-option-desc { color: var(--muted); font-size: 12px; }
+  .bridge-notices { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); display: grid; gap: 6px; z-index: 11; width: min(420px, calc(100vw - 20px)); }
+  .bridge-notice { padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--rides-shadow); font-size: 13px; }
+  .bridge-notice-warn, .bridge-notice-error { border-color: var(--warn, #f4b64a); }
 </style>
 <script>
 (function(){
@@ -674,12 +784,12 @@
       <div class="search-stack">
         <div class="field">
           <span class="pin"></span>
-          <input id="pickup" autocomplete="street-address" placeholder="Pickup: use my current location" />
+          <input id="pickup" data-bridge-field="pickup" autocomplete="street-address" placeholder="Pickup: use my current location" />
         </div>
         <div class="field-line"></div>
         <div class="field">
           <span class="pin drop"></span>
-          <input id="dropoff" autocomplete="off" placeholder="Search destination" />
+          <input id="dropoff" data-bridge-field="dropoff" autocomplete="off" placeholder="Search destination" />
         </div>
         <div class="action-row">
           <button class="btn" id="locBtn" type="button">Use location</button>
@@ -734,6 +844,7 @@
         <div class="empty">No route yet. Search, scroll results, or ask the concierge to generate the ride.</div>
       </div>
       <div class="order-footer">
+        <div class="bridge-dock" id="bridgeOptions" data-bridge-host="options" aria-live="polite"></div>
         <button class="btn primary" id="requestBtn" type="button" disabled>Open Uber handoff</button>
         <div class="note">OSHAL does not request the ride or take payment. The Uber page shows the live price and asks you to confirm.</div>
       </div>
@@ -741,6 +852,7 @@
   </div>
 </div>
 <div class="toast" id="toast"></div>
+<div class="bridge-notices" data-bridge-host="notices"></div>
 
 <script>
 const API = '/api/rides';
@@ -752,7 +864,9 @@ const state = {
   options: [],
   selected: null,
   conversationId: localStorage.getItem('oshalRidesConv') || '',
-  trips: []
+  trips: [],
+  basis: '',
+  proposedAction: null
 };
 const googleMapState = {
   enabled: false,
@@ -1172,6 +1286,7 @@ function renderOptions(options) {
   if (!state.options.length) {
     target.innerHTML = '<div class="empty">No ride estimates came back for this route.</div>';
     $('#requestBtn').disabled = true;
+    publishContext();
     return;
   }
   target.innerHTML = state.options.map((option, index) => {
@@ -1198,9 +1313,11 @@ function renderOptions(options) {
       card.classList.add('is-selected');
       state.selected = state.options[Number(card.dataset.rideIndex)] || null;
       $('#requestBtn').disabled = !state.selected;
+      publishContext();
     });
   });
   $('#requestBtn').disabled = !state.selected;
+  publishContext();
 }
 
 function shortRideName(label) {
@@ -1366,13 +1483,168 @@ async function sendChat() {
       if (result.trip?.dropoff) await geocodeField('dropoff');
     }
     if (Array.isArray(result.options) && result.options.length) renderOptions(result.options);
-    if (result.ride?.rideUrl) {
-      toast('Opening Uber');
-      window.open(result.ride.rideUrl, '_blank');
-      loadTrips();
+    // A chat booking is a PROPOSAL: the proposed ride is selected on screen and becomes a confirm
+    // card; nothing opens until the rider clicks Confirm (onProposalClick -> requestRide()).
+    if (result.proposal) {
+      if (result.proposal.rideType) selectRide(result.proposal.rideType);
+      proposeRide(result.proposal);
     }
   } catch {
     pending.textContent = 'I hit an error building that ride. Try searching the destination directly.';
+  }
+}
+
+// ── The assistant rail (shared surface bridge) ───────────────────────────────
+// The page publishes what it is showing (`context`) so the floating assistant answers about the
+// trip, the fares and the selected ride on screen, and it takes the assistant's `custom` ops
+// through the same functions the buttons call. A ride anyone proposes (the embedded concierge or
+// the floating assistant) is a `propose` card rendered by the shared client; only the rider's
+// Confirm opens Uber.
+const RIDES_APP = 'rides';
+const BRIDGE_CHANNEL = 'oshal-surface-bridge';
+const DIGEST_CAP = 3900;
+const ESTIMATE_DOC = 'Set the trip and price the ride options on the map. data = {"dropoff":"<address or place>","pickup":"<optional; default my location>"}.';
+const SELECT_DOC = 'Select one of the ride options on screen. data = {"rideType":"uberx"|"comfort"|"xl"|"black"}.';
+const REQUEST_DOC = 'Ask the rider to confirm opening the selected ride in Uber. It shows a confirm card; nothing opens until they click it. data = {}.';
+
+/** The page state the digest summarises, read once so the digest itself stays a pure function. */
+function ridesView() {
+  return {
+    pickup: state.pickup || 'my location',
+    dropoff: state.dropoff,
+    basis: state.basis || '',
+    distance: $('#distanceRow').hidden ? '' : $('#distanceLabel').textContent,
+    options: state.options,
+    selected: state.selected,
+    trips: state.trips.length
+  };
+}
+
+// digest-helpers:start
+function ridesDigest(view) {
+  const lines = [`Trip: ${view.pickup} to ${view.dropoff || '(no destination yet)'}`];
+  if (view.distance) lines.push(`Distance: ${view.distance}`);
+  if (view.basis === 'unresolved') lines.push('An address did not resolve to a location, so there are no fares.');
+  if (view.options.length) {
+    lines.push('Options: ' + view.options.map((o) => {
+      const fare = o.fareLow !== null && o.fareLow !== undefined ? `$${o.fareLow}-${o.fareHigh}` : 'no estimate';
+      return `${o.type} ${o.label} ${fare}${o.tripMin ? ` ~${o.tripMin} min` : ''}`;
+    }).join('; '));
+  } else {
+    lines.push('No ride options priced yet.');
+  }
+  if (view.selected) lines.push(`Selected: ${view.selected.type} ${view.selected.label}`);
+  lines.push(`Recent trips: ${view.trips}`);
+  const text = lines.join('\n');
+  return text.length > DIGEST_CAP ? text.slice(0, DIGEST_CAP) + '\n…(truncated)' : text;
+}
+// digest-helpers:end
+
+function publishContext() {
+  if (!window.__bridge) return;
+  const view = ridesView();
+  try {
+    window.__bridge.emitContext({
+      surface: 'rides',
+      title: view.dropoff ? `Ride to ${view.dropoff}`.slice(0, 200) : 'Plan a ride',
+      digest: ridesDigest(view),
+      fields: {
+        pickup: String(view.pickup).slice(0, 200),
+        dropoff: String(view.dropoff || '').slice(0, 200),
+        options: view.options.length,
+        rideType: view.selected ? String(view.selected.type || '') : '',
+        ...(view.selected && view.selected.fareLow != null
+          ? { fareLow: Number(view.selected.fareLow), fareHigh: Number(view.selected.fareHigh) } : {}),
+        basis: String(view.basis || 'unpriced')
+      },
+      can: ['set_field', 'custom', 'propose', 'notify'],
+      customOps: [
+        { name: 'estimate', description: ESTIMATE_DOC },
+        { name: 'select_ride', description: SELECT_DOC },
+        { name: 'request_ride', description: REQUEST_DOC }
+      ]
+    });
+  } catch (err) {
+    console.warn('[rides] context publish failed', err && err.message);
+  }
+}
+
+/** Select the option card for a ride type, the same way a tap on the card does. */
+function selectRide(rideType) {
+  const wanted = String(rideType || '').toLowerCase();
+  const index = state.options.findIndex((o) => String(o.type || '').toLowerCase() === wanted);
+  if (index < 0) return false;
+  document.querySelectorAll('.ride-card').forEach((node) => node.classList.toggle('is-selected', Number(node.dataset.rideIndex) === index));
+  state.selected = state.options[index];
+  $('#requestBtn').disabled = false;
+  publishContext();
+  return true;
+}
+
+/** The confirm card for the selected ride (the fare is the deterministic estimate on screen). */
+function selectedProposal() {
+  const option = state.selected;
+  if (!option || !state.dropoff) return null;
+  const fare = option.fareLow !== null && option.fareLow !== undefined ? `estimated $${option.fareLow}-${option.fareHigh}` : 'no fare estimate for this route';
+  return { summary: `Open Uber for ${option.label || 'a ride'} from ${state.pickup || 'my location'} to ${state.dropoff} (${fare})? You confirm pickup and pay in the Uber app; nothing is requested or charged here.` };
+}
+
+/** Show a ride proposal as the shared client's confirm card; never opens anything itself. */
+function proposeRide(proposal) {
+  const summary = String((proposal && proposal.summary) || '').trim();
+  if (!summary) return;
+  if (window.__bridgeProducer) {
+    window.__bridgeProducer.emitOps([{ op: 'propose', actionId: 'request_ride', summary, confirmLabel: 'Open Uber', cancelLabel: 'Not yet' }]);
+    return;
+  }
+  // No bridge module (an old cockpit or a static preview): say it; the explicit button stays the only way out.
+  addMessage('bot', `${summary} Use "Open Uber handoff" to continue.`);
+}
+
+/** Remember which action the card on screen proposes (every propose replaces the last card). */
+function trackProposal(evt) {
+  if (evt.origin !== window.location.origin) return;
+  const d = evt.data;
+  if (!d || d.channel !== BRIDGE_CHANNEL || d.v !== 1 || d.app !== RIDES_APP) return;
+  if (d.op === 'propose') {
+    state.proposedAction = String(d.actionId || '');
+    setTimeout(() => $('#bridgeOptions').scrollIntoView({ block: 'nearest' }), 0);
+  } else if (d.op === 'render_options') {
+    state.proposedAction = null;
+  }
+}
+
+/** Capture-phase click on the options host: the rider's Confirm is the ONLY hand-off trigger. */
+function onProposalClick(event) {
+  const button = event.target && event.target.closest ? event.target.closest('button') : null;
+  if (!button) return;
+  const action = state.proposedAction;
+  if (button.classList.contains('bridge-cancel')) { state.proposedAction = null; return; }
+  if (!button.classList.contains('bridge-confirm')) return;
+  state.proposedAction = null;
+  if (action === 'request_ride') requestRide();
+}
+
+/** The assistant's custom ops, applied through the same functions the page's own buttons use. */
+function onBridgeCustom(evt) {
+  const detail = evt.detail || {};
+  const data = detail.data || {};
+  if (detail.name === 'request_context') { publishContext(); return; }
+  if (detail.name === 'estimate') {
+    const dropoff = String(data.dropoff || '').trim().slice(0, 300);
+    if (data.pickup) $('#pickup').value = String(data.pickup).trim().slice(0, 300);
+    if (dropoff) $('#dropoff').value = dropoff;
+    updateLabels();
+    estimate();
+    return;
+  }
+  if (detail.name === 'select_ride') {
+    if (!selectRide(data.rideType)) toast('That ride type is not on screen');
+    return;
+  }
+  if (detail.name === 'request_ride') {
+    const proposal = selectedProposal();
+    if (proposal) proposeRide(proposal); else toast('Price a route and pick a ride first');
   }
 }
 
@@ -1430,6 +1702,12 @@ async function boot() {
   $('#pickup').addEventListener('input', updateLabels);
   $('#chatSend').addEventListener('click', sendChat);
   $('#chatInput').addEventListener('keydown', (event) => { if (event.key === 'Enter') sendChat(); });
+  $('#pickup').addEventListener('change', publishContext);
+  $('#dropoff').addEventListener('change', publishContext);
+  $('#bridgeOptions').addEventListener('click', onProposalClick, true);
+  window.addEventListener('message', trackProposal);
+  document.addEventListener('surface-bridge:custom', onBridgeCustom);
+  window.addEventListener('bridge-ready', publishContext);
   renderSuggestions();
   await loadTrips();
   try {
@@ -1454,13 +1732,38 @@ async function boot() {
   }
 }
 
-boot();
+// The full page only: under an audience view the shared kit paints instead (see the head script), so no map, map
+// config, trip history, geocoding or estimate starts behind it.
+if (!window.AppView || !AppView.active()) boot();
+</script>
+
+<!-- The assistant rail: the shared surface-bridge client renders what the floating assistant sends
+     (set_field / propose / notify / custom) and publishes what this page shows (`context`). The
+     producer in 'self' mode lets the embedded concierge's ride proposal travel the SAME path, so
+     both assistants drive one confirm card. Degrades silently without the module. -->
+<script type="module">
+// The full page only: under an audience view the rail is not attached, so no op is published or applied behind it.
+if (!window.AppView || !AppView.active()) {
+  try {
+    const { createSurfaceBridgeClient } = await import('/shared/ui/js/surface-bridge-client.js');
+    const { createSurfaceProducer } = await import('/shared/ui/js/surface-bridge-producer.js');
+    const bridge = createSurfaceBridgeClient({ app: 'rides' });
+    bridge.attach();
+    window.__bridge = bridge;
+    window.__bridgeProducer = createSurfaceProducer({ win: window, postTarget: 'self', app: 'rides' });
+    window.dispatchEvent(new Event('bridge-ready'));
+  } catch (err) {
+    console.warn('[rides] assistant rail unavailable', err && err.message);
+  }
+}
 </script>
 
 <!-- App-owned context integration: drafts only; existing actions still execute explicitly. -->
 <script type="module">
 import { receiveHandoff } from '/cockpit/js/app-handoff.js';
 import { mountConnectedActions } from '/cockpit/js/app-workflows.js';
+// The full page only: under an audience view no handoff listener is added and no connected-actions offer is fetched.
+if (!window.AppView || !AppView.active()) {
 const clip = value => String(value || '').slice(0,2000);
 const val = id => clip(document.getElementById(id)?.value?.trim());
 const set = (id,value) => { const el=document.getElementById(id); el.value = el.tagName === 'INPUT' ? String(value || '').replace(/\s*\n+\s*/g, ' · ') : value || ''; };
@@ -1470,6 +1773,7 @@ const element = document.createElement('section'); element.className='connected-
 element.style.cssText='margin:0 0 12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel,var(--surface));display:flex;gap:8px;align-items:center;flex-wrap:wrap';
 document.querySelector('.search-stack').prepend(element);
 void mountConnectedActions({ app:"rides", element, contextForOffer:()=>{ const destination=val('dropoff'); return destination ? {title:'Plan around my ride destination',notes:clip('Destination: '+destination+'\nPickup: '+val('pickup')+'\n'+val('chatInput'))} : null; } }).then(()=>element.querySelectorAll('button').forEach(button=>button.classList.add('btn')));
+}
 </script>
 </body>
 </html>

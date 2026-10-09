@@ -1,8 +1,12 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Render live editable layers, geometry and responsive canvas without replacing drafts.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Show a filter slider at its neutral value when the selected layer omits that filter, so it never keeps the previous layer's value.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Outline the current region on the overlay (never in exported pixels), preview a region being drawn, and state in words whether the region is ready or must be reselected.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Full JSDoc tags on the region draft painter.
  */
 import { $, state, canEdit, dirty, edit, notify, error, status } from './editor-state.mjs';
 import { renderProject, loadProjectImages } from './renderer.mjs';
+import { resolveSelection, selectionSummary } from './region-select.mjs';
 let imageSignature = '', loadingImages = 0, imageAbort;
 export const selectedLayer = () => state.project.layers.find(layer => layer.id === state.selected);
 
@@ -14,6 +18,27 @@ export function fitCanvas() {
   $('canvasFrame').style.width = `${width * scale}px`; $('canvasFrame').style.height = `${height * scale}px`;
 }
 
+function outline(ctx, points, closed) {
+  const scale = $('artboard').getBoundingClientRect().width / state.project.width || 1;
+  ctx.save(); ctx.beginPath(); points.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+  if (closed) { ctx.closePath(); ctx.fillStyle = 'rgba(124,58,237,0.18)'; ctx.fill('nonzero'); }
+  ctx.setLineDash([6 / scale, 4 / scale]); ctx.lineWidth = 2 / scale; ctx.strokeStyle = '#6d28d9'; ctx.stroke(); ctx.restore();
+}
+
+/** @description Outline a region the person is still drawing on the overlay canvas only: the lasso path, or the dragged box.
+ * @param {{x:number,y:number}[]} points Lasso points, or the two opposite box corners.
+ * @param {boolean} box True when the gesture is a box.
+ * @returns {void} */
+export function paintRegionDraft(points, box) {
+  const ctx = $('selection').getContext('2d');
+  outline(ctx, box ? [points[0], { x: points[1].x, y: points[0].y }, points[1], { x: points[0].x, y: points[1].y }] : points, box);
+}
+
+function paintRegion(ctx, project) {
+  if (!state.region) return;
+  try { outline(ctx, resolveSelection(project, state.region).canvasPoints, true); } catch { /* A stale region is reported in words by render(); it is not drawn. */ }
+}
+
 /** Paint only from validated state; selection handles never enter exported image pixels. */
 export function paint(project = state.project) {
   const canvas = $('artboard'), overlay = $('selection');
@@ -22,7 +47,7 @@ export function paint(project = state.project) {
   }
   const preview = { ...project, layers: project.layers.filter(layer => layer.type !== 'image' || state.images.has(layer.assetId)) };
   renderProject(canvas.getContext('2d'), preview, { images: state.images });
-  const ctx = overlay.getContext('2d'); ctx.clearRect(0, 0, overlay.width, overlay.height);
+  const ctx = overlay.getContext('2d'); ctx.clearRect(0, 0, overlay.width, overlay.height); paintRegion(ctx, project);
   const layer = project.layers.find(item => item.id === state.selected);
   if (!layer?.visible) return;
   const scale = canvas.getBoundingClientRect().width / project.width || 1, size = 8 / scale;
@@ -72,7 +97,8 @@ function renderProperties() {
   for (const control of document.querySelectorAll('[data-selected]')) control.disabled = !canEdit() || !layer || layer.locked;
   if (!layer) return;
   for (const control of document.querySelectorAll('[data-property]')) {
-    const next = layer[control.dataset.property];
+    const neutral = control.dataset.neutral === undefined ? undefined : Number(control.dataset.neutral);
+    const next = layer[control.dataset.property] ?? neutral;
     if (next !== undefined && document.activeElement !== control) control.value = control.type === 'color' && !/^#[a-f0-9]{6}$/i.test(next) ? '#000000' : next;
   }
   $('textProperties').hidden = layer.type !== 'text'; $('imageProperties').hidden = layer.type !== 'image';
@@ -98,5 +124,17 @@ export function render() {
   $('canvasDimensions').textContent = `${state.project.width} × ${state.project.height}`;
   $('selectionHint').textContent = state.draw ? 'Draw on the canvas. Select Draw again to move layers.' : 'Drag to move. Drag the corner to resize. Arrow keys nudge.';
   status(state.loading ? 'Loading…' : state.saving ? 'Saving…' : state.conflict ? 'Save conflict · autosave paused' : state.saveFailed ? 'Save failed · retry Save' : dirty() ? 'Unsaved changes' : `Saved · revision ${state.revision}`);
-  renderLayers(); renderProperties(); fitCanvas(); paint(); refreshImages();
+  renderRegion(); renderLayers(); renderProperties(); fitCanvas(); paint(); refreshImages();
+}
+
+/** Region controls and a plain-words status: ready with its size, or why it must be selected again. */
+function renderRegion() {
+  const editable = canEdit(), selected = selectedLayer();
+  $('regionMode').disabled = !editable; $('regionMode').setAttribute('aria-pressed', String(state.regionMode));
+  $('selectWholeImage').disabled = !editable || selected?.type !== 'image'; $('clearRegion').disabled = !state.region;
+  if (!state.region) { $('regionStatus').textContent = state.regionMode ? 'Region mode: drag a lasso, Shift-drag a box, or click an image for all of it.' : ''; return; }
+  try {
+    const { layer } = resolveSelection(state.project, state.region), summary = selectionSummary(state.region);
+    $('regionStatus').textContent = `Region: ${summary.width} × ${summary.height} source pixels of ${layer.name}. Esc clears it.`;
+  } catch (failure) { $('regionStatus').textContent = `Region needs reselecting: ${failure.message}`; }
 }

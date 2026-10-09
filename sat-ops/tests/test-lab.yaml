@@ -1,0 +1,38 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries, and the company view's behaviour over the package's real fleet and catalog routes (the two reads, the stats, tables and states, and the gated full-page start).
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) and family (Home shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the company view makes two reads, GET /api/sat/fleet and GET /api/sat/catalog, and the real routes behind them only list the in-memory fleet registry and TLE catalog; it never asks for a track, a pass window, a conjunction screen, the concierge or a node command.
+      - Fed by the package's real routes, the fleet reads as four stats (sim nodes, recent and stale heartbeats, orbits loaded), a title naming the fleet's state, a fleet table of each node's last report with recent nodes first, and an orbit catalog table joined to its attitude nodes by sat id, newest registration first; no row opens, commands or changes anything.
+      - Odd rows (no telemetry yet, never heard, an unknown engine, a catalog row without name or number) and a catalog that could not be read (the fleet still shows, the orbit count reads Could not check) each read as what they are; so do signed out, refused, the fleet route's failure, an unreadable answer and an unreachable server.
+      - Under the company view the page's main script and connected-actions script bind no listener or click handler, read nothing, start no poll or render loop and mount no offer; the full page still runs every start step.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

@@ -6,8 +6,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Pin the exit-code contract of scripts/store-ci-local.mjs. The first cut of that runner printed "Never treat SKIPPED as green" and then exited 0 anyway, so on any layout where the TypeScript compiler could not be resolved - which is every fresh clone - the little-monsters SECURITY suite, kalshi and career-hunter were all skipped and the run still reported success. A hook and a human both read `$?`, not the prose, so the skip has to reach the exit code. These two cases hold that: a prerequisite-missing run is non-zero, and --allow-skips is the deliberate opt-out that returns zero while still NAMING what did not run. Driven over a disposable fixture store through STORE_CI_LOCAL_ROOT rather than the real 45-check tree, so the guard stays fast and cannot be perturbed by the repository's own state.
  */
 
-import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -118,5 +118,45 @@ test('--allow-skips returns zero but still names what did not run', () => {
     assert.doesNotMatch(output, /INCOMPLETE/, 'an accepted skip is not reported as incomplete');
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+/** A real hook repository must survive a child's independent git init/add/commit. */
+test('hook Git locations never escape into a disposable repository test', () => {
+  const root = buildFixture();
+  const victim = mkdtempSync(join(tmpdir(), 'store-ci-hook-owner-'));
+  const git = (cwd, args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+  try {
+    git(victim, ['init', '-q']);
+    git(victim, ['config', 'user.name', 'oshal tests']);
+    git(victim, ['config', 'user.email', 'maintainer@emeraldcoastsystemsgroup.com']);
+    writeFileSync(join(victim, 'owned.txt'), 'original hook repository');
+    git(victim, ['add', 'owned.txt']);
+    git(victim, ['commit', '-q', '-m', 'original fixture owner']);
+    const head = git(victim, ['rev-parse', 'HEAD']);
+    writeFileSync(join(root, '.github/workflows/store-ci.yml'), WORKFLOW.split('  needs-compiler:')[0]);
+    writeFileSync(join(root, 'pkg/tests/a.test.js'), [
+      "const test=require('node:test'),assert=require('node:assert/strict');",
+      "const cp=require('node:child_process'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');",
+      "test('actual independent Git commit',()=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'store-ci-child-git-'));",
+      "try{for(const key of ['GIT_DIR','GIT_WORK_TREE','GIT_INDEX_FILE','GIT_COMMON_DIR'])assert.equal(process.env[key],undefined);",
+      "const git=(args)=>cp.execFileSync('git',args,{cwd:dir,stdio:'pipe'});git(['init','-q']);",
+      "git(['config','user.name','oshal tests']);git(['config','user.email','maintainer@emeraldcoastsystemsgroup.com']);",
+      "fs.writeFileSync(path.join(dir,'child.txt'),'independent child');git(['add','child.txt']);git(['commit','-q','-m','independent fixture']);",
+      "assert.match(git(['rev-parse','HEAD']).toString(),/^[a-f0-9]{40}/);}",
+      "finally{fs.rmSync(dir,{recursive:true,force:true});}});",
+    ].join('\n'));
+    const result = spawnSync(process.execPath, [RUNNER], {
+      encoding: 'utf8', env: { ...process.env, NODE_TEST_CONTEXT: '', STORE_CI_LOCAL_ROOT: root,
+        GIT_DIR: join(victim, '.git'), GIT_WORK_TREE: victim, GIT_INDEX_FILE: join(victim, '.git/index'),
+        GIT_COMMON_DIR: join(victim, '.git') },
+    });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.equal(git(victim, ['rev-parse', 'HEAD']), head);
+    assert.equal(git(victim, ['status', '--porcelain']), '');
+    assert.equal(readFileSync(join(victim, 'owned.txt'), 'utf8'), 'original hook repository');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(victim, { recursive: true, force: true });
   }
 });

@@ -10,6 +10,9 @@
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Isolated every material in a revocable RAG collection and hardened file lifecycle boundaries
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | Locked tenant, ownership, sharing, grounding, and deletion lifecycle decisions against concurrent authorization changes
  * 5   | maintainer@emeraldcoastsystemsgroup.com     | Replace wildcard material reads and mutation results with the lifecycle fields the authorization boundary actually consumes
+ * 6   | maintainer@emeraldcoastsystemsgroup.com     | Accept owner-bound ADR-139 artifact handles through a class picker and reuse the existing teacher/requested material lifecycle
+ * 7   | maintainer@emeraldcoastsystemsgroup.com     | The class-material import hands its own request to redeemArtifactViaRelay, so the loopback redeem carries the caller's session or PAT instead of the service secret. The core relay binds every handle to the verified principal (subject + issuer) and refuses the service rail, which carries no issuer; on the box (1.4.5) the import answered 404 "artifact handle not found" for a handle minted seconds earlier
+ * 8   | maintainer@emeraldcoastsystemsgroup.com     | Preserve native file bytes, material records and grounding under the original checked transaction and current classroom sharing policy.
  * ---------------------------------------------------------------------------
  *
  * @module education-materials-routes
@@ -20,6 +23,7 @@ import { Router, type Request, type Response } from 'express';
 import type { PoolClient } from 'pg';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
+import { redeemArtifactViaRelay } from '@/shared/artifact-exchange';
 import {
   assertClassAccess,
   assertTeacherOfClass,
@@ -30,11 +34,13 @@ import {
 import {
   deleteMaterialCollection,
   deleteStoredMaterial,
+  classifyMaterial,
   extractMaterialText,
   extractStoredMaterialText,
   ingestMaterialText,
   materialCollectionName,
   resolveStoredMaterialPath,
+  readStoredMaterial,
   saveMaterialFile,
   type StoredMaterialRow,
 } from './education-material-storage';
@@ -43,6 +49,12 @@ const logger = createChildLogger({ module: 'education-materials-routes' });
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const MAX_DAILY_BYTES = 50 * 1024 * 1024;
+const MAX_ARTIFACT_BYTES = MAX_UPLOAD_BYTES;
+
+/** The relay sees the same verified OIDC subject that minted the handle. */
+function sessionSubject(req: Request): string {
+  return String((req as Request & { oidc?: { user?: { sub?: unknown } } }).oidc?.user?.sub || '').trim();
+}
 
 interface UploadedFile {
   buffer: Buffer;
@@ -125,7 +137,7 @@ async function lockMaterialBoundary(
        FROM lm_classes c
        JOIN lm_students a ON a.student_id = $2 AND a.tenant_id = c.tenant_id
       WHERE c.class_id = $1 AND c.tenant_id = $3
-      FOR UPDATE OF c, a`,
+      FOR UPDATE OF c FOR UPDATE OF a`,
     [classId, caller.studentId, caller.tenantId],
   );
   if (!authority.rows[0]) return null;
@@ -136,7 +148,7 @@ async function lockMaterialBoundary(
        FROM lm_materials m
        JOIN lm_students uploader ON uploader.student_id = m.uploaded_by AND uploader.tenant_id = $3
       WHERE m.material_id = $1 AND m.class_id = $2
-      FOR UPDATE OF m, uploader`,
+      FOR UPDATE OF m FOR UPDATE OF uploader`,
     [materialId, classId, caller.tenantId],
   );
   if (!material.rows[0]) return null;
@@ -212,7 +224,9 @@ async function runLockedMaterialTransaction<T>(
     return output;
   } catch (err) {
     await rollbackMaterialTransaction(client, materialId, err);
-    if (transaction?.createdCollection && !commitAttempted) {
+    // Native grounding is in this same SQL transaction, so rollback already
+    // restored it. External compensation could delete an older durable corpus.
+    if (transaction?.createdCollection && !commitAttempted && !(client as any).nativeExecutor) {
       await compensateGrounding(transaction.createdCollection, materialId, err);
     }
     throw err;
@@ -244,7 +258,7 @@ async function assertLockedMaterialClass(
        FROM lm_classes c
        JOIN lm_students a ON a.student_id = $2 AND a.tenant_id = c.tenant_id
       WHERE c.class_id = $1 AND c.tenant_id = $3
-      FOR SHARE OF c, a`,
+      FOR SHARE OF c FOR SHARE OF a`,
     [classId, caller.studentId, caller.tenantId],
   )).rows[0];
   if (!classRow) throw new EducationAccessError('Class not found', 404);
@@ -302,9 +316,13 @@ async function insertUploadedMaterial(
     await client.query('BEGIN');
     const teacher = await assertLockedMaterialClass(client, caller, classId);
     const shareStatus = wantsShare ? (teacher ? 'approved' : 'requested') : 'private';
-    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`lm-upload:${caller.studentId}`]);
+    // Native transactions compare the complete quota read set at commit; PostgreSQL
+    // uses its existing advisory lock to serialize the same student's daily quota.
+    if ((client as any).storageModel !== 'kernel-scoped-documents') {
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`lm-upload:${caller.studentId}`]);
+    }
     await assertDailyUploadQuota(client, caller.studentId, file.buffer.length);
-    const saved = saveMaterialFile(classId, caller.studentId, file);
+    const saved = await saveMaterialFile(classId, caller.studentId, file, client as any);
     pending = { material_id: 'pending', class_id: classId, uploaded_by: caller.studentId,
       stored_path: saved.storedPath, mime_type: saved.mimeType };
     const row = await insertMaterialRow(
@@ -316,8 +334,8 @@ async function insertUploadedMaterial(
     try { await client.query('ROLLBACK'); } catch (rollbackErr) {
       logger.error({ err: rollbackErr, cause: err }, 'Material upload transaction rollback failed');
     }
-    if (pending) {
-      try { deleteStoredMaterial(pending); } catch (cleanupErr) {
+    if (pending && !(client as any).nativeExecutor) {
+      try { await deleteStoredMaterial(pending, client as any); } catch (cleanupErr) {
         logger.error({ err: cleanupErr, cause: err }, 'Uncommitted material file cleanup failed');
       }
     }
@@ -340,7 +358,7 @@ async function ensureMaterialGrounding(
 ): Promise<string | null> {
   const { client, row } = transaction;
   if (row.rag_collection) return row.rag_collection;
-  const extracted = text === undefined ? await extractStoredMaterialText(row) : text;
+  const extracted = text === undefined ? await extractStoredMaterialText(row, client as any) : text;
   if (!extracted) return null;
   const collection = materialCollectionName(row.material_id);
   const ingested = await ingestMaterialText(extracted, collection, {
@@ -348,7 +366,7 @@ async function ensureMaterialGrounding(
     materialId: row.material_id,
     studentId: row.uploaded_by,
     source: row.original_name || 'material',
-  });
+  }, client as any);
   if (!ingested) return null;
   transaction.createdCollection = collection;
   const result = await client.query(
@@ -403,6 +421,49 @@ async function uploadMaterial(ctx: AppContext, req: Request, res: Response): Pro
     if (sendAccessError(res, err)) return;
     logger.error({ err }, 'Material upload failed');
     res.status(500).json({ error: 'Material upload failed' });
+  }
+}
+
+/** Receive an ADR-139 handle after the dashboard's class picker selected a class. */
+async function importArtifactMaterial(ctx: AppContext, req: Request, res: Response): Promise<void> {
+  try {
+    const classId = String(req.body?.classId || '');
+    requireUuid(classId, 'classId');
+    const caller = await resolveAuthedStudent(req, ctx.pool);
+    const subject = sessionSubject(req);
+    if (!subject) throw new EducationAccessError('Not authenticated', 401);
+    await assertClassAccess(ctx.pool, caller, classId);
+    const redeemed = await redeemArtifactViaRelay({
+      port: req.socket.localPort,
+      callerSub: subject,
+      ref: String(req.body?.ref || ''),
+      maxBytes: MAX_ARTIFACT_BYTES,
+      request: req,
+    });
+    if (!redeemed.ok) {
+      res.status(redeemed.status).json({ error: redeemed.error });
+      return;
+    }
+    const type = redeemed.type.split(';', 1)[0].trim().toLowerCase();
+    const classification = classifyMaterial(redeemed.buffer, type);
+    if (classification.mimeType !== 'application/pdf' && !classification.mimeType.startsWith('image/')) {
+      res.status(415).json({ error: 'unsupported_artifact_type', accepts: ['application/pdf', 'image/*'] });
+      return;
+    }
+    const row = await insertUploadedMaterial(
+      ctx, caller, classId,
+      { buffer: redeemed.buffer, mimetype: classification.mimeType, originalname: redeemed.name },
+      { kind: 'handout', title: redeemed.name },
+      true,
+    );
+    const text = await extractMaterialText({ buffer: redeemed.buffer, mimetype: classification.mimeType });
+    const collection = await groundUploadedMaterial(ctx, caller, row.material_id, text);
+    logger.info({ classId, materialId: row.material_id, shareStatus: row.share_status, grounded: Boolean(collection) }, 'Artifact imported as class material');
+    res.status(201).json({ success: true, material: row, grounded: Boolean(collection), shareStatus: row.share_status, message: `Imported ${redeemed.name} into the class` });
+  } catch (err) {
+    if (sendAccessError(res, err)) return;
+    logger.error({ err }, 'Artifact class-material import failed');
+    res.status(500).json({ error: 'Artifact class-material import failed' });
   }
 }
 
@@ -490,6 +551,7 @@ async function updateOwnedShareStatus(
   caller: AuthedStudent,
   status: 'requested' | 'approved',
 ): Promise<void> {
+  if (await updateNativeShareStatus(transaction, status)) return;
   const result = await transaction.client.query(
     `UPDATE lm_materials m SET share_status = $2, shared = $3
        FROM lm_classes c, lm_students a
@@ -546,6 +608,7 @@ async function updateModeratedShareStatus(
   caller: AuthedStudent,
   status: 'approved' | 'denied',
 ): Promise<void> {
+  if (await updateNativeShareStatus(transaction, status)) return;
   const result = await transaction.client.query(
     `UPDATE lm_materials m SET share_status = $2, shared = $3
        FROM lm_classes c, lm_students a, lm_students uploader
@@ -559,6 +622,22 @@ async function updateModeratedShareStatus(
   if (result.rowCount !== 1) throw new EducationAccessError('Class authorization changed', 409);
 }
 
+/** Native commit compares every locked actor/class/material row and the policy graph. */
+async function updateNativeShareStatus(
+  transaction: MaterialTransaction,
+  status: 'requested' | 'approved' | 'denied',
+): Promise<boolean> {
+  if ((transaction.client as any).storageModel !== 'kernel-scoped-documents') return false;
+  // The caller already performed its owner/teacher decision under this client's
+  // transaction. Its complete read set replaces PostgreSQL's UPDATE FROM locks.
+  const result = await transaction.client.query(
+    'UPDATE lm_materials SET share_status=$2, shared=$3 WHERE material_id=$1',
+    [transaction.row.material_id, status, status === 'approved'],
+  );
+  if (result.rowCount !== 1) throw new EducationAccessError('Material authorization changed', 409);
+  return true;
+}
+
 /** Apply moderation only after locking the live class and material authority. */
 async function decideMaterialShareRows(
   ctx: AppContext,
@@ -568,11 +647,15 @@ async function decideMaterialShareRows(
 ): Promise<'approved' | 'denied'> {
   return runLockedMaterialTransaction(ctx, caller, materialId, async transaction => {
     assertLockedTeacherControl(caller, transaction.row);
+    const status = approved ? 'approved' : 'denied';
+    const native = (transaction.client as any).storageModel === 'kernel-scoped-documents';
+    // A native teacher can read previously private bytes only through the approved
+    // relationship. Stage it in this transaction; grounding failure rolls it back.
+    if (native) await updateModeratedShareStatus(transaction, caller, status);
     if (approved) await ensureMaterialGrounding(transaction);
     // Denial removes the row from class-wide lookup. The isolated collection
     // remains private to the uploader and can be approved again without re-OCR.
-    const status = approved ? 'approved' : 'denied';
-    await updateModeratedShareStatus(transaction, caller, status);
+    if (!native) await updateModeratedShareStatus(transaction, caller, status);
     return status;
   });
 }
@@ -610,13 +693,17 @@ async function streamMaterial(ctx: AppContext, req: Request, res: Response): Pro
       if (row.share_status !== 'approved') throw new EducationAccessError('This material is private', 403);
       await assertClassAccess(ctx.pool, caller, row.class_id);
     }
-    const storedPath = resolveStoredMaterialPath(row);
     const mimeType = row.mime_type || 'application/octet-stream';
     const disposition = mimeType === 'application/pdf' || mimeType.startsWith('image/') || mimeType.startsWith('text/plain')
       ? 'inline' : 'attachment';
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(row.original_name || 'material')}`);
+    if (row.stored_path.startsWith('native-file:')) {
+      res.send(await readStoredMaterial(row, ctx.pool as any));
+      return;
+    }
+    const storedPath = resolveStoredMaterialPath(row);
     fs.createReadStream(storedPath).on('error', err => {
       logger.error({ err, materialId: row.material_id }, 'Material stream failed');
       if (!res.headersSent) res.status(500).end();
@@ -634,6 +721,12 @@ async function deleteAuthorizedMaterialRow(
   transaction: MaterialTransaction,
   caller: AuthedStudent,
 ): Promise<void> {
+  if ((transaction.client as any).storageModel === 'kernel-scoped-documents') {
+    // Native commit compares the actor/class/material read set from lockMaterialBoundary.
+    const deleted = await transaction.client.query('DELETE FROM lm_materials WHERE material_id=$1', [transaction.row.material_id]);
+    if (deleted.rowCount !== 1) throw new EducationAccessError('Material authorization changed before deletion completed', 409);
+    return;
+  }
   const result = await transaction.client.query(
     `DELETE FROM lm_materials m
        USING lm_classes c, lm_students a, lm_students uploader
@@ -665,9 +758,9 @@ async function deleteLockedMaterial(
     throw new EducationAccessError('Only the uploader or class teacher can delete this material', 403);
   }
   if (transaction.row.rag_collection) {
-    await deleteMaterialCollection(transaction.row.rag_collection);
+    await deleteMaterialCollection(transaction.row.rag_collection, transaction.client as any);
   }
-  deleteStoredMaterial(transaction.row);
+  await deleteStoredMaterial(transaction.row, transaction.client as any);
   await deleteAuthorizedMaterialRow(transaction, caller);
   return transaction.row;
 }
@@ -699,6 +792,7 @@ export function createEducationMaterialsRoutes(ctx: AppContext): Router {
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } });
   router.post('/materials', upload.single('file'), (req, res) => uploadMaterial(ctx, req, res));
   router.post('/upload-material', upload.single('file'), (req, res) => uploadMaterial(ctx, req, res));
+  router.post('/import-artifact', (req, res) => importArtifactMaterial(ctx, req, res));
   router.get('/classes/:classId/materials', (req, res) => listOwnMaterials(ctx, req, res));
   router.get('/classes/:classId/shared-materials', (req, res) => listSharedMaterials(ctx, req, res));
   router.get('/classes/:classId/share-requests', (req, res) => listShareRequests(ctx, req, res));

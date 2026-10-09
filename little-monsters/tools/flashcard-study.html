@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Little Monsters - Flashcard Study</title>
+<title>Little Monsters — Flashcard Study</title>
 <!--
   CHANGE LOG
   ---------------------------------------------------------------------------
@@ -11,291 +11,140 @@
   ---------------------------------------------------------------------------
   2026-04-19     | roger.murphy@emeraldcoastsystemsgroup.com    | Initial creation — flashcard study mode
   2026-04-22     | roger.murphy@agenticfederal.us   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
+  2026-09-26     | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass and the dark rgba palette; progress, answer buttons, stats, callouts, empty and done states use the system while the flip card stays page-specific. Role truth: "Generate from your textbook" appears only for the class's teacher/admin, students get an honest empty state; the learner id comes from the frame when localStorage has none so reviews and XP are never skipped; a set opened by id shows its real title; toast replaces alert()
   ---------------------------------------------------------------------------
 -->
-<script>
-// Sync iframe theme to parent cockpit's data-theme. Storage events don't fire
-// in the writing window, so a MutationObserver on the parent <html> is the
-// reliable path for live same-tab updates when the operator cycles themes.
-(function(){
-  function applyTheme(n){
-    if(!n)return;
-    document.documentElement.setAttribute('data-theme',n);
-    var href='/cockpit/css/themes/'+n+'.css';
-    var link=document.querySelector('link[data-lm-theme-link="1"]');
-    if(link){if(link.getAttribute('href')!==href)link.setAttribute('href',href);return;}
-    link=document.createElement('link');link.rel='stylesheet';link.href=href;
-    link.setAttribute('data-lm-theme-link','1');document.head.appendChild(link);
-  }
-  function initial(){
-    try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(_e){}
-    try{var s=window.localStorage.getItem('cockpit-theme');if(s)return s;}catch(_e){}
-    return 'midnight';
-  }
-  applyTheme(initial());
-  try{if(window.parent&&window.parent!==window){
-    var ph=window.parent.document.documentElement;
-    new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){if(ms[i].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)applyTheme(t);}}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});
-  }}catch(_e){}
-})();
-</script>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
 <link rel="stylesheet" href="/api/education/education.css">
 <style>
-  body {
-    display: flex; flex-direction: column; align-items: center;
-    padding: var(--space-lg);
-  }
+  .study-hero { margin-bottom: 16px; }
+  .study-progress { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .study-progress .lm-progress { flex: 1; }
+  .study-progress .progress-text { min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
 
-  .header { text-align: center; margin-bottom: 24px; }
-  .header h1 { font-size: 20px; margin-bottom: 4px; }
-  .header p { color: var(--text-muted); font-size: 13px; }
-
-  /* ── Progress Bar ── */
-  .progress {
-    width: 100%; max-width: 440px;
-    display: flex; align-items: center; gap: 10px;
-    margin-bottom: 24px;
-  }
-  .progress-bar {
-    flex: 1; height: 8px; background: rgba(139,92,246,0.15);
-    border-radius: 99px; overflow: hidden;
-  }
-  .progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent-primary), var(--status-active));
-    border-radius: 99px; transition: width 0.3s;
-  }
-  .progress-text { font-size: 12px; color: var(--text-muted); min-width: 44px; text-align: right; }
-
-  /* ── Flashcard ── */
-  .card-container {
-    width: 100%; max-width: 440px; height: 260px;
-    perspective: 1000px; cursor: pointer;
-    margin-bottom: 20px;
-  }
-  .card-inner {
-    width: 100%; height: 100%;
-    position: relative; transition: transform 0.5s;
-    transform-style: preserve-3d;
-  }
+  /* The flip card is the one page-specific component: two faces on a 3D turn. */
+  .card-container { width: 100%; height: clamp(260px, 42vh, 340px); perspective: 1000px; cursor: pointer; margin-bottom: 16px; }
+  .card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.5s; transform-style: preserve-3d; }
   .card-inner.flipped { transform: rotateY(180deg); }
-
   .card-face {
-    position: absolute; width: 100%; height: 100%;
-    backface-visibility: hidden;
-    border-radius: var(--radius-md);
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    padding: 28px; text-align: center;
-    border: 1px solid var(--border-color);
+    position: absolute; inset: 0; backface-visibility: hidden; overflow: auto;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    padding: 28px; text-align: center; border-radius: var(--lm-radius-xl);
+    border: 1px solid var(--lm-line); background: var(--lm-card); box-shadow: var(--lm-shadow-soft);
   }
-  .card-front {
-    background: var(--bg-card);
-  }
-  .card-back {
-    background: rgba(6, 182, 212, 0.08);
-    border-color: rgba(6, 182, 212, 0.15);
-    transform: rotateY(180deg);
-  }
-  .card-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
-  .card-text { font-size: 18px; font-weight: 500; line-height: 1.5; }
-  .card-hint { font-size: 12px; color: var(--status-active); margin-top: 16px; cursor: pointer; }
-  .card-hint:hover { text-decoration: underline; }
+  .card-back { background: var(--lm-accent-wash); border-color: var(--lm-accent-line); transform: rotateY(180deg); }
+  .card-label { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--lm-muted); }
+  .card-text { font-size: 20px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+  .card-tools { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
+  #hintBtn.is-shown { cursor: default; color: var(--lm-ink-2); text-decoration: none; }
 
-  .tap-hint { font-size: 12px; color: var(--text-muted); margin-bottom: 20px; }
+  .voice-answer-btn.listening { background: var(--lm-danger); color: #fff; border-color: var(--lm-danger); animation: pulse-voice 1.5s infinite; }
+  @keyframes pulse-voice { 0%, 100% { box-shadow: none; } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--lm-danger) 25%, transparent); } }
+  .voice-result { text-align: center; margin-bottom: 16px; }
+  .voice-result-text { font-size: 17px; font-weight: 600; color: var(--lm-ink); min-height: 24px; margin-top: 6px; }
+  .my-answer { width: 100%; padding: 10px 14px; border-radius: var(--lm-radius-sm); background: var(--lm-card); border: 1px solid var(--lm-line); font-size: 14px; color: var(--lm-ink-2); text-align: left; }
+  .my-answer::before { content: 'You said'; display: block; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--lm-muted); margin-bottom: 4px; }
 
-  /* ── Answer Buttons ── */
-  .answer-btns {
-    display: flex; gap: 12px; width: 100%; max-width: 440px;
-    margin-bottom: 24px;
-  }
-  .answer-btn {
-    flex: 1; padding: 14px; border-radius: 12px; border: none;
-    font-size: 14px; font-weight: 600; cursor: pointer;
-    transition: transform 0.15s, opacity 0.2s;
-  }
-  .answer-btn:hover { transform: translateY(-2px); }
-  .answer-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-wrong { background: rgba(248,113,113,0.15); color: var(--status-error); border: 1px solid rgba(248,113,113,0.2); }
-  .btn-hard { background: rgba(251,191,36,0.15); color: var(--status-warning); border: 1px solid rgba(251,191,36,0.2); }
-  .btn-good { background: rgba(52,211,153,0.15); color: var(--status-success); border: 1px solid rgba(52,211,153,0.2); }
-
-  /* ── Stats ── */
-  .stats { display: flex; gap: 20px; font-size: 13px; color: var(--text-muted); }
-  .stat-val { font-weight: 600; }
-  .stat-val.correct { color: var(--status-success); }
-  .stat-val.wrong { color: var(--status-error); }
-
-  /* ── Done Screen ── */
-  .done-screen {
-    text-align: center; padding: 40px;
-    width: 100%; max-width: 440px;
-  }
-  .done-screen .big-emoji { font-size: 64px; margin-bottom: 16px; }
-  .done-screen h2 { font-size: 22px; margin-bottom: 8px; }
-  .done-screen p { color: var(--text-muted); font-size: 14px; margin-bottom: 24px; }
-  .done-screen .btn {
-    padding: 12px 24px; border-radius: 12px; border: none;
-    font-size: 14px; font-weight: 600; cursor: pointer;
-    background: var(--accent-primary); color: #fff;
-  }
-  .done-screen .btn:hover { background: #7c3aed; }
-
-  .read-card-btn {
-    padding: 6px 14px; border-radius: 8px;
-    border: 1px solid var(--border-color); background: transparent;
-    color: var(--status-active); font-size: 12px; font-weight: 600; cursor: pointer;
-  }
-  .read-card-btn:hover { background: rgba(6,182,212,0.1); }
-
-  .voice-answer-btn { color: var(--status-error); border-color: rgba(239,68,68,0.3); }
-  .voice-answer-btn:hover { background: rgba(239,68,68,0.1); }
-  .voice-answer-btn.listening {
-    background: var(--status-error); color: #fff; border-color: var(--status-error);
-    animation: pulse-voice 1.5s infinite;
-  }
-  @keyframes pulse-voice { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 12px rgba(239,68,68,0.4)} }
-
-  .voice-result {
-    width: 100%; max-width: 440px; text-align: center;
-    margin-bottom: 16px; padding: 14px 20px;
-    background: rgba(6,182,212,0.08); border: 1px solid rgba(6,182,212,0.2);
-    border-radius: var(--radius-md);
-  }
-  .voice-result-label { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; }
-  .voice-result-text { font-size: 16px; font-weight: 600; color: var(--text-primary); line-height: 1.4; min-height: 24px; }
-
-  .flip-check-btn {
-    margin-top: 10px; padding: 8px 20px; border-radius: 10px;
-    border: none; background: var(--accent-primary); color: #fff;
-    font-size: 14px; font-weight: 700; cursor: pointer;
-  }
-  .flip-check-btn:hover { background: #7c3aed; }
-
-  .my-answer {
-    margin-top: 12px; padding: 10px 14px; border-radius: 8px;
-    background: rgba(6,182,212,0.08); border: 1px solid rgba(6,182,212,0.15);
-    font-size: 13px; color: var(--status-active); text-align: left;
-  }
-  .my-answer::before { content: 'You said: '; font-weight: 700; font-size: 11px; text-transform: uppercase; display: block; margin-bottom: 4px; color: var(--text-muted); }
-
-  .hide { display: none; }
-
-  @media (max-width: 640px) {
-    body {
-      padding: 16px 12px;
-    }
-
-    /* Prevent the three answer buttons from becoming razor-thin — stack them */
-    .answer-btns {
-      flex-direction: column;
-      gap: 8px;
-    }
-    .answer-btn {
-      padding: 14px;
-      font-size: 15px; /* comfortable tap target */
-    }
-
-    /* Stack the two in-card buttons (Read aloud / Speak answer) */
-    .card-face > div[style*="display:flex"] {
-      flex-direction: column;
-      gap: 6px;
-      width: 100%;
-    }
-    .read-card-btn {
-      width: 100%;
-      font-size: 14px;
-      padding: 10px 14px;
-    }
-
-    /* Ensure card text stays readable and wraps */
-    .card-text {
-      font-size: 16px;
-    }
-
-    /* Stats row: allow wrapping so it never overflows */
-    .stats {
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 12px;
-    }
-
-    /* Inputs / buttons: keep font-size >= 16px to prevent iOS zoom */
-    input, select, textarea {
-      font-size: 16px;
-    }
+  .tap-hint { margin-bottom: 16px; }
+  .answer-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .stats { margin-bottom: 20px; }
+  #emptyActions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 14px; }
+  #emptyActions .lm-btn { margin-top: 0; }
+  .done-screen .big-emoji { font-size: 64px; line-height: 1; margin-bottom: 12px; }
+  .done-screen p { color: var(--lm-ink-2); margin: 8px auto 0; max-width: 42ch; }
+  .done-actions { justify-content: center; }
+  @media (max-width: 480px) {
+    .answer-btns { grid-template-columns: 1fr; }
+    .card-face { padding: 20px; }
+    .card-text { font-size: 18px; }
   }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
+<main class="lm-page is-narrow">
+  <div class="lm-row lm-mb-sm"><a class="lm-btn lm-btn-quiet" href="/api/education/flashcards-hub">← My flashcards</a></div>
+  <header class="lm-hero study-hero">
+    <div>
+      <div class="lm-eyebrow">Study</div>
+      <h1 class="lm-display">One card at a time.</h1>
+      <p class="lm-lead" id="deckTitle">Loading deck…</p>
+    </div>
+  </header>
 
-<div class="header">
-  <div style="text-align:left;margin-bottom:6px;"><span onclick="window.location.href='/api/education/flashcards-hub'" style="cursor:pointer;color:var(--accent-primary);font-weight:700;font-size:14px;">&#8592; My flashcards</span></div>
-  <h1>Flashcard Study</h1>
-  <p id="deckTitle">Loading deck...</p>
-</div>
+  <!-- Progress -->
+  <div class="study-progress" id="progressRow">
+    <div class="lm-progress" aria-hidden="true"><span id="progressFill" style="width:0%"></span></div>
+    <span class="lm-small lm-muted progress-text" id="progressText">—</span>
+  </div>
 
-<!-- Progress -->
-<div class="progress">
-  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
-  <div class="progress-text" id="progressText">0/0</div>
-</div>
-
-<!-- Flashcard -->
-<div class="card-container" id="cardContainer" onclick="flipCard()" role="button" aria-label="Flashcard - click or press Space to flip" tabindex="0">
-  <div class="card-inner" id="cardInner">
-    <div class="card-face card-front">
-      <div class="card-label">Question</div>
-      <div class="card-text" id="cardFront">Loading...</div>
-      <div class="card-hint hide" id="hintBtn" onclick="event.stopPropagation(); showHint()">Show hint</div>
-      <div style="display:flex;gap:8px;margin-top:12px;">
-        <button class="read-card-btn" onclick="event.stopPropagation(); speakCard('front')">&#128264; Read aloud</button>
-        <button class="read-card-btn voice-answer-btn" id="voiceAnswerBtn" onclick="event.stopPropagation(); startVoiceAnswer()">&#127908; Speak answer</button>
+  <!-- Flashcard -->
+  <div class="card-container" id="cardContainer" onclick="flipCard()" role="button" aria-label="Flashcard - click or press Space to flip" tabindex="0">
+    <div class="card-inner" id="cardInner">
+      <div class="card-face card-front">
+        <div class="card-label">Question</div>
+        <div class="card-text" id="cardFront">Loading…</div>
+        <button type="button" class="lm-text-button hide" id="hintBtn" onclick="event.stopPropagation(); showHint()">Show hint</button>
+        <div class="card-tools">
+          <button type="button" class="lm-btn lm-btn-ghost" onclick="event.stopPropagation(); speakCard('front')">&#128264; Read aloud</button>
+          <button type="button" class="lm-btn lm-btn-ghost voice-answer-btn" id="voiceAnswerBtn" onclick="event.stopPropagation(); startVoiceAnswer()">&#127908; Speak answer</button>
+        </div>
+      </div>
+      <div class="card-face card-back">
+        <div class="card-label" id="backLabel">Answer</div>
+        <div class="card-text" id="cardBack"></div>
+        <div class="my-answer hide" id="myAnswer"></div>
+        <div class="card-tools"><button type="button" class="lm-btn lm-btn-ghost" onclick="event.stopPropagation(); speakCard('back')">&#128264; Read answer</button></div>
       </div>
     </div>
-    <div class="card-face card-back">
-      <div class="card-label" id="backLabel">Answer</div>
-      <div class="card-text" id="cardBack"></div>
-      <div class="my-answer hide" id="myAnswer"></div>
-      <button class="read-card-btn" onclick="event.stopPropagation(); speakCard('back')">&#128264; Read answer</button>
+  </div>
+
+  <!-- Voice answer display (shown between question and flip) -->
+  <div class="lm-callout voice-result hide" id="voiceResult">
+    <div class="lm-eyebrow">Your answer</div>
+    <div class="voice-result-text" id="voiceResultText"></div>
+    <button type="button" class="lm-btn lm-btn-primary lm-mt-md" onclick="flipCard()">Flip to check &#8594;</button>
+  </div>
+
+  <p class="lm-help lm-text-center tap-hint" id="tapHint">Tap the card to flip &mdash; or speak your answer first<br><span class="lm-small">Keyboard: Space = flip · 1/2/3 = rate · R = read · V = voice · H = hint</span></p>
+
+  <!-- Answer Buttons -->
+  <div class="answer-btns hide" id="answerBtns">
+    <button type="button" class="lm-btn lm-btn-lg lm-btn-danger" onclick="answer(0)">Don't got it</button>
+    <button type="button" class="lm-btn lm-btn-lg lm-btn-success" onclick="answer(2)">Got it!</button>
+  </div>
+
+  <!-- Stats -->
+  <div class="lm-grid is-tight stats" id="statsRow" style="--min:100px">
+    <div class="lm-stat is-success"><div class="lm-stat-value" id="correctCount">0</div><div class="lm-stat-label">Correct</div></div>
+    <div class="lm-stat is-streak"><div class="lm-stat-value" id="wrongCount">0</div><div class="lm-stat-label">Reviewing</div></div>
+    <div class="lm-stat"><div class="lm-stat-value" id="remainCount">—</div><div class="lm-stat-label">Remaining</div></div>
+  </div>
+
+  <!-- Empty state: no deck to study -->
+  <div class="lm-empty hide" id="emptyState">
+    <div class="lm-empty-icon">🃏</div>
+    <strong>No flashcards yet.</strong>
+    <span id="emptyText"></span>
+    <div id="emptyActions"></div>
+    <div class="lm-status lm-mt-md" id="genStatus" role="status"></div>
+  </div>
+
+  <!-- Done Screen -->
+  <div class="lm-card is-feature lm-text-center done-screen hide" id="doneScreen">
+    <div class="big-emoji" id="doneEmoji"></div>
+    <h2 class="lm-display" id="doneTitle"></h2>
+    <p id="doneMessage"></p>
+    <div class="lm-hero-actions done-actions">
+      <button type="button" class="lm-btn lm-btn-primary lm-btn-lg" onclick="restartDeck()">Study again</button>
+      <a class="lm-btn lm-btn-ghost lm-btn-lg" href="/api/education/flashcards-hub">Back to my flashcards</a>
     </div>
   </div>
-</div>
 
-<!-- Voice answer display (shown between question and flip) -->
-<div class="voice-result hide" id="voiceResult">
-  <div class="voice-result-label">Your answer:</div>
-  <div class="voice-result-text" id="voiceResultText"></div>
-  <button class="flip-check-btn" onclick="flipCard()">Flip to check &#8594;</button>
-</div>
+  <div id="mascot-container"></div>
+</main>
 
-<div class="tap-hint" id="tapHint">Tap to flip &mdash; or speak your answer first<br><span style="font-size:10px;opacity:0.6;">Keyboard: Space=flip, 1/2/3=rate, R=read, V=voice, H=hint</span></div>
-
-<!-- Answer Buttons -->
-<div class="answer-btns hide" id="answerBtns">
-  <button class="answer-btn btn-wrong" onclick="answer(0)">Don't got it</button>
-  <button class="answer-btn btn-good" onclick="answer(2)">Got it!</button>
-</div>
-
-<!-- Stats -->
-<div class="stats">
-  <div>Correct: <span class="stat-val correct" id="correctCount">0</span></div>
-  <div>Reviewing: <span class="stat-val wrong" id="wrongCount">0</span></div>
-  <div>Remaining: <span class="stat-val" id="remainCount">0</span></div>
-</div>
-
-<!-- Done Screen -->
-<div class="done-screen hide" id="doneScreen">
-  <div class="big-emoji" id="doneEmoji"></div>
-  <h2 id="doneTitle"></h2>
-  <p id="doneMessage"></p>
-  <button class="btn" onclick="restartDeck()">Study Again</button>
-</div>
-
-<div id="mascot-container"></div>
-
-<script src="/api/education/mascot.js?v=3"></script>
+<script src="/api/education/mascot.js?v=4"></script>
 <script src="/api/education/lm-voice.js"></script>
 <script>
 /**
@@ -313,15 +162,37 @@ var isFlipped = false;
 var correct = 0;
 var reviewing = 0;
 var mascot = null;
+var me = null;
+var studentId = null;
+var classId = null;
+var setId = null;
 
 // Initialize mascot
 if (typeof LMMascot !== 'undefined') {
   mascot = new LMMascot(document.getElementById('mascot-container'));
 }
 
+/** The learner this session belongs to: the stored id when present, else the signed-in identity from the frame. */
+async function resolveStudent() {
+  try { me = await window.LM.me(); } catch (e) { me = null; }
+  var stored = null;
+  try { stored = localStorage.getItem('lm-student-id'); } catch (e) { stored = null; }
+  studentId = stored || (me && me.studentId) || null;
+}
+
+/** True when the caller may generate a class set: an admin, or the teacher who owns the class (the generate route's rule). */
+async function teachesClass(id) {
+  if (!me || (me.role !== 'teacher' && me.role !== 'admin')) return false;
+  if (me.role === 'admin') return true;
+  try {
+    var r = await fetch('/api/education/classes');
+    if (!r.ok) return false;
+    return ((await r.json()).classes || []).some(function (c) { return c.class_id === id && c.teacher_student_id === me.studentId; });
+  } catch (e) { return false; }
+}
+
 /** One-tap: auto-generate a grounded flashcard set from this class's own textbook, then reload. */
 async function generateFromTextbook() {
-  var classId = new URLSearchParams(window.location.search).get('classId');
   if (!classId) return;
   var btn = document.getElementById('genBtn');
   var status = document.getElementById('genStatus');
@@ -345,38 +216,63 @@ async function generateFromTextbook() {
   }
 }
 
-/** Load a flashcard deck from the API. Falls back to empty state if no sets exist. */
+function mapCards(cards) {
+  return (cards || []).filter(function (c) { return c && c.card_id; }).map(function (c) {
+    return { id: c.card_id, front: c.front, back: c.back, hints: c.hints || [], topic: c.topic || '' };
+  });
+}
+/** The cards route carries no title, so a set opened by id takes its title from the caller's set list. */
+async function titleFor(id) {
+  try {
+    var r = await fetch('/api/education/flashcards/sets');
+    if (!r.ok) return '';
+    var s = ((await r.json()).sets || []).filter(function (x) { return x.set_id === id; })[0];
+    return s ? (s.title || '') : '';
+  } catch (e) { return ''; }
+}
+
+/** Show the empty state honestly: only the class's teacher/admin is offered generation; everyone else is pointed to the hub. */
+async function showEmpty() {
+  ['cardContainer', 'progressRow', 'tapHint', 'statsRow'].forEach(function (id) { document.getElementById(id).classList.add('hide'); });
+  document.getElementById('deckTitle').textContent = 'No flashcards yet';
+  var text = document.getElementById('emptyText'), acts = document.getElementById('emptyActions');
+  if (classId && await teachesClass(classId)) {
+    text.textContent = 'This class has no set yet. Build one from its textbook, or make cards by hand.';
+    acts.innerHTML = '<button type="button" class="lm-btn lm-btn-primary" id="genBtn" onclick="generateFromTextbook()">Generate from your textbook</button>' +
+      '<a class="lm-btn lm-btn-ghost" href="/api/education/flashcards-hub">Make cards by hand</a>';
+  } else if (classId) {
+    text.textContent = 'Your teacher has not shared a set for this class yet. You can make your own cards any time.';
+    acts.innerHTML = '<a class="lm-btn lm-btn-primary" href="/api/education/flashcards-hub">Make my own cards</a>';
+  } else {
+    text.textContent = 'Pick a set in My flashcards, or make a new one, to start studying.';
+    acts.innerHTML = '<a class="lm-btn lm-btn-primary" href="/api/education/flashcards-hub">Open my flashcards</a>';
+  }
+  document.getElementById('emptyState').classList.remove('hide');
+}
+
+/** Load a flashcard deck from the API. Shows the empty state if no sets exist. */
 async function loadDeck() {
   var params = new URLSearchParams(window.location.search);
-  var setId = params.get('setId');
-  var classId = params.get('classId');
+  setId = params.get('setId');
+  classId = params.get('classId');
+  var title = '';
+  deck = [];
 
   try {
     if (setId) {
-      // Load specific set
-      var resp = await fetch('/api/education/flashcards/sets/' + setId + '/cards');
-      if (resp.ok) {
-        var data = await resp.json();
-        deck = (data.cards || []).map(function(c) {
-          return { id: c.card_id, front: c.front, back: c.back, hints: c.hints || [], topic: c.topic || '' };
-        });
-      }
+      var resp = await fetch('/api/education/flashcards/sets/' + encodeURIComponent(setId) + '/cards');
+      if (resp.ok) deck = mapCards((await resp.json()).cards);
+      title = await titleFor(setId);
     } else {
-      // Load first available set for the class (or all sets)
-      var setsUrl = '/api/education/flashcards/sets' + (classId ? '?classId=' + classId : '');
-      var setsResp = await fetch(setsUrl);
+      // Load the first available set for the class (or across all sets)
+      var setsResp = await fetch('/api/education/flashcards/sets' + (classId ? '?classId=' + encodeURIComponent(classId) : ''));
       if (setsResp.ok) {
-        var setsData = await setsResp.json();
-        if (setsData.sets && setsData.sets.length > 0) {
-          var firstSet = setsData.sets[0];
-          var cardsResp = await fetch('/api/education/flashcards/sets/' + firstSet.set_id + '/cards');
-          if (cardsResp.ok) {
-            var cardsData = await cardsResp.json();
-            deck = (cardsData.cards || []).map(function(c) {
-              return { id: c.card_id, front: c.front, back: c.back, hints: c.hints || [], topic: c.topic || '' };
-            });
-            document.getElementById('deckTitle').textContent = firstSet.title + ' — ' + deck.length + ' cards';
-          }
+        var sets = (await setsResp.json()).sets || [];
+        if (sets.length > 0) {
+          var firstSet = sets[0];
+          title = firstSet.title || '';
+          var cardsResp = await fetch('/api/education/flashcards/sets/' + encodeURIComponent(firstSet.set_id) + '/cards');
+          if (cardsResp.ok) deck = mapCards((await cardsResp.json()).cards);
         }
       }
     }
@@ -384,23 +280,11 @@ async function loadDeck() {
     console.warn('[Flashcards] API fetch failed:', e.message);
   }
 
-  if (deck.length === 0) {
-    document.getElementById('deckTitle').textContent = 'No flashcards yet';
-    var cf = document.getElementById('cardFront');
-    if (classId) {
-      cf.innerHTML = 'No flashcards yet for this class.<br><br>'
-        + '<button id="genBtn" class="btn" onclick="generateFromTextbook()" style="margin-top:6px">Generate from your textbook</button>'
-        + '<div id="genStatus" style="margin-top:10px;font-size:13px;color:#9fb3c8"></div>';
-    } else {
-      cf.textContent = 'No flashcards available. Open a class to generate cards from its textbook.';
-    }
-    return;
-  }
+  if (deck.length === 0) { await showEmpty(); return; }
 
-  document.getElementById('deckTitle').textContent = (document.getElementById('deckTitle').textContent || 'Study Deck') + (deck.length ? '' : '');
-  if (!document.getElementById('deckTitle').textContent.includes('cards')) {
-    document.getElementById('deckTitle').textContent += ' — ' + deck.length + ' cards';
-  }
+  document.getElementById('emptyState').classList.add('hide');
+  ['cardContainer', 'progressRow', 'tapHint', 'statsRow'].forEach(function (id) { document.getElementById(id).classList.remove('hide'); });
+  document.getElementById('deckTitle').textContent = (title || 'Study deck') + ' — ' + deck.length + (deck.length === 1 ? ' card' : ' cards');
   document.getElementById('remainCount').textContent = deck.length;
   showCard();
 }
@@ -429,12 +313,12 @@ function showCard() {
   // Show hint button if hints available
   var hintBtn = document.getElementById('hintBtn');
   hintBtn.classList.toggle('hide', !card.hints || card.hints.length === 0);
+  hintBtn.classList.remove('is-shown');
   hintBtn.textContent = 'Show hint';
 
   updateProgress();
 }
 
-/** Flip the card to show the answer. */
 /** Voice answer — speak your answer, see it transcribed, then flip to check. */
 var voiceRecognition = null;
 var isVoiceListening = false;
@@ -445,7 +329,7 @@ function startVoiceAnswer() {
 
   var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    alert('Voice input not supported in this browser. Try Chrome.');
+    window.LM.toast('Voice input is not supported in this browser. Try Chrome.');
     return;
   }
 
@@ -510,6 +394,7 @@ function speakCard(side) {
   }
 }
 
+/** Flip the card to show the answer. */
 function flipCard() {
   if (isFlipped) return;
   isFlipped = true;
@@ -535,7 +420,7 @@ function showHint() {
   if (!card.hints || card.hints.length === 0) return;
   var hintBtn = document.getElementById('hintBtn');
   hintBtn.textContent = card.hints[0];
-  hintBtn.style.cursor = 'default';
+  hintBtn.classList.add('is-shown');
 }
 
 /** Record answer and advance. Sends review to SM-2 API. */
@@ -554,13 +439,14 @@ function answer(score) {
     }
   }
 
-  // Record review via API (fire-and-forget — don't block UI)
+  // Record review via API (fire-and-forget — don't block UI). The route binds the review to the caller.
   if (card.id) {
-    var studentId = localStorage.getItem('lm-student-id') || '00000000-0000-0000-0000-000000000000';
+    var body = { cardId: card.id, score: score };
+    if (studentId) body.studentId = studentId;
     fetch('/api/education/flashcards/review', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentId: studentId, cardId: card.id, score: score }),
+      body: JSON.stringify(body),
     }).catch(function(e) { console.debug('[Flashcards] Review sync failed:', e.message); });
   }
 
@@ -595,19 +481,19 @@ function showDoneScreen() {
   var accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
 
   if (accuracy >= 90) {
-    document.getElementById('doneEmoji').textContent = '\uD83C\uDF1F';
+    document.getElementById('doneEmoji').textContent = '🌟';
     document.getElementById('doneTitle').textContent = 'Outstanding!';
     document.getElementById('doneMessage').textContent = correct + ' out of ' + total + ' correct (' + accuracy + '%). You crushed it!';
   } else if (accuracy >= 70) {
-    document.getElementById('doneEmoji').textContent = '\uD83D\uDCAA';
+    document.getElementById('doneEmoji').textContent = '💪';
     document.getElementById('doneTitle').textContent = 'Great work!';
     document.getElementById('doneMessage').textContent = correct + ' out of ' + total + ' correct (' + accuracy + '%). You\'re getting stronger!';
   } else if (accuracy >= 50) {
-    document.getElementById('doneEmoji').textContent = '\uD83D\uDE80';
+    document.getElementById('doneEmoji').textContent = '🚀';
     document.getElementById('doneTitle').textContent = 'Making progress!';
     document.getElementById('doneMessage').textContent = correct + ' out of ' + total + ' (' + accuracy + '%). Try again — you\'ll do even better!';
   } else {
-    document.getElementById('doneEmoji').textContent = '\uD83D\uDCA1';
+    document.getElementById('doneEmoji').textContent = '💡';
     document.getElementById('doneTitle').textContent = 'Learning takes practice!';
     document.getElementById('doneMessage').textContent = 'You reviewed ' + total + ' cards. That takes courage! Try the ones you missed again.';
   }
@@ -623,15 +509,16 @@ function showDoneScreen() {
   if (mascot) mascot.setMood('proud');
   if (typeof lmConfetti === 'function') lmConfetti();
 
-  // Record XP via API (fire-and-forget)
-  var studentId = localStorage.getItem('lm-student-id');
-  if (studentId) {
-    fetch('/api/education/xp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentId: studentId, eventType: 'flashcard_session' }),
-    }).catch(function() {});
-  }
+  // Record XP via API. The route awards the caller; the learner id rides along when known.
+  var body = { eventType: 'flashcard_session' };
+  if (studentId) body.studentId = studentId;
+  fetch('/api/education/xp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) { if (d && d.xpAwarded) window.LM.toast('+' + d.xpAwarded + ' XP' + (d.level ? ' · Level ' + d.level : '')); })
+    .catch(function() {});
 }
 
 /** Reset and study the deck again. */
@@ -682,8 +569,8 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
-// Boot
-loadDeck();
+// Boot: identity first (reviews and XP carry it), then the deck.
+(async function () { await resolveStudent(); loadDeck(); })();
 </script>
 </body>
 </html>

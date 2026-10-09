@@ -223,8 +223,14 @@ command (`SCAN_TO_PRINT_SLICER_CMD` with `{input}` `{output}` placeholders, run 
 no shell); unconfigured is a reported state, never a substituted program.
 
 Sending is an outward physical action: `POST /jobs/:id/print` requires `confirm: true` (428
-otherwise) and the surface asks the person first. Bots can read jobs and printers; no bot tool can
-print.
+otherwise) and the surface asks the person first. Since 0.6.0 (operator decision 2026-10-06) apps
+and scripts also print through the print service (`/api/scan-to-print/service`), and since 0.7.0
+agents use the in-process package tool `print-to-3d-printer` (shipped as ask), which runs as the
+person the agent acts for and calls the same functions. Either way a machine starts only on a
+printer whose owner turned auto-start on, and a caller's own sliced archive or G-code is never
+started. Bambu Lab printers
+are a fourth host kind reached on the LAN (FTPS upload, MQTT state and start, certificate-pinned),
+sliced by the package's OrcaSlicer engine container. See [PRINTERS.md](PRINTERS.md) §1, §5 and §6.
 
 ## 11. Determinism, stated as a property
 

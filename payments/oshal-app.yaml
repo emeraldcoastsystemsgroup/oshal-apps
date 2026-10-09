@@ -23,12 +23,20 @@
 
 name: payments
 suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features: []   # no model in the loop (T0)
 displayName: Payments
 description: >-
   Take payments through your own Square or PayPal account. Pick a provider, enter the
   amount, and charge — Square runs a card payment, PayPal sends the customer an invoice.
   Pluggable across providers; sandbox by default for safe testing.
-version: 1.1.1
+version: 1.1.4
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: active
 
 theme: ocean
@@ -63,6 +71,7 @@ smoke:
 uses:
   - payments         # payments-routes.js calls the kernel payments engine (ADR-093: only the surface carved)
   - app-dependencies # compatibility floor for the tiered dependencies block (ADR-085 addendum)
+  - test-catalog
 
 dependencies:
   required:

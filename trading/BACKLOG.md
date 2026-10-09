@@ -6,6 +6,13 @@ that need a core change say so.
 
 ## T1 — A Test Lab catalog for the package (priority: low, added 2026-09-14)
 
+**Progress (1.33.0):** the manifest declares `testing:` and `uses: test-catalog`, and
+`tests/test-lab.yaml` registers the readiness smoke and the ADR-052 addendum parity suites
+(`trading-lab-parity-knobs`, `trading-position-plans-surface`, `trading-unmanaged-positions`,
+`trading-parity-feature-promotion`). They are vitest `.spec.ts` suites that need the framework on
+the alias path, so the sealed runner (JavaScript suite files only, no config) lists them as pending.
+The done-when below still stands for the other suites.
+
 The package ships 13 Playwright specs and a framework-coupled node suite
 (`tests/realized.core.test.js`) but has no `tests/test-lab.yaml` and no `testing:` block in its
 manifest, so the Test Lab cannot list or run any of them. Core's plan tracks it as "Adopt existing

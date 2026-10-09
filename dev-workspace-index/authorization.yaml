@@ -1,0 +1,28 @@
+version: 1
+resources:
+  workspace: { scopes: [own] }
+permissions:
+  app.open: { resource: workspace, effect: read, minimumTier: viewer }
+  workspace.read: { resource: workspace, effect: read, minimumTier: viewer }
+  workspace.search: { resource: workspace, effect: read, minimumTier: viewer }
+  workspace.devmode: { resource: workspace, effect: execute, minimumTier: editor }
+roles:
+  developer:
+    tier: editor
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: workspace.read, scope: own }
+      - { permission: workspace.search, scope: own }
+      - { permission: workspace.devmode, scope: own }
+bindings:
+  http:
+    # The declared package health route uses existing own workspace read authority.
+    - { id: package-readiness, method: GET, path: /_smoke, allOf: [workspace.read] }
+    - { id: app, method: GET, path: /app, allOf: [app.open] }
+    - { id: status, method: GET, path: /status, allOf: [workspace.read] }
+    - { id: query, method: GET, path: /query, allOf: [workspace.search] }
+    - { id: dev-mode-read, method: GET, path: /dev-mode, allOf: [workspace.read] }
+    - { id: dev-mode-on, method: POST, path: /dev-mode, allOf: [workspace.devmode] }
+    - { id: dev-mode-off, method: DELETE, path: /dev-mode, allOf: [workspace.devmode] }
+  tools:
+    - { id: dev_workspace_search, allOf: [workspace.search] }

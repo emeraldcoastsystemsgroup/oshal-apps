@@ -17,6 +17,11 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Register the depth-lane and frame-suggestion HTTP suites (BACKLOG B1/B8/B12) with their real prerequisite, a framework checkout, and the suggestion panel's VM suite.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Register the orientation-cube suites (BACKLOG B9) — the deterministic face-marker detector, and photo uploads assigning their own views over HTTP.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Rename the drifted framework-checkout prerequisites to the Test Lab's own vocabulary so these cases can run: node-test cases declare fixture:core-checkout (the sealed Node profile runs on the oshal image, where /app is the checkout); browser cases declare harness:oshal-core-root and core:dependencies, as create does. A case that imports core's tests/fixtures, which the image does not ship, also declares harness:core-test-fixtures and stays pending with that exact reason instead of an unknown name.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | Register the company audience view case (ADR-164 D6): the static kit contract of the page, and the view's behaviour over the package's real routes (three owner-scoped reads, the stats, the objects table, the attention list, the printers, every named failure) plus the gate on the surface script's one start path. Dependency-free node-test, no framework checkout.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 0.5.3: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | 0.6.0: register the Bambu Lab LAN client (a fake printer on real loopback TLS, certificates minted per run with the image's openssl), the slicer engine client (the build hash cross-checked against the real bridge with the image's python3, stale/stopped/refused engines) and the print service over the real routes and the core request-identity module (fixture:core-checkout).
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 0.6.1: the Bambu case also proves a printer that never answers a TLS 1.3 hello (as reported for the P2S 01.02.00.00 broker; the fake does it on every port) is identified, read, uploaded to and started; register the surface-printers case (printers listed and registered with no object open).
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: register catalog-bindings (the ADR-149 catalog covers every route, tool, bot and the photo intake exactly), print-tools (the five package tools as the kernel runs them) and kernel-authorization (activation, the maker grant, executor runs, the HTTP guard and the reviewed catalog migration through the real core runtime).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -382,6 +387,27 @@ cases:
       timeoutMs: 30000
       maxMemoryMb: 256
     installation: never
+  - id: surface-printers
+    name: Printers with no object open
+    purpose: Prove the packaged page keeps the printer list, the registration form, the Bambu help and the slicer engine note in a never-hidden Printers panel above the object list, outside the print step (hidden until an object is reconstructed), and that its boot, in a Node VM with controlled DOM and HTTP ports, reads and lists the printers without writing anything.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-printers.test.js
+    expected:
+      - The printer list, the registration form, the Bambu help and the slicer engine note are in a Printers panel at the top of the object-list column that is never hidden, not inside the print step.
+      - With no object open the boot reads GET /printers, lists each printer, and sends no write.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
   - id: surface-camera
     name: Phone camera capture module
     purpose: Prove the surface's camera module under plain node — the six-view order with front-edge guidance that matches the engine's view frames, frame bounding, upload names, the countdown capture sequence on a fake clock (tick, capture, skip, stop, a failing capture halts), and the stream wrapper on a fake mediaDevices (rear camera first, flip, stop releases tracks, bounded JPEG, no frame rejects).
@@ -582,5 +608,193 @@ cases:
       cleanup: Close Chromium and the local HTTP fixture, restore module hooks and remove temporary job files.
     limits:
       timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) and family (Home shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the company view makes three reads, GET /api/scan-to-print/jobs, /printers and /home-summary, and the real routes behind them (the whole mounted router and the Home summary route) only SELECT the caller's own rows, the printers SELECT never naming the key column; it never reconstructs, slices, reads a model file, contacts a printer or creates an object.
+      - Fed by the package's real routes, the objects read as four stats (objects, printable models, failed reconstructions, sent to a printer in seven days), a title ladder, a table of the newest eight with state, source, extents and the printable verdict shown only while a reconstruction is current, a needs-attention list (failed, not printable in the validation block's terms, print-check warnings) and the printers by label and kind, never their address.
+      - A full 200-object list, odd rows, a seven-day count or printers list that could not be read, signed out, refused, the route's own failure, an unreadable answer and an unreachable server each read as what they are; the one action opens the full page in the frame and no row or item links anywhere.
+      - Under the company view the surface script binds no listener, reads nothing and takes in no ?artifact (which would create an object); the full page, and a core without the kit, still boot.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: printing-bambu
+    name: Bambu Lab printer on the home network
+    purpose: Prove the LAN client against a fake printer on real loopback TLS — identity from the certificate, status, a refused access code, a device whose certificate names another serial, FTPS upload with the session reuse the printer requires, the no-storage refusal, and every start rule (never while vendor-signed commands are required, never while busy, a refused start reported) — plus MQTT framing, state normalisation, the project_file command and host validation.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/printing-bambu.test.js
+    expected:
+      - The serial and model code come from the printer's certificate; a wrong access code and an impostor serial are refused with a reason.
+      - An upload resumes the control TLS session on the data channel and confirms the stored size; a printer without storage says so.
+      - No start command is published while the printer requires vendor-signed commands or is busy; an allowed start names the stored file and the matching AMS tray.
+      - A printer that never answers a TLS 1.3 hello (as reported for the P2S 01.02.00.00 broker; the fake does it on every port) is identified, read, uploaded to and started; no connection offers it TLS 1.3, and a positive control proves the fake ignores an uncapped hello.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/bambu-fake-printer.cjs
+      cleanup: Close the loopback TLS servers; certificates live in a temporary directory removed after minting.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: printing-slicer
+    name: Slicer engine client
+    purpose: Prove the package and the engine bridge hash the same engine tree the same way (the real bridge run with python3), that a container built from another tree or a stopped engine is refused with the install command before any slice is requested, that a refusal stays a refusal, and that a current engine's archive returns as bytes.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/printing-slicer.test.js
+    expected:
+      - The TypeScript and Python build hashes of engine/ are equal.
+      - A stale or stopped engine yields `unavailable` with the install-engine.sh command and receives no slice request.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close the loopback bridge.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: print-service-http
+    name: Print service and Bambu Lab printers over the real routes
+    purpose: Drive the package's real routes with the core request-identity module, a fake printer on loopback TLS and a slicer bridge on the real line protocol — registration, the owner's auto-start setting, the service's authentication and identity narrowing, job and model printing, printer choice, and engine refusals.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/service.core.test.js
+    expected:
+      - A Bambu printer is registered from its address and access code; its identity is read from its certificate and the code is stored only encrypted.
+      - Auto-start needs confirmation, is off on registration, and no service caller can change it.
+      - A service call needs the service secret and a user (or a session), runs every query as that user and never as operator.
+      - A service job or posted model is sliced and uploaded, and starts only when the owner turned auto-start on and the printer allows it; otherwise the reply says why.
+      - A stale slicer engine refuses with the install command before anything reaches the printer.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/routes-core.fixture.js
+        - tests/bambu-fake-printer.cjs
+      cleanup: Close the loopback HTTP, TLS and bridge servers, restore module hooks and remove temporary files; use isolated database and process doubles.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: catalog-bindings
+    name: Authorization catalog covers the package exactly
+    purpose: Prove with the kernel's own segment rule that every literal route under every manifest mount matches exactly one http binding of the ADR-149 catalog, every binding serves a route, every tool, the operator bot and the photo intake are bound, exactly the read tools are read-only, and the maker role grants every bound permission at scope own.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/catalog-bindings.test.js
+    expected:
+      - All 36 mounted routes resolve to exactly one of the 32 http bindings, and no binding is unused.
+      - Each of the five tools has one binding; the operator bot and the photo intake have theirs; print-to-3d-printer needs print.send.
+      - The maker role grants app.open, scan.read, scan.edit, printer.manage and print.send at scope own.
+      - The operator persona is assigned exactly the five tools (reads auto, print ask) with bash and write_file off.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/catalog.fixture.cjs
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: print-tools
+    name: Print service package tools as the kernel runs them
+    purpose: Call the five package tools the person's route factory registers the way core's package-tool registry does, inside the real core request identity, against the shared HTTP fixture's store, a fake Bambu printer on real loopback TLS and a slicer bridge on the real line protocol.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/tools.core.test.js
+    expected:
+      - The factory registers exactly the manifest's five tools and the scan resource adapter.
+      - Without an active verified actor every tool refuses before any query.
+      - Reads answer as the actor and never carry a printer secret; inputs are closed.
+      - A print with auto-start off uploads and is recorded requested_by service; with auto-start on it starts; a busy job, a stale model and an unknown printer are refused.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/routes-core.fixture.js
+        - tests/bambu-fake-printer.cjs
+        - tests/catalog.fixture.cjs
+      cleanup: Close the loopback HTTP, TLS and bridge servers, restore module hooks and remove temporary files; use isolated database and process doubles.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: kernel-authorization
+    name: Package tools and the catalog across the real core boundary
+    purpose: Activate the package from its own manifest through core's ApplicationAuthorizationRuntime, PackageToolRegistry and ManifestRouteMounterImpl, grant the maker role through the real preview and apply, run the tools through ToolExecutorService and the routes through the HTTP guard, and prove the reviewed catalog migration from the @app-admin fallback.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/kernel.core.test.js
+    expected:
+      - The framework accepts 0.7.0 and the kernel matcher agrees with the bare binding mirror for every route, tool, bot and artifact action.
+      - Activation publishes the five handlers and the scan adapter; only the four read tools are auto-proposable.
+      - A maker runs the tools as the owner; no role, a permit without print.send, an explicit deny and another maker are refused; the HTTP guard refuses no role and unbound paths.
+      - Adopting the catalog over an @app-admin grant is refused until the review is approved, and the migration removes @app-admin.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/routes-core.fixture.js
+        - tests/catalog.fixture.cjs
+      cleanup: Unmount the package, unregister its runtime, restore module hooks and remove the temporary data directory; use an in-memory policy store and database double.
+    limits:
+      timeoutMs: 300000
       maxMemoryMb: 1024
     installation: never

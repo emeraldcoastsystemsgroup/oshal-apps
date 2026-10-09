@@ -1,0 +1,66 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 3   | maintainer@emeraldcoastsystemsgroup.com     | ADR-169 L6: register the position-scoping contract test (position and home only for the drone's group).
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its family (Home shell) and company (Business shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the family view makes two reads, GET /api/drone/missions and GET /api/drone/home-summary, and the real routes behind them only SELECT the caller's own rows; it never writes, never reads live telemetry, the fleet or the chat, and never sends a vehicle command.
+      - Fed by the package's real routes, the saved plans read as plain stats (saved, not flown yet, plans started in five days, commands turned down in five days) and as tiles naming each plan's shape, origin and state; no tile opens, flies or changes anything.
+      - A plan the route marks flown reads Started, never flown, because the route writes that flag when a flight starts; the title ladder, a full 50-plan list and odd rows each read as what they are.
+      - A summary count that could not be checked reads Could not check while the saved plans still show; signed out, refused, the route's own failure, an unreadable answer and an unreachable server each read as what they are.
+      - Under the family view the page's main script and connected-actions script bind no listener, read nothing, start no poll and mount no offer; the full page still runs every start step.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: location-scoping
+    name: Position for the drone's group
+    purpose: >-
+      Verify that GET /state, GET /fleet and GET /fleet/:droneId/state return live position and home only when the
+      kernel's locatedDevice answers for the caller (a member of the group that owns the drone's location record),
+      that everyone else gets both as null with positionWithheld, that a refused or failed location read is a
+      withheld answer and never an error, and that the surface guards every read of a withheld drone's position.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/location-scoping.test.cjs
+    expected:
+      - A member of the drone's group reads position and home on all three routes; battery, status, the fence and the fleet flags are unchanged.
+      - A non-member reads null position and home with positionWithheld true, and no coordinate of that drone appears in the answer.
+      - A drone enrolled nowhere is withheld from everyone; a locatedDevice refusal or failure is logged and answered as withheld.
+      - The surface guards every read of position and home it makes from the fleet and state answers.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

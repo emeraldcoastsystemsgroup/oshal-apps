@@ -30,6 +30,8 @@ SYS = (
 
 _MAX_RESPONSE_CHARS = 6000
 _MAX_STORY_CHARS = 1200
+# An automated acceptance run's tag: what its Test Lab mark carries (see test_lab_mark).
+_TAG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{5,63}$")
 _STOPWORDS = {
     'the', 'and', 'for', 'with', 'that', 'this', 'from', 'into', 'over', 'their', 'they', 'was',
     'were', 'have', 'has', 'had', 'our', 'its', 'his', 'her', 'been', 'are', 'not', 'but', 'all',
@@ -215,6 +217,48 @@ def record(index: int, response: str) -> dict:
     role.setdefault("stories", []).append(story)
     profile.save(raw)
     return {"ok": True, "role": _label(role, index), "index": index, "story": story}
+
+
+def test_lab_mark(tag: str) -> str:
+    """
+    @description The prefix an automated acceptance run puts at the start of every answer it
+    records, so its stories can be found again and removed without touching the candidate's own.
+    @param tag - The run's tag (lowercase letters, digits and hyphens, 6-64 characters).
+    @returns The mark, e.g. "[oshal-test-lab:1a2b3c4d]".
+    """
+    return f"[oshal-test-lab:{tag}]"
+
+
+def remove_marked(tag: str) -> dict:
+    """
+    @description Remove every story whose recorded answer starts with this run's Test Lab mark,
+    and nothing else. The answer is the candidate's verbatim words (record() keeps it whatever
+    the distilled story became), so the mark survives the AI path. A role left with no story loses
+    the empty list as well, which returns the profile to the shape it had before the run.
+    @param tag - The run's tag; anything that is not a valid tag is refused.
+    @returns {ok, removed, roles} with the indexes of the roles that lost a story, or {ok: False, error}.
+    """
+    if not _TAG_RE.match(str(tag or "")):
+        return {"ok": False, "error": "tag must be 6-64 lowercase letters, digits or hyphens"}
+    mark = test_lab_mark(tag)
+    raw = profile.load()
+    removed, touched = 0, []
+    for index, role in enumerate(_roles(raw)):
+        items = role.get("stories")
+        if not isinstance(items, list):
+            continue
+        kept = [s for s in items if not (isinstance(s, dict) and str(s.get("answer") or "").startswith(mark))]
+        if len(kept) == len(items):
+            continue
+        removed += len(items) - len(kept)
+        touched.append(index)
+        if kept:
+            role["stories"] = kept
+        else:
+            del role["stories"]
+    if removed:
+        profile.save(raw)
+    return {"ok": True, "removed": removed, "roles": touched}
 
 
 def cited_for(role: dict, limit: int = 2) -> list:

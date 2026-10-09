@@ -1,0 +1,79 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | First Scan to Print authorization catalog (ADR-149, 0.7.0; BACKLOG B18). The print service's agent tools became in-process package tools, which the kernel admits only for a package that declares a catalog, so every mounted route, every tool, the operator bot and the photo intake are bound to named permissions here. Until now the package had no catalog and, under enforce, admitted only holders of the application's @app-admin assignment; that posture is mirrored, not widened: one maker role carries the whole app.
+#
+# One resource, `scan`, with `own` scope only. Ownership stays where it was: every store statement filters on
+# owner_sub (src-routes/job-store.ts), every table FORCEs row security on the owner (migrations/001-scan-to-print.sql),
+# and job files live under the owner's hashed directory (src-routes/data-dir.ts). The adapter
+# (src-routes/scan-authorization.ts) admits any active verified actor.
+#
+# Bindings match the path relative to the longest mount that owns the request. GET / is both the Home summary
+# (/api/scan-to-print/home-summary) and the readiness smoke (/api/scan-to-print/_smoke). The print service mount
+# (/api/scan-to-print/service) shares GET /printers, GET /jobs and POST /jobs/:jobId/print with the person's routes:
+# one binding serves both, because they are the same operation.
+# Effects: read for every GET and the status read; edit (write) for every change to an object; manage (write) for
+# registering, changing and removing printers, auto-start included; send (execute) for every print.
+version: 1
+resources:
+  scan: { scopes: [own] }
+permissions:
+  app.open: { resource: scan, effect: read, minimumTier: viewer }
+  scan.read: { resource: scan, effect: read, minimumTier: viewer }
+  scan.edit: { resource: scan, effect: write, minimumTier: editor }
+  printer.manage: { resource: scan, effect: write, minimumTier: editor }
+  print.send: { resource: scan, effect: execute, minimumTier: editor }
+roles:
+  maker:
+    tier: editor
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: scan.read, scope: own }
+      - { permission: scan.edit, scope: own }
+      - { permission: printer.manage, scope: own }
+      - { permission: print.send, scope: own }
+bindings:
+  http:
+    - { id: root, method: GET, path: /, allOf: [scan.read] }
+    - { id: app, method: GET, path: /app, allOf: [app.open] }
+    - { id: app-script, method: GET, path: /assets/scan-to-print.js, allOf: [app.open] }
+    - { id: app-script-gl, method: GET, path: /assets/scan-to-print-gl.js, allOf: [app.open] }
+    - { id: app-script-camera, method: GET, path: /assets/scan-to-print-camera.js, allOf: [app.open] }
+    - { id: capabilities, method: GET, path: /capabilities, allOf: [scan.read] }
+    - { id: list-jobs, method: GET, path: /jobs, allOf: [scan.read] }
+    - { id: create-job, method: POST, path: /jobs, allOf: [scan.edit] }
+    - { id: read-job, method: GET, path: /jobs/:jobId, allOf: [scan.read] }
+    - { id: change-job, method: PATCH, path: /jobs/:jobId, allOf: [scan.edit] }
+    - { id: delete-job, method: DELETE, path: /jobs/:jobId, allOf: [scan.edit] }
+    - { id: add-images, method: POST, path: /jobs/:jobId/images, allOf: [scan.edit] }
+    - { id: add-video, method: POST, path: /jobs/:jobId/video, allOf: [scan.edit] }
+    - { id: change-image, method: PATCH, path: /jobs/:jobId/images/:imageId, allOf: [scan.edit] }
+    - { id: delete-image, method: DELETE, path: /jobs/:jobId/images/:imageId, allOf: [scan.edit] }
+    - { id: read-image, method: GET, path: /jobs/:jobId/images/:imageId/file, allOf: [scan.read] }
+    - { id: reconstruct, method: POST, path: /jobs/:jobId/reconstruct, allOf: [scan.edit] }
+    - { id: import-pointcloud, method: POST, path: /jobs/:jobId/pointcloud, allOf: [scan.edit] }
+    - { id: read-artifact, method: GET, path: /jobs/:jobId/artifacts/:key, allOf: [scan.read] }
+    - { id: add-depth, method: POST, path: /jobs/:jobId/depth, allOf: [scan.edit] }
+    - { id: frame-suggestions, method: GET, path: /jobs/:jobId/frame-suggestions, allOf: [scan.read] }
+    - { id: list-printers, method: GET, path: /printers, allOf: [scan.read] }
+    - { id: add-printer, method: POST, path: /printers, allOf: [printer.manage] }
+    - { id: remove-printer, method: DELETE, path: /printers/:printerId, allOf: [printer.manage] }
+    - { id: change-printer, method: PATCH, path: /printers/:printerId, allOf: [printer.manage] }
+    - { id: slicer-profiles, method: GET, path: /printers/profiles, allOf: [scan.read] }
+    - { id: printer-status, method: POST, path: /printers/:printerId/status, allOf: [scan.read] }
+    - { id: service-printer-status, method: GET, path: /printers/:printerId/status, allOf: [scan.read] }
+    - { id: job-submissions, method: GET, path: /jobs/:jobId/submissions, allOf: [scan.read] }
+    - { id: recent-submissions, method: GET, path: /submissions, allOf: [scan.read] }
+    - { id: print-job, method: POST, path: /jobs/:jobId/print, allOf: [print.send] }
+    - { id: print-model, method: POST, path: /print, allOf: [print.send] }
+  tools:
+    - { id: scan-to-print-capabilities, allOf: [scan.read] }
+    - { id: print-service-jobs, allOf: [scan.read] }
+    - { id: print-service-printers, allOf: [scan.read] }
+    - { id: print-service-printer-status, allOf: [scan.read] }
+    - { id: print-to-3d-printer, allOf: [print.send] }
+  bots:
+    - { id: b4039c9b-a918-48b1-a98f-c66ecc70c4b4, allOf: [scan.read] }
+  artifactActions:
+    - { id: photo, allOf: [app.open, scan.edit] }

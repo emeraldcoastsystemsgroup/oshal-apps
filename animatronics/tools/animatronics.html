@@ -16,6 +16,97 @@
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Jarvis Home shell opens this page with ?audience=family: the props saved in this
+     account (each rig with its servos, poses and shows, whether it is armed, and the last rehearsal saved with it) from
+     the SAME /api/animatronics routes the full page reads, painted by the shared kit in the family grammar. On open it
+     reads only GET /api/animatronics/rigs: no rehearsal, no arm, play, look-at, jog or disarm, no Web Serial link to a
+     controller, no write. Moving a prop stays in the full page; the one action and the escape open Animatronics in the
+     cockpit. Any other request runs the full page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<style>
+  /* This page's `main` rule (the editor column) gives a main a scroll box; the kit's root is a main, so under an audience view it flows with the page. */
+  html[data-audience] main#av-root { overflow: visible; }
+</style>
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=animatronics', KICKER = 'Our props', SHOWN = 12, LISTED = 30;
+  // The rig templates (routes/engine/templates.js); a rig made from numbers carries no template and gets the mask.
+  var ICONS = { 'two-axis-eyes': '👀', 'six-servo-face': '🙂', skull: '💀' };
+  function read(path) {
+    return fetch('/api/animatronics' + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }, function () { return { ok: r.ok, status: r.status, body: null }; });
+    });
+  }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function names(o) { return o && typeof o === 'object' ? Object.keys(o) : []; }
+  function total(rigs, fn) { return rigs.reduce(function (n, r) { return n + fn(r); }, 0); }
+  function servos(r) { return r.rig && Array.isArray(r.rig.channels) ? r.rig.channels.length : 0; }
+  // A scenario id is an upper-case name (GLANCE_LEFT, IDLE_01); in plain words it reads 'Glance left', 'Idle 01'.
+  function words(id) { var s = String(id || '').toLowerCase().replace(/_/g, ' '); return s.charAt(0).toUpperCase() + s.slice(1); }
+  function title(r) { return r.title || 'Untitled prop'; }
+  function tile(r) {
+    var template = r.source && r.source.kind === 'template' ? r.source.template : null;
+    return { icon: ICONS[template] || '🎭', title: title(r), text: [plural(servos(r), 'servo', 'servos'), plural(names(r.poses).length, 'pose', 'poses'), plural(names(r.scenarios).length, 'show', 'shows')].join(' · '),
+      meta: 'changed ' + A.when(r.updated_at), badge: r.armed ? 'Armed' : null, tone: r.armed ? 'warn' : null };
+  }
+  function shows(rigs) {
+    return rigs.reduce(function (out, r) {
+      return out.concat(names(r.scenarios).map(function (id) { var s = r.scenarios[id] || {}; return { icon: '🎬', title: words(id), text: s.description || 'No description yet', meta: title(r) }; }));
+    }, []);
+  }
+  // last_report is the newest rehearsal report the routes saved with the rig: a rehearsal, or the rehearsal behind a play, look-at or jog.
+  function check(r) {
+    var rep = r.last_report, v = rep && rep.verdict; if (!v) return null;
+    var secs = Number(rep.durationMs) / 1000, long = rep.durationMs !== undefined && isFinite(secs) ? ' · ' + secs.toFixed(1) + ' s' : '';
+    return v.ok ? { icon: '✅', title: title(r), text: 'Passed' + long, badge: 'Passed', tone: 'ok' }
+      : { icon: '⚠️', title: title(r), text: 'Did not pass: ' + ((v.reasons && v.reasons[0]) || 'Animatronics shows why'), badge: 'Needs a fix', tone: 'warn' };
+  }
+  function stats(rigs, armed) {
+    return [
+      { id: 'props', label: 'Props', value: rigs.length },
+      { id: 'shows', label: 'Shows', value: total(rigs, function (r) { return names(r.scenarios).length; }) },
+      { id: 'poses', label: 'Poses', value: total(rigs, function (r) { return names(r.poses).length; }) },
+      { id: 'armed', label: 'Armed', value: armed, tone: armed ? 'warn' : null, hint: armed ? 'Moves only from the full page' : 'All disarmed' }
+    ];
+  }
+  function headline(rigs, armed) {
+    if (armed) return armed === 1 ? '1 prop is armed' : armed + ' props are armed';
+    return rigs.length ? plural(rigs.length, 'prop', 'props') + ' in the workshop' : 'No props yet';
+  }
+  function lede(rigs) {
+    var first = rigs[0];
+    if (first) return 'Newest change: ' + title(first) + ', ' + A.when(first.updated_at) + '. Nothing moves from here: a person arms and plays a prop in Animatronics, with its controller connected.';
+    return 'Animatronics brings a Halloween prop to life: moving eyes, blinking lids, a turning head or a talking jaw. Props built there show up here.';
+  }
+  function model(rigs) {
+    var armed = rigs.filter(function (r) { return r.armed; }).length, all = shows(rigs), checks = rigs.map(check).filter(Boolean);
+    return { kicker: KICKER, title: headline(rigs, armed), lede: lede(rigs),
+      actions: [{ label: 'Open Animatronics', primary: true, onClick: function () { A.open(FULL); } }],
+      stats: stats(rigs, armed),
+      sections: [
+        { kind: 'tiles', id: 'props', title: 'Our props', empty: 'No props saved yet.', items: rigs.slice(0, SHOWN).map(tile),
+          note: rigs.length > SHOWN ? 'The ' + SHOWN + ' most recently changed of ' + rigs.length + ' props.' : armed ? 'Armed is the saved state: a person armed the prop in Animatronics, and it moves only when someone plays it there with the controller connected.' : null },
+        { kind: 'list', id: 'shows', title: 'Shows they know', empty: rigs.length ? 'No shows saved yet.' : 'No props yet.', items: all.slice(0, LISTED),
+          note: all.length > LISTED ? 'The first ' + LISTED + ' of ' + all.length + ' shows.' : null },
+        checks.length ? { kind: 'list', id: 'checks', title: 'Last practice run', items: checks,
+          note: 'The newest check saved with each prop: its last move worked out on the computer, servo speeds and power included. Nothing on this page moves a prop.' } : null
+      ] };
+  }
+  function family() {
+    return read('/rigs').then(function (res) {
+      if (res.status === 401 || res.status === 403) return { kicker: KICKER, title: res.status === 401 ? 'Sign in to see the props' : 'This account cannot open Animatronics',
+        lede: res.status === 401 ? 'Animatronics shows the props of whoever is signed in, and this session is not signed in.' : 'The Animatronics routes refused this account (HTTP 403).' };
+      if (!res.ok) throw new Error('Animatronics could not read the saved props (HTTP ' + res.status + ').');
+      if (!res.body || !Array.isArray(res.body.rigs)) throw new Error('Animatronics sent an answer this view could not read.');
+      return model(res.body.rigs);
+    }, function () { throw new Error('Animatronics could not be reached just now.'); });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'animatronics', escapeLabel: 'Open Animatronics in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
 <style>
   :root { --an-bg: var(--bg, var(--bg-primary, #12151c)); --an-panel: var(--panel, var(--bg-card, #1b1f29)); --an-panel2: var(--panel2, var(--bg-tertiary, #232836));
           --an-text: var(--text, var(--text-primary, #e6e9ef)); --an-muted: var(--muted, var(--text-muted, #9aa3b2)); --an-line: var(--line, var(--border-color, #2f3646));

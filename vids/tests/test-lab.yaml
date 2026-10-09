@@ -1,0 +1,69 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register real finished-export attachment, owner publication and revocation proof with disposable PostgreSQL, filesystem and Chromium boundaries.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register the family audience view contract (ADR-164 D6) as the audience-view case: the static kit contract, the served template, the read-only family view over a stub kit and fetch, and the gated full-page start. The manifest now declares this catalog (testing:, uses: test-catalog); before, the kernel never loaded it.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+version: 1
+cases:
+  - id: package-readiness
+    name: Vids package readiness
+    purpose: Read package metadata without starting a worker or accessing user artifacts.
+    level: integration
+    runner: { kind: smoke, smoke: package-readiness }
+    expected: [The installed readiness route names the Vids package.]
+    prerequisites: []
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 10000, maxMemoryMb: 256 }
+    installation: safe-smoke
+  - id: artifact-publication
+    name: Vids finished artifact publication
+    purpose: Attach a real finished MP4 to an owner job, preview it privately, publish only after explicit digest confirmation, read it anonymously in Chromium, revoke it and remove it under forced-RLS PostgreSQL.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/vids-publication.core.spec.mjs]
+    expected:
+      - Only the exact owner can attach, preview, publish, revoke or remove a completed artifact.
+      - Incomplete or invalid MP4 uploads are refused before an artifact row is persisted.
+      - Anonymous access reaches only the published immutable bytes and returns 404 after revocation.
+      - Job listings and control routes remain authenticated; no worker-local path or provider is contacted.
+    prerequisites: [runner:playwright, runner:vitest, browser:chromium, harness:oshal-core-root, harness:core-test-fixtures, engine-container:disposable-postgres]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/vids-publication.spec.ts, tests/publication.config.mjs]
+      cleanup: The suite closes Chromium and loopback HTTP, removes its temporary artifact root, and stops its own PostgreSQL container including anonymous volumes.
+    limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its family (Home shell) and company (Business shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - The compiled routes/vids-routes.js serves the source SURFACE_HTML template unchanged, and the block holds no backtick, dollar-brace or backslash.
+      - On open the family view reads only GET /api/vids/jobs (the newest nine), /api/vids/home-summary and the artifact record of each finished video shown; it never dispatches a job and never attaches, publishes, revokes or removes an export.
+      - Waiting or being made (one count, since the route counts queued and running together), finished in five days, not finished and the video maker read as what they count; a queued video is never called being made, and a count that could not be checked reads as not checked.
+      - Each tile names its kind and where it stands, and only a finished video whose export is attached opens its same-origin private preview in a new tab.
+      - Signed out, refused, a failed list read, an unreachable server and an answer without a video list each read as what they are.
+      - Under the family view the page's inline start binds no control, reads nothing and does not poll, and its module script adds no handoff listener and appends no connected-actions section; the full page still runs every start step.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

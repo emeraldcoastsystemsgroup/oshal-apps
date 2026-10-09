@@ -1,0 +1,79 @@
+version: 1
+cases:
+  - id: developer-workspace-index
+    name: Developer workspace index guarded corpus
+    purpose: Verify the declared index manifest, per-rule secret and identifier refusal, the post-build guard that goes red on a poisoned chunk, fail-closed local patterns, the named local notes root, server-held dev mode and the cited package tool.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/dev-workspace-index.test.js]
+    expected:
+      - The effective include/exclude manifest equals the devWorkspaceIndex block of oshal-app.yaml.
+      - Secret-shaped and identifier-carrying fixtures are skipped per rule; prose and role addresses are indexed.
+      - The post-build rescan and --verify exit non-zero on a poisoned chunk without echoing it.
+      - Local publish-gate patterns load fail-closed and are counted, never stored.
+      - A local notes directory is indexed only when named and under the declared prefix.
+      - Dev mode is server-held per issuer and subject, expires by TTL, and a forged header grants nothing.
+      - The package tool returns a cited doc_id under the full gate and refuses each missing condition.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: The test removes its temporary checkouts, notes directories and generated indexes.
+    limits: { timeoutMs: 60000, maxMemoryMb: 256 }
+    installation: never
+  - id: developer-workspace-jarvis-seam
+    name: Jarvis dev-mode ask returns the cited doc_id
+    purpose: Mount the package on the real core seam and drive the Jarvis package-tool flow (catalog, preview, execute) with asks naming an ADR number, a backlog entry title, a runbook and tonight's handover; each returns the cited doc_id of the built index.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/jarvis.core.test.js]
+    expected:
+      - A super-admin turns dev mode on through the same-origin package route.
+      - Jarvis discovers dev_workspace_search as an auto-mode read tool.
+      - ADR, backlog-title, runbook and handover asks return the cited doc_id and path.
+      - A consumed proposal is never replayed.
+    prerequisites: [runner:node-test, fixture:core-checkout]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/core.fixture.js
+        - tests/fixtures/checkout/CLAUDE.md
+        - tests/fixtures/checkout/docs/BACKLOG.md
+        - tests/fixtures/checkout/docs/adr/077-self-developing-platform.md
+        - tests/fixtures/checkout/docs/backlog/session-handover-2026-09-26.md
+        - tests/fixtures/checkout/docs/runbooks/deploy-parity.md
+      cleanup: The temporary index and the loopback server are removed after the run; the in-memory authorization store is discarded.
+    limits: { timeoutMs: 240000, maxMemoryMb: 1024 }
+    installation: never
+  - id: developer-workspace-refusal
+    name: Outside dev mode the ask does not reach the collection
+    purpose: On the real core seam, prove the same ask is refused without dev mode, with a forged dev-context header, for a non-super-admin, for an unauthenticated or cross-origin caller, after the TTL, after dev mode is turned off, and in a fresh process.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/refusal.core.test.js]
+    expected:
+      - Execution is refused with dev mode off and carries no citation.
+      - A forged x-oshal-dev-context header is refused with reason dev_mode_off.
+      - A developer who is not on the super-admin allowlist cannot turn dev mode on or search.
+      - Dev mode expires by TTL, ends on DELETE, and starts off in a fresh process.
+    prerequisites: [runner:node-test, fixture:core-checkout]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/core.fixture.js
+        - tests/fixtures/checkout/CLAUDE.md
+        - tests/fixtures/checkout/docs/BACKLOG.md
+        - tests/fixtures/checkout/docs/adr/077-self-developing-platform.md
+        - tests/fixtures/checkout/docs/backlog/session-handover-2026-09-26.md
+        - tests/fixtures/checkout/docs/runbooks/deploy-parity.md
+      cleanup: The temporary index and the loopback servers are removed after the run; the in-memory authorization store is discarded.
+    limits: { timeoutMs: 240000, maxMemoryMb: 1024 }
+    installation: never

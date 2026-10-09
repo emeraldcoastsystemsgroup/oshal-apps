@@ -35,8 +35,21 @@ api process (cron tick)
   └─ routes/career-engine-runner.js      builds the least-privilege child env, takes a filesystem lease
        └─ node bin/oshal-jobhunter.js <verb>    the launcher: validates identity, adopts the lease, builds the Python env
             └─ python3 -m jobhunter <verb>        the engine (engine/jobhunter/*.py)
-                 └─ codex exec … / Anthropic API   the AI calls, one worker per scored posting (up to 8)
+                 └─ POST /api/career-hunter/engine/complete   one per model call (up to 8 threads)
+                      └─ career-bot node (cb000000-…-0001)       the model call itself, cost-attributed to the user
 ```
+
+- **Model work leaves the api (1.24.0).** The engine's deterministic work (scrape, corpus, stores,
+  PDF rendering) runs in the api container as before; every model call it makes is a loopback POST
+  to the package's worker rail, which runs it on the dedicated **career-bot** node through the
+  kernel's accounted bot rail (`executeBotOrInline`, direct and non-agentic, the run owner's
+  `userSub`, task id `career-engine-<runId>`). There is no `codex exec` or `claude -p` process in
+  the api any more, and no model-provider key in the engine's environment.
+- **The rail refuses a missing worker.** Before a call reaches the bot, the rail requires a
+  dedicated career-bot endpoint and a fresh `online` heartbeat
+  (`oshal:runtime-agent:cb000000-0000-0000-0000-000000000001`). A missing or stale heartbeat, or a
+  transport failure, answers `503 career-worker-unavailable`; the engine stops at the first such
+  answer and the run ends `failed` with that reason — it never falls back to another provider.
 
 - Concurrency: `CAREER_HUNTER_MAX_RUNS` engine children at once (default 3); each per-user
   SQLite has exactly one writer; leases are heartbeat-backed directories under
@@ -83,11 +96,16 @@ curl -s http://127.0.0.1:35457/api/career-hunter/run/refresh -H 'x-service-secre
 #   → {"running":true|false,"corpusFreshAt":"2026-09-05T08:54:31+00:00"}
 
 # the processes themselves
-docker exec oshal-local-api ps -eo pid,etime,args | grep -E 'jobhunter|codex exec' | grep -v grep
+docker exec oshal-local-api ps -eo pid,etime,args | grep -E 'jobhunter' | grep -v grep
+
+# your own engine runs and their terminal states (signed-in user)
+#   GET /api/career-hunter/runs → {"runs":[{"runId","verb","state":"running|succeeded|failed|cancelled","reason","railCalls",…}]}
 ```
 
-Seeing `python3 -m jobhunter score …` together with `codex exec --json --ephemeral …` workers is
-proof of life for AI scoring: the workers only appear once the engine has found a usable login.
+A scoring run's model calls show up as `career rail completion` lines in the api log (one per
+call, with the run id and status) and as work on the career-bot container. `railCalls` climbing in
+`GET /runs` is proof of life for AI scoring; a run that ends `failed` with reason
+`career-worker-unavailable` means the career-bot was down, stale or unreachable.
 
 ### 3.3 Did last night complete, and is the data moving?
 
@@ -145,35 +163,88 @@ here (row-level security), which is why the superuser is used for this read.
 | Title pass now | Career Settings → title profile (run now) | Bypasses the >20 h guard for that user. |
 | Turn automation on/off for a user | Career Settings → automation | `auto_generate` gates scoring and drafting; `auto_submit` gates submission. Default OFF. |
 
-## 5. Which AI credential the batch uses (ADR-137 amendment A)
+## 5. Which AI credential the batch uses (worker rail, 1.24.0)
 
-The engine finds a provider in this order: **codex** (`~/.codex/auth.json`, or `OPENAI_API_KEY`;
-set `JOBHUNTER_USE_CODEX=0` to skip) → **Anthropic** (`ANTHROPIC_API_KEY`, else the Claude Code
-login file `~/.claude/.credentials.json`) → **OpenAI**. What the child is *allowed to see* depends
-on the deployment posture:
+**None, in the engine.** Since 1.24.0 the engine child in the api holds no vendor login and no
+model-provider key, for every user and every deployment mode (the ADR-137 amendment-A "portal
+fallback" for the demo operator is retired). Its login directories always point at an empty
+per-user sandbox, the only brokered key it receives is the user's Firecrawl key (deterministic web
+search), and every model call goes to the career-bot through the worker rail. Which model answers
+is decided by the kernel's per-user brain resolution when it dispatches to the career-bot (the
+user's Settings → AI Providers); a user with nothing configured gets `424 no-configured-brain` and
+the run ends `failed` with that reason.
 
-| Posture | Who | What the engine child sees |
-|---|---|---|
-| **Demo / dev / test** — `DEMO_MODE` truthy | the **exact** operator subject in `OSHAL_OPERATOR_SUBS` | The deployment's own mounted logins (`/root/.codex`, `/root/.claude`) — the "portal fallback". The runner states this as `OSHAL_PORTAL_LOGINS=1`; the launcher lifts its sandbox only on that exact value. |
-| Everyone else, and every non-demo deployment | any user | An empty per-user sandbox for the login directories, plus **only that user's own keys** brokered from their Career Settings connections (`anthropic`, `firecrawl`), presented as `ANTHROPIC_API_KEY` / `FIRECRAWL_API_KEY`. The controller's own keys never reach a child. |
+The rail itself:
 
-There are **two** places that enforce the sandbox — the runner (`career-engine-runner.ts`) and the
-launcher (`bin/oshal-jobhunter.js`) — and both must agree. A fix to one of them alone changes
-nothing for Python; the guard `tests/career-portal-logins-launcher.test.mjs` pins the launcher
-half, `tests/career-no-sync-api.test.mjs` the runner half.
+- **Route:** `POST /api/career-hunter/engine/complete`, mounted `auth: public` with
+  `callbackVerifier: createCareerRailCallbackVerifier` on the kernel's signed-package-callbacks
+  rail (1.25.1). The kernel admits POST only, runs the package verifier before any other code,
+  refreshes the grant owner through the platform directory and requires the `authorization.yaml`
+  permission bound to the route (`career.execute`, held by the `member` and `admin` roles) before
+  the handler runs as that owner. No browser session, service secret or asserted-subject header
+  reaches the handler; under the ADR-149 enforce rollout the 1.24.0 service-secret caller was
+  refused `401 authorization_identity_required` before package code, which is why this moved.
+- **Callback grant:** minted per engine child when the runner launches it (`<run id>.<secret>`,
+  handed to the child as `CAREER_RAIL_GRANT` beside `CAREER_RAIL_URL`, `CAREER_RAIL_RUN_ID` and
+  `CAREER_RAIL_TIMEOUT_S`; read once by the engine and removed from its environment so no browser
+  or subprocess inherits it). The controller keeps only the key derived from the secret and the
+  owner's verified subject and issuer. Every completion is signed over its method, path, a fresh
+  timestamp, a single-use nonce and the body hash; the grant is revoked the moment the child exits
+  or is cancelled. The fleet service secret is never part of the child environment.
+- **Owner issuer:** a route-launched run records the kernel's verified issuer for the request; a
+  cron-launched run records the issuer the owner's automation opt-in stored (migration 107). An
+  opt-in saved before 1.25.1 has none, and the cron skips that owner's model passes with a log
+  line until the owner saves Career Settings automation again.
+- **Limits:** `CAREER_WORKER_RAIL_CONCURRENCY` (default 2 concurrent completions on the bot),
+  `CAREER_WORKER_RAIL_DEADLINE_MS` (default 300000; it covers one call from the moment the call
+  holds a bot slot until the bot answers, and never includes time spent waiting for a slot;
+  `504 career-worker-timeout` past it), `CAREER_WORKER_RAIL_QUEUE_WAIT_MS` (default 3600000; how
+  long a call may wait for a slot; `504 career-worker-queue-timeout` past it, and such a call is
+  never sent to the bot), `CAREER_WORKER_RAIL_HEARTBEAT_STALE_MS` (default 90000),
+  `CAREER_WORKER_RAIL_MAX_BODY_BYTES` (default 1 MiB). All are clamped package defaults read from
+  the api process environment. A scoring run sends up to 8 calls at once, so at the defaults most
+  of its calls wait for one of the 2 slots; the queue ceiling is sized so two such runs can queue
+  even when every call runs near the deadline. The engine's own HTTP client waits for the queue
+  ceiling plus the deadline plus 30 s, so the rail's answer always arrives first. A call whose run
+  is cancelled or ends while it waits stops waiting at once and is never sent to the bot.
+- **Cancellation:** `POST /api/career-hunter/run/<runId>/cancel` (owner only — another user's run
+  answers 404) revokes the token, aborts a waiting rail call with `409 run-cancelled` and
+  terminates the engine's process tree; the run ends `cancelled`. The runner kills the wrapper's
+  process group, and since 1.27.1 the Python engine runs inside that group, so the cancel reaches
+  it (before 1.27.1 the engine led its own group, survived the cancel and kept the run `running`
+  until it exited by itself). The runner deadline and the lease-loss fence stop a run the same way.
+- **Manual runs:** a `POST /api/career-hunter/run/{pull|score|match}` whose run the rail ended
+  answers with the rail's own status and code, plus the run id and state (`503
+  career-worker-unavailable`, `504 career-worker-timeout`, `504 career-worker-queue-timeout`, `502
+  career-worker-error`, `424 no-configured-brain`, `402 budget-cap-exceeded`, `403 not-entitled`);
+  a cancelled run answers `409 cancelled`.
 
-**"No AI auth found. Log into Claude Code, or set ANTHROPIC_API_KEY."** in a title-pass traceback
-means the child found none of the above. Check, in order: (1) the api container has `DEMO_MODE`
-and `OSHAL_OPERATOR_SUBS` set and the user *is* that exact subject; (2) `/root/.codex/auth.json`
-or `/root/.claude/.credentials.json` exists inside the api container (they are host mounts);
-(3) for a non-operator user, an Anthropic key is saved in Career Settings; (4) the deployed package
-is at least 1.12.5.
+The guards: `tests/career-worker-rail.test.mjs` (the route), `tests/career-model-rail.test.mjs`
+(the engine side, with provider tripwires), `tests/career-worker-rail-isolation.test.mjs` (two
+users), and `tests/career-portal-logins-launcher.test.mjs` (no verb's engine environment carries a
+login location or a model key, for the demo operator too).
+
+A direct CLI invocation that does not come through the runner — `node bin/oshal-jobhunter.js score`
+from a shell, or the manifest's `cli` tools — has no grant, so its model calls stop at once with
+`career worker unavailable: rail-not-configured`; so does a runner launch that established no
+verified owner issuer, because the kernel could never admit its callbacks.
+
+The kernel boundary itself is crossed by `tests/career-rail-kernel-boundary.core.test.js` (run
+with a framework checkout: `OSHAL_CORE_ROOT=<oshal checkout> node --test
+tests/career-rail-kernel-boundary.core.test.js`): the real manifest reader, enforce-mode
+authorization runtime and route mounter admit the signed completion and refuse the 1.24.0 caller.
 
 ## 6. Failure signatures
 
 | You see | It means | Do |
 |---|---|---|
-| `No AI auth found` | Credential posture (section 5) | Walk the four checks above. |
+| `career worker unavailable: career-worker-unavailable` in the engine stderr; run `failed` with that reason | The career-bot node is not running, its heartbeat is stale, or it was unreachable | Check `docker ps --filter name=oshal-local-career-bot` and that the `career-node` compose profile is enabled; the api log's `career worker unavailable` line carries the preflight detail (`no-dedicated-node`, `heartbeat-missing`, `heartbeat-stale`). |
+| `career worker unavailable: career-worker-queue-timeout`; run `failed` with that reason | A call waited longer than `CAREER_WORKER_RAIL_QUEUE_WAIT_MS` for one of the rail's bot slots, so it was never sent to the bot | Other runs held the slots for that long. The api log's `career rail completion` lines carry each call's status and duration. |
+| `career worker unavailable: no-configured-brain` | The user has no AI provider configured for the career-bot | The user connects one in Settings → AI Providers. |
+| `career worker unavailable: rail-not-configured` | The engine ran without a runner-minted grant (a direct CLI or `cli` tool call), or the launch had no verified owner issuer | Start the work through the package routes or the cron instead; for the cron, the owner saves Career Settings automation again so the opt-in records their issuer (`model passes skipped` in the api log names it). |
+| `career worker unavailable: callback_signature_invalid` | The kernel's signed rail refused the completion: the grant is unknown, revoked or settled, the owner does not match, the signature or timestamp is wrong, or the request was replayed | The api log's `career rail request refused` line carries the package reason (`rail_grant_invalid`, `rail_grant_revoked`, `rail_replayed`, `rail_timestamp_stale`, ...). A stale controller clock versus the engine child is the one environmental cause. |
+| `career worker unavailable: callback_owner_unavailable` | The kernel could not refresh the run owner (account deactivated, or the recorded issuer no longer matches) | The owner signs in again; check the account in Users. |
+| `career worker unavailable: authorization_permission_denied` (or another 403 body) | The owner no longer holds `career.execute` (the `member` or `admin` role) | Grant the role in Access Administration; see README "Installing 1.25.1 on an enforce box". |
 | `keyword score failed; cursor not advanced` with no traceback line after it | The keyword pass died without the title pass running | Run `POST /run/score` for that user; the response carries the engine's `err` tail. |
 | `evening chain skipped — no user has opted in` every night | Automation is OFF for everyone | Expected on a fresh install; turn it on in Career Settings for the accounts that want nightly scoring. |
 | `already in flight — skipped` | A chain is still running (they are multi-hour) | Wait; check `GET /run/refresh`. |
@@ -195,8 +266,8 @@ is at least 1.12.5.
 | `CAREER_HUNTER_PULL_TIMEOUT_MS` | 8 h | Ceiling for the shared scrape. |
 | `JOBHUNTER_STORE_ROOT` | `apps/career-hunter/data` | Root of the corpus and per-user stores. |
 | `JOBHUNTER_STORE` | `sqlite` | `sqlite` or `postgres`; anything else fails closed. |
-| `DEMO_MODE`, `OSHAL_OPERATOR_SUBS` | kernel | The two gates of the portal fallback (section 5). |
-| `JOBHUNTER_USE_CODEX`, `JOBHUNTER_CODEX_MODEL`, `JOBHUNTER_SCORE_MODEL`, `JOBHUNTER_ANTHROPIC_MODEL` | engine | Provider ladder and models used for scoring and drafting. |
+| `CAREER_WORKER_RAIL_CONCURRENCY`, `CAREER_WORKER_RAIL_DEADLINE_MS`, `CAREER_WORKER_RAIL_QUEUE_WAIT_MS`, `CAREER_WORKER_RAIL_HEARTBEAT_STALE_MS`, `CAREER_WORKER_RAIL_MAX_BODY_BYTES` | 2 / 300000 / 3600000 / 90000 / 1 MiB | Worker-rail limits (section 5), read by the api process. The deadline starts when a call holds a bot slot; the queue wait is bounded separately. |
+| `JOBHUNTER_USE_CODEX`, `JOBHUNTER_CODEX_MODEL`, `JOBHUNTER_SCORE_MODEL`, `JOBHUNTER_ANTHROPIC_MODEL` | engine | Standalone single-user engine only; the multi-user engine the package runs ignores them. |
 
 ## 9. Scrape targets — the portal table, and each user's own list
 

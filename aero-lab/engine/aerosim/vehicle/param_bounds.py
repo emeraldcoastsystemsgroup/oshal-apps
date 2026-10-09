@@ -5,6 +5,7 @@ SEQ                 | AUTHOR                      | DESCRIPTION
 -------------------------------------------------------------------------------
 1 | maintainer@emeraldcoastsystemsgroup.com   | New module: the shared parameter-bounds layer. One range checker (require_in_range), a per-class declared-bounds protocol (PARAM_BOUNDS + validate_declared), and the spec-extraction re-check (recheck_element_params) so an element built by bypassing __init__ is still caught. Closes the round-2 class: every optimizer-turnable constructor number is now either range-checked here or billed in mass.py.
 2 | maintainer@emeraldcoastsystemsgroup.com   | ROUND 4: the (b) BILLED branch's re-check claim is now TRUE, not aspirational. R4_probe_bypass measured the gap: recheck walked PARAM_BOUNDS ranges but never asked whether mass_kg was CONSISTENT with the billed parameters, so capacity_J x3 on a live pack (723 Wh/kg effective) and area x2 on a live PVArray both screened admissible on stale bills. The fix lives in each element's validate_cross_params (which recheck_element_params already calls): BatteryElement / PVArray / Thruster now RE-DERIVE the billed mass from the live instance's own parameters and raise beyond 1e-6 relative; BuoyancyVolume re-derives its surface area and floors the film. AeroSurface was already honest (mass_kg is a re-deriving property).
+3 | maintainer@emeraldcoastsystemsgroup.com   | ParamBoundsError carries a structured param_out_of_bounds reason (aerosim.validity) built at the raise site: require_in_range passes the parameter, value and interval, so a certification report or sweep record names the violated bound by its numbers instead of re-reading the message. Raise sites that pass no numbers still carry the code with null fields. The message and the exception hierarchy are unchanged.
 
 THE CLASS THIS MODULE CLOSES
 ----------------------------
@@ -63,6 +64,7 @@ from __future__ import annotations
 import math
 from typing import Any, Mapping, NamedTuple
 
+from ..validity import reason as _validity_reason
 from .mass import MassClosureError
 
 
@@ -73,8 +75,19 @@ class ParamBoundsError(MassClosureError):
         demonstrated, an SOC rail outside [0, 1], a cp past the Betz limit, a
         gravimetric divisor that would make hardware massless. Subclasses
         MassClosureError (itself a ValueError) so every existing fail-closed
-        handler catches it.
+        handler catches it. Carries .validity_reason (param_out_of_bounds)
+        built from the keyword fields the raise site passes.
+    @param message The human-readable refusal.
+    @param param Owning element.parameter name, when the raise site knows it.
+    @param value / lo / hi The offending value and the declared interval.
     """
+
+    def __init__(self, message: str = "", *, param: str | None = None,
+                 value: Any = None, lo: Any = None, hi: Any = None) -> None:
+        super().__init__(message)
+        self.validity_reason = _validity_reason(
+            "param_out_of_bounds", param=param or "unspecified",
+            value=value, lo=lo, hi=hi)
 
 
 class Bounds(NamedTuple):
@@ -147,12 +160,14 @@ def require_in_range(
     u = "" if unit in ("", "-") else f" {unit}"
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ParamBoundsError(
-            f"{where} must be a real number{u or ' (dimensionless)'}, got {value!r}"
+            f"{where} must be a real number{u or ' (dimensionless)'}, got {value!r}",
+            param=where, value=None, lo=lo, hi=hi,
         )
     v = float(value)
     if not math.isfinite(v):
         raise ParamBoundsError(
-            f"{where} must be finite, got {value!r}"
+            f"{where} must be finite, got {value!r}",
+            param=where, value=None, lo=lo, hi=hi,
         )
     below = v < lo or (lo_open and v == lo)
     above = v > hi or (hi_open and v == hi)
@@ -162,7 +177,8 @@ def require_in_range(
         suffix = f" -- {why}" if why else ""
         raise ParamBoundsError(
             f"{where} = {v:g}{u} is outside the declared range "
-            f"{lo_b}{lo:g}, {hi:g}{hi_b}{u}{suffix}"
+            f"{lo_b}{lo:g}, {hi:g}{hi_b}{u}{suffix}",
+            param=where, value=v, lo=lo, hi=hi,
         )
     return v
 

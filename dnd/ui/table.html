@@ -9,6 +9,136 @@
        chrome derives from them (dnd.css :root); the canvas board stays dark. -->
   <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
   <script src="/shared/ui/js/surface-theme.js"></script>
+  <!-- Audience view (ADR-164 D6). The Jarvis shell opens the games group on this page with ?audience=family: the
+       signed-in player's saved games as the table's own My Games shelf reads them (which adventure and chapter each
+       game is in, where it stands, who plays, when it was last played), the saved heroes and the adventures on the
+       shelf, painted by the shared kit in the family grammar from the SAME three reads the table makes when it opens:
+       GET /api/dnd/campaigns and /characters (owner-or-member scoped SELECTs under the caller's session) and
+       /content (the bundled adventure catalog). Nothing else runs under the view: no turn, no Dungeon Master call, no
+       narration, no dice, no illustration, no campaign, seat or character change, and no join code is shown. The
+       tabletop bundle below starts only on the kit's decision (table-voice.js, table-immersive.js and
+       table-screens.js are gated), so the table never starts under the view. Any other request runs the full table
+       unchanged. -->
+  <link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+  <style>
+    /* dnd.css locks the document to one unscrollable, unselectable screen; an audience view is a page that scrolls. */
+    html[data-audience], html[data-audience] body { height: auto; overflow: auto; user-select: text; }
+  </style>
+  <script src="/shared/ui/js/app-view.js"></script>
+  <script>
+  (function () {
+    var A = window.AppView; if (!A) return;
+    var KICKER = 'Game table', FULL = '/cockpit/?app=dnd', SHOWN = 12, HEROES = 8;
+    function call(path) {
+      return fetch('/api/dnd' + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error((j && j.error) || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j || {}; });
+      });
+    }
+    function refused(e) { return !!e && (e.status === 401 || e.status === 403); }
+    // The heroes and the adventure shelf are separate reads that may fail on their own: the saved games still show.
+    function soft(path) { return call(path).catch(function (e) { if (refused(e)) throw e; return null; }); }
+    function played(row) { return A.when(row.last_played_at || row.updated_at); }
+    function finished(row) { var mode = String(row.mode || ''); return row.status === 'archived' || mode === 'complete' || mode === 'defeat'; }
+    // The table's own reading of a saved board (ui/table-screens.js campaignPlace), in plain words.
+    function place(row) {
+      var mode = String(row.mode || 'setup'), round = Number(row.round) || 0;
+      if (row.status === 'archived' && mode !== 'complete' && mode !== 'defeat') return 'Archived · the story can be watched again';
+      if (mode === 'setup') return 'Choosing heroes';
+      if (mode === 'exploration') return 'Following leads';
+      if (mode === 'combat') return round ? 'In a battle · round ' + round : 'In a battle';
+      if (mode === 'resolved') return 'Battle won · the next scene is waiting';
+      if (mode === 'complete') return 'Adventure finished';
+      if (mode === 'defeat') return 'The party fell · the story can be watched again';
+      return 'In the adventure';
+    }
+    function players(row) { var n = Number(row.player_count) || 0; return n ? n + (n === 1 ? ' player' : ' players') : null; }
+    function role(row) { return row.is_owner ? 'You host' : row.my_character ? 'Playing ' + row.my_character : 'Joined'; }
+    // The adventure a saved game plays, resolved as the route resolves it (lib/dnd-adventure-catalog.js resolveAdventure):
+    // its own id in the catalog, else the catalog's compatibility default.
+    function adventureOf(content, row) {
+      var list = content ? content.adventures || [] : [];
+      for (var i = 0; i < list.length; i++) if (list[i].id === row.adventure_id) return list[i];
+      return content ? content.adventure || list[0] || null : null;
+    }
+    function chapter(adventure, row) {
+      var scenes = (adventure && adventure.scenes) || [];
+      for (var i = 0; i < scenes.length; i++) if (scenes[i].id === row.scene_id) return 'chapter ' + (i + 1) + ' of ' + scenes.length + ': ' + (scenes[i].title || 'untitled');
+      return '';
+    }
+    // Which story a game tells and how far in. A new game is named after its adventure, so the title is not repeated.
+    function storyOf(adventure, row) {
+      var named = adventure && adventure.title && adventure.title !== row.name ? adventure.title : '', part = chapter(adventure, row);
+      if (named && part) return named + ', ' + part;
+      return named || (part ? part.charAt(0).toUpperCase() + part.slice(1) : '');
+    }
+    function game(row, content) {
+      return { icon: finished(row) ? '📜' : '🐉', title: row.name || 'Untitled campaign', meta: 'played ' + played(row), badge: role(row),
+        text: [storyOf(adventureOf(content, row), row), place(row), players(row)].filter(Boolean).join(' · ') };
+    }
+    function hero(row) {
+      var sheet = row.sheet || {}, level = Number(row.level) || Number(sheet.level) || 1;
+      return { icon: '🛡️', title: row.name || sheet.name || 'Unnamed hero', text: ['Level ' + level, sheet.race, sheet['class']].filter(Boolean).join(' '), meta: 'saved ' + A.when(row.updated_at) };
+    }
+    function clip(text, cap) { return text.length > cap ? text.slice(0, cap - 1).trim() + '…' : text; }
+    // The table's own count of an adventure's chapters (ui/table-campaigns.js adventureChapterSummary).
+    function chapters(adventure) {
+      var scenes = adventure.scenes || [], looks = scenes.filter(function (s) { return s.kind === 'exploration'; }).length, fights = scenes.length - looks;
+      return [looks ? looks + (looks === 1 ? ' investigation' : ' investigations') : '', fights ? fights + (fights === 1 ? ' battle' : ' battles') : ''].filter(Boolean).join(' · ');
+    }
+    function shelf(adventure) {
+      return { icon: '📖', title: adventure.title || 'Untitled adventure', text: clip(String(adventure.summary || ''), 220) || null,
+        meta: chapters(adventure) || null, badge: (adventure.theme && adventure.theme.label) || null };
+    }
+    function inProgress(rows) { return rows.filter(function (r) { return !finished(r); }).length; }
+    function unknown(id, label) { return { id: id, label: label, value: '—', hint: 'Could not check' }; }
+    function stats(rows, heroes, content) {
+      var playing = inProgress(rows);
+      return [
+        { id: 'playing', label: 'Games to pick up', value: playing },
+        { id: 'finished', label: 'Finished or archived', value: rows.length - playing },
+        heroes ? { id: 'heroes', label: 'Saved heroes', value: heroes.length } : unknown('heroes', 'Saved heroes'),
+        content ? { id: 'adventures', label: 'Adventures to choose from', value: (content.adventures || []).length } : unknown('adventures', 'Adventures to choose from')
+      ];
+    }
+    function title(rows) {
+      var playing = inProgress(rows);
+      if (playing) return playing + (playing === 1 ? ' game to pick up' : ' games to pick up');
+      return rows.length ? 'No game in progress' : 'No games yet';
+    }
+    // GET /campaigns orders by last played, newest first.
+    function lede(rows, content) {
+      var last = rows[0];
+      if (!last) return 'Open the table to start an adventure, or to join a friend at their table with the code they share.';
+      return 'Last played: ' + (last.name || 'Untitled campaign') + ', ' + played(last) + '. ' + [storyOf(adventureOf(content, last), last), place(last)].filter(Boolean).join(' · ') + '.';
+    }
+    function sections(rows, heroes, content) {
+      return [
+        { kind: 'list', id: 'games', title: 'Our games', empty: 'No saved games yet.', items: rows.slice(0, SHOWN).map(function (r) { return game(r, content); }),
+          note: rows.length > SHOWN ? 'The ' + SHOWN + ' most recently played of ' + rows.length + ' saved games.' : null },
+        heroes && heroes.length ? { kind: 'tiles', id: 'heroes', title: 'Saved heroes', items: heroes.slice(0, HEROES).map(hero),
+          note: heroes.length > HEROES ? 'The ' + HEROES + ' most recently saved of ' + heroes.length + ' heroes.' : null } : null,
+        { kind: 'tiles', id: 'adventures', title: 'Adventures on the shelf', items: content ? (content.adventures || []).map(shelf) : [],
+          empty: content ? 'No adventures come with this table.' : 'The adventure shelf could not be read just now.' }
+      ];
+    }
+    function refusal(e) {
+      return { kicker: KICKER, title: e.status === 401 ? 'Sign in to see your games' : 'This account cannot open Dungeon Master',
+        lede: e.status === 401 ? 'Dungeon Master shows the games of whoever is signed in, and this session is not signed in.' : 'The Dungeon Master routes refused this account (HTTP 403).' };
+    }
+    function family() {
+      return Promise.all([call('/campaigns'), soft('/characters'), soft('/content')]).then(function (r) {
+        var rows = r[0].campaigns || [], heroes = r[1] ? r[1].characters || [] : null, content = r[2];
+        return { kicker: KICKER, title: title(rows), lede: lede(rows, content), stats: stats(rows, heroes, content), sections: sections(rows, heroes, content),
+          actions: [{ label: 'Open the game table', primary: true, onClick: function () { A.open(FULL); } }] };
+      }).catch(function (e) {
+        if (!refused(e)) throw e && e.status >= 500 ? new Error('Dungeon Master could not read the saved games (HTTP ' + e.status + ').') : e;
+        return refusal(e);
+      });
+    }
+    // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+    A.boot({ app: 'dnd', escapeLabel: 'Open Dungeon Master in the cockpit', audiences: { family: family, company: family } });
+  })();
+  </script>
   <link rel="stylesheet" href="/api/dnd/dnd.css" />
   <script src="/api/dnd/engine.js"></script>
 </head>

@@ -20,6 +20,7 @@
  * 1 | roger.murphy@agenticfederal.us   | Initial class bank: GET /catalog (published classes + per-caller enrolled flag), POST /classes/:id/enroll (self-enroll into a published class), POST /classes/:id/leave (self-unenroll; owner can't leave)
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Tenant-bound self-enroll and leave lookups so a class id from another school cannot create cross-tenant enrollment state; extracted handlers to keep each authorization decision independently reviewable
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Make enrollment and leave writes derive their target from the actor's current tenant and the class's current publication, status, and ownership state.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Bind native self-enrollment to authoritative relationship snapshots while retaining legacy PostgreSQL CTE enforcement.
  * ---------------------------------------------------------------------------
  *
  * @module education-catalog-routes
@@ -29,6 +30,7 @@ exports.createEducationCatalogRoutes = createEducationCatalogRoutes;
 const express_1 = require("express");
 const logger_1 = require("@/shared/logger");
 const education_access_1 = require("./education-access");
+const education_transactions_1 = require("./education-transactions");
 const logger = (0, logger_1.createChildLogger)({ module: 'education-catalog-routes' });
 /** Map an EducationAccessError to its HTTP status; returns true if handled. */
 function sendAccessError(res, err) {
@@ -74,6 +76,41 @@ async function loadCatalog(ctx, req, res) {
         res.status(500).json({ error: err.message });
     }
 }
+/** Native eligibility and insertion share an atomic relationship-validated read set. */
+async function nativeEnrollment(ctx, actor, classId) {
+    await (0, education_transactions_1.schoolTransaction)(ctx.pool, async (client) => {
+        const result = await client.query(`SELECT c.published, c.status, c.teacher_student_id FROM lm_classes c
+       JOIN lm_students a ON a.student_id=$1 AND a.tenant_id=c.tenant_id WHERE c.class_id=$2`, [actor.studentId, classId]);
+        if (!result.rows[0])
+            throw new education_access_1.EducationAccessError('class not found', 404);
+        assertSelfEnrollmentOpen(result.rows[0], actor.studentId);
+        await client.query(`INSERT INTO lm_enrollments (student_id, class_id, tenant_id) VALUES ($1,$2,$3)
+       ON CONFLICT (student_id,class_id) DO NOTHING`, [actor.studentId, classId, actor.tenantId]);
+    });
+}
+/** Preserve the PostgreSQL CTE contract while native stores use their admitted transaction primitive. */
+async function legacyEnrollment(ctx, actor, classId) {
+    const result = await ctx.pool.query(`WITH eligible AS MATERIALIZED (
+       SELECT a.student_id, c.class_id
+         FROM lm_students a
+         JOIN lm_classes c ON c.class_id = $2 AND c.tenant_id = a.tenant_id
+        WHERE a.student_id = $1 AND c.status = 'active'
+          AND (c.published = true OR c.teacher_student_id = a.student_id)
+     ), inserted AS (
+       INSERT INTO lm_enrollments (student_id, class_id)
+       SELECT student_id, class_id FROM eligible
+       ON CONFLICT (student_id, class_id) DO NOTHING
+       RETURNING 1
+     )
+     SELECT EXISTS (SELECT 1 FROM eligible) AS eligible,
+            (EXISTS (SELECT 1 FROM inserted) OR EXISTS (
+              SELECT 1 FROM lm_enrollments e JOIN eligible x
+                ON x.student_id = e.student_id AND x.class_id = e.class_id
+            )) AS enrolled`, [actor.studentId, classId]);
+    if (!result.rows[0]?.eligible || !result.rows[0]?.enrolled) {
+        throw new education_access_1.EducationAccessError('class enrollment changed; reload and retry', 409);
+    }
+}
 /** Self-enroll the caller only when a same-tenant class is active and open. */
 async function enrollInClass(ctx, req, res) {
     try {
@@ -85,25 +122,11 @@ async function enrollInClass(ctx, req, res) {
             return;
         }
         assertSelfEnrollmentOpen(row, actor.studentId);
-        const result = await ctx.pool.query(`WITH eligible AS MATERIALIZED (
-         SELECT a.student_id, c.class_id
-           FROM lm_students a
-           JOIN lm_classes c ON c.class_id = $2 AND c.tenant_id = a.tenant_id
-          WHERE a.student_id = $1 AND c.status = 'active'
-            AND (c.published = true OR c.teacher_student_id = a.student_id)
-       ), inserted AS (
-         INSERT INTO lm_enrollments (student_id, class_id)
-         SELECT student_id, class_id FROM eligible
-         ON CONFLICT (student_id, class_id) DO NOTHING
-         RETURNING 1
-       )
-       SELECT EXISTS (SELECT 1 FROM eligible) AS eligible,
-              (EXISTS (SELECT 1 FROM inserted) OR EXISTS (
-                SELECT 1 FROM lm_enrollments e JOIN eligible x
-                  ON x.student_id = e.student_id AND x.class_id = e.class_id
-              )) AS enrolled`, [actor.studentId, classId]);
-        if (!result.rows[0]?.eligible || !result.rows[0]?.enrolled) {
-            throw new education_access_1.EducationAccessError('class enrollment changed; reload and retry', 409);
+        if ((0, education_transactions_1.isNativeSchoolStore)(ctx.pool)) {
+            await nativeEnrollment(ctx, actor, classId);
+        }
+        else {
+            await legacyEnrollment(ctx, actor, classId);
         }
         logger.info({ classId, studentId: actor.studentId }, 'Student self-enrolled from class bank');
         res.status(201).json({ success: true, classId, enrolled: true });

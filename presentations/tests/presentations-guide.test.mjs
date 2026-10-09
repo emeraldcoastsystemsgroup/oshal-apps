@@ -7,6 +7,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-09-24 21:20:00 | maintainer@emeraldcoastsystemsgroup.com   | Prove the deck-builder guide reaches the editor through the validated action contract and denies anonymous callers.
+ * 2026-09-26 06:22:00 | maintainer@emeraldcoastsystemsgroup.com   | Pin protected direct, non-agentic reasoning for the tool-less Guide turn.
  */
 
 import { test } from 'node:test';
@@ -57,6 +58,7 @@ const STUBS = {
     },
   },
   '@/app/routes/connectors-routes': { getValidAccessToken: async () => null },
+  '@/app/routes/slack-client': { uploadSlackFile: async () => { throw new Error('unexpected Slack upload'); } },
   '@/app/routes/email-routes': { sendGmail: async () => ({}), sendOutlookMail: async () => ({}) },
   '@/shared/security/explicit-write-confirmation': {
     hasExplicitWriteConfirmation: () => false,
@@ -112,6 +114,6 @@ test('deck-builder guide returns only validated editor operations', async () => 
   assert.equal(calls.length, 1);
   assert.equal(calls[0][2], 'a0000000-0000-0000-0000-000000000042');
   assert.equal(calls[0][3].userSub, 'auth0|guide-owner');
-  assert.equal(calls[0][3].agenticMode, true);
+  assert.equal(calls[0][3].agenticMode, false);
   assert.equal(calls[0][3].direct, true);
 });

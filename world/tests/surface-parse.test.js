@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-31 00:00:00 | roger.murphy@emeraldcoastsystemsgroup.com | Guard for the 1.0.1 defect: the surface is one inline <script> inside a served string, so a SyntaxError there has no build step to catch it and no console a user reads — the page just never loads. Parse both copies (the .ts source and the compiled .js the runtime actually serves) with classic-script semantics, and pin the load() entrypoint the broken edit deleted.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The page now carries two inline scripts: the audience-view head script (ADR-164 D6) and the dashboard's own. Both copies must hold exactly those two, each must parse as a classic script, and load() must still be declared and invoked with its failure path, now only behind the kit's gate so an audience view never starts the dashboard.
  */
 
 /**
@@ -22,25 +23,31 @@ const { test } = require('node:test');
 
 const COPIES = ['src-routes/world-app-html.ts', 'routes/world-app-html.js'];
 
-/** Extract the single inline <script> block (the src= theme tag deliberately does not match). */
-function inlineScript(fileText, rel) {
-  const m = fileText.match(/<script>([\s\S]*?)<\/script>/);
-  assert.ok(m, rel + ': expected exactly one inline <script> block in WORLD_APP_HTML');
-  return m[1];
+/**
+ * Extract the inline <script> blocks (the src= theme and kit tags deliberately do not match): the audience-view head
+ * script first, then the dashboard's own script.
+ */
+function inlineScripts(fileText, rel) {
+  const blocks = [...fileText.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  assert.equal(blocks.length, 2, rel + ': expected the audience-view head script and the dashboard script in WORLD_APP_HTML');
+  return { head: blocks[0], dashboard: blocks[1] };
 }
 
 for (const rel of COPIES) {
   const text = fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
-  const script = inlineScript(text, rel);
+  const scripts = inlineScripts(text, rel);
 
-  test('surface script parses as a classic script (' + rel + ')', () => {
+  test('surface scripts parse as classic scripts (' + rel + ')', () => {
     // Throws SyntaxError on exactly what a browser would refuse to run — including a top-level
     // await, which is what the deleted load() declaration produced.
-    assert.doesNotThrow(() => new vm.Script(script, { filename: rel }));
+    assert.doesNotThrow(() => new vm.Script(scripts.head, { filename: rel + '#audience-view' }));
+    assert.doesNotThrow(() => new vm.Script(scripts.dashboard, { filename: rel }));
   });
 
-  test('surface script keeps its load() entrypoint (' + rel + ')', () => {
-    assert.match(script, /async function load\(/, rel + ': load() must be declared');
-    assert.match(script, /load\(\)\.catch/, rel + ': load() must be invoked with a failure path');
+  test('surface script keeps its load() entrypoint behind the audience-view gate (' + rel + ')', () => {
+    assert.match(scripts.dashboard, /async function load\(/, rel + ': load() must be declared');
+    assert.match(scripts.dashboard, /\nif \(!window\.AppView \|\| !AppView\.active\(\)\) \{\n  document\.getElementById\('win'\)\.onchange = [^\n]+\n  load\(\)\.catch\([^\n]+\n\}\n/,
+      rel + ': load() must be invoked with a failure path, and only when no audience view renders');
+    assert.doesNotMatch(scripts.dashboard, /^load\(\)/m, rel + ': no ungated load() is left');
   });
 }

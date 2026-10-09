@@ -1,5 +1,7 @@
 # AI Bake-Off
 
+1.1.4 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 **Race one job across every AI lane you already have. Get one recommendation, or an honest refusal.**
 
 A **lane** is one bot × harness × provider pairing — `research-bot · claude-code/claude-code` and
@@ -137,5 +139,48 @@ cd bake-off && node --test "tests/*.test.js"
 | Test entry | Level | Execution boundary |
 | --- | --- | --- |
 | `tests/bake-off-scoring.test.js` | unit | Isolated Node runner; synthetic data only |
+| `tests/audience-view.test.cjs` | unit | Isolated Node runner; stub kit, stub fetch and stub DOM, synthetic data only |
 
 These tests do not contact accounts, providers or live business records. Surface syntax and stubbed-handler assertions do not claim browser or connector acceptance. Package readiness remains a separate metadata-only probe.
+
+AI Bake-Off 1.1.2 loads the shared theme bootstrap (`/shared/ui/css/surface-themes.css` + `/shared/ui/js/surface-theme.js`) in `tools/review.html` and derives its palette from the framework tokens with the previous colors as fallbacks, so the surface follows the operator's chosen cockpit or experience skin whether embedded or opened standalone. No route, data or permission change.
+
+## Company audience view (1.1.3)
+
+The Business shells open the first surface as `/api/bake-off/review?audience=company` (ADR-164 D6).
+The shared kit (`/shared/ui/js/app-view.js`, loaded right after the theme bootstrap) paints the
+signed-in account's saved benchmark work: the route's four counts as stats (saved benchmarks, runs
+in progress, failed runs, runs completed in 5 days), a title that names the account's state, a
+table of the newest three runs (status, lanes recorded, best scored lane, score, judge, observed
+cost, start) read from the summary route's own words, a table of the newest saved benchmarks
+(quality bar, runs per month, lane choice, saved), and the route's ownership note. A zero or
+missing cost stays unknown, never free, and a lexical-fallback judge is flagged. On open it makes
+two owner-scoped reads under the caller's session, `GET /home-summary` and `GET /jobs`: it never
+starts a run (`POST /jobs/:id/run` spends on every lane and the judge), never asks the analyst for a
+verdict, never reads the live lane roster or the connected-actions plan, and writes nothing. The
+one action opens the full review page; the escape opens AI Bake-Off in the cockpit, where runs
+start. Signed out, refused, a source the route could not check, an unreadable saved-benchmarks
+list and a failed read are each named. Any other request runs the full AI Bake-Off Review page
+unchanged; its module script is gated on the kit's decision, so nothing but the view's own reads
+runs behind a view.
+
+- `node --test bake-off/tests/audience-view.test.cjs` from the store root: the audience view
+  contract and behaviour (no browser).
+- `OSHAL_FRAMEWORK=<core checkout> node scripts/audience-views.browser.cjs bake-off` from the store
+  root drives `tests/audience-view.fixture.cjs` over the real page and the real kit in headless
+  Chromium.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| model-race | bake-off run | T3 | none | disable | not yet measured | none recorded |
+| lane-grading | lane grade | T2 | none | template | not yet measured | none recorded |
+| bake-off-verdict | verdict narration | T2 | none | template | not yet measured | none recorded |
+<!-- oshal-rating:end -->

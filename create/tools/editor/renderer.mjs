@@ -4,8 +4,9 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Render editable layers with native Canvas2D, source cropping and real raster export.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Apply the saturation, grayscale, sepia and blur filters in one fixed order through the same Canvas2D filter the preview and export already share.
  */
-import { demand, number, validateProject } from './model-validation.mjs';
+import { demand, number, validateProject, IMAGE_FILTERS } from './model-validation.mjs';
 import { loadProjectImages } from './image-assets.mjs';
 export { hitTest, worldToLayer } from './hit-test.mjs';
 export { loadProjectImages, makePortableProject } from './image-assets.mjs';
@@ -50,11 +51,25 @@ function freehand(ctx, layer) {
   else { ctx.arc(first.x * layer.w, first.y * layer.h, layer.strokeWidth / 2, 0, Math.PI * 2); ctx.fill(); }
 }
 
+const CSS_FILTER = { saturation: 'saturate', grayscale: 'grayscale', sepia: 'sepia', blur: 'blur' };
+
+/** @description Build the one Canvas2D filter string for an image layer; neutral filters are left out.
+ * @param {object} layer Normalized image layer.
+ * @returns {string} CSS filter list in the fixed IMAGE_FILTERS order after brightness and contrast. */
+export function imageFilter(layer) {
+  const parts = [`brightness(${layer.brightness}%)`, `contrast(${layer.contrast}%)`];
+  for (const [name, bounds] of Object.entries(IMAGE_FILTERS)) {
+    const value = layer[name] ?? bounds.neutral;
+    if (value !== bounds.neutral) parts.push(`${CSS_FILTER[name]}(${value}${bounds.unit})`);
+  }
+  return parts.join(' ');
+}
+
 function imageLayer(ctx, layer, project, images) {
   const image = images instanceof Map ? images.get(layer.assetId) : images?.[layer.assetId];
   demand(image, `Image asset ${layer.assetId} is not loaded`);
   const asset = project.images[layer.assetId], crop = layer.crop;
-  ctx.filter = `brightness(${layer.brightness}%) contrast(${layer.contrast}%)`;
+  ctx.filter = imageFilter(layer);
   ctx.drawImage(image, crop.x * asset.width, crop.y * asset.height, crop.w * asset.width, crop.h * asset.height, 0, 0, layer.w, layer.h);
 }
 

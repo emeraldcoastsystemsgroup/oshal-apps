@@ -1,6 +1,7 @@
 "use strict";
 /**
  * CHANGE LOG
+ * 2026-10-07 | maintainer@emeraldcoastsystemsgroup.com | Await native durable registry and orbital ports; preserve scoped simulator provenance.
  * -----------------------------------------------------------------------------
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -214,33 +215,63 @@ function createSatRoutes(arg = {}) {
     const catalog = opts.catalog ?? new sat_ops_1.TleCatalog();
     const appPackageDir = opts.ctx?.appPackageDir;
     const router = (0, express_1.Router)();
-    router.get('/home-summary', (req, res) => {
+    router.get('/home-summary', async (req, res) => {
         const oidc = req.oidc;
         if (!(oidc?.user?.sub || oidc?.user?.oid) || oidc?.isAuthenticated?.() !== true) {
             res.status(401).json({ error: 'not_authenticated' });
             return;
         }
         res.setHeader('Cache-Control', 'no-store');
-        res.json((0, home_summary_1.satHomeSummary)(fleet.list(), catalog.list()));
+        res.json((0, home_summary_1.satHomeSummary)(await fleet.list(), await catalog.list(), Date.now(), fleet.registryKind));
     });
     // ── W3 surface ─────────────────────────────────────────────────────────────
     router.get('/app', serveFile(surfaceHtml(appPackageDir, 'sat-ops.html')));
+    /** Native simulator enrollment accepts only an opaque owner vault reference; native admission enforces operator authority. */
+    router.post('/nodes/enroll', async (req, res) => {
+        const native = fleet;
+        if (native.registryKind !== 'native-scoped-durable' || !native.register) {
+            res.status(503).json({ error: 'native_simulator_enrollment_unavailable' });
+            return;
+        }
+        try {
+            res.json(await native.register(req.body));
+        }
+        catch (err) {
+            logger.warn({ err }, 'Native simulator enrollment refused');
+            res.status(403).json({ error: 'simulator_enrollment_refused' });
+        }
+    });
+    /** Revoke the caller-owned simulator lease; later service reports and commands must refuse. */
+    router.post('/nodes/:satId/revoke', async (req, res) => {
+        const native = fleet;
+        if (native.registryKind !== 'native-scoped-durable' || !native.unregister) {
+            res.status(503).json({ error: 'native_simulator_enrollment_unavailable' });
+            return;
+        }
+        try {
+            res.json(await native.unregister(String(req.params.satId)));
+        }
+        catch (err) {
+            logger.warn({ err }, 'Native simulator lease revocation refused');
+            res.status(403).json({ error: 'simulator_revocation_refused' });
+        }
+    });
     /** POST /nodes/heartbeat — node identity only: the swarm service secret is REQUIRED. */
-    router.post('/nodes/heartbeat', (req, res) => {
-        if (!(0, authz_1.hasValidServiceSecret)(req)) {
+    router.post('/nodes/heartbeat', async (req, res) => {
+        if (fleet.registryKind !== 'native-scoped-durable' && !(0, authz_1.hasValidServiceSecret)(req)) {
             res.status(401).json({ error: 'sat-node heartbeat requires the swarm service secret' });
             return;
         }
         const b = (req.body || {});
-        if (!b.satId || !b.endpointUrl || !b.telemetry) {
+        if (!b.satId || !b.endpointUrl || !b.telemetry || !['rk4', 'nasa42'].includes(String(b.engine))) {
             res.status(400).json({ error: 'satId, endpointUrl, and telemetry are required' });
             return;
         }
         try {
-            fleet.ingestHeartbeat({
+            await fleet.ingestHeartbeat({
                 satId: String(b.satId),
                 endpointUrl: String(b.endpointUrl),
-                engine: (b.engine === 'nasa42' ? 'nasa42' : 'rk4'),
+                engine: b.engine,
                 telemetry: b.telemetry,
             });
             res.json({ ok: true });
@@ -255,8 +286,8 @@ function createSatRoutes(arg = {}) {
         }
     });
     /** GET /fleet — every known sat with liveness + last telemetry. */
-    router.get('/fleet', (_req, res) => {
-        res.json({ fleet: fleet.list() });
+    router.get('/fleet', async (_req, res) => {
+        res.json({ fleet: await fleet.list() });
     });
     /** Shared dial handler for the two node commands. */
     const dial = async (res, satId, command, args) => {
@@ -285,7 +316,7 @@ function createSatRoutes(arg = {}) {
         void dial(res, String(req.params.satId), 'setMode', (req.body || {}));
     });
     /** POST /passes — stateless SGP4 ground-contact prediction. The one impure time boundary. */
-    router.post('/passes', (req, res) => {
+    router.post('/passes', async (req, res) => {
         const started = Date.now();
         const b = (req.body || {});
         try {
@@ -301,7 +332,7 @@ function createSatRoutes(arg = {}) {
                 res.status(400).json({ error: start.error });
                 return;
             }
-            const prediction = (0, sat_ops_1.computePassWindows)((0, sat_ops_1.parseTle)(tleRaw), station, {
+            const prediction = await (0, sat_ops_1.computePassWindows)((0, sat_ops_1.parseTle)(tleRaw), station, {
                 startUtcMs: start.ms,
                 horizonHours: b.horizonHours === undefined ? undefined : Number(b.horizonHours),
                 elevationMaskDeg: b.elevationMaskDeg === undefined ? undefined : Number(b.elevationMaskDeg),
@@ -346,10 +377,10 @@ function createSatRoutes(arg = {}) {
     };
     // ── W3: TLE catalog (orbit identity, decoupled from attitude nodes) ────────
     /** PUT /catalog/:satId {tle, name?} — register/replace an element set. */
-    router.put('/catalog/:satId', (req, res) => {
+    router.put('/catalog/:satId', async (req, res) => {
         const b = (req.body || {});
         try {
-            const entry = catalog.upsert(String(req.params.satId), String(b.tle ?? ''), b.name === undefined ? null : String(b.name), Date.now());
+            const entry = await catalog.upsert(String(req.params.satId), String(b.tle ?? ''), b.name === undefined ? null : String(b.name), Date.now());
             logger.info({ satId: entry.satId, satnum: entry.satnum }, 'catalog upsert');
             res.json({ ok: true, entry });
         }
@@ -358,12 +389,12 @@ function createSatRoutes(arg = {}) {
         }
     });
     /** GET /catalog — every registered element set. */
-    router.get('/catalog', (_req, res) => {
-        res.json({ catalog: catalog.list() });
+    router.get('/catalog', async (_req, res) => {
+        res.json({ catalog: await catalog.list() });
     });
     /** DELETE /catalog/:satId. */
-    router.delete('/catalog/:satId', (req, res) => {
-        const removed = catalog.remove(String(req.params.satId));
+    router.delete('/catalog/:satId', async (req, res) => {
+        const removed = await catalog.remove(String(req.params.satId));
         if (!removed) {
             res.status(404).json({ error: `satId "${req.params.satId}" is not in the catalog` });
             return;
@@ -371,7 +402,7 @@ function createSatRoutes(arg = {}) {
         res.json({ ok: true });
     });
     /** POST /track {satId | tle, startUtc?, durationMinutes?, stepSeconds?} — orbit + ground track. */
-    router.post('/track', (req, res) => {
+    router.post('/track', async (req, res) => {
         const started = Date.now();
         const b = (req.body || {});
         try {
@@ -384,7 +415,7 @@ function createSatRoutes(arg = {}) {
             let satId = null;
             if (b.satId !== undefined) {
                 satId = String(b.satId);
-                tle = catalog.tleOf(satId);
+                tle = await catalog.tleOf(satId);
                 if (!tle) {
                     res.status(404).json({ error: `satId "${satId}" is not in the catalog` });
                     return;
@@ -397,7 +428,7 @@ function createSatRoutes(arg = {}) {
                 res.status(400).json({ error: 'either satId (catalog) or tle (inline, ≤512 chars) is required' });
                 return;
             }
-            const track = (0, sat_ops_1.computeOrbitTrack)(tle, {
+            const track = await (0, sat_ops_1.computeOrbitTrack)(tle, {
                 startUtcMs: start.ms,
                 durationMinutes: b.durationMinutes === undefined ? undefined : Number(b.durationMinutes),
                 stepSeconds: b.stepSeconds === undefined ? undefined : Number(b.stepSeconds),
@@ -424,14 +455,14 @@ function createSatRoutes(arg = {}) {
                 return;
             }
             const history = Array.isArray((req.body || {}).history) ? req.body.history.slice(-8) : [];
-            const rows = fleet.list();
+            const rows = await fleet.list();
             const fleetLine = rows.map((r) => {
                 const t = r.telemetry;
                 if (!t)
                     return `${r.satId} (${r.engine}, ${r.online ? 'online' : 'OFFLINE'}, no telemetry yet)`;
                 return `${r.satId} (${r.engine}, ${r.online ? 'online' : 'OFFLINE'}, mode ${t.mode}, err ${t.pointingErrorDeg == null ? '—' : t.pointingErrorDeg.toFixed(2) + '°'}, momentum ${t.adcs ? Math.round(t.adcs.momentumFrac * 100) + '%' : '?'}${t.estimator ? `, MEKF σ ${(Math.hypot(t.estimator.attitudeSigmaDeg.x, t.estimator.attitudeSigmaDeg.y, t.estimator.attitudeSigmaDeg.z)).toFixed(3)}°` : ''})`;
             }).join('; ');
-            const catalogLine = catalog.list().map((c) => `${c.satId} (#${c.satnum}${c.name ? ` ${c.name}` : ''})`).join('; ');
+            const catalogLine = (await catalog.list()).map((c) => `${c.satId} (#${c.satnum}${c.name ? ` ${c.name}` : ''})`).join('; ');
             const prompt = buildSatOperatorPrompt({ message, history, fleetLine, catalogLine });
             const sub = String(req.oidc?.user?.sub || 'operator');
             let raw = '';
@@ -442,17 +473,22 @@ function createSatRoutes(arg = {}) {
                 raw = String(result?.response || '').trim();
             }
             catch (err) {
-                logger.error({ err, stack: err.stack }, 'sat-operator orchestrate failed');
+                logger.error({ err, durationMs: Date.now() - started }, 'sat-operator orchestrate failed');
+                res.status(503).json({ error: 'sat_operator_unavailable' });
+                return;
+            }
+            if (!raw) {
+                res.status(503).json({ error: 'sat_operator_empty_response' });
+                return;
             }
             const env = parseSatOperatorEnvelope(raw, new Set(rows.filter((r) => r.online).map((r) => r.satId)));
-            if (!raw)
-                env.say = "I couldn't reach the operations-planning brain just now — try again in a moment.";
             logger.info({ hasDraft: !!env.draft, durationMs: Date.now() - started }, 'POST /chat done');
             res.json(env);
-        })();
+        })().catch((err) => { logger.error({ err }, 'sat-operator context unavailable'); if (!res.headersSent)
+            res.status(503).json({ error: 'sat_operator_context_unavailable' }); });
     });
     /** POST /conjunctions {ids?, startUtc?, horizonHours?, stepSeconds?, thresholdKm?} — screen the catalog. */
-    router.post('/conjunctions', (req, res) => {
+    router.post('/conjunctions', async (req, res) => {
         const started = Date.now();
         const b = (req.body || {});
         try {
@@ -462,7 +498,7 @@ function createSatRoutes(arg = {}) {
                 return;
             }
             const ids = Array.isArray(b.ids) ? b.ids.map(String) : undefined;
-            const report = (0, sat_ops_1.screenConjunctions)(catalog.screenEntries(ids), {
+            const report = await (0, sat_ops_1.screenConjunctions)(await catalog.screenEntries(ids), {
                 startUtcMs: start.ms,
                 horizonHours: b.horizonHours === undefined ? undefined : Number(b.horizonHours),
                 stepSeconds: b.stepSeconds === undefined ? undefined : Number(b.stepSeconds),

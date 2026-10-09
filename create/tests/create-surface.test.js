@@ -11,6 +11,7 @@
  * 6   | maintainer@emeraldcoastsystemsgroup.com     | Preserve launcher contracts alongside Create-owned image projects and explicit role/schema declarations.
  * 7   | maintainer@emeraldcoastsystemsgroup.com     | Keep the reviewed artifact handoff after access gating and before profile/summary reads; reject early or duplicate boot handoffs.
  * 8   | maintainer@emeraldcoastsystemsgroup.com     | The Brand Kit tile is Create's own page (not a studio card): it follows Home, points at /api/create/brand and is the only non-studio tile after Home.
+ * 9   | maintainer@emeraldcoastsystemsgroup.com     | CREATE-EDIT-05d: the Edit video quick start and the Video editor studio card open the Video-owned editor rail tile; its catalog entry never reads Video's summary a second time.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -230,4 +231,15 @@ test('the home asks access first, locks a studio that is not provisioned, and ne
   assert.notEqual(beforeStarters, source);
   assert.throws(() => assertAccessBoot(beforeStarters), 'a handoff before starter gating must fail');
   assert.match(source, /a\.href = '\/access\?app=' \+ encodeURIComponent\(app\)/);
+});
+
+test('Edit video opens Video Studio\'s own editor and never reads Video\'s summary twice', () => {
+  const source = html(), urls = railUrls(manifest());
+  assert.equal(urls.get('create-video-editor'), '/api/video/editor', 'the rail tile is the Video-owned editor');
+  assert.equal(urls.get('create-video'), '/api/video/ui', 'the generation studio keeps its own tile');
+  const editor = surfaceStudios(source).find((s) => s.tool === 'create-video-editor');
+  assert.deepEqual([editor.app, editor.url, editor.summary], ['video', '/api/video/editor', false]);
+  assert.deepEqual(JSON.parse(JSON.stringify(surfaceStarters(source).filter((s) => s.tool === 'create-video-editor').map((s) => [s.id, s.cat]))), [['edit-video', 'video']]);
+  assert.equal(surfaceStudios(source).filter((s) => s.app === 'video' && s.summary !== false).length, 1, 'one summary reader per app');
+  assert.match(source, /if \(studio\.summary === false\) return Promise\.resolve\(\);/);
 });

@@ -50,6 +50,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Register the book-scoped specialist-context reader (ADR-090 uses: specialist-context) synchronously from this factory, through the activation-scoped port the manifest route mounter injects. A protected bot-node run is TOOL-LESS, so this append is the accountable trading bot's ONLY data channel: without it the bot is asked how the book did today and has no numbers to answer with. Facts live in trading-book-facts.ts - scalars only, one slot per BOOK (paper, live, live2...) so a stale sibling cannot withhold another book, computed for the ticket's OWNER, and venue-free so market hours and a venue outage cannot decide whether the dispatch happens.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Declare the MARKET half of the fact set alongside the book half (trading-market-facts.ts), so the registration is TRADING_SPECIALIST_FACT_KEYS and the read is readTradingSpecialistFacts. The book half alone is why the accountable bot could report the operator's equity to the cent and, in the same answer, say it could not access index or market-mover data: the screener ships in the kernel and GET /reports/movers already uses it, but a tool-less worker can never call a route, and no market number was declared on the one channel it can see. The market half reads SPY/QQQ/DIA day moves and the whole-market screener's extremes in PARALLEL with the book half, so the declaration costs no additional wall-clock time against the registry's 2000 ms deadline.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D5 earnings-reaction rules: register the /events/rules route family (trading-earnings-rule-routes.ts) right after the event playbooks — the operator's surface over the kernel rule store, which until now could only be reached by calling the module, so no person could arm, see or stop a rule. Book-scoped query-first like every 2026-09-03-audited route.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | ADR-052 addendum P4 per-position exit plans: register the /position-plans route family (trading-position-plan-routes.ts — list a book's plans, and the confirm-gated amend) before the generic flow, beside the other kernel-store surfaces.
  *
  * @module trading-routes
  */
@@ -107,7 +108,9 @@ const trading_accounts_routes_1 = require("./trading-accounts-routes");
 const trading_manual_order_routes_1 = require("./trading-manual-order-routes");
 const trading_event_plan_routes_1 = require("./trading-event-plan-routes");
 const trading_earnings_rule_routes_1 = require("./trading-earnings-rule-routes");
+const trading_position_plan_routes_1 = require("./trading-position-plan-routes");
 const trading_research_routes_1 = require("./trading-research-routes");
+const trading_quote_stream_routes_1 = require("./trading-quote-stream-routes");
 const trading_market_facts_1 = require("./trading-market-facts");
 const logger = (0, logger_1.createChildLogger)({ module: 'trading-routes' });
 /**
@@ -206,10 +209,13 @@ function createTradingRoutes(ctx) {
     }));
     // ADR-136 D3: direct trades — operator-authored decisions + quotes (before the generic flow).
     (0, trading_manual_order_routes_1.registerTradingManualOrderRoutes)(router, ctx);
+    (0, trading_quote_stream_routes_1.registerTradingQuoteStreamRoutes)(router, ctx);
     // ADR-136 D6: event playbooks — the IPO watch/entry/exit plans (before the generic flow).
     (0, trading_event_plan_routes_1.registerTradingEventPlanRoutes)(router, ctx);
     // ADR-136 D5: earnings-reaction rules — arm/list/cancel over the kernel rule store (before the generic flow).
     (0, trading_earnings_rule_routes_1.registerTradingEarningsRuleRoutes)(router, ctx);
+    // ADR-052 addendum P4: per-position exit plans — list and the confirm-gated amend (before the generic flow).
+    (0, trading_position_plan_routes_1.registerTradingPositionPlanRoutes)(router, ctx);
     // ADR-138: single-stock research, the per-user watchlist, and pinned lots (before the generic flow).
     (0, trading_research_routes_1.registerTradingResearchRoutes)(router, ctx);
     (0, trading_routes_book_read_builders_1.registerTradingBookReadRoutes)(router, ctx, apiDir);

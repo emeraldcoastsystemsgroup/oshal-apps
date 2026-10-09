@@ -15,6 +15,181 @@
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Classroom shell opens this page with ?audience=classroom: four friendly starters
+     and the learner's own circuits, read from the same routes as the full lab and painted by the shared kit. A starter
+     tap makes the learner's own copy (POST /designs with run:false, so the tap never waits on the solver) and opens it
+     in the full lab; every other action opens the full lab. Nothing is read or written on open beyond the three
+     reads below. The Business shells open it with ?audience=company: a dense ledger of the saved circuits, each with
+     the outcome of its last run, read from GET /designs and GET /capabilities only; it writes nothing, runs no solve and
+     sends nothing to the engine, and a row opens that circuit in the full lab. Any other request runs the full Circuit
+     Lab below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var BASE = '/api/circuit-lab';
+  function call(path, body) {
+    var opt = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' } : { credentials: 'same-origin', headers: { Accept: 'application/json' } };
+    return fetch(BASE + path, opt).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.message || j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; }); });
+  }
+  function openFull(query) { window.location.assign(window.location.pathname + (query || '')); }
+  function none() { return null; }
+  // The starters a class begins with, by id from the lab's own /examples (an id it no longer serves drops out), in
+  // plain words. The motor-driver and crank-slider examples stay in the full lab's example picker.
+  var STARTERS = [
+    { id: 'led-switch', icon: '💡', title: 'Light an LED', text: 'A battery, a switch and a light. Close the switch and watch it glow.' },
+    { id: 'motor-gearbox', icon: '⚙️', title: 'Spin a motor', text: 'A motor turns a small gear that turns a big one. Which one spins faster?' },
+    { id: 'arduino-blink', icon: '⏱️', title: 'Blink with code', text: 'A tiny computer switches a light on and off. Change the timing and run it again.' },
+    { id: 'rc-charge', icon: '🔋', title: 'Fill a capacitor', text: 'Watch a capacitor charge up: fast at first, then slower and slower.' }
+  ];
+  // A design's state changes only when it runs: ran = its last run solved, failed = its last run did not.
+  var STATES = { ran: { badge: 'Ran OK', tone: 'ok' }, failed: { badge: 'Needs a fix', tone: 'warn' }, draft: { badge: 'Not run yet', tone: null } };
+  var ENGINE_NOTE = 'The simulator did not answer the last time a circuit ran. You can still build; if Run does not work, tell your teacher.';
+  var busy = false, notice = null;
+  function startError(e) { return e && e.status === 401 ? 'You are signed out. Sign in again to make a circuit.' : 'That starter could not be made just now. Try again, or open the lab.'; }
+  function startFrom(example, ctx) {
+    if (busy) return; busy = true;
+    call('/designs', { example: example, run: false }).then(function (out) {
+      openFull('?design=' + encodeURIComponent(out.design.design_id));
+    }).catch(function (e) { busy = false; notice = startError(e); ctx.refresh(); });
+  }
+  function starterTiles(examples, ctx) {
+    var served = {}; ((examples && examples.examples) || []).forEach(function (x) { if (x && x.id) served[x.id] = true; });
+    return STARTERS.filter(function (s) { return served[s.id]; }).map(function (s) {
+      return { example: s.id, icon: s.icon, title: s.title, text: s.text, onClick: function () { startFrom(s.id, ctx); } };
+    });
+  }
+  function circuitItem(d) {
+    var st = STATES[d.state] || STATES.draft, parts = Array.isArray(d.parts) ? d.parts.length : 0;
+    return { title: d.title || 'Untitled circuit', text: parts + (parts === 1 ? ' part' : ' parts'), badge: st.badge, tone: st.tone, meta: A.when(d.updated_at), onClick: function () { openFull('?design=' + encodeURIComponent(d.design_id)); } };
+  }
+  function heroActions(designs, tiles, ctx) {
+    var open = { label: 'Open the lab', onClick: function () { openFull(''); } };
+    if (designs.length) { var t = String(designs[0].title || 'Untitled circuit'); return [{ label: 'Keep building “' + (t.length > 40 ? t.slice(0, 39) + '…' : t) + '”', primary: true, onClick: function () { openFull('?design=' + encodeURIComponent(designs[0].design_id)); } }, open]; }
+    var light = tiles.some(function (x) { return x.example === 'led-switch'; });
+    return light ? [{ label: 'Start with a light', primary: true, onClick: function () { startFrom('led-switch', ctx); } }, open] : [{ label: 'Open the lab', primary: true, onClick: open.onClick }];
+  }
+  function classroomError(e) {
+    var err = new Error(e && e.status === 401 ? 'You are signed out. Sign in again to see your circuits.' : 'Your circuits could not be read just now.');
+    err.status = e && e.status; return err;
+  }
+  function classroom(ctx) {
+    return Promise.all([call('/designs'), call('/examples').catch(none), call('/capabilities').catch(none)]).then(function (res) {
+      var designs = res[0].designs || [], tiles = starterTiles(res[1], ctx), engine = res[2] && res[2].engine, told = notice; notice = null;
+      var count = function (s) { return designs.filter(function (d) { return d.state === s; }).length; };
+      return {
+        kicker: 'Circuit Lab', title: designs.length ? 'Your circuits' : 'Build it. Light it up.',
+        lede: designs.length ? designs.length + (designs.length === 1 ? ' circuit' : ' circuits') + ' · last changed ' + A.when(designs[0].updated_at) : 'Pick a starter, then press Run in the lab to watch it work.',
+        actions: heroActions(designs, tiles, ctx),
+        stats: [
+          { id: 'circuits', label: 'My circuits', value: designs.length },
+          { id: 'ran', label: 'Ran OK last time', value: count('ran') },
+          { id: 'failed', label: 'Need a fix', value: count('failed'), tone: count('failed') ? 'warn' : null },
+          { id: 'draft', label: 'Not run yet', value: count('draft') }
+        ],
+        sections: [
+          tiles.length ? { kind: 'tiles', id: 'starters', title: 'Try a starter', note: told || 'Each starter opens in the lab as your own copy. Press Run there to watch it work.', items: tiles } : null,
+          { kind: 'list', id: 'circuits', title: 'My circuits', wide: true, note: (!tiles.length && told) || (engine && engine.lastError ? ENGINE_NOTE : null), empty: 'No circuits yet — pick a starter above.', items: designs.slice(0, 8).map(circuitItem) }
+        ]
+      };
+    }, function (e) { throw classroomError(e); });
+  }
+  // The company view (the Business shells): the saved circuits as a dense ledger from two plain GETs. GET /designs lists
+  // every circuit of the caller, newest first, with its state, run count, last report and failure reason; GET
+  // /capabilities answers the engine client's in-memory status. No solve, no write, no engine request.
+  var KICKER = 'Engineering · Circuit Lab', ROWS = 8, CONCERNS = 6;
+  var LEDE = 'Circuits saved by this account, each with the outcome of its last run. This view reads the saved designs only: it runs no solve and changes nothing.';
+  var NOTE = 'Newest first. Last run is the outcome of the most recent solve; an edit made since then is not solved until the lab runs it. Runs counts the solves kept, and Warnings come from the last solve. A row opens that circuit in the full lab.';
+  // A failed solve is stored as failure_reason '<code>: <reason>' (routes/simulate-service.js, the only writer). Only the
+  // solver's refusal, a sentence about the circuit, is quoted; the other reasons carry the engine address and the
+  // install command, which the full lab shows beside its engine banner.
+  var FAILURES = { refused: 'The solver refused the circuit', capability_unavailable: 'The simulator was not available', engine_busy: 'The simulator was busy', engine_timeout: 'The simulator did not answer in time', engine_error: 'The simulator reported an error' };
+  var LAST_RUN = { ran: { text: 'Solved', tone: 'ok' }, failed: { text: 'Failed', tone: 'warn' }, draft: { text: 'Not run yet' } };
+  function read(path) {
+    return fetch(BASE + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }, function () { return { ok: r.ok, status: r.status, body: null }; });
+    });
+  }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function named(d) { return d.title ? String(d.title) : 'Untitled circuit'; }
+  function size(list) { return Array.isArray(list) ? list.length : 0; }
+  function failureText(d) {
+    var m = /^([a-z_]+): ([\s\S]+)$/.exec(String(d.failure_reason || '')), code = m ? m[1] : null;
+    if (code === 'refused') { var why = m[2].replace(/\s+/g, ' ').trim(); return FAILURES.refused + ': ' + (why.length > 200 ? why.slice(0, 199) + '…' : why); }
+    return (code && FAILURES[code] ? FAILURES[code] : 'The last run did not solve') + '. Open it in the lab to read the reason.';
+  }
+  // Warnings belong to the report of the last SUCCESSFUL solve, which a later failed run leaves in place: counted only
+  // while the circuit's last run solved.
+  function warningCount(d) { return d.state === 'ran' && d.report && Array.isArray(d.report.warnings) ? d.report.warnings.length : null; }
+  function openCircuit(d) { return function () { openFull('?design=' + encodeURIComponent(d.design_id)); }; }
+  function ledgerRow(d) {
+    var w = warningCount(d);
+    return { cells: [named(d), LAST_RUN[d.state] || LAST_RUN.draft, String(Number(d.run_count) || 0), plural(size(d.parts), 'part', 'parts') + ' · ' + plural(size(d.wires), 'wire', 'wires'),
+      w === null ? '—' : { text: String(w), tone: w ? 'warn' : null }, A.when(d.updated_at)], onClick: openCircuit(d) };
+  }
+  function concern(d) { return { title: named(d), text: failureText(d), badge: 'Failed', tone: 'warn', meta: A.when(d.updated_at), onClick: openCircuit(d) }; }
+  function tally(designs) {
+    var c = { total: designs.length, ran: 0, failed: 0, draft: 0, runs: 0 };
+    designs.forEach(function (d) { c[d.state === 'ran' || d.state === 'failed' ? d.state : 'draft'] += 1; c.runs += Number(d.run_count) || 0; });
+    return c;
+  }
+  function companyStats(c) {
+    return [
+      { id: 'circuits', label: 'Circuits', value: c.total, hint: c.draft ? c.draft + ' not run yet' : null },
+      { id: 'runs', label: 'Runs kept', value: c.runs, hint: 'One per solve' },
+      { id: 'solved', label: 'Solved on the last run', value: c.ran, tone: c.ran ? 'ok' : null },
+      { id: 'failed', label: 'Failed on the last run', value: c.failed, tone: c.failed ? 'warn' : null }
+    ];
+  }
+  function companyTitle(c) {
+    if (!c.total) return 'No circuits saved yet';
+    if (c.failed) return c.failed === 1 ? '1 circuit failed its last run' : c.failed + ' circuits failed their last run';
+    if (c.draft) return plural(c.total, 'circuit', 'circuits') + ', ' + c.draft + ' not run yet';
+    return plural(c.total, 'circuit', 'circuits') + ', every last run solved';
+  }
+  // engine.lastError is the api engine client's last connection-level failure (not reachable, out of date, timed out),
+  // cleared by its next good handshake. engine.connected is false after every boot and idle period even when the engine
+  // works, so it is not read.
+  function engineNote(caps) {
+    if (!caps || !caps.ok || !caps.body || !caps.body.engine) return 'The simulator status could not be read.';
+    return caps.body.engine.lastError ? 'The last request to the simulator failed (not reachable, out of date or timed out), so a run may not solve until it answers; the full lab names the reason and the install command.' : '';
+  }
+  function ledger(designs, c, caps) {
+    var note = [c.total > ROWS ? 'The newest ' + ROWS + ' of ' + c.total + ' circuits.' : '', c.total ? NOTE : '', engineNote(caps)].filter(Boolean).join(' ');
+    return { kind: 'table', id: 'saved', title: 'Newest circuits', note: note || null, empty: 'No circuits saved yet. Create one in the full lab and it appears here with its last run.',
+      columns: ['Circuit', 'Last run', { label: 'Runs', align: 'right' }, 'Parts · wires', { label: 'Warnings', align: 'right' }, 'Changed'], rows: designs.slice(0, ROWS).map(ledgerRow) };
+  }
+  function companyModel(designs, caps) {
+    var c = tally(designs), newest = designs[0], failing = designs.filter(function (d) { return d.state === 'failed'; });
+    return {
+      kicker: KICKER, title: companyTitle(c),
+      lede: newest ? 'Newest: ' + named(newest) + ', changed ' + A.when(newest.updated_at) + '. ' + LEDE : 'Circuits saved by this account appear here with their last run. Create one or start from an example in the full lab; this view runs no solve and changes nothing.',
+      actions: [newest ? { label: 'Open the newest circuit', primary: true, onClick: openCircuit(newest) } : { label: 'Open the lab', primary: true, onClick: function () { openFull(''); } }],
+      stats: companyStats(c),
+      sections: [ledger(designs, c, caps),
+        c.total ? { kind: 'list', id: 'attention', title: 'Failed on the last run', note: failing.length > CONCERNS ? 'The newest ' + CONCERNS + ' of ' + failing.length + '.' : null, empty: 'No saved circuit failed its last run.', items: failing.slice(0, CONCERNS).map(concern) } : null]
+    };
+  }
+  function companyRefusal(status) {
+    return status === 401
+      ? { kicker: KICKER, title: 'Sign in to see saved circuits', lede: 'Circuit Lab shows the circuits of whoever is signed in, and this session is not signed in.' }
+      : { kicker: KICKER, title: 'This account cannot open Circuit Lab', lede: 'The Circuit Lab routes refused this account (HTTP 403).' };
+  }
+  function company() {
+    var caps = read('/capabilities').catch(none);
+    return Promise.all([read('/designs'), caps]).then(function (r) {
+      var res = r[0];
+      if (res.status === 401 || res.status === 403) return companyRefusal(res.status);
+      if (!res.ok) throw new Error('Circuit Lab could not read the saved circuits (HTTP ' + res.status + ').');
+      if (!res.body || !Array.isArray(res.body.designs)) throw new Error('Circuit Lab sent an answer this view could not read.');
+      return companyModel(res.body.designs, r[1]);
+    }, function () { throw new Error('Circuit Lab could not be reached just now.'); });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'circuit-lab', escapeLabel: 'Open Circuit Lab in the cockpit', audiences: { classroom: classroom, company: company, family: company } });
+})();
+</script>
 <style>
   :root { --cl-bg: var(--bg, var(--bg-primary, #12151c)); --cl-panel: var(--panel, var(--bg-card, #1b1f29)); --cl-panel2: var(--panel2, var(--bg-tertiary, #232836));
           --cl-text: var(--text, var(--text-primary, #e6e9ef)); --cl-muted: var(--muted, var(--text-muted, #9aa3b2)); --cl-line: var(--line, var(--border-color, #2f3646));
@@ -230,15 +405,18 @@
 <!-- The assistant rail: the shared surface-bridge client publishes what this page is showing (the
      `context` op) and re-dispatches Jarvis's `custom` ops as DOM events the main script handles.
      ES module; hands the client to the main script through window. Degrades silently: without the
-     module (an old cockpit, a fixture) the lab behaves exactly as it did before. -->
+     module (an old cockpit, a fixture) the lab behaves exactly as it did before. Under an audience view (the head
+     script) the rail is not attached: the view publishes nothing and takes no ops. -->
 <script type="module">
-  try {
-    const { createSurfaceBridgeClient } = await import('/shared/ui/js/surface-bridge-client.js');
-    const bridge = createSurfaceBridgeClient({ app: 'circuit-lab' });
-    bridge.attach();
-    window.__bridge = bridge;
-    window.dispatchEvent(new Event('bridge-ready'));
-  } catch (_) { /* no assistant rail here */ }
+  if (!window.AppView || !AppView.active()) {
+    try {
+      const { createSurfaceBridgeClient } = await import('/shared/ui/js/surface-bridge-client.js');
+      const bridge = createSurfaceBridgeClient({ app: 'circuit-lab' });
+      bridge.attach();
+      window.__bridge = bridge;
+      window.dispatchEvent(new Event('bridge-ready'));
+    } catch (_) { /* no assistant rail here */ }
+  }
 </script>
 <script src="/api/circuit-lab/assets/circuit-lab-plot.js"></script>
 <script src="/api/circuit-lab/assets/circuit-lab-geometry.js"></script>

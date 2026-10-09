@@ -6,6 +6,18 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register actual board/search navigation, responsive results, filters, loading and unchanged submission-confirmation boundaries.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Register the ADR-141 D7 story-evidence suite: the master document, the studio preview and the tailored-packet citation contract run in the same existing Python-and-engine harness.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Say that the story-evidence contract now drives the real generate_for. The earlier expectation covered the prompt and the verifier as separate pieces, so a reader could not tell that the packet itself — the thing the done-when names — was unguarded.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register the Career worker rail (1.24.0): the dependency-free route and two-user isolation suites as a runnable node-test recipe, and the engine half (Python contract with provider tripwires, end-to-end completion through the compiled rail) beside the other Python-engine harnesses.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Worker rail recipe: name its scoped doubles and their open real companions (entry 5's purpose said the isolation suite launched real runner children; its spawn is an in-memory child), and add the queue/deadline expectations: the per-call deadline starts at the slot grant, and the wait for a slot has its own ceiling.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register the ADR-141 D7 review-conversation suite in the Python-and-engine harness. Until now the only guard on the Strengthen story review was the engine contract, so the surface could stop advancing, or the route could stop reaching the engine, with every suite still green. The new suite drives the shipped card through the compiled routes, the real engine dispatch and runner, the launcher and the engine to "Every role has a story". It names its scoped doubles, including the Postgres pool that answers the Firecrawl brokerage query with no row.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register the PostgreSQL storage-cutover proofs (1.25.0): the convergence, reverse-sync and drill contracts on disposable PostgreSQL + real SQLite stores, the observation window and status-route suite, and the `cutover-status` PAT smoke that reads the installed route as the signed-in operator. Split the legacy-python story-review expectation (1,052 characters) into four entries: the core catalog validator (scripts/oshal-test-catalog.js) caps an expectation at 500 characters and rejected the whole catalog, so no Career case could register.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | storage-cutover: the contracts take the shared PostgreSQL server one at a time and wait (bounded) for the cluster-wide txid horizon, so a transaction in another database delays them instead of failing them. cutover-observation: an unreadable window.json resets the window and the sample exits 2.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | The signed rail (1.25.1): worker-rail and worker-rail-engine now describe the per-run grant contract and the mirrored kernel callback rail, worker-rail gains the automation-issuer suite, and kernel-signed-rail registers the framework-coupled suite that activates the real package (catalog, verifier) through the kernel's enforce-mode runtime and mounter and admits the engine child's signed completion while refusing the 1.24.0 caller.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | worker-rail gains the route-binding guard (career-catalog-route-bindings): the first 1.25.1 catalog left GET /companies-admin, the page the Companies ribbon item opens, unbound, and oshal-app validate cannot see the routers, so every literal route in src-routes is now matched against the catalog under the kernel's segment rule. kernel-signed-rail adds the companion expectation that runs the kernel's own matcher over the same enumeration and requires the guard's mirror to agree.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Register the ADR-141 D7 live acceptance (1.26.0): test-lab-cleanup drives the two owner-scoped removals through the compiled routes and the real engine on the SQLite store and on disposable FORCE-RLS PostgreSQL, and proves the live script against a loopback api; stories-live-acceptance is the level-live walk itself, run as the operator automation identity after install. worker-rail's binding guard now also pins the two new DELETE bindings.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Register the Test Lab application seam (1.27.0): test-lab-application-seam drives POST /test-lab/applications and DELETE /test-lab/applications/:postingId/:tag through the compiled routes, the caller's real SQLite store and a disposable PostgreSQL database holding the package's own application migrations, plus one approve round trip through the real handler, runner, launcher and engine. worker-rail's binding guard now also pins the two seam bindings. The live half is core's career-rail-live-proof.js --complete (approve -> draft on the Career bot), run by the deploy lane after install.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Register the engine process-tree stop (1.27.1): engine-stop-tree runs the compiled runner and the real launcher with a stand-in engine on Linux and proves a cancel, the runner deadline and the lease-loss fence leave the engine and its child exited within 5 s (read from /proc, since a killed orphan stays a zombie where node is PID 1), the run settled, and an adopted launcher that outlives the runner fences its own engine. The fixture-procfs suite for the launcher's group fence runs beside it.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Register refresh completion status against the compiled routes and real temporary filesystem markers (1.27.2); engine, graph, scoring, logger and route collaborators remain scoped doubles.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | Register compiled native root routes and actual SQLite summary counters without fabricated onboarding state.
 version: 1
 cases:
   - id: package-readiness
@@ -24,6 +36,101 @@ cases:
     limits:
       timeoutMs: 15000
     installation: safe-smoke
+  - id: cutover-status
+    name: Storage-cutover observation status (installed)
+    purpose: >-
+      Read GET /api/career-hunter/cutover/status on the installed package as the signed-in operator (PAT). Proves the
+      route is mounted, operator-gated and serving the observer's archive; read-only, no sample is taken.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: cutover-status
+    expected:
+      - The operator receives 200 with state not-started, observing or complete.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: storage-cutover
+    name: PostgreSQL storage cutover (loader, convergence, reverse sync, drill)
+    purpose: >-
+      Run the real loader, convergence reporter, reverse projector and engine against synthetic SQLite stores built from
+      the engine schema and a disposable PostgreSQL database owned by a LOGIN NOSUPERUSER NOBYPASSRLS role with the
+      package migrations (including 106) applied. Nothing is doubled; the live corpus and the deployment database are
+      never touched.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-convergence-contract.test.mjs
+        - tests/career-reverse-sync.test.mjs
+        - tests/career-cutover-drill.test.mjs
+    expected:
+      - Two loader runs converge (report --require-convergence exit 0) and the second changes zero observable rows.
+      - A broken posting, score, application and pre-103 interview exit 2 and are each named; owner B never sees owner A's rows.
+      - A committed owner write records one outbox row; rollback, no-op and the operator loader replay record none; owners cannot read or forge the outbox.
+      - Killing the projector before the SQLite commit, after it, and before the checkpoint commit each replays to convergence with no duplicate and no lost lifecycle evidence; a full replay from horizon 0 changes nothing.
+      - A change committed after a higher change_id is held back and then delivered; unknown tables, schema versions, owners, collisions, missing source ids and SQLite schema drift stop the worker without moving its checkpoint.
+      - The drill refuses rollback while a claim is outstanding or the projector lags, then rolls back to SQLite holding every PostgreSQL write; observation samples archive a report and reset on a missing marker or a gap.
+      - Contracts sharing one server serialise on its contract lock, and every projector pass that must see new rows first waits (bounded, named on timeout) for the cluster-wide txid horizon to pass them.
+    prerequisites:
+      - runner:node
+      - runner:python
+      - fixture:disposable-postgres
+      - fixture:career-loader-drivers
+      - harness:career-python-contracts
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/career-convergence-contract.py
+        - tests/career-reverse-sync-contract.py
+        - tests/career-cutover-drill.py
+        - tests/helpers/career_pg.py
+        - tests/helpers/career_fixture.py
+        - tests/helpers/career-pg-env.mjs
+      cleanup: >-
+        Each contract drops its disposable database and role and removes its temporary SQLite stores; the loopback ATS
+        is shut down.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+    installation: never
+  - id: cutover-observation
+    name: Seven-day observation window and status route
+    purpose: >-
+      Drive the real observe_cutover bounds and window functions into an archive and serve it through the COMPILED
+      status route over loopback HTTP. Scoped doubles: the Express Router, the OIDC session (header-driven), isOperator
+      (a mirror of the kernel's OSHAL_OPERATOR_SUBS branch), the logger, and the unused better-sqlite3/caller-sub
+      imports. The real kernel mount and a live sample are covered by the cutover-status smoke and the storage-cutover
+      drill.
+    level: unit
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-cutover-observation.test.mjs
+    expected:
+      - Anonymous callers get 401 and non-operators 403 before the archive is read.
+      - Seven days of in-bounds daily samples complete the window.
+      - A sample gap, a failed nightly marker, convergence drift, projector lag or failure, or an isolation leak each reset it.
+      - An unreadable or non-object window.json is logged at ERROR, kept aside, and resets the window; that sample exits 2.
+      - The route serves the window and the latest sample without the per-owner probe breakdown.
+    prerequisites:
+      - runner:node
+      - runner:python
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: The suite removes its temporary archive directories and closes its loopback listener.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
   - id: career-theme-browser
     name: Career screens follow the portal palette
     purpose: >-
@@ -126,6 +233,7 @@ cases:
         - tests/career-storage-contract.test.mjs
         - tests/career-stories.test.mjs
         - tests/career-story-evidence.test.mjs
+        - tests/career-story-review-conversation.test.mjs
         - tests/career-targets-classify.test.mjs
     expected:
       - >-
@@ -134,6 +242,22 @@ cases:
       - >-
         The real generate_for writes a packet whose application.json records the verified story citations, and
         whose prompt carried the evidence block; an invented citation never reaches the record.
+      - >-
+        A signed-in user answers the shipped Strengthen story card role by role until the card reads "Every role
+        has a story". Each turn goes through the compiled story routes and the real career-engine-dispatch (lease
+        admission, then the caller's Firecrawl brokerage query).
+      - >-
+        It then goes through career-engine-runner (child env allowlist, run-lock adoption, engine-run
+        registration), bin/oshal-jobhunter.js and the engine, with no provider. Each role then holds one verbatim
+        story citing one of its own bullets, and GET /readiness reports 3 of 3.
+      - >-
+        A concurrent turn gets 503 before brokerage and the lease is released after. Anonymous calls get 401 with
+        no brokerage or engine run, and a second user reaches only their own store.
+      - >-
+        Scoped doubles: the page DOM, the Express router and body parser (node:http), the OIDC session, the logger,
+        the kernel trusted-service decoder (never trusted), the unused SQLite driver, the Postgres pool (no
+        Firecrawl row; no suite runs that query against real Postgres) and the kernel token decryptor (a tripwire,
+        never reached).
     prerequisites:
       - runner:node
       - runner:python
@@ -279,4 +403,333 @@ cases:
     limits:
       timeoutMs: 120000
       maxMemoryMb: 512
+    installation: never
+  - id: worker-rail
+    name: Career worker rail route and two-user isolation
+    purpose: >-
+      Drive the compiled worker rail over a loopback listener behind a mirror of the kernel's signed-package-callbacks
+      rail (POST only, the real compiled verifier first, the owner refreshed and permission-checked, the handler as that
+      owner), and run the compiled runner for two users with its spawn replaced by an in-memory child to prove their
+      per-run grants, run ids and brokered keys never cross and the fleet secret reaches no child. Scoped doubles: the
+      kernel callback rail, the Express Router and raw body reader, the kernel request-identity module, BotNodeClient
+      endpoint lookup, the heartbeat registry, executeBotOrInline (a recorder), and in the isolation spec the runner's
+      spawn and user-store leaf. The real kernel boundary is kernel-signed-rail; the remaining real companions
+      (BotNodeClient with the Redis heartbeat, a real spawned launcher child, cost settlement with a live receipt) are
+      the on-box acceptance in the package BACKLOG.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-worker-rail.test.mjs
+        - tests/career-worker-rail-isolation.test.mjs
+        - tests/career-cron-cursor.test.mjs
+        - tests/career-automation-issuer.test.mjs
+        - tests/career-catalog-route-bindings.test.mjs
+    expected:
+      - Every literal route registered in src-routes, under every manifest mount that serves it, matches exactly one authorization.yaml http binding under the kernel's segment rule; an unbound or doubly bound route is named and fails.
+      - The Companies page the ribbon opens (GET /companies-admin) is bound to career.administer like its list and seturl data routes; the classic-board wildcard is bound at four depths and unbound one deeper.
+      - Unsigned, service-secret, browser, tampered, replayed, foreign-owner, wrong-method, settled-run and issuer-less requests are refused before any bot call.
+      - An admitted completion reaches the Career bot exactly once, direct and non-agentic, attributed to the run owner.
+      - A missing node or missing/stale heartbeat answers 503 career-worker-unavailable and the run ends failed, never running.
+      - The package semaphore bounds concurrency, the deadline answers 504 and an owner's cancel answers 409 and revokes the token.
+      - The per-call deadline starts when a call holds a slot, so eight concurrent calls at concurrency 2 with a bot faster than the deadline all answer 200.
+      - The wait for a slot has its own ceiling (504 career-worker-queue-timeout) and a queued call whose run is cancelled answers 409; neither reaches the bot.
+      - The environment the runner hands each user's engine child holds only its own grant, run id and brokered key, never the fleet secret or a model-provider key; a launch without a verified issuer mints nothing.
+      - A failed scoring run leaves the nightly keyword-pass cursor unadvanced; a successful one advances it once; the model passes carry the issuer the opt-in recorded, and an opt-in without one skips them.
+      - Saving the automation opt-in records the kernel identity's issuer, never a body field; reading returns it or null for a row saved before 1.25.1.
+      - DELETE /stories/test-lab/:tag and DELETE /jobs/:id/packet are each registered once and bound once, to career.change; the catalog has no other new DELETE binding.
+      - POST /test-lab/applications and DELETE /test-lab/applications/:postingId/:tag are each registered once, in career-test-lab-applications.ts, and bound once, to career.change.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/helpers/worker-rail-harness.mjs
+        - tests/helpers/career-rail-signer.cjs
+        - tests/helpers/request-identity-stub.mjs
+      cleanup: Close the loopback listeners and remove the temporary lease store; no provider, database or network call is made.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: worker-rail-engine
+    name: Career engine model rail contract
+    purpose: >-
+      Prove the multi-user engine's only model path is the worker rail, with subprocess and provider SDK tripwires armed,
+      that every request it sends is signed with the per-run grant (the fixture recomputes the HMAC over the bytes it
+      received) and carries no service secret, and send one production engine completion through the compiled verifier
+      and rail to the Career bot double.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-model-rail.test.mjs
+    expected:
+      - No codex/claude subprocess, Anthropic SDK or OpenAI path is reached; model keys and rail entries leave the environment.
+      - Every completion carries the five grant headers with a fresh nonce and a signature the fixture verifies; no service secret, subject or bearer token header is sent.
+      - A rail failure raises CareerWorkerUnavailable through the real scorer and every later call refuses without a request.
+      - The standalone single-user engine keeps its legacy provider detection.
+    prerequisites:
+      - runner:node
+      - runner:python
+      - fixture:complete-career-engine
+      - harness:career-python-contracts
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/helpers/worker-rail-harness.mjs
+        - tests/career-model-rail-contract.py
+      cleanup: Stop the loopback listeners and remove the temporary engine data directory.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 512
+    installation: never
+  - id: kernel-signed-rail
+    name: Engine rail through the kernel's enforce-mode boundary
+    purpose: >-
+      Activate the real package through the kernel's manifest reader (which admits the callbackVerifier only because the
+      catalog is declared), ADR-149 enforce-mode authorization runtime and route mounter, then act as the engine child:
+      a grant minted by the compiled dispatch and runner under the kernel's real request identity, signed as the engine
+      signs, and the production Python engine's own signer. Request identity, the principal directory, the Career bot
+      rail and node client are named fixture seams; the database is a tripwire the path never reaches.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-rail-kernel-boundary.core.test.js
+    expected:
+      - The package activates in enforce mode with the catalog, the verifier and POST /complete bound to career.execute.
+      - A completion signed with a runner-minted grant is admitted, runs as the owner and dispatches one accounted bot call; no database query is made.
+      - The exact 1.24.0 caller (fleet secret, asserted subject, bearer token), an unsigned request, a browser session and a GET are refused before package code.
+      - A foreign owner, a tampered body, a replay, a settled run, an owner without the member role, a revoked role and a deactivated owner are refused with no handler call.
+      - The production Python engine's signed completion is admitted, and refused once its run is settled.
+      - Over every literal route in src-routes under every registered mount, the kernel's own resolveOperationPermissions binds each request to exactly one permission set and the bare route-binding guard's mirrored rule returns the same set.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - fixture:core-checkout
+      - harness:core-test-fixtures
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/helpers/career-rail-kernel-harness.cjs
+        - tests/helpers/career-rail-signer.cjs
+      cleanup: The suite unmounts the package, closes its loopback server and removes its temporary store and engine directories.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: test-lab-cleanup
+    name: Owner-scoped removals for the story review's live acceptance
+    purpose: >-
+      Drive DELETE /stories/test-lab/:tag and DELETE /jobs/:id/packet through the COMPILED routes, the real engine
+      dispatch and runner, bin/oshal-jobhunter.js and the engine, on the per-user SQLite store and on a disposable
+      FORCE-RLS PostgreSQL database (engine in JOBHUNTER_STORE=postgres as its NOBYPASSRLS role), and prove
+      tests/stories-live-acceptance.mjs, unchanged, against a loopback api. Scoped doubles: the router and body parser
+      (node:http), the session or PAT, the logger and kernel leaves, the Postgres pool (no Firecrawl row), and the board
+      side behind the Career bot rail and better-sqlite3 (automation state, jobs, runs, and generate, which writes the
+      packet generate_for leaves). The real rail and packet run on the box in stories-live-acceptance.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-test-lab-cleanup.test.mjs
+        - tests/stories-live-acceptance.test.mjs
+    expected:
+      - The story removal takes out exactly the caller's stories whose answer carries the run's mark; an unmarked story and another run's marked story survive, and the profile ends as seeded.
+      - Another user's removal answers 404 and changes nothing of the owner's; anonymous is 401 and a malformed tag 400, before any engine run.
+      - The packet removal deletes only the caller's packet and returns the caller's own row to status new with no paths, on SQLite and on PostgreSQL; the other user's packet and row on the same posting survive.
+      - A posting the caller has no packet for answers 404; an applied posting answers 409 and keeps its packet and row.
+      - The live script passes against the loopback api and leaves the profile and the borrowed posting as it found them.
+      - An incomplete cleanup and a packet with no stories_cited fail the case; auto-submit on or no indexed resume is unavailable and writes nothing.
+    prerequisites:
+      - runner:node
+      - runner:python
+      - fixture:disposable-postgres
+      - fixture:complete-career-engine
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/helpers/career-route-harness.mjs
+        - tests/helpers/career_pg_hold.py
+        - tests/helpers/career_pg.py
+        - tests/helpers/career-pg-env.mjs
+        - tests/helpers/request-identity-stub.mjs
+      cleanup: >-
+        Each suite closes its loopback listener and removes its temporary store; the PostgreSQL holder drops its
+        database and role when the suite ends its input.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 512
+    installation: never
+  - id: stories-live-acceptance
+    name: The story review, a packet that cites a story, and a clean exit, on the installed package
+    purpose: >-
+      After career-hunter 1.26.0 is installed, walk the real routes as the operator automation identity
+      (OSHAL_VERIFY_OPERATOR_PAT, read by name, never printed): answer the Strengthen card with marked answers until
+      every role has a story, check readiness and the master document, generate one packet on an untouched posting on
+      the Career bot rail and require stories_cited, then remove the packet and exactly the marked stories. Run with
+      OSHAL_VERIFY_BASE_URL=http://localhost:35457 node career-hunter/tests/stories-live-acceptance.mjs.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/stories-live-acceptance.mjs
+    expected:
+      - One RESULT line with state pass; readiness reads "N of N roles have a story." and each marked story shows under its bullet in the master document.
+      - The generated packet's application.json carries a non-empty stories_cited; evidence names the tag, the posting, the tailor run and cleanup deleted.
+      - An incomplete cleanup is reported as a failure, never a pass; auto-submit on or no indexed resume is unavailable with nothing written.
+    prerequisites:
+      - runner:node
+      - credential:operator-pat
+      - install:career-hunter-1.26.0
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: >-
+        The walk removes the packet (DELETE /jobs/:id/packet) and its marked stories (DELETE /stories/test-lab/:tag), then
+        reads back the posting's status and paths, the packet document (404) and the story count; anything less fails.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 256
+    installation: never
+  - id: test-lab-application-seam
+    name: The Test Lab application seam the approve -> draft live acceptance plants and removes
+    purpose: >-
+      Drive POST /test-lab/applications and DELETE /test-lab/applications/:postingId/:tag through the COMPILED routes,
+      the caller's real SQLite store (seeded through the engine's own connect(), read through the real better-sqlite3
+      driver) and a disposable PostgreSQL database holding the package's own career_hunter_applications migrations,
+      queried as a NOBYPASSRLS role; then run the real approve handler, runner, launcher and engine on a planted
+      application and remove it. Scoped doubles: the router and body parser (node:http), the session, the logger and
+      kernel leaves, and the kernel TicketService (in memory, keeping the create-reuses-the-external-key contract). The
+      real TicketService and the Career bot draft run on the box in core's career-rail-live-proof.js --complete.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-test-lab-applications.test.mjs
+    expected:
+      - The plant writes one application awaiting approval, with the queue's deterministic ticket key and the run's tag in the ticket's test_lab_tag, and writes nothing to the caller's SQLite store.
+      - The plant refuses, writing nothing, an anonymous caller (401), a malformed mark (400), a missing or inactive posting (404), and a worked posting, a posting with an application or an application ticket, or a caller with no store (409).
+      - The removal takes out only the caller's application whose ticket carries the tag; an unmarked queue application, another tag, another user's same-posting application and another user asking all survive (404).
+      - A drafting or applied application answers 409 and keeps its ticket; a failed ticket delete is finished by the retry, which finds the ticket by its key.
+      - The real approve handler drives a planted application to error/escalated when the engine's model rail refuses, and the removal afterwards leaves both stores as they were before the plant.
+    prerequisites:
+      - runner:node
+      - runner:python
+      - fixture:disposable-postgres
+      - fixture:complete-career-engine
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/helpers/career-route-harness.mjs
+        - tests/helpers/career-pg-env.mjs
+        - tests/helpers/request-identity-stub.mjs
+      cleanup: >-
+        The suite closes its loopback listener, drops its database and role, and removes its temporary store.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-stop-tree
+    name: Stopping a run stops its engine process tree (Linux)
+    purpose: >-
+      Run the COMPILED runner, which launches the REAL bin/oshal-jobhunter.js for the manual score verb; the launcher
+      starts a stand-in engine (JOBHUNTER_PYTHON) that records its pid and its child's, holds the inherited stdout and
+      never exits. Cancel the run, let its runner deadline pass, or remove its lease generation, and read each process
+      state from /proc. Scoped doubles: the kernel logger and the user-store path leaf. The real engine, the route and
+      the installed package are core's career-rail-live-proof.js --complete on the box.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-cancel-engine-tree.test.mjs
+        - tests/career-process-group.test.mjs
+    expected:
+      - After an owner cancel the stand-in engine and its child have exited within 5 s and the run is cancelled; another owner's cancel answers not-found.
+      - With the launcher frozen, the runner deadline leaves the engine and its child exited and the run failed with reason timeout, and the lease-loss fence leaves them exited and the run failed.
+      - An adopted launcher that leads its own process group runs the engine inside that group, fences it at the deadline without killing itself and exits 124.
+      - An adopted launcher that does not lead a group keeps the engine in a group of its own, so its fence never reaches its parent.
+      - Over a fixture procfs the launcher's group fence refuses unless it leads its group, signals only live members of its own group and re-scans for a member forked mid-fence.
+    prerequisites:
+      - runner:node-test
+      - fixture:linux-procfs
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/career-cancel-engine-tree.test.mjs
+      cleanup: >-
+        The suite kills any stand-in process it started that is still running and removes its temporary store.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 256
+    installation: never
+
+  - id: refresh-completion-status
+    name: Refresh successful completion status
+    purpose: >-
+      Drive the compiled cron against real temporary filesystem markers and verify the compiled
+      refresh route exposes lastCompletedAt separately from corpusFreshAt. Engine, scoring,
+      graph, logger and route collaborators use scoped doubles; marker reads and writes remain real.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-evening-completion.test.mjs
+        - tests/career-run-status.test.mjs
+    expected:
+      - Missing or corrupted completion markers return null.
+      - Progressive corpus writes and failed pulls preserve the previous successful completion.
+      - A successful completed chain advances the marker and status reports that timestamp.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: The filesystem guard removes its temporary directory after the tests.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+
+  - id: native-surface-contract
+    name: Native Career root and summary contract
+    purpose: >-
+      Exercise compiler-generated board and surface handlers against real SQLite counts and
+      actual package HTML; verify resume lifecycle fields with the existing temporary-file guard.
+      Kernel logger, identity resolver and unused service collaborators are scoped doubles.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-native-surface-contract.test.mjs
+        - tests/career-resume-status.test.mjs
+    expected:
+      - Both admitted package-root aliases serve the same existing native board asset.
+      - Applied and interviewing counters equal actual applied and interview SQLite status counts.
+      - Pending resume state retains observed lifecycle data without invented active state or empty inventory.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: SQLite handles are closed and resume lifecycle temporary files are removed by the tests.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
     installation: never

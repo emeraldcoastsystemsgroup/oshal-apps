@@ -2,10 +2,11 @@
  * CHANGE LOG
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Repeat named project permissions with verified issuer-qualified personal ownership and no administrative row bypass.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Add the separately named generate action (project.generate): region regeneration spends provider money, so it needs view, read and generate, and is reported to the editor like every other action.
  */
 import { ProjectError, type ProjectContext, type ProjectOwner } from './create-project-types';
 
-export const PROJECT_ACTIONS = ['view', 'read', 'create', 'change', 'delete', 'export'] as const;
+export const PROJECT_ACTIONS = ['view', 'read', 'create', 'change', 'delete', 'export', 'generate'] as const;
 export type ProjectAction = typeof PROJECT_ACTIONS[number] | 'upload';
 
 /** Only the framework's active execution actor establishes ownership. */
@@ -29,7 +30,7 @@ export function registerCreateProjectAuthorization(ctx: ProjectContext): void {
 export async function requireProjectAccess(ctx: ProjectContext, action: ProjectAction, expected?: ProjectOwner): Promise<ProjectOwner> {
   const owner = projectOwner(ctx);
   if (expected && (owner.issuer !== expected.issuer || owner.sub !== expected.sub)) throw new ProjectError(401, 'project_identity_changed');
-  const required = new Set(['view', ...(action === 'export' ? ['read', 'export'] : action === 'upload' ? [] : [action])]);
+  const required = new Set(['view', ...(action === 'export' || action === 'generate' ? ['read', action] : action === 'upload' ? [] : [action])]);
   for (const permission of required) {
     if (!(await ctx.authorization!.authorize({ permission: `project.${permission}` })).allowed) throw new ProjectError(403, 'project_permission_denied');
   }

@@ -1,8 +1,13 @@
 <!-- CHANGE LOG
 SEQ | AUTHOR | DESCRIPTION
 1 | maintainer@emeraldcoastsystemsgroup.com | Document complete package test registration and honest isolated execution boundaries (1.4.1).
+2 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: the schema bootstrap runs under a package-owned advisory lock; the disposable-PostgreSQL boot suite, its Test Lab case and the build-state rows.
 -->
 # Venture Plan
+
+1.5.1 makes the schema setup at api boot safe to run twice at once. Every boot builds the console and the rebaseline-tick routers in one go and each starts the package's whole schema bootstrap; the two ran side by side and PostgreSQL sometimes aborted one with `deadlock detected` (40P01), logged as "venture rebaseline schema bootstrap failed" (the tick router keeps that failure, so an activated scheduled tick would then fail on every run until the package's routes are mounted again). On a first install the same pair failed on duplicate catalog rows (23505). The bootstrap now runs in one transaction behind a package-owned advisory lock (`VENTURE_SCHEMA_LOCK_KEY`), so the second run waits for the first. Proven against a disposable PostgreSQL by `tests/venture-schema-postgres.test.mjs` (Test Lab case `schema-bootstrap-postgres`): 1.5.0 fails it, 1.5.1 passes. No route, migration or authorization change.
+
+1.4.4 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
 
 Version 1.1.0 accepts the `research-brief` v1 context through `research-idea` on `venture-home`. A compatible source, such as World Intelligence, may fill the new-venture name and idea fields with a finding, supporting notes and source URL. Receiving context only opens a draft: it does not create a venture or start paid research. The existing **Scope it** button remains the explicit next step. Source text must be reviewed as evidence, not treated as execution authority. File exports continue to use artifact exchange.
 
@@ -112,6 +117,10 @@ The corpus covers the decision (`00`), the two documents that make the rest hone
 
 **Scheduled rebaseline has a first-class kernel activation path.** The manifest registers an hourly deterministic service-route tick, not a bot prompt. Its static exact `execute: true` body only asks the package to evaluate policy: every venture policy still defaults disabled and dry-run, and an enabled paid policy also requires a positive integer micro-USD per-run cap. Preview and either dry-run gate reserve no run and call no bot. A due run refreshes BOM, market, and ops assumptions, then recomputes in code, omitting narration for a maximum of three paid calls. The UTC venture/slot is database-unique, and measured provider cost is persisted after each call. The atomic call that first reports an overshoot cannot be unspent, but no later call begins; missing cost also fails closed. Local tests prove registration, service authentication, route ownership, payload immutability, deactivation, and package policy behavior; live provider, real forced-RLS, and deployed scheduler acceptance remain unclaimed. See [the technical specification](REBASELINE-SCHEDULE.md).
 
+**The tick runs only after a swarm administrator activates it (1.5.0).** Nothing runs by declaration (core ADR-157): the tick skips as *not activated* until a swarm administrator activates `rebaseline-policy-tick` as a system service, which grants the application's service principal exactly `venture.rebaseline` from [the authorization catalog](authorization.yaml). Before 1.5.0 the package had no catalog, and the kernel refuses that activation with `409 authorization_service_catalog_required`. One limit holds today and is proven by `tests/venture-catalog-kernel.core.spec.mjs`: the activated tick runs, opens at most one run per venture and UTC slot, and the cost gate works, but **the analyst calls of a scheduled run do not spend**. Each call is made for the policy owner, and the kernel refuses an owner-pinned bot call under the service principal (`authorization_execution_identity_required`). The run records `capture-failed` and skips the later calls. Making scheduled runs spend needs an operator decision on the service class (core backlog entry *Venture rebaseline scheduler activation*).
+
+**Authorization (1.5.0).** [authorization.yaml](authorization.yaml) binds every route, the four bots and the scheduled tick to named permissions on one `own`-scoped resource, `venture`. One role, `member`, carries the whole app: `app.open` and `venture.read` for every read, `venture.change` for writes that spend nothing (including the free recompute), `venture.execute` for every call that reaches a bot (creating a venture, runs, chat, document regeneration) and for arming paid scheduled runs, and `venture.export` for the four downloads. `venture.rebaseline` belongs to no role. Row ownership is unchanged: every handler still scopes every statement to the caller, with row-level security underneath. Installing 1.5.0 over 1.4.x is a catalog **adoption**, and **Venture Plan is down until an administrator approves it**. Loading the 1.5.0 manifest is refused with `authorization_catalog_migration_required`, and a breaking AUTH-07 review is recorded. On a box that installs by copying the package and restarting the api, that refusal is logged as a failed auto-load. Nothing activates the package: `/api/venture*` is not mounted and the tick is not registered. This lasts until the review is approved and the package is loaded again from disk, for example by the next api restart. The old `@app-admin` assignment is not carried over, so people are granted `member` afterwards.
+
 **As a swarm ticket.** The package registers ticket type `venture-plan` with the strategist as worker, so a re-baseline can arrive as a real ticket on the kernel queue ("the injection-mould quote came back at $14.20 — redo the plan") rather than borrowing another app's type.
 
 **Exports.** `.docx` narrative plan, `.xlsx` financial model, `.pptx` decision deck, and a `.zip` of everything plus the assumption register as CSV — through the `deck-generation` kernel skill. **There is no PDF renderer in either repo**, so PDF is browser print from the print view, and this README says so rather than implying an export that does not exist. An export is refused when no computed model snapshot exists; a plan must never be rendered from unresolved inputs.
@@ -124,10 +133,12 @@ Counts below were produced by running the command in the last column, not typed 
 
 | | Value | Derived by |
 |---|---:|---|
-| Modules (source) | 34 | `ls src-routes/*.ts \| wc -l` |
-| Compiled modules (what the framework loads) | 34 | `ls routes/*.js \| wc -l` |
-| Test suites | 18 | `ls tests/*.test.js \| wc -l` |
-| Tests, passing | 258 / 258 | `node --test "tests/*.test.js"` |
+| Modules (source) | 36 | `ls src-routes/*.ts \| wc -l` |
+| Compiled modules (what the framework loads) | 36 | `ls routes/*.js \| wc -l` |
+| Test suites | 20 | `ls tests/*.test.js \| wc -l` |
+| Tests, passing | 276 / 276 | `node --test "tests/*.test.js"` |
+| Kernel-boundary tests, passing | 12 / 12 | `OSHAL_CORE_ROOT=<core checkout> node --test tests/venture-catalog-kernel.core.spec.mjs` |
+| Boot-time schema bootstrap on a disposable PostgreSQL, passing | 3 / 3 (20 installed + 20 first-install boots) | `OSHAL_CORE_ROOT=<core checkout> node --test tests/venture-schema-postgres.test.mjs` (Docker, local `postgres:16-alpine` image) |
 | Personas | 4 | `ls personas/*.yaml \| wc -l` |
 | Migrations | 5 | `ls migrations/*.sql \| wc -l` |
 | Documents in the worked example | 23 | `ls examples/pumpkin/[0-9]*.md \| wc -l` |
@@ -158,6 +169,7 @@ Every guard is written against the **compiled** modules — the same bytes the f
 - **The generator has its own suite.** Statutory rate ranges (a fee typed at ten times its published value passes every arithmetic test), the basis-point-versus-fraction formatter split, the not-advice boundary on every rendered document, and the sell-through claim reading the inversion rather than break-even units.
 - **The sensitivity sweep genuinely rebuilds** — proven by call count, so a future refactor that substitutes an analytic approximation goes red.
 - **Purity asserted as behaviour**: byte-identical output across repeat runs, the input object unmutated afterwards, and every compiled module required in a child process with an empty module path so a stray framework import fails loudly.
+- **Boot cannot deadlock its own schema setup.** The disposable-PostgreSQL suite builds both schema-bootstrapping routers as one api boot does, round after round from a fresh schema, and fails on any logged bootstrap error, a scheduled tick that cannot run, or a missing table, forced policy, function or trigger. The bare store suite pins the advisory-lock key the bootstrap hands the kernel.
 - **The worked example's own vectors are re-derived** by the dataset suite, so a provenance flag cannot be quietly dropped to make a chart look confident.
 
 Each of these was mutation-proven: the mechanism was broken on purpose, the suite went red, the break was reverted.
@@ -179,7 +191,7 @@ A plausible number is the failure mode this application is built around. If it e
 
 ## Next increments (not built)
 
-- **Live acceptance for rebaseline scheduling.** The package policy, dry-run service tick, idempotent run, measured-cost gate, and first-class kernel service-route schedule are built and locally exercised. Real forced-RLS, provider, and deployed scheduler evidence still require an authorized environment; no local test is represented as that live proof.
+- **Live acceptance for rebaseline scheduling.** The package policy, dry-run service tick, idempotent run, measured-cost gate, first-class kernel service-route schedule and the 1.5.0 catalog are built and locally exercised. The dated live walk is automated (`tests/rebaseline-live-acceptance.mjs`, registered as `rebaseline-live-acceptance`) and has not run; until the service-class decision above is made it fails at the opted-in run's first analyst call, by design of the kernel's owner pin. Real forced-RLS, provider, and deployed scheduler evidence still require an authorized environment; no local test is represented as that live proof.
 - **FX console workflow and automated rate ingestion.** The backend accepts immutable, sourced FX evidence and binds foreign quotes today; the cockpit still needs an evidence-entry/selection view. Any future rate feed must save the observed response as a new snapshot rather than mutate prior quotes.
 - **Side-by-side scenario compare.** Scenarios exist and compute; comparing N of them in one view does not.
 - **A saved-quote inbox.** Today a quote is entered by hand. Attaching the quote document and reading the figure off it is the obvious next step and the point where the register stops being tedious.
@@ -187,9 +199,9 @@ A plausible number is the failure mode this application is built around. If it e
 
 ## AI Test Lab registration
 
-Version 1.4.1 declares `test-catalog` and [tests/test-lab.yaml](tests/test-lab.yaml). Installation registers all 18 shipped Node test files as separate unit-suite cases, plus the existing `package-readiness` smoke case. Registration does not execute these suites.
+Version 1.4.1 declares `test-catalog` and [tests/test-lab.yaml](tests/test-lab.yaml). Installation registers every shipped Node test file as its own case (the 20 `tests/*.test.js` suites and the audience-view contract), the framework-coupled kernel suite `kernel-catalog-activation` (it needs the core checkout the runner stages as `fixture:core-checkout`), the dated live walk `rebaseline-live-acceptance` (an external case run by hand after install, never by the sandbox), the boot-time schema bootstrap against a disposable PostgreSQL `schema-bootstrap-postgres` (an external case: it needs Docker and the core checkout, which the sandbox does not provide), plus the existing `package-readiness` smoke case. Registration does not execute these suites.
 
-The local Lab can run 16 suites in its sealed Node sandbox. They exercise the committed compiled modules with synthetic inputs; route/store suites use explicit router, database, logger, vault or bot stubs. They do not establish real HTTP, database/RLS, browser, provider, payment or deployment acceptance.
+The local Lab runs the eligible suites in its sealed Node sandbox. They exercise the committed compiled modules with synthetic inputs; route/store suites use explicit router, database, logger, vault or bot stubs, and the kernel suite names its seams in the case. They do not establish real database/RLS, browser, provider, payment or deployment acceptance. The one database exception is `schema-bootstrap-postgres`, run by hand outside the sandbox: it applies the real schema bootstrap to a disposable PostgreSQL and reads back the tables, forced-RLS flags, policies, functions and triggers; it does not exercise row filtering.
 
 Open **AI Test Lab**, choose this application and select **Run**. Each declared suite has a 60-second limit and 256 MiB memory bound. The controller stages only eligible package code and starts a disposable, network-disabled container without host mounts or deployment credentials. Results bind the package version and staged source revision; an unavailable runner stays pending.
 
@@ -203,3 +215,21 @@ node --test tests/*.test.js
 ```
 
 Venture tests never start real paid research or provider work. The example and dataset suites remain registered and pending; excluding runtime data from the sandbox is deliberate. Store stubs verify call contracts, while real forced-RLS and deployed scheduler proof remain separate acceptance work.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| venture-scoping | venture scope | T2 | none | template | not yet measured | none recorded |
+| assumption-authoring | assumption run | T2 | none | template | not yet measured | none recorded |
+| document-narration | plan document | T3 | none | disable | not yet measured | none recorded |
+| scheduled-rebaseline | scheduled rebaseline run | T2 | none | disable | not yet measured | none recorded |
+| venture-chat | strategist chat turn | T2 | none | disable | not yet measured | none recorded |
+| venture-plan-ticket | venture plan ticket | T3 | none | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

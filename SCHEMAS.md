@@ -4,7 +4,7 @@
 
 Every package that owns tables carries a `SCHEMA.md` beside its `oshal-app.yaml`: an entity-relationship diagram, every column, and the RLS rule that scopes each row. Package tables live in the platform's Postgres database (schema `public`); the conventions they follow are in the [core data model](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/architecture/data-model/README.md).
 
-30 of 51 packages own tables.
+31 of 52 packages own tables.
 
 | Package | Postgres tables | Views | Declared, not present | SQLite tables | Schema |
 |---|---|---|---|---|---|
@@ -15,6 +15,7 @@ Every package that owns tables carries a `SCHEMA.md` beside its `oshal-app.yaml`
 | `drone` | 4 |  |  |  | [SCHEMA.md](drone/SCHEMA.md) |
 | `eats` | 7 |  |  |  | [SCHEMA.md](eats/SCHEMA.md) |
 | `email-summarizer` | 1 |  |  |  | [SCHEMA.md](email-summarizer/SCHEMA.md) |
+| `fantasy-football` | 6 |  |  |  | [SCHEMA.md](fantasy-football/SCHEMA.md) |
 | `finance` | 3 |  |  |  | [SCHEMA.md](finance/SCHEMA.md) |
 | `game-show` | 5 |  |  |  | [SCHEMA.md](game-show/SCHEMA.md) |
 | `kalshi` | 6 |  |  |  | [SCHEMA.md](kalshi/SCHEMA.md) |
@@ -30,7 +31,7 @@ Every package that owns tables carries a `SCHEMA.md` beside its `oshal-app.yaml`
 | `pumpkin` | 3 |  |  |  | [SCHEMA.md](pumpkin/SCHEMA.md) |
 | `purchasing` | 9 |  |  |  | [SCHEMA.md](purchasing/SCHEMA.md) |
 | `rides` | 4 |  |  |  | [SCHEMA.md](rides/SCHEMA.md) |
-| `sports-edge` | 10 |  |  |  | [SCHEMA.md](sports-edge/SCHEMA.md) |
+| `sports-edge` | 11 |  |  |  | [SCHEMA.md](sports-edge/SCHEMA.md) |
 | `spotify` | 4 |  |  |  | [SCHEMA.md](spotify/SCHEMA.md) |
 | `switchboard` | 7 |  |  |  | [SCHEMA.md](switchboard/SCHEMA.md) |
 | `trading` | 1 |  |  |  | [SCHEMA.md](trading/SCHEMA.md) |

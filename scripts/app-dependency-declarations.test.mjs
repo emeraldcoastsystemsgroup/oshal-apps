@@ -1,9 +1,11 @@
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                                     | DESCRIPTION
+ * SEQ                 | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-09-17 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Hold every store package's prerequisite declaration to what its code actually does. Two arms, because either alone can be defeated: a DETECTOR that fails on any cross-package edge nobody declared, and a LEDGER of the edges already proven by reading the code, each pinned to the file and the exact call that proves it. A catalog `--check` cannot do this job - marketplace.json's dependency block is GENERATED from the manifest, so a declaration that goes missing disappears from both sides at once and the mirror still reports "current". The ledger also records the two shapes that are NOT dependencies: an `integrations.offers` target (the framework resolves an inactive target to state:'unavailable'), and a package named in prose in a .md or .json record.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Hold every store package's prerequisite declaration to what its code actually does. Two arms, because either alone can be defeated: a DETECTOR that fails on any cross-package edge nobody declared, and a LEDGER of the edges already proven by reading the code, each pinned to the file and the exact call that proves it. A catalog `--check` cannot do this job - marketplace.json's dependency block is GENERATED from the manifest, so a declaration that goes missing disappears from both sides at once and the mirror still reports "current". The ledger also records the two shapes that are NOT dependencies: an `integrations.offers` target (the framework resolves an inactive target to state:'unavailable'), and a package named in prose in a .md or .json record.
+ *
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Social requires the single owner of its shared communications bot, including scheduled digests.
  *
  * @module app-dependency-declarations.test
  */
@@ -23,8 +25,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  * that proves each one. This table is the arm that outlives the detector: narrowing a pattern or
  * excluding a directory silences the detector, but a row here still fails when either half goes -
  * the call, or the declaration. `tier` is what the edge was classified as after reading how the
- * caller behaves when the target is absent: every one of these degrades (a toast, a hidden chip,
- * an empty tab), so every one is `optional`. `required` would mean install refuses to orphan it.
+ * caller behaves when the target is absent: most degrade (a toast, a hidden chip,
+ * an empty tab). Social also imports the communications bot for its digest, so its owner is required.
+ * `required` means install refuses to orphan it.
  */
 const PROVEN = [
   ['cad-studio', 'scan-to-print', 'optional', 'tools/cad-studio.js', "fetch('/api/scan-to-print/jobs/'"],
@@ -35,7 +38,7 @@ const PROVEN = [
   ['portrait-studio', 'create', 'optional', 'tools/portrait-studio.html', "fetch('/api/create/brand-kit'"],
   ['presentations', 'create', 'optional', 'tools/presentations.html', "fetch('/api/create/brand-kit'"],
   ['video', 'create', 'optional', 'tools/video.html', "fetch('/api/create/brand-kit'"],
-  ['social', 'email-summarizer', 'optional', 'tools/social-composer.html', 'href="/api/email/inbox"'],
+  ['social', 'email-summarizer', 'required', 'tools/social-composer.html', 'href="/api/email/inbox"'],
   ['finance', 'intelligent-trades', 'optional', 'oshal-app.yaml', 'iframeUrl: /api/trading/'],
   ['finance', 'world', 'optional', 'oshal-app.yaml', 'iframeUrl: /api/world/app'],
   ['finance', 'kalshi', 'optional', 'oshal-app.yaml', 'iframeUrl: /api/kalshi/'],
@@ -109,7 +112,11 @@ test('an integrations.offers target is a hand-off, not a dependency', () => {
   // And the declarations agree: an offerer that declares presentations does so for a real edge.
   const declaringOfferers = offerers.filter((name) => (tiersOf(name)?.optional?.apps ?? [])
     .concat(tiersOf(name)?.required?.apps ?? []).includes('presentations'));
-  assert.deepEqual(declaringOfferers, [], 'no package may declare presentations on the strength of an offer');
+  assert.deepEqual(declaringOfferers, ['little-monsters'],
+    'offers alone create no dependency; Little Monsters independently requires Office in its complete product composite');
+  assert.deepEqual(tiersOf('little-monsters').required.apps, ['presentations', 'circuit-lab']);
+  const learningManifest = fs.readFileSync(path.join(ROOT, dirByName.get('little-monsters'), 'oshal-app.yaml'), 'utf8');
+  assert.match(learningManifest, /roleTemplates:/, 'the required Office declaration must retain the explicit native product roles');
 });
 
 test('the detector still looks at every kind of file a call can live in', () => {

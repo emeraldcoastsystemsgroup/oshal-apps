@@ -32,8 +32,20 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.8.0 (BACKLOG B2, B7, B9): a wire takes several bends (route.points; double-click to add or remove, drag to move) and R turns a multi-selection about its centre; breadboard parts turn (vertical footprints) and the board is drawn to the BB830 geometry with jumpers as straight wires at their length in mm and shorted parts named; the solver's reltol, gmin and method in the run settings and on circuit-run (a choice is never retried over); the canvas ignores keys while the Breadboard view shows.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 0.8.2 (core BACKLOG 2026-09-14, "one parts model"): a catalog row may name another package as the OWNER of a real part and READ it. The SG90 was described twice — animatronics publishes it with its identity, mass, price, source and pulse / travel / speed / torque / current block, and this catalog restated it with a different name and a different price. The row now declares only what this lab adds (the operating point it solves at, the reflected rotor inertia) and reads the rest from the owner's catalog file as data; an absent owner withholds that one row naming the owner rather than inventing a substitute.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.8.3: declare the CAD Studio prerequisite the gear hand-off already had (optional — a 404 toasts and the lab is unaffected).
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 0.8.4 (core BACKLOG 2026-09-14, "one parts model"): the two brushless motors READ embodied's owned rows (routes/engine/design/parts-catalog.json) instead of restating name, mass, price and KV; this lab keeps its electrical block and derives noLoadRpm as KV x its operating point. embodied joins the optional apps: absent, those two rows are withheld naming it.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 0.8.6 (ADR-164 D6): the company audience view for the Business shells beside the classroom one — the surface's ?audience=company paints the saved circuits as a ledger (each one's last run, runs kept, parts and wires, warnings of the last solve, the failed runs named by their code) from GET /designs and GET /capabilities only; no solve, no write, no engine request, and the lab's own start paths stay off under it. No route, schema or manifest key changes beyond the version.
 name: circuit-lab
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 288, high: 1152, basis: declared }
+  features:
+    - id: circuit-engineer-chat
+      unit: engineer chat turn
+      tier: T4
+      generation: none
+      degrade: disable
 displayName: Circuit Lab
 description: >-
   A local circuit and mechanism lab the swarm can drive. Place batteries, resistors, LEDs,
@@ -42,7 +54,7 @@ description: >-
   transient: waveforms, per-part readings, warnings, and gears that turn on the canvas at their
   solved speed. Ask the concierge for a change in plain words and it edits the same circuit
   through the package's tools, so the person, the bot and any MCP client iterate on one design.
-version: 0.8.3
+version: 0.8.7
 status: active
 scope: person
 
@@ -72,8 +84,9 @@ smoke:
 # No connector allow-list: the inputs are the person's own numbers; the engine is a container
 # on the stack network that nothing outside the box can reach.
 # ── Cross-package prerequisites: what this package actually reaches ─────────
-# BOTH OPTIONAL. animatronics: owns the SG90 row this catalog reads; absent, that one row is withheld
-# rather than substituted. cad-studio: src-routes/design-routes.ts:335 answers a gear with
+# ALL OPTIONAL. animatronics: owns the SG90 row this catalog reads; absent, that one row is withheld
+# rather than substituted. embodied: owns the two brushless motor rows (its parts-catalog.json, read as
+# data); absent, those two rows are withheld the same way. cad-studio: src-routes/design-routes.ts:335 answers a gear with
 # { path: '/api/cad-studio/models' } and tools/circuit-lab.js:147 POSTs it there — a 404 toasts
 # "CAD Studio is not installed on this box" and the schematic, the solver and the breadboard are unaffected.
 dependencies:
@@ -82,7 +95,7 @@ dependencies:
     tools: []
     connectors: []
   optional:
-    apps: [animatronics, cad-studio]   # animatronics owns the SG90 catalog row this lab READS; cad-studio receives the gear hand-off
+    apps: [animatronics, cad-studio, embodied]   # animatronics owns the SG90 catalog row and embodied the two brushless motor rows this lab READS; cad-studio receives the gear hand-off
     tools: []
     connectors: []
 

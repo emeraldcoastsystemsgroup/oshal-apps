@@ -21,6 +21,8 @@
  * 16 | maintainer@emeraldcoastsystemsgroup.com   | Registered each user's own scrape-target list (career-targets) beside the admin's shared companies table.
  * 18 | maintainer@emeraldcoastsystemsgroup.com   | ADR-141 D7: register the role-anchored story review (career-stories-routes.ts) — the resume conversation that leaves a defensible story on every job title.
  * 17 | maintainer@emeraldcoastsystemsgroup.com   | ADR-141: register the per-user readiness route (career-readiness.ts) the Intelligent Career group's setup dashboard asks for the "stories" and "materials" steps.
+ * 19 | maintainer@emeraldcoastsystemsgroup.com   | ADR-149 (1.25.1): register the `career` resource adapter the new authorization catalog names, first thing in the factory, so every catalog-bound request the kernel authorizes (this mount's routes, the tools, the bot, the engine rail) finds it.
+ * 20 | maintainer@emeraldcoastsystemsgroup.com   | 1.27.0: register the owner-only Test Lab application seam (career-test-lab-applications.ts) beside the application mutations, so the Career worker rail's live acceptance can drive a real approve -> draft on an application it plants and removes.
  */
 
 /**
@@ -38,6 +40,7 @@ import {
   registerCareerApplicationReadRoutes,
 } from './career-application-routes';
 import { registerCareerArtifacts } from './career-artifacts';
+import { registerCareerAuthorization } from './career-authorization';
 import { registerCareerAutofillRoutes } from './career-autofill-routes';
 import { registerCareerAutomationRoutes } from './career-automation';
 import { registerCareerBoardRoutes, registerCareerResumeAlias } from './career-board-routes';
@@ -59,6 +62,7 @@ import {
   registerCareerSurfaceRoutes,
 } from './career-surface-routes';
 import { registerCareerTargetRoutes } from './career-targets';
+import { registerCareerTestLabApplicationRoutes } from './career-test-lab-applications';
 import { registerCareerReadinessRoutes } from './career-readiness';
 import { registerCareerStoryRoutes } from './career-stories-routes';
 import { registerCareerTitleScoreRoutes } from './career-title-score';
@@ -103,6 +107,7 @@ function registerExtractedRouteFamilies(router: Router, ctx: AppContext): void {
   registerCareerRecruiterRoutes(router);
   registerCareerStrengthenRoutes(router, ctx);
   registerCareerApplicationMutationRoutes(router, ctx);
+  registerCareerTestLabApplicationRoutes(router, ctx);
   registerCareerSettingsRoutes(router, ctx);
   registerCareerRunRoutes(router, ctx);
   registerCareerOnboardingRoutes(router);
@@ -115,6 +120,7 @@ function registerExtractedRouteFamilies(router: Router, ctx: AppContext): void {
  */
 export function createCareerHunterRoutes(ctx: AppContext): Router {
   const router = Router();
+  registerCareerAuthorization(ctx);
   startCareerCron(ctx);
   registerCareerSurfaceRoutes(router);
   registerExistingFeatureRoutes(router, ctx);

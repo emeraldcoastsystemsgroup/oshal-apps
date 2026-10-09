@@ -50,6 +50,16 @@
 
 name: drone-relay
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: relay-design-chat
+      unit: relay design chat turn
+      tier: T3
+      generation: none
+      degrade: disable
 displayName: Drone Relay
 description: >-
   Design a chain of mini drones that relays commands and telemetry drone to
@@ -69,7 +79,7 @@ description: >-
   mission that Drone Ops re-validates and a human approves there.
   A designer concierge sizes and explains through the same tools. Simulated;
   nothing here flies.
-version: 0.4.0
+version: 0.4.2
 status: active
 scope: person
 

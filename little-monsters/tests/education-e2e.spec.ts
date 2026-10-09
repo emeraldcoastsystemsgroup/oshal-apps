@@ -9,6 +9,7 @@
  * DATE           | AUTHOR                    | DESCRIPTION
  * ---------------------------------------------------------------------------
  * 2026-04-19     | roger.murphy@emeraldcoastsystemsgroup.com    | Initial creation — visual E2E tests
+ * 2026-09-25     | oshal maintainers <maintainer@emeraldcoastsystemsgroup.com> | Prove Tutor consumes the shared response renderer without exposing outbound components
  * ---------------------------------------------------------------------------
  */
 
@@ -191,6 +192,41 @@ test.describe('Tutor Chat', () => {
     await expect(page.locator('#welcome')).toBeVisible();
     const welcomeText = await page.locator('#welcome h2').textContent();
     expect(welcomeText).toContain('study buddy');
+  });
+
+  test('renders a bounded document through the shared renderer and filters outbound blocks', async ({ page }) => {
+    await page.route('**/api/education/tutor-chat', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          response: [
+            'Here is the review note.',
+            '```oshal:doc',
+            JSON.stringify({ title: 'Algebra review', sections: [{ heading: 'Next step', paragraphs: ['Practice one example.'] }] }),
+            '```',
+            '```oshal:download',
+            JSON.stringify({ url: 'https://example.invalid/private.pdf', label: 'Do not create an outbound action' }),
+            '```',
+          ].join('\n\n'),
+          grounded: true,
+          sources: [{ n: 1, text: 'Approved class material' }],
+        }),
+      });
+    });
+
+    await page.goto(`${BASE}/api/education/tutor`);
+    await page.locator('#input').fill('Show me a review note.');
+    await page.locator('#sendBtn').click();
+
+    const answer = page.locator('#messages .msg.tutor').last();
+    await expect(answer.locator('.rr-doc')).toHaveCount(1);
+    await expect(answer.locator('.rr-doc-title')).toHaveText('Algebra review');
+    await expect(answer).toContainText('Practice one example.');
+    await expect(answer.locator('.rr-fallback[data-oshal-kind="download"]')).toHaveCount(1);
+    await expect(answer.locator('.read-btn')).toHaveCount(1);
+    await expect(answer).toContainText('Grounded in your class textbook');
+    await expect(answer.locator('a,form,input,script,iframe')).toHaveCount(0);
   });
 });
 

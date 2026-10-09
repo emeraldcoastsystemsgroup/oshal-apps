@@ -36,11 +36,12 @@
  * -----------------------------------------------------------------------------
  * 2026-08-01 17:45:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — carved the DDL out of payroll-store.ts and added the v2 entities: employer + employee legal identity (encrypted EIN/SSN with last-4 for display), worker classification and org placement, direct-deposit accounts, effective-dated deduction elections, per-check earning and deduction ROWS, payment records, and an append-only change audit log.
  * 2026-08-02 04:30:00 | maintainer@emeraldcoastsystemsgroup.com | v2.2 settlement: payroll_ach_events (imported returns and notifications of change) and payroll_filings (which artifact was produced when, and for what period). Payments gain the bank's answer — return code, reason, date, NOC change code — plus an index on ach_trace, because the trace is the ONLY handle a return gives back and matching one is a lookup on it. A unique index on the return trace stops the same return file, imported twice, counting anyone as unpaid twice. Company gains the check-number sequence and the EFW2 submitter identity (BSO User ID, contact, kind of employer, employment code).
+ * 3                   | maintainer@emeraldcoastsystemsgroup.com | The bootstrap runs under a package-owned advisory lock (PAYROLL_SCHEMA_LOCK_KEY). Every guarded request calls ensurePayrollSchema, so the company view's parallel first reads on a fresh database ran the same CREATE TABLE IF NOT EXISTS concurrently, which Postgres does not make race-safe: the loser raised 23505 on pg_type_typname_nsp_index and its request failed (seen twice in the acceptance sandbox). With lockKey the kernel applies the statements in one transaction behind pg_advisory_xact_lock, so concurrent bootstraps run one at a time.
  *
  * @module payroll-schema
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EDITABLE_KINDS = exports.KIND_VOID = exports.KIND_FINAL = exports.KIND_OFFCYCLE = exports.KIND_REGULAR = exports.RUN_PAID = exports.RUN_DRAFT = void 0;
+exports.PAYROLL_SCHEMA_LOCK_KEY = exports.EDITABLE_KINDS = exports.KIND_VOID = exports.KIND_FINAL = exports.KIND_OFFCYCLE = exports.KIND_REGULAR = exports.RUN_PAID = exports.RUN_DRAFT = void 0;
 exports.ensurePayrollSchema = ensurePayrollSchema;
 const database_1 = require("@/shared/services/database");
 const payroll_tax_tables_1 = require("./payroll-tax-tables");
@@ -60,11 +61,32 @@ exports.KIND_FINAL = 'final';
 exports.KIND_VOID = 'void';
 /** Kinds that behave as a normal editable draft. */
 exports.EDITABLE_KINDS = [exports.KIND_REGULAR, exports.KIND_OFFCYCLE, exports.KIND_FINAL];
-/** Create/upgrade every payroll table (idempotent), with RLS at the chokepoint. */
+/**
+ * Advisory-lock key for the payroll schema bootstrap, owned by this package.
+ *
+ * The kernel reserves its own keys in SCHEMA_LOCK_KEYS (the 4711xxxx block:
+ * 47110001 work items ... 47110009 trading). Package keys stay out of that
+ * block so a new kernel key can never collide with one: this package uses the
+ * 4712xxxx block, and 0123 is the payroll design record (ADR-123). The value
+ * must stay stable across releases — two installs of different versions on one
+ * database have to serialise on the SAME key.
+ */
+exports.PAYROLL_SCHEMA_LOCK_KEY = 47120123;
+/**
+ * @description Create/upgrade every payroll table (idempotent), with RLS at the
+ * chokepoint. Every guarded request calls this, so on a fresh database several
+ * requests arrive here at once; CREATE TABLE IF NOT EXISTS is not race-safe in
+ * Postgres (the loser raises 23505 on pg_type_typname_nsp_index), hence the
+ * package-owned advisory lock that makes concurrent bootstraps run one at a time.
+ * @param pool - The package's database pool from the app context.
+ * @returns Resolves once the schema is applied (or validated, under a
+ * validate-only bootstrap policy).
+ */
 async function ensurePayrollSchema(pool) {
     await (0, database_1.runRuntimeSchemaBootstrap)({
         pool,
         moduleName: 'payroll schema',
+        lockKey: exports.PAYROLL_SCHEMA_LOCK_KEY,
         statements: [
             /* ── company ─────────────────────────────────────────────────────── */
             `CREATE TABLE IF NOT EXISTS payroll_company (

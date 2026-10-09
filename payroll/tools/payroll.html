@@ -23,17 +23,53 @@
   })();
 </script>
 <link rel="stylesheet" href="/fonts/codicon.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/midnight.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/daylight.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/ocean.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/sakura.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/forest.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/gray.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/black.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/light-blue.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/aurora.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/graphite.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/amber.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shell opens this page with ?audience=company: the pay picture (open
+     runs, last net, roster, payments pending) from the same routes as the full page, painted by the shared kit.
+     Any other request runs the full Payroll page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  function call(path, body) {
+    var opt = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' } : { credentials: 'same-origin', headers: { Accept: 'application/json' } };
+    return fetch('/api/payroll' + path, opt).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.message || j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; }); });
+  }
+  function openFull(query) { window.location.assign(window.location.pathname + (query || '')); }
+  function cents(v) { return (Number(v) || 0) / 100; }
+  function name(e) { return e.name || [e.first_name, e.last_name].filter(Boolean).join(' ') || e.employee_id || 'Employee'; }
+  function company(ctx) {
+    return Promise.all([call('/company').catch(function () { return {}; }), call('/employees').catch(function () { return { employees: [] }; }), call('/runs'), call('/home-summary').catch(function () { return null; })]).then(function (r) {
+      var co = (r[0] && r[0].company) || {}, taxYear = r[0] && r[0].taxYear, employees = r[1].employees || [], runs = r[2].runs || [], summary = r[3];
+      var drafts = runs.filter(function (x) { return x.status === 'draft'; }), settled = runs.filter(function (x) { return x.status !== 'draft' && x.status !== 'void'; });
+      var active = employees.filter(function (e) { return !e.status || e.status === 'active'; });
+      var metric = function (id) { return (summary && summary.metrics || []).filter(function (m) { return m.id === id; })[0]; };
+      var stats = [
+        { id: 'employees', label: 'Employees', value: active.length, hint: employees.length !== active.length ? employees.length + ' on file' : null },
+        { id: 'drafts', label: 'Runs to review', value: drafts.length, tone: drafts.length ? 'warn' : null },
+        { id: 'lastNet', label: settled[0] ? 'Net paid ' + A.date(settled[0].pay_date) : 'Net paid', value: settled[0] ? A.money(cents(settled[0].total_net_cents)) : '\u2014' }
+      ];
+      var pending = metric('pending-payments'); if (pending) stats.push({ id: 'pending', label: pending.label, value: pending.value, tone: /^[1-9]/.test(String(pending.value)) ? 'warn' : null });
+      var returned = metric('returned-payments'); if (returned && /^[1-9]/.test(String(returned.value))) stats.push({ id: 'returned', label: returned.label, value: returned.value, tone: 'bad' });
+      return {
+        kicker: 'Payroll', title: co.company_name || 'Payroll',
+        lede: employees.length + ' employees' + (co.pay_frequency ? ' \u00b7 paid ' + co.pay_frequency : '') + (co.state_code ? ' \u00b7 ' + co.state_code : '') + (taxYear ? ' \u00b7 tax year ' + taxYear : ''),
+        actions: [{ label: drafts.length ? 'Review the open run' : 'Run payroll', primary: true, onClick: function () { openFull(); } }],
+        stats: stats,
+        sections: [
+          { kind: 'table', id: 'runs', title: 'Pay runs', empty: 'No pay runs yet.', columns: ['Period', 'Pay date', 'Status', { label: 'Gross', align: 'right' }, { label: 'Net', align: 'right' }],
+            rows: runs.slice(0, 8).map(function (x) { return [A.date(x.period_start) + ' \u2013 ' + A.date(x.period_end), A.date(x.pay_date), { text: x.status || '', tone: x.status === 'draft' ? 'warn' : x.status === 'void' ? 'bad' : 'ok' }, { text: A.money(cents(x.total_gross_cents)) }, { text: A.money(cents(x.total_net_cents)) }]; }) },
+          { kind: 'list', id: 'roster', title: 'Roster', empty: 'No employees yet.', items: employees.slice(0, 12).map(function (e) { return { title: name(e), text: [e.state_code, e.hourly_rate_cents ? A.money(cents(e.hourly_rate_cents)) + '/h' : ''].filter(Boolean).join(' \u00b7 '), badge: e.status || 'active', tone: e.status && e.status !== 'active' ? 'warn' : null }; }) }
+        ]
+      };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'payroll', escapeLabel: 'Open Payroll in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
   :root {
     color-scheme: light dark;
@@ -1186,7 +1222,8 @@ async function loadHolidays(btn) {
 }
 
 /* ── boot ─────────────────────────────────────────────────────────────── */
-(async () => {
+// The full page only: under an audience view the shared kit paints instead (see the head script).
+if (!window.AppView || !AppView.active()) (async () => {
   try { await loadCompany(); await loadEmployees(); await loadRuns(); }
   catch (e) { msg(e.status === 401 ? 'Sign in to use Payroll.' : e.message, true); }
 })();

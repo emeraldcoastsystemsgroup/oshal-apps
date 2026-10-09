@@ -58,6 +58,15 @@
  *            | keyed tables (owner-RLS at the lazy-DDL chokepoint). The engine, the drone-node
  *            | server, and the drone-operator inline node stay framework-resident (ADR-099:
  *            | drones ARE swarm nodes).
+ * 2026-09-29 02:50:00 | maintainer@emeraldcoastsystemsgroup.com | ADR-169 L6 (D6): live position and
+ *            | home are for the group that owns the drone's location data. GET /state, GET /fleet
+ *            | and GET /fleet/:droneId/state return `position` and `home` only when the kernel's
+ *            | `locatedDevice('drone', id)` (uses: location) answers for the caller, which it does
+ *            | for a member of the group the drone is enrolled to and for nobody else, including
+ *            | every viewer of a drone that is not enrolled at all; otherwise both are null and
+ *            | `positionWithheld` is true. A caller without a verified issuer (a service caller
+ *            | asserting a subject) is withheld too. Everything else in the telemetry, the fence
+ *            | and the command rail is unchanged; the surface hides a withheld drone's marker.
  * ---------------------------------------------------------------------------
  * @module drone-routes
  */
@@ -100,6 +109,7 @@ import {
 } from '@/features/drone';
 import { extractEnvelopeJson, sayOr } from '@/app/routes/concierge-envelope';
 import { ConciergeStore } from '@/app/routes/concierge-store';
+import { locatedDevice } from '@/features/location';
 
 const logger = createChildLogger({ module: 'drone-routes' });
 
@@ -273,6 +283,49 @@ function checkShowDraft(raw: unknown, drone: DroneService): { timeline: ShowTime
   return all.length ? { timeline: null, errors: all } : { timeline, errors: [] };
 }
 
+// ── Position scoping (ADR-169 L6, D6) ────────────────────────────────────────
+
+/** Telemetry as the three read routes return it: position and home only for the drone's group. */
+type ScopedTelemetry = Omit<DroneTelemetry, 'position' | 'home'> & {
+  position: GeoPoint | null;
+  home: GeoPoint | null;
+  /** Present, and true, when the caller may not see where this drone is. */
+  positionWithheld?: true;
+};
+
+/**
+ * @description Whether the caller may see where a drone is: a member of the group that owns the
+ * drone's location record (the kernel's `locatedDevice`, row-level security deciding). A drone
+ * enrolled nowhere is withheld from everyone; a caller with no verified issuer (a service caller
+ * asserting a subject) is withheld too. Never throws: a read that fails is a "no" that is logged.
+ * @param pool - The app's GUC-wrapped pool (the read acts for the ambient request identity).
+ * @param droneId - The fleet id, which is the location record's reference.
+ * @returns True when position and home may be returned.
+ */
+async function positionVisible(pool: Pool, droneId: string): Promise<boolean> {
+  try {
+    return (await locatedDevice(pool, 'drone', droneId)) !== null;
+  } catch (err) {
+    const name = (err as { name?: string })?.name;
+    if (name === 'LocationPrincipalError') {
+      logger.debug({ droneId }, 'drone position withheld: the caller has no verified identity for the location read');
+    } else {
+      logger.warn({ err, droneId }, 'drone position withheld: the location record could not be read for this caller');
+    }
+    return false;
+  }
+}
+
+/**
+ * @description The telemetry with position and home stripped for a caller who may not see them.
+ * @param t - Live telemetry.
+ * @param visible - The answer of {@link positionVisible}.
+ * @returns The same telemetry, or a copy with position and home null and `positionWithheld` set.
+ */
+function scopeTelemetry(t: DroneTelemetry, visible: boolean): ScopedTelemetry {
+  return visible ? t : { ...t, position: null, home: null, positionWithheld: true };
+}
+
 // ── Router ───────────────────────────────────────────────────────────────────
 
 export function createDroneRoutes(ctx: AppContext): Router {
@@ -375,7 +428,10 @@ export function createDroneRoutes(ctx: AppContext): Router {
       if (err) { logger.error({ err, appHtml }, 'Failed to serve drone-ops.html'); res.status(404).send('Page not found: drone-ops.html'); }
     });
   });
-  router.get('/state', viewer(async (_req, res) => { res.json(drone.getState()); }));
+  router.get('/state', viewer(async (_req, res) => {
+    const s = drone.getState();
+    res.json({ ...s, telemetry: scopeTelemetry(s.telemetry, await positionVisible(pool, s.droneId)) });
+  }));
   router.get('/events', viewer(async (req, res) => {
     res.json({ events: drone.getEvents(Number(req.query.since) || 0) });
   }));
@@ -384,7 +440,12 @@ export function createDroneRoutes(ctx: AppContext): Router {
   }));
 
   // ── Fleet plane (ADR-099): every known drone + per-drone routes ────────────
-  router.get('/fleet', viewer(async (_req, res) => { res.json({ fleet: drone.listFleet(), fence: drone.fence }); }));
+  router.get('/fleet', viewer(async (_req, res) => {
+    const fleet = await Promise.all(drone.listFleet().map(async (f) => ({
+      ...f, telemetry: f.telemetry ? scopeTelemetry(f.telemetry, await positionVisible(pool, f.droneId)) : null,
+    })));
+    res.json({ fleet, fence: drone.fence });
+  }));
 
   // Fleet-wide abort: the confirm-exempt safety sweep (stopping missions only makes the
   // vehicles safer). The show conductor is frozen FIRST so it can't re-dispatch cues into
@@ -509,7 +570,9 @@ export function createDroneRoutes(ctx: AppContext): Router {
     res.json({ mission: r.rows[0] });
   }));
   router.get('/fleet/:droneId/state', viewer(async (req, res) => {
-    res.json(drone.getState(String(req.params.droneId)));
+    const id = String(req.params.droneId);
+    const s = drone.getState(id);
+    res.json({ ...s, telemetry: scopeTelemetry(s.telemetry, await positionVisible(pool, id)) });
   }));
   router.get('/fleet/:droneId/events', viewer(async (req, res) => {
     res.json({ events: drone.getEvents(Number(req.query.since) || 0, String(req.params.droneId)) });

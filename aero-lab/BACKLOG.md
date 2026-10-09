@@ -28,6 +28,14 @@ What remains open is candidate promotion and validation:
   `0.0920`). That candidate must be re-sized or replaced; the failing verdict must not be hidden.
 - Validation cases A-D and the realistic 72 h mission still need to pass with the selected real
   candidate before the default can move and the reference outputs can be regenerated.
+- **The four shipped presets are certified on the real chain (1.4.0) and all four fail, each for a
+  structured reason** (the engine's `certify` command, `engine/certify_reference.py`, reasons from
+  the closed set in `engine/aerosim/validity.py`, measured 2026-09-27 on fingerprint
+  `7cb4ddce5d711136`): `tier1` and `hybrid80` `negative_airframe_mass` (the catalogued real parts
+  outweigh the all-up mass the vector bills), `fixedwing` `soc_not_persistent` (1.0000 -> 0.9318 over
+  24 h, certified aero), `r7winner` `param_out_of_bounds` (declared cell efficiency 0.2918 outside the
+  C60 diode band [0.2240, 0.2440]). `engine/tests/test_reference_certification.py` pins these
+  outcomes, so a re-sized candidate moves that record and the README together.
 
 **Done when:** a real candidate passes cases A-D and the 72 h mission with certified aero, zero
 unserved bus demand, SOC persistence and all mass/technology bounds; then make that validated real
@@ -41,7 +49,7 @@ The package points at an engine tree via `AERO_LAB_ENGINE_DIR`. Two trees exist 
 
 | tree | fingerprint | behaviour |
 |---|---|---|
-| vendored snapshot (`aero-lab/engine/`) | `603cf4c5e8d9e4c9` | runs 3 of 4 presets, reproduces the recorded numbers |
+| vendored snapshot (`aero-lab/engine/`) | `7cb4ddce5d711136` | the ideal `evaluate` answers all four presets (fixedwing and r7winner close); the real-chain `certify` fails all four for structured reasons (section A) |
 | live upstream checkout | `0a9aaab7ff87f747` | **refuses all four presets** |
 
 **Closed (1.2.1):** the documented resolution pointed at an operator-local scratchpad checkout
@@ -74,6 +82,13 @@ the ideal model waved through. Do not "fix" it by widening the band.
 
 These gate anyone actually building the craft the exporter emits.
 
+**The gate itself exists (1.4.0):** every export carries a `buildCertification` block in
+`design_snapshot.json` and `BUILD_SHEET.md` that reads **not certified** and lists the pressure,
+material, purity and mass evidence the exported design needs; `engine/build_certification.py`
+`reconcile_build_evidence(snapshot, evidence)` is the only path to certified, and each fact below is
+one of its refusal cases in `engine/tests/test_build_certification_gate.py`. What stays open is the
+physical evidence, not the rule.
+
 - **The vent / ballonet is undesigned and unbilled.** A sealed film envelope cannot take the diurnal
   superheat cycle at this scale (measured peak +25.6 K / +9.1 kPa). It needs pumpkin lobes or a
   ballonet, and that mass is in no ledger. **Any sealed build is gated on this.**
@@ -91,7 +106,24 @@ These gate anyone actually building the craft the exporter emits.
 ## D. Smaller items
 
 - **The design-space sweep must be re-run on real physics.** The paused 30k sweep was scored on the
-  ideal chain and is not a valid ranking once section A closes.
+  ideal chain and is not a valid ranking once section A closes. The driver now ships:
+  `engine/sweep_real.py` (seeded sha256 sampler over `service.BOUNDS` with the seed and sample hash
+  in the header, `build_solar_cruise(chain="real")`, structured reasons, every record stamped with
+  the tree fingerprint, resumable JSONL, `verify_survivor` on the top-N;
+  `engine/tests/test_sweep_real_determinism.py`). On the pinned 20-design subset every design
+  refused at build (11 `pack_claim_outside_catalogue_band`, 6 `technology_beyond_catalogue`,
+  3 `param_out_of_bounds`; `engine/TEST_STATUS.md`).
+  **Done when** the 30k run is complete and recorded with its fingerprints:
+
+  ```sh
+  cd aero-lab/engine
+  .venv/Scripts/python.exe sweep_real.py --out output/sweep-real-30k.jsonl --n 30000 --seed 20260927 --resume
+  .venv/Scripts/python.exe sweep_real.py --out output/sweep-real-30k.jsonl --n 30000 --seed 20260927 --resume --verify-top 10 --report
+  ```
+
+  (`output/` is gitignored store-wide), and `engine/TEST_STATUS.md` carries the report (outcome
+  counts, reason-code histogram, top-N with their verify records) against the header's
+  `treeFingerprint`.
 - **`node scripts/check-store-separation.mjs .` fails repo-wide** on a top-level `_walkthrough-shots/`
   directory (gitignored screenshot debris). Pre-existing and unrelated to this package; aero-lab
   itself passes.
@@ -118,3 +150,42 @@ container with no operator step — either the package declares a post-install c
 runs, or the first engine call builds and starts it — and the refusal path is unchanged when that
 cannot happen (capabilities false, the exact command, no fabricated numbers). The store-wide half of
 this is core BACKLOG "Package-owned engine containers need a documented pattern" (2026-09-14).
+
+---
+
+## F. The Floater record (ADR-160 S4) — what 1.3.0 left open
+
+1.3.0 put a record around the generator (`GET /api/aero-lab/vehicles`, `migrations/001-aero-lab.sql`):
+the Floater reads `sized` at the committed vector with evaluation 1 (the export run) behind it, and
+the mass budget is **red at +274.3 g** — real parts (`V2_CONFIG.md` as-built 2272.4 g) against the
+certified ledger (`BOM.csv` 1998.1 g). Open:
+
+- **The budget has to close before `parts-complete`.** Re-size the design vector at the real parts
+  (section A's real-chain promotion is the same work seen from the engine side), record the
+  evaluation at that vector through the record, and the check goes green. Done when an evaluation at
+  the current vector carries a green budget check and the stage reads `parts-complete`.
+- **A new export run is not yet recorded as an evaluation.** `POST /export` still writes files to a
+  per-run temp dir and forgets them; the record's evaluation 1 is the committed folder read back.
+  Done when an export run posts itself as evaluation N with the same fingerprints and hashes.
+- **No parts model.** `parts-complete` also needs every part printed (material, print notes, mass, a
+  CAD program) or bought (mass, price, a source line); `BOM_v2.csv` is the bought half as prose.
+- **The cross-lab shape guard (ADR-160 S5b).** The record's column set, the stage enum and the medium
+  ids here must not drift from ocean-lab's record when it lands; a read-only store-root check, not a
+  runtime import.
+
+---
+
+## The assistant cannot call its route-backed tools yet (2026-10-06)
+
+Since core #1101 and #1103 (2026-10-06), `aero-designer` answers the deployment operator's chat on the
+operator's own Antigravity login, from the shared concierge node. One chat turn as the operator on 2026-10-06 confirmed it.
+Its 6 tools are route-backed (`executorType: api`): `aero-capabilities`, `aero-polar`, `aero-evaluate`, `aero-screen`, `aero-export`, `draft-aero-design`.
+Core documents that a route-backed tool answers 401 when a bot calls it (core
+`docs/security/remote-application-execution.md`, "Limits"), and Scene Studio's director hit exactly
+that before 0.2.0. No tool call from this package's assistant has been run yet.
+
+- **Done when:** every tool the assistant is meant to call is a package tool
+  (`executor: { executorType: builtin, builtinKey: package }`) bound in an ADR-149 authorization
+  catalog (this package has none yet, so that means writing `authorization.yaml`), the bot is bound in `bindings.bots` (core `docs/apps/package-tools.md`), and one live chat
+  turn as the operator runs a tool and its result is checked against the app's own state. Scene
+  Studio 0.2.0 is the worked example.

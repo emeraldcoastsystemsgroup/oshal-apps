@@ -44,6 +44,12 @@ SEQ                 | AUTHOR                      | DESCRIPTION
   |                                           | heater, C60 diode PV/MPPT/harness and BEMT
   |                                           | motor/ESC/harness path from aerosim.real_chain;
   |                                           | the legacy ideal model is named explicitly.
+4 | maintainer@emeraldcoastsystemsgroup.com   | The mass-closure refusal carries a
+  |                                           | structured negative_airframe_mass reason
+  |                                           | (aerosim.validity) with the element, wing,
+  |                                           | as-flown and remainder masses, attached at the
+  |                                           | raise; the real-chain wrap keeps its typed
+  |                                           | cause via `from exc`, which reason_of follows.
 
 aerosim.validate_designs -- the vehicles the validation gate flies.
 
@@ -86,6 +92,7 @@ from . import validate_bounds as bounds
 from .env import atmosphere, day_length_h, make_uniform_field
 from .integrate import EnvBundle
 from .real_chain import build_real_solar_chain
+from .validity import attach as _attach_reason
 from .vehicle import (
     CELL_SI_ANODE_AMPRIUS_WH_PER_KG,
     PACK_ATLANTIKSOLAR_WH_PER_KG,
@@ -494,13 +501,15 @@ def build_solar_cruise(
     )
     structure_mass_kg = design.mass_all_up_kg - element_mass_kg
     if structure_mass_kg <= 0.0:
-        raise ValidationError(
+        raise _attach_reason(ValidationError(
             f"{design.name}: declared element mass {element_mass_kg:.3f} kg "
             f"(of which wing {wing_mass_kg:.3f} kg) exceeds the as-flown "
             f"{design.mass_all_up_kg:.3f} kg -- the fuselage/boom/tail would have "
             f"to weigh {structure_mass_kg:.3f} kg. The honest wing bill cannot be "
             f"absorbed by this design point."
-        )
+        ), "negative_airframe_mass", element_mass_kg=element_mass_kg,
+            wing_mass_kg=wing_mass_kg, as_flown_kg=design.mass_all_up_kg,
+            structure_kg=structure_mass_kg)
 
     surface.incidence_deg = surface.best_endurance_alpha_deg(
         reference.V_ms, float(atmo.rho_kgm3), float(atmo.mu_Pas)

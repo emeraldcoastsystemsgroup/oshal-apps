@@ -443,7 +443,8 @@ def cmd_add_url(a):
 
 def cmd_stories(a):
     """Role-anchored story review (ADR-141 D7). `list` reports every role with its stories and
-    which role is next; `answer` attaches ONE story to ONE role from the candidate's own words.
+    which role is next; `answer` attaches ONE story to ONE role from the candidate's own words;
+    `remove-marked` removes only the stories an automated acceptance run marked with its tag.
     Prints ONE JSON line so the API can trust the last line of stdout."""
     action = (a.action or "list").strip()
     if action == "list":
@@ -457,6 +458,14 @@ def cmd_stories(a):
             result = stories.record(int(a.role), a.response or "")
         except Exception as e:  # noqa: BLE001 — the review must answer, never crash the child
             print(stories.as_json({"ok": False, "error": f"story record failed: {str(e)[:160]}"}))
+            return
+        print(stories.as_json(result))
+        return
+    if action == "remove-marked":
+        try:
+            result = stories.remove_marked(a.tag or "")
+        except Exception as e:  # noqa: BLE001 — the cleanup must answer, never crash the child
+            print(stories.as_json({"ok": False, "error": f"story removal failed: {str(e)[:160]}"}))
             return
         print(stories.as_json(result))
         return
@@ -818,9 +827,10 @@ def build_parser():
     s.set_defaults(func=cmd_seturl)
 
     s = sub.add_parser("stories", help="role-anchored story review — one defensible story per job title (JSON)")
-    s.add_argument("action", nargs="?", default="list", choices=["list", "answer"])
+    s.add_argument("action", nargs="?", default="list", choices=["list", "answer", "remove-marked"])
     s.add_argument("--role", type=int, default=None, help="role index from `stories list`")
     s.add_argument("--response", default="", help="the candidate's answer")
+    s.add_argument("--tag", default="", help="remove-marked: the acceptance run whose marked stories to remove")
     s.set_defaults(func=cmd_stories)
 
     s = sub.add_parser("classify", help="pattern-only ATS classification of a careers URL (JSON; the user-target accept/reject gate)")

@@ -1,0 +1,169 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped Rides suite (TLAB-07 "adopt existing suites": the two map suites) plus the commerce-surface suites: the readiness smoke, the map route and surface contracts, the chat-proposal hand-off boundary, the assistant-rail contract, and the 390 px Chromium commerce smoke with its real prerequisites.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register the audience view contract (ADR-164 D6): the map page's family view for the Home shell over the shared kit, the reads it makes on open, its named states and the three gated start paths.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed rides package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: map-routes
+    name: Map configuration, geocoding proxy and estimate pass-through
+    purpose: Drive the compiled Rides routes with stubbed framework imports - the keyless map provider is a real OpenStreetMap config, a Google key upgrades it, the vendored Leaflet is mounted, geocode and reverse validate input and refuse anonymous callers, and the estimate hands the map its pins and measurement.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/rides-map-routes.test.js
+    expected:
+      - With no Google key the provider is osm with a usable tile URL; an operator tile server replaces it.
+      - Geocode and reverse refuse empty, oversized or out-of-range input and anonymous callers before any provider call.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: map-surface
+    name: Map surface contract
+    purpose: Parse every inline script of the served surface and pin the real map - vendored Leaflet, no remote assets, no decorative fake map, on-demand geocoding, null fares shown as no estimate, and a retracted fare when a pin moves.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/rides-map-surface.test.js
+    expected:
+      - Every inline script parses; Leaflet ships inside the package with its licence; no CDN is referenced.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: chat-proposal-handoff
+    name: Chat booking becomes a proposal; the confirm hands off
+    purpose: Drive the compiled Rides routes with an in-memory pool and a recording provider through a chat booking, an unknown ride type, an unresolved address, a planning turn, the confirmed request and the anonymous refusal.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/rides-chat-proposal.test.js
+    expected:
+      - A chat booking returns a proposal priced by the estimate for the named ride type and makes no ride deep-link call and no rides_requests write.
+      - An address that did not resolve proposes no fare; POST /request builds the link once and records it; an anonymous caller is 401 before any query.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/rides-routes-harness.js
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: commerce-bridge
+    name: Rides assistant rail contract
+    purpose: Prove the manifest declares its surface-bridge ops from the closed vocabulary, the page loads the shared client and producer, advertises exactly the custom ops it applies, opens Uber only from the explicit request, selects the proposed ride before its card, and keeps its context digest under the contract cap.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/rides-commerce-bridge.test.js
+    expected:
+      - surface.ops lists context, set_field, field_change, custom, propose, submit and notify, all from the bridge vocabulary.
+      - The only window.open is inside requestRide(); a 300-option digest stays at or under 4000 characters.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: surface-mobile-commerce
+    name: Rides at phone width in Chromium
+    purpose: Drive the actual Rides surface and its vendored Leaflet map at 390 x 844 inside a parent frame over the compiled router and the real core bridge client - destination search and priced options, a chat booking that waits for Confirm, the floating assistant's relayed ops, and the context envelopes the parent receives.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/surface.core.spec.mjs
+    expected:
+      - No horizontal overflow; typing a destination filters the suggestions and picking one prices four rides the page scrolls to.
+      - A chat booking selects Comfort and renders a confirm card with no hand-off POST and no window.open; Confirm fires exactly one POST /request and opens Uber once; Cancel on a relayed proposal hands off nothing.
+      - The parent frame receives context envelopes with the trip, the selected ride and its fare and a submit for the confirm; the page raises no errors.
+    prerequisites:
+      - runner:playwright
+      - harness:oshal-core-root
+      - browser:chromium
+      - core:dependencies
+      - core:surface-bridge
+      - core:shared-theme-assets
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/surface.core.fixture.mjs
+        - tests/rides-routes-harness.js
+      cleanup: Close the owned Chromium process and the loopback HTTP server and restore OSHAL_MAP_TILE_URL; trips stay in the disposable in-memory pool and map tiles come from the fixture, with no database, provider, model or tile server.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its family (Home shell) and company (Business shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the family view reads only GET /api/rides/history and /home-summary, never the map config, address lookup, fare estimate, Uber link, concierge or profile, and no saved ride opens anything.
+      - The empty, capped, unknown-summary, partial, 401, 403 and failed-read states are each named; the map page's boot, the assistant rail and the handoff and connected-actions module start only without a view.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

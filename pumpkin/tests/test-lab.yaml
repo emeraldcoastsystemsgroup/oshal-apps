@@ -1,0 +1,40 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries: the static kit contract plus the family view behaviour over the real home-summary and playlist routes (two reads, plain stats and saved lines, every named state, the module script gated).
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.3.3: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its family (Home shell) and company (Business shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the family view makes two reads, GET /api/pumpkin/home-summary and GET /api/pumpkin/responses, and both routes run only owner-scoped SELECTs; it never writes, never reads the live rooms or the projector stream and never makes the pumpkin speak.
+      - Fed by the real routes, the counts read as plain stats, pinned favourites as tiles and the other saved lines as a list with plain face and source words, update times and playlist sends; no line speaks, replays or links out.
+      - A long playlist shows the newest eight favourites and twenty other lines and says where the rest are; nothing saved yet reads as nothing saved.
+      - An empty list beside a summary that counts saved lines is named as a failed read and the summary newest lines show instead; a count that could not be checked reads as not checked.
+      - Signed out, refused, every source failed, a non-JSON failure and an unreachable server each read as what they are.
+      - Under the family view the module script mounts no connected actions, binds no Refresh handler and reads nothing; the full page still runs every start step.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

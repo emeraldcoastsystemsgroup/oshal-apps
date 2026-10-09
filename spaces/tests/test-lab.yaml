@@ -1,0 +1,94 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.9.2: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 3   | maintainer@emeraldcoastsystemsgroup.com     | ADR-169 L7: register the capture-session hand-off between the two surfaces and the route's anchor on capture.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its family (Home shell) and company (Business shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the family view makes one read, GET /api/spaces/home-summary, and the real route behind it only SELECTs the caller's own scans; it never reads the scan or scene list (their GET self-heals orphaned scans with an UPDATE), a scan's dimensions, scene, artifact or geometry (each reads the whole model file), the viewer or a capture plan, and never uploads, imports, flies a drone scan or computes coverage.
+      - Fed by the package's real route, the saved scans read as plain stats (real spaces ready, practice rooms, being built, did not finish), a title ladder and tiles naming how each scan was made and where it stands; no tile opens, builds or changes anything.
+      - A count the route could not check reads Could not check while the latest scans still show, a scan query it could not run says the latest scans could not be checked, and odd rows read as what they are; signed out, refused, the route's own 503, an unreadable answer and an unreachable server each read as what they are.
+      - Under the family view the page's main script and connected-actions script bind no listener, read nothing, start no refresh and mount no offer; the full page, and a core without the kit, still run every start step.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: capture-session
+    name: Capture session reaches the upload
+    purpose: >-
+      Verify that the guided capture page remembers the id of the session its telemetry carries, and that the upload
+      page names that session on the walk-through upload and on the import, so the scan can be anchored to where it
+      was captured.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/spaces-capture-session.test.js
+    expected:
+      - The capture page remembers the session id its telemetry carries when the capture starts and again when it ends.
+      - The walk-through upload and the import each carry the remembered session, and it is forgotten once an upload has carried it.
+      - A failed upload keeps the session for the retry.
+      - No session is sent when the remembered one is older than two hours, unreadable, or the browser refuses storage, and the upload still goes.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: capture-anchor
+    name: A new scan is anchored from its capture GPS
+    purpose: >-
+      Verify that an upload naming its guided-capture session registers the scan with that session, reads the GPS the
+      session recorded through the kernel's capture join, and hands the location kernel skill's anchorMap the scan, its
+      origin, heading, footprint and capture time, as the caller; and that every other case registers the scan without
+      an anchor and says why.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/capture-anchor.core.test.js
+    expected:
+      - Readings posted to the route's own telemetry sink are read back by the kernel's capture reader, and the most accurate fix becomes the anchor's origin.
+      - The walk-through lane and the import lane each register the scan naming its session and ask for one anchor, as the caller, with the optional place.
+      - An upload with no session, a value that is not a session id, a session with no GPS fix and another person's session each register the scan without an anchor and name the reason.
+      - A refusal by the kernel registers the scan, names the refusal, and is logged without the error's message.
+      - No answer and no log line carries a coordinate.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close the loopback HTTP servers and remove the temporary scans root the capture sidecars were written under.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never

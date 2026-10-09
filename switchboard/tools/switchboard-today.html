@@ -12,6 +12,54 @@
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shell opens this page with ?audience=company: today's lines as a
+     dense board (needs reply, time-sensitive, meetings, handled, publishing queue) from the same feed and summary
+     routes as the full page, painted by the shared kit. Any other request runs the full Today page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  function call(path, body) {
+    var opt = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' } : { credentials: 'same-origin', headers: { Accept: 'application/json' } };
+    return fetch('/api/switchboard' + path, opt).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.message || j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; }); });
+  }
+  function openFull(query) { window.location.assign(window.location.pathname + (query || '')); }
+  function item(it) {
+    var tone = it.overdue ? 'bad' : it.hot ? 'warn' : null;
+    return { title: it.subject || it.person || it.kind || 'Item', text: [it.subject && it.person ? it.person : '', it.snippet || ''].filter(Boolean).join(' — '), meta: it.ts ? A.when(it.ts) : '', badge: it.overdue ? (it.badge || 'Overdue') : it.hot ? (it.badge || 'Time-sensitive') : (it.badge || it.kind || it.source || ''), tone: tone };
+  }
+  function company(ctx) {
+    return Promise.all([call('/feed?surface=1'), call('/home-summary').catch(function () { return null; })]).then(function (r) {
+      var feed = r[0] || {}, summary = r[1];
+      if (feed.connected === false) return { kicker: 'Switchboard', title: 'Wire up your lines', lede: feed.message || 'Connect mail, calendar and chat to see today on one board.', actions: [{ label: 'Connect in Switchboard', primary: true, onClick: function () { openFull(); } }] };
+      var items = feed.items || [], c = feed.counts || {}, nm = feed.nextMeeting, group = function (g) { return items.filter(function (i) { return i.group === g; }).map(item); };
+      var metric = function (id) { return (summary && summary.metrics || []).filter(function (m) { return m.id === id; })[0]; };
+      var stats = [
+        { id: 'needsReply', label: 'Needs reply', value: c.needsReply || 0, tone: c.needsReply ? 'warn' : null },
+        { id: 'timeSensitive', label: 'Time-sensitive', value: c.timeSensitive || 0, tone: c.timeSensitive ? 'warn' : null },
+        { id: 'meetings', label: 'Meetings', value: c.meetings || 0 },
+        { id: 'handled', label: 'Handled by bot', value: c.handled || 0, tone: c.handled ? 'ok' : null }
+      ];
+      ['posts-in-review', 'posts-scheduled'].forEach(function (id) { var m = metric(id); if (m) stats.push({ id: id, label: m.label, value: m.value, tone: m.tone === 'warn' ? 'warn' : null }); });
+      var sections = [
+        { kind: 'list', id: 'now', title: 'Now', empty: 'Nothing pressing.', items: group('now') },
+        { kind: 'list', id: 'today', title: 'Earlier today', empty: 'Quiet so far.', items: group('today') },
+        { kind: 'list', id: 'week', title: 'This week', empty: 'Nothing queued for the week.', items: group('week') }
+      ];
+      if (summary) sections.push({ kind: 'list', id: 'publishing', title: 'Publishing', empty: 'No posts in flight.', items: (summary.items || []).map(function (i) { return { title: i.text, tone: i.tone === 'warn' ? 'warn' : i.tone === 'bad' ? 'bad' : null }; }) });
+      var nmWhen = nm && (nm.ts || nm.start || nm.when);
+      return {
+        kicker: 'Switchboard', title: 'Today', lede: items.length + ' items on your lines' + (nm ? ' \u00b7 next meeting: ' + (nm.subject || nm.title || 'meeting') + (nmWhen ? ' ' + A.when(nmWhen) : '') : '') + (feed.workspace ? ' \u00b7 ' + feed.workspace : ''),
+        actions: [{ label: 'Refresh', onClick: function () { ctx.refresh(); } }, { label: 'Open the board', onClick: function () { openFull(); } }],
+        stats: stats, sections: sections
+      };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'switchboard', escapeLabel: 'Open Switchboard in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
   /* ── standalone fallback palette (only applies when framework tokens are absent) ──────────── */
   :root {
@@ -471,8 +519,8 @@
       load(true);
     }
   });
-  loadWorkspaces();
-  load(false);
+  // The full page only: under an audience view the shared kit paints instead (see the head script).
+  if (!window.AppView || !AppView.active()) { loadWorkspaces(); load(false); }
 })();
 </script>
 </body>

@@ -30,21 +30,53 @@
   })();
 </script>
 <link rel="stylesheet" href="/fonts/codicon.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/midnight.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/daylight.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/ocean.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/sakura.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/forest.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/gray.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/black.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/light-blue.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/aurora.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/graphite.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/amber.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shell opens this page with ?audience=company: the connected accounts
+     and their health from the same connect list and summary the full page reads, painted by the shared kit. Any other
+     request runs the full Identity Hub below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  function call(path, body) {
+    var opt = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' } : { credentials: 'same-origin', headers: { Accept: 'application/json' } };
+    return fetch('/api/identity' + path, opt).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.message || j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; }); });
+  }
+  function openFull(query) { window.location.assign(window.location.pathname + (query || '')); }
+  function list() { return fetch('/api/connect/list', { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) { if (!r.ok) throw new Error(r.status === 401 ? 'Sign in to see your connections.' : 'HTTP ' + r.status); return r.json(); }); }
+  function company(ctx) {
+    return Promise.all([list(), call('/summary').catch(function () { return null; })]).then(function (r) {
+      var providers = r[0].providers || [], summary = r[1];
+      var rows = [], expired = 0, accounts = 0;
+      providers.forEach(function (p) { (p.connections || []).forEach(function (c) { accounts++; if (c.expired) expired++; rows.push({ cells: [p.label || p.id, p.category || '', c.label || c.account || 'account', { text: c.expired ? 'Reconnect' : 'Connected', tone: c.expired ? 'bad' : 'ok' }], onClick: function () { openFull(); } }); }); });
+      var connected = providers.filter(function (p) { return p.connected; }).length;
+      var metrics = (summary && summary.metrics) || [];
+      var stats = metrics.length ? metrics.slice(0, 5).map(function (m) { return { id: m.id, label: m.label, value: m.value, tone: m.tone === 'warn' || m.tone === 'bad' ? m.tone : (m.id === 'reconnect' || m.id === 'expires-7d') && /^[1-9]/.test(String(m.value)) ? 'warn' : null }; })
+        : [{ id: 'saved-accounts', label: 'Saved accounts', value: accounts }, { id: 'reconnect', label: 'Need reconnect', value: expired, tone: expired ? 'bad' : null }, { id: 'providers', label: 'Providers connected', value: connected }];
+      var attention = summary && summary.items && summary.items.length ? summary.items.map(function (i) { return { title: i.text, tone: i.tone === 'warn' || i.tone === 'bad' ? i.tone : null, onClick: function () { openFull(); } }; })
+        : rows.filter(function (x) { return x.cells[3].tone === 'bad'; }).map(function (x) { return { title: x.cells[2] + ' needs reconnect', text: x.cells[0], tone: 'bad', onClick: function () { openFull(); } }; });
+      return {
+        kicker: 'Identity Hub', title: accounts ? 'Connected accounts' : 'No accounts connected yet',
+        lede: accounts ? connected + ' providers connected \u00b7 ' + accounts + ' accounts' + (expired ? ' \u00b7 ' + expired + ' need attention' : '') : 'Connect the services you sign in with; they appear here with their health.',
+        actions: [{ label: 'Manage connections', primary: true, onClick: function () { openFull(); } }],
+        stats: stats,
+        sections: [
+          { kind: 'list', id: 'attention', title: 'Needs attention', empty: 'Every connection is healthy.', items: attention },
+          { kind: 'table', id: 'connections', title: 'Connections', wide: true, empty: 'No connections yet.', columns: ['Provider', 'Category', 'Account', 'Status'], rows: rows }
+        ]
+      };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'identity', escapeLabel: 'Open Identity Hub in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
   :root {
-    --bg:#0a1420; --panel:#101f30; --panel2:#16293d; --line:#22384f;
-    --text:#e6f0fa; --muted:#8fa9c2; --accent:#39a0ff; --accent2:#9ed0ff;
+    --bg:var(--bg-primary,#0a1420); --panel:var(--bg-card,#101f30); --panel2:var(--bg-card-hover,#16293d); --line:var(--border-color,#22384f);
+    --text:var(--text-primary,#e6f0fa); --muted:var(--text-secondary,#8fa9c2); --accent:var(--accent-primary,#39a0ff); --accent2:var(--accent-primary-hover,#9ed0ff);
     --danger:#ff8b8b; --ok:#37d27f; --warn:#ffce6b;
   }
   * { box-sizing:border-box; }
@@ -818,7 +850,8 @@ filters?.querySelectorAll('[data-filter]').forEach((button) => {
     renderProviders();
   });
 });
-load();
+// The full page only: under an audience view the shared kit paints instead (see the head script).
+if (!window.AppView || !AppView.active()) load();
 </script>
 </body>
 </html>

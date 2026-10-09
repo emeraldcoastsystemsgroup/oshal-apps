@@ -11,31 +11,51 @@
  *                     |                             | commanded-speed fraction, and the drive options (one or two
  *                     |                             | servos, direct or through a printed belt reduction) a joint is
  *                     |                             | given — the first that holds its load with margin.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | STS3215_12V is BUILT from this package's owned row
+ *                     |                             | `sts3215-12v` in parts-catalog.json (identity, mass, price,
+ *                     |                             | source and the joint-drive block) instead of a literal here,
+ *                     |                             | so the servo is described once as data another package can
+ *                     |                             | read (ADR-152 D1). servoSpecFrom is the one translation from
+ *                     |                             | the row's published units (kg*cm, s per 60 deg) into the N*m
+ *                     |                             | and rad/s the joint sizing works in. No number moved.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DRIVE_OPTIONS = exports.BELT_EFFICIENCY = exports.SPEED_FRACTION = exports.BACKLASH_DEG = exports.DYNAMIC_ALLOWANCE = exports.CONTINUOUS_FRACTION = exports.STS3215_12V = void 0;
+exports.servoSpecFrom = servoSpecFrom;
 exports.driveOutput = driveOutput;
 exports.chooseDrive = chooseDrive;
+const parts_catalog_1 = require("./parts-catalog");
 const KGCM_TO_NM = 0.0980665;
+/**
+ * @description A servo class as a joint is sized from it, built from its owned row: the rated stall in N*m and the
+ * no-load speed in rad/s are translated here, once, from the kg*cm and seconds per 60 degrees the row publishes.
+ * @param row - The owned servo row (parts-catalog.json).
+ * @returns The servo class.
+ */
+function servoSpecFrom(row) {
+    const d = row.jointDrive;
+    return {
+        id: row.id,
+        name: row.name,
+        stallNm: d.stallKgCm * KGCM_TO_NM,
+        noLoadRadS: (Math.PI / 3) / d.secondsPer60,
+        massG: row.massG,
+        bodyMm: [d.bodyMm[0], d.bodyMm[1], d.bodyMm[2]],
+        splineOffsetMm: d.splineOffsetMm,
+        hornDiscMm: d.hornDiscMm,
+        encoder: d.encoder,
+        approxUsdEach: row.approxUsd,
+        source: row.source,
+    };
+}
 /**
  * @description The 12 V STS3215: the default joint actuator of the open SO-ARM100/101 arms. Rated 30 kg·cm stall,
  * 0.222 s per 60° at 12 V, 55 g, a 1:345 metal gearbox and a 12-bit magnetic encoder over 360° with a multi-turn
  * mode, case 45.2 × 24.7 × 35 mm. The spline offset and the horn disc are NOT in the vendor listings found: they are
- * measured on the servo in hand and changed here before the pockets are printed (one number, one place).
+ * measured on the servo in hand and changed in its row before the pockets are printed (one number, one place). Every
+ * figure is read from the row `sts3215-12v` in parts-catalog.json; a missing row fails the load.
  */
-exports.STS3215_12V = {
-    id: 'sts3215-12v',
-    name: 'Feetech STS3215 class serial-bus servo, 12 V, 1:345 metal gearbox',
-    stallNm: 30 * KGCM_TO_NM,
-    noLoadRadS: (Math.PI / 3) / 0.222,
-    massG: 55,
-    bodyMm: [45.2, 24.7, 35],
-    splineOffsetMm: 10,
-    hornDiscMm: 23,
-    encoder: '12-bit magnetic (4096 steps per turn), 0–360° plus a multi-turn mode',
-    approxUsdEach: 20,
-    source: 'rated figures and case: feetechrc.com STS3215 12 V product page (https://www.feetechrc.com/525603.html); continuous duty: robonine.com bench test (https://robonine.com/testing-of-feetech-sts3215-servomotor-backlash-repeatability-and-torque/) — stable at 15 kg·cm for 10 min, overload protection after a few cycles at 20 kg·cm, backlash about 0.87°',
-};
+exports.STS3215_12V = servoSpecFrom((0, parts_catalog_1.servoRow)('sts3215-12v'));
 /** The share of the rated stall a servo may hold continuously: the bench test ran stable at half its rating. */
 exports.CONTINUOUS_FRACTION = 0.5;
 /** A static hold is multiplied by this before it is compared: the torque to accelerate the same load. */

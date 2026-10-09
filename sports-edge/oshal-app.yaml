@@ -3,6 +3,9 @@
 # 0.7.1 | maintainer@emeraldcoastsystemsgroup.com | Add provider-derived coach subjects through the existing World cooldown and register every offline package suite.
 # 0.8.0 | maintainer@emeraldcoastsystemsgroup.com | Tell an unreachable ESPN apart from an unconnected caller: a league read that never reached ESPN answers 503 naming the transport instead of 403 "connect ESPN Fantasy", and the matchup card says whether the missing opponent is a bye or a schedule nobody could read.
 # 0.9.0 | maintainer@emeraldcoastsystemsgroup.com | Accumulate every completed week's actual stat line from the response the refresh already makes, and score it under the league's own rules as each player's `pointsHistory`. The spread model had no producer for that field, so every spread was a positional prior times a projection.
+# 0.9.2 | maintainer@emeraldcoastsystemsgroup.com | Declare world-data as the compatibility floor for the shared-world refresh route already shipped in this package.
+# 0.10.0 | maintainer@emeraldcoastsystemsgroup.com | Read ESPN fantasy leagues through the fantasy-leagues kernel skill (ADR-146 D2, operator decision 2026-09-27) instead of this package's private copy of the client, which is deleted. Declares `uses: fantasy-leagues`, so a core without the skill refuses the package at load instead of mounting a route that cannot resolve its client. Behaviour is unchanged: the same reads, URLs, headers, retries and failure classes, and the credential rule is still this package's — cookies resolved per request from the broker, handed to the skill's reads, never logged, stored or returned.
+# 0.11.0 | maintainer@emeraldcoastsystemsgroup.com | The fantasy half moved to its own package, fantasy-football (ADR-146 D1; operator decisions 2026-09-27), grouped with this one as the application group intelligent-sports. /api/sports-edge/fantasy/* answers 410 Gone with the new app's address, the Fantasy tab says where it went, and the Home summary drops its three fantasy metrics. The fantasy-leagues skill and the espn-fantasy connector are no longer declared: nothing here reads a league any more. The sports_fantasy_* tables are left in place, unread and unwritten.
 #
 # An odds maker you point at ONE TEAM. Operator, 2026-09-06, after seeing the broad-sweep design:
 # "this isn't a broad market sweep ... pick a team and fan out from there. first follow the players
@@ -46,7 +49,8 @@
 # prior-season results with neutral-site flags.
 #
 # ─────────────────────────────────────────────────────────────────────────────
-# 0.2.0 — THE FANTASY TAB. Operator asked to integrate his ESPN Fantasy account. Verified live
+# 0.2.0 — THE FANTASY TAB (moved to the fantasy-football package in 0.11.0; kept here as history).
+# Operator asked to integrate his ESPN Fantasy account. Verified live
 # 2026-09-08 before any of it was written:
 #   - the API is real and has MOVED: lm-api-reads.fantasy.espn.com answers, the old
 #     fantasy.espn.com/apis/v3 now 302s;
@@ -74,6 +78,16 @@
 
 name: sports-edge
 suite: ai-finance   # ADR-097: primary catalog shelf
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: team-news-classification
+      unit: news item
+      tier: T1
+      generation: none
+      degrade: template
 displayName: Sports Edge
 description: >-
   Follow a team and really know its next game. Sports Edge builds a line from the ground up —
@@ -81,14 +95,12 @@ description: >-
   matchup, injury reports weighted by each player's real share of team production, plus rest and
   travel — then compares that line to the book's moneyline and spread. Every call is registered
   before kickoff and graded on closing-line value, so the model has to beat the market before it is
-  allowed to stake anything. The Fantasy tab reads your ESPN league, scores ESPN'''s raw projections
-  with YOUR league'''s own rules, and sets the lineup with the best chance of beating the team you
-  actually play that week — which is not always the highest-projected one.
-version: 0.9.1
+  allowed to stake anything. Fantasy leagues moved to their own app, Fantasy Football.
+version: 0.11.1
 status: active
 # Sports Edge packages no agent; the stable framework concierge owns its right rail.
 chatBot: general-bot
-uses: [test-catalog, app-dependencies]
+uses: [test-catalog, app-dependencies, world-data]
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -112,19 +124,21 @@ smoke:
       rejectValues: [noop, stub, empty]
     requiresAi: false
 
-# ONE connector, and only for a private fantasy league. Every other read this package makes is an
-# unauthenticated public GET, so there is nothing to broker and nothing for a model to be handed.
+# NO connector. Every read this package makes is an unauthenticated public GET, so there is nothing
+# to broker and nothing for a model to be handed. (The espn-fantasy connector went with the fantasy
+# half to the fantasy-football package in 0.11.0.)
 dependencies:
   required:
     apps: []
     tools: []
     connectors: []
   optional:
-    apps: []
+    # The fantasy half moved to fantasy-football in 0.11.0; the retired /fantasy routes and the
+    # Fantasy tab point there. Optional: nothing here is broken without it, the pointer just leads
+    # nowhere until it is installed.
+    apps: [fantasy-football]
     tools: []
-    # The ESPN Fantasy cookies (SWID + espn_s2) for reading a PRIVATE league. Everything else this
-    # package does — every team model, and the whole fantasy projection feed — needs no credential.
-    connectors: [espn-fantasy]
+    connectors: []
 
 theme: midnight
 

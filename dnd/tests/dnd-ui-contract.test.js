@@ -54,6 +54,7 @@
  * 2026-07-23 13:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Keep the multi-campaign shelf wider than the legacy single-form modal at desktop sizes.
  * 2026-07-23 11:36:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Require death-save presenters to survive equivalent DM replies, retry after interruption, and explain accumulated failures.
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Load campaign selection and shared exploration in the ordered tabletop bundle.
+ * 2026-09-28 23:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Admit exactly one inline script in table.html, the audience-view boot (ADR-164 D6): it must sit in the head after the shared kit, boot the kit for this application and name no tabletop function, so game logic still lives only in the ordered classic bundle.
  */
 
 'use strict';
@@ -105,8 +106,15 @@ test('tabletop loads one ordered classic-script bundle with no application inlin
     'all configured tabletop scripts must load exactly once in their shared-global dependency order');
   loadedTableScripts.forEach(({ attributes }) => assert.doesNotMatch(attributes, /\btype\s*=\s*["']module["']/i,
     'the split files share classic-script globals and must not be loaded as isolated ES modules'));
-  assert.deepEqual(htmlScriptTags.filter(({ attributes, body }) => !/\bsrc\s*=/i.test(attributes) && body.trim()), [],
-    'application logic belongs in the extracted files, not an inline script in table.html');
+  // The one inline script is the audience-view boot (ADR-164 D6): it decides, in the head and before the bundle,
+  // whether the shared kit paints a view instead of the table; it holds no game logic.
+  const inline = htmlScriptTags.filter(({ attributes, body }) => !/\bsrc\s*=/i.test(attributes) && body.trim());
+  assert.equal(inline.length, 1, 'application logic belongs in the extracted files; the only inline script is the audience-view boot');
+  assert.match(inline[0].body, /A\.boot\(\{ app: 'dnd',/, 'the inline script boots the shared audience-view kit');
+  assert.ok(html.indexOf('/shared/ui/js/app-view.js') < html.indexOf(inline[0].body) && html.indexOf(inline[0].body) < html.indexOf('</head>'),
+    'the audience-view boot runs in the head, after the kit and before the tabletop bundle');
+  assert.doesNotMatch(inline[0].body, /(?<![.\w$])(?:api|boot|enterCampaign|showGameMenu|beginTurn|dmNarrate|newCampaign|speak)\(|DnDEngine/,
+    'the audience-view boot calls no tabletop function');
   assert.doesNotThrow(() => new Function(appScript)); // compile only; browser code is not executed
 });
 

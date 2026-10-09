@@ -14,9 +14,179 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register the brand kit: shared contract, HTTP boundary, PostgreSQL ownership and the real page, editor and Home in Chromium.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register the owner-role row-security proof: the api owns these tables and is the role that reads them, so the exact-owner policy only filters anything once the tables are FORCEd, and every other recipe here reads them through a role that is not the owner.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Extend the owner-role row-security recipe with the platform identity arm: the same policy must also be satisfiable by the oshal.current_sub / oshal.current_issuer stamp core's catalog-driven /api/me export and delete arrive with, or forcing these tables makes a person's export omit their projects and their deletion remove nothing, both reporting success.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 1.8.3 image filters: the model, renderer and workspace recipes now also cover saturation, grayscale, sepia and blur, named looks, neutral-value omission and preview-equals-export pixels.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 1.8.4 region selection: register the source-pixel coordinate model (zoom, crop, rotation, resize, stale and ambiguous refusals) and the real-pointer Chromium proof that also checks the bounded read-only Jarvis region context.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0 region regeneration: register the real-sharp compositing boundary, the HTTP admission boundary with the named fixture provider and the disposable-PostgreSQL candidate/accept/reject/cancel lifecycle; the owner-RLS and core-authorization recipes now also cover create_region_edits, project.generate and the generator role.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 1.9.1 region edit panel: register the real-Chromium proof that runs two complete generate, manual edit, regenerate, edit cycles through the real editor and the real compiled routes over a disposable PostgreSQL with the named fixture provider.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2 Edit video: the surface, New and workspace recipes now also cover the create-video-editor tile, card and quick start that open Video Studio's own editor.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | 1.9.3 audience views: register the audience-view contract and behaviour case (the view fed by the real compiled router over a strict read-only pool double).
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4 cost consent: extend HTTP, PostgreSQL and real-editor recipes with explicit cap validation, post-queue refusal, legacy compatibility and click-time disclosure snapshots; registration is not execution evidence.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 1.9.5 command-line image rails: the HTTP and PostgreSQL recipes now also expect the operator-only antigravity-cli rail to serve the operator, a refused or unavailable caller to be reported not configured with no other provider tried, and codex-cli to stay refused.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 1.9.6 Brand Graphics: register the real Home, Quick start and New launchers, the access-gated owner summary and the exact handoffs on the existing isolated Create fixture.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
+  - id: region-edit-browser
+    name: Change a region in the real editor, twice
+    purpose: Drive the real editor in Chromium through the real compiled Create routes over a disposable PostgreSQL with the named create-region-fixture-provider.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/browser/create-region-edit-proof.mjs]
+    expected:
+      - Before sending, the panel names the region, its layer and the saved revision, and the configured image service with its cost.
+      - Two complete generate, manual edit, regenerate, edit cycles land as revisions 2 and 4; every manual change is kept and the title stays editable text; undo and redo step across an accepted candidate.
+      - A delayed candidate is refused after a newer manual save locked its target and after another tab saved; reject, cancel and a provider failure leave the project as it was.
+      - Without project.generate the panel explains why and no region request is ever sent.
+      - A free disclosure captured at the click stays free across asynchronous save and a paid refresh; refusal generates nothing and only another explicit click submits a paid cap.
+      - Missing, string-valued or unsupported consent versions and missing or unknown cost classes disable region submission.
+    prerequisites: [runner:playwright, browser:chromium, harness:oshal-core-root, core:dependencies, core:shared-theme-assets, service:docker, image:postgres-16-alpine-local]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/browser/create-region-edit-fixture.mjs, tests/region-edit.fixture.mjs, tests/project-api.fixture.mjs, tests/project-postgres.fixture.mjs]
+      cleanup: Close browser contexts and loopback servers, remove the unique PostgreSQL fixture container and temporary storage; synthetic actors and a named fixture provider only.
+    limits: {timeoutMs: 300000, maxMemoryMb: 1536}
+    installation: never
+  - id: region-edit-composite
+    name: Region compositing leaves everything outside the region untouched
+    purpose: Composite real provider-shaped answers into real images with sharp and compare every decoded pixel against the mask the compositor used.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/region-edit-composite.test.mjs
+    expected:
+      - Every pixel the mask does not cover is byte-identical to the source, and every fully covered pixel is the provider's answer.
+      - An inward feather softens only inside the region; box, rotated-quad and whole-image regions replace exactly what they cover.
+      - The provider anchor is exactly the crop box; empty, non-image, SVG, GIF, oversized and size-mismatched inputs are refused.
+    prerequisites:
+      - runner:node
+      - core:dependencies
+      - harness:oshal-core-root
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/region-edit.fixture.mjs
+        - tests/project-api.fixture.mjs
+      cleanup: In-memory synthetic images only; no files, database, network or provider.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: region-edit-api
+    name: Region edit HTTP admission with a named fixture provider
+    purpose: Drive the compiled region-edit routes over real HTTP with the explicitly named create-region-fixture-provider and a strict non-writing database double.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/region-edit-api.test.mjs
+    expected:
+      - Every region route refuses a missing project.view, project.read, project.generate or project.change before decoding, storage or any provider call.
+      - Unknown fields, bad revisions, instructions and selections, bad IDs, tenant selectors and inactive identities are refused without database work.
+      - The provider report names the fixture provider and cost class, refuses the CLI transport and never generates.
+      - Provider reports advertise numeric costConsentVersion 1; malformed supplied maxCostClass values are refused before storage, provider resolution or generation.
+      - The operator-only antigravity-cli rail is reported configured for the operator; a caller the kernel refuses, or whose provider is not available to them, is reported not configured with no provider tried and no generation; codex-cli stays refused.
+    prerequisites:
+      - runner:node
+      - core:dependencies
+      - harness:oshal-core-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/region-edit.fixture.mjs
+        - tests/project-api.fixture.mjs
+      cleanup: Close loopback servers and remove owned temporary asset directories; synthetic actors and a named fixture provider only.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: region-edit-postgres
+    name: Region edit candidates, acceptance and ownership in PostgreSQL
+    purpose: Apply the real migrations to a uniquely named disposable PostgreSQL and run the whole region-edit lifecycle over HTTP with the named fixture provider.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/region-edit-postgres.test.mjs
+    expected:
+      - A candidate changes only the region; accepting it appends one child revision on the revision the person holds and records its source revision.
+      - Two generate, manual edit, regenerate, manual edit cycles keep every manual change.
+      - A late candidate never replaces a newer manual revision; replaced or locked targets are refused; cancel, failure and timeout keep the last revision.
+      - A second owner and a colliding issuer see and act on nothing, down to the forced policy; revocation during generation discards the result.
+      - One request in flight per person, a rolling daily ceiling, cleanup that keeps pending candidates, and no provider or cost for manual editing.
+      - Explicit free and paid caps permit only known compatible providers; omitted caps retain legacy paid behavior.
+      - Free-to-paid or unknown provider changes while queued fail before either generation method or accounting; the checked provider instance is used without fallback.
+      - The operator's edit on the operator-only antigravity-cli rail becomes a ready candidate; anyone else's fails region_edit_provider_unavailable with nothing generated and no other provider tried; codex-cli is still refused before generation.
+    prerequisites:
+      - runner:node
+      - core:dependencies
+      - harness:oshal-core-root
+      - service:docker
+      - image:postgres-16-alpine-local
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/project-postgres.fixture.mjs
+        - tests/project-api.fixture.mjs
+        - tests/region-edit.fixture.mjs
+      cleanup: Remove the unique fixture container and temporary storage; never connect to the installed database or a real provider.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: editor-region-select
+    name: Image region selection in source pixels
+    purpose: Prove lasso, box and whole-image regions map onto one image layer's source pixels and are re-checked before use.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/editor/region-select.test.mjs
+    expected:
+      - Canvas and source mappings are exact inverses through rotation, crop and non-uniform resize, and zoom never changes the named pixel.
+      - A region keeps naming the same source pixels when the layer later moves, resizes or turns, and is clipped to what the layer shows.
+      - Replaced, deleted, hidden, locked, re-cropped, ambiguous, malformed, oversized and too-small regions are refused with a reason.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Fresh in-memory documents only; no filesystem, provider, user-data or network operations.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: editor-region-select-browser
+    name: Select an image region with the pointer
+    purpose: Drive region mode with a real pointer in the real editor and observe the bounded context through the unchanged core bridge contract.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/browser/create-region-select-proof.mjs]
+    expected:
+      - The same lasso at 50 % and 25 % zoom names the same source pixels; the outline is drawn on the overlay only and Escape clears it.
+      - Turning the layer keeps the region and its outline follows; a crop change reports the region as stale in words; whole-image selection follows the crop.
+      - Stacked images with none selected and a locked image are refused before any region exists; no project write happens.
+      - Jarvis context carries only kind, target layer, source bounds, area, point count and readiness, with no outline points, pixels or asset references.
+    prerequisites: [runner:playwright, browser:chromium, harness:oshal-core-root, core:dependencies, core:shared-theme-assets, core:surface-bridge]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/browser/create-editor-context-fixture.mjs, tests/browser/create-editor-fixture.mjs]
+      cleanup: Close loopback servers, synthetic stores and the exact owned Chromium process; no installed data or providers.
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
   - id: editor-context
     name: Selected image layer context for Jarvis
     purpose: Exercise actual editor selection and the core surface bridge without granting editing capabilities.
@@ -138,6 +308,34 @@ cases:
       timeoutMs: 120000
       maxMemoryMb: 1024
     installation: never
+  - id: create-brand-graphics-browser
+    name: Create Brand Graphics launchers
+    purpose: Exercise actual Home and New HTML for the Brand Graphics studio, its access check and owner-summary presentation with synthetic local HTTP and real shared theme code.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/browser/create-brand-graphics-proof.mjs
+    expected:
+      - Home has one Brand Graphics studio and one Brand intro clip Quick start in Video; New's Video category has one Brand intro clip card with the owning tool identity.
+      - The owner summary waits for access; denied entries neither navigate nor request that summary, and unavailable data stays distinct from empty data.
+      - Create emits an embedded app-navigate message containing only the exact tool identity; its standalone fallback opens the exact app URL without query context.
+      - Narrow Workspace and Midnight layouts keep the entries reachable without external traffic or business mutations.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - core:shared-theme-assets
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/browser/create-theme-fixture.mjs
+      cleanup: Close every browser context and ephemeral HTTP server; reject external traffic and business mutations.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
   - id: create-workspace-browser
     name: Create workspace layout and studio handoffs
     purpose: Exercise the actual Home and New pages over isolated synthetic HTTP with real shared theme code and Chromium.
@@ -221,6 +419,7 @@ cases:
     expected:
       - Inline scripts parse and the bundled theme supplies the framework tokens.
       - Studios and starters match declared navigation; unauthorized studios are not opened or probed.
+      - The Edit video quick start and Video editor card open Video Studio's own editor tile, and that entry never reads Video's summary a second time.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -242,6 +441,7 @@ cases:
     expected:
       - Inline scripts parse and studio links match manifest routes.
       - Office starters remain owned by AI Office and access-denied cards stay locked.
+      - The Edit video card opens the Video-owned editor tile while Short video still opens generation.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -287,6 +487,7 @@ cases:
     expected:
       - Layer operations preserve independent editable snapshots.
       - Malformed geometry, sources, oversized documents and unsafe keys are refused.
+      - Image filters stay within their bounds, drop neutral values, round-trip in Create v1 JSON and every named look replaces the previous one.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -307,6 +508,7 @@ cases:
         - tests/editor/renderer-browser.test.mjs
     expected:
       - Crop, transforms, opacity, layer order and adjustments produce the expected pixels.
+      - Saturation, grayscale, sepia and blur change real pixels as named, and a filtered PNG export decodes to exactly the preview canvas.
       - PNG, JPEG and portable round trips retain declared content; unavailable assets fail honestly.
     prerequisites:
       - runner:playwright
@@ -337,6 +539,7 @@ cases:
       - Manual layered edits save, reopen, export real pixels and import an editable project.
       - Conflicts, failed autosave, denied actions and pending reads preserve drafts.
       - Live portal themes and phone canvas controls retain a working editor.
+      - A filter look and sliders are one undoable edit each, show neutral values for an unfiltered layer, and save, reopen and export unchanged.
     prerequisites:
       - runner:playwright
       - browser:chromium
@@ -434,7 +637,7 @@ cases:
       - An unstamped, mismatched-subject or mismatched-issuer read returns no rows, and a cross-owner UPDATE/DELETE changes none.
       - Writing a row for another owner is refused by WITH CHECK rather than silently dropped.
       - Removing FORCE exempts the owner immediately, which is why ENABLE alone protects nothing here.
-      - Every owned table's policy carries both identity arms and no operator arm.
+      - Every owned table's policy carries both identity arms and no operator arm, including create_region_edits.
       - Stamped only with the platform identity core arrives with, the catalog-driven /api/me export reads every owned table and the delete removes every row.
       - A second person, an unstamped connection and the empty system stamp all read and delete nothing through either arm.
     prerequisites:
@@ -467,12 +670,13 @@ cases:
         - tests/editor/project-concurrency.spec.ts
         - tests/editor/brand-authorization.spec.ts
     expected:
-      - Six app roles expose their exact actions and fixed assets.
+      - Seven app roles expose their exact actions and fixed assets.
       - >-
         Unknown paths, wrong issuers, tenant selectors, revocation and legacy management grants cannot bypass
         admission.
       - Concurrent saves retain database capacity for current authorization; queued and failed work releases its admission slot.
       - Each role gets exactly its brand kit access (read for project readers, change for editors and admins) through the real runtime.
+      - Only generator and admin carry project.generate; the six region-edit routes admit exactly the roles their bindings name before any business database work.
     prerequisites:
       - runner:vitest
       - harness:oshal-core-root
@@ -633,4 +837,32 @@ cases:
     limits:
       timeoutMs: 180000
       maxMemoryMb: 1024
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its family (Home shell) and company (Business shell) audience view through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the view reads only GET /api/create/home-summary; the company audience is the same builder as the family one.
+      - Fed the real router's answer, the view counts the account's image projects and lists each with its update time and editor link.
+      - Every refusal (401, 403, 503, non-JSON, network) is said with no figure in its place; the action opens the full page.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

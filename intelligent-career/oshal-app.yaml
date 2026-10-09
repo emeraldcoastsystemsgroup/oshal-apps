@@ -24,6 +24,11 @@
 name: intelligent-career
 kind: group
 suite: ai-knowledge   # ADR-097: primary catalog shelf
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features: []   # no model in the loop (T0)
 displayName: Intelligent Career
 description: >-
   One front door for your job search: the board, search, resume and strengthen

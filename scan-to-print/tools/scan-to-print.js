@@ -36,12 +36,29 @@
  *                     |                             | person clicks. Views the clip never showed are named, not filled.
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | The upload toast says how many views the orientation cube named
  *                     |                             | (BACKLOG B9); those photos arrive already assigned.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com   | The surface's one start path (the DOMContentLoaded boot: the
+ *                     |                             | capabilities and objects reads, every listener, the camera and
+ *                     |                             | the ADR-139 ?artifact intake that creates an object) runs only
+ *                     |                             | when no audience view renders (ADR-164 D6): under
+ *                     |                             | ?audience=company the page's head script paints the saved
+ *                     |                             | objects through the shared kit and nothing here starts. A core
+ *                     |                             | without the kit, or any other request, runs the page unchanged.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com   | Bambu Lab printers and the print service's owner settings: register one from
+ *                     |                             | its address + LAN access code, see the slicer engine's state and install
+ *                     |                             | command, choose plate / filament / nozzle, and turn per-printer auto-start
+ *                     |                             | on (a confirm that says agents' jobs will start the machine) or off.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com   | Printers are listed and registered with no object open: the boot reads
+ *                     |                             | them (without holding up the ?artifact intake), and the list, the form
+ *                     |                             | and the slicer engine note live in a Printers panel at the top of the
+ *                     |                             | object list. They used to sit inside the print step, which stays hidden
+ *                     |                             | until an object is reconstructed, so a printer for the print service
+ *                     |                             | could not be added from a fresh page.
  */
 (function () {
   'use strict';
   const BASE = '/api/scan-to-print';
   const $ = (id) => document.getElementById(id);
-  const state = { jobs: [], job: null, detail: null, capabilities: null, printers: [], viewer: null, showMask: false,
+  const state = { jobs: [], job: null, detail: null, capabilities: null, printers: [], profiles: null, viewer: null, showMask: false,
     outputEpoch: 0, outputsFresh: false, scaleDirty: false, suggestions: [] };
 
   /** One fetch helper: JSON in, JSON out, errors as Error with the server's message. */
@@ -311,29 +328,101 @@
   }
 
   // ── Printers + print ───────────────────────────────────────────────────────
+  const isBambu = (p) => p && p.kind === 'bambu-lan';
+  function modelName(p) {
+    const known = (state.profiles && state.profiles.printers || []).find((m) => m.modelId === p.device_model);
+    return known ? known.printerModel : (p.device_model || 'Bambu Lab');
+  }
+  function printerText(p) {
+    const on = p.auto_start ? ', auto-start on' : '';
+    if (!isBambu(p)) return p.label + ' (' + p.kind + ', ' + p.base_url + on + ')';
+    return p.label + ' (' + modelName(p) + ', ' + p.base_url.replace('bambu://', '') + on + ')';
+  }
+  async function loadProfiles() {
+    // Only a Bambu printer needs the slicer engine; fetched once per page unless it was unavailable.
+    if (!state.printers.some(isBambu)) { $('engine-note').hidden = true; return; }
+    if (!state.profiles || !(state.profiles.engine && state.profiles.engine.ready && !state.profiles.engine.busy)) {
+      try { state.profiles = await api('/printers/profiles'); } catch (e) { state.profiles = { printers: [], plates: [], reason: e.message }; }
+    }
+    const note = $('engine-note');
+    const needed = true;
+    const busy = !!(state.profiles.engine && state.profiles.engine.busy);
+    note.hidden = !(needed && state.profiles.engine && (state.profiles.engine.ready === false || busy));
+    note.textContent = note.hidden ? '' : (busy ? 'The slicer for Bambu Lab printers is busy: ' : 'The slicer for Bambu Lab printers is not ready: ') + (state.profiles.reason || 'unavailable') + '.';
+  }
+  function printerRow(p) {
+    const parts = [el('span', { text: printerText(p) + ' ' }), el('button', { class: 'link', text: 'status', onclick: () => printerStatus(p.printer_id) }),
+      el('button', { class: 'link', text: p.auto_start ? 'turn auto-start off' : 'turn auto-start on', onclick: () => setAutoStart(p, !p.auto_start) })];
+    if (isBambu(p)) parts.push(el('button', { class: 'link', text: 'slice settings', onclick: () => editSlice(p) }));
+    parts.push(el('button', { class: 'link danger', text: 'remove', onclick: () => removePrinter(p.printer_id) }));
+    return el('li', {}, parts);
+  }
   async function loadPrinters() {
     const out = await api('/printers');
     state.printers = out.printers;
     const sel = $('printer');
     sel.replaceChildren(el('option', { value: '', text: state.printers.length ? 'choose a printer' : 'no printers registered' }));
-    state.printers.forEach((p) => sel.appendChild(el('option', { value: p.printer_id, text: p.label + ' (' + p.kind + ', ' + p.base_url + ')' })));
-    $('slicer-note').textContent = out.slicerConfigured ? 'A slicer is configured on this swarm: G-code is produced on demand.' : 'No slicer is configured on this swarm (SCAN_TO_PRINT_SLICER_CMD). Send the STL to an OctoPrint host that slices, or download the STL and slice it yourself.';
-    const list = $('printer-list');
-    list.replaceChildren();
-    state.printers.forEach((p) => list.appendChild(el('li', {}, [
-      el('span', { text: p.label + ' · ' + p.kind + ' · ' + p.base_url + ' ' }),
-      el('button', { class: 'link', text: 'status', onclick: () => printerStatus(p.printer_id) }),
-      el('button', { class: 'link danger', text: 'remove', onclick: () => removePrinter(p.printer_id) }),
-    ])));
+    state.printers.forEach((p) => sel.appendChild(el('option', { value: p.printer_id, text: printerText(p) })));
+    $('slicer-note').textContent = out.slicerConfigured ? 'A slicer is configured on this swarm: G-code is produced on demand.' : 'No slicer is configured on this swarm (SCAN_TO_PRINT_SLICER_CMD). Send the STL to an OctoPrint host that slices, or download the STL and slice it yourself. Bambu Lab printers are sliced by the bundled engine.';
+    $('printer-list').replaceChildren(...state.printers.map(printerRow));
+    printerChosen();
+    // Model names and the engine note follow; the printer list never waits on the slicer engine.
+    loadProfiles().then(() => {
+      state.printers.forEach((p, i) => { const opt = sel.options[i + 1]; if (opt) opt.textContent = printerText(p); });
+      $('printer-list').replaceChildren(...state.printers.map(printerRow));
+    }, (e) => toast(e.message, 'error'));
+  }
+  function kindChosen() {
+    const bambu = $('p-kind').value === 'bambu-lan';
+    $('http-fields').hidden = bambu; $('bambu-fields').hidden = !bambu; $('bambu-help').hidden = !bambu;
+    $('p-url').required = !bambu; $('p-key').required = !bambu; $('p-host').required = bambu; $('p-code').required = bambu;
+  }
+  function printerChosen() {
+    const printer = state.printers.find((p) => p.printer_id === $('printer').value);
+    $('file-kind').hidden = isBambu(printer);
   }
   async function addPrinter(ev) {
     ev.preventDefault();
-    const json = { label: $('p-label').value, kind: $('p-kind').value, baseUrl: $('p-url').value, apiKey: $('p-key').value };
-    try { await api('/printers', { method: 'POST', json }); $('p-label').value = ''; $('p-url').value = ''; $('p-key').value = ''; await loadPrinters(); toast('Printer saved. The key is stored encrypted and never shown again.', 'ok'); } catch (e) { toast(e.message, 'error'); }
+    const kind = $('p-kind').value;
+    const json = kind === 'bambu-lan'
+      ? { label: $('p-label').value, kind, host: $('p-host').value, accessCode: $('p-code').value }
+      : { label: $('p-label').value, kind, baseUrl: $('p-url').value, apiKey: $('p-key').value };
+    try {
+      if (kind === 'bambu-lan') toast('Contacting the printer…', 'info');
+      await api('/printers', { method: 'POST', json });
+      ['p-label', 'p-url', 'p-key', 'p-host', 'p-code'].forEach((id) => { $(id).value = ''; });
+      await loadPrinters();
+      toast(kind === 'bambu-lan' ? 'Printer added. Its access code is stored encrypted and never shown again.' : 'Printer saved. The key is stored encrypted and never shown again.', 'ok');
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  async function setAutoStart(p, on) {
+    if (on && !window.confirm('Turn on auto-start for ' + p.label + '?\n\nJobs that agents and apps send through the print service will START this printer without anyone pressing Print. Only turn this on if the plate is cleared after every print.')) return;
+    try {
+      await api('/printers/' + p.printer_id, { method: 'PATCH', json: on ? { autoStart: true, confirm: true } : { autoStart: false } });
+      await loadPrinters();
+      toast(on ? 'Auto-start is on for ' + p.label + '.' : 'Auto-start is off for ' + p.label + '. Service jobs will wait on the printer.', 'ok');
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  async function editSlice(p) {
+    const current = p.slice_profile || {};
+    const model = (state.profiles && state.profiles.printers || []).find((m) => m.modelId === p.device_model);
+    const plates = (state.profiles && state.profiles.plates || []).join(', ');
+    const plate = window.prompt('Build plate for ' + p.label + (plates ? ' (' + plates + ')' : ''), current.plate || (model && model.defaultPlate) || 'Textured PEI Plate');
+    if (plate === null) return;
+    const filament = window.prompt('Filament profile (e.g. Bambu PLA Basic, Bambu PETG HF)', current.filament || 'Bambu PLA Basic');
+    if (filament === null) return;
+    const nozzle = window.prompt('Nozzle diameter (0.2, 0.4, 0.6 or 0.8)', current.nozzle || '0.4');
+    if (nozzle === null) return;
+    try { await api('/printers/' + p.printer_id, { method: 'PATCH', json: { sliceProfile: { plate, filament, nozzle } } }); await loadPrinters(); toast('Slice settings saved for ' + p.label + '.', 'ok'); } catch (e) { toast(e.message, 'error'); }
   }
   async function removePrinter(id) { try { await api('/printers/' + id, { method: 'DELETE' }); await loadPrinters(); } catch (e) { toast(e.message, 'error'); } }
   async function printerStatus(id) {
-    try { const out = await api('/printers/' + id + '/status', { method: 'POST' }); toast(out.printer.label + ': ' + out.status.state, 'ok'); } catch (e) { toast('Printer did not answer: ' + ((e.body && e.body.status && e.body.status.state) || e.message), 'error'); }
+    try {
+      const out = await api('/printers/' + id + '/status', { method: 'POST' });
+      const d = out.status.detail || {};
+      const extra = isBambu(out.printer) ? (d.percent != null && out.status.state === 'printing' ? ' · ' + d.percent + '%, ' + d.remainingMinutes + ' min left' : '') + (d.signatureRequired ? ' · starts only from the printer (Developer Mode off)' : ' · oshal can start prints') : '';
+      toast(out.printer.label + ': ' + out.status.state + extra, 'ok');
+    } catch (e) { toast('Printer did not answer: ' + ((e.body && e.body.status && e.body.status.detail && e.body.status.detail.message) || (e.body && e.body.status && e.body.status.state) || e.message), 'error'); }
   }
   function renderPrint(artifacts) {
     $('print-step').hidden = !artifacts.stl || !state.outputsFresh;
@@ -347,12 +436,14 @@
     const fileKind = $('file-kind').value;
     const startPrint = $('start-print').checked;
     const printer = state.printers.find((p) => p.printer_id === printerId);
-    const ok = window.confirm('Send "' + state.job.title + '" as ' + fileKind.toUpperCase() + ' to ' + printer.label + (startPrint ? ' AND START PRINTING' : '') + '?\n\nThis leaves the swarm and reaches your printer host.');
+    const what = isBambu(printer) ? 'sliced for ' + modelName(printer) : 'as ' + fileKind.toUpperCase();
+    const ok = window.confirm('Send "' + state.job.title + '" ' + what + ' to ' + printer.label + (startPrint ? ' AND START PRINTING' : '') + '?\n\nThis leaves the swarm and reaches your printer' + (isBambu(printer) ? ' over your home network.' : ' host.'));
     if (!ok) return;
     try {
       $('send').disabled = true;
       const out = await api('/jobs/' + state.job.job_id + '/print', { method: 'POST', json: { printerId, fileKind, startPrint, confirm: true } });
-      toast(out.outcome.message, 'ok');
+      const est = out.outcome.estimate;
+      toast(out.outcome.message + (est ? ' About ' + Math.round(est.printSeconds / 60) + ' min' + (est.filamentGrams ? ', ' + est.filamentGrams + ' g.' : '.') : ''), 'ok');
       await loadSubmissions();
     } catch (e) { toast(e.message, 'error'); await loadSubmissions(); } finally { $('send').disabled = !state.outputsFresh; }
   }
@@ -525,10 +616,16 @@
     }));
     $('reconstruct').addEventListener('click', reconstruct);
     $('printer-form').addEventListener('submit', addPrinter);
+    $('p-kind').addEventListener('change', kindChosen);
+    kindChosen();   // a browser may restore the selected kind without firing 'change'
+    $('printer').addEventListener('change', printerChosen);
     $('send').addEventListener('click', sendToPrinter);
     await loadJobs().catch((e) => toast(e.message, 'error'));
+    loadPrinters().catch((e) => toast(e.message, 'error'));
     const ref = new URLSearchParams(location.search).get('artifact');
     if (ref) await intakeArtifact(ref);
   }
-  document.addEventListener('DOMContentLoaded', boot);
+  // The full page only: under an audience view (?audience=company) the shared kit paints instead (see the page's head
+  // script), so no capability or object read, no listener, no camera and no ?artifact intake (which creates an object) starts.
+  if (!window.AppView || !AppView.active()) document.addEventListener('DOMContentLoaded', boot);
 })();

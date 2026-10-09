@@ -1,5 +1,9 @@
 # Portrait Studio — an OSHAL app package
 
+1.15.4 follows the same image rule as Create (core ADR-130 amendment 2026-10-02: the render bot's own harness picks the image rail). When the kernel resolves the operator-only `antigravity-cli` rail and it reports itself available for the caller, portraits render on it; anyone the kernel has no provider for, or whose provider is not available to them, gets `portrait_provider_unavailable` (503 before a row is queued, configured:false on `GET /provider`, a failed row in a queued run) and no other provider is tried. `codex-cli` stays refused by name. Proven by `tests/authorization.spec.ts` (Test Lab case `application-permission-http`).
+
+1.15.3 adds the company audience view beside the family one (ADR-164 D6): Studio, Orbit and Commons (the Business shells) open this package's first surface with `?audience=company`, and the shared kit paints the same account-scoped card in the company grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 Version 1.13.0 requires explicit imported application roles. See [authorization and ownership](AUTHORIZATION.md) for independent view/read/create/change/delete grants, legacy ownership migration, and current email/CLI transport limits.
 
 Turn any photo into a portrait worth framing.
@@ -36,6 +40,31 @@ existing short-lived artifact handles. This requires core's ADR-139 Stage 4a pic
   it is sanitized. Those counts are the test-enforced contract
   (`tests/catalog-invariants.spec.js`), not a brochure number. Put the crown on
   the LinkedIn headshot. We won't judge.
+
+## Family view for the Home shell (1.15.2)
+
+The Home (Jarvis) shell opens the studio's surface, `/api/portrait-studio/app`, with
+`?audience=family`. The page then shows the signed-in account's saved portraits through the shared
+audience-view kit (ADR-164 D6) in plain words: how many are ready to see, waiting or being made, and
+did not finish, and when the last one was started; the newest ready portraits as tiles that open the
+picture in a new tab; the portraits on the way (a queued one reads "Waiting its turn", never "Being
+made now"); and the ones that did not finish. Signed out (401), refused (403), a failed read, an
+answer that is not JSON and an unreachable server each read as what they are. The route lists the
+newest 60 portraits, so when that list is full the counts say so ("Newest 60 checked").
+
+On open the view makes two reads: `GET /portraits` (the gallery list the full page reads) and
+`GET /catalog` (static style names; without it a portrait keeps its style id). It never reads
+`/provider`, which runs the image provider's live credential probe, nor `/permissions`, the Create
+brand kit or an artifact handle, and it never generates, renames, deletes, exports or emails. Both
+inline body scripts, the brand-kit read and the studio start, run only when no audience view renders;
+any other request runs the full studio unchanged, and so does a core without the kit. The
+authorization catalog is unchanged: both reads were already bound (`list-portraits`, `style-catalog`).
+
+```text
+node --test portrait-studio/tests/audience-view.test.cjs
+node --test portrait-studio/tests/portrait-brand.test.js
+OSHAL_FRAMEWORK=<core-checkout> node scripts/audience-views.browser.cjs portrait-studio
+```
 
 ## Group mode (v1.5.0)
 
@@ -128,19 +157,26 @@ rendered dead.
 
 The engine is chosen by `STORYBOARD_IMAGE_PROVIDER`, same as the Video Studio
 storyboard stage — **fail-closed**, never silently falling to a paid vendor.
-Unset, the default is demo-aware (ADR-130): `codex-cli` when the deployment
-runs `DEMO_MODE=true`, `codex` otherwise. Portrait Studio refuses the subject-only CLI rail; configure a supported platform image provider:
+Unset, the default is demo-aware (ADR-130, amended 2026-10-02): with `DEMO_MODE=true` the render
+bot's own harness picks the rail (`antigravity-cli` -> `antigravity-cli`, `openai-codex` -> `codex-cli`,
+any other harness refused), `codex` otherwise. Portrait Studio accepts the operator-only
+`antigravity-cli` rail for the operator, refuses `codex-cli` by name, and tells anyone the kernel has
+no provider for that the engine is not configured, with no fallback:
 
 | provider | model | needs |
 |---|---|---|
+| `antigravity-cli` (operator only) | the render bot's own Antigravity harness (`generate_image`) — **free**, subscription-included | `DEMO_MODE=true` + the caller in `OSHAL_OPERATOR_SUBS` (the demo carve, enforced at the bot node) + the app-boot executor + a render bot whose own provider is `antigravity-cli`; everyone else gets `portrait_provider_unavailable` |
 | `codex-cli` (unavailable for this protected package) | the render bot's boot codex model (fleet `gpt-5.5`) via the swarm's own codex harness — **free**, subscription-included | `DEMO_MODE=true` + the caller in `OSHAL_OPERATOR_SUBS` (SEC-05 demo carve, enforced at the bot node) + the app-boot executor; render bot via `STORYBOARD_CLI_IMAGE_BOT_ID` |
 | `codex` (non-demo default) | `gpt-image-1` edits | a **platform** OpenAI credential (`OPENAI_API_KEY` / `openAiApiKey`). ⚠ The Codex **ChatGPT-subscription** OAuth token does NOT work here — `/v1/images` rejects subscription tokens. |
 | `openrouter` | `google/gemini-2.5-flash-image` (override: `OPENROUTER_IMAGE_MODEL`) | the swarm's OpenRouter key (`OPENROUTER_API_KEY` / `openRouterApiKey`); ~$0.04/image, image-to-image via chat completions |
 | `vertex` | `gemini-2.5-flash-image` | a Google token with the cloud-platform scope (explicit opt-in) |
 | `comfyui` | local GPU workflow | not wired yet |
 
-Since 1.4.1 the routes pass the caller's sub to the resolver — the `codex-cli`
-rail authorizes **per caller**, but this protected package now refuses that rail because it does not carry application permissions.
+Since 1.4.1 the routes pass the caller's sub to the resolver — the CLI rails authorize **per caller**.
+This protected package refuses `codex-cli` because it does not carry application permissions; since
+1.15.4 it accepts `antigravity-cli` for the deployment operator only (the same transport limit: Portrait's
+permission is checked here, not at the bot), and the core BACKLOG tracks carrying the application
+permission through the CLI dispatch.
 
 The surface shows a banner (via `GET /api/portrait-studio/provider`) when the
 engine isn't configured. `PORTRAIT_STUDIO_DAILY_CAP` (default 25) caps
@@ -266,3 +302,16 @@ node scripts/security/rebuild-store-routes.mjs --store <isolated-store-copy> --f
 ```
 
 Install: `node scripts/oshal-app.js install portrait-studio`
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| portrait-generation | portrait | T0 | hosted | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

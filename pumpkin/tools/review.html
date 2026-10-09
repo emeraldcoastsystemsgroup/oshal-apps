@@ -1,12 +1,137 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pumpkin Review</title><style>
-:root{color-scheme:dark;--accent:#b0b8ff;--ink:#edf0fa;--muted:#a2adc5;--border:#ffffff1c}*{box-sizing:border-box}body{margin:0;background:#10131e;color:var(--ink);font:15px/1.55 system-ui}main{max-width:1180px;margin:auto;padding:40px 24px}header{margin-bottom:30px}h1{font-size:clamp(28px,5vw,44px);letter-spacing:-.035em;margin:8px 0}h2{font-size:19px;margin:0 0 18px}.eyebrow{color:var(--accent);text-transform:uppercase;font-size:11px;letter-spacing:.16em}.hint{color:var(--muted);font-size:13px}#metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}.metric,.panel{border:1px solid var(--border);border-radius:18px;background:linear-gradient(135deg,#202638,#171b28)}.metric{padding:18px}.metric strong{display:block;font-size:27px;font-weight:650}.metric span{color:var(--muted);font-size:12px}.layout{display:grid;grid-template-columns:1.05fr 1fr;gap:22px}.panel{padding:24px;min-width:0}.record{border-bottom:1px solid var(--border);padding:16px 0;overflow-wrap:anywhere}.record:first-child{padding-top:0}.record p{color:var(--muted);margin:5px 0 12px;font-size:13px}label{display:block;color:var(--muted);font-size:12px;margin:15px 0 6px}input,textarea,select{font:inherit;color:var(--ink);background:#0e1320;border:1px solid #ffffff26;border-radius:10px;width:100%;padding:11px;display:block;margin-top:7px}textarea{min-height:190px;resize:vertical}button,a{font:inherit}button{color:var(--ink);background:#ffffff0c;border:1px solid #ffffff25;border-radius:9px;padding:9px 13px;cursor:pointer;margin:5px 6px 5px 0}button:hover{background:#ffffff1c}button:disabled{opacity:.5;cursor:wait}.primary{background:#b7beff;color:#151b34;font-weight:650}a{color:var(--accent)}#status{min-height:24px;color:var(--accent);overflow-wrap:anywhere}.connected-app-actions{display:flex;flex-wrap:wrap;margin-top:16px}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:720px){main{padding:22px 16px}.layout{grid-template-columns:1fr}.panel{padding:18px}}
+<!doctype html>
+<!-- CHANGE LOG
+SEQ | AUTHOR | DESCRIPTION
+1 | maintainer@emeraldcoastsystemsgroup.com | The family audience view for the Home shell (ADR-164 D6): with ?audience=family the shared kit paints the signed-in account's saved pumpkin lines in plain words (saved lines, pinned favourites, custom looks, last change; the pinned favourites as tiles and the other saved lines as a list, each with its face, where it came from, when it last changed and how often it was sent from the playlist) from GET /home-summary, the read the full page makes, and GET /responses, the saved-lines playlist the control surface reads. An empty list beside a summary that counts saved lines is named as a failed read (the list route answers an empty list when its query fails) and the summary's newest lines show instead. The module script's start steps (connected-actions mount, Refresh handler, summary read) run only when no audience view renders, so the view writes nothing, never reads the live projector rooms and never makes the pumpkin speak.
+-->
+<html lang="en" data-theme="midnight"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pumpkin Review</title><link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the signed-in account's OWN saved
+     pumpkin lines (how many are saved, how many are pinned favourites, how many custom looks are saved, when a line last
+     changed, then the pinned favourites and the other saved lines with their face, where each came from and how often
+     it was sent from the playlist) from the SAME GET /api/pumpkin/home-summary the full page reads and GET /api/pumpkin/responses,
+     the saved-lines playlist the control surface reads, painted by the shared kit in the family grammar. On open it
+     makes only those two reads, owner-scoped SELECTs under the caller's session. It never reads the live projector
+     rooms (GET /rooms reports live screens and sweeps the in-memory registry), never opens the projector stream, never
+     speaks, replays, pins or saves a line, never fetches connected-actions offers and writes nothing. Any other request
+     runs the full Pumpkin Review page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<style>
+  /* This page gives every bare button a margin for its own controls; under an audience view the kit's buttons keep the kit's spacing. */
+  html[data-audience] .av-btn { margin: 0; }
+</style>
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=pumpkin', KICKER = 'Halloween pumpkin', ISO = /^\d{4}-\d{2}-\d{2}T/;
+  var FACES = { neutral: 'Calm face', happy: 'Happy face', mischief: 'Cheeky face', spooky: 'Spooky face', angry: 'Angry face', laugh: 'Laughing face', surprised: 'Surprised face' };
+  var SOURCES = { mimic: 'Said word for word', autonomous: 'The pumpkin’s own reply', manual: 'Saved by hand' };
+  var NOTE = 'A saved line is one the pumpkin can say again. It does not mean the line played on a projector, and Home never makes the pumpkin speak, change its face or check a projector.';
+  // Every read answers { ok, status, body }: a body that is not JSON is null, and an unreachable server is status 0.
+  function read(path) {
+    return fetch('/api/pumpkin' + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
+    }, function () { return { ok: false, status: 0, body: null }; });
+  }
+  function refusal(status) {
+    return status === 401
+      ? { kicker: KICKER, title: 'Sign in to see the pumpkin’s saved lines', lede: 'Pumpkin shows the saved lines of whoever is signed in, and this session is not signed in.' }
+      : { kicker: KICKER, title: 'This account cannot open Pumpkin', lede: 'The Pumpkin routes refused this account (HTTP 403).' };
+  }
+  function failure(sum, list) {
+    var status = sum.status || list.status;
+    return new Error(status ? 'Pumpkin could not read the saved lines (HTTP ' + status + ').' : 'Pumpkin could not be reached just now.');
+  }
+  // The home summary sends each count as digits in a string ('0', '12'), or the word 'Unavailable' when that query failed.
+  function count(body, id) {
+    var m = ((body && (body.metrics || body.tiles)) || []).filter(function (x) { return x && x.id === id; })[0];
+    return m && typeof m.value === 'string' && /^\d+$/.test(m.value.trim()) ? Number(m.value) : null;
+  }
+  // One row of GET /responses: the saved-lines playlist, pinned first and then newest, as the control surface reads it.
+  function fromList(r) {
+    return { say: String(r.say || ''), face: r.expression, source: r.source, pinned: r.pinned === true, plays: Number(r.playCount) || 0, updated: r.updatedAt || r.createdAt || '' };
+  }
+  // A line item of the home summary (the ones carrying the clip offer): text is the line clipped to 100 characters and
+  // detail is '<expression> / saved <ISO>' (or the route's own 'date unavailable'); the summary does not say which are pinned.
+  function isLine(item) { return !!item && Array.isArray(item.actions) && item.actions.length > 0; }
+  function fromSummary(item) {
+    var d = String(item.detail || ''), at = d.lastIndexOf(' / saved ');
+    return { say: String(item.text || ''), face: at < 0 ? d : d.slice(0, at), source: null, pinned: null, plays: 0, updated: at < 0 ? '' : d.slice(at + 9) };
+  }
+  function when(value) { return ISO.test(String(value || '')) ? A.when(value) : (value || 'date unavailable'); }
+  function clip(text, cap) { var s = String(text || '').trim(); return s.length > cap ? s.slice(0, cap - 1).trim() + '…' : s; }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function item(line) {
+    var face = FACES[line.face] || (line.face ? 'Face: ' + line.face : '');
+    return { icon: '🎃', title: '“' + clip(line.say, 140) + '”', text: [face, SOURCES[line.source]].filter(Boolean).join(' · '),
+      meta: 'updated ' + when(line.updated) + (line.plays > 0 ? ' · sent from the playlist ' + plural(line.plays, 'time', 'times') : '') };
+  }
+  function newest(lines) {
+    return lines.reduce(function (best, l) { var t = Date.parse(l.updated); return isFinite(t) && (!best || t > Date.parse(best.updated)) ? l : best; }, null);
+  }
+  function stat(id, label, n, hint) { return { id: id, label: label, value: n === null ? '—' : n, hint: n === null ? 'Could not check' : hint || null }; }
+  function stats(n, last) {
+    return [stat('lines', 'Saved lines', n.lines), stat('pinned', 'Pinned favourites', n.pinned), stat('looks', 'Custom looks', n.looks, 'Saved faces and colours'),
+      { id: 'latest', label: 'Last change', value: last ? A.when(last.updated) : '—' }];
+  }
+  function headline(n, shown) {
+    if (n.lines > 0) return plural(n.lines, 'saved line', 'saved lines') + ' for the pumpkin';
+    if (n.lines === 0 && !shown.length) return 'No saved lines yet';
+    return shown.length ? 'The pumpkin’s saved lines' : 'Some saved work could not be checked';
+  }
+  function lede(n, shown, last) {
+    if (last) return 'Most recent: “' + clip(last.say, 80) + '”, updated ' + when(last.updated) + '.';
+    if (shown.length) return 'The saved lines are below, pinned favourites first.';
+    if (n.lines === 0) return 'When the pumpkin says something, the line is saved so it can be said again on Halloween night. Nothing is saved yet.';
+    return 'Some saved lines could not be read just now. Try again in a moment, or open Pumpkin.';
+  }
+  // The newest few only: the playlist holds up to 100 lines, and a longer list belongs to the full application.
+  function capped(lines, cap, what) { return lines.length > cap ? 'The ' + cap + ' newest ' + what + ' show here; open Pumpkin for the rest.' : null; }
+  function sections(n, shown, note) {
+    var fav = shown.filter(function (l) { return l.pinned === true; }), rest = shown.filter(function (l) { return l.pinned !== true; });
+    var empty = fav.length ? 'No other saved lines.' : n.lines === 0 ? 'No saved lines yet.' : 'None to show: some saved work could not be checked.';
+    return [fav.length ? { kind: 'tiles', id: 'favourites', title: 'Pinned favourites', items: fav.slice(0, 8).map(item), note: capped(fav, 8, 'pinned favourites') } : null,
+      { kind: 'list', id: 'lines', title: fav.length ? 'More saved lines' : 'Saved lines', items: rest.slice(0, 20).map(item), empty: empty,
+        note: [capped(rest, 20, 'saved lines'), note].filter(Boolean).join(' ') }];
+  }
+  function model(sum, list) {
+    var n = { lines: count(sum, 'saved-lines'), pinned: count(sum, 'pinned-lines'), looks: count(sum, 'saved-looks') };
+    var rows = list ? list.map(fromList) : [], backup = ((sum && sum.items) || []).filter(isLine).map(fromSummary);
+    // GET /responses answers an empty list when its own query fails, so an empty list beside a summary that holds saved
+    // lines is a failed read, not an empty playlist: the summary's newest lines show instead and the note says so.
+    var fallback = !rows.length && n.lines !== 0 && (list === null || n.lines > 0 || backup.length > 0);
+    var shown = fallback ? backup : rows, last = newest(shown);
+    var note = [sum && sum.partial === true ? 'Some saved pumpkin data could not be checked.' : '', fallback ? (backup.length ? 'The full list of saved lines could not be read just now, so only the newest show.' : 'The saved lines could not be read just now.') : '', NOTE].filter(Boolean).join(' ');
+    return { kicker: KICKER, title: headline(n, shown), lede: lede(n, shown, last),
+      actions: [{ label: 'Open Pumpkin', primary: true, onClick: function () { A.open(FULL); } }],
+      stats: stats(n, last), sections: sections(n, shown, note) };
+  }
+  function family() {
+    return Promise.all([read('/home-summary'), read('/responses')]).then(function (r) {
+      var sum = r[0], list = r[1], refused = [sum, list].filter(function (x) { return x.status === 401 || x.status === 403; });
+      if (refused.length) return refusal(refused.some(function (x) { return x.status === 401; }) ? 401 : 403);
+      var body = sum.ok && sum.body ? sum.body : null, rows = list.ok && list.body && Array.isArray(list.body.responses) ? list.body.responses : null;
+      if (!body && rows === null) throw failure(sum, list);
+      return model(body, rows);
+    });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'pumpkin', escapeLabel: 'Open Pumpkin in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
+<style>
+:root{color-scheme:dark;--accent:var(--accent-primary,#b0b8ff);--ink:var(--text-primary,#edf0fa);--muted:var(--text-muted,#a2adc5);--border:var(--border-color,#ffffff1c)}*{box-sizing:border-box}body{margin:0;background:var(--bg-primary,#10131e);color:var(--ink);font:15px/1.55 system-ui}main{max-width:1180px;margin:auto;padding:40px 24px}header{margin-bottom:30px}h1{font-size:clamp(28px,5vw,44px);letter-spacing:-.035em;margin:8px 0}h2{font-size:19px;margin:0 0 18px}.eyebrow{color:var(--accent);text-transform:uppercase;font-size:11px;letter-spacing:.16em}.hint{color:var(--muted);font-size:13px}#metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}.metric,.panel{border:1px solid var(--border);border-radius:18px;background:var(--bg-card,linear-gradient(135deg,#202638,#171b28))}.metric{padding:18px}.metric strong{display:block;font-size:27px;font-weight:650}.metric span{color:var(--muted);font-size:12px}.layout{display:grid;grid-template-columns:1.05fr 1fr;gap:22px}.panel{padding:24px;min-width:0}.record{border-bottom:1px solid var(--border);padding:16px 0;overflow-wrap:anywhere}.record:first-child{padding-top:0}.record p{color:var(--muted);margin:5px 0 12px;font-size:13px}label{display:block;color:var(--muted);font-size:12px;margin:15px 0 6px}input,textarea,select{font:inherit;color:var(--ink);background:var(--bg-secondary,#0e1320);border:1px solid var(--border-color,#ffffff26);border-radius:10px;width:100%;padding:11px;display:block;margin-top:7px}textarea{min-height:190px;resize:vertical}button,a{font:inherit}button{color:var(--ink);background:var(--glass-bg,#ffffff0c);border:1px solid var(--border-color,#ffffff25);border-radius:9px;padding:9px 13px;cursor:pointer;margin:5px 6px 5px 0}button:hover{background:var(--bg-card-hover,#ffffff1c)}button:disabled{opacity:.5;cursor:wait}.primary{background:var(--accent-primary,#b7beff);color:var(--text-on-accent,#151b34);font-weight:650}a{color:var(--accent)}#status{min-height:24px;color:var(--accent);overflow-wrap:anywhere}.connected-app-actions{display:flex;flex-wrap:wrap;margin-top:16px}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:720px){main{padding:22px 16px}.layout{grid-template-columns:1fr}.panel{padding:18px}}
 </style></head><body><main><header><div class="eyebrow">Learning and recreation</div><h1>Pumpkin Review</h1><p class="hint">Review recorded work. Shape the next brief. Continue in the app that owns the next step.</p></header><div id="metrics" aria-label="Saved work metrics"></div><div class="layout"><section class="panel"><h2>Recorded work</h2><div id="records">Loading saved evidence…</div><button id="refresh">Refresh evidence</button></section><section class="panel"><h2>Your next brief</h2><label>Title<input id="title" maxlength="120" placeholder="What should happen next?"></label><label>Brief<textarea id="notes" maxlength="2000" placeholder="Select recorded work or write a new brief."></textarea></label><label>Source link<input id="sourceUrl" type="url" maxlength="2000"></label><div class="connected-app-actions"></div><p id="status" role="status" aria-live="polite"></p><p class="hint">Connected actions open editable drafts. Review and approve any publishing or generation in the destination app.</p></section></div></main><script type="module">
 import {receiveHandoff} from '/cockpit/js/app-handoff.js';
 import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
+// The full page only: under an audience view the shared kit paints instead (see the head script), so no connected-actions
+// offer is fetched, no Refresh handler is bound and the summary is not read a second time.
+if (!window.AppView || !AppView.active()) {
 const app="pumpkin",title=document.querySelector('#title'),notes=document.querySelector('#notes'),sourceUrl=document.querySelector('#sourceUrl'),status=document.querySelector('#status');
 const fill=c=>{title.value=String(c.title||'').slice(0,120);notes.value=String(c.notes||'').slice(0,2000);sourceUrl.value=c.sourceUrl||'';};
 await mountConnectedActions({app,element:document.querySelector('.connected-app-actions'),contextForOffer:()=>notes.value.trim()?{title:title.value.trim(),notes:notes.value.trim(),sourceUrl:sourceUrl.value.trim()}:null});
 async function refresh(){const list=document.querySelector('#records'),metrics=document.querySelector('#metrics');try{const r=await fetch('/api/'+app+'/home-summary',{cache:'no-store'}),data=await r.json();if(!r.ok)throw Error('Saved evidence cannot be checked right now.');list.replaceChildren();metrics.replaceChildren();for(const m of data.metrics||[]){const card=document.createElement('div');card.className='metric';const v=document.createElement('strong'),l=document.createElement('span');v.textContent=m.value;l.textContent=m.label;card.append(v,l);metrics.append(card);}for(const item of data.items||[]){const el=document.createElement('div'),heading=document.createElement('strong'),detail=document.createElement('p');el.className='record';heading.textContent=item.text;detail.textContent=item.detail||'';el.append(heading,detail);const context=item.actions?.[0]?.context;if(context){const b=document.createElement('button');b.textContent='Use this evidence';b.addEventListener('click',()=>{fill(context);status.textContent='Evidence loaded. Edit the brief before continuing.';});el.append(b);}list.append(el);}}catch(e){list.textContent=e.message;metrics.replaceChildren();}}
 document.querySelector('#refresh').addEventListener('click',refresh);
 await refresh();
+}
 </script></body></html>

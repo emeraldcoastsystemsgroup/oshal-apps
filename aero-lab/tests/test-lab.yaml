@@ -1,0 +1,374 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | The package's first Test Lab catalog (ADR-160 S4, 1.3.0): every shipped spec registered with its real runner and prerequisites, the readiness smoke retained under its existing identity, and the two new suites - the vehicle record over loopback HTTP and the migration's owner RLS against a real disposable PostgreSQL - declared with the fixtures they need rather than hidden. Registration does not execute a suite or certify a pass.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | The vehicle-record case expects the seed's D5 refusal: a package that cannot read a real version from its manifest, or has no engine tree to hash, answers 503 run_unfingerprinted and inserts nothing, and a stored evaluation whose fingerprint is not a real version and a 64-hex engine hash is withheld by name.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 real-chain certification: six engine suites registered as external pytest cases (they run under the engine venv, not the sealed Node runner) - the closed validity-reason set, the four presets certified on the real chain, the four named verification anchors, the physical build-certification gate, the pinned sweep driver's determinism, and the documented engine fingerprint - plus the live-engine certify round-trip and the surface/engine preset parity on the existing vitest cases.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed aero-lab package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: vehicle-record
+    name: The Floater as a record (ADR-160 S4)
+    purpose: Drive the record's engine directly - the reference design read from the committed files with every artifact hashed, the BOM total and the as-built ledger, the budget check red at +274.3 g, the kind's limit rows with a kind that declares none refused at load, the stage function dropping a changed vector to concept, the force-model envelopes refusing by name with an undeclared model failing closed - and then the routes over real loopback HTTP behind the auth wrapper as the manifest mounts it, on a SQL-dispatching in-memory pool double.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/aero-vehicle-record.spec.ts
+    expected:
+      - BOM.csv's option-A total and V2_CONFIG.md's certified ledger both read 1998.1 g, the as-built ledger 2272.4 g, and the budget check is red at +274.3 g blocking parts-complete.
+      - The Floater kind declares six limit rows (five blocking); a kind with no limits, no required figures or an undeclared force model is refused at load.
+      - stageOf reads sized at the evaluated vector and concept the moment the vector changes or a required figure is missing; every stage view carries the fabricable sentence.
+      - aeropolar in seawater is 422 model_not_valid_in_medium naming the Reynolds reason; an undeclared model is confined to air; an unknown medium is 400; a posted medium lacking a required property is medium_property_unavailable.
+      - POST /vehicles/floater/seed answers 201 with the vehicle, evaluation 1 (medium air, package/version/generator/engine build hash) and stage sized, and 200 with the same record on a second call; another owner lists nothing and gets 404; every route is 401 without a caller.
+      - PATCH /vehicles/:id/design drops the stage to concept on the next read; an evaluation lacking its engine fingerprints is withheld by name, never listed as a result.
+      - A package dir with no manifest, a manifest whose version is the placeholder 'unknown', and a real version with no engine tree each answer 503 run_unfingerprinted from POST /vehicles/floater/seed naming what is missing, and no vehicle or evaluation is inserted; a stored row whose version is the placeholder or whose engine hash is null is withheld by name.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: The loopback server is closed after the suite; the pool is in memory; nothing installed is read or written.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: vehicle-rls
+    name: Migration 001 owner RLS against a real PostgreSQL
+    purpose: Prove the package's first migration as the role that OWNS the tables, the installed condition under which an ENABLEd-but-not-FORCEd policy never filters a row. The framework's disposable PostgreSQL fixture starts a private server, mints a NOSUPERUSER NOBYPASSRLS app role, applies the migration as that role twice (idempotent), and the cases read through the stamped identity.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/aero-vehicle-rls.spec.ts
+    expected:
+      - Both tables are owned by the app role, ENABLEd and FORCEd, with one owner_or_operator policy each.
+      - Stamped as the owner the store functions insert, list, read and update; a stranger's stamp, no stamp and the empty stamp read nothing; the operator arm reads all; a forged insert in the owner's name is refused by the policy's WITH CHECK.
+      - The evaluation constraints hold - a positive sequence, a 64-hex vector fingerprint, one sequence per vehicle - each refusal observed inside its own savepoint.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+      - fixture:docker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - migrations/001-aero-lab.sql
+      cleanup: The fixture force-removes its own container and anonymous volumes in stop(); no DSN is ever read from the environment, so no installed database can be reached.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 768
+    installation: never
+  - id: routes-http
+    name: Packaged routes over loopback HTTP
+    purpose: The frozen /api/aero-lab contract on a real loopback server - the mount refuses unauthenticated callers when wired with the auth param as the manifest loader wires it, engine-absent is an honest 503 capability_unavailable with /capabilities reporting present:false as data, malformed design vectors are 400, the frozen engine error-code map (422/504/503-busy/400) through an injected adapter double, export downloads allow-listed (a traversal name is 404), the bundled surface and geometry helper served from ctx.appPackageDir, and the concierge degrading a bad draft to say-only.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/aero-lab-routes.spec.ts
+    expected:
+      - Every route is 401 without the auth header; engine-absent POSTs are 503 capability_unavailable with a reason.
+      - 422, 504, 503 and 400 map from the adapter's typed errors exactly; buoyancy without the hybrid capability is 503, never silently dropped.
+      - Export downloads serve only recorded names; a ../ name, an unknown name and an unknown export id are 404.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Temporary package, work and absent-engine directories are created under the OS temp dir and the loopback server is closed after the suite.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: surface-contract
+    name: Surface to router contract
+    purpose: Structural guards with no doubles - every /api/aero-lab path the surface calls is registered by one of the two routers, the parameterised export and vehicle reads match registered routes, every shipped preset and slider field survives the route layer's own validateDesign inside the sanity bounds, and both surface files plus every inline script parse as the classic scripts a browser receives.
+    level: unit
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/aero-surface-contract.spec.ts
+    expected:
+      - No surface call names an endpoint neither router registers; the vehicle router is mounted at /api/aero-lab/vehicles behind requiresAuth.
+      - The four documented presets validate; every slider is a real design field inside the sanity bounds; every design field has a slider.
+      - tools/aero-lab.js, tools/aero-lab-geometry.js and each inline script parse.
+      - engine/reference_presets.json carries exactly the surface's four presets (key, name, vector), so the preset a user presses is the preset the engine certifies.
+    prerequisites:
+      - runner:vitest
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-adapter
+    name: Engine adapter transport
+    purpose: The subprocess adapter against a fake-worker protocol double that fakes the TRANSPORT only - round-trip, worker error codes passed through verbatim, non-JSON stdout dropped, the wall-clock timeout killing the worker and restarting cleanly, the FIFO queue cap answering engine_busy, and the engine-absent paths naming the exact reason.
+    level: unit
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/aero-engine-adapter.spec.ts
+    expected:
+      - A worker error reaches the caller with its code unchanged; a timeout becomes engine_timeout and the next request succeeds on a fresh worker.
+      - A missing engine dir, venv or worker script is capability_unavailable with the reason.
+    prerequisites:
+      - runner:vitest
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Temporary engine directories under the OS temp dir are removed after the suite; the protocol double is this Node process.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-container
+    name: Engine container transport across its real seams
+    purpose: The real bridge (engine/container/aero_engine_bridge.py) over a real TCP socket spawning a real worker process, with only the engine NUMBERS doubled; the TypeScript build hash equals the bridge's own hash of the same tree, the .dockerignore whitelist bakes exactly the hashed file set, a one-byte engine change moves the hash, and the self-test design is DEFAULT_DESIGN.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/aero-engine-container.spec.ts
+    expected:
+      - The TS engineBuildHash equals the Python bridge's build_hash for the vendored tree; a one-byte change moves it.
+      - A stale container (another build hash) is refused with the install command; the bridge answers over TCP.
+    prerequisites:
+      - runner:vitest
+      - runtime:python3
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: The spawned bridge and worker processes are killed and temporary work directories removed after the suite.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 768
+    installation: never
+  - id: engine-dir-resolution
+    name: Engine directory resolution
+    purpose: The engine-dir contract (BACKLOG B) - the adapter resolves explicit option, then AERO_LAB_ENGINE_DIR, then the tree vendored in this package over a real filesystem; the SHIPPED compiled routes/engine-adapter.js does the same in a plain node process against a skeleton with no vendored aerosim; the real engine/service.py resolver agrees in a python subprocess; and no shipped file carries an absolute user-home path.
+    level: unit
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/aero-engine-dir-resolution.spec.ts
+    expected:
+      - The vendored tree wins by default, the env override wins over it, and a package with no vendored aerosim refuses naming its own engine dir.
+      - No file shipped in the package carries an absolute per-person path.
+    prerequisites:
+      - runner:vitest
+      - runtime:python3
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Temporary skeleton packages under the OS temp dir are removed after each case.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: physics-parity
+    name: Browser geometry helper parity with the Python service
+    purpose: Execute the shipped browser geometry helper and the Python service derivation over identical vectors, including the server's span-cap boundary, at a stated 1e-12 tolerance.
+    level: unit
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/aero-physics-parity.spec.ts
+    expected:
+      - Span, mean chord and pack capacity agree between tools/aero-lab-geometry.js and engine/service.py to 1e-12 on every shared vector, including the 79.9 m span ceiling.
+    prerequisites:
+      - runner:vitest
+      - runtime:python3
+      - engine:aerosim-venv
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: live-engine
+    name: Live round-trip against the vendored aerosim engine
+    purpose: Real physics through the real adapter transport against the engine VENDORED in this package - no doubles, no silent skip (a missing venv fails naming the fix). Asserts physics invariants (CD > 0 everywhere, CL rising with alpha, finite arrays) and, when a resolved upstream engine is present, that every answer is either real physics or a typed refusal.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/aero-live-engine.spec.ts
+    expected:
+      - The vendored engine reproduces the reference pure-solar design's min SOC and usable margin, and the polar's invariants hold.
+      - The certify command over the real adapter transport returns the four presets on the real chain, each pass or fail with every reason code inside the engine's own closed aerosim.validity set, stamped with the fingerprint capabilities reports.
+      - With no venv the suite fails naming AERO_LAB_ENGINE_DIR and setup-venv; it never reports green without running.
+    prerequisites:
+      - runner:vitest
+      - runtime:python3
+      - engine:aerosim-venv
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: The adapter's work directory under the OS temp dir is removed after the suite; the engine runs locally and writes nothing installed.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+    installation: never
+  - id: engine-validity-reasons
+    name: Closed validity-reason set, emitted at the source
+    purpose: The engine's structured "why" (engine/aerosim/validity.py) - the set refuses an unknown code, an undeclared or missing field; each refusal is typed where it is raised (parameter bounds with the interval, the real-chain claim band and knobs, the negative airframe with its masses, the technology catalogue with its frontier, the trim residual with its tolerance, the mass-closure, free-energy and no-valid-point families by class); both integrators publish one code per closed reason; and a source scan keeps every reasons.append paired with its code.
+    level: unit
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/tests/test_validity_reasons.py
+    expected:
+      - 17 cases pass under `python -m pytest -q engine/tests/test_validity_reasons.py` in the engine venv.
+      - reason_of reads an instance or class code along the cause chain and returns None for a message that merely contains code words.
+      - integrate_energy, integrate_dynamic and screen_design each carry as many codes.append as reasons.append.
+    prerequisites:
+      - runtime:python3
+      - engine:aerosim-venv
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+    installation: never
+  - id: engine-reference-certification
+    name: The four reference presets on the real chain
+    purpose: The service's own certify command flies tier1, fixedwing, hybrid80 and r7winner on build_solar_cruise(chain="real") and returns each as pass, or fail with structured reasons - never an untyped error - stamped with the engine and tree fingerprints; the measured outcomes are pinned, a rerun is identical, and the public evaluate default is still the ideal chain.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/tests/test_reference_certification.py
+    expected:
+      - 9 cases pass under `python -m pytest -q engine/tests/test_reference_certification.py` in the engine venv.
+      - tier1 and hybrid80 fail at build with negative_airframe_mass, fixedwing fails in flight with soc_not_persistent, r7winner fails at build with param_out_of_bounds on PVArrayDiode.cell_efficiency_stc; summary error is 0.
+    prerequisites:
+      - runtime:python3
+      - engine:aerosim-venv
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: engine-verification-anchors
+    name: The four named verification anchors
+    purpose: FLOATER_REPORT B4's anchors as one gate - cold usable capacity and the R_int ratio against Zhang/Xu/Jow 2003, the worst C60 bin's STC MPP against its datasheet row, helium permeation through the default 38 um LLDPE cell against its unit-chain anchors, and mission ledger reconciliation flown on the REAL chain (useful + prop + motor + ESC + harness equals the drive's electrical energy within 1 %, nothing unattributed).
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/tests/test_verification_anchors.py
+    expected:
+      - 5 cases pass under `python -m pytest -q engine/tests/test_verification_anchors.py` in the engine venv; the gate names exactly the four anchors.
+    prerequisites:
+      - runtime:python3
+      - engine:aerosim-venv
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: engine-build-certification
+    name: Physical build-certification gate in the exporter
+    purpose: A real export of the hybrid80 preset writes every file plus a buildCertification block reading not certified with four evidence blockers; the BOM names the helium purity instead of balloon-grade; reconcile_build_evidence refuses 80 % helium, a sealed cell with no vent or an under-rated one, parts 274 g over the ledger, an unweighed line and the wrong or leaky film, and certifies only matching evidence; a fixed wing needs mass evidence alone.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/tests/test_build_certification_gate.py
+    expected:
+      - 11 cases pass under `python -m pytest -q engine/tests/test_build_certification_gate.py` in the engine venv.
+    prerequisites:
+      - runtime:python3
+      - engine:aerosim-venv
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: The export is written under a pytest temporary directory, removed by pytest's own retention policy; nothing installed is read or written.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+    installation: never
+  - id: engine-sweep-real
+    name: Pinned real-chain sweep driver
+    purpose: engine/sweep_real.py on a pinned 20-design subset at the production step - two runs byte-identical, the sample a pure function of seed and index inside service.BOUNDS, every record stamped with the tree fingerprint and carrying only closed-set reasons, a resume after a torn write reproducing the same bytes, and a changed request, a missing --resume, a stale file fingerprint and a mid-run tree change each refused. verify_top on crafted pass records over the fixedwing preset vector appends exactly one verify record for the top pass, its fresh-subprocess verdict reproduces the in-process real-chain score with closed-set reason codes, 'agrees' follows the record's own metrics both ways, and report() lists it.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/tests/test_sweep_real_determinism.py
+    expected:
+      - 11 cases pass under `python -m pytest -q engine/tests/test_sweep_real_determinism.py` in the engine venv. The 30k run itself is an elapsed-time job, not this case.
+    prerequisites:
+      - runtime:python3
+      - engine:aerosim-venv
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Sweep files are written under pytest temporary directories only.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+    installation: never
+  - id: engine-fingerprint-docs
+    name: The documented engine fingerprint is the computed one
+    purpose: README.md, BACKLOG.md and BUILD_CONTRACT.md each state service._fingerprint() of the vendored tree, and name no other engine fingerprint except the recorded upstream checkout's.
+    level: unit
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/tests/test_fingerprint_docs.py
+    expected:
+      - 3 cases pass under `python -m pytest -q engine/tests/test_fingerprint_docs.py` in the engine venv.
+    prerequisites:
+      - runtime:python3
+      - engine:aerosim-venv
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never

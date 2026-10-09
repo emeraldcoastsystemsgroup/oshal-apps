@@ -1,3 +1,6 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the canonical Home concierge and retain its dedicated node so member groups resolve the same bot in both runtimes.
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — home (Smart Home bundle, ADR-038)
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 2). The home-bot REAL bot
@@ -18,14 +21,33 @@
 
 name: home
 suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }
+  features:
+    - id: home-assistant
+      unit: home assistant request
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: scheduled-home-control
+      unit: timer firing
+      tier: T2
+      generation: none
+      degrade: disable
 displayName: Smart Home
 description: >-
   Control your smart home by chat. Connect a hub at /utilities (SmartThings or
   Google Nest); the home-bot reads your real devices + scenes via your connector
   token and turns "turn off the living room lights" into the right commands.
   Destructive actions (locks, garage, thermostat) are confirmed first.
-version: 1.2.1
+version: 1.2.5
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: active
+chatBot: home-bot # The canonical concierge borrowed by Home Workspace.
 
 source:
   type: git-subdir
@@ -70,6 +92,7 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
 
 # Per-app skin. Moved off forest (finance claimed it as the money bundle's color)
 # now that this is the iot.oshal.ai bundle front door (operator decision 2026-07-31).
@@ -92,6 +115,9 @@ workflow:
 bots:
   - agentId: d0000000-0000-0000-0000-000000000001
     name: home-bot
+    container: home-bot
+    port: 5000
+    requiresOwnNode: true
     persona: personas/home-bot.yaml
     role: smart-home/device-control
     capabilities:

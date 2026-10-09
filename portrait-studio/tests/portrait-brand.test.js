@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove the Use my brand colors button with the surface's own script: hidden on refusal, the brand's colors in words appended once, within the field's limit.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.15.2: the script is gated on the shared audience-view kit (ADR-164 D6), so it now runs with a window global; a new case proves that under an audience view it never reads the brand kit and never shows the button, while the full page (kit present, no audience) and a core without the kit still read it.
  */
 'use strict';
 const test = require('node:test');
@@ -18,14 +19,24 @@ const WORDS = { phrase: 'bright violet, bright cyan and coral' };
 function field(value = '', maxLength = 300) {
   return { value, maxLength, events: [], focused: 0, dispatchEvent(event) { this.events.push(event.type); }, focus() { this.focused += 1; } };
 }
-function start(reply, fields) {
+/**
+ * @description Run the surface's brand script in a fresh context whose window is its global, as in a browser.
+ * @param {object|null} reply The brand-kit JSON, or null for a refusal.
+ * @param {Record<string, object>} fields Stub fields by id.
+ * @param {string|null} [activeView] What the shared kit's AppView.active() answers; omitted = no kit loaded.
+ * @returns {{ buttons: object[], calls: object[], settle: Function }} The stub buttons, every fetch, and a settle helper.
+ */
+function start(reply, fields, activeView) {
   const from = html.indexOf("/* Your brand: Create's brand kit"), code = html.slice(from, html.indexOf('})();', from) + 5);
   const buttons = [...html.matchAll(/class="brand-chip"[^>]*data-brand-target="([A-Za-z]+)"/g)].map(match => ({
     dataset: { brandTarget: match[1] }, hidden: true, title: '', listeners: [], addEventListener(type, fn) { this.listeners.push(fn); }, click() { this.listeners.forEach(fn => fn()); } }));
   const calls = [];
-  vm.runInNewContext(code, { Array, Event: class { constructor(type) { this.type = type; } },
+  const context = { Array, Event: class { constructor(type) { this.type = type; } },
     document: { querySelectorAll: () => buttons, getElementById: id => fields[id] },
-    fetch: (url, init) => { calls.push({ url, init }); return Promise.resolve(reply ? { ok: true, json: () => Promise.resolve(reply) } : { ok: false, status: 403 }); } });
+    fetch: (url, init) => { calls.push({ url, init }); return Promise.resolve(reply ? { ok: true, json: () => Promise.resolve(reply) } : { ok: false, status: 403 }); } };
+  context.window = context;
+  if (activeView !== undefined) context.AppView = { active: () => activeView };
+  vm.runInNewContext(code, context);
   return { buttons, calls, settle: () => new Promise(done => setImmediate(done)) };
 }
 
@@ -50,4 +61,13 @@ test('with a kit the button appends the brand colors in words once, within the l
   assert.deepEqual(notes.events, ['input']);
   const tight = field('x'.repeat(290), 300), again = start({ kit: {}, words: WORDS }, { notes: tight }); await again.settle();
   again.buttons[0].click(); assert.equal(tight.value.length, 300);
+});
+
+test('under an audience view the brand kit is never read; the full page and a core without the kit still read it', async () => {
+  const view = start({ kit: {}, words: WORDS }, { notes: field() }, 'family'); await view.settle();
+  assert.deepEqual(view.calls, []); assert.equal(view.buttons[0].hidden, true);
+  for (const activeView of [null, undefined]) {
+    const run = start({ kit: {}, words: WORDS }, { notes: field() }, activeView); await run.settle();
+    assert.deepEqual(run.calls.map(call => call.url), ['/api/create/brand-kit']); assert.equal(run.buttons[0].hidden, false);
+  }
 });

@@ -1,0 +1,116 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | First Venture Plan authorization catalog (ADR-149, 1.5.0). A system activation of the hourly rebaseline tick (ADR-157) is refused 409 authorization_service_catalog_required for a protected package with no catalog, so the package now declares one: every route it mounts is bound once, its four bots are bound, and the tick has its own permission, venture.rebaseline, which no role grants: only the application's service principal holds it, and only while a swarm administrator's system activation of rebaseline-policy-tick is live. Until now the package had no catalog and, under enforce, admitted only callers holding the application's @app-admin assignment; that posture is mirrored, not widened: one member role carries the whole app.
+#
+# One resource with `own` scope only. Row ownership stays where it always was: every handler
+# resolves the caller's subject before any query and puts it in every statement, and the tables
+# carry owner-or-operator row-level security underneath. The catalog decides which named
+# permission a request needs; the package's adapter (src-routes/venture-authorization.ts) admits
+# any active verified actor and never widens what a query can read.
+#
+# Bindings are matched on the path relative to whichever mount owns the request. GET / is three
+# requests at once: the console page on /api/venture, the Home summary on
+# /api/venture-plan/home-summary and the install-readiness smoke on /api/venture-plan/_smoke. It is
+# bound to app.open alone, so a denied browser document is explained with the kernel's
+# role-guidance page; every role that holds app.open also holds venture.read, so nothing is
+# admitted that the data routes would refuse.
+#
+# Effects: read for every GET, and for the one POST that only reads (the policy preview, which is
+# forced dry-run and reserves nothing); change for a state write that spends nothing (including
+# the free recompute, POST /ventures/:id/model); execute for anything that calls a bot and so
+# spends the caller's provider money (creating a venture runs one scoping call; runs, chat and
+# document regeneration run analysts or the narrator) and for the policy write that arms paid
+# scheduled runs within its cap; export for the four office and bundle downloads.
+#
+# The scheduled tick: the kernel authorizes each due tick as kind `jobs` with the FULL schedule id
+# (`venture-plan-rebaseline-policy-tick`), and the manifest's `requires: [venture.rebaseline]` is
+# exactly what a system activation grants the service principal. The HTTP tick route
+# (POST /tick on /api/venture-rebaseline, mounted auth: service) is bound to the same permission.
+
+version: 1
+resources:
+  venture: { scopes: [own] }
+permissions:
+  app.open: { resource: venture, effect: read, minimumTier: viewer }
+  venture.read: { resource: venture, effect: read, minimumTier: viewer }
+  venture.change: { resource: venture, effect: write, minimumTier: editor }
+  venture.execute: { resource: venture, effect: execute, minimumTier: editor }
+  venture.export: { resource: venture, effect: export, minimumTier: editor }
+  venture.rebaseline: { resource: venture, effect: execute, minimumTier: editor }
+roles:
+  member:
+    tier: editor
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: venture.read, scope: own }
+      - { permission: venture.change, scope: own }
+      - { permission: venture.execute, scope: own }
+      - { permission: venture.export, scope: own }
+bindings:
+  http:
+    # The console (venture-routes.ts handleSurface), the Home summary and the readiness smoke.
+    - { id: console, method: GET, path: /, allOf: [app.open] }
+    - { id: console-app, method: GET, path: /app, allOf: [app.open] }
+    # Ventures (venture-routes.ts). Creating one runs the strategist's scoping call.
+    - { id: ventures, method: GET, path: /ventures, allOf: [venture.read] }
+    - { id: venture-create, method: POST, path: /ventures, allOf: [venture.execute] }
+    - { id: venture, method: GET, path: /ventures/:id, allOf: [venture.read] }
+    - { id: venture-update, method: PATCH, path: /ventures/:id, allOf: [venture.change] }
+    - { id: venture-delete, method: DELETE, path: /ventures/:id, allOf: [venture.change] }
+    # Authoring runs and the owner's rebaseline policy.
+    - { id: runs-start, method: POST, path: /ventures/:id/runs, allOf: [venture.execute] }
+    - { id: runs, method: GET, path: /ventures/:id/runs, allOf: [venture.read] }
+    - { id: run, method: GET, path: /runs/:runId, allOf: [venture.read] }
+    - { id: rebaseline-policy, method: GET, path: /ventures/:id/rebaseline-policy, allOf: [venture.read] }
+    - { id: rebaseline-policy-update, method: PUT, path: /ventures/:id/rebaseline-policy, allOf: [venture.execute] }
+    - { id: rebaseline-policy-preview, method: POST, path: /ventures/:id/rebaseline-policy/preview, allOf: [venture.read] }
+    # The append-only assumption register.
+    - { id: assumptions, method: GET, path: /ventures/:id/assumptions, allOf: [venture.read] }
+    - { id: assumption-create, method: POST, path: /ventures/:id/assumptions, allOf: [venture.change] }
+    - { id: assumption-update, method: PATCH, path: /ventures/:id/assumptions/:key, allOf: [venture.change] }
+    - { id: assumption-history, method: GET, path: /ventures/:id/assumptions/:key/history, allOf: [venture.read] }
+    # Bill of materials, vendors, FX evidence and quotes.
+    - { id: bom, method: GET, path: /ventures/:id/bom, allOf: [venture.read] }
+    - { id: bom-create, method: POST, path: /ventures/:id/bom, allOf: [venture.change] }
+    - { id: bom-update, method: PATCH, path: /ventures/:id/bom/:lineId, allOf: [venture.change] }
+    - { id: bom-delete, method: DELETE, path: /ventures/:id/bom/:lineId, allOf: [venture.change] }
+    - { id: vendors, method: GET, path: /ventures/:id/vendors, allOf: [venture.read] }
+    - { id: vendor-create, method: POST, path: /ventures/:id/vendors, allOf: [venture.change] }
+    - { id: vendor-update, method: PATCH, path: /ventures/:id/vendors/:vendorId, allOf: [venture.change] }
+    - { id: fx-assumptions, method: GET, path: /ventures/:id/fx-assumptions, allOf: [venture.read] }
+    - { id: fx-assumption, method: GET, path: /ventures/:id/fx-assumptions/:fxId, allOf: [venture.read] }
+    - { id: fx-assumption-create, method: POST, path: /ventures/:id/fx-assumptions, allOf: [venture.change] }
+    - { id: quotes, method: GET, path: /ventures/:id/quotes, allOf: [venture.read] }
+    - { id: quote-create, method: POST, path: /ventures/:id/quotes, allOf: [venture.change] }
+    # Scenarios and the free deterministic engine.
+    - { id: scenarios, method: GET, path: /ventures/:id/scenarios, allOf: [venture.read] }
+    - { id: scenario-create, method: POST, path: /ventures/:id/scenarios, allOf: [venture.change] }
+    - { id: scenario-update, method: PATCH, path: /ventures/:id/scenarios/:scenarioId, allOf: [venture.change] }
+    - { id: model-compute, method: POST, path: /ventures/:id/model, allOf: [venture.change] }
+    - { id: model, method: GET, path: /ventures/:id/model, allOf: [venture.read] }
+    - { id: model-figure, method: GET, path: /ventures/:id/model/figures/:figureKey, allOf: [venture.read] }
+    - { id: sensitivity, method: GET, path: /ventures/:id/sensitivity, allOf: [venture.read] }
+    - { id: inversion, method: GET, path: /ventures/:id/inversion, allOf: [venture.read] }
+    # The concierge chat door.
+    - { id: chat, method: POST, path: /chat, allOf: [venture.execute] }
+    # Documents (venture-routes-docs.ts). Regenerating one runs the narrator out of band.
+    - { id: documents, method: GET, path: /ventures/:id/documents, allOf: [venture.read] }
+    - { id: document, method: GET, path: /ventures/:id/documents/:docKey, allOf: [venture.read] }
+    - { id: document-history, method: GET, path: /ventures/:id/documents/:docKey/history, allOf: [venture.read] }
+    - { id: document-regenerate, method: POST, path: /ventures/:id/documents/:docKey/regenerate, allOf: [venture.execute] }
+    - { id: document-print, method: GET, path: /ventures/:id/documents/:docKey/print, allOf: [venture.read] }
+    - { id: export-plan, method: GET, path: /ventures/:id/export/plan.docx, allOf: [venture.export] }
+    - { id: export-model, method: GET, path: /ventures/:id/export/model.xlsx, allOf: [venture.export] }
+    - { id: export-deck, method: GET, path: /ventures/:id/export/deck.pptx, allOf: [venture.export] }
+    - { id: export-bundle, method: GET, path: /ventures/:id/export/bundle.zip, allOf: [venture.export] }
+    # The service-authenticated rebaseline tick (venture-rebaseline-routes.ts).
+    - { id: rebaseline-tick, method: POST, path: /tick, allOf: [venture.rebaseline] }
+  jobs:
+    - { id: venture-plan-rebaseline-policy-tick, allOf: [venture.rebaseline] }
+  bots:
+    - { id: b7000000-0000-0000-0000-000000000001, allOf: [venture.execute] }
+    - { id: b7000000-0000-0000-0000-000000000002, allOf: [venture.execute] }
+    - { id: b7000000-0000-0000-0000-000000000003, allOf: [venture.execute] }
+    - { id: b7000000-0000-0000-0000-000000000004, allOf: [venture.execute] }

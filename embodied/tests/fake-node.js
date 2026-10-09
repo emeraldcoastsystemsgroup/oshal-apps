@@ -15,7 +15,7 @@ const { Worker } = require('node:worker_threads');
  * `engine`, `version` shape its heartbeat.
  */
 async function startFakeNode(opts) {
-  const worker = new Worker(path.join(__dirname, 'fake-node-worker.js'), { workerData: { nodeId: 'fake-node', secret: 'test-secret', ...opts } });
+  const worker = new Worker(path.join(__dirname, 'fake-node-worker.js'), { workerData: { nodeId: 'fake-node', ...opts } });
   const listeners = new Set();
   worker.on('message', (m) => { for (const l of listeners) l(m); });
   const once = (type, timeoutMs = 5000) => new Promise((resolve, reject) => {
@@ -36,6 +36,8 @@ async function startFakeNode(opts) {
     heartbeatNow: async () => { const p = once('heartbeat'); worker.postMessage('heartbeat-now'); return p; },
     nextHeartbeat: (timeoutMs) => once('heartbeat', timeoutMs),
     stats: async () => { const p = once('stats'); worker.postMessage('stats'); return p; },
+    /** Give the node the command key a fleet minted for it (a suite that feeds the fleet directly, not over HTTP). */
+    acceptCommandKey: async (key) => { const p = once('command-key-set'); worker.postMessage({ type: 'command-key', key }); return p; },
     close: async () => { worker.postMessage('close'); await new Promise((r) => { worker.once('exit', r); setTimeout(() => { void worker.terminate(); }, 2000).unref(); }); },
   };
 }

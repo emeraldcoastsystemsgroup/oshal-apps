@@ -13,6 +13,7 @@
  * 2026-09-10 | maintainer@emeraldcoastsystemsgroup.com | Use the framework artifact picker and remove the private file-picker implementation; source listings remain read-only and caller-scoped.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Enforce explicit Portrait actions and exact verified owner issuer; protect queued generation and isolate metadata updates.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Mount the closed local face-detector asset set behind the existing view permission.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.15.4, the same image rule as Create (operator 2026-10-02: "it should just be the same everywhere"; core ADR-130 amendment, the render bot's own harness picks the image rail): one provider resolve per decision through portraitProviderFor, never a second provider. The operator-only antigravity-cli rail is accepted when it reports itself available for the caller; a caller the kernel has no provider for (it throws "not configured") or whose provider is not available to them gets portrait_provider_unavailable: 503 before any row is queued on POST /portraits, a failed row without generation in the queued run, and configured:false on GET /provider, instead of the raw resolver error as a 500. codex-cli stays refused by name with portrait_cli_authorization_unavailable. No permission, catalog or authorization.yaml change.
  */
 
 import * as fs from 'node:fs';
@@ -28,7 +29,7 @@ import { createHomeSummaryRoutes } from './home-summary';
 import { registerPortraitFaceAssets } from './portrait-face-assets';
 import { createPortraitAuthorizationRoutes, registerPortraitAuthorization, portraitActor, requirePortraitPermission } from './portrait-authorization';
 import { resolveStoryboardImageProvider, recordStoryboardImageCost } from '@/features/video-generation';
-import type { StoryboardImageResult } from '@/features/video-generation';
+import type { StoryboardImageProvider, StoryboardImageResult } from '@/features/video-generation';
 import type { AppContext } from '@/app/composition/app-context';
 import { buildPortraitPrompt, clientCatalog, findStyle, isPortraitMode, validateOverrides, validateSubjects } from './portrait-catalog';
 import type { PortraitOptions } from './portrait-catalog';
@@ -62,6 +63,41 @@ const generationSlots = new Semaphore(Math.max(1, parseInt(process.env.PORTRAIT_
 function callerSub(ctx: AppContext): string { return portraitActor(ctx).sub; }
 function callerIssuer(ctx: AppContext): string { return portraitActor(ctx).issuer; }
 function errorStatus(err: unknown, fallback: number): number { return err && typeof err === 'object' && 'status' in err && typeof err.status === 'number' ? err.status : fallback; }
+
+/** A person the image engine does not serve: no provider for them, or one not available to them. */
+const PROVIDER_UNAVAILABLE = 'portrait_provider_unavailable';
+/** The subject-only command-line codex transport, refused by name: it cannot carry these app rights. */
+const CLI_REFUSED = 'portrait_cli_authorization_unavailable';
+
+/** One provider decision for one person: the provider, or the refusal and why. */
+type PortraitProviderChoice =
+  | { ok: true; provider: StoryboardImageProvider }
+  | { ok: false; provider: StoryboardImageProvider | null; refusal: string; detail: string };
+
+/**
+ * @description The image provider for this person, decided with ONE resolve and never a second
+ * provider. The kernel's command-line rails serve only the deployment operator in demo mode
+ * (antigravity-cli is accepted when it reports itself available for the caller), so anyone else is
+ * told the engine is not configured; codex-cli is refused by name.
+ * @param sub - The caller's sub, threaded to the per-caller rails (ADR-130).
+ * @returns The provider, or the refusal code with a readable detail.
+ */
+async function portraitProviderFor(sub: string): Promise<PortraitProviderChoice> {
+  let provider: StoryboardImageProvider;
+  try {
+    provider = await resolveStoryboardImageProvider({ userSub: sub });
+  } catch (err) {
+    logger.error({ err }, 'no image provider is configured for this person; portrait generation is unavailable to them');
+    return { ok: false, provider: null, refusal: PROVIDER_UNAVAILABLE, detail: err instanceof Error ? err.message : String(err) };
+  }
+  if (provider.id === 'codex-cli') {
+    return { ok: false, provider, refusal: CLI_REFUSED, detail: 'This image transport cannot carry application permissions. Select a configured platform image provider.' };
+  }
+  if (!(await provider.available())) {
+    return { ok: false, provider, refusal: PROVIDER_UNAVAILABLE, detail: `the ${provider.id} image provider is not available to you` };
+  }
+  return { ok: true, provider };
+}
 
 /**
  * @description Per-user image directory under the shared workspace. The sub is
@@ -167,10 +203,11 @@ async function runGeneration(ctx: AppContext, id: string, sub: string, prompt: s
   try {
     await requirePortraitPermission(ctx, 'create', id);
     await ctx.pool.query(`UPDATE ps_portraits SET status = 'generating', updated_at = NOW() WHERE portrait_id = $1`, [id]);
-    // The caller's sub rides to the provider: the ADR-130 codex-cli rail authorizes per caller
-    // (SEC-05 demo carve at the bot node); the vendor-API providers ignore it.
-    const provider = await resolveStoryboardImageProvider({ userSub: sub });
-    if (provider.id === 'codex-cli') throw new Error('portrait_cli_authorization_unavailable');
+    // The caller's sub rides to the provider: the CLI rails authorize per caller (the demo carve at
+    // the bot node); the vendor-API providers ignore it. One resolve, never a second provider.
+    const chosen = await portraitProviderFor(sub);
+    if (!chosen.ok) throw new Error(chosen.refusal);
+    const provider = chosen.provider;
     const attempt = (): Promise<StoryboardImageResult> => withTimeout(
       provider.generateWithMeta
         ? provider.generateWithMeta(prompt, source)
@@ -300,12 +337,13 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
 
   /** GET /provider — is the image engine ACTUALLY working? Runs the provider's real
    *  credential probe when it has one (key validity + credit), because key-presence lies.
-   *  Resolved with the CALLER's sub: the codex-cli rail is per-caller (demo carve), so the
-   *  banner must answer for the user who is looking at it. */
+   *  Resolved with the CALLER's sub: the CLI rails are per-caller (demo carve), so the banner must
+   *  answer for the user who is looking at it; a refused caller is told why, never offered another. */
   router.get('/provider', async (req, res) => {
     try {
-      const provider = await resolveStoryboardImageProvider({ userSub: callerSub(ctx) });
-      if (provider.id === 'codex-cli') { res.json({ configured: false, unavailable: 'portrait_cli_authorization_unavailable', detail: 'This image transport cannot carry application permissions. Select a configured platform image provider.' }); return; }
+      const chosen = await portraitProviderFor(callerSub(ctx));
+      if (!chosen.ok) { res.json({ configured: false, provider: chosen.provider?.id ?? null, unavailable: chosen.refusal, detail: chosen.detail, hint: chosen.detail }); return; }
+      const provider = chosen.provider;
       if (provider.healthCheck) {
         const health = await provider.healthCheck();
         res.json({ configured: health.ok, provider: provider.id, costClass: provider.costClass, detail: health.detail, ...(health.ok ? {} : { hint: health.detail }) });
@@ -358,8 +396,8 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
       }
 
       await requirePortraitPermission(ctx, 'create');
-      const selectedProvider = await resolveStoryboardImageProvider({ userSub: sub });
-      if (selectedProvider.id === 'codex-cli') { res.status(503).json({ error: 'portrait_cli_authorization_unavailable' }); return; }
+      const selected = await portraitProviderFor(sub);
+      if (!selected.ok) { res.status(503).json({ error: selected.refusal }); return; }
       const prompt = buildPortraitPrompt(mode, style, options);
       const inserted = await ctx.pool.query(
         `INSERT INTO ps_portraits (user_sub, mode, style, options, prompt, status, owner_issuer)

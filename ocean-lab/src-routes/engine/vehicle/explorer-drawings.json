@@ -1,0 +1,104 @@
+{
+  "schema": "ocean-lab.explorer-drawings/1",
+  "what": "The explorer's part shapes as the design report DRAWS them, measured once and committed as data (ADR-160 S3). The part programs (explorer-part-programs.ts) scale these shapes by the record's design vector wherever the vector names the dimension (float diameter and height, sub diameter and length, wing root chord and span, tether length and diameter), so a changed vector changes the parts; every other figure here is the drawing's own. Nothing in this file is a performance figure.",
+  "source": {
+    "report": "docs/research/ambient-energy-vessel-report.pdf",
+    "repository": "the core repository (emeraldcoastsystemsgroup/oshal)",
+    "pages": "page 2: sub assembly side elevation (540 x 199 mm) and front elevation looking aft (296 x 199 mm); page 3: sub assembly plan (540 x 296 mm) and float side elevation (280 x 560 mm); page 4: wing root section (chord 48 mm, NACA 0012, pitch axis at 25 % chord)",
+    "method": "Measured from the report's VECTOR paths (the PDF's own polylines, which the report says are 'taken directly from the validated mesh'), each view scaled by its own dimension line. Where two views show the same edge they agree: the spindle station reads 534.31 mm in the side elevation and 534.34 mm in the plan; the wing's quarter-chord line reads 119.94 mm at the root and 119.90 mm at the tip."
+  },
+  "float": {
+    "profile": {
+      "zFrac": [0.0, 0.0715, 0.1429, 0.2144, 0.2856, 0.357, 0.4285, 0.5, 0.5714, 0.643, 0.7144, 0.7856, 0.857, 0.9285, 1.0],
+      "rFrac": [0.1001, 0.8022, 0.9192, 0.9743, 0.9974, 1.0, 0.9846, 0.955, 0.914, 0.86, 0.7933, 0.7112, 0.6097, 0.4724, 0.1001]
+    },
+    "provenance": {
+      "source": "measured",
+      "basis": "Report page 3, float side elevation: the 15-station silhouette polyline from the lower end (z = 0) to the upper end, as fractions of the drawn 560 mm height and of the drawn 280 mm diameter's radius. Revolved, this outline encloses 23.43 L at 280 x 560 mm; the study publishes 24.1 L, so the drawn outline is 2.8 % short of the published displacement, and the displacement budget reads the PROGRAM's volume, never the published figure."
+    }
+  },
+  "sub": {
+    "bodyLengthFrac": 0.9625,
+    "profile": {
+      "xFrac": [0.0, 0.077, 0.154, 0.2307, 0.3077, 0.3847, 0.4616, 0.5384, 0.6153, 0.6923, 0.7693, 0.846, 0.9233, 1.0],
+      "rFrac": [0.1452, 0.8381, 0.9429, 0.9857, 1.0, 0.9929, 0.969, 0.931, 0.881, 0.8167, 0.7357, 0.6381, 0.5048, 0.1452]
+    },
+    "provenance": {
+      "source": "measured",
+      "basis": "Report page 2, sub assembly side elevation: the body outline is 519.73 mm of the 540 mm assembly (the spindle behind the tail makes up the rest; the report's bill of materials gives its sweep winner's body as 110 mm x 520 mm) and 109.8 mm across at its widest. The 14-station half-outline is stored as fractions of the body length (nose at 0) and of the widest radius, and scaled by sub.lengthM and sub.diameterM."
+    }
+  },
+  "wing": {
+    "ranks": 2,
+    "perRank": 2,
+    "rankStationFrac": [0.2221, 0.5738],
+    "rootRadiusFrac": 0.5453,
+    "taperRatio": 0.7083,
+    "stackingChordFrac": 0.25,
+    "provenance": {
+      "rankStationFrac": { "source": "measured", "basis": "Report page 3, plan: the two ranks' quarter-chord lines sit 119.94 mm and 309.84 mm aft of the nose, as fractions of the 540 mm assembly." },
+      "rootRadiusFrac": { "source": "measured", "basis": "Report pages 2-3: each wing's root section sits 29.99 mm from the sub's axis (inside the 55 mm hull; the report draws no slot or bearing for it) and its tip 147.91 mm out (the published 296 mm tip to tip). Stored as a fraction of the sub radius." },
+      "taperRatio": { "source": "measured", "basis": "Report page 3, plan: root chord 47.99 mm (the published 48 mm), tip chord 34.00 mm. The wave engine reads span x root chord, a rectangle; these programs follow the drawn taper, so the printed wing's exposed planform is smaller than the one the sizing assumed." },
+      "stackingChordFrac": { "source": "published", "basis": "Report page 4: pitch axis at 25 % chord; page 3: the quarter-chord line is straight from root to tip (119.94 mm, 119.90 mm)." },
+      "twist": { "source": "measured", "basis": "No washout is resolved: the tip's projected thickness in the front elevation is 4.46 mm against 4.08 mm for an untwisted NACA 0012 at 34 mm, under 1 degree if there is any. The programs carry none." }
+    }
+  },
+  "rudder": {
+    "section": "NACA 0012",
+    "rootChordMm": 51.91,
+    "tipChordMm": 38.44,
+    "heightMm": 92.05,
+    "rootOffsetFrac": 0.6156,
+    "stackingChordFrac": 0.25,
+    "stationFrac": 0.8889,
+    "provenance": {
+      "section": { "source": "measured", "basis": "Report page 2, front elevation: the rudder's root thickness is 6.25 mm, 12 % of its 51.9 mm root chord; the report's bill of materials gives its sweep winner's rudder as NACA 0012 with a 52 mm root chord." },
+      "chords": { "source": "measured", "basis": "Report page 2, side elevation: root chord 51.91 mm, tip chord 38.44 mm, height 92.05 mm (the front elevation reads 91.97 mm)." },
+      "rootOffsetFrac": { "source": "measured", "basis": "The rudder's root sits 33.86 mm above the sub's axis, clear of the tapering hull there (about 30 mm radius): the report draws no stock between them. Stored as a fraction of the sub radius." },
+      "stationFrac": { "source": "measured", "basis": "Report page 2: the quarter-chord line stands 479.76 mm (root) and 480.31 mm (tip) aft of the nose, as a fraction of the 540 mm assembly." }
+    }
+  },
+  "spindle": {
+    "blades": 3,
+    "section": "NACA 0012",
+    "rootRadiusMm": 23.97,
+    "tipRadiusMm": 95,
+    "rootChordMm": 22.22,
+    "tipChordMm": 13.05,
+    "rootAngleDeg": 30.64,
+    "tipAngleDeg": 7.63,
+    "stackingChordFrac": 0.25,
+    "stations": 5,
+    "axisStationFrac": 0.9895,
+    "axisOffsetFrac": 1.0904,
+    "provenance": {
+      "blades": { "source": "published", "basis": "Study: 'a 190 mm three-blade current spindle'." },
+      "tipRadiusMm": { "source": "published", "basis": "Study and report bill of materials: a 190 mm diameter rotor; the front elevation measures 94.97 mm to the tip." },
+      "rootRadiusMm": { "source": "measured", "basis": "Report page 2, front elevation: the blade roots stand 23.97 mm from the rotor axis; the report draws no hub." },
+      "chordsAndAngles": { "source": "measured", "basis": "Each chord and its angle to the rotor plane are recovered from the blade's projected width in the front elevation (root 19.12 mm, tip 12.94 mm) and its axial extent in the plan (root 11.33 mm, tip 1.73 mm). The outline is a silhouette of a pitched foil whose thickness the drawing does not resolve, so read them to about 1 mm and 2 degrees. Chord and angle vary linearly between the two ends; the program lofts five stations." },
+      "section": { "source": "reconstructed", "basis": "The report names no spindle section. NACA 0012 is the section of every other foil the report draws on this vehicle (the wings, published; the rudder, measured)." },
+      "stackingChordFrac": { "source": "measured", "basis": "The radial line through the rotor axis crosses each end's projected chord at 25.3 % (root) and 25.1 % (tip)." },
+      "axis": { "source": "measured", "basis": "The rotor axis runs fore and aft, 534.3 mm aft of the nose (side 534.31 mm, plan 534.34 mm: behind the 519.7 mm body) and 59.97 mm above the sub's axis. The report draws no hub, shaft or support between the rotor and the hull." }
+    }
+  },
+  "watertightParts": {
+    "count": 11,
+    "provenance": {
+      "source": "reconstructed",
+      "basis": "The study counts 11 independently watertight parts and names the float, the sub, four wings, one rudder and three spindle blades (ten). The eleventh is taken to be the tether, which the report's drawings break out of the assembly as a body of its own; it is a bought umbilical, so it carries geometry for placement and no print settings."
+    }
+  },
+  "fabrication": {
+    "material": "PETG",
+    "densityGcm3": 1.27,
+    "hullWallMm": 3,
+    "hulls": "the float and the sub body print as their outer skin: a 3 mm wall and 0 % infill, sealed; the program is the outer solid",
+    "foils": "the wings, the rudder and the spindle blades print solid (100 % infill)",
+    "ballastDensityGcm3": 11.34,
+    "provenance": {
+      "material": { "source": "assumed", "basis": "The report's bill of materials says 'Printed' (the float 'Printed / rotomold') and names no material. PETG at its typical datasheet density of 1.27 g/cm3 is an assumption, stated as one; it enters the budget only through the printed masses." },
+      "hullWallMm": { "source": "assumed", "basis": "No wall thickness is published. 3 mm is an assumption, stated as one: the hull masses are thin-wall estimates at that wall." },
+      "ballastDensityGcm3": { "source": "assumed", "basis": "The bill of materials says 'Ballast: trim to 12 N net negative, Fabricate' and names no material. Lead at 11.34 g/cm3 is an assumption; it sets only the ballast's MASS, never the net weight the ballast trims the sub to." }
+    }
+  }
+}

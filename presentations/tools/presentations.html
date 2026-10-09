@@ -7,12 +7,147 @@
 <!-- 2.10.0: starters are served per kind by GET /starters and grouped by purpose; ?kind=&starter=&theme=&topic= deep links (the Create front door). -->
 <!-- 2.11.1: the making bar uses the starter's own article (a Budget, an Invoice), not the kind's. -->
 <!-- 2.12.0: your brand from Create's brand kit: the nearest built-in look is badged (and picked when nothing else chose one), the brand name fills an empty cover byline, and AI drafts can use the brand voice. -->
+<!-- 2.13.0: "Your brand" is a real look: the server builds it from the kit (its exact colors and faces on the nearest look's layout), it leads both galleries and is picked when nothing else chose a look, and every render and send carries the kit so the file is drawn in it. -->
 <!-- 2.11.0: the studio speaks the purpose — a starter folds the setup away behind one "making" bar, every label uses the kind's words (sections / sheets / slides), the AI-draft prompt is the purpose's own. -->
 <!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
      Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
      matters — without it the surface would have no colors at all. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience views (ADR-164 D6). The Business shell opens this page with ?audience=company: what is on file and
+     three ways to start. The Classroom shell opens it with ?audience=classroom: five friendly starters and the
+     learner's own work. Both read the same routes as the full studio and are painted by the shared kit; their only
+     actions are deep links into the full studio (nothing is generated or saved from a view). Any other request runs
+     the full AI Office below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  function call(path, body) {
+    var opt = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' } : { credentials: 'same-origin', headers: { Accept: 'application/json' } };
+    return fetch('/api/presentations/sections' + path, opt).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.message || j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; }); });
+  }
+  function openFull(query) { window.location.assign(window.location.pathname + (query || '')); }
+  var KINDS = [{ id: 'pptx', icon: '\uD83D\uDCCA', name: 'Deck', text: 'A themed presentation with real slide masters.' }, { id: 'docx', icon: '\uD83D\uDCC4', name: 'Document', text: 'A themed report with heading styles and tables.' }, { id: 'xlsx', icon: '\uD83D\uDCC8', name: 'Spreadsheet', text: 'A live workbook with typed cells and formulas.' }];
+  var NAMES = { pptx: 'Deck', docx: 'Document', xlsx: 'Spreadsheet' };
+  function within(d, hours) { var t = new Date(d.createdAt || 0).getTime(); return t && Date.now() - t <= hours * 36e5; }
+  function company(ctx) {
+    return call('/list').then(function (r) {
+      var decks = (r.decks || []).slice().sort(function (a, b) { return new Date(b.createdAt || 0) - new Date(a.createdAt || 0); });
+      var count = function (f) { return decks.filter(function (d) { return d.format === f; }).length; };
+      var open = function (d) { var u = d.url || d.downloadUrl; if (u) window.open(u, '_blank', 'noopener'); };
+      return {
+        kicker: 'AI Office', title: decks.length ? 'Documents on file' : 'Nothing saved yet',
+        lede: decks.length ? decks.length + ' saved documents \u00b7 last saved ' + A.when(decks[0].createdAt) : 'Start a deck, a document or a spreadsheet; what you save appears here.',
+        actions: KINDS.map(function (k, i) { return { label: 'New ' + k.name.toLowerCase(), primary: i === 0, onClick: function () { openFull('?kind=' + k.id); } }; }),
+        stats: [
+          { id: 'saved-24h', label: 'Saved / 24h', value: decks.filter(function (d) { return within(d, 24); }).length },
+          { id: 'saved-5d', label: 'Saved / 5 days', value: decks.filter(function (d) { return within(d, 120); }).length },
+          { id: 'decks', label: 'Decks', value: count('pptx') },
+          { id: 'documents', label: 'Documents', value: count('docx') },
+          { id: 'sheets', label: 'Spreadsheets', value: count('xlsx') }
+        ],
+        sections: [
+          { kind: 'tiles', id: 'start', title: 'Start something', items: KINDS.map(function (k) { return { title: k.name, text: k.text, icon: k.icon, onClick: function () { openFull('?kind=' + k.id); } }; }) },
+          { kind: 'table', id: 'documents', title: 'Recent documents', wide: true, empty: 'No documents saved yet.', columns: ['When', 'Title', 'Kind', { label: 'Slides', align: 'right' }, 'Saved to'],
+            rows: decks.slice(0, 12).map(function (d) { return { cells: [A.date(d.createdAt), d.title || d.fileName || 'Untitled', NAMES[d.format] || d.format || '', { text: d.slides ? String(d.slides) : '' }, d.provider || ''], onClick: function () { open(d); } }; }) }
+        ]
+      };
+    });
+  }
+  // Classroom: the starters a class uses (by id, from the studio's own catalog; an id the catalog no longer serves
+  // drops out) in plain words, and the learner's saved work, newest first, each opening in a new tab.
+  var CLASS_KINDS = { pptx: { icon: '📊', name: 'Slide show' }, docx: { icon: '📄', name: 'Paper' }, xlsx: { icon: '📈', name: 'Sheet' } };
+  var CLASS_STARTERS = [
+    { id: 'teach', title: 'Teach a topic', text: 'Slides that explain one thing: what it is, why it matters and an example.' },
+    { id: 'newsletter', title: 'Class newsletter', text: 'News, updates and what is coming up next.' },
+    { id: 'flyer', title: 'Poster or flyer', text: 'One page with a big headline and the details.' },
+    { id: 'schedule', title: 'Weekly schedule', text: 'Days across the top, times down the side.' },
+    { id: 'tracker', title: 'To-do tracker', text: 'Jobs to do, who is doing them and what is done.' }
+  ];
+  function safeHref(u) { return typeof u === 'string' && (/^https?:\/\//i.test(u) || /^\/(?!\/)/.test(u)) ? u : null; }
+  function starterTiles(catalog) {
+    var byId = {};
+    ((catalog && catalog.starters) || []).forEach(function (s) { if (s && CLASS_KINDS[s.kind]) byId[s.id] = s; });
+    return CLASS_STARTERS.filter(function (c) { return byId[c.id]; }).map(function (c) {
+      var s = byId[c.id];
+      return { title: c.title, text: c.text, icon: s.icon, meta: CLASS_KINDS[s.kind].name, onClick: function () { openFull('?kind=' + s.kind + '&starter=' + c.id); } };
+    });
+  }
+  function workItem(d) {
+    var k = CLASS_KINDS[d.format] || CLASS_KINDS.pptx, href = safeHref(d.url) || safeHref(d.downloadUrl);
+    var item = { icon: k.icon, title: d.title || d.fileName || 'Untitled', text: k.name + (d.format === 'pptx' && d.slides ? ' · ' + d.slides + ' slides' : ''), meta: d.createdAt ? A.when(d.createdAt) : '' };
+    if (href) { item.href = href; item.target = '_blank'; }
+    return item;
+  }
+  function classroomError(e) {
+    var err = new Error(e && e.status === 401 ? 'You are signed out. Sign in again to see your work.' : 'Your saved work could not be read just now.');
+    err.status = e && e.status; return err;
+  }
+  function classroom(ctx) {
+    return Promise.all([call('/list'), call('/starters').catch(function () { return null; })]).then(function (res) {
+      var decks = (res[0].decks || []).slice().sort(function (a, b) { return new Date(b.createdAt || 0) - new Date(a.createdAt || 0); });
+      var count = function (f) { return decks.filter(function (d) { return d.format === f; }).length; };
+      var tiles = starterTiles(res[1]), last = decks[0] && decks[0].createdAt ? ' · last one ' + A.when(decks[0].createdAt) : '';
+      return {
+        kicker: 'AI Office', title: decks.length ? 'Your slides and papers' : 'Make something to share',
+        lede: decks.length ? decks.length + (decks.length === 1 ? ' thing saved' : ' things saved') + last : 'Pick a starter and make your first slides.',
+        actions: [{ label: 'Make slides', primary: true, onClick: function () { openFull('?kind=pptx&starter=teach'); } }, { label: 'Write a paper', onClick: function () { openFull('?kind=docx'); } }],
+        stats: [
+          { id: 'made-7d', label: 'Made in the last 7 days', value: decks.filter(function (d) { return within(d, 168); }).length },
+          { id: 'slides', label: 'Slide shows', value: count('pptx') },
+          { id: 'papers', label: 'Papers', value: count('docx') },
+          { id: 'sheets', label: 'Sheets', value: count('xlsx') }
+        ],
+        sections: [
+          tiles.length ? { kind: 'tiles', id: 'starters', title: 'Start with a starter', note: 'Each one opens AI Office with the starter ready to fill in.', items: tiles } : null,
+          { kind: 'list', id: 'work', title: 'My work', wide: true, empty: 'Nothing saved yet — your slides will show up here.', items: decks.slice(0, 6).map(workItem) }
+        ]
+      };
+    }, function (e) { throw classroomError(e); });
+  }
+  // Family: the household's recent documents in plain words — the same single read as the company view (/list) and
+  // the classroom's safe links, each opening in a new tab. The view makes, saves and sends nothing.
+  var FAMILY_KINDS = { pptx: 'Slide deck', docx: 'Document', xlsx: 'Spreadsheet' };
+  function familyItem(d) {
+    var item = workItem(d), kind = FAMILY_KINDS[d.format] || FAMILY_KINDS.pptx;
+    item.text = kind + (d.format === 'pptx' && d.slides ? ' · ' + d.slides + ' slides' : '');
+    item.meta = d.createdAt ? 'Saved ' + A.when(d.createdAt) : '';
+    if (item.href) item.badge = 'Open';
+    return item;
+  }
+  function familyRefused(e) {
+    if (!e || (e.status !== 401 && e.status !== 403)) throw classroomError(e);
+    var out = e.status === 401;
+    return { kicker: 'Our documents', title: out ? 'Sign in to see your documents' : 'This account cannot open AI Office',
+      lede: out ? 'AI Office shows the documents of whoever is signed in, and this session is not signed in.' : 'The AI Office routes refused this account (HTTP 403).' };
+  }
+  function family(ctx) {
+    return call('/list').then(function (r) {
+      var decks = (r.decks || []).slice().sort(function (a, b) { return new Date(b.createdAt || 0) - new Date(a.createdAt || 0); });
+      var count = function (f) { return decks.filter(function (d) { return d.format === f; }).length; };
+      var items = decks.slice(0, 8).map(familyItem), last = decks[0] && decks[0].createdAt ? ' · last one saved ' + A.when(decks[0].createdAt) : '';
+      return {
+        kicker: 'Our documents', title: decks.length ? 'Recent documents' : 'Nothing saved yet',
+        lede: decks.length ? decks.length + (decks.length === 1 ? ' document saved' : ' documents saved') + last : 'Open AI Office to make a slide deck, a document or a spreadsheet. What you save shows up here.',
+        actions: [{ label: 'Make something new', primary: true, onClick: function () { openFull(); } }],
+        stats: [
+          { id: 'saved-7d', label: 'Saved in the last 7 days', value: decks.filter(function (d) { return within(d, 168); }).length },
+          { id: 'decks', label: 'Slide decks', value: count('pptx') },
+          { id: 'documents', label: 'Documents', value: count('docx') },
+          { id: 'sheets', label: 'Spreadsheets', value: count('xlsx') }
+        ],
+        sections: [
+          { kind: 'list', id: 'documents', title: 'Saved lately', wide: true, empty: 'Nothing saved yet — documents you make show up here.', items: items,
+            note: items.some(function (i) { return i.href; }) ? 'Tap Open to see a document in a new tab.' : null }
+        ]
+      };
+    }, familyRefused);
+  }
+  A.boot({ app: 'presentations', escapeLabel: 'Open AI Office in the cockpit', audiences: { company: company, classroom: classroom, family: family } });
+})();
+</script>
 <script src="/api/artifacts/send-to.js" defer></script>
 <style>
   /* This surface keeps its own short alias names, but DERIVES them from the framework theme rather
@@ -721,11 +856,16 @@ function pickTheme(id){ THEME = id; themeChosen = true; renderThemes(); pvKick()
 // ── Your brand: Create's brand kit, read in the viewer's own session ─────────────────────────
 // A person without Create access (or without a kit) gets a refusal and AI Office behaves exactly
 // as before. The kit's name fills an empty cover byline, its voice rides the AI draft's topic,
-// and the built-in look nearest its colors and fonts is badged, and picked only when nothing else
-// (a deep link, a starter or a click) chose a look. The renderer still draws its own ten looks.
-const BRAND = { kit: null, look: null };
+// and the built-in look nearest its colors and fonts is badged. The server then builds the exact
+// brand look (the kit's colors and faces on that nearest look's layout); it leads both galleries
+// and is picked only when nothing else (a deep link, a starter or a click) chose a look. A render
+// in it sends the kit itself, which the server rebuilds and validates; a refused or unreachable
+// brand look leaves the nearest built-in look picked.
+const BRAND = { kit: null, look: null, theme: null, input: null };
 let themeChosen = false;
-const brandReady = fetch('/api/create/brand-kit', { credentials: 'same-origin', cache: 'no-store',
+// The full studio only: under an audience view (the head script) nothing outside the view's own reads runs, so the
+// kit is never asked for. globalThis rather than window: the brand test runs this block in a bare script context.
+const brandReady = globalThis.AppView && AppView.active() ? Promise.resolve() : fetch('/api/create/brand-kit', { credentials: 'same-origin', cache: 'no-store',
   signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(4000) : undefined })
   .then(r => (r.ok ? r.json() : null)).then(j => { if (j && j.kit) BRAND.kit = j.kit; })
   .catch(() => { /* No Create access or no kit: the studio keeps its own looks. */ });
@@ -753,14 +893,38 @@ function lookScore(kit, t){
 function brandLook(kit, themes){ return themes.reduce((best, t) => (!best || lookScore(kit, t) < lookScore(kit, best) ? t : best), null); }
 function applyBrand(){
   const kit = BRAND.kit; if (!kit) return;
-  const look = THEMES.length ? brandLook(kit, THEMES) : null;
+  const builtIn = THEMES.filter(t => !isBrandId(t.id));
+  const look = builtIn.length ? brandLook(kit, builtIn) : null;
   BRAND.look = look ? look.id : null;
   if (look && !themeChosen) THEME = look.id;
   renderThemes(); renderWizThemes(); renderWizChips(); pvKick();
   if (kit.name && !$('byline').value.trim()) $('byline').value = kit.name;
   const voice = String(kit.voice || '').trim();
   $('brandVoiceRow').hidden = !voice; $('brandVoiceText').textContent = voice ? '“' + voice + '”' : '';
+  BRAND.ready = look ? drawBrandLook(kit, look.id) : Promise.resolve();
 }
+/** A look id the server built from a brand kit (`brand:<base>`), never one of the ten. */
+function isBrandId(id){ return String(id || '').startsWith('brand:'); }
+/** Ask the server for the exact brand look on `base`'s layout; offer it first and pick it unless a look was chosen. */
+function drawBrandLook(kit, base){
+  const input = { base, colors: kit.colors, fonts: kit.fonts };
+  return fetch('/api/presentations/sections/brand-look', { method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+    signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(4000) : undefined })
+    .then(r => (r.ok ? r.json() : null))
+    .then(j => {
+      if (!j || !j.look || !isBrandId(j.look.id)) return;
+      BRAND.theme = j.look; BRAND.input = input;
+      THEMES = [j.look].concat(THEMES.filter(t => !isBrandId(t.id)));
+      if (!themeChosen) THEME = j.look.id;
+      renderThemes(); renderWizThemes(); renderWizChips(); pvKick();
+    })
+    .catch(() => { /* No brand look: the nearest built-in look stays picked. */ });
+}
+/** The look a render or a send carries: the brand look as the kit (the server rebuilds it), any other as its id. */
+function lookOpts(){ return BRAND.theme && THEME === BRAND.theme.id ? { brand: BRAND.input } : { theme: THEME || undefined }; }
+/** A saved file's look as the studio can draw it now: a brand look reopens as today's brand look, or not at all. */
+function savedLook(id){ return isBrandId(id) ? (BRAND.theme ? BRAND.theme.id : null) : id; }
 /** An AI draft's topic, with the brand's name and voice while "AI drafts in your brand voice" is on. */
 function brandTopic(topic){
   const kit = BRAND.kit, voice = kit ? String(kit.voice || '').trim() : '';
@@ -884,7 +1048,7 @@ async function refreshDest(){
 function deckOpts(){
   const dest = $('saveTo').value;
   return {
-    theme: THEME || undefined,
+    ...lookOpts(),
     byline: $('byline').value.trim() || undefined,
     autoLayout: $('autoLayout').checked,
     slideNumbers: $('slideNumbers').checked,
@@ -959,7 +1123,7 @@ $('emailSend').onclick = async () => {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         confirm: true, to, note: $('emailNote').value.trim() || undefined, title, sections, format: KIND,
-        theme: THEME || undefined, byline: $('byline').value.trim() || undefined,
+        ...lookOpts(), byline: $('byline').value.trim() || undefined,
         autoLayout: $('autoLayout').checked, slideNumbers: $('slideNumbers').checked,
       }),
     });
@@ -1034,7 +1198,7 @@ function openFileView(d){
   const fe = $('fEdit');
   if (fe) fe.onclick = () => {
     if (d.format && KINDS.some(k => k.id === d.format)) pickKind(d.format);
-    if (d.theme) pickTheme(d.theme);
+    const saved = savedLook(d.theme); if (saved) pickTheme(saved);
     $('title').value = d.title || '';
     writeOutline((d.outline || []).map(s => ({ title: s.title, bullets: s.bullets || [] })));
     SEL = null; renderTemplates(); showTab('preview'); landOnPreview();
@@ -1290,12 +1454,15 @@ $('destChip').onclick = () => {
   $('saveTo').focus();
 };
 
-renderKinds(); renderTemplates(); loadThemes(); loadDecks(); refreshDest();
-applyKindVocabulary();
-// The starters and the deep link ride the same boot: once the looks AND the shapes are known.
-Promise.all([themesReady, loadStarters()]).then(applyDeepLink);
-// Your brand settles beside the deep link; whichever runs second, a chosen look is never overridden.
-Promise.all([themesReady, brandReady]).then(applyBrand);
+// The full studio only: under an audience view the shared kit paints instead (see the head script), and the
+// starters, the deep link and the brand wait for the full studio too, so a view reads nothing but its own routes.
+if (!window.AppView || !AppView.active()) {
+  renderKinds(); renderTemplates(); loadThemes(); loadDecks(); refreshDest(); applyKindVocabulary();
+  // The starters and the deep link ride the same boot: once the looks AND the shapes are known.
+  Promise.all([themesReady, loadStarters()]).then(applyDeepLink);
+  // Your brand settles beside the deep link; whichever runs second, a chosen look is never overridden.
+  Promise.all([themesReady, brandReady]).then(applyBrand);
+}
 
 // ── The front-door walkthrough ─────────────────────────────────────────────
 // Drives the studio's own pickers, owns no duplicate state. Session-scoped skip: dismissing it
@@ -1444,7 +1611,7 @@ function renderWizRecent(decks){
     el.onclick = () => {
       const d = recent[parseInt(el.dataset.i, 10)];
       if (d.format && KINDS.some(k => k.id === d.format)) pickKind(d.format);
-      if (d.theme) pickTheme(d.theme);
+      const saved = savedLook(d.theme); if (saved) pickTheme(saved);
       $('title').value = d.title || '';
       writeOutline((d.outline || []).map(s => ({ title: s.title, bullets: s.bullets || [] })));
       SEL = null; renderTemplates();
@@ -1509,11 +1676,14 @@ renderWizChips();
 // [data-bridge-region], custom ops re-dispatch as the surface-bridge:custom DOM event handled
 // above. Manifest declares surface.ops: [set_field, set_content, custom] (fail-closed).
 // Best-effort: the surface stays fully functional standalone if the module is unavailable.
-try {
-  const { createSurfaceBridgeClient } = await import('/shared/ui/js/surface-bridge-client.js');
-  createSurfaceBridgeClient({ app: 'presentations' }).attach();
-} catch (e) {
-  console.warn('[presentations] surface-bridge client unavailable (standalone mode)', e?.message || e);
+// The full studio only: an audience view publishes nothing to the relay and takes no ops.
+if (!window.AppView || !AppView.active()) {
+  try {
+    const { createSurfaceBridgeClient } = await import('/shared/ui/js/surface-bridge-client.js');
+    createSurfaceBridgeClient({ app: 'presentations' }).attach();
+  } catch (e) {
+    console.warn('[presentations] surface-bridge client unavailable (standalone mode)', e?.message || e);
+  }
 }
 </script>
 
@@ -1525,10 +1695,13 @@ const clip = value => String(value || '').slice(0,2000);
 const val = id => clip(document.getElementById(id)?.value?.trim());
 const set = (id,value) => { const el=document.getElementById(id); el.value = el.tagName === 'INPUT' ? String(value || '').replace(/\s*\n+\s*/g, ' · ') : value || ''; };
 const brief = context => [context.title,context.notes,context.sourceUrl ? 'Source: '+context.sourceUrl : ''].filter(Boolean).join('\n\n');
+// The full studio only: an audience view takes no hand-off and offers no connected actions (their plan read included).
+if (!window.AppView || !AppView.active()) {
 receiveHandoff({"app":"presentations","action":"prepare-brief","contextType":"research-brief","version":1,"fields":["title","notes","sourceUrl"]}, context => { document.getElementById('wiz').classList.remove('on'); set('title', context.title); set('outline', [context.title, context.notes, context.sourceUrl ? 'Source: '+context.sourceUrl : ''].filter(Boolean).join('\n\n')); document.getElementById('outline').dispatchEvent(new Event('input',{bubbles:true})); document.getElementById('outline').focus(); });
 const element = document.createElement('section'); element.className='connected-app-actions'; element.setAttribute('aria-label','Connected application actions'); element.style.cssText='margin:16px auto;padding:16px;max-width:1200px;border:1px solid currentColor;border-radius:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap';
 document.body.append(element);
 void mountConnectedActions({ app:"presentations", element, contextForOffer:()=>{ const title=val('title'), notes=val('outline'); return title && notes ? {title,notes} : null; } });
+}
 </script>
 </body>
 </html>

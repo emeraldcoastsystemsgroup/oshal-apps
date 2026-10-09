@@ -6,14 +6,23 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Initial creation — the drone-node fleet (ADR-099, B20), the core DroneFleet's shape for this package: nodes join by authenticated heartbeat (identity, kind, the endpoint the api dials back, the bridge hello, the latest telemetry, events since the api's ack) and are minted on first contact; staleness is the liveness signal — a node that stops heartbeating is offline and cannot be given a world; ids and sizes are bounded so a misbehaving client cannot grow the map or inject path-hostile ids. One fleet per process, shared by the heartbeat mount and the world routes.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | A node belongs to one owner (ADR-114): the sub the mounter resolved from the trusted service user-sub header is recorded on first contact, a heartbeat for that node from another owner is refused, and an owned node is unknown to everyone else — the fleet lists and hands out only what a caller may see (unowned nodes, a loopback development case, are visible to all).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-175 hardening (security review of #420): a node's heartbeat no longer decides where the swarm secret goes. Each record mints a random COMMAND KEY, returned only in that node's own heartbeat reply, and commands to the node carry it instead of SWARM_SERVICE_SECRET. The endpoint host must be on EMBODIED_NODE_ENDPOINT_HOSTS (default: the engine's compose aliases), which closes the SSRF. A node owner holds at most MAX_NODES_PER_OWNER records, and a full fleet evicts a record silent for STALE_EVICT_MS before refusing.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DroneNodeFleet = exports.NodeOffline = exports.NodeValidationError = exports.NODE_ID_RE = exports.MAX_NODES = exports.HEARTBEAT_STALE_MS = void 0;
+exports.DroneNodeFleet = exports.NodeOffline = exports.NodeValidationError = exports.NODE_ID_RE = exports.DEFAULT_ENDPOINT_HOSTS = exports.STALE_EVICT_MS = exports.MAX_NODES_PER_OWNER = exports.MAX_NODES = exports.HEARTBEAT_STALE_MS = void 0;
 exports.validateHeartbeat = validateHeartbeat;
+exports.endpointHostsFromEnv = endpointHostsFromEnv;
 exports.sharedNodeFleet = sharedNodeFleet;
+const node_crypto_1 = require("node:crypto");
 /** A node is offline once this long passes without a heartbeat (nodes push every ~2 s; the core drone fleet's window). */
 exports.HEARTBEAT_STALE_MS = 15_000;
 exports.MAX_NODES = 16;
+/** One owner's share of the fleet: nobody can fill it alone (ADR-175 review, finding 5). */
+exports.MAX_NODES_PER_OWNER = 8;
+/** A full fleet evicts a record silent this long before refusing a new node. */
+exports.STALE_EVICT_MS = 10 * 60_000;
+/** The hosts a node may declare as its command endpoint unless EMBODIED_NODE_ENDPOINT_HOSTS says otherwise: the engine's compose aliases. */
+exports.DEFAULT_ENDPOINT_HOSTS = ['embodied-engine', 'embodied-px4'];
 const EVENT_RETENTION = 50;
 const MAX_TELEMETRY_BYTES = 4096;
 /** The one legal node-id shape (the core drone fleet's). */
@@ -91,9 +100,14 @@ class DroneNodeFleet {
     nodes = new Map();
     staleMs;
     maxNodes;
+    maxPerOwner;
+    /** Hosts a node may name as its command endpoint (lowercase). */
+    endpointHosts;
     constructor(opts = {}) {
         this.staleMs = opts.staleMs ?? exports.HEARTBEAT_STALE_MS;
         this.maxNodes = opts.maxNodes ?? exports.MAX_NODES;
+        this.maxPerOwner = opts.maxPerOwner ?? exports.MAX_NODES_PER_OWNER;
+        this.endpointHosts = (opts.endpointHosts ?? endpointHostsFromEnv()).map((h) => h.toLowerCase());
     }
     /**
      * @description Absorb one authenticated heartbeat: validate, mint or refresh, merge events by seq.
@@ -102,11 +116,11 @@ class DroneNodeFleet {
      */
     ingest(raw, nowMs, ownerSub = null) {
         const hb = validateHeartbeat(raw);
+        this.assertEndpointHost(hb.endpointUrl);
         let rec = this.nodes.get(hb.nodeId);
         if (!rec) {
-            if (this.nodes.size >= this.maxNodes)
-                throw new NodeValidationError(`the fleet is at its ${this.maxNodes}-node limit`);
-            rec = { nodeId: hb.nodeId, kind: hb.kind, ownerSub, endpointUrl: hb.endpointUrl, hello: { protocol: hb.protocol, engine: hb.engine, version: hb.version, buildHash: hb.buildHash }, sessions: 0, telemetry: null, events: [], firstSeenMs: nowMs, lastSeenMs: nowMs };
+            this.admitNewRecord(ownerSub, nowMs);
+            rec = { nodeId: hb.nodeId, kind: hb.kind, ownerSub, endpointUrl: hb.endpointUrl, hello: { protocol: hb.protocol, engine: hb.engine, version: hb.version, buildHash: hb.buildHash }, sessions: 0, telemetry: null, events: [], firstSeenMs: nowMs, lastSeenMs: nowMs, commandKey: (0, node_crypto_1.randomBytes)(32).toString('base64url') };
             this.nodes.set(hb.nodeId, rec);
         }
         if (rec.ownerSub !== null && rec.ownerSub !== ownerSub)
@@ -125,7 +139,35 @@ class DroneNodeFleet {
                 rec.events.push(ev);
         if (rec.events.length > EVENT_RETENTION)
             rec.events.splice(0, rec.events.length - EVENT_RETENTION);
-        return { nodeId: hb.nodeId, ack: rec.events.length ? rec.events[rec.events.length - 1].seq : held };
+        return { nodeId: hb.nodeId, ack: rec.events.length ? rec.events[rec.events.length - 1].seq : held, commandKey: rec.commandKey };
+    }
+    /** @description Refuse an endpoint whose host is not an allowed node host (the api dials it). @param endpointUrl - The declared URL. */
+    assertEndpointHost(endpointUrl) {
+        let host = '';
+        try {
+            host = new URL(endpointUrl).hostname.toLowerCase();
+        }
+        catch {
+            throw new NodeValidationError('endpointUrl must be a plain http(s) URL');
+        }
+        if (!this.endpointHosts.includes(host)) {
+            throw new NodeValidationError(`endpoint host "${host}" is not an allowed node host (EMBODIED_NODE_ENDPOINT_HOSTS: ${this.endpointHosts.join(', ')})`);
+        }
+    }
+    /** @description Make room for a new record or refuse: one owner's cap first, then a stale record yields its slot. @param ownerSub - The new node's owner. @param nowMs - The clock. */
+    admitNewRecord(ownerSub, nowMs) {
+        const owned = [...this.nodes.values()].filter((r) => r.ownerSub !== null && r.ownerSub === ownerSub).length;
+        if (ownerSub !== null && owned >= this.maxPerOwner)
+            throw new NodeValidationError(`this owner is at its ${this.maxPerOwner}-node limit`);
+        if (this.nodes.size < this.maxNodes)
+            return;
+        let stalest = null;
+        for (const r of this.nodes.values())
+            if (nowMs - r.lastSeenMs >= exports.STALE_EVICT_MS && (!stalest || r.lastSeenMs < stalest.lastSeenMs))
+                stalest = r;
+        if (!stalest)
+            throw new NodeValidationError(`the fleet is at its ${this.maxNodes}-node limit`);
+        this.nodes.delete(stalest.nodeId);
     }
     /** @returns Whether the node has heartbeat within the window. */
     isOnline(nodeId, nowMs) {
@@ -159,6 +201,11 @@ class DroneNodeFleet {
     forget(nodeId) { return this.nodes.delete(nodeId); }
 }
 exports.DroneNodeFleet = DroneNodeFleet;
+/** @description The allowed node endpoint hosts from EMBODIED_NODE_ENDPOINT_HOSTS (comma-separated), else the defaults. @returns Hosts. */
+function endpointHostsFromEnv(env = process.env) {
+    const listed = String(env.EMBODIED_NODE_ENDPOINT_HOSTS ?? '').split(',').map((h) => h.trim()).filter(Boolean);
+    return listed.length ? listed : [...exports.DEFAULT_ENDPOINT_HOSTS];
+}
 let shared = null;
 /** @description The one fleet of this process, shared by the heartbeat mount and the world routes. @returns The fleet. */
 function sharedNodeFleet() {

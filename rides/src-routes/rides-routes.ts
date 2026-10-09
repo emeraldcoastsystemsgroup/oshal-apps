@@ -43,6 +43,7 @@
  * ---------------------------------------------------------------------------
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove Uber Rides credentials from generic bot dispatch. Estimate/deep-link access resolves a fixed-server-operation credential only inside the deterministic CLI helper; the model receives rider context and never a credential map.
  * 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: replace the final credential-bearing subprocess with the import-safe Uber Rides provider helper. Estimate, geocode, and handoff calls receive only the current request's explicit credential value.
+ * 2026-09-26 | maintainer@emeraldcoastsystemsgroup.com | Commerce surfaces (backlog "Consumer commerce native surfaces"): a chat turn in which the concierge sets `book` no longer builds the Uber deep link or writes rides_requests in the same request. It prices the trip with the deterministic estimate and returns a `proposal` (rideProposal: pickup, dropoff, the matching ride type and its fare range) that the surface shows as a confirm card; only the rider's confirm calls POST /request. `ride` stays in the reply (always null) so older surfaces keep their shape.
  *
  * @module rides-routes
  */
@@ -154,6 +155,42 @@ async function recordRequest(pool: Pool, sub: string, o: { pickup: string; dropo
     `INSERT INTO rides_requests (user_sub, pickup, dropoff, ride_type, est_fare_low, est_fare_high, deep_link)
      VALUES ($1,$2,$3,$4,$5,$6,$7)`,
     [sub, o.pickup, o.dropoff, o.rideType || null, o.fareLow ?? null, o.fareHigh ?? null, o.deepLink]);
+}
+
+/** What a chat "book" returns instead of a hand-off: the confirm card the surface shows. */
+export interface RideProposal {
+  actionId: 'request_ride';
+  pickup: string;
+  dropoff: string;
+  rideType: string | null;
+  label: string | null;
+  fareLow: number | null;
+  fareHigh: number | null;
+  summary: string;
+}
+
+/**
+ * @description Describe the ride the rider would be handing off to Uber, WITHOUT building the deep
+ * link or recording anything. The fare is the deterministic estimate's range for the ride type the
+ * concierge named (the first option when it named none or an unknown one), and a trip that did not
+ * geocode says "no fare estimate" instead of a number. Only the rider's confirm (POST /request)
+ * builds the link and writes history.
+ * @param trip - The pickup, destination and requested ride type.
+ * @param options - The estimate's ride options for that trip.
+ * @returns The proposal the surface renders as a confirm card.
+ */
+export function rideProposal(trip: { pickup: string; dropoff: string; rideType?: string }, options: any[]): RideProposal {
+  const wanted = String(trip.rideType || '').toLowerCase();
+  const option = options.find((o) => String(o?.type || '').toLowerCase() === wanted) || options[0] || null;
+  const priced = !!option && option.fareLow !== null && option.fareLow !== undefined && option.fareHigh !== null && option.fareHigh !== undefined;
+  const label = option?.label ? String(option.label) : null;
+  const fare = priced ? `estimated $${option.fareLow}-${option.fareHigh}` : 'no fare estimate for this route';
+  return {
+    actionId: 'request_ride', pickup: trip.pickup, dropoff: trip.dropoff,
+    rideType: option?.type ? String(option.type) : null, label,
+    fareLow: priced ? Number(option.fareLow) : null, fareHigh: priced ? Number(option.fareHigh) : null,
+    summary: `Open Uber for ${label || 'a ride'} from ${trip.pickup} to ${trip.dropoff} (${fare})? You confirm pickup and pay in the Uber app; nothing is requested or charged here.`,
+  };
 }
 
 // ── Concierge brain ────────────────────────────────────────────────────────--
@@ -389,26 +426,24 @@ export function createRidesRoutes(ctx: AppContext): Router {
     const dropoff = env.dropoff || hintedDropoff || '';
     const rideType = env.rideType || '';
     let options: any[] = [];
-    if ((env.showOptions || (!env.book && dropoff)) && dropoff) {
+    if (dropoff) {
       const estimate = await ridesProviderOperation(pool, sub, ['estimate', pickup, dropoff]);
       options = estimate.options || [];
     }
-    let ride: any = null;
-    if (env.book && dropoff) {
-      const handoff = await ridesProviderOperation(pool, sub, ['ride', pickup, dropoff, rideType]);
-      if (handoff.rideUrl) {
-        await recordRequest(pool, sub, { pickup, dropoff, rideType, deepLink: handoff.rideUrl });
-        ride = { rideUrl: handoff.rideUrl, webUrl: handoff.webUrl, appUrl: handoff.appUrl, pickup, dropoff, rideType };
-      }
-    }
+    // The concierge may decide the rider wants to go; it may not hand off on its own. A proposal
+    // (priced by the estimate above) is returned for the surface's confirm card and NOTHING
+    // outward-facing happens (no deep link, no rides_requests row) until the rider confirms,
+    // which calls POST /request.
+    const proposal = env.book && dropoff ? rideProposal({ pickup, dropoff, rideType }, options) : null;
     if (!reply) reply = "I'm having trouble reaching my assistant right now — give me a moment and try again.";
 
     await store.addMessage(conversationId, sub, 'assistant', reply);
     await store.touch(conversationId);
 
     // reply is rich markdown (the shared renderer will surface maps/cards/charts from it later; for now
-    // the surface renders the markdown). options/ride kept for response-shape compatibility.
-    res.json({ conversationId, reply, trip: { pickup, dropoff, rideType }, options, ride });
+    // the surface renders the markdown). `ride` is kept for response-shape compatibility and is
+    // always null now: a hand-off is created only by the rider's confirm (POST /request).
+    res.json({ conversationId, reply, trip: { pickup, dropoff, rideType }, options, ride: null, proposal });
   }));
 
   router.get('/conversation', rider(async (req, res, sub) => {

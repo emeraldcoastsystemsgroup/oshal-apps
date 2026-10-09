@@ -23,6 +23,14 @@
  *                     |                             | poll that adopts the director's edits from the chat rail.
  *                     |                             | Every node is built with textContent; every call goes through
  *                     |                             | one `api()` helper; the page never composes a pulse.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | The full-page start runs only when no audience view renders
+ *                     |                             | (ADR-164 D6): the Jarvis Home shell opens this page with
+ *                     |                             | ?audience=family and the shared kit paints the saved props
+ *                     |                             | from GET /rigs alone, so under the view main() is never
+ *                     |                             | called — no capabilities or catalog read, no rig read or
+ *                     |                             | poll, no wire-up (controller link, arm/play/jog handlers,
+ *                     |                             | the disarm beacon on unload). Without the parameter, or on
+ *                     |                             | a core without the kit, the page starts exactly as before.
  */
 (function () {
   'use strict';
@@ -378,8 +386,16 @@
   }
   async function rehearseOrPlayNeutral() { const axes = {}; axesOf().forEach((a) => { axes[a] = channelOfAxis(a).neutralDeg; }); await play({ axes, ms: 600 }); }
 
-  (async function main() {
+  /**
+   * @description Start the full page: the contract, catalog and rig reads, the wire-up (controller link, authority
+   * rail, the disarm beacon on unload) and the poll that adopts the director's edits.
+   * @returns {Promise<void>} Settles once the first rig is shown (or the failure is toasted).
+   */
+  async function main() {
     try { await loadCaps(); wire(); renderRail(); await loadRigs(); startPoll(); }
     catch (e) { toast('The app could not load: ' + e.message, 'error'); }
-  })();
+  }
+  // The full page only: under an audience view the shared kit paints instead (see the page's head block), so no read,
+  // no wire-up, no controller link and no poll starts here. A page without the kit runs the full page.
+  if (!window.AppView || !AppView.active()) main();
 })();

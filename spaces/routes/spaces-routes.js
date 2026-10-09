@@ -23,6 +23,7 @@
  * 2026-09-14 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Both multipart lanes (POST /scans video, POST /scans/import model) re-enter the caller's RLS request identity after multer. The body streams on the socket's own async context, so once busboy finished on a later chunk the AsyncLocalStorage identity was gone and the spatial_scans insert was refused (OSHAL_DB_GUC_STRICT=deny / RLS WITH CHECK) — every import over roughly one socket chunk failed 500 "failed to import capture" while a small file that fit the first chunk succeeded (reproduced 2026-09-13 with public .splat files on the box's own image). Guarded by tests/upload-identity.core.test.js.
  * 2026-09-14 01:30:00 | maintainer@emeraldcoastsystemsgroup.com | Spaces → embodied (ADR-151 D3/Q3): GET /scans/:id/scene builds the ready scan into an embodied hidden scene (obstacle boxes from the splat, metres, z-up, drone home on the clearest floor; up/scaleM/ceilingM/maxBoxes/minPoints query, download=1) via the pure embodied-scene module; GET /scenes lists the caller's ready scans as ADR-139 provides artifacts; the surface tags every ready scan as an embodied-scene source and offers the download. The embodied-side accept endpoint is the other half of the contract.
  * 2026-09-14 20:00:00 | maintainer@emeraldcoastsystemsgroup.com | POST /scans/import gates a `.ply` by size WHILE IT STREAMS. The import lane accepted 300 MB of anything and handed it to the kernel converter, which parsed the whole buffer on the api's event loop: a 44 MB `.ply` held the loop for about 14 s and a 117 MB one ran the 7 GB Docker VM out of memory and took the stack down (2026-09-14). multer's `limits.fileSize` is one number for every file and the extension only arrives with the part header, so the second, per-format gate is a storage engine (import-upload-gate.ts) that stops writing at the first chunk past `resolvePlyImportLimits().plyMaxBytes` (OSHAL_SPACES_PLY_MAX_BYTES, default 50 MiB — no number lives in this file) and answers 413 naming the limit. An oversized `.ply` is never fully received, written, or parsed; `.splat` keeps the 300 MB ceiling and both lanes keep their post-multer identity re-entry. Guarded by tests/ply-import-off-loop.core.test.js.
+ * 2026-09-29 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | ADR-169 L7 (store half): anchorMap on capture. Both multipart lanes read two optional text fields, `captureSessionId` (the guided-capture session the clip or model came from) and `placeId`. The scan is registered naming its session, the kernel joins that session's capture GPS to the scan (captureAnchorForScan), and the location kernel skill's anchorMap records where the map was captured, so mapsNear finds it on a later visit. The answer carries `anchor` with ids and a reason only, never a coordinate, and nothing here logs one: a refusal is logged through locationSafeError. An upload with no session, a session with no GPS fix, or a refusal by the kernel (an owner whose precision class stores no coordinates, a place that is not theirs, a caller without a verified issuer) registers the scan exactly as before, without an anchor. Guarded by tests/capture-anchor.core.test.js.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -71,6 +72,7 @@ const logger_1 = require("@/shared/logger");
 const artifact_exchange_1 = require("@/shared/artifact-exchange");
 const request_identity_1 = require("@/shared/services/database/request-identity");
 const spatial_mapping_1 = require("@/features/spatial-mapping");
+const location_1 = require("@/features/location");
 const drone_1 = require("@/features/drone");
 const cli_token_routes_1 = require("@/app/routes/cli-token-routes");
 const embodied_scene_1 = require("./embodied-scene");
@@ -124,6 +126,25 @@ function requestOrigin(req) {
     const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() || req.protocol || 'https';
     const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
     return host ? `${proto}://${host}` : '';
+}
+/**
+ * @description The guided-capture session an upload names in its `captureSessionId` text field.
+ * @param body - The parsed multipart text fields.
+ * @returns The session id, or null when the field is absent or is not a session id.
+ */
+function captureSessionOf(body) {
+    const raw = body?.captureSessionId;
+    return typeof raw === 'string' && spatial_mapping_1.CAPTURE_SESSION_ID_RE.test(raw) ? raw : null;
+}
+/**
+ * @description The optional grouping place an upload names in its `placeId` text field, as given:
+ * the location kernel skill decides whether it is an id and whether it is the caller's to use.
+ * @param body - The parsed multipart text fields.
+ * @returns The value, or null when the field is absent or blank.
+ */
+function placeOf(body) {
+    const raw = body?.placeId;
+    return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
 }
 /** Sanitize an upload's extension to a short safe suffix. */
 function safeExt(name) {
@@ -196,6 +217,33 @@ function createSpacesRoutes(ctx) {
     const appHtml = surfaceHtml(ctx.appPackageDir, 'spaces.html');
     const viewerHtml = surfaceHtml(ctx.appPackageDir, 'spaces-viewer.html');
     const captureHtml = surfaceHtml(ctx.appPackageDir, 'spaces-capture.html');
+    // ADR-169 L7: anchor a freshly registered scan from the GPS its own capture session recorded.
+    // The scan is already registered when this runs, and it stays registered whatever happens here:
+    // no session, no GPS fix and every refusal by the kernel are answered as "not anchored" with a
+    // reason. Nothing is logged but ids, and an error only through locationSafeError, because a
+    // database error can quote the row it refused.
+    const anchorCapturedScan = async (sub, scanId, sessionId, placeId) => {
+        if (!sessionId)
+            return { anchored: false, reason: 'no_capture_session' };
+        try {
+            const capture = await service.captureAnchorForScan(sub, scanId);
+            if (!capture)
+                return { anchored: false, reason: 'no_capture_gps' };
+            const anchor = await (0, location_1.anchorMap)(ctx.pool, {
+                mapKind: 'spatial-scan', mapRef: scanId, source: 'capture-gps', capturedAt: capture.capturedAt,
+                anchor: { lat: capture.lat, lon: capture.lon, headingDeg: capture.headingDeg, accuracyM: capture.accuracyM },
+                footprintRadiusM: capture.footprintRadiusM, placeId,
+            });
+            logger.info({ scanId, anchorId: anchor.anchorId, placeId: anchor.placeId }, 'scan anchored from its capture GPS');
+            return { anchored: true, anchorId: anchor.anchorId, placeId: anchor.placeId };
+        }
+        catch (err) {
+            const code = err.code;
+            const reason = typeof code === 'string' && code.startsWith('location_') ? code : 'anchor_failed';
+            logger.error({ scanId, reason, err: (0, logger_1.locationSafeError)(err) }, 'scan registered without an anchor');
+            return { anchored: false, reason };
+        }
+    };
     // ══════════════════════════════════════════════════════════════════════════
     // Ported from core src/app/routes/spaces-routes.ts (RECONCILED to final source
     // 2026-07-20 19:45, incl. the /pair mobile-ingest endpoint). Adapted ONLY where
@@ -305,12 +353,13 @@ function createSpacesRoutes(ctx) {
         }
         const rawTitle = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
         const title = (rawTitle || file.originalname || 'Untitled scan').slice(0, 120);
+        const captureSessionId = captureSessionOf(req.body);
         try {
             const scan = await service.registerAndStart({
                 id: scanId, userSub: sub, title, sourceKind: 'video',
-                sourceName: file.originalname || 'source', sourceRef: file.path, sourceBytes: file.size,
+                sourceName: file.originalname || 'source', sourceRef: file.path, sourceBytes: file.size, captureSessionId,
             });
-            res.status(201).json({ scan });
+            res.status(201).json({ scan, anchor: await anchorCapturedScan(sub, scanId, captureSessionId, placeOf(req.body)) });
         }
         catch (err) {
             logger.error({ err, scanId }, 'scan registration failed');
@@ -382,12 +431,13 @@ function createSpacesRoutes(ctx) {
         }
         const rawTitle = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
         const title = (rawTitle || file.originalname || 'Imported scan').slice(0, 120);
+        const captureSessionId = captureSessionOf(req.body);
         try {
             const scan = await service.registerAndStart({
                 id: scanId, userSub: sub, title, sourceKind: 'model',
-                sourceName: file.originalname || `source${ext}`, sourceRef: file.path, sourceBytes: file.size,
+                sourceName: file.originalname || `source${ext}`, sourceRef: file.path, sourceBytes: file.size, captureSessionId,
             });
-            res.status(201).json({ scan });
+            res.status(201).json({ scan, anchor: await anchorCapturedScan(sub, scanId, captureSessionId, placeOf(req.body)) });
         }
         catch (err) {
             logger.error({ err, scanId }, 'import registration failed');

@@ -4,6 +4,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Persist exact-owner project snapshots atomically, lock optimistic writes and verify immutable referenced assets.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Serialize bounded writer admission before shared-pool checkout while retaining both current authorization checks.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Unused-upload cleanup keeps the image a brand kit uses as its logo.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Share the owner lock, the optimistic project lock and one revision-append step with region-edit acceptance, so an accepted candidate becomes a revision by exactly the same path a manual save does; unused-upload cleanup also keeps a candidate that is still generating or waiting for review.
  */
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
@@ -54,8 +55,12 @@ export class CreateProjectStore {
     } finally { client.release(discard); }
   }
 
-  /** Serialize per-owner admissions so concurrent requests cannot bypass storage quotas. */
-  private async ownerLock(client: PoolClient, owner: ProjectOwner): Promise<void> {
+  /**
+   * @description Serialize per-owner admissions so concurrent requests cannot bypass storage quotas.
+   * @param client - Transaction client. @param owner - Verified owner.
+   * @returns void
+   */
+  async ownerLock(client: PoolClient, owner: ProjectOwner): Promise<void> {
     await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [JSON.stringify([owner.issuer, owner.sub])]);
   }
 
@@ -70,7 +75,12 @@ export class CreateProjectStore {
     }
   }
 
-  private async lockProject(client: PoolClient, owner: ProjectOwner, id: string, expected: number): Promise<ProjectRow> {
+  /**
+   * @description Lock the exact owner's project row and require the revision the caller last saw.
+   * @param client - Transaction client. @param owner - Verified owner. @param id - Project. @param expected - Expected current revision.
+   * @returns The locked metadata row; a missing project is 404 and a newer revision is 409.
+   */
+  async lockProject(client: PoolClient, owner: ProjectOwner, id: string, expected: number): Promise<ProjectRow> {
     const result = await client.query<ProjectRow>(`SELECT ${METADATA} FROM create_projects WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 FOR UPDATE`, [owner.issuer, owner.sub, id]);
     const row = result.rows[0];
     if (!row) throw new ProjectError(404, 'project_not_found');
@@ -135,20 +145,30 @@ export class CreateProjectStore {
     }, confirm);
   }
 
+  /**
+   * @description Append the next immutable revision inside a transaction that already holds the owner and project locks.
+   * @param client - Transaction client. @param owner - Verified owner. @param id - Project.
+   * @param expected - The locked current revision. @param input - Validated title and reference-mode document.
+   * @returns The new project snapshot.
+   */
+  async appendRevision(client: PoolClient, owner: ProjectOwner, id: string, expected: number, input: ProjectInput): Promise<ProjectSnapshot> {
+    await this.checkAssets(client, owner, input);
+    const revision = expected + 1;
+    await client.query('INSERT INTO create_project_revisions (project_id,owner_issuer,owner_sub,revision,title,document) VALUES ($3,$1,$2,$4,$5,$6::jsonb)',
+      [owner.issuer, owner.sub, id, revision, input.title, JSON.stringify(input.document)]);
+    await this.recordAssets(client, owner, id, revision, input);
+    const result = await client.query<ProjectRow>(`UPDATE create_projects SET title=$4,current_revision=$5,updated_at=NOW()
+      WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 AND current_revision=$6 RETURNING ${METADATA}`, [owner.issuer, owner.sub, id, input.title, revision, expected]);
+    if (!result.rows.length) throw new ProjectError(409, 'project_revision_conflict');
+    return { ...metadata(result.rows[0]), document: input.document };
+  }
+
   async save(owner: ProjectOwner, id: string, expected: number, input: ProjectInput, confirm: ConfirmProjectAccess): Promise<ProjectSnapshot> {
     return this.transaction(owner, true, async client => {
       await this.ownerLock(client, owner);
       await this.lockProject(client, owner, id, expected);
       if (expected >= PROJECT_LIMITS.revisions) throw new ProjectError(409, 'project_revision_limit_reached');
-      await this.checkAssets(client, owner, input);
-      const revision = expected + 1;
-      await client.query('INSERT INTO create_project_revisions (project_id,owner_issuer,owner_sub,revision,title,document) VALUES ($3,$1,$2,$4,$5,$6::jsonb)',
-        [owner.issuer, owner.sub, id, revision, input.title, JSON.stringify(input.document)]);
-      await this.recordAssets(client, owner, id, revision, input);
-      const result = await client.query<ProjectRow>(`UPDATE create_projects SET title=$4,current_revision=$5,updated_at=NOW()
-        WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 AND current_revision=$6 RETURNING ${METADATA}`, [owner.issuer, owner.sub, id, input.title, revision, expected]);
-      if (!result.rows.length) throw new ProjectError(409, 'project_revision_conflict');
-      return { ...metadata(result.rows[0]), document: input.document };
+      return this.appendRevision(client, owner, id, expected, input);
     }, confirm);
   }
 
@@ -178,7 +198,7 @@ export class CreateProjectStore {
     }, confirm);
   }
 
-  /** Retire only old assets referenced by no retained revision and no brand kit logo; serialize against new references. */
+  /** Retire only old assets referenced by no retained revision, no brand kit logo and no pending region candidate; serialize against new references. */
   async cleanupAssets(owner: ProjectOwner, removeFile: (id: string) => Promise<void>, confirm: ConfirmProjectAccess): Promise<string[]> {
     return this.transaction(owner, true, async client => {
       await this.ownerLock(client, owner);
@@ -186,6 +206,8 @@ export class CreateProjectStore {
         WHERE a.owner_issuer=$1 AND a.owner_sub=$2 AND a.created_at<NOW()-INTERVAL '24 hours'
         AND NOT EXISTS (SELECT 1 FROM create_project_revision_assets r WHERE r.asset_id=a.asset_id AND r.owner_issuer=$1 AND r.owner_sub=$2)
         AND NOT EXISTS (SELECT 1 FROM create_brand_kits b WHERE b.logo_asset_id=a.asset_id AND b.owner_issuer=$1 AND b.owner_sub=$2)
+        AND NOT EXISTS (SELECT 1 FROM create_region_edits e WHERE e.result_asset_id=a.asset_id AND e.owner_issuer=$1 AND e.owner_sub=$2
+          AND e.status IN ('generating','ready'))
         ORDER BY a.created_at,a.asset_id LIMIT 25 FOR UPDATE`, [owner.issuer, owner.sub]);
       for (const row of result.rows) {
         await confirm(); await removeFile(row.asset_id);

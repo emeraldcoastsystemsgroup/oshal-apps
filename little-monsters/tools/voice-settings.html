@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Little Monsters — Voice Settings</title>
 <!--
   CHANGE LOG
@@ -10,118 +10,104 @@
   DATE           | AUTHOR                                      | DESCRIPTION
   ---------------------------------------------------------------------------
   2026-08-05     | maintainer@emeraldcoastsystemsgroup.com     | Replace retired kernel-manifest advice with the installed package manifest and current package-install workflow.
+  2026-09-26     | maintainer@emeraldcoastsystemsgroup.com     | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, cockpit theme links and glass; the page used --lm-border/--lm-panel/--lm-code tokens that were defined nowhere plus a dark hex palette, now mapped onto the real tokens (--lm-line, --lm-card, --lm-input-bg, semantic pills); hero, settings card, fields and the provider list use the system; it says plainly that the choices are device-local and that engine status is read from /voice-config only; toasts replace the inline "Saved" flag and the alert
   ---------------------------------------------------------------------------
 -->
-<script>
-// Sync iframe theme to parent cockpit's data-theme. Storage events don't fire
-// in the writing window, so a MutationObserver on the parent <html> is the
-// reliable path for live same-tab updates when the operator cycles themes.
-(function(){
-  function applyTheme(n){
-    if(!n)return;
-    document.documentElement.setAttribute('data-theme',n);
-    var href='/cockpit/css/themes/'+n+'.css';
-    var link=document.querySelector('link[data-lm-theme-link="1"]');
-    if(link){if(link.getAttribute('href')!==href)link.setAttribute('href',href);return;}
-    link=document.createElement('link');link.rel='stylesheet';link.href=href;
-    link.setAttribute('data-lm-theme-link','1');document.head.appendChild(link);
-  }
-  function initial(){
-    try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(_e){}
-    try{var s=window.localStorage.getItem('cockpit-theme');if(s)return s;}catch(_e){}
-    return 'midnight';
-  }
-  applyTheme(initial());
-  try{if(window.parent&&window.parent!==window){
-    var ph=window.parent.document.documentElement;
-    new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){if(ms[i].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)applyTheme(t);}}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});
-  }}catch(_e){}
-})();
-</script>
-<link rel="stylesheet" href="/api/education/education.css" />
-<script src="/api/education/lm-voice.js"></script>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
+<link rel="stylesheet" href="/api/education/education.css">
 <style>
-  .vform label { display:block; font-size:0.85rem; color: var(--lm-muted,#9a8dbf); margin: 0.6rem 0 0.25rem; }
-  .vform select, .vform input[type="range"] { width: 100%; }
-  .vform .togglerow { display:flex; align-items:center; gap:0.5rem; margin-bottom:0.25rem; }
-  .vform .actions { margin-top: 0.9rem; display:flex; gap:0.5rem; align-items:center; }
-  .vform .saved { color:#7ae07a; font-size:0.85rem; }
-  body { padding: 1.5rem; max-width: 780px; margin: 0 auto; }
-  h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
-  h2 { font-size: 1.05rem; margin-top: 1.5rem; }
-  .card {
-    border: 1px solid var(--lm-border, #3a2d4f);
-    background: var(--lm-panel, #1e1830);
-    border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem;
-  }
-  .row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
-  .pid { font-family: monospace; font-size: 0.85rem; color: var(--lm-muted, #9a8dbf); }
-  .status-ok { color: #7ae07a; font-weight: 600; }
-  .status-bad { color: #ff8a8a; font-weight: 600; }
-  .reason { color: var(--lm-muted, #9a8dbf); font-size: 0.85rem; margin-top: 0.25rem; }
-  .default-pill {
-    background: var(--lm-accent, #7c5cff); color: #fff;
-    border-radius: 999px; padding: 2px 8px; font-size: 0.7rem;
-    margin-left: 0.5rem; letter-spacing: 0.03em;
-  }
-  .subtle { color: var(--lm-muted, #9a8dbf); font-size: 0.88rem; }
-  code.edit-hint {
-    display: block; padding: 0.5rem; margin-top: 0.5rem;
-    background: var(--lm-code, #0f0a1c); border-radius: 0.25rem;
-    font-size: 0.8rem; color: var(--lm-muted, #cbb9f5);
-  }
-  .preview-ctrl { margin-top: 0.75rem; }
-  button {
-    background: var(--lm-accent, #7c5cff); color: #fff;
-    border: none; border-radius: 0.25rem; padding: 0.35rem 0.8rem;
-    cursor: pointer; font-size: 0.85rem;
-  }
-  button:disabled { opacity: 0.5; cursor: not-allowed; }
-  #preview-audio { width: 100%; margin-top: 0.5rem; }
-  .err { color: #ff8a8a; font-size: 0.85rem; margin-top: 0.5rem; }
+  /* Design-system gap: no range slider component yet, so one page-local slider on tokens. */
+  .lm-range { -webkit-appearance: none; appearance: none; width: 100%; height: var(--lm-touch); margin: 0; background: transparent; cursor: pointer; }
+  .lm-range::-webkit-slider-runnable-track { height: 8px; border-radius: var(--lm-radius-pill); background: var(--lm-accent-soft); }
+  .lm-range::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; margin-top: -9px; border-radius: 50%; background: var(--lm-accent); border: 3px solid var(--lm-card); box-shadow: var(--lm-shadow-soft); }
+  .lm-range::-moz-range-track { height: 8px; border-radius: var(--lm-radius-pill); background: var(--lm-accent-soft); }
+  .lm-range::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--lm-accent); border: 3px solid var(--lm-card); box-shadow: var(--lm-shadow-soft); }
+  .lm-range:focus-visible { outline-offset: 0; }
+  .rate-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .rate-row output { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--lm-accent); }
+
+  .prov-side { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .prov-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .prov-name strong { display: inline; }
+  #preview-audio { width: 100%; margin-top: 10px; }
+  .edit-hint { display: block; padding: 8px 10px; margin-top: 8px; border-radius: var(--lm-radius-sm); background: var(--lm-input-bg); border: 1px solid var(--lm-line); font-size: 12.5px; color: var(--lm-ink-2); overflow-x: auto; white-space: pre; }
+  .operator summary { cursor: pointer; font-weight: 700; color: var(--lm-ink-2); min-height: var(--lm-touch); display: flex; align-items: center; }
 
   @media (max-width: 640px) {
-    body { padding: 1rem; }
-    .row { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
-    .vform .actions { flex-wrap: wrap; }
-    .vform select, .vform input[type="range"] { font-size: 16px; }
-    button { padding: 0.5rem 1rem; font-size: 0.9rem; }
+    .lm-item { flex-wrap: wrap; }
+    .prov-side { width: 100%; justify-content: flex-start; }
   }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
-<h1>Voice Settings</h1>
-<p class="subtle">Choose how read-aloud sounds for you. These settings are saved on this device and apply across Little Monsters.</p>
+<main class="lm-page is-narrow">
+  <header class="lm-hero">
+    <div>
+      <div class="lm-eyebrow">Read-aloud</div>
+      <h1 class="lm-display">How should I sound?</h1>
+      <p class="lm-lead">Pick the voice and speed Little Monsters uses when it reads to you. These choices are saved on this device only, and they apply to every Little Monsters page you open here.</p>
+    </div>
+    <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
+  </header>
 
-<div class="card vform">
-  <strong>My read-aloud</strong>
-  <div class="togglerow" style="margin-top:0.6rem;">
-    <input type="checkbox" id="vEnabled" />
-    <label for="vEnabled" style="margin:0;">Read things aloud</label>
-  </div>
-  <label for="vVoice">Voice</label>
-  <select id="vVoice">
-    <option value="">Default (recommended)</option>
-    <option value="Kore">Kore — warm</option>
-    <option value="Puck">Puck — upbeat</option>
-    <option value="Charon">Charon — calm</option>
-    <option value="Aoede">Aoede — bright</option>
-    <option value="Fenrir">Fenrir — deep</option>
-    <option value="Leda">Leda — gentle</option>
-  </select>
-  <label for="vRate">Speaking speed: <span id="vRateLabel">1.0×</span></label>
-  <input type="range" id="vRate" min="0.6" max="1.4" step="0.05" value="1" />
-  <div class="actions">
-    <button type="button" id="vSave">Save</button>
-    <button type="button" id="vPreview" style="background:transparent;border:1px solid var(--lm-accent,#7c5cff);">&#128264; Preview</button>
-    <span id="vSaved" class="saved" style="display:none;">Saved ✓</span>
-  </div>
-</div>
+  <section class="lm-section">
+    <div class="lm-card">
+      <div class="lm-card-kicker">My read-aloud</div>
+      <label class="lm-check" for="vEnabled">
+        <input type="checkbox" id="vEnabled">
+        <span>Read things aloud</span>
+      </label>
+      <div class="lm-field lm-mt-md">
+        <label for="vVoice">Voice</label>
+        <select id="vVoice">
+          <option value="">Default (recommended)</option>
+          <option value="Kore">Kore — warm</option>
+          <option value="Puck">Puck — upbeat</option>
+          <option value="Charon">Charon — calm</option>
+          <option value="Aoede">Aoede — bright</option>
+          <option value="Fenrir">Fenrir — deep</option>
+          <option value="Leda">Leda — gentle</option>
+        </select>
+      </div>
+      <div class="lm-mb-md">
+        <div class="rate-row"><label class="lm-label" for="vRate" style="margin:0">Speaking speed</label><output id="vRateLabel" for="vRate">1×</output></div>
+        <input type="range" class="lm-range" id="vRate" min="0.6" max="1.4" step="0.05" value="1" aria-label="Speaking speed">
+      </div>
+      <div class="lm-hero-actions" style="margin-top:6px">
+        <button type="button" class="lm-btn lm-btn-primary" id="vSave">Save on this device</button>
+        <button type="button" class="lm-btn lm-btn-ghost" id="vPreview">&#128264; Preview</button>
+      </div>
+      <p class="lm-help">Saved in this browser only, so a different device keeps its own choices. Preview and read-aloud send the words to the voice engine below; the settings themselves never leave this device.</p>
+    </div>
+  </section>
 
+  <section class="lm-section">
+    <div class="lm-section-head">
+      <h2>Voice engines on this server</h2>
+      <span class="lm-subtle lm-small">For reference — read from the server’s voice config, not changed here.</span>
+    </div>
+    <div id="content"><div class="lm-loading">Checking the voice engines…</div></div>
+  </section>
+
+  <section class="lm-section">
+    <div class="lm-card is-compact">
+      <details class="operator">
+        <summary>How the defaults are changed (operators)</summary>
+        <p class="lm-help">Operator defaults come from the <code>voice</code> block in the installed Little Monsters <code>oshal-app.yaml</code>. Publish the manifest change, reinstall with <code>node scripts/oshal-app.js install little-monsters</code>, then restart the controller. The personal choices above remain device-local.</p>
+        <code class="edit-hint" id="hintTts">voice.tts.provider = "—"  →  change to "browser" | "gemini-tts" | "google-cloud-tts"</code>
+        <code class="edit-hint" id="hintStt">voice.stt.provider = "—"  →  change to "browser" | "gemini-stt" | "google-cloud-stt"</code>
+      </details>
+    </div>
+  </section>
+</main>
+
+<script src="/api/education/lm-voice.js"></script>
+<script src="/api/education/mascot.js?v=4"></script>
 <script>
 (function () {
   function get(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
+  function fmtRate(v) { return parseFloat(v).toFixed(2).replace(/\.?0+$/, '') + '×'; }
   var enabled = document.getElementById('vEnabled');
   var voice = document.getElementById('vVoice');
   var rate = document.getElementById('vRate');
@@ -129,15 +115,15 @@
   enabled.checked = get('lm-tts-enabled', '1') !== '0';
   voice.value = get('lm-tts-voice', '');
   rate.value = get('lm-tts-rate', '1');
-  rateLabel.textContent = parseFloat(rate.value).toFixed(2).replace(/0$/, '') + '×';
-  rate.addEventListener('input', function () { rateLabel.textContent = parseFloat(rate.value).toFixed(2).replace(/0$/, '') + '×'; });
+  rateLabel.textContent = fmtRate(rate.value);
+  rate.addEventListener('input', function () { rateLabel.textContent = fmtRate(rate.value); });
   document.getElementById('vSave').addEventListener('click', function () {
     try {
       localStorage.setItem('lm-tts-enabled', enabled.checked ? '1' : '0');
       localStorage.setItem('lm-tts-voice', voice.value);
       localStorage.setItem('lm-tts-rate', rate.value);
-      var s = document.getElementById('vSaved'); s.style.display = 'inline'; setTimeout(function () { s.style.display = 'none'; }, 2000);
-    } catch (e) { alert('Could not save settings: ' + e.message); }
+      window.LM.toast('Saved on this device ✓');
+    } catch (e) { window.LM.toast('Could not save the settings: ' + e.message); }
   });
   document.getElementById('vPreview').addEventListener('click', function () {
     // Save first so the preview reflects the current choices, then speak.
@@ -147,17 +133,15 @@
       localStorage.setItem('lm-tts-rate', rate.value);
     } catch (e) { /* ignore */ }
     if (window.lmSpeak) window.lmSpeak('Hi! This is how I will read things aloud for you.');
+    else window.LM.toast('Read-aloud is not available on this page right now.');
   });
 })();
 </script>
 
-<h2 style="margin-top:1.5rem;">Provider status</h2>
-<p class="subtle">Which voice engines the server has available (for reference).</p>
-<div id="content">Loading…</div>
-
 <script>
 (async function () {
   const root = document.getElementById('content');
+  const esc = window.LM.esc;
   let payload;
   try {
     const res = await fetch('/api/education/voice-config', { credentials: 'include' });
@@ -165,57 +149,46 @@
     if (!body.success) throw new Error(body.message || 'voice-config endpoint failed');
     payload = body.data;
   } catch (err) {
-    root.innerHTML = '<div class="card err">Failed to load voice config: ' + String(err && err.message || err) + '</div>';
+    root.innerHTML = '<div class="lm-empty"><div class="lm-empty-icon">☁️</div><strong>The voice engines could not be checked right now.</strong><span></span></div>';
+    root.querySelector('span').textContent = String(err && err.message || err);
     return;
   }
 
   const ttsDefault = payload.config.tts.default;
   const sttDefault = payload.config.stt.default;
   const ttsServerSide = payload.config.tts.serverSide || ttsDefault;
+  document.getElementById('hintTts').textContent = 'voice.tts.provider = "' + ttsDefault + '"  →  change to "browser" | "gemini-tts" | "google-cloud-tts"';
+  document.getElementById('hintStt').textContent = 'voice.stt.provider = "' + sttDefault + '"  →  change to "browser" | "gemini-stt" | "google-cloud-stt"';
 
-  function renderSection(title, providers, defaultId, extraDefaultLabel, kind) {
+  function renderSection(title, providers, defaultId, serverSideId, kind) {
     const items = providers.map(function (p) {
-      const ok = p.status.configured;
+      const ok = Boolean(p.status && p.status.configured);
       const badge = p.id === defaultId
-        ? '<span class="default-pill">DEFAULT</span>'
-        : (p.id === extraDefaultLabel
-          ? '<span class="default-pill" style="background:#a48cff">SERVER-SIDE</span>'
-          : '');
+        ? '<span class="lm-pill">Default</span>'
+        : (p.id === serverSideId ? '<span class="lm-pill is-info">Server-side</span>' : '');
       const previewBtn = kind === 'tts'
-        ? '<button class="preview-provider" data-provider-id="' + p.id + '" type="button">Preview</button>'
+        ? '<button class="lm-btn lm-btn-ghost preview-provider" data-provider-id="' + esc(p.id) + '" type="button">Preview</button>'
         : '';
+      const reason = ok ? '' : '<div class="lm-help">' + esc(p.status && p.status.reason || '') + '</div>';
       return ''
-        + '<div class="card">'
-        +   '<div class="row">'
-        +     '<div><strong>' + p.displayName + '</strong>' + badge
-        +       '<div class="pid">' + p.id + ' &middot; ' + p.kind + '</div>'
-        +     '</div>'
-        +     '<div style="display:flex; gap:0.75rem; align-items:center;">'
-        +       previewBtn
-        +       '<div class="' + (ok ? 'status-ok' : 'status-bad') + '">'
-        +         (ok ? 'CONFIGURED' : 'NOT CONFIGURED')
-        +       '</div>'
-        +     '</div>'
+        + '<li class="lm-item">'
+        +   '<div class="lm-item-body">'
+        +     '<div class="prov-name"><strong>' + esc(p.displayName) + '</strong>' + badge + '</div>'
+        +     '<small>' + esc(p.id) + ' · ' + esc(p.kind) + '</small>' + reason
         +   '</div>'
-        +   (ok ? '' : '<div class="reason">' + (p.status.reason || '') + '</div>')
-        + '</div>';
+        +   '<div class="prov-side">' + previewBtn
+        +     '<span class="lm-pill ' + (ok ? 'is-success' : 'is-warning') + '">' + (ok ? 'Ready' : 'Not set up') + '</span>'
+        +   '</div>'
+        + '</li>';
     }).join('');
-    return '<h2>' + title + '</h2>' + items;
+    return '<h3 class="lm-section-label lm-mt-md">' + title + '</h3><ul class="lm-list">' + items + '</ul>';
   }
 
-  const html = ''
-    + renderSection('Text-to-Speech providers', payload.tts.providers, ttsDefault, ttsServerSide, 'tts')
-    + '<audio id="preview-audio" controls hidden style="width:100%; margin:0.5rem 0;"></audio>'
-    + '<div id="preview-msg" class="reason" style="margin-bottom:1rem;"></div>'
-    + renderSection('Speech-to-Text providers', payload.stt.providers, sttDefault, null, 'stt')
-    + '<div class="card">'
-    +   '<strong>How to change defaults</strong>'
-    +   '<div class="subtle">Operator defaults come from the <code>voice</code> block in the installed Little Monsters <code>oshal-app.yaml</code>. Publish the manifest change, reinstall with <code>node scripts/oshal-app.js install little-monsters</code>, then restart the controller. The personal choices above remain device-local.</div>'
-    +   '<code class="edit-hint">' + 'voice.tts.provider = "' + ttsDefault + '"  →  change to "browser" | "gemini-tts" | "google-cloud-tts"' + '</code>'
-    +   '<code class="edit-hint">' + 'voice.stt.provider = "' + sttDefault + '"  →  change to "browser" | "gemini-stt" | "google-cloud-stt"' + '</code>'
-    + '</div>';
-
-  root.innerHTML = html;
+  root.innerHTML = ''
+    + renderSection('Text-to-speech', payload.tts.providers, ttsDefault, ttsServerSide, 'tts')
+    + '<audio id="preview-audio" controls hidden></audio>'
+    + '<p id="preview-msg" class="lm-help" aria-live="polite"></p>'
+    + renderSection('Speech-to-text', payload.stt.providers, sttDefault, null, 'stt');
 
   async function previewProvider(providerId, btn) {
     const msg = document.getElementById('preview-msg');

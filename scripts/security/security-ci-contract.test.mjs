@@ -23,6 +23,11 @@
  * 18 | maintainer@emeraldcoastsystemsgroup.com | Classify the known completed-task writer through actual route inventory fixtures while retaining read-only routes.
  * 19 | maintainer@emeraldcoastsystemsgroup.com | Ledger to the real 60-package store: Animatronics ships the canonical service-only readiness smoke pair like every routed package; the count also takes in Circuit Lab and Drone Relay, which landed their smoke pairs without bumping it.
  * 20 | maintainer@emeraldcoastsystemsgroup.com | Ledger to 61 with the Marketing group, and pin the write-class closure rule: a route that delegates its SQL to a package sibling is machine-write, transitively, while a file outside routes//src-routes is never read. Splitting marketing-routes.ts into modules had silently downgraded /api/marketing to no-sql-write, and the same shape was already under-reporting 19 routes across 14 packages.
+ * 21 | maintainer@emeraldcoastsystemsgroup.com | Admit the route-less Home Workspace group and compare smoke coverage to the actual catalog names, so later package additions cannot leave an unrelated stale literal count masking the coverage check.
+ * 22 | maintainer@emeraldcoastsystemsgroup.com | Require Calling Assistant's public machine-write mount to retain the signed verifier and declared core capability; the metadata-only readiness smoke cannot hide or replace that boundary.
+ * 23 | maintainer@emeraldcoastsystemsgroup.com   | Admit the route-less Intelligent Sports group (ADR-146 Q4: fantasy-football and sports-edge) beside the career, marketing and Home Workspace front doors; the new fantasy-football package carries the canonical readiness smoke like every routed package.
+ * 24 | maintainer@emeraldcoastsystemsgroup.com | Verify existing Vids named anonymous reads and reject malformed nested declarations while retaining the following route.
+ * 25 | maintainer@emeraldcoastsystemsgroup.com | Pin the seven experience readiness documentation updates as exact canonical comment substitutions without accepting executable drift.
  */
 
 import test from 'node:test';
@@ -171,6 +176,33 @@ test('route parser inventories block and inline auth without an empty default', 
   assert.throws(() => parseManifestRoutes('routes:\n  - module: routes/c.js\n    factory: createC\n    mountPath: /api/c\n', 'missing.yaml'), /missing auth/);
 });
 
+/** Keep the one public, state-changing Calling Assistant mount inseparable from its signed owner verifier. */
+function assertCallingCallbackContract(manifest) {
+  assert.match(manifest, /^uses: \[[^\]\r\n]*\bsigned-package-callbacks\b[^\]\r\n]*\]\s*$/m);
+  const routes = parseManifestRoutes(manifest, 'calling-assistant/oshal-app.yaml');
+  const callback = routes.find(route => route.mountPath === '/api/calling-callbacks');
+  assert.deepEqual(callback, {
+    module: 'routes/routes.js', factory: 'createCallingCallbackRoutes', mountPath: '/api/calling-callbacks',
+    auth: 'public', callbackVerifier: 'createCallingCallbackVerifier',
+  });
+}
+
+test('Calling Assistant public callback keeps a named signed-verifier contract', () => {
+  const manifest = readFileSync('calling-assistant/oshal-app.yaml', 'utf8');
+  assertCallingCallbackContract(manifest);
+  const module = readFileSync('calling-assistant/routes/routes.js', 'utf8');
+  assert.match(module, /module\.exports=\{createCallingRoutes,createCallingCallbackRoutes,createCallingCallbackVerifier\}/);
+  for (const [from, to] of [
+    ['signed-package-callbacks, ', ''],
+    ['callbackVerifier: createCallingCallbackVerifier\n', ''],
+    ['callbackVerifier: createCallingCallbackVerifier', 'callbackVerifier: unknownVerifier'],
+    ['auth: public', 'auth: oidc'],
+  ]) {
+    assert.ok(manifest.includes(from), from);
+    assert.throws(() => assertCallingCallbackContract(manifest.replace(from, to)), undefined, `${from} -> ${to}`);
+  }
+});
+
 /** Build complete isolated manifest/source/compiled peers without importing or executing route handlers. */
 function writeInventoryFixture(t, sourceBody, compiledBody = sourceBody) {
   const root = mkdtempSync(join(tmpdir(), 'oshal-route-write-'));
@@ -291,10 +323,33 @@ function assertPortraitReadinessPermission(manifest, catalog) {
   assert.match(catalog, /^ {4}- id: package-smoke\r?\n {6}method: GET\r?\n {6}path: \/\r?\n {6}allOf: \[portrait\.view\]\s*$/m);
 }
 
+const DOCUMENTED_READINESS_PACKAGES = new Set(['home-experience', 'business-experience', 'classroom-experience',
+  'studio-experience', 'jarvis-experience', 'orbit-experience', 'commons-experience']);
+
+/** @description Replace one reviewed canonical documentation anchor, refusing missing or ambiguous baselines. */
+function replaceReadinessComment(source, before, after) {
+  assert.equal(source.split(before).length, 2, 'canonical documentation anchor must occur exactly once');
+  return source.replace(before, after);
+}
+
+/** @description Derive the reviewed documentation-only pair from the original canonical readiness implementation. */
+function documentedReadinessPair(canonical) {
+  const header = ' * 2 | maintainer@emeraldcoastsystemsgroup.com | Contain a resolved manifest path beneath its real package root before reading readiness metadata.\n';
+  const addition = ' * 3 | maintainer@emeraldcoastsystemsgroup.com | Document the package context and exported readiness factory contract.\n';
+  const prose = ' * Package-owned install readiness. This route reads only the installed package manifest: it does\n * not resolve a user, query tenant data, call a provider, mutate state, or spend AI tokens.';
+  const contract = ' * @description Report package-owned readiness from the bounded installed manifest without user or provider operations.\n * @param ctx Installed package context containing the manifest root.\n * @returns The service-authenticated router reporting verified identity or unavailable integrity.';
+  const pair = Object.fromEntries(['source', 'compiled'].map(kind => [kind,
+    replaceReadinessComment(replaceReadinessComment(canonical[kind], header, header + addition), prose, contract)]));
+  pair.source = replaceReadinessComment(pair.source, 'interface PackageSmokeContext {',
+    '/** @description Supply the installed package root for bounded manifest-only readiness checks. */\ninterface PackageSmokeContext {');
+  return pair;
+}
+
 /** Compare actual module bytes strictly against the canonical compiler's package-specific output policy. */
 function assertReadinessModulePair(packageDir, source, compiled, canonical) {
-  assert.equal(source, canonical.source, `${packageDir} smoke source drifted`);
-  const expected = normalizeCompilerOutput({ sourceRoot: join(packageDir, 'src-routes') }, Buffer.from(canonical.compiled));
+  const pair = DOCUMENTED_READINESS_PACKAGES.has(packageDir) ? documentedReadinessPair(canonical) : canonical;
+  assert.equal(source, pair.source, `${packageDir} smoke source drifted`);
+  const expected = normalizeCompilerOutput({ sourceRoot: join(packageDir, 'src-routes') }, Buffer.from(pair.compiled));
   assert.equal(compiled, expected.toString('utf8'), `${packageDir} compiled smoke drifted`);
 }
 
@@ -348,21 +403,25 @@ test('every non-Pumpkin routed package owns its reviewed authenticated readiness
     .filter((entry) => entry.isDirectory() && existsSync(join(entry.name, 'oshal-app.yaml')))
     .map((entry) => entry.name)
     .sort();
-  assert.equal(packageDirs.length, 61, 'the smoke audit must cover the complete store manifest set');
+  const catalogNames = JSON.parse(readFileSync('marketplace.json', 'utf8')).apps.map(app => app.name).sort();
+  const manifestNames = packageDirs.map(dir => /^name:\s*([a-z0-9-]+)\s*$/m.exec(readFileSync(join(dir, 'oshal-app.yaml'), 'utf8'))?.[1]);
+  assert.deepEqual(manifestNames.sort(), catalogNames, 'the smoke audit must cover the complete store manifest set');
 
   const canonical = {
     source: normalizedModule('brand-graphics/src-routes/package-smoke.ts'),
     compiled: normalizedModule('brand-graphics/routes/package-smoke.js'),
   };
   const kinds = packageDirs.map((packageDir) => [packageDir, classifySmokePackage(packageDir, canonical)]);
-  assert.deepEqual(kinds.filter(([, kind]) => kind === 'group').map(([packageDir]) => packageDir), ['intelligent-career', 'marketing-suite'],
-    'the route-less groups are the career and marketing front doors');
-  assert.equal(kinds.filter(([, kind]) => kind === 'covered').length, 58,
-    'only Pumpkin and the two route-less groups are outside the 61-package rollout');
+  const groups = kinds.filter(([, kind]) => kind === 'group').map(([packageDir]) => packageDir);
+  assert.deepEqual(groups, ['intelligent-career', 'intelligent-sports', 'marketing-suite', 'workspace'],
+    'the route-less groups are the career, sports, marketing and Home Workspace front doors');
+  const covered = packageDirs.length - groups.length - 1;
+  assert.equal(kinds.filter(([, kind]) => kind === 'covered').length, covered,
+    'only Pumpkin and the four route-less groups are outside the package smoke rollout');
 
   const inventory = JSON.parse(readFileSync('scripts/security/store-route-inventory.json', 'utf8')).routes;
   const smokeRoutes = inventory.filter((entry) => entry.includes('|routes/package-smoke.js|'));
-  assert.equal(smokeRoutes.length, 58);
+  assert.equal(smokeRoutes.length, covered);
   assert.deepEqual(smokeRoutes.filter(entry => entry.startsWith('portrait-studio|')), [
     'portrait-studio|routes/package-smoke.js|createPackageSmokeRoutes|/api/portrait-studio/_smoke|oidc|no-sql-write',
   ]);
@@ -400,6 +459,28 @@ test('Portrait user-bound readiness rejects auth, prerequisite and permission we
   assert.ok(compiled.includes('res.json('));
   assert.throws(() => assertReadinessModulePair('portrait-studio', source, compiled.replace('res.json(', 'res.status(201).json('), canonical));
   assert.throws(() => assertReadinessModulePair('portrait-studio', source.replace("router.get('/'", "router.post('/'"), compiled, canonical));
+});
+
+test('documented readiness retains exact metadata and executable comparisons for only the seven reviewed packages', () => {
+  const canonical = { source: normalizedModule('brand-graphics/src-routes/package-smoke.ts'),
+    compiled: normalizedModule('brand-graphics/routes/package-smoke.js') };
+  const documented = documentedReadinessPair(canonical);
+  for (const name of DOCUMENTED_READINESS_PACKAGES) {
+    const compiled = normalizeCompilerOutput({ sourceRoot: join(name, 'src-routes') }, Buffer.from(documented.compiled)).toString('utf8');
+    const check = (source = documented.source, emitted = compiled) => assertReadinessModulePair(name, source, emitted, canonical);
+    check(); assert.throws(() => check(canonical.source), /source drifted/);
+    assert.throws(() => check(documented.source + '// unreviewed\n'), /source drifted/);
+    assert.throws(() => check(documented.source.replace(' * @param ctx', ' * ctx')), /source drifted/);
+    assert.throws(() => check(documented.source.replace("router.get('/'", "router.post('/'")), /source drifted/);
+    assert.throws(() => check(documented.source.replace('128 * 1024', '256 * 1024')), /source drifted/);
+    assert.throws(() => check(documented.source.replace("relativeManifest.startsWith('..')", 'false')), /source drifted/);
+    assert.throws(() => check(undefined, compiled.replace('res.json(', 'res.status(201).json(')), /compiled smoke drifted/);
+  }
+  for (const name of ['brand-graphics', 'unlisted-experience']) {
+    assert.throws(() => assertReadinessModulePair(name, documented.source, documented.compiled, canonical), /source drifted/);
+  }
+  assert.throws(() => documentedReadinessPair({ ...canonical, source: canonical.source.replace('interface PackageSmokeContext {', '') }), /exactly once/);
+  assert.throws(() => documentedReadinessPair({ ...canonical, compiled: canonical.compiled + canonical.compiled }), /exactly once/);
 });
 
 test('readiness uses canonical source-map policy and retains strict executable-byte comparisons', () => {
@@ -630,4 +711,33 @@ test('live owner-RLS proof is opt-in, required in ephemeral CI, complete, and cl
     'apply legacy fixture and repeated owner upgrades',
     'run legacy owner upgrade proof',
   ]);
+});
+
+
+test('route parser carries existing Vids named reads without consuming following routes', () => {
+  const routes = parseManifestRoutes(readFileSync('vids/oshal-app.yaml', 'utf8'), 'vids/oshal-app.yaml');
+  assert.deepEqual(routes.find(row => row.mountPath === '/api/vids-public').anonymousRoutes,
+    [{ method: 'GET', path: '/:token/video.mp4' }, { method: 'HEAD', path: '/:token/video.mp4' }]);
+  const source = `routes:
+  - module: routes/public.js
+    factory: createPublic
+    mountPath: /api/public
+    auth: public
+    anonymousRoutes:
+      - method: GET
+        path: /:token/video.mp4
+  - module: routes/private.js
+    factory: createPrivate
+    mountPath: /api/private
+    auth: oidc
+`;
+  assert.equal(parseManifestRoutes(source, 'fixture.yaml').length, 2);
+  for (const [before, after] of [
+    ['method: GET', 'method: POST'], ['path: /:token/video.mp4', 'path: /:token'],
+    ['path: /:token/video.mp4', 'path: /:token/*'], ['path: /:token/video.mp4', 'path: /a/%2F'],
+    ['path: /:token/video.mp4', 'extra: unknown'], ['path: /:token/video.mp4', 'method: HEAD'],
+    ['auth: public', 'auth: oidc'],
+    ['      - method: GET\n        path: /:token/video.mp4', ''],
+  ]) assert.throws(() => parseManifestRoutes(source.replace(before, after), 'mutation.yaml'));
+  assert.throws(() => parseManifestRoutes(source.replace('  - module: routes/private.js', '    anonymousRoutes:\n      - method: HEAD\n        path: /video.mp4\n  - module: routes/private.js'), 'duplicate.yaml'));
 });

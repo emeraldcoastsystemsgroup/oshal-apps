@@ -7,11 +7,16 @@
  *                     |                             | the 4/(3π) mean-cube result, the emergent spring/neap
  *                     |                             | beat, and the design trap that a mean-power budget
  *                     |                             | passes but a simulated neap kills.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 D8 (S5a): the medium is a parameter of the budget. The
+ *                     |                             | cube law takes the density from its caller and defaults to the
+ *                     |                             | seawater row; the harvest is linear in it; a config that names a
+ *                     |                             | density integrates in that fluid; a massless medium is refused.
  */
 
 import { describe, expect, it } from 'vitest';
 import {
   MODERATE_INLET_SITE,
+  SEAWATER_DENSITY_KGM3,
   SINUSOID_MEAN_CUBE_FACTOR,
   STANDARD_CONSTITUENT_PERIODS_H,
   STRONG_CHANNEL_SITE,
@@ -125,6 +130,38 @@ describe('turbine harvest', () => {
     const naive = turbinePowerW(IDEAL_TURBINE, (2 / Math.PI) * amplitude);
     expect(naive / verdict.meanHarvestW).toBeCloseTo(6 / Math.PI ** 2, 3);
     expect(naive).toBeLessThan(verdict.meanHarvestW);
+  });
+});
+
+describe('the medium is a parameter of the budget (ADR-160 D8)', () => {
+  const AIR_DENSITY_KGM3 = 1.225;
+
+  it('defaults to the seawater row, so every caller that names no medium gets the budget it always did', () => {
+    expect(SEAWATER_DENSITY_KGM3).toBe(1025);
+    expect(turbinePowerW(IDEAL_TURBINE, 1.3)).toBe(turbinePowerW(IDEAL_TURBINE, 1.3, SEAWATER_DENSITY_KGM3));
+  });
+
+  it('is linear in the density the caller names — the same rotor in air harvests rho_air/rho_sea of the seawater power', () => {
+    const inSea = turbinePowerW(IDEAL_TURBINE, 1.3, SEAWATER_DENSITY_KGM3);
+    const inAir = turbinePowerW(IDEAL_TURBINE, 1.3, AIR_DENSITY_KGM3);
+    expect(inAir / inSea).toBeCloseTo(AIR_DENSITY_KGM3 / SEAWATER_DENSITY_KGM3, 12);
+    expect(inAir).toBeGreaterThan(0);
+  });
+
+  it('integrates the whole budget in the fluid the config names, and in seawater when it names none', () => {
+    const site = { name: 'pure-m2', constituents: [constituent('M2', 1.5)] };
+    const options = { durationHours: M2_PERIOD_H * 4, stepSeconds: 30 };
+    const unnamed = simulatePowerBudget(unit(site, IDEAL_TURBINE, 1e6, 0), options).verdict;
+    const sea = simulatePowerBudget({ ...unit(site, IDEAL_TURBINE, 1e6, 0), densityKgM3: SEAWATER_DENSITY_KGM3 }, options).verdict;
+    const air = simulatePowerBudget({ ...unit(site, IDEAL_TURBINE, 1e6, 0), densityKgM3: AIR_DENSITY_KGM3 }, options).verdict;
+    expect(unnamed.harvestedWh).toBe(sea.harvestedWh);
+    expect(air.harvestedWh / sea.harvestedWh).toBeCloseTo(AIR_DENSITY_KGM3 / SEAWATER_DENSITY_KGM3, 9);
+  });
+
+  it('refuses a medium with no mass rather than harvesting a quiet zero', () => {
+    for (const density of [0, -1025, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => turbinePowerW(IDEAL_TURBINE, 1.3, density)).toThrow(RangeError);
+    }
   });
 });
 

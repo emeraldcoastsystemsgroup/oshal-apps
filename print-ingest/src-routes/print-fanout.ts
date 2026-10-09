@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | ADR-135 D15 — fan-out: one approved document written to several corpora on purpose. Retrieval fuses PER-COLLECTION rankings, so a document competes only with what shares its collection: the same page ranks high in a focused bot corpus and is buried in a large swarm one for the identical query. Three invariants are enforced here rather than trusted to callers. (1) Every copy carries the same content-hash doc_id, so results dedupe by document and every copy is reachable from one id. (2) Writes are attempted independently and the outcome of EACH is returned — a partial fan-out reports partially_ingested rather than pretending success or claiming total failure, because a written copy cannot be un-written and a blind retry would duplicate the ones that succeeded. (3) Only destinations the human actually ticked are written; the recommendation is not the instruction.
  *
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve requested private/shared visibility and exact declared bot audience in each native filing.
  * @module print-fanout
  */
 
@@ -70,9 +71,7 @@ export function planFanout(approvedIds: string[], catalog: Destination[]): Fanou
       kind: destination.kind,
       collection: destination.collection,
       botId: destination.botId,
-      // Only a deliberately shared destination is written unowned; everything
-      // else stays owned, because an operator's non-private ingest is readable
-      // by every signed-in user.
+      // An explicit shared request retains its declared tenant and bot audience.
       privateToOwner: destination.kind === 'private',
     }));
 }
@@ -98,6 +97,8 @@ export function buildIngestPayload(
     private: write.privateToOwner,
     metadata: {
       doc_id: ragDocId(doc.contentSha256),
+      visibility: write.privateToOwner ? 'private' : 'shared',
+      ...(write.botId ? { botId: write.botId } : {}),
       provenance: 'print-drop',
       trust: 'untrusted',
       destination: write.destinationId,

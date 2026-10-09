@@ -15,6 +15,16 @@
 
 name: brand-graphics
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: brand-graphic
+      unit: brand motion graphic
+      tier: T2
+      generation: hosted
+      degrade: disable
 displayName: Brand Graphics
 description: >-
   Turn a short brief into an on-brand OSHAL motion graphic. The brand specialist
@@ -22,7 +32,10 @@ description: >-
   electric-"oshal" intro look — deep navy, glowing electric-blue energy, the
   lowercase wordmark traced in light — on the operator's signed-in Chrome, and
   returns the project URL.
-version: 1.1.1
+version: 1.1.2
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: inactive
 
 theme: midnight
@@ -90,6 +103,7 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
 
 # The brand specialist bot — upserted + registered in the ACTIVE bot registry by the
 # loader from this manifest (ADR-085; zero core-registry edits).

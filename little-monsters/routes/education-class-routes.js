@@ -11,13 +11,25 @@
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Delete classes and dependent rows atomically under row locks while rechecking the actor's current tenant, role, and ownership in the final delete
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | Fail class deletion closed until every locked material file and exact RAG collection is removed, then delete its material rows in the class transaction
  * 5   | maintainer@emeraldcoastsystemsgroup.com     | Replace wildcard class reads with the reviewed client-facing class projection
+ * 6   | maintainer@emeraldcoastsystemsgroup.com     | /class-tool-keys answers for the whole app (static surfaces by role plus accessible classes) so the rail's visibility rule covers every lm-* tool without a new binding; teacher-only surfaces are not offered to learners
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Commit class creation and creator enrollment atomically with explicit school identity.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Route native relational deletion through the authoritative optimistic transaction adapter.
  * ---------------------------------------------------------------------------
  *
  * @module education-class-routes
  */
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.readStaticToolNames = readStaticToolNames;
+exports.visibleStaticToolNames = visibleStaticToolNames;
 exports.createEducationClassRoutes = createEducationClassRoutes;
 const crypto_1 = require("crypto");
+const education_transactions_1 = require("./education-transactions");
+const education_native_class_deletion_1 = require("./education-native-class-deletion");
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
 const express_1 = require("express");
 const logger_1 = require("@/shared/logger");
 const tool_routes_1 = require("@/app/routes/tool-routes");
@@ -33,11 +45,54 @@ function sendAccessError(res, err) {
 function errorMessage(err) {
     return err instanceof Error ? err.message : 'Unexpected class-management error';
 }
+/**
+ * Surfaces the routes only serve teachers and admins: lecture writes (recorder) and teaching analytics.
+ * Listing them for a learner would offer a tab that can only answer 403, so the visibility answer
+ * leaves them out; the routes themselves keep refusing regardless of what any rail shows.
+ */
+const TEACHER_ONLY_TOOLS = ['lm-teacher', 'lm-recorder'];
+/**
+ * @description The static surface tool names declared by this package's own manifest (`ui.static[].toolName`),
+ * read from the installed package directory so the visibility answer can never drift from the rail.
+ * @param packageDir The installed package directory (the manifest lives at its root).
+ * @returns The declared tool names in manifest order; empty when the manifest cannot be read.
+ */
+function readStaticToolNames(packageDir) {
+    try {
+        const manifest = fs_1.default.readFileSync(path_1.default.join(packageDir, 'oshal-app.yaml'), 'utf8');
+        const start = manifest.indexOf('\n  static:');
+        const end = manifest.indexOf('\n  dynamic:', start + 1);
+        const block = start >= 0 ? manifest.slice(start, end > start ? end : undefined) : '';
+        return [...block.matchAll(/^\s+- \{\s*toolName:\s*([a-z0-9-]+)/gm)].map((m) => m[1]);
+    }
+    catch (err) {
+        logger.error({ err, packageDir }, 'Could not read the static surface names from the manifest');
+        return [];
+    }
+}
+/**
+ * @description Which static surfaces a caller may see: everyone gets the learner surfaces; teachers and
+ * admins also get the teacher-only ones. Presentation only, mirroring what the routes enforce.
+ * @param role The caller's school role.
+ * @param toolNames The static tool names declared by the manifest.
+ * @returns The subset to admit for this caller.
+ */
+function visibleStaticToolNames(role, toolNames) {
+    const teacher = role === 'teacher' || role === 'admin';
+    return toolNames.filter((name) => teacher || !TEACHER_ONLY_TOOLS.includes(name));
+}
+/**
+ * @description The per-caller visibility answer for the whole app, served on the route every installation
+ * already binds: the static surfaces the caller's school role may see plus the caller's accessible class
+ * keys. The manifest rule (`pattern: lm-*`) points here. Fail-closed on any error.
+ */
 async function listClassToolKeys(ctx, req, res) {
     try {
         const student = await (0, education_access_1.resolveAuthedStudent)(req, ctx.pool);
         const accessible = await (0, education_access_1.listAccessibleClassIds)(ctx.pool, student);
-        res.json({ keys: accessible.map((id) => `lm-class-${String(id).slice(0, 8)}`) });
+        const classes = accessible.map((id) => `lm-class-${String(id).slice(0, 8)}`);
+        const surfaces = visibleStaticToolNames(student.role, readStaticToolNames(ctx.appPackageDir || process.env.OSHAL_APP_PACKAGE_DIR || ''));
+        res.json({ keys: [...surfaces, ...classes] });
     }
     catch (err) {
         logger.error({ err }, 'Failed to resolve class-tool visibility');
@@ -153,6 +208,8 @@ async function rollbackClassDeletion(client, classId, cause) {
 }
 /** Atomically remove one class only while its current authorization stays locked. */
 async function deleteClassRows(pool, actorId, classId) {
+    if ((0, education_transactions_1.isNativeSchoolStore)(pool))
+        return (0, education_native_class_deletion_1.deleteNativeClassRows)(pool, actorId, classId);
     const client = await pool.connect();
     let transactionOpen = false;
     try {
@@ -206,12 +263,14 @@ async function persistClass(ctx, req, classId) {
     const prefix = `lm-class-${classId.substring(0, 8)}`;
     const metadata = { website: website || '', schedule: schedule || '', room: room || '' };
     const isTeacher = creator.role === 'teacher' || creator.role === 'admin';
-    await ctx.pool.query(`INSERT INTO lm_classes
-     (class_id, name, subject, grade_level, teacher_name, description,
-      chroma_collection_prefix, metadata, teacher_student_id, published, tenant_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, [classId, name, subject, gradeLevel || '', teacherName || creator.name || '',
-        description || '', prefix, JSON.stringify(metadata), creator.studentId, isTeacher, creator.tenantId]);
-    await ctx.pool.query('INSERT INTO lm_enrollments (student_id, class_id) VALUES ($1, $2) ON CONFLICT (student_id, class_id) DO NOTHING', [creator.studentId, classId]);
+    await (0, education_transactions_1.schoolTransaction)(ctx.pool, async (client) => {
+        await client.query(`INSERT INTO lm_classes
+       (class_id, name, subject, grade_level, teacher_name, description,
+        chroma_collection_prefix, metadata, teacher_student_id, published, tenant_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, [classId, name, subject, gradeLevel || '', teacherName || creator.name || '',
+            description || '', prefix, JSON.stringify(metadata), creator.studentId, isTeacher, creator.tenantId]);
+        await client.query('INSERT INTO lm_enrollments (student_id, class_id, tenant_id) VALUES ($1, $2, $3) ON CONFLICT (student_id, class_id) DO NOTHING', [creator.studentId, classId, creator.tenantId]);
+    });
     logger.info({ classId, name, subject, creator: creator.studentId }, 'Class created and creator enrolled');
 }
 async function createClass(ctx, req, res) {

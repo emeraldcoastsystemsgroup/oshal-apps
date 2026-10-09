@@ -1,0 +1,70 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL application GROUP — Intelligent Sports (ADR-141)
+# 1.0.0 | maintainer@emeraldcoastsystemsgroup.com | Initial — the operator's Q4 decision on ADR-146 (2026-09-27): fantasy-football and sports-edge ship as two packages bundled by this group. Metadata only: every tile is borrowed from a member by app + surface name; no route, bot, tool or migration of its own.
+#
+# A group carries NO code. It binds two installed applications into one front door:
+#   fantasy-football  manage your own fantasy team: the lineup that beats this week's opponent
+#   sports-edge       the odds maker you point at one team, graded on closing-line value
+#
+# Each member keeps its own API, authority, chat and data — in particular fantasy-football's
+# per-person ownership (ADR-146 Q2) is untouched by the group: the group sees nothing either member
+# stores, and it reads no credential of its own.
+#
+# Framework: OSHAL (docs/adr/141-application-groups.md, docs/adr/146-fantasy-football-draft-platform.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: intelligent-sports
+kind: group
+suite: ai-productivity   # ADR-097: primary catalog shelf, with its fantasy-football member (operator decision Q4)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features: []   # no model in the loop (T0)
+displayName: Intelligent Sports
+description: >-
+  One front door for sport: manage your own fantasy football team, and follow a team's next game
+  with an odds maker that is graded on closing-line value before it may stake anything. Each
+  destination remains owned by its member app.
+version: 1.0.0
+status: active
+scope: public
+theme: midnight
+# Both members hand their right rail to the stable framework concierge; the group borrows it.
+chatBot: general-bot
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: intelligent-sports
+  ref: main
+
+# The members. Installing this group resolves both (npm-style, fail-closed); the reverse-dependency
+# guard blocks a member's uninstall while the group is active.
+dependencies:
+  required:
+    apps:
+      - fantasy-football
+      - sports-edge
+    connectors: []
+  optional:
+    apps: []
+    # The runtime connector allow-list: exactly the union of the members' own declared lists, in
+    # member order, and nothing beyond them (fantasy-football: espn-fantasy; sports-edge: none).
+    # DECLARED rather than absent, because absent means UNFILTERED in the cockpit.
+    connectors: [espn-fantasy]
+
+# ── Toolbar — borrowed by reference ──────────────────────────────────────────
+toolbar:
+  - { app: fantasy-football, surface: fantasy-football }
+  - { app: sports-edge,      surface: sports-edge-home,   group: Odds }
+  - { app: sports-edge,      surface: sports-edge-review, section: bottom }
+
+ribbon:
+  defaultView: fantasy-football
+  hideFrameworkItems:
+    - tickets
+    - calendar
+    - addressbook
+    - logs
+    - operations

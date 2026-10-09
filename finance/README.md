@@ -67,3 +67,18 @@ should be copied into a token or configuration field.
 | `tests/session-crypto.test.mjs` | unit | Isolated Node runner; synthetic data only |
 
 These tests do not contact accounts, providers or live business records. Surface syntax and stubbed-handler assertions do not claim browser or connector acceptance. Package readiness remains a separate metadata-only probe.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **64 / 256 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| money-brief | money brief | T3 | none | disable | not yet measured | none recorded |
+| context-review | draft review against your finances | T3 | none | disable | not yet measured | none recorded |
+| finance-brief-ticket | finance brief ticket | T3 | none | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,8 +10,140 @@
   SEQ | AUTHOR                                    | DESCRIPTION
   ---------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com   | ADR-135 P1 inbox surface. A view over the package's store (ADR-036): it renders the recommendation and posts a decision, and holds no domain logic of its own. Two things are deliberate. Every destination is shown, including the ones NOT recommended and their reason, because hiding a low-confidence option is a decision made for someone without telling them. And each destination states who can read it at the point of choice, since a bot corpus is routing, not privacy.
+  2   | maintainer@emeraldcoastsystemsgroup.com   | 0.3.2: the company audience view for the Business shells (ADR-164 D6). Studio, Orbit and Commons open this first surface with ?audience=company; the page now loads the theme bootstrap and the shared kit right after it, and the kit paints the signed-in account's own inbox from GET /documents and GET /home-summary (four stats, the newest ten documents with where each was proposed or filed, the failed or partly filed ones with their reasons, the route's notes) with every refusal and failure named. The view never approves, rejects, imports or files. The full page's start (the inbox read, the approve / reject and tab listeners) runs only when no audience view renders, and its native controls keep the browser's default colour scheme so the bootstrap leaves the full page as it was.
 -->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shells (Studio, Orbit, Commons) open this page with ?audience=company:
+     the signed-in account's OWN printed documents (awaiting approval, failed or partly filed, received in 5 days, fully
+     filed; the newest ten with where each was proposed or filed; the failures with their reasons) from
+     GET /api/print-ingest/documents (the inbox read the full page makes) and GET /api/print-ingest/home-summary, both
+     owner-scoped SELECTs under the caller's session, painted by the shared kit in the company grammar. The view never
+     approves, rejects or imports a document, never files a copy and writes nothing. Any other request runs the full
+     Print Inbox below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var API = '/api/print-ingest';
+  var KICKER = 'Knowledge · Print Ingest';
+  var LEDE = 'Documents printed to the swarm for the signed-in account and where each one went. Nothing is filed until a person approves it in the Print Inbox; this view reads saved records only and never approves, rejects or files a document.';
+  var ROWS = 10;
+  // GET /documents answers the newest 200 intake rows (ORDER BY created_at DESC LIMIT 200), so a full list is not the total.
+  var CAP = 200;
+  // The three counts routes/home-summary.js answers, in its order, with its own labels for a count that is missing.
+  var COUNTS = [['intake-review', 'Awaiting filing approval'], ['intake-needs-attention', 'Failed / partial filing'], ['intake-5d', 'Received / 5 days']];
+  var STATE_TONE = { awaiting_approval: 'warn', ingested: 'ok', partially_ingested: 'warn', failed: 'bad' };
+  // Every answer is { ok, status, body }: body null when the answer is not JSON, status 0 when the server was not reached.
+  function read(path) {
+    return fetch(API + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
+    }, function () { return { ok: false, status: 0, body: null }; });
+  }
+  function openFull() { window.location.assign(window.location.pathname); }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function errorOf(res) { return res.body && typeof res.body.error === 'string' ? res.body.error : ''; }
+  function metric(summary, id) {
+    var list = summary && Array.isArray(summary.metrics) ? summary.metrics : [];
+    return list.filter(function (m) { return m && m.id === id; })[0] || null;
+  }
+  // The route sends each count as digits in a string ('0', '12'), or the word 'Unavailable' when that source failed.
+  function count(summary, id) { var m = metric(summary, id); return m && typeof m.value === 'string' && /^\d+$/.test(m.value.trim()) ? Number(m.value) : null; }
+  // A document awaiting approval wants a decision; a failed or partial filing wants attention; an unread count is named.
+  function countTone(id, n) { return n === null ? 'warn' : n > 0 && id === 'intake-review' ? 'warn' : n > 0 && id === 'intake-needs-attention' ? 'bad' : null; }
+  function stats(summary, docs) {
+    var filed = docs.filter(function (d) { return d.state === 'ingested'; }).length;
+    return COUNTS.map(function (c) {
+      var n = count(summary, c[0]), m = metric(summary, c[0]);
+      return { id: c[0], label: (m && m.label) || c[1], value: n === null ? 'Unavailable' : String(n), tone: countTone(c[0], n), hint: n === null ? 'Could not be checked' : null };
+    }).concat([{ id: 'filed', label: 'Fully filed', value: String(filed), tone: filed ? 'ok' : null, hint: docs.length >= CAP ? 'Among the newest ' + CAP : null }]);
+  }
+  function title(summary, docs) {
+    var review = count(summary, 'intake-review'), failed = count(summary, 'intake-needs-attention');
+    if (review === null || failed === null) return 'Some saved counts cannot be checked';
+    if (review > 0) return plural(review, 'document', 'documents') + ' awaiting filing approval';
+    if (failed > 0) return plural(failed, 'document', 'documents') + ' failed or only partly filed';
+    return docs.length ? 'Nothing awaiting filing approval' : 'No printed documents yet';
+  }
+  function stateText(doc) { return String(doc.state || 'unknown').replace(/_/g, ' '); }
+  // Every sidecar field is what the printing machine declared (untrusted, shown as text only); a Send to import has no machine.
+  function origin(doc) {
+    var s = doc.sidecar && typeof doc.sidecar === 'object' ? doc.sidecar : {};
+    return [s.originatingComputer || (s.source === 'send-to' ? 'Send to…' : 'unknown machine'), s.printerName].filter(Boolean).join(' · ');
+  }
+  // A pending document shows the machine's proposal, named as a proposal; a decided one shows where each copy went.
+  function destinations(doc) {
+    if (doc.state === 'awaiting_approval') {
+      var proposals = doc.recommendation && Array.isArray(doc.recommendation.proposals) ? doc.recommendation.proposals : [];
+      var picked = proposals.filter(function (p) { return p && p.recommended; }).map(function (p) { return p.label || p.id; });
+      return picked.length ? 'Proposed: ' + picked.join(', ') : 'Nothing proposed';
+    }
+    if (doc.state === 'rejected') return 'Nothing written';
+    var copies = Array.isArray(doc.fanout) ? doc.fanout : [];
+    return copies.length ? copies.map(function (c) { return (c.label || c.destinationId || 'A copy') + (c.ok ? '' : ' (failed)'); }).join(', ') : 'No copy written';
+  }
+  function docRow(doc) {
+    return [doc.title || 'Untitled document', { text: stateText(doc), tone: STATE_TONE[doc.state] || null }, origin(doc), A.num(doc.textChars), destinations(doc), A.when(doc.createdAt)];
+  }
+  function documentsSection(docs) {
+    var total = docs.length >= CAP ? 'at least ' + CAP : String(docs.length);
+    return { kind: 'table', id: 'documents', title: 'Newest printed documents', wide: true,
+      note: docs.length > ROWS ? 'The newest ' + ROWS + ' of ' + total + ' printed documents.' : null,
+      empty: 'No printed document has reached this inbox yet. Anything printed to the oshal printer arrives here unfiled, for a person to approve.',
+      columns: ['Document', 'State', 'From', { label: 'Characters', align: 'right' }, 'Proposed or filed to', 'Received'], rows: docs.slice(0, ROWS).map(docRow) };
+  }
+  // failed and partially_ingested stay distinct: no copy was written, or some copies exist and some do not.
+  function attentionItem(doc) {
+    var partial = doc.state === 'partially_ingested';
+    return { title: doc.title || 'Untitled document', text: doc.failureReason ? String(doc.failureReason) : partial ? 'Some copies were written and some were not.' : 'No copy was written.',
+      meta: A.when(doc.decidedAt || doc.createdAt), badge: stateText(doc), tone: partial ? 'warn' : 'bad' };
+  }
+  function attentionSection(docs) {
+    var bad = docs.filter(function (d) { return d.state === 'failed' || d.state === 'partially_ingested'; });
+    return { kind: 'list', id: 'attention', title: 'Failed or partly filed', items: bad.slice(0, 6).map(attentionItem),
+      empty: docs.length >= CAP ? 'None among the newest ' + CAP + ' documents.' : 'No failed or partly filed document.' };
+  }
+  function summaryUnread(res) {
+    if (!res.status) return 'The saved counts could not be reached.';
+    if (res.status === 401 || res.status === 403) return 'The saved counts were refused for this session (HTTP ' + res.status + ').';
+    return 'The saved counts cannot be checked right now (HTTP ' + res.status + ').';
+  }
+  // The route's notes carry no continuation offer; its document items (which do) are already in the table.
+  function notesSection(res) {
+    var items = res.ok && res.body && Array.isArray(res.body.items) ? res.body.items : [];
+    var notes = items.filter(function (i) { return i && i.text && !(Array.isArray(i.actions) && i.actions.length); }).map(function (i) { return { title: String(i.text), tone: i.tone === 'warn' ? 'warn' : null }; });
+    if (!res.ok) notes.unshift({ title: summaryUnread(res), tone: 'warn' });
+    return { kind: 'list', id: 'notes', title: 'What these counts mean', empty: 'The route note could not be read.', items: notes };
+  }
+  function refusal(res) {
+    if (res.status === 401) return { kicker: KICKER, title: 'Sign in to see the print inbox', lede: 'This view shows the printed documents of whoever is signed in, and this session is not signed in.' };
+    return { kicker: KICKER, title: 'This account cannot open Print Ingest', lede: errorOf(res) === 'authorization_app_admin_required'
+      ? 'Print Ingest declares no role catalog, so only its application administrators are admitted, and this account is not one (HTTP 403).'
+      : 'The Print Ingest routes refused this account (HTTP 403).' };
+  }
+  function inbox(res) {
+    if (!res.status) throw new Error('The print inbox could not be reached. Check the connection and try again.');
+    if (!res.ok) throw new Error(errorOf(res) || 'The print inbox cannot be read right now (HTTP ' + res.status + ').');
+    if (!res.body || !Array.isArray(res.body.documents)) throw new Error('The print inbox answered in a form this view cannot read.');
+    return res.body.documents.filter(function (d) { return d && typeof d === 'object'; });
+  }
+  function company() {
+    return Promise.all([read('/documents'), read('/home-summary')]).then(function (r) {
+      if (r[0].status === 401 || r[0].status === 403) return refusal(r[0]);
+      var docs = inbox(r[0]), summary = r[1].ok ? r[1].body : null;
+      return { kicker: KICKER, title: title(summary, docs), lede: LEDE, actions: [{ label: 'Open the Print Inbox', primary: true, onClick: openFull }],
+        stats: stats(summary, docs), sections: [documentsSection(docs), attentionSection(docs), notesSection(r[1])] };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'print-ingest', escapeLabel: 'Open Print Ingest in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
+  /* The theme bootstrap marks <html> with the skin's color-scheme. This page paints its own palette, so its native controls
+     keep the browser default they had before the bootstrap; the audience view (data-audience) follows the skin. */
+  html:not([data-audience]) { color-scheme: normal; }
   :root {
     --bg: #f4f5f7; --card: #fff; --ink: #16181d; --ink-2: #555c68; --ink-3: #7c8493;
     --rule: #dcdfe5; --accent: #0a6e7c; --accent-wash: #e2f0f2;
@@ -170,22 +302,26 @@ async function decide(article, action) {
   load();
 }
 
-list.addEventListener('click', (event) => {
-  const article = event.target.closest('.doc');
-  if (!article) return;
-  if (event.target.classList.contains('approve')) decide(article, 'approve');
-  if (event.target.classList.contains('reject')) decide(article, 'reject');
-});
-
-document.querySelectorAll('.tab').forEach((tab) => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t === tab)));
-    state = tab.dataset.state;
-    load();
+// The full page only: under an audience view the shared kit paints instead (see the head script), so the inbox is not
+// read here and no approve, reject or tab listener is bound. A core without the shared kit runs the full page too.
+if (!window.AppView || !AppView.active()) {
+  list.addEventListener('click', (event) => {
+    const article = event.target.closest('.doc');
+    if (!article) return;
+    if (event.target.classList.contains('approve')) decide(article, 'approve');
+    if (event.target.classList.contains('reject')) decide(article, 'reject');
   });
-});
 
-load();
+  document.querySelectorAll('.tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t === tab)));
+      state = tab.dataset.state;
+      load();
+    });
+  });
+
+  load();
+}
 </script>
 </body>
 </html>

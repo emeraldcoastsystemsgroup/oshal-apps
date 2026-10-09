@@ -9,6 +9,71 @@
      matters — without it the surface would have no colors at all. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the household picture
+     (what is on, scenes to run, what is scheduled) from the SAME routes as the full page, painted by the shared
+     kit in the family grammar. Any other request runs the full Smart Home page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  function call(path, body) {
+    var opt = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' } : { credentials: 'same-origin' };
+    return fetch('/api/home' + path, opt).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); });
+  }
+  function deviceText(d) {
+    var caps = d.capabilities || [];
+    return [caps.indexOf('switchLevel') >= 0 ? 'Dimmable' : '', caps.indexOf('colorControl') >= 0 ? 'Color' : '', caps.indexOf('thermostat') >= 0 ? 'Thermostat' : '', caps.indexOf('lock') >= 0 ? 'Lock' : ''].filter(Boolean).join(' · ') || (d.hub || '');
+  }
+  // The schedule's trigger is an object ({ kind: 'clock' | 'solar', ... }), never text: these two mirror the full
+  // page's cronToLocalTime + loadSchedules exactly, so both views say the same thing about the same schedule.
+  function cronLocalTime(cron) {
+    var p = String(cron || '').split(' '); if (p.length < 2) return cron || '';
+    var d = new Date(); d.setUTCHours(Number(p[1]), Number(p[0]), 0, 0);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  function scheduleText(sc) {
+    var t = sc.trigger || {};
+    return t.kind === 'solar'
+      ? t.event + (t.offsetMin ? (t.offsetMin > 0 ? ' +' + t.offsetMin + 'm' : ' ' + t.offsetMin + 'm') : '')
+      : 'at ' + cronLocalTime(sc.cron) + (t.repeat === 'weekdays' ? ' · weekdays' : '');
+  }
+  function family(ctx) {
+    return Promise.all([call('/devices'), call('/scenes').catch(function () { return { scenes: [] }; }), call('/schedules').catch(function () { return { schedules: [] }; })]).then(function (r) {
+      var devices = r[0].devices || [], hubs = r[0].hubs || [], scenes = r[1].scenes || [], schedules = r[2].schedules || [];
+      var on = devices.filter(function (d) { return d.switch === 'on'; });
+      var busy = false;
+      var act = function (path, body) { if (busy) return; busy = true; call(path, body).then(function () { busy = false; ctx.refresh(); }, function (e) { busy = false; alert(e.message); }); };
+      return {
+        kicker: 'Home',
+        title: !devices.length ? 'No devices yet' : on.length ? on.length + ' of ' + devices.length + ' devices are on' : 'Everything is off',
+        lede: devices.length ? (hubs.length ? 'Hubs: ' + hubs.join(', ') : 'Your connected home') + (r[0].generatedAt ? ' · read ' + A.when(r[0].generatedAt) : '') : 'Connect a hub in Smart Home to see lights, switches and scenes here.',
+        actions: [{ label: 'Refresh from the hubs', onClick: function () { act('/refresh', {}); } }],
+        stats: [
+          { id: 'on', label: 'Devices on', value: on.length, tone: on.length ? 'ok' : null },
+          { id: 'devices', label: 'Devices', value: devices.length },
+          { id: 'scenes', label: 'Scenes', value: scenes.length },
+          { id: 'schedules', label: 'Schedules', value: schedules.length }
+        ],
+        sections: [
+          { kind: 'tiles', id: 'scenes', title: 'Scenes', empty: 'No scenes saved yet. Create one in Smart Home.', items: scenes.map(function (sc) {
+            return { title: sc.name, text: (sc.steps || []).length + ' steps · tap to run', icon: '✨', onClick: function () { if (confirm('Run the scene "' + sc.name + '"?')) act('/scene/run', { name: sc.name, confirm: true }); } };
+          }) },
+          { kind: 'list', id: 'devices', title: 'Lights and switches', note: 'Tap a device to switch it.', empty: 'No devices yet.', items: devices.slice(0, 24).map(function (d) {
+            var isOn = d.switch === 'on';
+            return { title: d.userName || d.name, text: deviceText(d), badge: isOn ? 'On' : 'Off', tone: isOn ? 'ok' : null, onClick: function () { act('/control', { device: d.key, cmd: isOn ? 'off' : 'on', confirm: true }); } };
+          }) },
+          { kind: 'list', id: 'schedules', title: 'Schedules', empty: 'Nothing scheduled.', items: schedules.map(function (sc) {
+            return { title: sc.label || 'Scheduled action', text: scheduleText(sc), meta: sc.nextRunAt ? A.when(sc.nextRunAt) : '', badge: sc.status || null, tone: sc.status === 'error' ? 'bad' : null };
+          }) }
+        ]
+      };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'home', escapeLabel: 'Open Smart Home in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
 <!-- Shared framework glass sheet: cards/rails read as one system across apps. Consumed read-only. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <style>
@@ -284,7 +349,8 @@ async function ask() {
   finally { send.disabled = false; }
 }
 
-loadDevices(); loadScenes(); loadSchedules();
+// The full page only: under an audience view the shared kit paints instead (see the head script).
+if (!window.AppView || !AppView.active()) { loadDevices(); loadScenes(); loadSchedules(); }
 </script>
 
 <!-- TV mode (?tv=1): D-pad spatial navigation for big-screen surfaces that load this dashboard

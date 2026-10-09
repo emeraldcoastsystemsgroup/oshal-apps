@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Hold actual portable-file reads to verify draft protection and control recovery after malformed imports.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Verify friendly nonJSON and20-second timeout errors, unchanged drafts and successful explicit retry over real HTTP.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Prove actual Daylight and Midnight disclosures remain opaque over a changing raster underlay.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Drive the image filter look and sliders in the real editor: one undoable edit, neutral sliders for an unfiltered layer, saved/reopened values and an exported PNG that matches the canvas.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -84,6 +85,44 @@ test('real editor creates shape, text and cropped image layers, saves/reopens th
   const imported = [...value.fixture.state.projects.values()].at(-1).document;
   assert.deepEqual(imported.layers, document.layers); assert.notEqual(Object.values(imported.images)[0].src, Object.values(document.images)[0].src);
   assert.equal(value.fixture.state.uploads, 2); clean(value);
+});
+
+async function slide(surface, selector, value) {
+  await surface.locator(selector).evaluate((node, next) => { node.value = String(next); node.dispatchEvent(new Event('change', { bubbles: true })); }, value);
+}
+const artboardPixel = (surface, x, y) => surface.locator('#artboard').evaluate((canvas, at) => [...canvas.getContext('2d').getImageData(at.x, at.y, 1, 1).data], { x, y });
+
+test('image filter looks and sliders edit the selected image, save, reopen and export the filtered canvas', async t => {
+  const value = await open(t); await noAutosave(value); const { surface } = value;
+  await surface.locator('#imageFile').setInputFiles({ name: 'synthetic-filter.png', mimeType: 'image/png', buffer: await syntheticImage() });
+  await surface.locator('#imageProperties').waitFor(); const filtered = await surface.locator('#layerName').inputValue();
+  await surface.locator('#artboard').evaluate(canvas => new Promise((resolve, reject) => { const deadline = Date.now() + 3000;
+    const check = () => { if (canvas.getContext('2d').getImageData(5, 5, 1, 1).data[3] === 255) resolve(); else if (Date.now() > deadline) reject(new Error('image not painted')); else requestAnimationFrame(check); }; check(); }));
+  const at = { x: Math.round(Number(await surface.locator('#layerX').inputValue()) + 5), y: Math.round(Number(await surface.locator('#layerY').inputValue()) + 5) };
+  const original = await artboardPixel(surface, at.x, at.y);
+  await surface.locator('#filterLook').selectOption('mono');
+  assert.equal(await surface.locator('#grayscale').inputValue(), '100'); assert.equal(await surface.locator('#filterLook').inputValue(), '');
+  const gray = await artboardPixel(surface, at.x, at.y); assert.ok(Math.abs(gray[0] - gray[1]) <= 1 && gray[0] < 200, String(gray));
+  await surface.locator('#undo').click(); assert.equal(await surface.locator('#grayscale').inputValue(), '0'); assert.deepEqual(await artboardPixel(surface, at.x, at.y), original);
+  await surface.locator('#redo').click(); await slide(surface, '#sepia', 50); await slide(surface, '#blur', 1.5);
+  await surface.locator('#imageFile').setInputFiles({ name: 'synthetic-plain.png', mimeType: 'image/png', buffer: await syntheticImage() });
+  await surface.locator('#layerCount').filter({ hasText: '2' }).waitFor();
+  for (const [id, neutral] of [['#grayscale', '0'], ['#sepia', '0'], ['#blur', '0'], ['#saturation', '100']]) assert.equal(await surface.locator(id).inputValue(), neutral, id);
+  await surface.locator('#saveProject').click(); await saved(value);
+  const record = [...value.fixture.state.projects.values()][0], [first, second] = record.document.layers;
+  assert.deepEqual({ grayscale: first.grayscale, sepia: first.sepia, blur: first.blur, saturation: first.saturation }, { grayscale: 100, sepia: 50, blur: 1.5, saturation: undefined });
+  assert.equal(['grayscale', 'sepia', 'blur', 'saturation'].some(key => Object.hasOwn(second, key)), false);
+  await surface.locator('#newProject').click(); await surface.locator('#openProjects').click();
+  await surface.locator(`[data-project-id="${record.id}"]`).getByRole('button', { name: 'Open', exact: true }).click(); await saved(value);
+  await surface.getByRole('button', { name: `Select ${filtered}`, exact: true }).click();
+  assert.equal(await surface.locator('#grayscale').inputValue(), '100'); assert.equal(await surface.locator('#sepia').inputValue(), '50'); assert.equal(await surface.locator('#blur').inputValue(), '1.5');
+  const png = await download(value, '#exportPng'), exported = await surface.locator('#artboard').evaluate(async (canvas, bytes) => {
+    const bitmap = await createImageBitmap(new Blob([new Uint8Array(bytes)], { type: 'image/png' })), output = document.createElement('canvas');
+    output.width = bitmap.width; output.height = bitmap.height; const ctx = output.getContext('2d'); ctx.drawImage(bitmap, 0, 0);
+    const a = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data, b = ctx.getImageData(0, 0, output.width, output.height).data;
+    let differing = 0; for (let index = 0; index < a.length; index++) if (Math.abs(a[index] - b[index]) > 1) differing++; return { differing, same: a.length === b.length };
+  }, [...png.bytes]);
+  assert.deepEqual(exported, { differing: 0, same: true }); clean(value);
 });
 
 test('real pointer movement and undo/redo commit one completed gesture and retain keyboard edits', async t => {

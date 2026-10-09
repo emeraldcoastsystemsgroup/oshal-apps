@@ -47,11 +47,22 @@
 # per strategy, rolling hit vs breakeven, days-to-verdict, and the four books (paper/real x manual/auto —
 # the unbuilt one says so). Inline SVG on the surface; series hues by a fixed strategy->slot map.
 #
+# 2026-09-28 — 1.6.2: a COMPANY audience view for the Business shells (ADR-164 D6). Studio, Orbit and Commons open the
+# first surface (/api/kalshi/) with ?audience=company; the page answers with the SAVED scan state (top hands, snapshot
+# age, paper alert record, recent alerts) from /scan, /alerts and /home-summary only, painted by the shared kit. It
+# never reads /status, /portfolio or /alerts/pops (each asks Kalshi live) and never writes; every start path of the
+# full page is gated on the kit's decision. No route, schema or manifest key changes beyond the version.
+#
 # Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: kalshi
 suite: ai-finance   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features: []   # no model in the loop (T0)
 displayName: Kalshi Prediction Markets
 description: >-
   Find mispriced event contracts on Kalshi. Every open market is evaluated like a poker hand —
@@ -59,7 +70,7 @@ description: >-
   playable hands are ranked with Kelly-sized stakes and explicit risk flags. Portfolio view and
   order placement ride the per-user connector, confirm-gated and demo-exchange-first
   (KALSHI_LIVE_ENABLED gates live money; every order and refusal is audited).
-version: 1.6.1
+version: 1.6.3
 status: active
 # This package owns deterministic surfaces and routes; the framework concierge owns its right rail.
 chatBot: general-bot

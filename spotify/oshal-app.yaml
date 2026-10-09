@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — spotify ("Spotify" Music Concierge)
 # Carved out of OSHAL core 2026-07-18 (ADR-085 Wave 2 carve #2 — first packaged
@@ -19,12 +25,30 @@
 
 name: spotify
 suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }
+  features:
+    - id: music-concierge-chat
+      unit: concierge chat turn
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: spotify-ticket
+      unit: music request ticket
+      tier: T4
+      generation: none
+      degrade: disable
 displayName: Spotify
 description: >-
   AI music concierge — search your Spotify, see what's playing and your playlists,
   get recommendations from your taste, and build playlists on your account. Other
   swarm bots can ask it to find music or assemble a playlist.
-version: 1.1.0
+version: 1.1.4
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: active
 
 source:
@@ -63,6 +87,7 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
 
 # Guests never reach the concierge (was hardcoded Tier C in core; literal left with
 # this carve). Request only — grants come from the operator endpoint (D4).
@@ -245,3 +270,14 @@ integrations:
         - title
         - notes
         - sourceUrl
+
+# Preserve the existing worker UUID and dedicated-node posture in the package contract.
+bots:
+  - agentId: b00a0000-0000-0000-0000-000000000001
+    name: spotify-concierge
+    persona: personas/spotify-concierge.yaml
+    container: spotify-bot
+    port: 5000
+    requiresOwnNode: true
+    role: media/music
+    capabilities: ['spotify-music-search', 'spotify-playlist-building', 'music-recommendation', 'music-taste-learning', 'now-playing-awareness']

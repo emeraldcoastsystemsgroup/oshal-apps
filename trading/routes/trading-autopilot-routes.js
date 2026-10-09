@@ -24,6 +24,12 @@
  * 2026-07-19 23:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the trading app package (ADR-085 Wave 3). Relative kernel imports flip to @/ aliases — the schedule/research/assess/review/optimize/lab dispatch loops themselves STAY kernel (they are the autopilot; these routes are only the operator's switch over their schedules). Route bodies byte-identical; the factory stays zero-arg (the mounter's ctx argument is ignored) — zero behavior change.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The advisor tracks the ENGINE's universe instead of freezing a copy of it. Arming used to write DEFAULT_UNIVERSE into every leg's taskData, so a swarm armed months ago kept scanning the list as it stood that day, while dispatch/research/assess already fall through to DEFAULT_UNIVERSE when no pin is present; taskData now carries `universe` ONLY when the operator pinned one, and GET reports universeSource (default|pinned) + defaultUniverseCount so the difference is visible rather than inferred. The literal 150-symbol truncation is gone: the ceiling is TRADING_UNIVERSE_MAX_PIN (default = the engine's own universe size) and an over-long list answers 400 instead of silently dropping a tail the operator was never told about. The six fixed-cadence createSchedule calls move into createAdvisorLegs so the POST handler stays inside the 50-line rule.
  *
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Add owner-bound interactive Futures review; proposals remain research-only.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Require the dedicated workflow before saving a nightly Futures review opt-in.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Expose exact-owner forward receipt summaries and frozen input evidence without an order or backdating endpoint.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Mount separately operator-gated archive preview and explicit import routes.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Mount a read-only Schwab Futures bar capability check ahead of the generic research routes.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Mount owner-private Schwab Futures capture controls without crossing the trading order rail.
  * @module trading-autopilot-routes
  */
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -32,12 +38,19 @@ const express_1 = require("express");
 const logger_1 = require("@/shared/logger");
 const authz_1 = require("@/shared/middleware/authz");
 const trading_1 = require("@/features/trading");
+const trading_futures_research_queue_1 = require("@/app/trading-futures-research-queue");
 const trading_schedule_dispatch_1 = require("@/app/trading-schedule-dispatch");
 const trading_research_dispatch_1 = require("@/app/trading-research-dispatch");
 const trading_assess_dispatch_1 = require("@/app/trading-assess-dispatch");
 const trading_review_dispatch_1 = require("@/app/trading-review-dispatch");
 const trading_optimize_dispatch_1 = require("@/app/trading-optimize-dispatch");
 const trading_lab_dispatch_1 = require("@/app/trading-lab-dispatch");
+const trading_futures_research_dispatch_1 = require("@/app/trading-futures-research-dispatch");
+const trading_futures_research_review_1 = require("@/app/trading-futures-research-review");
+const trading_futures_prediction_ledger_1 = require("@/app/trading-futures-prediction-ledger");
+const trading_futures_archive_routes_1 = require("./trading-futures-archive-routes");
+const trading_futures_schwab_probe_routes_1 = require("./trading-futures-schwab-probe-routes");
+const trading_futures_schwab_capture_routes_1 = require("./trading-futures-schwab-capture-routes");
 /** The advisor legs and their cadences. */
 const RESEARCH_CRON = '*/15 * * * *';
 const FAST_CRON = '*/2 * * * *';
@@ -61,7 +74,15 @@ async function findTradingSchedules(sub) {
     if (!svc)
         return [];
     const mine = await svc.listSchedules({ ownerSub: sub, scope: 'mine' });
-    return mine.filter((s) => /^trading-(autopilot|research|fast|assess|review|optimize|lab)/.test(s.taskType) && s.ownerSub === sub);
+    return mine.filter((s) => /^trading-(autopilot|research|fast|assess|review|optimize|lab)(?=:)/.test(s.taskType) && s.ownerSub === sub);
+}
+/** Futures is separate from the stock advisor: stopping that advisor must never delete this loop. */
+async function findFuturesResearch(sub) {
+    const svc = (0, trading_schedule_dispatch_1.getTradingScheduleService)();
+    if (!svc)
+        return null;
+    const mine = await svc.listSchedules({ ownerSub: sub, scope: 'mine' });
+    return mine.find((s) => s.taskType === (0, trading_futures_research_dispatch_1.futuresResearchTaskType)(sub) && s.ownerSub === sub) ?? null;
 }
 /** The caller's autopilot schedule, if any. */
 async function findAutopilot(sub) {
@@ -141,7 +162,7 @@ function statusOf(schedule) {
  * @description Build the autopilot control router (mount at /api/trading/autopilot behind requiresAuth).
  * @returns Express router.
  */
-function createTradingAutopilotRoutes() {
+function createTradingAutopilotRoutes(ctx) {
     const router = (0, express_1.Router)();
     /** GET /api/trading/autopilot — advisor status (all three legs) for the caller. */
     router.get('/', async (req, res) => {
@@ -246,6 +267,198 @@ function createTradingAutopilotRoutes() {
             logger.error({ err }, 'advisor stop failed');
             res.status(500).json({ error: err.message });
         }
+    });
+    router.use('/futures/archive', (0, trading_futures_archive_routes_1.createFuturesArchiveRoutes)(ctx));
+    router.use('/futures/sources/schwab/probe', (0, trading_futures_schwab_probe_routes_1.createFuturesSchwabProbeRoutes)(ctx));
+    router.use('/futures/sources/schwab/capture', (0, trading_futures_schwab_capture_routes_1.createFuturesSchwabCaptureRoutes)(ctx));
+    /** GET /api/trading/autopilot/futures — futures research schedule + durable run ledger. */
+    router.get('/futures', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        if (!ctx?.pool) {
+            res.status(503).json({ error: 'futures_research_unavailable' });
+            return;
+        }
+        try {
+            const schedule = await findFuturesResearch(sub);
+            const td = schedule?.taskData;
+            res.json({ ok: true, enabled: schedule?.status === 'active', schedule: schedule ? { id: schedule.id, cron: schedule.cron, status: schedule.status, nextRunAt: schedule.nextRunAt, lastRunAt: schedule.lastRunAt, executionCount: schedule.executionCount, config: td?.futures ?? null } : null, runs: await (0, trading_futures_research_dispatch_1.listFuturesResearchRuns)(ctx.pool, sub) });
+        }
+        catch (err) {
+            logger.error({ err, sub }, 'futures research status failed');
+            res.status(500).json({ error: err.message });
+        }
+    });
+    /** Interactive review uses only the authenticated caller and the persisted run, never body-supplied evidence. */
+    router.post('/futures/runs/:runId/review', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        if (!(0, authz_1.isOperatorIdentity)(sub)) {
+            res.status(403).json({ error: 'operator_only' });
+            return;
+        }
+        if (!ctx?.pool) {
+            res.status(503).json({ error: 'futures_research_unavailable' });
+            return;
+        }
+        try {
+            const review = await (0, trading_futures_research_review_1.reviewFuturesResearchRun)(ctx, sub, String(req.params.runId));
+            res.json({ ok: review.status === 'completed', review });
+        }
+        catch (err) {
+            logger.error({ err }, 'Futures interactive review refused');
+            const code = Number(err.statusCode);
+            res.status([400, 403, 404, 409].includes(code) ? code : 500).json({ error: code ? err.message : 'futures_review_unavailable' });
+        }
+    });
+    /** Owner-qualified forward receipts are separate from historical performance and order routes. */
+    router.get('/futures/predictions', async (req, res) => {
+        const sub = req.oidc?.user?.sub;
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        if (!ctx?.pool) {
+            res.status(503).json({ error: 'futures_predictions_unavailable' });
+            return;
+        }
+        try {
+            res.json({ predictions: await (0, trading_futures_prediction_ledger_1.listFuturesPredictions)(ctx.pool, sub) });
+        }
+        catch (err) {
+            logger.error({ err }, 'Futures prediction list unavailable');
+            res.status(503).json({ error: 'futures_predictions_unavailable' });
+        }
+    });
+    router.get('/futures/predictions/:predictionId', async (req, res) => {
+        const sub = req.oidc?.user?.sub;
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        const id = String(req.params.predictionId);
+        if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) {
+            res.status(400).json({ error: 'invalid_prediction_id' });
+            return;
+        }
+        if (!ctx?.pool) {
+            res.status(503).json({ error: 'futures_predictions_unavailable' });
+            return;
+        }
+        try {
+            const snapshot = await (0, trading_futures_prediction_ledger_1.readFuturesPredictionSnapshot)(ctx.pool, sub, id);
+            if (!snapshot) {
+                res.status(404).json({ error: 'owned_prediction_evidence_not_found' });
+                return;
+            }
+            res.json({ snapshot });
+        }
+        catch (err) {
+            logger.error({ err }, 'Futures prediction evidence unavailable');
+            res.status(503).json({ error: 'futures_predictions_unavailable' });
+        }
+    });
+    /** POST /api/trading/autopilot/futures — create/replace the console-owned nightly study. */
+    router.post('/futures', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        if (!(0, authz_1.isOperatorIdentity)(sub)) {
+            res.status(403).json({ error: 'operator_only' });
+            return;
+        }
+        const svc = (0, trading_schedule_dispatch_1.getTradingScheduleService)();
+        if (!svc) {
+            res.status(503).json({ error: 'scheduler_unavailable' });
+            return;
+        }
+        try {
+            const config = (0, trading_futures_research_dispatch_1.normalizeFuturesResearchConfig)(req.body || {});
+            if (config.nightlyReview)
+                (0, trading_futures_research_queue_1.assertFuturesReviewWorkflow)();
+            const schedule = await svc.createSchedule({ taskType: (0, trading_futures_research_dispatch_1.futuresResearchTaskType)(sub), schedule: config.nightlyCron || trading_futures_research_dispatch_1.FUTURES_RESEARCH_CRON_DEFAULT, timezone: 'Etc/UTC', ownerSub: sub, queue: 'intelligent-trades', taskData: { prompt: 'Console-configured Futures permutation study; review required', userSub: sub, mode: 'paper', futures: config } });
+            res.status(201).json({ ok: true, enabled: schedule.status === 'active', schedule: { id: schedule.id, cron: schedule.cron, nextRunAt: schedule.nextRunAt, config } });
+        }
+        catch (err) {
+            res.status(400).json({ error: err.message });
+        }
+    });
+    /** POST /api/trading/autopilot/futures/run — run the current study once, still paper-only. */
+    router.post('/futures/run', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        if (!(0, authz_1.isOperatorIdentity)(sub)) {
+            res.status(403).json({ error: 'operator_only' });
+            return;
+        }
+        const svc = (0, trading_schedule_dispatch_1.getTradingScheduleService)();
+        const schedule = await findFuturesResearch(sub);
+        if (!svc || !schedule) {
+            res.status(404).json({ error: 'futures_research_not_configured' });
+            return;
+        }
+        try {
+            const result = await svc.triggerSchedule(schedule.id);
+            res.status(result.success ? 202 : 409).json({ ok: result.success, result });
+        }
+        catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+    /** POST /api/trading/autopilot/futures/pause|resume — explicit console lifecycle controls. */
+    for (const [verb, action] of [['pause', 'pauseSchedule'], ['resume', 'resumeSchedule']]) {
+        router.post(`/futures/${verb}`, async (req, res) => {
+            const sub = callerSub(req);
+            if (!sub) {
+                res.status(401).json({ error: 'not_authenticated' });
+                return;
+            }
+            if (!(0, authz_1.isOperatorIdentity)(sub)) {
+                res.status(403).json({ error: 'operator_only' });
+                return;
+            }
+            const svc = (0, trading_schedule_dispatch_1.getTradingScheduleService)();
+            const schedule = await findFuturesResearch(sub);
+            if (!svc || !schedule) {
+                res.status(404).json({ error: 'futures_research_not_configured' });
+                return;
+            }
+            try {
+                res.json({ ok: true, schedule: await svc[action](schedule.id) });
+            }
+            catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+    }
+    router.delete('/futures', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        if (!(0, authz_1.isOperatorIdentity)(sub)) {
+            res.status(403).json({ error: 'operator_only' });
+            return;
+        }
+        const svc = (0, trading_schedule_dispatch_1.getTradingScheduleService)();
+        const schedule = await findFuturesResearch(sub);
+        if (!svc || !schedule) {
+            res.json({ ok: true, deleted: 0 });
+            return;
+        }
+        res.json({ ok: true, deleted: await svc.deleteSchedule(schedule.id) ? 1 : 0 });
     });
     return router;
 }

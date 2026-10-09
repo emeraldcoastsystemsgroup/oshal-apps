@@ -36,3 +36,16 @@ node scripts/oshal-app.js install cloud
 
 No routes and no migrations — the surface is the kernel `/utilities` hub and the
 bot's chat; the queue mapping (`cloud-op` → cloud) comes from this manifest at load.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **64 / 256 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| cloud-op | cloud operation ticket | T4 | none | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

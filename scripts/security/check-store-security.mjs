@@ -8,6 +8,10 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Replace the formatting-dependent route scanner with a fail-closed parser for the runtime loader's flat routes schema.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Parse the runtime requiresAi route flag so CORE-05 service-only readiness mounts remain inside the reviewed machine-route ledger; preserve the three reviewed pre-source legacy route modules when those packages gain a smoke source.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Recognize the known completed-task writer call without claiming generic transitive write analysis.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Inventory signed public callback verifier declarations and require their named export instead of treating the field as unknown or silently ignoring it.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Name the two existing hand-written compiled-only routes whose packages acquired an independent readiness source; keep both inside route/auth/write inventory.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Carry the existing bounded anonymous read declaration so whole-store package audits can inventory the published Vids manifest without weakening unknown-field refusal.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Accept core ADR-175's `node` route mode (a package node rail authenticated by a device-bound node credential) in the manifest auth vocabulary.
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
@@ -15,14 +19,17 @@ import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const AUTH_MODES = new Set(['oidc', 'service', 'service-or-oidc', 'operator', 'public']);
-const ROUTE_FIELDS = new Set(['module', 'factory', 'mountPath', 'auth', 'requiresAuth', 'requiresContext', 'requiresAi']);
+const AUTH_MODES = new Set(['oidc', 'service', 'service-or-oidc', 'operator', 'public', 'node']);
+const ROUTE_FIELDS = new Set(['module', 'factory', 'mountPath', 'auth', 'requiresAuth', 'requiresContext', 'requiresAi', 'callbackVerifier']);
 const MACHINE_WRITE = /\b(?:INSERT\s+INTO|UPDATE\s+[a-z_"`]|DELETE\s+FROM|CREATE\s+(?:OR\s+REPLACE\s+)?(?:TABLE|VIEW)|ALTER\s+TABLE|DROP\s+(?:TABLE|VIEW)|TRUNCATE)\b/i;
 const COMPLETED_TASK_WRITE = /\bsaveCompletedBriefing\s*\(/;
 const REVIEWED_LEGACY_COMPILED_ONLY = new Set([
+  'calling-assistant/routes/routes.js',
+  'dev-workspace-index/routes/dev-workspace.js',
   'dnd/routes/dnd-routes.js',
   'game-show/routes/game-show-routes.js',
   'hello-oshal/routes/hello.js',
+  'social/routes/linkedin-content-queue.js',
 ]);
 
 /** @description Add stable manifest and line context to a fail-closed route parse error. */
@@ -157,7 +164,58 @@ function normalizeRoute(route, manifestPath, routeNumber) {
     if (contradictory) throw new Error(`${at} has contradictory auth and requiresAuth`);
   }
   const auth = route.auth ?? (route.requiresAuth === false ? 'public' : 'oidc');
-  return { module: route.module, factory: route.factory, mountPath: route.mountPath, auth };
+  if (route.callbackVerifier !== undefined && (auth !== 'public'
+    || typeof route.callbackVerifier !== 'string' || !/^[A-Za-z_$][\w$]*$/.test(route.callbackVerifier))) {
+    throw new Error(`${at} callbackVerifier requires a public route and a named factory`);
+  }
+  if (route.anonymousRoutes && (auth !== 'public' || route.callbackVerifier)) throw new Error(`${at} anonymousRoutes requires public auth without a callback verifier`);
+  return { module: route.module, factory: route.factory, mountPath: route.mountPath, auth,
+    ...(route.callbackVerifier ? { callbackVerifier: route.callbackVerifier } : {}),
+    ...(route.anonymousRoutes ? { anonymousRoutes: route.anonymousRoutes } : {}) };
+}
+
+/** @description Parse the existing nested named-read syntax without accepting arbitrary nested route fields.
+ * @param lines Manifest lines. @param start Declaration line. @param indent Field indentation.
+ * @param manifestPath Source diagnostic identity. @returns Parsed reads and last consumed line. */
+function parseAnonymousReadBlock(lines, start, indent, manifestPath) {
+  const routes = [];
+  let current = null, itemIndent = null, index = start + 1;
+  for (; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line.trim() || line.trimStart().startsWith('#')) continue;
+    const depth = /^ */.exec(line)[0].length;
+    if (depth <= indent) break;
+    const item = /^ +-\s+([A-Za-z]+):\s*(.+?)\s*$/.exec(line);
+    if (item) {
+      if (itemIndent !== null && depth !== itemIndent) throw routeParseError(manifestPath, index + 1, 'inconsistent anonymous read indentation');
+      itemIndent = depth;
+      if (current) routes.push(normalizeAnonymousRead(current, manifestPath, index + 1));
+      current = {};
+    } else if (!current || depth !== itemIndent + 2) throw routeParseError(manifestPath, index + 1, 'malformed anonymous read mapping');
+    const field = item ?? /^ +([A-Za-z]+):\s*(.+?)\s*$/.exec(line);
+    if (!field || !['method', 'path'].includes(field[1]) || Object.hasOwn(current, field[1])) {
+      throw routeParseError(manifestPath, index + 1, 'unknown or duplicate anonymous read field');
+    }
+    current[field[1]] = routeScalar(field[2], field[1], manifestPath, index + 1);
+  }
+  if (current) routes.push(normalizeAnonymousRead(current, manifestPath, index));
+  if (!routes.length || routes.length > 32 || new Set(routes.map(row => row.method + ' ' + row.path)).size !== routes.length) {
+    throw routeParseError(manifestPath, start + 1, 'anonymous reads must be a bounded nonempty list without duplicates');
+  }
+  return { routes, end: index - 1 };
+}
+/** @description Retain the runtime contract's exact named GET/HEAD read shape in the inventory parser.
+ * @param row Parsed mapping. @param manifestPath Source identity. @param line Diagnostic line.
+ * @returns Closed named read mapping; malformed syntax throws. */
+function normalizeAnonymousRead(row, manifestPath, line) {
+  const parts = typeof row.path === 'string' && row.path.length <= 256 && row.path.startsWith('/') ? row.path.slice(1).split('/') : [];
+  const literal = part => /^[A-Za-z0-9_-][A-Za-z0-9._~-]*$/.test(part);
+  const parameter = part => /^:[A-Za-z][A-Za-z0-9_]*$/.test(part);
+  if (!['GET', 'HEAD'].includes(row.method) || !parts.length || !parts.every(part => literal(part) || parameter(part))
+    || !parts.some(literal) || new Set(parts.filter(parameter)).size !== parts.filter(parameter).length) {
+    throw routeParseError(manifestPath, line, 'anonymous read requires GET/HEAD and a canonical named path');
+  }
+  return { method: row.method, path: row.path };
 }
 
 /**
@@ -231,6 +289,11 @@ export function parseManifestRoutes(source, manifestPath) {
 
     if (!current || itemIndent === null || indentation <= itemIndent) {
       throw routeParseError(manifestPath, index + 1, 'route continuation is not nested under a sequence item');
+    }
+    if (/^ +anonymousRoutes:\s*(?:#.*)?$/.test(line)) {
+      if (current.anonymousRoutes !== undefined) throw routeParseError(manifestPath, index + 1, 'duplicate anonymousRoutes');
+      const block = parseAnonymousReadBlock(lines, index, indentation, manifestPath);
+      current.anonymousRoutes = block.routes; index = block.end; continue;
     }
     const field = /^\s+([A-Za-z][A-Za-z0-9]*):\s*(.+?)\s*$/.exec(line);
     if (!field) throw routeParseError(manifestPath, index + 1, 'malformed route field mapping');
@@ -352,6 +415,9 @@ export function routeInventory(root = process.cwd()) {
       for (const body of bodies) {
         if (!new RegExp(`\\b${route.factory.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(body)) {
           throw new Error(`${packageName}/${route.module} does not define ${route.factory}`);
+        }
+        if (route.callbackVerifier && !new RegExp(`\\b${route.callbackVerifier}\\b`).test(body)) {
+          throw new Error(`${packageName}/${route.module} does not define callback verifier ${route.callbackVerifier}`);
         }
       }
       // The factory assertion above reads the ENTRY bodies only; the write class reads everything

@@ -44,6 +44,8 @@
   .list-head .count { color:var(--muted); font-size:12px; }
   .refresh { margin-left:auto; background:var(--panel2); border:1px solid var(--line); color:var(--muted); border-radius:6px; padding:4px 9px; cursor:pointer; font-size:12px; }
   .refresh:hover { color:var(--text); }
+  .list-head .mailbox { margin-left:auto; }
+  .list-head .mailbox + .refresh { margin-left:6px; }
   .item { padding:12px 16px; border-bottom:1px solid var(--line); cursor:pointer; }
   .item:hover { background:var(--panel2); }
   .item.active { background:var(--panel2); border-left:3px solid var(--accent); padding-left:13px; }
@@ -82,7 +84,7 @@
 <body>
   <div class="wrap">
     <div class="list">
-      <div class="list-head"><h2>📥 Inbox</h2><span class="count" id="count"></span><button class="refresh" id="refresh">↻</button></div>
+      <div class="list-head"><h2>📥 Inbox</h2><span class="count" id="count"></span><select class="refresh mailbox" id="provider" aria-label="Mailbox"><option value="">Any mailbox</option><option value="google">Google</option><option value="outlook">Outlook</option><option value="yahoo">Yahoo</option></select><button class="refresh" id="refresh">↻</button></div>
       <div id="items"><div class="empty">Loading…</div></div>
     </div>
     <div class="reader" id="reader"><div class="empty">Select a message to read it.</div></div>
@@ -93,20 +95,37 @@ const items = document.getElementById('items');
 const reader = document.getElementById('reader');
 const countEl = document.getElementById('count');
 let active = null;
+let mailbox = ''; // the provider the last list actually read
 
 function esc(s){ return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function shortFrom(f){ const m=(f||'').match(/^"?([^"<]+)"?\s*</); return (m?m[1]:f||'').trim(); }
+const providerEl = document.getElementById('provider');
+// Which mailbox to read: '' lets the server pick the caller's connected one (Google first).
+const PROVIDERS = ['', 'google', 'outlook', 'yahoo'];
+const NOTICE = {
+  no_google_connection: ['No Google account connected.', 'Connect Google →'],
+  no_outlook_connection: ['No Outlook / Microsoft 365 account connected.', 'Connect Outlook →'],
+  no_yahoo_connection: ['No Yahoo Mail account connected.', 'Connect Yahoo Mail →'],
+  no_mail_connection: ['No mailbox connected.', 'Connect Google, Outlook or Yahoo →'],
+  reconnect_required: ['This mailbox needs to be reconnected.', 'Reconnect →'],
+};
+function connectNotice(p){ const n = NOTICE[p.error] || NOTICE.no_mail_connection; return '<div class="notice">'+esc(n[0])+'<br><a href="/utilities" target="_top">'+esc(n[1])+'</a></div>'; }
+function withProvider(url, p){ return p ? url + (url.includes('?') ? '&' : '?') + 'provider=' + encodeURIComponent(p) : url; }
+function savedProvider(){ try { const v = localStorage.getItem('email-provider') || ''; return PROVIDERS.includes(v) ? v : ''; } catch (e) { return ''; } }
+function rememberProvider(v){ try { localStorage.setItem('email-provider', v); } catch (e) { /* per-viewer convenience only */ } }
+providerEl.value = savedProvider();
 function when(d){ const t=Date.parse(d); if(!t) return ''; const dt=new Date(t), now=new Date();
   return dt.toDateString()===now.toDateString() ? dt.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) : dt.toLocaleDateString([], {month:'short',day:'numeric'}); }
 
 async function load(){
   items.innerHTML = '<div class="empty">Loading…</div>';
-  const r = await fetch('/api/email/messages?max=30&surface=1');
+  const r = await fetch(withProvider('/api/email/messages?max=30&surface=1', providerEl.value));
   if (!r.ok) { items.innerHTML = '<div class="notice">Could not load inbox ('+r.status+').</div>'; return; }
   const payload = await r.json();
-  if (payload.connected === false) { items.innerHTML = '<div class="notice">No Google account connected.<br><a href="/utilities" target="_top">Connect Google →</a></div>'; return; }
+  if (payload.connected === false) { countEl.textContent = ''; items.innerHTML = connectNotice(payload); return; }
+  mailbox = payload.provider || '';
   const messages = payload.messages || [];
-  countEl.textContent = messages.length + ' shown';
+  countEl.textContent = messages.length + ' shown' + ({ google: ' · Google', outlook: ' · Outlook', yahoo: ' · Yahoo' }[mailbox] || '');
   if (!messages.length) { items.innerHTML = '<div class="empty">Inbox is clear. 🎉</div>'; return; }
   items.innerHTML = '';
   for (const m of messages) {
@@ -122,8 +141,15 @@ async function load(){
 async function open(m, el){
   if (active) active.classList.remove('active');
   el.classList.add('active'); active = el;
+  if (mailbox === 'yahoo') {
+    // Yahoo is read list-only (core's fixed read-only IMAP reader): show what the list carries.
+    reader.innerHTML = `<div class="rsubj">${esc(m.subject)}</div>
+      <div class="rmeta"><b>${esc(shortFrom(m.from))}</b><br>${esc(m.date)}</div>
+      <div class="notice">Yahoo Mail is read list-only here. Open the message in Yahoo Mail to read or reply.</div>`;
+    return;
+  }
   reader.innerHTML = '<div class="spin">Opening…</div>';
-  const r = await fetch('/api/email/message/' + encodeURIComponent(m.id));
+  const r = await fetch(withProvider('/api/email/message/' + encodeURIComponent(m.id), mailbox));
   if (!r.ok) { reader.innerHTML = '<div class="notice">Could not open this message.</div>'; return; }
   const msg = await r.json();
   reader.innerHTML = `<div class="rsubj">${esc(msg.subject)}</div>
@@ -139,7 +165,7 @@ async function draft(id){
   const zone = document.getElementById('draftZone');
   const tone = document.getElementById('tone').value;
   zone.innerHTML = '<div class="draft"><div class="spin">Drafting a reply…</div></div>';
-  const r = await fetch('/api/email/draft', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ messageId:id, tone }) });
+  const r = await fetch(withProvider('/api/email/draft', mailbox), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ messageId:id, tone }) });
   if (!r.ok) { zone.innerHTML = '<div class="draft notice">Draft failed ('+r.status+').</div>'; return; }
   const { draft } = await r.json();
   zone.innerHTML = `<div class="draft"><h4>Proposed reply (review before sending)</h4>
@@ -149,6 +175,7 @@ async function draft(id){
 }
 
 document.getElementById('refresh').onclick = load;
+providerEl.onchange = () => { rememberProvider(providerEl.value); load(); };
 load();
 </script>
 </body>

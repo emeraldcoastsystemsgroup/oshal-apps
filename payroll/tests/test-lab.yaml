@@ -3,6 +3,8 @@
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped Node test suite with exact files and honest fixture boundaries; retain readiness smoke identity.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register the schema-lock guard (2.3.5): the compiled bootstrap hands the kernel the stable package advisory-lock key.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 2.3.6: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -318,6 +320,33 @@ cases:
       timeoutMs: 60000
       maxMemoryMb: 256
     installation: never
+  - id: payroll-schema-lock
+    name: Schema bootstrap advisory lock
+    purpose: >-
+      Call the compiled ensurePayrollSchema with the kernel bootstrap stubbed and assert the options it hands over,
+      so concurrent first requests on a fresh database serialise instead of racing on CREATE TABLE.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-schema-lock.test.mjs
+    expected:
+      - The bootstrap receives lockKey equal to the exported PAYROLL_SCHEMA_LOCK_KEY.
+      - The key is the stable 47120123, a positive 32-bit integer outside the kernel 4711xxxx block.
+      - The statements, owner RLS and schema requirements are otherwise unchanged.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; the kernel bootstrap is a recording stub
+        and no database is contacted.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
   - id: payroll-settle-routes
     name: Settlement handler boundaries
     purpose: Invoke compiled settlement handlers using a synthetic router, pool and vault.
@@ -343,4 +372,29 @@ cases:
     limits:
       timeoutMs: 60000
       maxMemoryMb: 256
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) and family (Home shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

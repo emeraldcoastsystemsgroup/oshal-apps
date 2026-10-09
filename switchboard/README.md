@@ -1,5 +1,7 @@
 # Switchboard
 
+0.6.3 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 **Every line, one board.** The merged comms + social command center — Social +
 Intelligent Communication + Feeds collapsed into one app, one ribbon, one design
 language. The identity is the telephone switchboard: every conversation, from every
@@ -199,3 +201,17 @@ GET /api/switchboard/home-summary reads recorded state across all workspaces own
 These are current-state counts, not daily totals, provider delivery receipts, unread counts, or independently deduplicated conversations. The summary reads neither message bodies nor connection tokens. It calls no provider, sends nothing, and performs no schema initialization. Missing publishing/outbox data remains unavailable alongside the successful source; both failing returns 503. Detail links open switchboard-streams and switchboard-threads. Workspace-specific display filters and cached inbox priority metrics remain separate work.
 
 This manifest requires the matching core metricsPointer support (core PR #411). The matching core and this package were deployed and authenticated Home rendering was verified on 2026-09-10 UTC; see APP-HOME-EXTRACTION-PLAN.md for the rollout record. Validation: 12 compiled-route tests in scripts/home-summary.test.cjs; scripts/home-summary.integration.cjs exercises actual PostgreSQL schemas, owner RLS and SELECT-only source grants, plus Chromium desktop/mobile and saved metric hiding. Run the integration harness from the matching core checkout with HOME_TEST_DATABASE_URL pointing to a disposable localhost database named home_summary_test. It uses mock sign-in and seeded records, not live accounts.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **64 / 256 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| compose-variants | per-platform rewrite | T2 | none | disable | not yet measured | none recorded |
+| compose-image | preview image | T0 | hosted | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

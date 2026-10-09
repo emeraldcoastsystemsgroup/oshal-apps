@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: declare the three apps the ribbon FRAMES (optional — an absent target leaves one tab empty, it does not break finance).
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — finance ("Finance")
@@ -39,12 +40,32 @@
 
 name: finance
 suite: ai-finance   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }
+  features:
+    - id: money-brief
+      unit: money brief
+      tier: T3
+      generation: none
+      degrade: disable
+    - id: context-review
+      unit: draft review against your finances
+      tier: T3
+      generation: none
+      degrade: disable
+    - id: finance-brief-ticket
+      unit: finance brief ticket
+      tier: T3
+      generation: none
+      degrade: disable
 displayName: Finance
 description: >-
   Link your banks and brokerages (via Plaid — OSHAL never sees your bank password)
   and see everything in one place: net worth, accounts, holdings, and spending, with
   a plain-English brief. Read-only — nothing is traded or moved. No crypto.
-version: 1.2.2
+version: 1.2.4
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -205,3 +226,14 @@ integrations:
         - title
         - notes
         - sourceUrl
+
+# Preserve the existing worker UUID and dedicated-node posture in the package contract.
+bots:
+  - agentId: a0000000-0000-0000-0000-000000000044
+    name: finance-analyst
+    persona: personas/finance-analyst.yaml
+    container: finance-bot
+    port: 5000
+    requiresOwnNode: true
+    role: finance/analysis-specialist
+    capabilities: ['personal-finance-brief', 'net-worth-analysis', 'account-balance-aggregation', 'portfolio-holdings-review', 'spending-and-cashflow-analysis', 'budget-tracking']

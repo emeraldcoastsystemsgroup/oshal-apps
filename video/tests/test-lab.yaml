@@ -1,0 +1,414 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register season artifact HTTP/database/browser acceptance with explicit fixture and engine prerequisites.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register the family audience view contract and behaviour test (ADR-164 D6): the two reads on open, the model painted from the real /series and /home-summary routes, every named state and the gated start paths.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05a: register the manual timeline model (validation, operations, history) and the compiled FFmpeg timeline compiler; both are dependency-free and also run in the store-ci video job.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Declare the two pure timeline cases disposable (they create nothing) so the core host batch runs them instead of holding them pending: it accepts disposable offline recipes only.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05b: register the editor's HTTP admission, its disposable-PostgreSQL lifecycle and forced two-arm row security, real ffprobe media inspection inside the runtime image, and the named catalog through the real core authorization runtime and route mounter.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05c: register the real-FFmpeg export proof (decoded frames, order, offsets, title and audio; cancel, timeout, revocation and cleanup) and the export routes over PostgreSQL; the API and catalog cases now also cover the five export routes.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05d: register the real-Chromium editor proof (native picker, keyboard trim/split/reorder, titles, volume, undo, save, reopen, export and preview, draft survival, every palette, phone width and permission gating); the API and catalog cases now also cover the screen and its module allowlist. Also register deleting one unused upload, the committed acceptance clip under real ffprobe, the installed-box acceptance walk and its loopback proof.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.9.1: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+version: 1
+cases:
+  - id: package-readiness
+    name: Video package readiness
+    purpose: Read package metadata without rendering or accessing user videos.
+    level: integration
+    runner: { kind: smoke, smoke: package-readiness }
+    expected: [The installed readiness route names the Video package.]
+    prerequisites: []
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 10000, maxMemoryMb: 256 }
+    installation: safe-smoke
+  - id: season-surface
+    name: Season artifacts and honest studio states
+    purpose: Read actual package HTTP responses and render the studio against forced-RLS disposable PostgreSQL; session identity, unrelated panels, runtime bootstrap and forbidden provider calls are named fixture seams.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/season.core.spec.mjs]
+    expected:
+      - The owner sees ordered episodes and distinct Drive, node-only, stitching and no-season states.
+      - Other owners and anonymous callers cannot read or control this series.
+      - Missing columns degrade only the season fields, while actual permission errors remain visible.
+      - Unsafe artifact links are absent and failed refreshes clear stale success links.
+      - No provider, render node, Drive upload or deployment database is used.
+    prerequisites: [runner:playwright, runner:vitest, browser:chromium, harness:oshal-core-root, harness:core-test-fixtures, engine-container:disposable-postgres]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/video-season-browser.spec.ts, tests/season.config.mjs]
+      cleanup: The suite closes Chromium and its loopback server, then stops its own PostgreSQL container including anonymous volumes.
+    limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its family (Home shell) and company (Business shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the family view makes two reads, GET /api/video/series and GET /api/video/home-summary; it never reads /list (a scan of the caller's connected storage), the joke pump, the render node or Create's brand kit, and never writes.
+      - Fed by the package's real /series and /home-summary routes, the counts read as plain stats and each series as a tile with a plain status word, its episodes finished and its season cut state; only credential-free http(s) watch links are offered, each opening in a new tab.
+      - Scripts waiting for approval, series in progress, videos ready to watch, videos saved lately, nothing being made and no videos yet each title the view; a count the summary could not check is shown as not checked and is never read as idle.
+      - Signed out, refused, a failed series read, a non-JSON failure and an unreachable server each read as what they are.
+      - Under the family view the main script binds no control and reads neither the videos list nor the series, the brand-kit script reads nothing, and the module script binds no handoff listener and mounts no connected actions; without the view or without the kit every start step still runs.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: timeline-model
+    name: Manual video timeline model, bounds and history
+    purpose: >-
+      Exercise the shipped browser/server timeline modules: integer frame positions, trim/split/reorder/remove that never change a
+      source, the first-slice bounds and bounded undo history.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/timeline-model.test.js
+    expected:
+      - Every output frame names the same source frame before and after a split, and reorder, trim and remove recompute the layout without touching the source.
+      - Two video clips of at most 30 seconds, one audio bed, 20 segments and 60 seconds in total are enforced; titles sit on one ordered non-overlapping track and refit when the timeline shortens.
+      - Fractions, text numbers, unknown fields, unsafe keys, paths, URLs, accessors, class instances and control or bidirectional-override text are refused.
+      - Undo history keeps bounded independent snapshots, records a no-op commit as nothing and drops the redo branch on a new edit.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: timeline-compiler
+    name: Timeline to FFmpeg compiler
+    purpose: >-
+      Compile timelines with the compiled package module and inspect the one fixed argument array and filter graph it emits, without
+      running FFmpeg.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/video-edit-compiler.test.js
+    expected:
+      - Segments become exact integer frame and sample trims; a clip used twice is decoded once and split; a silent clip gets exact-length silence; the bed is padded or cut to the timeline.
+      - Every intermediate graph label is produced once and consumed once, and only the video and audio outputs are mapped.
+      - Title text is written to a server-named file read with text expansion off and never appears in any argument.
+      - Tampered documents with text or fractional numbers, relative, remote or multi-line media paths, unsafe font paths and empty timelines are refused with a stable code.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: editor-api
+    name: Manual editor HTTP admission
+    purpose: >-
+      Drive the compiled editor router over real Express and Multer with synthetic verified actors, a strict non-writing pool and the
+      explicitly named video-editor-fixture-prober in place of ffprobe.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/video-editor-api.test.mjs
+    expected:
+      - Every editor route, export routes and the screen included, refuses each missing named permission before reading a body, writing a file or opening a transaction; the screen and its modules come only from a fixed allowlist.
+      - Upload needs view plus create or change; a refused publish leaves neither the temporary nor the published file.
+      - Tenant, owner, issuer and workspace selectors and inactive identities are refused; envelopes and documents are checked by the shipped shared validator before any transaction.
+      - Media the prober reports outside the first-slice profile (another codec, a second audio or a subtitle stream, too long, too large, too fast, a non-PCM bed) are refused with no file left behind.
+    prerequisites:
+      - runner:node-test
+      - core:dependencies
+      - harness:oshal-core-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/video-editor.fixture.mjs
+      cleanup: Close loopback servers and remove owned temporary media directories; synthetic actors and the named fixture prober only.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: editor-postgres
+    name: Manual editor projects, media and ownership in PostgreSQL
+    purpose: >-
+      Apply Video's declared migrations twice as the owning application role to a uniquely named disposable PostgreSQL and drive the
+      compiled editor routes over HTTP, with the named fixture prober in place of ffprobe.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/video-editor-postgres.test.mjs
+    expected:
+      - An upload publishes one immutable file whose bytes hash to its record and play back whole or by a single byte range; bad ranges answer 416.
+      - Saves are optimistic on baseRevision, revisions are immutable, and only the newest 100 are retained along with their media references.
+      - A document may reference only the owner's own uploads with exactly their verified metadata.
+      - Another owner and a colliding issuer see and change nothing; deleting a project keeps its uploads.
+      - All four tables are forced, owned by the reading role and carry both identity arms and no operator arm; without FORCE the owner reads everything.
+      - A permission revoked before commit rolls the write back; per-owner byte quotas refuse before publishing; cleanup keeps referenced media.
+      - A max-two pool completes concurrent writes whose authorization reads share it, with exactly one winner per project.
+      - An unused upload can be deleted by its owner (file and row); one a retained revision uses is refused, and another owner reaches nothing.
+    prerequisites:
+      - runner:node
+      - core:dependencies
+      - harness:oshal-core-root
+      - service:docker
+      - image:postgres-16-alpine-local
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/video-editor-postgres.fixture.mjs
+        - tests/video-editor.fixture.mjs
+      cleanup: Remove the unique labelled fixture container and temporary media, and release the machine-wide fixture slot; never connect to the installed database.
+    limits:
+      timeoutMs: 240000
+      maxMemoryMb: 1024
+    installation: never
+  - id: editor-media
+    name: Real ffprobe inspection of uploaded media
+    purpose: >-
+      Run the compiled upload inspector inside the local runtime image, where FFmpeg synthesizes real clips and beds and the image's
+      own ffprobe measures them.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/video-editor-media.test.mjs
+        - tests/video-editor-media.engine.mjs
+    expected:
+      - A real H.264/AAC clip is accepted with its measured size, length in frames and sound; a silent portrait clip and a PCM bed are accepted as what they are.
+      - Another codec, a second audio track, an over-long or over-large clip, a mu-law bed, a truncated file and a playlist dressed as an MP4 are refused.
+      - The committed acceptance clip is accepted as 30 frames of 160x90 H.264 with an AAC track and one second long, exactly what the installed-box acceptance expects.
+      - The container runs without network as an unprivileged user on a read-only root and removes itself; the inner TAP summary must show every test passed.
+    prerequisites:
+      - runner:node
+      - service:docker
+      - image:oshal-bot-local
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/video-edit-engine.fixture.mjs
+      cleanup: The labelled container runs with --rm and a private tmpfs; the suite proves it is gone and removes it by name if not.
+    limits:
+      timeoutMs: 240000
+      maxMemoryMb: 1024
+    installation: never
+  - id: editor-authorization
+    name: Video catalog through the real core runtime
+    purpose: >-
+      Mount every Video route factory through the actual application-authorization runtime and route mounter with synthetic principals,
+      a refusing business pool and forbidden studio collaborators.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/video-editor-authorization.spec.ts
+    expected:
+      - Each of the eight roles admits exactly the studio, series, pump, summary, editor and export endpoints this suite independently expects, and a refused request never reaches the pool.
+      - Upload needs editor view plus create or change; roles without any studio grant never reach a studio collaborator.
+      - Unbound paths, a colliding issuer, a revoked grant and a legacy app-admin assignment are refused before package code.
+    prerequisites:
+      - runner:vitest
+      - harness:oshal-core-root
+      - core:authorization-runtime
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/video-editor-authorization.config.mjs
+      cleanup: Close the loopback server and remove the temporary mount directory.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: editor-export
+    name: Real FFmpeg export, decoded
+    purpose: >-
+      Run the compiled export runner inside the local runtime image with its real FFmpeg over synthesized clips, then decode the
+      result; the job-row store is an in-memory double with the PostgreSQL store's compare-and-set rules.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/video-edit-export.test.mjs
+        - tests/video-edit-export.engine.mjs
+    expected:
+      - The decoded export has exactly the edit's 75 frames at 1280x720, B first and then A from its 16th and then its first frame (proved by colour), a portrait clip fitted with black bars, and the title only on its frames.
+      - Clip sound plays only under its clip and the WAV bed under everything, measured on the decoded audio.
+      - Cancel, wall-time timeout, revocation while encoding and a lost compare-and-set each leave no output, no work directory and no FFmpeg process; an encoder that cannot start fails honestly.
+    prerequisites:
+      - runner:node
+      - service:docker
+      - image:oshal-bot-local
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/video-edit-engine.fixture.mjs
+      cleanup: The labelled container runs with --rm, no network and a private tmpfs; the suite proves it is gone and removes it by name if not.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+    installation: never
+  - id: editor-export-postgres
+    name: Export jobs over HTTP and PostgreSQL
+    purpose: >-
+      Drive the compiled export routes and runner over a disposable forced-RLS PostgreSQL with the NAMED video-editor-fixture-encoder
+      and output prober in place of FFmpeg.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/video-editor-export-postgres.test.mjs
+    expected:
+      - A job renders exactly its saved revision, previews at 640x360, and downloads only once verified, as an attachment or inline.
+      - One job per owner and one encode per process; cancelling a running and a queued job leaves no output and a queued job never starts.
+      - Another owner and a colliding issuer see, cancel and download nothing.
+      - A prior-epoch job reads as and is recorded as interrupted and never blocks a new export; revocation before start and changed media on disk fail the job before any encode.
+      - A project keeps at most three exports, and revision retention never retires a revision an export is rendering.
+    prerequisites:
+      - runner:node
+      - core:dependencies
+      - harness:oshal-core-root
+      - service:docker
+      - image:postgres-16-alpine-local
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/video-editor-postgres.fixture.mjs
+        - tests/video-editor.fixture.mjs
+      cleanup: Remove the unique labelled fixture container, temporary media, work and export directories, and release the machine-wide fixture slot.
+    limits:
+      timeoutMs: 240000
+      maxMemoryMb: 1024
+    installation: never
+  - id: editor-browser
+    name: The video editor screen in real Chromium
+    purpose: >-
+      Drive the real editor screen served by the real compiled routes over a disposable PostgreSQL with the core's real shared theme
+      code, the named fixture prober for uploads and the named fixture encoder for exports.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/video-editor-browser.test.mjs
+    expected:
+      - Two clips and a music file come in through the native file picker; trim, split at the playhead (S) and reorder ([ and ]) on the keyboard give exactly the saved segments, with a title, clip volume and music volume.
+      - Undo and redo step one edit at a time; save, reload and reopen show the same edit; export and preview finish and offer their files.
+      - The unsaved draft survives a live theme change, a failed save, a reload and a conflict, and can be saved as a new project without touching the other save.
+      - Every portal palette keeps readable heading, status and button contrast, and a 390 px phone layout has no horizontal scrolling with every control in reach.
+      - Without export, or without create and change, exactly those controls are disabled and nothing is sent.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - harness:oshal-core-root
+      - core:dependencies
+      - core:shared-theme-assets
+      - service:docker
+      - image:postgres-16-alpine-local
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/video-editor-browser.fixture.mjs
+        - tests/video-editor.fixture.mjs
+        - tests/video-editor-postgres.fixture.mjs
+      cleanup: Close browser contexts and loopback servers, remove the unique PostgreSQL fixture container and temporary media, and release the fixture slot; every non-loopback request is refused.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: editor-acceptance-loopback
+    name: The installed-box acceptance, proven on loopback
+    purpose: >-
+      Drive the same acceptance function the box runs against the real compiled routes over a disposable PostgreSQL, with the NAMED
+      acceptance-clip prober (answers only for the committed clip's bytes) and the named fixture encoder.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/editor-live-acceptance.test.mjs
+        - tests/editor-live-acceptance.mjs
+    expected:
+      - The full walk passes and leaves no editor row and no media or export file.
+      - A missing permission fails the walk before anything is created.
+      - An incomplete cleanup is reported as a failure, never a pass.
+    prerequisites:
+      - runner:node
+      - core:dependencies
+      - harness:oshal-core-root
+      - service:docker
+      - image:postgres-16-alpine-local
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/video-editor.fixture.mjs
+        - tests/video-editor-postgres.fixture.mjs
+        - tests/fixtures/editor-acceptance-clip.mp4
+      cleanup: Remove the unique labelled fixture container and temporary media, and release the machine-wide fixture slot.
+    limits:
+      timeoutMs: 240000
+      maxMemoryMb: 1024
+    installation: never
+  - id: editor-live-acceptance
+    name: The manual editor on the installed box
+    purpose: >-
+      After Video 1.9.0 is installed and its catalog migrated, drive the real editor routes as the operator automation identity
+      (OSHAL_VERIFY_OPERATOR_PAT, read by name, never printed). Upload the committed clip, create one uniquely tagged project, save and
+      have a stale save refused, export with the box's own FFmpeg, then delete exactly what was created. Run with
+      OSHAL_VERIFY_BASE_URL=http://localhost:35457 OSHAL_VERIFY_ENV_FILE=<box .env> node video/tests/editor-live-acceptance.mjs.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/editor-live-acceptance.mjs
+    expected:
+      - One RESULT line with state pass; evidence names the tag, the clip measured by the box's ffprobe and the export's 20 frames, duration and size.
+      - An incomplete cleanup is reported as a failure, never a pass.
+    prerequisites:
+      - runner:node
+      - credential:operator-pat
+      - install:video-1.9.0
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: The walk deletes the one project it created (its revisions, export row and export file go with it) and its upload in a finally step, and reads each back as 404; anything less fails the case.
+    limits:
+      timeoutMs: 240000
+      maxMemoryMb: 256
+    installation: never

@@ -2,16 +2,20 @@
 /**
  * Email Routes — Email Summarizer app surface (Intelligent Communication, ADR-037).
  *
- * Per-user Gmail + Calendar surface for the `email-summarizer` swarm app. Reads
- * the signed-in user's connected Google account (oshal_connections, via
- * getValidAccessToken) and renders a real email client — inbox, a "My Day"
- * digest, and AI-drafted replies. Reading needs only gmail.readonly; the single
- * mutating action is POST /send (gmail.send scope), used by "email me a copy" —
- * and it is `no-send` 428-gated behind an explicit confirmation.
+ * Per-user mail + calendar surface for the `email-summarizer` swarm app. Reads
+ * the signed-in user's own connected mailbox — Google (Gmail + Calendar),
+ * Outlook / Microsoft 365 (Graph mail + calendar) or Yahoo Mail (read-only, via
+ * core's fixed IMAP reader), chosen with `?provider=` — through the kernel token
+ * broker (oshal_connections, via getValidAccessToken, bound to the caller's sub)
+ * and renders a real email client — inbox, a "My Day"
+ * digest, and AI-drafted replies. The single mutating action is POST /send
+ * (gmail.send / Mail.Send), used by "email me a copy" — and it is `no-send`
+ * 428-gated behind an explicit confirmation.
  *
- * Split of work follows the controller/bot rule: reading Gmail/Calendar stays in
+ * Split of work follows the controller/bot rule: reading mail/calendar stays in
  * the api (no LLM). The AI summary + drafted replies run ON the communications-bot
- * (its harness/model, cost captured to chat_tasks) via executeBotOrInline.
+ * (its harness/model, cost captured to chat_tasks) via executeBotOrInline, for
+ * every provider.
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
@@ -31,6 +35,10 @@
  * 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove the public SESSION_SECRET fallback from digest encryption. Package-local crypto now fails closed on missing key material, and cached reads rethrow that configuration failure instead of disguising it as a cache miss.
  *
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: retire the generic connector-credential carrier from email-bot dispatch. Gmail/Calendar reads remain controller-side and only bounded message metadata/body excerpts enter summary or draft prompts; send and social reads resolve their exact token at the deterministic API boundary.
+ *
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Outlook / Microsoft 365 mail leg (backlog "Email providers beyond Gmail"): /messages, /message/:id, /digest, /summary, /draft and /send take `?provider=google|outlook` (400 for anything else; no provider = the caller's first connected mailbox, Google first as before) and resolve ONLY the caller's own connection through the kernel broker — no fallback to another provider or account. Outlook reads go through the fixed Graph adapter in outlook-mailbox.ts and are normalized to MailSummary, so the digest, the bot summary and the draft stay provider-neutral and still run on communications-bot via runOnBot; Outlook send goes through the kernel sendOutlookMail behind the same 428 gate. Handlers moved out of the factory into named functions to keep each under 50 lines; the Gmail requests are unchanged.
+ *
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Yahoo Mail leg: `?provider=yahoo` reads the caller's inbox through core's fixed read-only IMAP seam (AppContext `imapMail`), so the app password never reaches this package. List, digest and the bot summary work for Yahoo (the day window is applied here); opening a message, drafting a reply and sending answer 400 not_supported_for_provider without contacting Yahoo, and a core without the seam answers 501. A caller who names no provider and has no Google/Outlook grant falls through to Yahoo on list, digest and summary only (the operations Yahoo offers), where a missing grant is still no_mail_connection; message, draft and send never fall through, so a caller with no mailbox gets 409 no_mail_connection on every mail route. Mailbox refusals now travel as MailboxRefusal and are answered with their own status.
  *
  * @module email-app-routes
  */
@@ -82,6 +90,8 @@ const inline_bot_execution_1 = require("@/app/routes/inline-bot-execution");
 const email_routes_1 = require("@/app/routes/email-routes");
 const explicit_write_confirmation_1 = require("@/shared/security/explicit-write-confirmation");
 const session_crypto_1 = require("./session-crypto");
+const outlook_mailbox_1 = require("./outlook-mailbox");
+const mail_provider_1 = require("./mail-provider");
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 const logger = (0, logger_1.createChildLogger)({ module: 'email-app-routes' });
@@ -107,23 +117,114 @@ function servePage(dir, file) {
         });
     };
 }
-/** Resolve the caller's valid Google access token, or send an error and return null. */
-async function resolveToken(req, res, ctx) {
+/** The Gmail + Google Calendar mailbox (the original leg, unchanged requests). */
+function gmailMailbox(token) {
+    return {
+        provider: 'google',
+        list: (days, max, query) => listInbox(token, query || `in:inbox newer_than:${days}d`, max),
+        message: async (id) => {
+            const m = await gget(token, `${GMAIL}/messages/${encodeURIComponent(id)}?format=full`);
+            return { ...(0, email_routes_1.summarizeGmailMetadata)(id, m), to: header(m, 'To'), body: extractBody(m.payload).slice(0, 20000) };
+        },
+        eventsToday: () => eventsToday(token),
+        ownAddress: async () => String((await gget(token, `${GMAIL}/profile`)).emailAddress || ''),
+        send: (mail) => (0, email_routes_1.sendGmail)(token, mail),
+    };
+}
+/** The Outlook / Microsoft 365 mailbox: fixed Graph reads + the kernel's sendOutlookMail. */
+function outlookMailbox(token) {
+    return {
+        provider: 'outlook',
+        list: (days, max) => (0, outlook_mailbox_1.listOutlookInbox)(token, { days, max }, fetch),
+        message: (id) => (0, outlook_mailbox_1.getOutlookMessage)(token, id, fetch),
+        eventsToday: () => (0, outlook_mailbox_1.outlookEventsToday)(token, fetch),
+        ownAddress: () => (0, outlook_mailbox_1.outlookOwnAddress)(token, fetch),
+        send: (mail) => (0, email_routes_1.sendOutlookMail)(token, mail),
+    };
+}
+/** List, digest and summary: a caller who names no provider may fall through to Yahoo. */
+const YAHOO_READ_ROUTE = { yahooFallback: true };
+/**
+ * Open the caller's mailbox, or answer the request and return null: 401 without a session,
+ * 400 for a provider outside MAIL_PROVIDERS, 409 (or the surface's connected:false payload)
+ * when the caller has no usable connection for it. The broker lookup is bound to the caller's
+ * own sub, so there is no path to another user's grant. A caller who names no provider and has
+ * no Google/Outlook grant falls through to Yahoo only with `yahooFallback`; message, draft and
+ * send open without it, so they answer 409 no_mail_connection instead of a Yahoo refusal.
+ */
+async function openMailbox(req, res, ctx, options = { yahooFallback: false }) {
     const sub = callerSub(req);
     if (!sub) {
         res.status(401).json({ error: 'not_authenticated' });
         return null;
     }
-    const token = await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'google');
-    if (!token) {
-        if (req.query.surface === '1') {
-            res.json({ connected: false, error: 'no_google_connection', message: 'Connect your Google account at /utilities first.' });
-            return null;
-        }
-        res.status(409).json({ error: 'no_google_connection', message: 'Connect your Google account at /utilities first.' });
+    const choice = (0, mail_provider_1.parseMailProvider)(req.query.provider ?? req.body?.provider);
+    if (!choice.ok) {
+        res.status(400).json({ error: 'unsupported_provider', supported: mail_provider_1.MAIL_PROVIDERS });
         return null;
     }
-    return token;
+    if (choice.provider === 'yahoo') {
+        if (ctx.imapMail)
+            return yahooMailbox(ctx.imapMail, sub, false);
+        res.status(501).json({ error: 'provider_unavailable', provider: 'yahoo', message: 'This oshal core has no Yahoo Mail reader.' });
+        return null;
+    }
+    const connection = await (0, mail_provider_1.selectMailConnection)(choice.provider, (provider) => (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, provider), (provider, err) => logger.error({ err, provider }, 'Mailbox token could not be refreshed'));
+    if (connection.token === null) {
+        if (!choice.provider && !connection.reconnect && options.yahooFallback && ctx.imapMail)
+            return yahooMailbox(ctx.imapMail, sub, true);
+        const refusal = { provider: connection.provider, ...(0, mail_provider_1.missingConnectionBody)(connection.provider, connection.reconnect) };
+        if (req.query.surface === '1')
+            res.json({ connected: false, ...refusal });
+        else
+            res.status(409).json(refusal);
+        return null;
+    }
+    return connection.provider === 'outlook' ? outlookMailbox(connection.token) : gmailMailbox(connection.token);
+}
+/** A Yahoo operation the fixed read-only reader does not offer: answered 400, never attempted. */
+function yahooUnsupported(what) {
+    return Promise.reject(new mail_provider_1.MailboxRefusal(400, 'yahoo', {
+        error: 'not_supported_for_provider',
+        message: `${what} is not available for Yahoo Mail: oshal reads Yahoo inboxes read-only (list, digest and summary).`,
+    }));
+}
+/**
+ * The Yahoo Mail mailbox, read through core's fixed IMAP seam (AppContext `imapMail`): the app
+ * password is resolved and spent inside core, so this package never holds it. The reader returns
+ * the newest messages; the day window is applied here. With `fallback` (the caller named no
+ * provider and has no Google/Outlook grant) a missing Yahoo grant is reported as no mailbox at all.
+ */
+function yahooMailbox(reader, sub, fallback) {
+    const named = fallback ? null : 'yahoo';
+    return {
+        provider: 'yahoo',
+        list: async (days, max) => {
+            const result = await reader({ userSub: sub, limit: max });
+            if (result.status === 'not_connected')
+                throw new mail_provider_1.MailboxRefusal(409, named, (0, mail_provider_1.missingConnectionBody)(named));
+            if (result.status === 'reconnect_required')
+                throw new mail_provider_1.MailboxRefusal(409, 'yahoo', (0, mail_provider_1.missingConnectionBody)('yahoo', true));
+            if (result.status !== 'connected')
+                throw new Error('yahoo inbox unavailable');
+            const since = Date.now() - days * 86_400_000;
+            return result.messages.filter((m) => (Date.parse(m.receivedAt) || 0) >= since);
+        },
+        message: () => yahooUnsupported('Opening a message'),
+        eventsToday: async () => [],
+        ownAddress: () => yahooUnsupported('Sending'),
+        send: () => yahooUnsupported('Sending'),
+    };
+}
+/** Today's events, or [] when the calendar read fails (logged — the digest still renders). */
+async function eventsOrEmpty(mailbox) {
+    try {
+        return await mailbox.eventsToday();
+    }
+    catch (err) {
+        logger.error({ err, provider: mailbox.provider }, 'Calendar read failed; digest continues without events');
+        return [];
+    }
 }
 /** GET a Google API URL with the bearer token; throws on non-2xx. */
 async function gget(token, url) {
@@ -295,64 +396,71 @@ async function readDigest(pool, sub) {
     }
 }
 /**
- * @description Builds the Email Summarizer app surface router. Serves the inbox +
- * my-day pages and the per-user Gmail/Calendar data + AI summary/draft endpoints.
- * Surfaces serve from the package's tools/ dir (ctx.appPackageDir, D10).
- *
- * @param ctx - App context (db pool for token lookup, appPackageDir for the surfaces).
- * @returns Express router to mount at /api/email (auth-gated by the mounter).
+ * Answer a failed mailbox operation: a MailboxRefusal with its own status and body (the surface's
+ * connected:false payload for a 409 with `surface=1`), anything else logged and answered 502 with
+ * its (already bounded) message.
  */
-function createEmailRoutes(ctx) {
-    const router = (0, express_1.Router)();
-    const assetRoot = ctx.appPackageDir
-        ? path.join(ctx.appPackageDir, 'tools')
-        : path.join(LOAD_TIME_PACKAGE_DIR, 'tools');
-    ensureEmailSchema(ctx.pool).catch((err) => logger.error({ err }, 'Failed to ensure email digest schema'));
-    router.get('/inbox', servePage(assetRoot, 'email-inbox.html'));
-    router.get('/my-day', servePage(assetRoot, 'email-my-day.html'));
-    router.get('/messages', async (req, res) => {
-        const token = await resolveToken(req, res, ctx);
-        if (!token)
+function providerFailure(req, res, err, what, provider) {
+    if (err instanceof mail_provider_1.MailboxRefusal) {
+        const refusal = { provider: err.provider, ...err.body };
+        if (err.status === 409 && req.query.surface === '1')
+            res.json({ connected: false, ...refusal });
+        else
+            res.status(err.status).json(refusal);
+        return;
+    }
+    logger.error({ err, provider }, what);
+    res.status(502).json({ error: err.message });
+}
+/** GET /messages — the caller's inbox (Gmail `q` honored on the google leg only). */
+function listMessages(ctx) {
+    return async (req, res) => {
+        const mailbox = await openMailbox(req, res, ctx, YAHOO_READ_ROUTE);
+        if (!mailbox)
             return;
         try {
-            const q = typeof req.query.q === 'string' ? req.query.q : 'in:inbox newer_than:7d';
-            const max = Math.min(Number(req.query.max) || 25, 50);
-            res.json({ messages: await listInbox(token, q, max) });
+            const query = mailbox.provider === 'google' && typeof req.query.q === 'string' ? req.query.q : undefined;
+            const messages = await mailbox.list((0, outlook_mailbox_1.clampDays)(req.query.days), (0, outlook_mailbox_1.clampListSize)(req.query.max), query);
+            res.json({ provider: mailbox.provider, messages });
         }
         catch (err) {
-            logger.error({ err }, 'Inbox list failed');
-            res.status(502).json({ error: err.message });
+            providerFailure(req, res, err, 'Inbox list failed', mailbox.provider);
         }
-    });
-    router.get('/message/:id', async (req, res) => {
-        const token = await resolveToken(req, res, ctx);
-        if (!token)
+    };
+}
+/** GET /message/:id — one message of the caller's own mailbox. */
+function readMessage(ctx) {
+    return async (req, res) => {
+        const mailbox = await openMailbox(req, res, ctx);
+        if (!mailbox)
             return;
+        const id = (0, outlook_mailbox_1.validMessageId)(req.params.id);
+        if (!id) {
+            res.status(400).json({ error: 'invalid_message_id' });
+            return;
+        }
         try {
-            const m = await gget(token, `${GMAIL}/messages/${encodeURIComponent(req.params.id)}?format=full`);
-            const metadata = (0, email_routes_1.summarizeGmailMetadata)(req.params.id, m);
-            res.json({
-                ...metadata,
-                to: header(m, 'To'),
-                body: extractBody(m.payload).slice(0, 20000),
-            });
+            res.json({ provider: mailbox.provider, ...(await mailbox.message(id)) });
         }
         catch (err) {
-            logger.error({ err }, 'Message fetch failed');
-            res.status(502).json({ error: err.message });
+            providerFailure(req, res, err, 'Message fetch failed', mailbox.provider);
         }
-    });
-    router.get('/digest', async (req, res) => {
-        const token = await resolveToken(req, res, ctx);
-        if (!token)
+    };
+}
+/** GET /digest — the last day's mail + today's calendar as counts and priority lists. */
+function dayDigest(ctx) {
+    return async (req, res) => {
+        const mailbox = await openMailbox(req, res, ctx, YAHOO_READ_ROUTE);
+        if (!mailbox)
             return;
         try {
-            const [signal, events] = await Promise.all([listInbox(token, 'in:inbox newer_than:1d', 25), eventsToday(token).catch(() => [])]);
+            const [signal, events] = await Promise.all([mailbox.list(1, 25), eventsOrEmpty(mailbox)]);
             const unread = signal.filter((m) => m.unread);
             const important = signal.filter((m) => m.important);
             const starred = signal.filter((m) => m.starred);
             const priority = signal.filter((m) => m.important || m.starred);
             res.json({
+                provider: mailbox.provider,
                 date: new Date().toISOString().slice(0, 10),
                 total: signal.length,
                 unreadCount: unread.length,
@@ -367,26 +475,19 @@ function createEmailRoutes(ctx) {
             });
         }
         catch (err) {
-            logger.error({ err }, 'Digest failed');
-            res.status(502).json({ error: err.message });
+            providerFailure(req, res, err, 'Digest failed', mailbox.provider);
         }
-    });
-    // The most recent stored digest (instant; what the bot pulled + reasoned last).
-    router.get('/summary/cached', async (req, res) => {
+    };
+}
+/** POST /summary — the bot summarizes the caller's day; the result is stored encrypted. */
+function summarizeDay(ctx) {
+    return async (req, res) => {
         const sub = callerSub(req);
-        if (!sub) {
-            res.status(401).json({ error: 'not_authenticated' });
-            return;
-        }
-        res.json({ cached: await readDigest(ctx.pool, sub) });
-    });
-    router.post('/summary', async (req, res) => {
-        const sub = callerSub(req);
-        const token = await resolveToken(req, res, ctx);
-        if (!token || !sub)
+        const mailbox = await openMailbox(req, res, ctx, YAHOO_READ_ROUTE);
+        if (!mailbox || !sub)
             return;
         try {
-            const [signal, events] = await Promise.all([listInbox(token, 'in:inbox newer_than:1d', 25), eventsToday(token).catch(() => [])]);
+            const [signal, events] = await Promise.all([mailbox.list(1, 25), eventsOrEmpty(mailbox)]);
             const prompt = [
                 'Summarize my day from the email and calendar below. Lead with what needs attention',
                 '(replies owed, deadlines, meetings), then one line on the noise. 4-6 short sentences or',
@@ -396,56 +497,64 @@ function createEmailRoutes(ctx) {
             ].join('\n');
             const summary = (await runOnBot(ctx, 'summary', sub, prompt)) || 'Nothing pressing surfaced in the last day.';
             await storeDigest(ctx.pool, sub, summary);
-            res.json({ summary });
+            res.json({ provider: mailbox.provider, summary });
         }
         catch (err) {
-            logger.error({ err }, 'Summary failed');
-            res.status(502).json({ error: err.message });
+            providerFailure(req, res, err, 'Summary failed', mailbox.provider);
         }
-    });
-    router.post('/draft', async (req, res) => {
+    };
+}
+/** POST /draft — the bot drafts a reply to one message of the caller's own mailbox. */
+function draftReply(ctx) {
+    return async (req, res) => {
         const sub = callerSub(req);
-        const token = await resolveToken(req, res, ctx);
-        if (!token || !sub)
+        const mailbox = await openMailbox(req, res, ctx);
+        if (!mailbox || !sub)
             return;
-        const messageId = req.body?.messageId;
+        const messageId = (0, outlook_mailbox_1.validMessageId)(req.body?.messageId);
         const tone = req.body?.tone || 'professional and concise';
         if (!messageId) {
             res.status(400).json({ error: 'messageId required' });
             return;
         }
         try {
-            const m = await gget(token, `${GMAIL}/messages/${encodeURIComponent(messageId)}?format=full`);
+            const m = await mailbox.message(messageId);
             const prompt = [
                 `Draft a ${tone} reply to the email below. Output ONLY the reply body — no subject line,`,
                 'no "Here is", no surrounding quotes. Natural and ready to send after a quick read.',
                 '',
-                `From: ${header(m, 'From')}`,
-                `Subject: ${header(m, 'Subject')}`,
+                `From: ${m.from}`,
+                `Subject: ${m.subject}`,
                 '',
-                extractBody(m.payload).slice(0, 8000),
+                m.body.slice(0, 8000),
             ].join('\n');
-            const draft = await runOnBot(ctx, 'draft', sub, prompt);
-            res.json({ draft });
+            res.json({ provider: mailbox.provider, draft: await runOnBot(ctx, 'draft', sub, prompt) });
         }
         catch (err) {
-            logger.error({ err }, 'Draft failed');
-            res.status(502).json({ error: err.message });
+            providerFailure(req, res, err, 'Draft failed', mailbox.provider);
         }
-    });
-    // ── SEND — the one mutating Gmail action (gmail.send scope). Body: { to?, subject, body,
-    //    attachment?: { filename, contentBase64, mimeType } }. `to` defaults to the caller's own
-    //    address ("email me a copy"). A token without the send scope 403s with an actionable message
-    //    (reconnect Google) instead of failing hard — so callers degrade gracefully. The actual MIME
-    //    build + send goes through the kernel's ONE fenced builder (sendGmail — header-injection
-    //    fence stays framework-resident and covers this packaged route).
-    router.post('/send', async (req, res) => {
+    };
+}
+/** The actionable 403 each provider answers when its grant lacks the send scope. */
+const SEND_SCOPE_MESSAGE = {
+    google: 'Your Google connection is read-only. Reconnect Google (the connector now requests gmail.send) to enable sending.',
+    outlook: 'Your Outlook connection cannot send. Reconnect Outlook / Microsoft 365 (the connector requests Mail.Send) to enable sending.',
+    yahoo: 'Sending is not available for Yahoo Mail.',
+};
+// ── SEND — the one mutating mail action (gmail.send / Mail.Send). Body: { to?, subject, body,
+//    attachment?: { filename, contentBase64, mimeType }, confirm: true }. `to` defaults to the
+//    caller's own address ("email me a copy"). The confirm gate answers 428 BEFORE any connection
+//    is touched. A token without the send scope 403s with an actionable message (reconnect)
+//    instead of failing hard. The MIME build + send goes through the kernel's senders (sendGmail
+//    keeps the header-injection fence framework-resident; sendOutlookMail posts Graph JSON).
+function sendMail(ctx) {
+    return async (req, res) => {
         if (!(0, explicit_write_confirmation_1.hasExplicitWriteConfirmation)(req.body)) {
             res.status(428).json((0, explicit_write_confirmation_1.confirmationRequiredPayload)('no-send', 'Sending email'));
             return;
         }
-        const token = await resolveToken(req, res, ctx);
-        if (!token)
+        const mailbox = await openMailbox(req, res, ctx);
+        if (!mailbox)
             return;
         const b = (req.body || {});
         const subject = String(b.subject || '').trim();
@@ -455,34 +564,27 @@ function createEmailRoutes(ctx) {
             return;
         }
         try {
-            let to = String(b.to || '').trim();
-            if (!to) {
-                const profile = await gget(token, `${GMAIL}/profile`);
-                to = String(profile.emailAddress || '');
-            }
+            const to = String(b.to || '').trim() || (await mailbox.ownAddress());
             if (!to) {
                 res.status(400).json({ error: 'no recipient and could not resolve your own address' });
                 return;
             }
-            const sent = await (0, email_routes_1.sendGmail)(token, { to, subject: subject || '(no subject)', body: bodyText, attachment: b.attachment });
-            res.json({ ok: true, id: sent.id, to });
+            const sent = await mailbox.send({ to, subject: subject || '(no subject)', body: bodyText, attachment: b.attachment });
+            res.json({ ok: true, provider: mailbox.provider, id: sent.id, to });
         }
         catch (err) {
             const msg = err.message || 'send failed';
-            if (/insufficient|scope|\b403\b/i.test(msg)) {
-                res.status(403).json({ error: 'insufficient_scope', message: 'Your Google connection is read-only. Reconnect Google (the connector now requests gmail.send) to enable sending.' });
+            if (!(err instanceof mail_provider_1.MailboxRefusal) && /insufficient|scope|\b403\b/i.test(msg)) {
+                res.status(403).json({ error: 'insufficient_scope', provider: mailbox.provider, message: SEND_SCOPE_MESSAGE[mailbox.provider] });
                 return;
             }
-            logger.error({ err }, 'Email send failed');
-            res.status(502).json({ error: msg });
+            providerFailure(req, res, err, 'Email send failed', mailbox.provider);
         }
-    });
-    // ── Social (Facebook) — read-only profile via the connector token. Limited to
-    //    public_profile until Meta App Review grants feed/posting/messaging scopes.
-    //    (The full Social app is its own store package; this tab is the comms app's
-    //    lightweight identity view.)
-    router.get('/social', servePage(assetRoot, 'email-social.html'));
-    router.get('/social/profile', async (req, res) => {
+    };
+}
+/** GET /social/profile — the caller's Facebook identity (public_profile) via their own connector token. */
+function socialProfile(ctx) {
+    return async (req, res) => {
         const sub = callerSub(req);
         if (!sub) {
             res.status(401).json({ error: 'not_authenticated' });
@@ -510,7 +612,46 @@ function createEmailRoutes(ctx) {
             logger.error({ err }, 'Facebook profile failed');
             res.status(502).json({ error: err.message });
         }
+    };
+}
+/**
+ * @description Builds the Email Summarizer app surface router. Serves the inbox +
+ * my-day pages and the per-user mail/calendar data + AI summary/draft endpoints for the
+ * caller's Google or Outlook mailbox (`?provider=`). Surfaces serve from the package's
+ * tools/ dir (ctx.appPackageDir, D10).
+ *
+ * @param ctx - App context (db pool for token lookup, appPackageDir for the surfaces).
+ * @returns Express router to mount at /api/email (auth-gated by the mounter).
+ */
+function createEmailRoutes(ctx) {
+    const router = (0, express_1.Router)();
+    const assetRoot = ctx.appPackageDir
+        ? path.join(ctx.appPackageDir, 'tools')
+        : path.join(LOAD_TIME_PACKAGE_DIR, 'tools');
+    ensureEmailSchema(ctx.pool).catch((err) => logger.error({ err }, 'Failed to ensure email digest schema'));
+    router.get('/inbox', servePage(assetRoot, 'email-inbox.html'));
+    router.get('/my-day', servePage(assetRoot, 'email-my-day.html'));
+    router.get('/messages', listMessages(ctx));
+    router.get('/message/:id', readMessage(ctx));
+    router.get('/digest', dayDigest(ctx));
+    // The most recent stored digest (instant; what the bot pulled + reasoned last).
+    router.get('/summary/cached', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        res.json({ cached: await readDigest(ctx.pool, sub) });
     });
+    router.post('/summary', summarizeDay(ctx));
+    router.post('/draft', draftReply(ctx));
+    router.post('/send', sendMail(ctx));
+    // ── Social (Facebook) — read-only profile via the connector token. Limited to
+    //    public_profile until Meta App Review grants feed/posting/messaging scopes.
+    //    (The full Social app is its own store package; this tab is the comms app's
+    //    lightweight identity view.)
+    router.get('/social', servePage(assetRoot, 'email-social.html'));
+    router.get('/social/profile', socialProfile(ctx));
     return router;
 }
 //# sourceMappingURL=email-app-routes.js.map

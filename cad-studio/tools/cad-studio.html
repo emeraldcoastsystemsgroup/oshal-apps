@@ -15,6 +15,47 @@
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shell opens this page with ?audience=company: the parts on file
+     and their build state from the same models route the full studio reads, painted by the shared kit. Any other
+     request runs the full CAD Studio below unchanged (its start is gated in cad-studio.js). -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  function call(path, body) {
+    var opt = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' } : { credentials: 'same-origin', headers: { Accept: 'application/json' } };
+    return fetch('/api/cad-studio' + path, opt).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.message || j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; }); });
+  }
+  function openFull(query) { window.location.assign(window.location.pathname + (query || '')); }
+  function company(ctx) {
+    return call('/models').then(function (r) {
+      var models = (r.models || []).slice().sort(function (a, b) { return new Date(b.updated_at || 0) - new Date(a.updated_at || 0); });
+      var by = function (state) { return models.filter(function (m) { return m.state === state; }); };
+      var rebuilds = models.reduce(function (n, m) { return n + (Number(m.revision) || 0); }, 0);
+      var openModel = function (m) { openFull('?model=' + encodeURIComponent(m.model_id)); };
+      return {
+        kicker: 'CAD Studio', title: models.length ? 'Parts on file' : 'No parts yet',
+        lede: models.length ? models.length + ' parts \u00b7 last change ' + A.when(models[0].updated_at) : 'Start a part from a base shape or a scan; it appears here with its build state.',
+        actions: [{ label: 'New part', primary: true, onClick: function () { openFull(); } }],
+        stats: [
+          { id: 'parts', label: 'Parts', value: models.length },
+          { id: 'built', label: 'Built', value: by('built').length, tone: by('built').length ? 'ok' : null },
+          { id: 'failed', label: 'Failed rebuilds', value: by('failed').length, tone: by('failed').length ? 'bad' : null },
+          { id: 'rebuilds', label: 'Rebuilds', value: rebuilds }
+        ],
+        sections: [
+          { kind: 'table', id: 'parts', title: 'Parts', wide: true, empty: 'No parts yet.', columns: ['Updated', 'Part', 'State', { label: 'Rev', align: 'right' }, 'Base'],
+            rows: models.slice(0, 12).map(function (m) { return { cells: [A.date(m.updated_at), m.title || m.model_id, { text: m.state || '', tone: m.state === 'failed' ? 'bad' : m.state === 'built' ? 'ok' : 'warn' }, { text: String(m.revision || 0) }, typeof m.base === 'string' ? m.base : (m.base && (m.base.kind || m.base.type)) || ''], onClick: function () { openModel(m); } }; }) },
+          { kind: 'list', id: 'attention', title: 'Needs attention', empty: 'Every part built cleanly.', items: by('failed').map(function (m) { return { title: m.title || m.model_id, text: m.failure_reason || 'Rebuild failed', tone: 'bad', onClick: function () { openModel(m); } }; }) }
+        ]
+      };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'cad-studio', escapeLabel: 'Open CAD Studio in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
   :root { --cs-bg: var(--bg, var(--bg-primary, #12151c)); --cs-panel: var(--panel, var(--bg-card, #1b1f29)); --cs-panel2: var(--panel2, var(--bg-tertiary, #232836));
           --cs-text: var(--text, var(--text-primary, #e6e9ef)); --cs-muted: var(--muted, var(--text-muted, #9aa3b2)); --cs-line: var(--line, var(--border-color, #2f3646));

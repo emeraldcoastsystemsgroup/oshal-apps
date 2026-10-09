@@ -9,6 +9,86 @@
      matters — without it the surface would have no colors at all. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shell opens this page with ?audience=company: the signed-in member's
+     OWN social desk (the social notifications captured from their inbox, the LinkedIn content queue, what is set up),
+     from the SAME /api/social routes, painted by the shared kit in the company grammar. On open it reads only
+     /readiness, /signals (7 days), /home-summary and /linkedin-content-queue: database reads, no network call. It
+     never reads /profiles (that asks LinkedIn, Facebook and X live), never drafts, organizes or queues (each spends a
+     bot run or creates a ticket) and never publishes. Any other request runs the full Composer below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  // GET /signals answers at most SIGNALS_LIMIT rows (LIMIT 100), so a full answer means "100 or more", not a total.
+  var FULL = '/cockpit/?app=social', SHOWN = 15, DAYS = 7, QUEUE_LIMIT = 50, SIGNALS_LIMIT = 100;
+  var STATES = { backlog: 'Backlog', approved: 'Queued', in_process: 'In progress', approval_required: 'Approval required', customer_action: 'Needs you', complete: 'Done', escalated: 'Escalated', paused: 'Paused', cancelled: 'Cancelled' };
+  var TONES = { approval_required: 'warn', customer_action: 'warn', escalated: 'bad', complete: 'ok' };
+  function call(path) {
+    return fetch('/api/social' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j || {} }; });
+    });
+  }
+  function refused(res) { return res.status === 401 || res.status === 403; }
+  function sender(from) { var m = String(from || '').match(/^"?([^"<]+)"?\s*</); return (m ? m[1] : String(from || '')).trim() || 'Unknown sender'; }
+  function group(t) { return t.stateGroup || t.status || ''; }
+  function isOpen(t) { var g = group(t); return g !== 'complete' && g !== 'cancelled'; }
+  // The home summary answers 503 with its full body when both of its reads fail, so read the metrics from the body.
+  function metricStat(sum, id, fallback) {
+    var m = ((sum.body && sum.body.metrics) || []).filter(function (x) { return x.id === id; })[0], v = m ? m.value : null, known = v !== null && v !== undefined && v !== 'Unavailable';
+    return { id: id, label: (m && m.label) || fallback, value: known ? A.num(v) : '—', hint: known ? null : refused(sum) ? 'Sign in to see it' : 'Could not be read', tone: known ? null : 'warn' };
+  }
+  function stats(ready, sum, queue) {
+    var tickets = queue.ok ? queue.body.tickets || [] : null, fb = ready.ok ? ready.body.facebook || {} : null, sig = ready.ok ? ready.body.signals || {} : null;
+    return [
+      metricStat(sum, 'notifications-24h', 'Social notices / 24h'), metricStat(sum, 'notifications-5d', 'Social notices / 5d'),
+      { id: 'captured', label: 'Captured / 30 days', value: sig ? A.num(sig.count || 0) : '—', hint: sig ? null : 'Could not be read', tone: sig ? null : 'warn' },
+      { id: 'queue', label: 'LinkedIn queue', value: tickets ? tickets.filter(isOpen).length : '—', hint: tickets ? 'open of ' + (tickets.length >= QUEUE_LIMIT ? 'the latest ' + QUEUE_LIMIT : tickets.length) : 'Could not be read', tone: tickets ? null : 'warn' },
+      { id: 'facebook', label: 'Facebook Pages', value: fb ? (fb.ready ? 'Connected' : 'Not connected') : '—', tone: fb && fb.ready ? null : 'warn' }
+    ];
+  }
+  function signalsSection(res) {
+    var rows = res.ok ? res.body.signals || [] : [];
+    return { kind: 'table', id: 'signals', title: 'Social notifications, last ' + DAYS + ' days',
+      note: 'Email notifications from LinkedIn, X and Facebook captured from your connected inbox: not unread totals or a complete feed.' + (rows.length > SHOWN ? ' The latest ' + SHOWN + ' of ' + (rows.length >= SIGNALS_LIMIT ? SIGNALS_LIMIT + ' or more' : rows.length) + '.' : ''),
+      empty: res.ok ? res.body.note || 'No social notifications in the last ' + DAYS + ' days.' : 'The notifications could not be read (HTTP ' + res.status + ').',
+      columns: ['From', 'Subject', 'Received'], rows: rows.slice(0, SHOWN).map(function (s) { return [sender(s.from), s.subject || '(no subject)', s.receivedAt ? A.when(s.receivedAt) : '—']; }) };
+  }
+  function queueSection(res) {
+    var tickets = (res.ok ? res.body.tickets || [] : []).slice().sort(function (a, b) { return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
+    return { kind: 'table', id: 'queue', title: 'LinkedIn content queue', note: 'Post requests for the social writer. The queue itself never publishes.' + (tickets.length > SHOWN ? ' The latest ' + SHOWN + ' of ' + tickets.length + '.' : ''),
+      empty: res.ok ? 'No LinkedIn post requests in the queue.' : 'The LinkedIn queue could not be read (HTTP ' + res.status + ').',
+      columns: ['Topic', 'Status', 'Requested', 'Updated'],
+      rows: tickets.slice(0, SHOWN).map(function (t) { var g = group(t), meta = t.metadata || {}; return [meta.topic || t.title || 'LinkedIn post', { text: STATES[g] || g || '—', tone: TONES[g] || null }, t.createdAt ? A.when(t.createdAt) : '—', t.updatedAt ? A.when(t.updatedAt) : '—']; }) };
+  }
+  function setupSection(res) {
+    var fb = res.ok ? res.body.facebook || {} : null, sig = res.ok ? res.body.signals || {} : null, connect = function () { A.open('/utilities'); };
+    return { kind: 'list', id: 'setup', title: 'Setup', empty: 'Setup could not be checked (HTTP ' + res.status + ').', items: res.ok ? [
+      { title: 'Facebook Pages', text: fb.detail || null, badge: fb.ready ? 'Connected' : 'Not connected', tone: fb.ready ? 'ok' : 'warn', onClick: fb.ready ? null : connect },
+      { title: 'Social notifications', text: sig.detail || null, badge: sig.ready ? 'Arriving' : 'None yet', tone: sig.ready ? 'ok' : 'warn', onClick: sig.ready ? null : connect },
+      { title: 'LinkedIn and X', text: 'Checked live in the Composer; this view does not call the networks.', onClick: function () { A.open(FULL); } }
+    ] : [] };
+  }
+  function desk(ready, sig, sum, queue) {
+    var r = ready.ok ? ready.body : null, needsSetup = !!r && (!(r.facebook || {}).ready || !(r.signals || {}).ready);
+    return { kicker: 'Social', title: 'Social desk',
+      lede: r && r.signals && r.signals.detail ? r.signals.detail : 'Your social notifications, the LinkedIn queue and what is set up.',
+      actions: [{ label: 'Open the Composer', primary: true, onClick: function () { A.open(FULL); } }].concat(needsSetup ? [{ label: 'Connect accounts', onClick: function () { A.open('/utilities'); } }] : []),
+      stats: stats(ready, sum, queue), sections: [signalsSection(sig), queueSection(queue), setupSection(ready)] };
+  }
+  function company() {
+    return Promise.all([call('/readiness'), call('/signals?days=' + DAYS), call('/home-summary'), call('/linkedin-content-queue')]).then(function (r) {
+      var ready = r[0], sig = r[1];
+      if (refused(ready) && refused(sig)) return { kicker: 'Social', title: ready.status === 401 ? 'Sign in to see your social desk' : 'This account cannot open Social',
+        lede: ready.status === 401 ? 'This view shows the social notifications and queue of whoever is signed in, and this session is not signed in.' : 'The Social routes refused this account (HTTP 403).' };
+      if (!ready.ok && !sig.ok) throw new Error('Social could not read your notifications or setup (HTTP ' + sig.status + ').');
+      return desk(ready, sig, r[2], r[3]);
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'social', escapeLabel: 'Open Social in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
   /* This surface keeps its own short alias names, but DERIVES them from the framework theme rather
      than hardcoding hex — so all eleven themes work, not just the dark ones. The palette used to be
@@ -238,19 +318,24 @@ $('pubBtn').onclick = async () => {
   $('pubBtn').disabled = false; $('pubBtn').textContent = lbl;
 };
 
-loadAccounts();
+// The full page only: under an audience view the shared kit paints instead (see the head script), so the Composer
+// does not ask LinkedIn, Facebook and X for the connected profiles.
+if (!window.AppView || !AppView.active()) loadAccounts();
 </script>
 
 <script type="module">
 import { receiveHandoff } from '/cockpit/js/app-handoff.js';
 import { mountConnectedActions } from '/cockpit/js/app-workflows.js';
 const input=document.getElementById('text');
+// The full page only: under an audience view no handoff listener is added, no section is appended to the body and no connected-actions offer is fetched.
+if (!window.AppView || !AppView.active()) {
 receiveHandoff({"app":"social","action":"prepare-post","contextType":"communication-brief","version":1,"fields":["title","notes","sourceUrl"]}, context=>{
  input.value=[context.title,context.notes,context.sourceUrl?'Source: '+context.sourceUrl:''].filter(Boolean).join('\n\n');
  input.dispatchEvent(new Event('input',{bubbles:true})); input.focus();
 });
 const element=document.createElement('section');element.className='connected-app-actions';element.setAttribute('aria-label','Connected application actions');element.style.cssText='margin:16px auto;padding:16px;max-width:1200px;border:1px solid currentColor;border-radius:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap';document.body.append(element);
 void mountConnectedActions({app:'social',element,contextForOffer:()=>{const notes=input.value.trim().slice(0,2000);return notes?{title:'Review my communication draft',notes}:null;}});
+}
 </script>
 </body>
 </html>

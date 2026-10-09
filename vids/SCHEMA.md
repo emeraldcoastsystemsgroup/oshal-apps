@@ -2,9 +2,9 @@
 
 # Vids Studio (`vids`) - database schema
 
-Postgres database `oshal`, schema `public` - shared with the platform and every other installed package. 1 table in the reference database.
+Postgres database `oshal`, schema `public` - shared with the platform and every other installed package. 1 table in the reference database, 1 declared but not present.
 
-**Migrations** (declared in `oshal-app.yaml`, applied on activation, recorded in `app_package_migrations`): `migrations/059-vids-platform.sql`, `migrations/100-vids-owner-rls.sql`
+**Migrations** (declared in `oshal-app.yaml`, applied on activation, recorded in `app_package_migrations`): `migrations/059-vids-platform.sql`, `migrations/100-vids-owner-rls.sql`, `migrations/101-vids-artifact-publication.sql`
 
 Platform conventions (ownership, RLS, how migrations run): [core data model](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/architecture/data-model/README.md).
 
@@ -44,3 +44,22 @@ Also declared by core (`scripts/migrations/059-vids-platform.sql`).
 | `rating` | smallint | yes |  |  |
 | `created_at` | timestamp with time zone | no | now() |  |
 | `updated_at` | timestamp with time zone | no | now() |  |
+
+## Declared in source, not present in the reference database
+
+These tables have a `CREATE TABLE` in source but are not in the reference database. Columns are parsed from the statement as written; later `ALTER TABLE` changes are not applied.
+
+### `vids_artifacts`
+
+Defined in `migrations/101-vids-artifact-publication.sql`
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `job_id` | UUID | no |  | PK · FK → [`vids_jobs.job_id`](#vids_jobs) |
+| `artifact_id` | UUID | no |  | UK |
+| `owner_sub` | TEXT | no |  | FK → [`vids_jobs.user_sub`](#vids_jobs) |
+| `sha256` | TEXT | no |  |  |
+| `byte_length` | BIGINT | no |  |  |
+| `public_token` | TEXT | yes |  | UK |
+| `published_at` | TIMESTAMPTZ | yes |  |  |
+| `created_at` | TIMESTAMPTZ | no | now() |  |

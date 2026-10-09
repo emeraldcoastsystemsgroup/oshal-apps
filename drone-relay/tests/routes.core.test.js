@@ -16,6 +16,7 @@
  * 8   | maintainer@emeraldcoastsystemsgroup.com     | 0.4.0: a lattice (B9) through the routes — capabilities list the area limits, a crossing polygon is refused naming the area, a lattice previews and saves with its grid, a relay loss runs with the tip never out of reach, the trace walks the lattice route to the tip, the write-up describes the grid; fifteen catalog cases with `engine-lattice`.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Resolve the framework checkout from OSHAL_CORE_ROOT first (what the Test Lab sandbox sets, /app) and OSHAL_CORE_DIR second, and fail loud when neither is set. The old default C:/Projects/oshal existed on one Windows box only and turned a missing variable into a confusing module error.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Redirect a bare require to the framework checkout only when the package itself asks for it. Requires made inside node_modules resolve normally again: redirecting them to core's root broke in the Test Lab sandbox, where the image's pruned node_modules keeps semver only nested under sharp (Cannot find module 'semver'); a developer checkout hoists it, which is why no local run saw it.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: sixteen catalog cases — the company audience view's `audience-view` case (ADR-164 D6) joins under the same loader and limits.
  */
 'use strict';
 const test = require('node:test');
@@ -340,7 +341,7 @@ test('the manifest and its Test Lab catalog load through the framework\'s own lo
   const manifest = yaml.load(fs.readFileSync(path.join(PKG, 'oshal-app.yaml'), 'utf8'));
   const loaded = loadPackageTestCatalog(PKG, manifest);
   assert.ok(loaded, 'the manifest declares a Test Lab catalog');
-  assert.equal(loaded.catalog.cases.length, 15);
+  assert.equal(loaded.catalog.cases.length, 16);
   for (const c of loaded.catalog.cases) {
     assert.ok(typeof loaded.revisions[c.id] === 'string' && loaded.revisions[c.id].length > 0, `${c.id} has a content revision`);
     for (const line of c.expected) assert.ok(line.length <= 500, `${c.id}: ${line.slice(0, 40)}`);

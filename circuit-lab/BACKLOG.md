@@ -67,7 +67,7 @@ hole; the cross-package suite validates the body against CAD Studio's contract.
 Still open, done when: a meshed pair from one design, printed, fits on the drawn centre distance
 (needs a print and a measurement — evidence, not code).
 
-## B4 — One parts model with the embodied lab (ADR-152 D1) — this lab's half DONE in 0.3.0; the servo half READS in 0.8.2
+## B4 — One parts model with the embodied lab (ADR-152 D1) — this lab's half DONE in 0.3.0; the servo half READS in 0.8.2; the motors READ embodied in 0.8.4
 
 `catalog/drivers.json` is the shared declaration: motors, servos and steppers with a nameplate
 that validates against the part contract, the mass and price other packages share, a `source`
@@ -87,14 +87,26 @@ that one row naming the owner (`GET /catalog/drivers` answers `{drivers, unresol
 everything this package owns outright still loads. `tests/shared-parts.test.js` proves it against
 real package trees, including a fixture owner whose different numbers move the answer.
 
-Still open (embodied's half — its package, its session), done when: embodied's parts model
-imports these rows by id instead of restating name, mass and price, and its MJCF generator reads
-what it needs for the actuator from the same row (the KV, once aero-lab's propeller curves give
-thrust per rpm — embodied B13).
+0.8.4 finished the motor half the other way round from how it was first written down: the part is
+embodied's, so embodied owns the row and this lab reads it. Embodied 0.16.2 publishes its two drone
+motors as data rows (`embodied/routes/engine/design/parts-catalog.json`, list `motors`: identity,
+mass, price, a source line and the propulsion block's KV) and builds its fits from them by id.
+`bl-2306-1800kv` and `bl-2807-1300kv` now carry `sharedPart` and only this lab's electrical block —
+the operating point and cell count it solves at, the winding's stall current, the no-load current,
+the inductance and the rotor inertia. The motor reader adopts name, mass, price, source and KV, and
+derives noLoadRpm as KV x the operating voltage, so restating any of them is refused naming the
+field, and a motor row without its operating point is refused too. Without embodied the two rows
+are withheld naming it, like the SG90 without animatronics. `tests/driver-catalog.test.js` now
+checks read-through equality against embodied's own compiled row reader and parts model, and
+`tests/shared-parts.test.js` covers the motor's fixture-owner, absent, unanswerable and restated
+cases. Every resolved number is what the rows carried before (name, mass, price, KV, nameplate).
+
+Still open, done when: embodied's MJCF generator reads what it needs for the actuator from the same
+motor row (thrust per rpm, once aero-lab's propeller curves exist) — embodied's B27.
 
 Also still open here: the rest of animatronics' servo rows (MG90S, MG996R, DS3218, STS3215) are
-not offered by this lab at all, and a stepper or motor `sharedPart` has no reader yet — a row of a
-type with no reader is refused at load rather than half-resolved.
+not offered by this lab at all, and a stepper `sharedPart` has no reader yet — a row of a type with
+no reader is refused at load rather than half-resolved.
 
 ## B5 — Non-rigid mechanics — DONE in 0.5.0, inside the single solve
 
@@ -226,3 +238,18 @@ Every tool on the operator's list has a dated note under
 table, the evidence read and a verdict — a BACKLOG item above (B12–B16, plus the OpenFOAM and
 GMAT items that belong to aero-lab and sat-ops) or a recorded no (WebPlotDigitizer as a container,
 SimScale, EES).
+
+## The assistant cannot call its route-backed tools yet (2026-10-06)
+
+Since core #1101 and #1103 (2026-10-06), `circuit-lab-engineer` answers the deployment operator's chat on the
+operator's own Antigravity login, from the shared concierge node. One chat turn as the operator on 2026-10-06 confirmed it.
+Its 13 tools are route-backed (`executorType: api`): `circuit-capabilities`, `circuit-list-designs`, `circuit-get-design`, `circuit-create-design`, `circuit-add-part`, `circuit-update-part`, `circuit-remove-part`, `circuit-connect`, `circuit-disconnect`, `circuit-run`, `circuit-restore-run`, `circuit-gear-to-cad`, `circuit-driver-catalog`.
+Core documents that a route-backed tool answers 401 when a bot calls it (core
+`docs/security/remote-application-execution.md`, "Limits"), and Scene Studio's director hit exactly
+that before 0.2.0. No tool call from this package's assistant has been run yet.
+
+- **Done when:** every tool the assistant is meant to call is a package tool
+  (`executor: { executorType: builtin, builtinKey: package }`) bound in an ADR-149 authorization
+  catalog (this package has none yet, so that means writing `authorization.yaml`), the bot is bound in `bindings.bots` (core `docs/apps/package-tools.md`), and one live chat
+  turn as the operator runs a tool and its result is checked against the app's own state. Scene
+  Studio 0.2.0 is the worked example.

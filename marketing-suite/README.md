@@ -48,3 +48,14 @@ session, so a step is done only when the member says it is:
 It arms nothing. Every outward action still belongs to its member app and its gates: per-channel
 consent that defaults OFF, a daily cap, an explicit confirm, and a run ledger that records refusals
 as well as sends.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+No model in the loop (T0): every feature of this application is deterministic code.
+<!-- oshal-rating:end -->

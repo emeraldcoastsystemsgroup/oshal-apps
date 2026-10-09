@@ -4,6 +4,12 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register all shipped package tests with explicit runner and fixture boundaries; retain readiness smoke identity.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register the Create brand kit rules: nearest look, byline and brand voice.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register Chromium Guide-to-artifact acceptance over the shipped AI Office page and owner-scoped local receipt.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register the approval-gated Slack Office adapter contract with injected owner-token upload and refusal proof.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | The audience-view case covers the classroom view beside company: its model as behaviour and the full studio's other start paths off under a view.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | The audience-view case covers the family view (Home shell) beside company and classroom: its model as behaviour over the single /list read, its Open items and its named states.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 2.13.0 brand looks: the brand-look case covers the exact look (asked for on the nearest look, picked when nothing chose one, carried by renders and sends, reopened from a saved file); the new brand-render case drives the compiled route with the framework's own deck engine and reads the brand back out of each generated file.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Run the framework fixture refusal guard beside the Guide artifact contract, which now compiles actual source without a machine-specific or ignored dist dependency.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -107,6 +113,81 @@ cases:
       timeoutMs: 30000
       maxMemoryMb: 256
     installation: never
+  - id: guide-artifact
+    name: Guide-to-artifact acceptance
+    purpose: Drive a signed-in Guide turn through the bounded editor contract into a real PPTX and a disposable owner-scoped local receipt.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/presentations-guide-artifact.test.mjs
+        - tests/presentations-framework-fixture.test.mjs
+    expected:
+      - The Guide response is reduced to the declared editor bridge vocabulary and updates the resulting outline state.
+      - The resulting outline renders as a structurally valid PPTX and returns an owner-scoped OSHAL-local receipt.
+      - The acceptance path performs no email, provider delivery, deletion, or other outward action.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Temporary local artifact directory and synthetic framework/storage seams are removed after the test.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 512
+    installation: never
+  - id: guide-browser-artifact
+    name: Guide drives the AI Office surface
+    purpose: Walk the actual AI Office HTML in Chromium from its Guide entry path through bounded editor actions and a same-origin owner-scoped local receipt.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/presentations-guide-browser.test.mjs
+    expected:
+      - The shipped page accepts a Guide turn and applies only the bounded title/outline actions to the visible editor.
+      - The real Generate control sends the edited outline and renders the owner-scoped local receipt returned by the same-origin endpoint.
+      - The disposable fixture rejects external traffic and proves no email or delete action crosses the path.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - harness:oshal-core-root
+      - core:shared-theme-assets
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close the Chromium context and loopback server; retain no artifact, provider call, mailbox action or installed record.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: slack-delivery
+    name: Approval-gated Slack Office delivery
+    purpose: Render one Office artifact and hand it to an injected caller-owned Slack upload seam while proving confirmation refusal and no real network.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/presentations-slack-delivery.test.mjs
+    expected:
+      - Missing explicit confirmation returns 428 and performs no upload.
+      - Confirmed delivery uses the authenticated caller's Slack token, bounded channel and rendered Office bytes.
+      - The disposable test makes no Slack, mailbox, recipient or provider request.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Restore module seams; retain no artifact, provider call, mailbox action or installed record.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 512
+    installation: never
   - id: brand-look
     name: Your brand in AI Office
     purpose: Run the surface's own brand code against a stubbed session to prove the look, byline and voice rules.
@@ -119,6 +200,8 @@ cases:
     expected:
       - The Create brand kit is read once in the viewer's session with a bounded wait; a refusal changes nothing.
       - The nearest built-in look follows hue, canvas darkness and fonts, and never replaces a look already chosen.
+      - The exact brand look is asked for on the nearest look's layout, leads the looks and is picked only when nothing chose a look; a refused or unreachable one leaves the nearest look picked.
+      - Renders and sends carry the kit for the brand look and an id for any other; a saved brand look reopens as today's brand look.
       - The brand name fills only an empty byline and the brand voice rides AI drafts only while switched on.
     prerequisites:
       - runner:node-test
@@ -129,4 +212,59 @@ cases:
     limits:
       timeoutMs: 30000
       maxMemoryMb: 256
+    installation: never
+  - id: brand-render
+    name: Files drawn in your brand
+    purpose: Drive the compiled AI Office route with the framework's own deck engine and read a brand kit's colors and faces back out of each generated file.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/brand-look-render.core.spec.mjs
+    expected:
+      - A deck, a document and a workbook generated from the caller's kit carry its colors and faces, and the caller's record names the look brand:<base>.
+      - A built-in look still renders and records by its id.
+      - An invalid kit is refused with the engine's reason before any outline draft, render, save or record.
+      - POST /brand-look builds the look for a signed-in caller only; email and Slack deliver in the brand look and refuse an invalid kit before reading a token or sending.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: In-memory route seams only; no storage, database, model, mailbox or Slack call leaves the process.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell), classroom (Classroom shell) and family (Home shell)
+      audience views through the shared kit: kit loaded after the theme bootstrap, boot with this application's own
+      name and exactly its audiences, full-page start gated on the kit's decision, head block parses and reads only
+      this package's own routes; the classroom and family models run against a stub kit, and every other start path
+      of the full studio off under a view.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - The classroom view offers its five starters in order as studio deep links, lists the learner's work newest first with outside links in a new tab, reads only /list and /starters, and names the no-catalog, empty, signed-out and unreadable states.
+      - The family view reads only /list, lists the household's documents newest first in plain words with an Open badge on exactly the items that open in a new tab, opens the full studio from its one action, and names the empty, signed-out, refused and unreadable states.
+      - Under any audience view the brand-kit read, the starters and brand boot, the surface-bridge attach and the hand-off and connected actions do not run.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

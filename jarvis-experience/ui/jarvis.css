@@ -1,0 +1,28 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Own the established skin palette while respecting saved appearance.
+ */
+body[data-skin="jarvis"], [data-layout][data-skin="jarvis"], .experience[data-skin="jarvis"], [data-skin="jarvis"], body[data-theme="jarvis"], [data-theme="jarvis"] {
+  --bg: #f8f5ee;
+  --surface: #fffdf8;
+  --surface-2: #f1ece2;
+  --chrome: #f5f1e8;
+  --ink: #37332c;
+  --muted: #7c766b;
+  --line: #e5dfd3;
+  --accent: #b94e2d;
+  --on-accent: #fffaf5;
+  --soft: #f6e6d9;
+  --paper: #fffdf8;
+  --on: #fffaf5;
+  --feature: #f6e6d9;
+  --teal: #b94e2d;
+  --gold: #d49547;
+  --radius-custom: 16px;
+  --radius: 16px;
+  --theme-brand: "Jarvis";
+  color-scheme: light;
+}

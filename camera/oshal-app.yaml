@@ -29,6 +29,16 @@
 
 name: camera
 suite: ai-creative   # ADR-097: primary catalog shelf (remote capture = content creation)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: camera-nl-control
+      unit: camera instruction
+      tier: T1
+      generation: none
+      degrade: disable
 displayName: Camera Ops
 description: >-
   Remote camera control — connect to a GoPro (and other Wi-Fi/USB cameras) and
@@ -36,7 +46,10 @@ description: >-
   run a low-latency preview. A control concierge turns natural language into one
   validated command; a human confirms anything destructive. Sim engine built in,
   real GoPro (Open GoPro HTTP) at the camera node.
-version: 1.1.0
+version: 1.1.2
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: active
 
 source:
@@ -76,6 +89,7 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BOTS — the control brain (Form B inline concierge — interprets NL into ONE

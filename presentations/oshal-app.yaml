@@ -5,6 +5,12 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 2.11.2: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 2.12.0: read the person's Create brand kit in their own session: the nearest built-in look is badged and picked when nothing else chose one, the brand name fills an empty cover byline and AI drafts can use the brand voice.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 2.12.1: declare the Create prerequisite the brand-kit read already had (optional — without it the studio keeps its own looks).
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 2.12.2: prove the Guide-to-artifact path with the bounded editor bridge, real PPTX structure, and disposable owner-scoped local receipt.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 2.12.3: walk the shipped AI Office Guide and Generate controls in Chromium to an owner-scoped local receipt without outward delivery.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 2.12.4: add the approval-gated Slack Office file-upload adapter with a source-only no-send boundary.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 2.12.5: make the Guide's tool-less editor proposal compatible with protected direct reasoning.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 2.12.8: the family audience view for the Home shell (ADR-164 D6) — the household's recent documents from the studio's own /list read, in plain words, each opening in a new tab, with honest empty, signed-out, refused and unreadable states; the company and classroom views are unchanged.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 2.13.0: draw a deck, document or workbook in the caller's Create brand kit: the studio offers "Your brand", built by the kernel's brandTheme from the kit's colors and faces on the nearest look's layout, picks it when nothing else chose a look, and every render and send carries the kit; the record names the look brand:<base>; an invalid kit is a 400. Needs a framework whose deck engine has brandTheme; on an older one the studio keeps the nearest built-in look.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — presentations (AI Office: deck / document / workbook studio)
@@ -24,6 +30,21 @@
 
 name: presentations
 suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 128, high: 512, basis: declared }
+  features:
+    - id: ai-outline-draft
+      unit: deck, document or sheet outline
+      tier: T2
+      generation: none
+      degrade: template
+    - id: deck-guide
+      unit: guide chat turn
+      tier: T2
+      generation: none
+      degrade: disable
 displayName: AI Office
 description: >-
   One outline, three artifacts: a themed PowerPoint deck, Word document, or live Excel
@@ -33,7 +54,7 @@ description: >-
   Phone-friendly: dictate instead of typing, resume recent files in one tap, and drive
   edits with tap chips. My files is a real file browser - click a file for
   download, open-in-provider, or edit-and-regenerate. Saves to Dropbox, Google Drive, OneDrive, or OSHAL local.
-version: 2.12.1
+version: 2.13.0
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -80,8 +101,8 @@ uses:
   - storage
   - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
-# Runtime connector allow-list — where artifacts save (ADR-108 delivery adapters) and
-# the mailboxes the approval-gated email leg sends over.
+# Runtime connector allow-list — where artifacts save (ADR-108 delivery adapters), the
+# approval-gated email leg sends over, and the explicit-confirmation Slack file leg uploads through.
 # ── Cross-package prerequisites: what this package actually reaches ─────────
 # OPTIONAL, NOT REQUIRED: tools/presentations.html:728 reads /api/create/brand-kit to badge the
 # nearest built-in look and fill an empty cover byline. Its own catch says it: "No Create access
@@ -97,7 +118,7 @@ dependencies:
   optional:
     apps: [create]   # owns the brand kit the look-picker badges; absent, the built-in looks are used unchanged
     tools: []
-    connectors: [dropbox, github, google-drive, google, microsoft]
+    connectors: [dropbox, github, google-drive, google, microsoft, slack]
 
 # Guest tier REQUEST (ADR-085 D4): core listed 'presentations' Tier-A (interactive demo
 # app — guests could build a deck). Unapproved default = guests read-only until the

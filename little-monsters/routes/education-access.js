@@ -25,6 +25,8 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Replace 32-bit RAG collection fragments with deterministic 96-bit SHA-256 identity digests
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Minimize every identity query and mutation result to the exact fields required by authorization
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Read the issuer from the verified idTokenClaims before the filtered user view through one exported helper: express-openid-connect strips iss from req.oidc.user by default, so every real browser session failed 401 and legacy rows never adopted an issuer; only the PAT and MOCK_OIDC rails put iss on user
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Resolve native scoped-store GETs from existing verified learner bindings without provisioning writes
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Use verified native student provisioning inside an explicit atomic transaction; retain operator-controlled roles and existing bindings.
  * ---------------------------------------------------------------------------
  *
  * @module education-access
@@ -42,6 +44,7 @@ exports.assertTeacherOfClass = assertTeacherOfClass;
 exports.assertCanViewStudent = assertCanViewStudent;
 exports.listAccessibleClassIds = listAccessibleClassIds;
 const node_crypto_1 = require("node:crypto");
+const education_transactions_1 = require("./education-transactions");
 const logger_1 = require("@/shared/logger");
 const logger = (0, logger_1.createChildLogger)({ module: 'education-access' });
 /** @description The built-in default school used only while no mapped school domains exist. */
@@ -265,6 +268,25 @@ async function resolveUnboundPrincipal(pool, identity, isTeacherByAllowlist) {
         client.release();
     }
 }
+/** Provision only this verified principal as a student in the operator-configured school. */
+async function resolveNativePrincipal(pool, identity) {
+    return (0, education_transactions_1.schoolTransaction)(pool, async (client) => {
+        const existing = await findBoundPrincipal(client, identity);
+        if (existing)
+            return existing;
+        // Installed row policy exposes exactly the authorized initial school for an unbound caller.
+        const schools = await client.query('SELECT tenant_id FROM lm_tenants');
+        if (schools.rows.length !== 1)
+            throw new EducationAccessError('School enrollment is not configured for this identity', 403);
+        const result = await client.query(`INSERT INTO lm_students (name, email, external_issuer, external_id, role, tenant_id)
+       VALUES ($1, $2, $3, $4, 'student', $5)
+       RETURNING student_id, email, name, role, tenant_id, external_id, external_issuer`, [identity.name, identity.email, identity.issuer, identity.sub, schools.rows[0].tenant_id]);
+        if (result.rows.length !== 1)
+            throw new EducationAccessError('Student provisioning was not acknowledged', 503);
+        logger.info({ studentId: result.rows[0].student_id }, 'Provisioned verified native student');
+        return result.rows[0];
+    });
+}
 /**
  * @description Resolve the authenticated user to an lm_students row, provisioning
  * one on first sign-in. Matches on the verified OIDC `(iss, sub)` pair first.
@@ -283,7 +305,11 @@ async function resolveAuthedStudent(req, pool, options = {}) {
     const isTeacherByAllowlist = id.email ? teacherEmails().has(id.email) : false;
     let row = await findBoundPrincipal(pool, id);
     // Dashboard reads must never adopt an account, provision a learner or promote a role.
-    if (options.readOnly) {
+    const native = (0, education_transactions_1.isNativeSchoolStore)(pool);
+    if (native && !row && !options.readOnly && !['GET', 'HEAD'].includes(req.method)) {
+        row = await resolveNativePrincipal(pool, id);
+    }
+    if (options.readOnly || native) {
         if (!row)
             throw new EducationAccessError('Open Little Monsters to complete school setup', 403);
         if (!row.tenant_id || !row.role || !['student', 'teacher', 'admin'].includes(row.role)) {

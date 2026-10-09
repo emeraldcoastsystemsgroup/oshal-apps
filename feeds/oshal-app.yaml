@@ -23,12 +23,25 @@
 
 name: feeds
 suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: feeds-curation-ticket
+      unit: feeds ticket
+      tier: T3
+      generation: none
+      degrade: disable
 displayName: Feeds
 description: >-
   Your connected message feeds in one place — live stream, activity trends, hot
   channels, and trending topics over your own Slack messages. Other swarm bots can
   ask the curator "what did I miss" and get a signal-first summary.
-version: 1.2.0
+version: 1.2.3
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: active
 
 theme: ocean
@@ -70,6 +83,7 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BOTS — one curator (inline on the api via the orchestrator; seeded by the kernel

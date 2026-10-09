@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | B4: the Room selector lists the scenes, a reset onto the studio is confirmed by name and the selector follows the active scene.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The printed arm in the Build panel: its joints and parts render, and Check on physics puts the container's measured hold in the row.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 S1, the operator's own acceptance case in a real browser: choose a medium, drop the explorer hull. In AIR the fall is drawn and the numbers are the analytic free fall; in SEAWATER the tile shows the REFUSAL by its own name instead of a plausible float.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 D5 in a real browser: the drop result renders its run fingerprint (medium id, package version, engine tree hash, the plant that answered), and a run that arrives WITHOUT its fingerprints — the route's own answer with `engine` stripped in flight — is not drawn: no rectangles, and the tile says which field is missing.
  */
 import { test, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -197,6 +198,8 @@ test('ADR-160 S1: choose a medium and drop the hull — in air it falls, in seaw
   assert.match(fell, /6\.26 m\/s/);
   assert.match(fell, /medium_property_unavailable: freeSurface/, 'the float question is refused in the same answer');
   assert.ok((await page.locator('#fall rect').count()) >= 5, 'the hull is drawn descending, not just described');
+  // ADR-160 D5: the run says which medium and which engine produced it.
+  assert.match(fell, /Run: medium air · embodied \d+\.\d+\.\d+ · engine [0-9a-f]{12} · plant analytic/, 'the fingerprint line is rendered with the result');
 
   // SEAWATER: the answer is the refusal, by name.
   await page.selectOption('#medium', 'seawater');
@@ -208,4 +211,21 @@ test('ADR-160 S1: choose a medium and drop the hull — in air it falls, in seaw
   assert.match(refused, /confidently wrong/);
   assert.doesNotMatch(refused, /It falls\./);
   assert.equal(await page.locator('#fall rect').count(), 0, 'nothing is drawn: a plausible float would disprove the contract');
+});
+
+test('ADR-160 D5: a run result that arrives without its engine fingerprints is NOT displayed', async () => {
+  await page.locator('#medium option').first().waitFor({ state: 'attached', timeout: 15000 });
+  // The route's own answer, with `engine` stripped in flight: the shape a stale or foreign surface could hand the tile.
+  await context.route('**/api/embodied/physics/hull?**', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    delete body.engine;
+    await route.fulfill({ response, json: body });
+  });
+  await page.locator('#drop-hull').click();
+  await page.waitForFunction(() => document.getElementById('drop-result').textContent.includes('Not displayed'), null, { timeout: 15000 });
+  const shown = await text('#drop-result');
+  assert.match(shown, /Not displayed: this run result carries no engine\.packageVersion, engine\.routesBuildHash/);
+  assert.doesNotMatch(shown, /It falls\./);
+  assert.equal(await page.locator('#fall rect').count(), 0, 'nothing is drawn for a run that cannot name its engine');
 });

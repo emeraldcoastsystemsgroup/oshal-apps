@@ -23,6 +23,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.3 - this file predates the log and its earlier history is in git. Strict-CSP cleanup (ADR-136 D2 tail): the account context bar is #acctCtxBar and its "Open this account" link is a delegated data-act listener wired in wireAcctContextBar(), so the shell carries no inline event-handler attribute; BOOK/MODE are read from state at click time. The esc() note now states the rule for the whole surface.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | wireAcctContextBar carries JSDoc (@description/@returns) rather than a prose block comment - the repo rule applies to the rewritten function, not only to the new ones.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | api() errors carry the HTTP status and the route's error code (err.status, err.code) beside the unchanged message, so the plan amend control can show a 428 confirm_required as the server's refusal - nothing changed, confirm to proceed - rather than as a failure.
  */
 
 const $ = (id) => document.getElementById(id);
@@ -118,7 +119,13 @@ async function api(path, opts) {
   }
   const r = await fetch('/api/trading' + path + sep + 'book=' + encodeURIComponent(BOOK) + '&mode=' + MODE, opts);
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.message || j.error || ('HTTP ' + r.status));
+  if (!r.ok) {
+    // The status and the route's error code ride the Error, so a caller can tell a 428 confirm_required
+    // (nothing happened, ask the operator) from a failure; the message is unchanged for every other caller.
+    const err = new Error(j.message || j.error || ('HTTP ' + r.status));
+    err.status = r.status; err.code = j.error || null;
+    throw err;
+  }
   return j;
 }
 
@@ -166,6 +173,7 @@ function navigate(view, opts) {
   UNIVERSE = {}; CURRENT = null;
   RENDER_TOKEN += 1;
   if (typeof closeTicket === 'function') closeTicket();   // a ticket minted on one account never survives a switch
+  if (typeof qsClose === 'function') qsClose();
   syncUrl();
   render();
 }

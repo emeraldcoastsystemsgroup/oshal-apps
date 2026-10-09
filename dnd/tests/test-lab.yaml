@@ -1,0 +1,44 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1   | maintainer@emeraldcoastsystemsgroup.com     | 0.21.4: register the audience view contract of the review page (ADR-164 D6) with its runner and isolation boundaries: the family view for the Home shell reads only GET /campaigns, /characters and /home-summary on open, never paints a join code, names a heroes or story read that failed on its own, a refusal and a failure for what they are, and leaves the full page's own start (connected actions, refresh) ungated only when no audience view renders.
+# 2   | maintainer@emeraldcoastsystemsgroup.com     | 0.21.5: the case also covers the table (ui/table.html, the games group's first surface): its family view reads only GET /campaigns, /characters and /content on open, names each game's adventure and chapter as the route resolves them, and is proved over the package's real router with a recording pool; the tabletop start paths (boot, animation loop, narrator status, glitch banner, audio unlock, immersive wiring) run only when no audience view renders.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.21.6: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify both pages that provide the family (Home shell) audience view through the shared kit, the review page
+      and the table (the games group's first surface): kit loaded after the theme bootstrap, boot with this
+      application's own name and exactly its audiences, full-page start gated on the kit's decision, head block
+      parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the family view reads only GET /campaigns, /characters and /home-summary; it writes nothing, never fetches the connected-actions plan and never names a board, sync, playback, archive, model or media route.
+      - The stats, title and lede name the saved games; each game reads as the table's own place in plain words with its players and the caller's role; the story beats come from the route's own offer notes; the join code is never painted and no item links out.
+      - A heroes or story read failing on its own is named as not checked while the games still show; a 401, a 403, a 5xx, a non-JSON failure and a failure with its own error each read as what they are.
+      - Under an audience view the page's module script mounts no connected actions and reads nothing; without the audience it still runs every start step.
+      - The table boots the kit in its head before the tabletop bundle, in the page and in the route's script-inlined document; on open its family view reads only GET /campaigns, /characters and /content.
+      - The table view names each game's adventure and chapter as the route resolves them, where it stands, its players and the caller's role, the saved heroes and the adventure shelf; over the package's real router it makes exactly two SELECTs pinned to the caller and never paints the join code.
+      - A heroes or shelf read failing on its own is named as not checked; a 401, a 403, a 5xx, a non-JSON failure, a failure with its own error, no session and no database each read as what they are.
+      - Under the table's family view no boot read, animation loop, narrator status, glitch banner, audio-unlock listener, legacy voice-key removal or immersive wiring runs; without the view, or without the kit, each one still runs.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

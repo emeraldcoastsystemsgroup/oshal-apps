@@ -33,6 +33,8 @@
 # 2026-07-28 00:20:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.17.3 from the adversarial verify pass: serve leads.js (client nomination/walk was dead in production without it), keep figures off walls and spawn seats, log soft illustrator outages, and dedupe raced attempts on found clues.
 # 2026-07-31 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Release v0.19.0 (roadmap #13): a lead attempt opens the big SHARED d20 — the request carries the lead contract and true skill modifier, the die lands via the same /roll route as every check, and the exploration commit applies discovery-or-miss while resolving the die in one write. Lead crits ride the shared die; the DM narration path refuses lead rolls.
 # 2026-08-06 02:43:35 | maintainer@emeraldcoastsystemsgroup.com     | Release v0.19.1 with FORCE RLS on all six tenant tables, derived owner columns, member-safe shared-table policies, and transaction-local join-code admission.
+# 2026-09-28 08:52:00 | maintainer@emeraldcoastsystemsgroup.com     | Release v0.21.4 with the family audience view for the Home shell (ADR-164 D6) on the first surface, tools/review.html: the saved games, where the story left off and the saved heroes from the existing GET /campaigns, /characters and /home-summary reads, never a turn, narration, dice, illustration, seat change or join code; declare the package test catalog (testing: + uses: test-catalog) with its audience-view case.
+# 2026-09-28 23:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Release v0.21.5 with the family audience view on the table, ui/table.html at /api/dnd/table, the games group's first surface that the Jarvis shell frames (ADR-164 D6): the saved games with their adventure and chapter, where each stands, the saved heroes and the adventure shelf from the table's own GET /campaigns, /characters and /content reads; the tabletop start paths (boot, animation loop, narrator status, glitch banner, audio unlock, immersive wiring) run only when no audience view renders, so no turn, narration, dice, illustration, seat change or join code happens under the view. No route, schema or authorization change.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Dungeon Master (AI D&D at the table)
@@ -54,6 +56,26 @@
 
 name: dnd
 suite: ai-creative   # ADR-097: primary catalog shelf (games/entertainment live under creative)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: dm-narration
+      unit: narration turn
+      tier: T3
+      generation: none
+      degrade: disable
+    - id: story-art-cutaway
+      unit: scene illustration
+      tier: T0
+      generation: hosted
+      degrade: disable
+    - id: narration-voice
+      unit: narration read-aloud
+      tier: T0
+      generation: hosted
+      degrade: disable
 displayName: Dungeon Master
 description: >-
   Play Dungeons & Dragons at the table with an AI Dungeon Master. Lay the tablet
@@ -63,7 +85,7 @@ description: >-
   inventory, abilities, and spells. You control only your claimed hero; clearly
   labeled AI companions run empty seats. Choose a bundled SRD hero or import
   your own PDF/JSON character sheet. Rules run on the open CC-BY D&D SRD 5.1.
-version: 0.21.2
+version: 0.21.6
 
 # ADR-139 wave 2 — "Send to…" destination (open mode): a D&D Beyond PDF or JSON export from
 # anywhere in the swarm imports through the table's existing lane and lands in My Characters.
@@ -74,6 +96,9 @@ artifacts:
       icon: 🐉
       types: [application/pdf, application/json]
       mode: open
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: active
 theme: black
 
@@ -112,6 +137,7 @@ uses:
   - voice
   - media-generation   # AI cutaway illustrations at story milestones (fail-soft when unconfigured)
   - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
+  - test-catalog
 
 # ── ADR-085: dependencies ───────────────────────────────────────────────────
 # Self-contained: the open SRD rules pack and the starter adventure are bundled.
@@ -151,9 +177,9 @@ ui:
       iframeUrl: /api/dnd/review
       section: top
     - { toolName: dnd-table,  label: The Table, icon: codicon codicon-game,      iframeUrl: /api/dnd/table,          section: top }
-    - { toolName: dnd-party,  label: Party,     icon: codicon codicon-organization, iframeUrl: /api/dnd/table?panel=party, section: top }
-    - { toolName: dnd-tv,     label: TV Mode,   icon: codicon codicon-device-desktop, iframeUrl: /api/dnd/table?mode=tv, section: top }
-    - { toolName: dnd-help,   label: How to Play, icon: codicon codicon-book,     iframeUrl: /api/dnd/table?panel=help, section: bottom }
+    - { toolName: dnd-party,  label: Party,     icon: codicon codicon-organization, iframeUrl: "/api/dnd/table?panel=party", section: top }
+    - { toolName: dnd-tv,     label: TV Mode,   icon: codicon codicon-device-desktop, iframeUrl: "/api/dnd/table?mode=tv", section: top }
+    - { toolName: dnd-help,   label: How to Play, icon: codicon codicon-book,     iframeUrl: "/api/dnd/table?panel=help", section: bottom }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ROUTES — compiled JS bundled in this package, mounted in-process at activation

@@ -90,3 +90,18 @@ The page speaks Web Serial only.
 Done when: an ESP32 running the sketch over Wi-Fi accepts the same lines on a TCP port and the
 page (or a Pi-class node on the swarm rail, per embodied B6/B20) streams to it, with the
 controller's hello carrying the transport.
+
+## The assistant cannot call its route-backed tools yet (2026-10-06)
+
+Since core #1101 and #1103 (2026-10-06), `animatronics-director` answers the deployment operator's chat on the
+operator's own Antigravity login, from the shared concierge node. One chat turn as the operator on 2026-10-06 confirmed it.
+Its 12 tools are route-backed (`executorType: api`): `animatronics-capabilities`, `animatronics-list-rigs`, `animatronics-get-rig`, `animatronics-create-rig`, `animatronics-update-rig`, `animatronics-set-pose`, `animatronics-delete-pose`, `animatronics-set-scenario`, `animatronics-delete-scenario`, `animatronics-rehearse`, `animatronics-look-at`, `animatronics-servo-catalog`.
+Core documents that a route-backed tool answers 401 when a bot calls it (core
+`docs/security/remote-application-execution.md`, "Limits"), and Scene Studio's director hit exactly
+that before 0.2.0. No tool call from this package's assistant has been run yet.
+
+- **Done when:** every tool the assistant is meant to call is a package tool
+  (`executor: { executorType: builtin, builtinKey: package }`) bound in an ADR-149 authorization
+  catalog (this package has none yet, so that means writing `authorization.yaml`), the bot is bound in `bindings.bots` (core `docs/apps/package-tools.md`), and one live chat
+  turn as the operator runs a tool and its result is checked against the app's own state. Scene
+  Studio 0.2.0 is the worked example.

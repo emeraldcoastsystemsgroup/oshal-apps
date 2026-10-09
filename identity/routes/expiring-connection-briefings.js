@@ -1,11 +1,4 @@
 "use strict";
-/**
- * CHANGE LOG
- * -----------------------------------------------------------------------------
- * SEQ | AUTHOR | DESCRIPTION
- * -----------------------------------------------------------------------------
- * 1 | maintainer@emeraldcoastsystemsgroup.com | Reconcile unrenewable expiring connections through registered Jarvis briefing source.
- */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -44,15 +37,20 @@ exports.SOURCE_ID = exports.SESSION = void 0;
 exports.expiringConnectionRows = expiringConnectionRows;
 exports.collectExpiringConnectionBriefings = collectExpiringConnectionBriefings;
 exports.createExpiringConnectionBriefingRoutes = createExpiringConnectionBriefingRoutes;
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Reconcile unrenewable expiring connections through registered Jarvis briefing source.
+ */
 const express_1 = require("express");
 const taskStore = __importStar(require("@/app/routes/jarvis-task-store"));
 const jarvis_briefing_delivery_1 = require("@/app/routes/jarvis-briefing-delivery");
 const request_identity_1 = require("@/shared/services/database/request-identity");
 const connector_tenancy_1 = require("@/app/routes/connector-tenancy");
-
 exports.SESSION = 'identity-expiring-connections';
 exports.SOURCE_ID = 'identity:expiring-connections';
-
 async function expiringConnectionRows(ctx) {
     const query = {
         text: `SELECT connection_id, user_sub, connected_by_sub, tenant_id, provider, label,
@@ -62,12 +60,11 @@ async function expiringConnectionRows(ctx) {
            WHERE expiry IS NOT NULL AND refresh_token IS NULL
              AND expiry > NOW() AND expiry <= NOW() + INTERVAL '14 days'
            ORDER BY expiry ASC`,
-        query_timeout: 2000,
+        query_timeout: 2_000,
     };
     const result = await (0, request_identity_1.runWithSystemIdentity)(() => ctx.pool.query(query));
     return result.rows;
 }
-
 async function collectExpiringConnectionBriefings(ctx, now = Date.now()) {
     const runtime = (0, jarvis_briefing_delivery_1.getJarvisBriefingDelivery)();
     if (typeof taskStore.saveCompletedBriefing !== 'function' || !runtime) {
@@ -86,7 +83,7 @@ async function collectExpiringConnectionBriefings(ctx, now = Date.now()) {
                 continue;
             }
             const at = new Date(row.expiry).getTime();
-            const daysLeft = Math.max(1, Math.ceil((at - now) / (24 * 3600000)));
+            const daysLeft = Math.max(1, Math.ceil((at - now) / (24 * 3600_000)));
             const id = `identity:expiring:${row.connection_id}:${dayKey}`;
             const name = row.label || row.account_email || row.provider;
             const title = `Expiring connection: ${name}`;
@@ -109,7 +106,6 @@ async function collectExpiringConnectionBriefings(ctx, now = Date.now()) {
         return { state: 'unavailable', summary: 'Expiring-connection briefing collection is unavailable; a later scheduled run can retry.' };
     }
 }
-
 function createExpiringConnectionBriefingRoutes(ctx) {
     const router = (0, express_1.Router)();
     router.post('/collect', async (_req, res) => {
@@ -119,3 +115,4 @@ function createExpiringConnectionBriefingRoutes(ctx) {
     });
     return router;
 }
+//# sourceMappingURL=expiring-connection-briefings.js.map

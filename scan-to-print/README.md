@@ -1,10 +1,82 @@
 # Scan to Print
 
+0.7.0 lets agents use the print service's tools, and makes this app's operator bot a printer bot
+(operator decision 2026-10-06: "agents can use tools that they are assigned to and there should be a
+bot that can call the printer"). The five agent tools run in-process as package tools under the
+person the agent acts for, so Jarvis, the operator bot or any bot assigned them can list printers
+and jobs, read a printer's live state and send a printable job (ask by default) on a box running
+core application authorization in enforce mode, where the earlier route-backed tools were refused.
+That needs an ADR-149 catalog (`authorization.yaml`, one `maker` role carrying the whole app); its
+first install is a reviewed catalog migration, after which each person needs the `maker` role
+([docs/PRINTERS.md](docs/PRINTERS.md) §6). The duplicate 0.5 tools `scan-to-print-jobs` and
+`scan-to-print-printers` are retired in favour of `print-service-jobs` and `print-service-printers`.
+Proven by `tests/catalog-bindings.test.js`, `tests/tools.core.test.js` and `tests/kernel.core.test.js`
+(Test Lab cases `catalog-bindings`, `print-tools`, `kernel-authorization`).
+
+0.6.1 stops offering TLS 1.3 to a Bambu Lab printer. A P2S on firmware 01.02.00.00 was reported
+never to answer a TLS 1.3 hello on its broker port (:8883; ha-bambulab #2072), so every connection
+to the printer now offers TLS 1.2 at most. This is not yet tried against a printer on 01.02.00.00 or
+later; Roger's P2S on 01.01.02.00 identifies and serves status capped at 1.2. It also makes printers
+manageable with no object open: the list, the registration form and the slicer engine note are in
+a **Printers** panel at the top of the list of objects (they used to sit inside the print step,
+which stays hidden until an object is reconstructed), and the Bambu help names the P2S path:
+Settings → Settings → LAN Only. Proven by `tests/printing-bambu.test.js` (a fake printer that never
+answers a TLS 1.3 hello, as that broker was reported to) and `tests/surface-printers.test.js` (Test
+Lab cases `printing-bambu`, `surface-printers`).
+
+0.6.0 makes printing a **swarm print service** and adds **Bambu Lab printers on the home network**
+(operator decision 2026-10-06: "build it into the app as a service", the way agents call the RAG
+service). Agents, persona scripts and apps print a scan job or a posted model through
+`/api/scan-to-print/service` (a `service-or-oidc` mount; every query runs as the user the caller acts
+for, never operator). A Bambu Lab printer is added from its address and LAN access code alone — its
+serial and model are read from its own TLS certificate, which is then pinned — and a model is sliced
+for that printer by the package's OrcaSlicer engine container (`engine/`, BUILDING-EXTENSIONS §7),
+uploaded over FTPS and started over MQTT. The service starts a machine only on a printer whose owner
+turned auto-start on (it ships off; OIDC-only, with confirmation; re-read at start time); agents call
+it through the `print-to-3d-printer` tool, which ships as ask. A Bambu printer also refuses while it
+requires vendor-signed commands (Developer Mode off), is busy or holds another material, and the reply
+says which. Under core application authorization in enforce mode a bare service-secret call is
+refused by core (it needs a verified identity — BACKLOG.md). Setup, the trust model and the full call
+list: [docs/PRINTERS.md](docs/PRINTERS.md) §1, §5 and §6. Proven by `tests/printing-bambu.test.js`
+(a fake printer on real loopback TLS), `tests/printing-slicer.test.js` and `tests/service.core.test.js`
+(Test Lab cases `printing-bambu`, `printing-slicer`, `print-service-http`).
+
+0.5.3 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 Scan exports STL/OBJ meshes, dimensioned SVG and world-millimetre contours with
 measurement provenance. **Open in CAD Studio** sends current contours to the
 separate [CAD Studio](../cad-studio/README.md) application for feature editing and
 STEP export. Scan's own meshes contain no CAD feature tree. SOLIDWORKS integration
 and further engineering workflows remain in the [delivery plan](CAD-PLAN.md).
+
+## Company audience view (0.5.2)
+
+The Business shells open the surface as `/api/scan-to-print/app?audience=company` (ADR-164 D6). The shared kit
+(`/shared/ui/js/app-view.js`, loaded right after the theme bootstrap) paints the signed-in account's own objects in
+the company grammar: four stats (objects, printable models, failed reconstructions, and uploads sent to a printer in
+the last seven days from `GET /home-summary`), a title that names the account's state, a table of the eight most
+recently changed objects (state, source, extents, printable verdict, last change), a needs-attention list (failed
+reconstructions with their reason, meshes that are not printable in the terms the report's validation block records,
+print-check warnings) and the registered printers by label and kind with the slicer note. Extents and the printable
+verdict show only while an object reads reconstructed, as on the full page: changing its inputs retires the report.
+On open it makes exactly three reads, `GET /jobs`, `GET /printers` and `GET /home-summary`, owner-scoped SELECTs
+under the caller's session. It never reconstructs, slices, reads a model file or a photo, asks for view suggestions,
+contacts a printer or creates an object; the ADR-139 `?artifact` intake belongs to the full page. The one action
+opens the full page in the frame and the escape opens Scan to Print in the cockpit. Signed out, refused, a failed
+read, an unreadable answer, an unreachable server, a seven-day count or a printers list that could not be read, and a
+list at the route's 200-object cap are each named. Any other request runs the full page unchanged: the surface
+script's one start path (the boot, which also runs the `?artifact` intake) is gated on the kit's decision.
+
+```bash
+node --test scan-to-print/tests/audience-view.test.cjs
+OSHAL_FRAMEWORK=<core checkout> node scripts/audience-views.browser.cjs scan-to-print
+```
+
+The first runs from the store root with no browser: the static kit contract, the view's behaviour over the
+package's real `GET /jobs` and `GET /printers` (the whole mounted router, with express, multer, sharp and the
+framework aliases stubbed and a stub pool) and `GET /home-summary` routes, and the gate of the surface script. The
+second drives `tests/audience-view.fixture.cjs` over the real page and the real kit in headless Chromium. The first
+is registered as the `audience-view` case of the Lab catalog (`tests/test-lab.yaml`).
 
 ## Depth upload, view suggestions, print checks (0.5.0)
 
@@ -106,8 +178,9 @@ ruler measurement, and get:
 
 1. an **engineering drawing** — third-angle, six views, overall dimensions, title block (SVG, A3, mm);
 2. a **watertight 3D model** — STL and OBJ — you can rotate in the browser;
-3. a **print job** on your own OctoPrint, Klipper/Moonraker or PrusaLink printer, behind an
-   explicit confirmation.
+3. a **print job** on your own OctoPrint, Klipper/Moonraker, PrusaLink or Bambu Lab printer, behind
+   an explicit confirmation in the app — or sent by an agent or app through the print service, which
+   starts it only on a printer whose owner turned auto-start on.
 
 The geometry is **deterministic**: same photos, same ruler number, same bytes. There is no model
 in the geometry path. The one inline concierge (`scan-to-print-operator`) briefs jobs and drafts
@@ -153,7 +226,7 @@ Open `/cockpit/?app=scan-to-print`.
    **Open in CAD Studio** hands the front / top / right outlines (the `contours` artifact, world
    millimetres) to the `cad-studio` package, where they become a real CAD part — holes, fillets,
    STEP — as a `contours` base.
-5. **Print** — register your printer (label, kind, base URL, API key), choose G-code (needs a
+5. **Print** — register your printer under **Printers** (label, kind, base URL, API key), choose G-code (needs a
    configured slicer) or STL (OctoPrint slices), tick *start printing* if you want, confirm.
    Setup: [docs/PRINTERS.md](docs/PRINTERS.md).
 
@@ -210,6 +283,7 @@ tests/                    engine-*.test.js (dependency-free), routes.core.test.j
 | `SCAN_TO_PRINT_SLICER_TIMEOUT_MS` | Slicer timeout. Default 300000. |
 | `SCAN_TO_PRINT_FFMPEG_BIN` | Frame-sampling program. Default `ffmpeg`. |
 | `SCAN_TO_PRINT_FRAME_FPS` / `SCAN_TO_PRINT_MAX_FRAMES` | Video sampling rate and cap. Default 1 fps, 24 frames. |
+| `SCAN_TO_PRINT_ENGINE_ADDR` | Where the slicer engine container listens. Default `scan-to-print-engine:7414` (its stack-network alias). |
 
 Printers are per person, entered in the app; the API key is stored as owner-key ciphertext via
 the `memory` kernel skill (`@/features/personal-data`), never plaintext.
@@ -233,6 +307,8 @@ asserts it.
 ```bash
 cd c:/Projects/oshal-apps/scan-to-print
 node --test "tests/*-*.test.js"                                         # engine-* + surface-*: dependency-free, runs in store-ci
+node --test tests/audience-view.test.cjs                                # the company audience view: dependency-free
+OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/service.core.test.js  # the print service + Bambu printers over the real routes
 OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/routes.core.test.js tests/depth.core.test.js tests/frames.core.test.js tests/markers.core.test.js  # framework-coupled (express/multer/sharp)
 ```
 
@@ -255,6 +331,15 @@ Load-bearing specs:
   with the seal on, and an empty grid is refused.
 - `engine-print.test.js` — the three hosts' upload shapes with a fake network; the key rides a
   header; URL refusals; slicer argv without a shell.
+- `printing-bambu.test.js` — the Bambu Lab LAN client against a fake printer on real loopback TLS
+  (certificates minted per run with openssl): identity from the certificate, a refused code, an
+  impostor serial, FTPS with the session reuse the printer requires, no storage, and no start while
+  the printer demands vendor-signed commands or is busy.
+- `printing-slicer.test.js` — the engine build hash equals the bridge's (python3), and a stale or
+  stopped engine is refused with the install command before any slice is requested.
+- `service.core.test.js` — the print service over the real routes: registration, the owner's
+  auto-start (confirmation, OIDC-only), service identity narrowing, job and model printing, printer
+  choice, engine refusals.
 - `routes.core.test.js` — the whole flow over HTTP, the 401 / 404 / 409 / 428 gates, ciphertext-only
   printer keys, STL never auto-started, point cloud through the same tail, the base seal recorded
   in the report and an unreadable `sealBase` refused 422.
@@ -271,7 +356,13 @@ node scripts/oshal-app.js install scan-to-print
 ```
 
 Then open `/cockpit/?app=scan-to-print`. The migration creates four owner-RLS tables on first
-load.
+load (002 adds the Bambu, auto-start and service-submission columns). For Bambu Lab printers also
+install the slicer engine on the box (idempotent; the app shows this exact command when it is missing
+or out of date):
+
+```bash
+docker exec <api-container> sh /app/workspace-shared/deployed-apps/scan-to-print/engine/install-engine.sh
+```
 
 ## Continuing this work
 
@@ -279,3 +370,14 @@ load.
 lineage, what is proven and by which test, the module map, the build / test / gate / deploy
 recipe, the contracts that must not change, the known limits, and the backlog in a suggested
 order. [BACKLOG.md](BACKLOG.md) holds every open item (B1–B16) with done-when criteria.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **64 / 3200 (declared)**.
+
+No model in the loop (T0): every feature of this application is deterministic code.
+<!-- oshal-rating:end -->

@@ -34,6 +34,9 @@ SEQ | AUTHOR                                    | DESCRIPTION
     |                                           | the vehicle kept its boot heading while the belief yawed toward each leg,
     |                                           | every sweep at altitude was placed 90 degrees off and the map filled with
     |                                           | phantom walls (found on PX4 SIH in the sandbox). The status names the session.
+5   | maintainer@emeraldcoastsystemsgroup.com   | ADR-175: the PX4 node is its own device, so it heartbeats with its own credential
+    |                                           | (EMBODIED_PX4_NODE_TOKEN or EMBODIED_PX4_NODE_TOKEN_FILE, enrolled for embodied-px4).
+6   | maintainer@emeraldcoastsystemsgroup.com   | ADR-175 hardening: no SWARM_SERVICE_SECRET; commands carry the command key from its heartbeat reply.
 """
 from __future__ import annotations
 
@@ -424,21 +427,21 @@ class Px4Sessions:
 def start_px4_node(env: dict | None = None):
     """@description Join the rail as the PX4 vehicle when EMBODIED_PX4_ADDR is set: its own node id, endpoint and port beside
     the plant's. @returns The NodeRail, or None when no PX4 address is configured."""
-    from embodied_engine_node import NodeRail, NodeServer, make_handler  # noqa: E402
+    from embodied_engine_node import NodeRail, NodeServer, make_handler, read_device_credential  # noqa: E402
     env = os.environ if env is None else env
     addr = (env.get("EMBODIED_PX4_ADDR") or "").strip()
     if not addr:
-        return None
-    secret = (env.get("SWARM_SERVICE_SECRET") or "").strip()
-    if not secret:
-        _log("PX4 node disabled: SWARM_SERVICE_SECRET is not set")
         return None
     sessions = Px4Sessions(addr, lambda a: MavLink(a, int(env.get("EMBODIED_PX4_LISTEN") or DEFAULT_PX4_LISTEN)))
     node_id = (env.get("EMBODIED_PX4_NODE_ID") or "embodied-px4").strip()
     host = (env.get("EMBODIED_NODE_HOST") or "0.0.0.0").strip()
     port = int(env.get("EMBODIED_PX4_NODE_PORT") or 7415)
     api_url = (env.get("OSHAL_API_URL") or "http://oshal-api:5000").strip()
-    rail = NodeRail(sessions, sessions.hello, node_id, "drone", "", api_url, secret, (env.get("EMBODIED_NODE_OWNER_SUB") or "").strip() or None)
+    credential = read_device_credential(env, "EMBODIED_PX4_NODE_TOKEN")
+    if not credential:
+        _log(f"PX4 node disabled: no device credential for {node_id} (enroll it once, then set EMBODIED_PX4_NODE_TOKEN_FILE)")
+        return None
+    rail = NodeRail(sessions, sessions.hello, node_id, "drone", "", api_url, credential)
     server = NodeServer((host, port), make_handler(rail))
     bound = server.server_address[1]
     rail.endpoint_url = (env.get("EMBODIED_PX4_NODE_ENDPOINT") or f"http://embodied-engine:{bound}").rstrip("/")

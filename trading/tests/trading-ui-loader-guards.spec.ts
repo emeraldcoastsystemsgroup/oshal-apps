@@ -7,6 +7,11 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Close the discovery hole a review found: loaders() only sees a column-0 "async function load*", so a loader written as "const loadX = async () => ...", an indented declaration or a class method would have escaped classification entirely and shipped unguarded while every test stayed green. The alternate spellings are now rejected outright, which makes the column-0 convention an enforced contract rather than an accident of the current file.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Round-3 review: the "re-checks after the await" pin was a substring test on the post-await slice, so a loader that called stale(token) AFTER its innerHTML write - one that overpainted first and only then noticed - stayed green. It is now an ORDERING test against the paint: the bail must appear before the loader's first innerHTML write, which is the failure the guard exists to prevent.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Classify loadEarningsRulesCard (view-earnings-rules.js, ADR-136 D5) as view-scoped. It paints #earningsRulesCard, which the account view owns, so the render token alone is its guard — the same classification as the timed-orders and protected-lots cards beside it.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Classify both owner-receipt loaders under render and tab navigation fences.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Classify the owned archive receipt loader under both navigation fences.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Classify Schwab capture status as tab-scoped; it checks both navigation fences before painting.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Classify the Congress disclosures panel loader as tab-scoped; it paints into the stock tab and checks both navigation fences before painting.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Classify loadPositionPlans (position-plans.js, ADR-052 addendum P4) as view-scoped: it repaints the positions table the account view owns, so the render token alone is its guard, and it checks it after its await on both the answer and the failure path.
  */
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'fs';
@@ -23,13 +28,14 @@ const all = files.map((f) => sources[f]).join('\n');
  * the render token and the sub-tab generation.
  */
 const TAB_SCOPED = [
-  'loadRosterTab', 'loadLabApplied', 'loadLabKnobs', 'loadTuneRecs', 'loadTuneParams',
-  'loadEventPlansTab', 'loadScoreboard', 'loadFeed', 'loadMovers', 'loadWatchlistPanel', 'loadJournal',
+  'loadRosterTab', 'loadLabApplied', 'loadLabKnobs', 'loadTuneRecs', 'loadTuneParams', 'loadFuturesResearch',
+  'loadFuturesPredictions', 'loadFuturesPredictionEvidence', 'loadFuturesArchiveImports', 'loadSchwabCaptureStatus',
+  'loadEventPlansTab', 'loadScoreboard', 'loadFeed', 'loadMovers', 'loadWatchlistPanel', 'loadCongressPanel', 'loadJournal',
 ];
 /** View-scoped loaders paint into a node the view owns; the render token alone is the guard. */
 const VIEW_SCOPED = [
   'loadKpisAndPositions', 'loadRealized', 'loadPerfSummary', 'loadSignalModel',
-  'loadEventPlanCard', 'loadLotsCard', 'loadDatedCard', 'loadEarningsRulesCard',
+  'loadEventPlanCard', 'loadLotsCard', 'loadDatedCard', 'loadEarningsRulesCard', 'loadPositionPlans',
 ];
 /** State-only: writes module state and paints NOTHING, so it has no stale paint to guard against. */
 const STATE_ONLY = ['loadBooks'];

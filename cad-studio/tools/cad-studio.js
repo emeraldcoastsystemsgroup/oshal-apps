@@ -439,5 +439,6 @@
     else if (q.get('scanJob')) await intakeScanJob(q.get('scanJob'));
     else if (q.get('model')) await openModel(q.get('model')).catch((e) => toast(e.message, 'error'));
   }
-  document.addEventListener('DOMContentLoaded', boot);
+  // The full studio only: under an audience view the shared kit paints instead (see the head block in cad-studio.html).
+  if (!window.AppView || !AppView.active()) document.addEventListener('DOMContentLoaded', boot);
 })();

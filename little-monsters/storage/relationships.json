@@ -1,0 +1,177 @@
+{
+  "version": 1,
+  "actor_table": "lm_students",
+  "issuer_column": "external_issuer",
+  "subject_column": "external_id",
+  "provisioning_tenant": null,
+  "tables": {
+    "lm_students": {
+      "read": "r.external_issuer=$1 AND r.external_id=$2 OR (r.tenant_id = $3->>'tenant_id' AND ($3->>'role' = 'admin' OR ($3->>'role' IN ('teacher','admin') AND EXISTS(SELECT 1 FROM lm_enrollments e JOIN lm_classes c ON c.class_id=e.class_id WHERE e.student_id=r.student_id AND c.teacher_student_id=$3->>'student_id' AND c.tenant_id=$3->>'tenant_id'))))",
+      "insert": "r.external_issuer=$1 AND r.external_id=$2 AND r.role='student' AND r.tenant_id=$4 AND $3 IS NULL",
+      "update": "r.student_id=$3->>'student_id'",
+      "immutable": [
+        "student_id",
+        "tenant_id",
+        "external_issuer",
+        "external_id",
+        "role"
+      ],
+      "unique": [
+        [
+          "external_issuer",
+          "external_id"
+        ]
+      ]
+    },
+    "lm_tenants": {
+      "read": "r.tenant_id=COALESCE($3->>'tenant_id',$4)"
+    },
+    "lm_classes": {
+      "read": "r.tenant_id = $3->>'tenant_id' AND ((r.published=true AND r.status='active') OR $3->>'role' = 'admin' OR r.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=r.class_id AND e.student_id=$3->>'student_id'))",
+      "insert": "r.tenant_id = $3->>'tenant_id' AND r.teacher_student_id=$3->>'student_id' AND (r.published=false OR $3->>'role' IN ('teacher','admin'))",
+      "update": "r.tenant_id = $3->>'tenant_id' AND ($3->>'role' = 'admin' OR r.teacher_student_id=$3->>'student_id')",
+      "delete": "r.tenant_id = $3->>'tenant_id' AND ($3->>'role' = 'admin' OR r.teacher_student_id=$3->>'student_id')",
+      "immutable": [
+        "class_id",
+        "tenant_id",
+        "teacher_student_id"
+      ]
+    },
+    "lm_enrollments": {
+      "read": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ((c.published=true AND c.status='active') OR $3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id')))",
+      "insert": "r.tenant_id=$3->>'tenant_id' AND EXISTS(SELECT 1 FROM lm_classes c JOIN lm_students s ON s.student_id=r.student_id AND s.tenant_id=c.tenant_id WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND c.status='active' AND ((r.student_id=$3->>'student_id' AND (c.published=true OR c.teacher_student_id=$3->>'student_id')) OR $3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id'))",
+      "delete": "r.tenant_id=$3->>'tenant_id' AND (r.student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id')))",
+      "immutable": [
+        "student_id",
+        "class_id",
+        "tenant_id"
+      ],
+      "unique": [
+        [
+          "student_id",
+          "class_id"
+        ]
+      ]
+    },
+    "lm_rewards": {
+      "read": "r.student_id=$3->>'student_id'",
+      "insert": "r.student_id=$3->>'student_id'",
+      "update": "r.student_id=$3->>'student_id'",
+      "immutable": [
+        "student_id"
+      ]
+    },
+    "lm_xp_events": {
+      "read": "r.student_id=$3->>'student_id'",
+      "insert": "r.student_id=$3->>'student_id'"
+    },
+    "lm_materials": {
+      "read": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ((c.published=true AND c.status='active') OR $3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id'))) AND (r.uploaded_by=$3->>'student_id' OR r.shared=true OR EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id')))",
+      "insert": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ((c.published=true AND c.status='active') OR $3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id'))) AND r.uploaded_by=$3->>'student_id'",
+      "update": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id')) OR (EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ((c.published=true AND c.status='active') OR $3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id'))) AND r.uploaded_by=$3->>'student_id')",
+      "delete": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id')) OR (EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ((c.published=true AND c.status='active') OR $3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id'))) AND r.uploaded_by=$3->>'student_id')",
+      "immutable": [
+        "material_id",
+        "class_id",
+        "uploaded_by"
+      ]
+    },
+    "lm_lectures": {
+      "read": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ((c.published=true AND c.status='active') OR $3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id')))",
+      "insert": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id'))",
+      "update": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id'))",
+      "delete": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id'))",
+      "immutable": [
+        "class_id"
+      ]
+    },
+    "lm_flashcard_sets": {
+      "read": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ((c.published=true AND c.status='active') OR $3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id')))",
+      "insert": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id'))",
+      "update": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id'))",
+      "delete": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id'))",
+      "immutable": [
+        "class_id"
+      ]
+    },
+    "lm_assignments": {
+      "read": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ((c.published=true AND c.status='active') OR $3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id')))",
+      "insert": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id'))",
+      "update": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id'))",
+      "delete": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id'))",
+      "immutable": [
+        "class_id"
+      ]
+    },
+    "lm_flashcards": {
+      "read": "EXISTS(SELECT 1 FROM lm_flashcard_sets fs JOIN lm_classes c ON c.class_id=fs.class_id WHERE fs.set_id=r.set_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id')))",
+      "delete": "EXISTS(SELECT 1 FROM lm_flashcard_sets fs JOIN lm_classes c ON c.class_id=fs.class_id WHERE fs.set_id=r.set_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role' = 'admin' OR c.teacher_student_id=$3->>'student_id'))"
+    },
+    "lm_calendar_events": {
+      "read": "r.student_id=$3->>'student_id' OR (r.student_id IS NULL AND EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id'))))",
+      "insert": "(r.student_id=$3->>'student_id' AND (r.class_id IS NULL OR EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id'))))) OR (r.student_id IS NULL AND EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR ($3->>'role'='teacher' AND c.teacher_student_id=$3->>'student_id'))))",
+      "update": "(r.student_id=$3->>'student_id' AND (r.class_id IS NULL OR EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id'))))) OR (r.student_id IS NULL AND EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR ($3->>'role'='teacher' AND c.teacher_student_id=$3->>'student_id'))))",
+      "delete": "(r.student_id=$3->>'student_id' AND (r.class_id IS NULL OR EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id'))))) OR (r.student_id IS NULL AND EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR ($3->>'role'='teacher' AND c.teacher_student_id=$3->>'student_id'))))",
+      "immutable": [
+        "event_id",
+        "class_id",
+        "student_id",
+        "source_assignment_id"
+      ]
+    },
+    "lm_notifications": {
+      "read": "r.student_id=$3->>'student_id'",
+      "insert": "r.student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_students s WHERE s.student_id=r.student_id AND s.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR ($3->>'role'='teacher' AND EXISTS(SELECT 1 FROM lm_enrollments e JOIN lm_classes c ON c.class_id=e.class_id WHERE e.student_id=s.student_id AND c.teacher_student_id=$3->>'student_id' AND c.tenant_id=$3->>'tenant_id' AND c.status='active'))))",
+      "update": "r.student_id=$3->>'student_id'",
+      "immutable": [
+        "notification_id",
+        "student_id",
+        "title",
+        "body",
+        "channel",
+        "sent_at",
+        "metadata"
+      ]
+    },
+    "lm_quiz_results": {
+      "read": "r.student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_classes c JOIN lm_students s ON s.tenant_id=c.tenant_id WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND s.student_id=r.student_id AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id'))",
+      "insert": "r.student_id=$3->>'student_id' AND (r.class_id IS NULL OR EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id'))))",
+      "immutable": [
+        "result_id",
+        "student_id",
+        "class_id"
+      ]
+    },
+    "lm_flashcard_progress": {
+      "read": "r.student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_flashcards f JOIN lm_flashcard_sets fs ON fs.set_id=f.set_id JOIN lm_classes c ON c.class_id=fs.class_id JOIN lm_students s ON s.tenant_id=c.tenant_id WHERE f.card_id=r.card_id AND s.student_id=r.student_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id'))",
+      "insert": "r.student_id=$3->>'student_id' AND EXISTS(SELECT 1 FROM lm_flashcards f JOIN lm_flashcard_sets fs ON fs.set_id=f.set_id JOIN lm_classes c ON c.class_id=fs.class_id WHERE f.card_id=r.card_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id')))",
+      "update": "r.student_id=$3->>'student_id' AND EXISTS(SELECT 1 FROM lm_flashcards f JOIN lm_flashcard_sets fs ON fs.set_id=f.set_id JOIN lm_classes c ON c.class_id=fs.class_id WHERE f.card_id=r.card_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id')))",
+      "immutable": [
+        "student_id",
+        "card_id"
+      ]
+    },
+    "lm_rag_collections": {
+      "read": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id'))) AND (r.material_id IS NULL OR EXISTS(SELECT 1 FROM lm_materials m WHERE m.material_id=r.material_id AND m.class_id=r.class_id AND (m.uploaded_by=$3->>'student_id' OR (m.shared=true AND m.share_status='approved'))))",
+      "insert": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id'))) AND (EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id')) OR (r.material_id IS NOT NULL AND EXISTS(SELECT 1 FROM lm_materials m WHERE m.material_id=r.material_id AND m.class_id=r.class_id AND m.uploaded_by=$3->>'student_id')))",
+      "update": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id'))) AND (EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id')) OR (r.material_id IS NOT NULL AND EXISTS(SELECT 1 FROM lm_materials m WHERE m.material_id=r.material_id AND m.class_id=r.class_id AND m.uploaded_by=$3->>'student_id')))",
+      "delete": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id'))) AND (EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id')) OR (r.material_id IS NOT NULL AND EXISTS(SELECT 1 FROM lm_materials m WHERE m.material_id=r.material_id AND m.class_id=r.class_id AND m.uploaded_by=$3->>'student_id')))",
+      "immutable": [
+        "collection",
+        "class_id",
+        "material_id"
+      ]
+    },
+    "lm_native_files": {
+      "read": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id'))) AND (r.uploaded_by=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_materials m WHERE m.stored_path=r.stored_path AND m.class_id=r.class_id AND m.shared=true AND m.share_status='approved'))",
+      "insert": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id'))) AND r.uploaded_by=$3->>'student_id'",
+      "delete": "EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id=c.class_id AND e.student_id=$3->>'student_id'))) AND (r.uploaded_by=$3->>'student_id' OR EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=$3->>'tenant_id' AND ($3->>'role'='admin' OR c.teacher_student_id=$3->>'student_id')))",
+      "immutable": [
+        "file_id",
+        "stored_path",
+        "class_id",
+        "uploaded_by"
+      ]
+    }
+  }
+}

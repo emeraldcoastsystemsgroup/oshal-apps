@@ -1,0 +1,29 @@
+{
+    "schema": "oshal.force-model-envelopes/1",
+    "adr": "ADR-160 D7 — a force model declares the medium properties it requires and the media it is valid in; the envelope is declared by the model author, never inferred by the caller",
+    "lab": "aero-lab",
+    "defaultMedium": "air",
+    "mediaKnown": ["vacuum", "air", "seawater"],
+    "mediaKnownWhy": "The three media embodied's committed medium row implements (engine/medium/medium-properties.json). Shared as DATA by id: ADR-160 D3 forbids importing that package's runtime, so this lab knows a medium by its id and by whatever record a caller posts, and declares its own models against those ids.",
+    "undeclared": "FAILS CLOSED. A model with no entry here is treated as valid in this lab's default medium only and refuses every other medium by name (model_not_valid_in_medium). An undeclared envelope is the part most likely to be skipped, so its absence never reads as permission.",
+    "models": {
+        "aeropolar": {
+            "label": "Wing polar (engine/aerosim/aeropolar.py)",
+            "requires": ["densityKgM3", "dynamicViscosityPaS"],
+            "validIn": ["air"],
+            "why": "The section data is a NeuralFoil surrogate for XFOIL AIR polars, selected by a Reynolds band (RE_FLOOR..RE_CEIL) that has no concept of which fluid produced the Reynolds number: seawater's lower kinematic viscosity moves the same wing to a HIGHER Re, comfortably inside the band, and the model would answer confidently with air numbers. Cavitation and added mass are absent. Refusing seawater by name is the only honest answer this model has."
+        },
+        "aerosurface": {
+            "label": "Lifting surface (engine/aerosim/vehicle/aerosurface.py)",
+            "requires": ["densityKgM3", "dynamicViscosityPaS", "gravityMps2"],
+            "validIn": ["air"],
+            "why": "evaluate() takes rho and mu from an AtmoSample and feeds them to aeropolar, so it inherits aeropolar's envelope exactly: density flows through, the surrogate does not. Its structural and mass models are built for a wing in air under Earth gravity."
+        },
+        "solar": {
+            "label": "Clear-sky irradiance (engine/aerosim/env/solar.py)",
+            "requires": [],
+            "validIn": ["air"],
+            "why": "Bird & Hulstrom is a broadband clear-sky model for a surface under the atmosphere. It carries no attenuation through water and no notion of depth: asked for harvest under the surface it would return a sky. In a vacuum there is no sky either — the model's air mass and aerosol terms describe the atmosphere it assumes."
+        }
+    }
+}

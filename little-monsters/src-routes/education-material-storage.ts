@@ -6,6 +6,8 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * ---------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Added no-clobber storage, content-derived media types, containment checks, and per-material RAG lifecycle
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | Read exact native row-authorized material projections and refuse unsupported file mutations.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Keep native material bytes and grounding in the original relationship-checked SQL transaction.
  * ---------------------------------------------------------------------------
  *
  * @module education-material-storage
@@ -37,6 +39,11 @@ interface FileClassification {
   extension: string;
 }
 
+/** Present only on the native admitted pool/client; credentials never enter the package. */
+export interface NativeMaterialExecutor {
+  nativeExecutor?: (name: string, input: Record<string, unknown>) => Promise<any>;
+}
+
 /** Create a collision-resistant collection without putting user input in a path. */
 export function materialCollectionName(materialId: string): string {
   return `lm-material-${materialId.replace(/-/g, '').toLowerCase()}`;
@@ -65,7 +72,13 @@ export function saveMaterialFile(
   classId: string,
   studentId: string,
   file: { buffer: Buffer; mimetype?: string },
-): { storedPath: string; mimeType: string } {
+  native?: NativeMaterialExecutor,
+): { storedPath: string; mimeType: string } | Promise<{ storedPath: string; mimeType: string }> {
+  if (native?.nativeExecutor) {
+    return native.nativeExecutor('storage.school.save', { classId, studentId,
+      content: file.buffer.toString('base64'), mimeType: classifyMaterial(file.buffer, file.mimetype).mimeType });
+  }
+  if (process.env.OSHAL_APPLICATION_FILES_READ_ONLY === '1') throw new Error('Native material uploads are not enabled');
   const classification = classifyMaterial(file.buffer, file.mimetype);
   const directory = path.resolve(process.cwd(), 'workspace-shared', 'education', classId, 'materials', studentId);
   fs.mkdirSync(directory, { recursive: true });
@@ -78,6 +91,7 @@ export function saveMaterialFile(
 
 /** Prove both lexical and symlink-resolved containment before a persisted-path read. */
 export function resolveStoredMaterialPath(row: StoredMaterialRow): string {
+  if (process.env.OSHAL_APPLICATION_FILES_READ_ONLY === '1') return nativeStoredMaterialPath(row);
   const expectedRoot = path.resolve(
     process.cwd(),
     'workspace-shared',
@@ -96,8 +110,24 @@ export function resolveStoredMaterialPath(row: StoredMaterialRow): string {
   return realCandidate;
 }
 
+/** Read only the exact per-row file projection mounted by the admitted native host. */
+function nativeStoredMaterialPath(row: StoredMaterialRow): string {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(row.material_id)) {
+    throw new Error('Native material identifier is invalid');
+  }
+  const expected = `/application-files/little-monsters/lm_materials/${row.material_id}`;
+  if (row.stored_path !== expected || fs.realpathSync(expected) !== expected || !fs.statSync(expected).isFile()) {
+    throw new Error('Native material path differs from its authorized projection');
+  }
+  return expected;
+}
+
 /** Remove the stored file after containment validation; absence is already deleted. */
-export function deleteStoredMaterial(row: StoredMaterialRow): void {
+export function deleteStoredMaterial(row: StoredMaterialRow, native?: NativeMaterialExecutor): void | Promise<void> {
+  if (native?.nativeExecutor && row.stored_path.startsWith('native-file:')) {
+    return native.nativeExecutor('storage.school.delete', { storedPath: row.stored_path }).then(() => undefined);
+  }
+  if (process.env.OSHAL_APPLICATION_FILES_READ_ONLY === '1') throw new Error('Native material file deletion is not enabled');
   if (!fs.existsSync(row.stored_path)) return;
   const resolved = resolveStoredMaterialPath(row);
   fs.unlinkSync(resolved);
@@ -141,7 +171,9 @@ async function ocrPdf(buffer: Buffer): Promise<string> {
   const pages: string[] = [];
   try {
     fs.writeFileSync(pdfPath, buffer, { flag: 'wx' });
-    await execFileAsync('pdftoppm', ['-png', '-r', '150', '-l', '10', pdfPath, base]);
+    await execFileAsync('pdftoppm', ['-png', '-r', '150', '-l', '10', pdfPath, base], {
+      timeout: 15_000, maxBuffer: 1024 * 1024,
+    });
     const prefix = path.basename(base);
     pages.push(...fs.readdirSync(path.dirname(base))
       .filter(name => name.startsWith(prefix) && name.endsWith('.png'))
@@ -162,7 +194,7 @@ async function ocrPdf(buffer: Buffer): Promise<string> {
 /** Run OCR for one already-contained temporary image. */
 async function runTesseract(filePath: string): Promise<string> {
   const result = await execFileAsync('tesseract', [filePath, 'stdout', '-l', 'eng'], {
-    maxBuffer: 10 * 1024 * 1024,
+    timeout: 15_000, maxBuffer: 10 * 1024 * 1024,
   });
   return String(result.stdout || '');
 }
@@ -186,11 +218,14 @@ export async function ingestMaterialText(
   text: string,
   collection: string,
   metadata: Record<string, unknown>,
+  native?: NativeMaterialExecutor,
 ): Promise<boolean> {
   if (!text) return false;
   try {
     const { RagService } = require('@/features/rag');
-    const result = await new RagService().ingest([text], collection, metadata);
+    const result = native?.nativeExecutor
+      ? await native.nativeExecutor('rag.ingest', { texts: [text], collection, metadata })
+      : await new RagService().ingest([text], collection, metadata);
     logger.info({ collection: result.collection, chunkCount: result.chunkCount }, 'Material text ingested');
     return true;
   } catch (err) {
@@ -200,13 +235,28 @@ export async function ingestMaterialText(
 }
 
 /** Delete an exact per-material collection; callers decide whether failure is fatal. */
-export async function deleteMaterialCollection(collection: string): Promise<void> {
+export async function deleteMaterialCollection(collection: string, native?: NativeMaterialExecutor): Promise<void> {
+  if (native?.nativeExecutor) {
+    await native.nativeExecutor('rag.delete', { collection });
+    return;
+  }
   const { RagService } = require('@/features/rag');
   await new RagService().deleteCollection(collection);
 }
 
 /** Re-extract a safely contained stored material for first approval or reindexing. */
-export async function extractStoredMaterialText(row: StoredMaterialRow): Promise<string> {
-  const storedPath = resolveStoredMaterialPath(row);
-  return extractMaterialText({ buffer: fs.readFileSync(storedPath), mimetype: row.mime_type });
+export async function extractStoredMaterialText(row: StoredMaterialRow, native?: NativeMaterialExecutor): Promise<string> {
+  return extractMaterialText({ buffer: await readStoredMaterial(row, native), mimetype: row.mime_type });
+}
+
+/** Resolve native bytes through the same material row policy instead of opening a package path. */
+export async function readStoredMaterial(row: StoredMaterialRow, native?: NativeMaterialExecutor): Promise<Buffer> {
+  if (row.stored_path.startsWith('native-file:')) {
+    if (!native?.nativeExecutor) throw new Error('Native material storage is not linked');
+    const value = await native.nativeExecutor('storage.school.read', { materialId: row.material_id });
+    const bytes = Buffer.from(String(value.content || ''), 'base64');
+    if (bytes.length !== value.size) throw new Error('Native material response size differs');
+    return bytes;
+  }
+  return fs.readFileSync(resolveStoredMaterialPath(row));
 }

@@ -1,0 +1,144 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 0.1.7: bind native callback and audio work to original durable authority; register the proof-boundary regression suite.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.8: authorize declared readiness with the existing caller read grant.
+name: calling-assistant
+displayName: Calling Assistant
+description: Configurable phone tasks with a reusable tool, operator bot, workflow, audio tests and call reports.
+version: 0.1.8
+suite: ai-productivity
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: phone-task-operator
+      unit: phone task
+      tier: T2
+      generation: none
+      degrade: disable
+status: active
+scope: person
+chatBot: calling-operator
+uses: [voice, application-authorization, package-tools, signed-package-callbacks, app-dependencies, test-catalog]
+authorization: { version: 1, catalog: authorization.yaml }
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: calling-assistant
+  ref: main
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/calling-assistant/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: [twilio]
+# App installation is deployment-wide; settings and execution authority belong to the task owner.
+# An existing shared connection is selectable only by its current members. No deployment fallback.
+settings:
+  schema:
+    enabled: { type: boolean, default: false, scope: person, label: Enable calling }
+    connectionId: { type: string, scope: person, label: Existing Twilio connection }
+    transferPhone: { type: string, scope: person, label: Human handoff phone }
+    from: { type: string, scope: person, label: Selected voice-capable sender }
+    publicOrigin: { type: string, scope: person, label: Public HTTPS origin }
+    sttProvider: { type: string, default: local-stt, scope: person, label: Existing speech provider }
+    voice: { type: string, default: alice, scope: person, label: Carrier voice }
+    maxMinutes: { type: number, default: 10, scope: person, label: Maximum call minutes }
+    maxTurns: { type: number, default: 40, scope: person, label: Maximum audio turns }
+    chunkSeconds: { type: number, default: 12, scope: person, label: Listen window seconds }
+    maxCostCents: { type: number, default: 300, scope: person, label: Maximum estimated cents }
+    estimatedCentsPerMinute: { type: number, default: 10, scope: person, label: Estimated all-in cents per minute }
+    allowedNumbers: { type: array, default: [], scope: person, label: Approved destinations }
+    introduction: { type: string, default: '', scope: person, label: Opening disclosure }
+    consent: { type: boolean, default: false, scope: person, label: Account-use acknowledgement }
+ticketType: calling-assistant
+workflow:
+  name: Assisted Phone Task
+  pipeline: manifest-worker
+  workerBot: calling-operator
+  autoStart: false
+bots:
+  - agentId: ca116e18-e9b7-4d4d-a1fc-136a8403c0dc
+    name: calling-operator
+    persona: personas/calling-operator.yaml
+    role: communications/calling
+    capabilities: [phone-tasks, ivr-navigation, human-handoff]
+    accessRoles: [operator, swarm, jarvis]
+tools:
+  - name: calling_task
+    displayName: Calling task
+    description: Start, inspect or cancel an owner-configured phone task. Uses the selected Twilio connection and returns a durable report.
+    defaultAuthMode: ask
+    requiresApproval: true
+    timeoutMs: 45000
+    routingTags: [phone-call, insurance-claim, ivr, human-handoff]
+    executor: { executorType: builtin, builtinKey: package }
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [operation]
+      properties:
+        operation: { type: string, enum: [start, status, cancel] }
+        id: { type: string, format: uuid }
+        to: { type: string, description: Exact approved destination in international format }
+        objective: { type: string, maxLength: 500 }
+        idempotencyKey: { type: string, format: uuid }
+        keywords: { type: array, maxItems: 12, items: { type: string } }
+        responses:
+          type: array
+          maxItems: 12
+          items:
+            type: object
+            additionalProperties: false
+            required: [prompt]
+            properties:
+              prompt: { type: string }
+              say: { type: string }
+              digits: { type: string }
+migrations: [migrations/001-calling.sql]
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/calling-assistant/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+  - module: routes/routes.js
+    factory: createCallingRoutes
+    mountPath: /api/calling-assistant
+    auth: oidc
+  - module: routes/routes.js
+    factory: createCallingCallbackRoutes
+    callbackVerifier: createCallingCallbackVerifier
+    mountPath: /api/calling-callbacks
+    auth: public
+ui:
+  static:
+    - toolName: calling-settings
+      label: Calling
+      icon: codicon codicon-call-outgoing
+      iframeUrl: /api/calling-assistant/app
+      section: top
+ribbon:
+  defaultView: calling-settings
+# ADR-145 home summary: the caller's own GET /tasks (bound to calling.read; side-effect free) also answers tiles and items.
+summary:
+  path: /api/calling-assistant/tasks
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+testing: { version: 1, catalog: tests/test-lab.yaml }
+theme: midnight

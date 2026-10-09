@@ -1,5 +1,7 @@
 # Pumpkin (pumpkin) — OSHAL app package
 
+1.3.3 adds the company audience view beside the family one (ADR-164 D6): Studio, Orbit and Commons (the Business shells) open this package's first surface with `?audience=company`, and the shared kit paints the same account-scoped card in the company grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 Animated talking jack-o'-lantern Halloween prop (?app=pumpkin). A full-screen
 procedural pumpkin face is projected INTO an inflatable pumpkin — glowing eyes and
 a mouth that lip-syncs to speech. Two modes: **mimic** (mic → browser STT → the
@@ -236,3 +238,52 @@ while the swarm can still drive the prop.
 ```bash
 node scripts/oshal-app.js install pumpkin
 ```
+
+Pumpkin 1.3.1 loads the shared theme bootstrap (`/shared/ui/css/surface-themes.css` + `/shared/ui/js/surface-theme.js`) in `tools/review.html` and derives its palette from the framework tokens with the previous colors as fallbacks, so the surface follows the operator's chosen cockpit or experience skin whether embedded or opened standalone. No route, data or permission change.
+
+## Family audience view (1.3.2)
+
+The Home shell opens the review page, the package's first surface, as
+`/api/pumpkin/review?audience=family` (ADR-164 D6). The shared kit (`/shared/ui/js/app-view.js`,
+loaded right after the theme bootstrap) paints the signed-in account's own saved pumpkin lines in
+plain words: how many lines are saved, how many are pinned favourites, how many custom looks are
+saved and when a line last changed; then the pinned favourites as tiles and the other saved lines
+as a list, each with its face, where it came from ("Said word for word", "The pumpkin's own reply",
+"Saved by hand"), when it last changed and how often it was sent from the playlist. The newest eight
+favourites and twenty other lines show; the note says where the rest are and that a saved line does
+not mean it played on a projector.
+
+On open it makes exactly two reads under the caller's session, both owner-scoped SELECTs:
+`GET /home-summary` (the read the full page makes) and `GET /responses` (the saved-lines playlist
+the control surface reads). It never reads `GET /rooms` (live screens, and the call sweeps the
+in-memory room registry), never opens the projector stream, never speaks, replays, pins or saves a
+line, never fetches the connected-actions plan and writes nothing. `GET /responses` answers an empty
+list when its own query fails, so an empty list beside a summary that counts saved lines is named as
+a failed read and the summary's newest lines show instead. Signed out, refused, a count the summary
+could not check, every source failed and an unreachable server are each named. The one action and
+the escape open Pumpkin in the cockpit. Any other request runs the full page unchanged; its module
+script is gated on the kit's decision, so nothing but the view's own reads runs behind a view.
+
+```bash
+node --test pumpkin/tests/audience-view.test.cjs
+OSHAL_FRAMEWORK=<core checkout> node scripts/audience-views.browser.cjs pumpkin
+```
+
+The first runs from the store root with no browser: the static kit contract and the view's
+behaviour over the package's real home-summary route (only `express` stubbed, a stub pool) and the
+real compiled router's `GET /responses` (kernel aliases shimmed, a stub pool). The second drives
+`tests/audience-view.fixture.cjs` over the real page and the real kit in headless Chromium. The
+first is registered as the `audience-view` case of the Lab catalog (`tests/test-lab.yaml`).
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| guest-reply | in-character reply | T2 | none | template | not yet measured | none recorded |
+<!-- oshal-rating:end -->

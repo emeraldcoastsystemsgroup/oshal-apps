@@ -12,6 +12,11 @@ SEQ                 | AUTHOR                      | DESCRIPTION
   |                                           | ../install-engine.sh. One connection owns one
   |                                           | engine worker; a hello names the baked build
   |                                           | hash; exports ride back inline.
+2 | maintainer@emeraldcoastsystemsgroup.com   | Bake certify_reference.py, its
+  |                                           | reference_presets.json and
+  |                                           | build_certification.py: the worker's
+  |                                           | 'certify' command and the exporter's
+  |                                           | build-certification block run in the image.
 
 aero_engine_bridge -- serve the frozen aero-lab JSON-lines protocol over TCP.
 
@@ -56,7 +61,8 @@ PROTOCOL = 1
 #: and src-routes/engine-build-hash.ts -- a spec keeps the three in step).
 RUNTIME_FILES = ("aero_lab_worker.py", "service.py", "export_build_files.py",
                  "HYBRID_common.py", "HYBRID_piecewise.py", "requirements.txt",
-                 "requirements-lock.txt")
+                 "requirements-lock.txt", "certify_reference.py",
+                 "reference_presets.json", "build_certification.py")
 RUNTIME_TREES = ("aerosim", "container")
 SKIP_DIRS = frozenset({"__pycache__"})
 SKIP_SUFFIXES = (".pyc",)

@@ -32,6 +32,16 @@
 
 name: drone
 suite: ai-home   # ADR-097: primary catalog shelf (device/automation family)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: mission-draft-chat
+      unit: mission draft chat turn
+      tier: T2
+      generation: none
+      degrade: disable
 displayName: Drone Ops
 description: >-
   Drone fleet automation control — arm, take off, fly waypoint missions, and
@@ -39,7 +49,10 @@ description: >-
   separation checks. A flight-planning concierge drafts single or fleet
   missions from natural language; a human approves every flight. Sim engine
   built in, MAVLink (ArduPilot/PX4) at the drone node.
-version: 1.2.0
+version: 1.3.0
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: active
 
 source:
@@ -79,6 +92,10 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
+  # ADR-169 L6: locatedDevice scopes live position and home on /state, /fleet and /fleet/:id/state to
+  # the group that owns the drone's location record (ids only; never a coordinate from the kernel).
+  - location
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BOTS — the flight-planning brain (Form B inline concierge — drafts only, never

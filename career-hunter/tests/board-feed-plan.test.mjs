@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-01 00:00:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Regression guards for the operator-reported 50s job board. Every assertion here is on the statements the planner ACTUALLY issues (captured through a recording db double), not on substrings of a string it happened to build — each of these shapes was measured as a multi-second regression on the live 1.45M-posting store, so a guard that can pass while the query changes underneath is worth nothing.
+ * 2026-10-07 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Require explicit bounded candidate join order; the real SQLite companion test verifies the resulting plan and rows.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -85,7 +86,7 @@ test('the feed drives from user_signals, never from a full corpus join', () => {
   assert.match(q, /FROM user_signals s/);
   assert.match(q, /ORDER BY s\.ai_fit_score DESC LIMIT \d+/);
   // ...and the corpus must be reached only through that pool.
-  assert.match(q, /FROM cand s\s+JOIN corpus\.postings_corpus p/);
+  assert.match(q, /FROM cand s\s+CROSS JOIN corpus\.postings_corpus p/);
   // The old shape — corpus first, signals LEFT JOINed on — is the 50s query.
   assert.ok(!/FROM corpus\.postings_corpus p\s+JOIN corpus\.companies c\s+LEFT JOIN/.test(q));
 });

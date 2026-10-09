@@ -16,6 +16,133 @@
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shell (and every shell that opens applications with ?audience=company)
+     opens this page with ?audience=company: the signed-in account's OWN saved relay chains as a dense board (how many,
+     how many are feasible as sized, how many last runs held or restored and how many lost the tip, the newest chains
+     with their shape, radio, relays, hop and last run, and the chains that need a look) from the SAME
+     GET /api/drone-relay/plans the full page reads, painted by the shared kit. On open it makes only that read, an
+     owner-scoped SELECT under the caller's session. It never sizes, previews, saves, changes or deletes a chain, never
+     runs a scenario, traces an envelope or drafts a formation, and commands no vehicle; a row opens the chain's
+     generated design write-up (a GET the full page also opens) in a new tab. Any other request runs the full Drone
+     Relay page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var API = '/api/drone-relay', KICKER = 'Engineering · Drone Relay', ROWS = 8, CONCERNS = 6;
+  var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  // The simulation's four verdicts (routes/engine/relay-sim.js verdict()) with the tone each one reads in.
+  var VERDICTS = { held: ['Held', 'ok'], restored: ['Restored', 'ok'], degraded: ['Degraded', 'warn'], lost: ['Lost', 'bad'] };
+  var RANK = { Lost: 0, 'Not feasible': 1, Degraded: 2 };
+  var LEDE = 'Relay-chain designs saved by this account, each as sized with its last simulated run. Simulated only: nothing here flies, and this view sizes, runs and changes nothing.';
+  var NOTE = 'Each chain as sized, with the one run stored beside it (changing a chain clears its run). Held: no outage, loss or swap. Restored: every hop back at the design spacing and the tip back on station after the last loss or swap. Degraded: the tip in reach at the end, the chain not back at the design spacing after its last loss or swap. Lost: the tip out of reach when the run ended. Simulated on a hard-edge link model; a row opens the generated design write-up in a new tab.';
+  function read(path) {
+    return fetch(API + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }, function () { return { ok: r.ok, status: r.status, body: null }; });
+    });
+  }
+  function openFull() { window.location.assign(window.location.pathname); }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function num(v) { var n = v === null || v === undefined || v === '' ? NaN : Number(v); return isFinite(n) ? n : null; }
+  function metres(v) { var n = num(v); if (n === null) return '—'; return n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, '') + ' km' : Math.round(n) + ' m'; }
+  function db(v) { var n = num(v); return n === null ? '—' : n.toFixed(1) + ' dB'; }
+  function secs(v) { var n = num(v); return n === null ? '—' : Math.round(n * 10) / 10 + ' s'; }
+  function sized(p) { return p.plan && typeof p.plan === 'object' ? p.plan : {}; }
+  function feasible(p) { return sized(p).feasible === true; }
+  function verdict(p) { var m = p.last_metrics; return m && typeof m === 'object' && m.verdict ? String(m.verdict) : null; }
+  function named(p) { return p.title ? String(p.title) : 'Untitled chain'; }
+  // The catalog name without its bracketed detail: 'ESP-NOW (2.4 GHz, 1 Mbps)' reads 'ESP-NOW' in a dense row.
+  function radio(p) {
+    var t = sized(p).transport, name = t && t.name ? String(t.name) : p.spec && p.spec.transport ? String(p.spec.transport) : 'radio not recorded';
+    return name.replace(/\s*\([^)]*\)\s*$/, '');
+  }
+  // A plan is a corridor, a tree (a trunk and 2 to 4 branches) or a lattice (an area tiled with slots).
+  function shape(p) {
+    var plan = sized(p), tree = plan.tree && Array.isArray(plan.tree.branches) ? plan.tree.branches.length : null;
+    var form = plan.lattice ? 'Lattice · ' + plural(num(plan.lattice.slots) || 0, 'slot', 'slots') : tree !== null ? 'Tree · ' + plural(tree, 'branch', 'branches') : 'Corridor · ' + metres(plan.pathLengthM);
+    return form + ' · ' + radio(p);
+  }
+  // sparesAvailable is negative on a chain the fleet cannot fill; the full page shows it as no spare, and so does this.
+  function relays(p) {
+    var need = num(sized(p).relaysNeeded), spare = Math.max(0, num(sized(p).sparesAvailable) || 0);
+    return need === null ? '—' : need + (spare ? ' + ' + plural(spare, 'spare', 'spares') : ' · no spare');
+  }
+  function lastRun(p) {
+    if (!feasible(p)) return { text: 'Not feasible as sized', tone: 'warn' };
+    var v = verdict(p); if (!v) return { text: 'Not run yet' };
+    var label = VERDICTS[v] || ['Verdict: ' + v, null], out = num(p.last_metrics.tipOutageS);
+    return { text: label[0] + (out === null ? '' : out > 0 ? ' · tip out ' + secs(out) : ' · no outage'), tone: label[1] };
+  }
+  // Only the write-up path the route itself builds for this chain, never a URL taken on trust.
+  function design(p) { var u = String(p.designUrl || ''); return UUID.test(String(p.plan_id)) && u === API + '/plans/' + p.plan_id + '/design.md' ? u : null; }
+  function row(p) {
+    var link = design(p);
+    return { cells: [named(p), shape(p), relays(p), metres(sized(p).hopM) + ' · ' + db(sized(p).perHopMarginDb), lastRun(p), A.when(p.updated_at)], href: link, target: link ? '_blank' : null };
+  }
+  function concern(p) {
+    var m = p.last_metrics || {}, v = verdict(p), link = design(p), reasons = Array.isArray(sized(p).reasons) ? sized(p).reasons : [];
+    var item = function (text, badge, tone) { return { title: named(p), text: text, badge: badge, tone: tone, href: link, target: link ? '_blank' : null }; };
+    if (!feasible(p)) return item(reasons.join('; ') || 'The sized plan is not feasible.', 'Not feasible', 'warn');
+    if (v === 'lost') return item('Last run lost the tip: out of reach ' + secs(m.tipOutageS) + ' of ' + secs(m.durationS) + '; worst hop margin ' + db(m.minHopMarginDb) + '.', 'Lost', 'bad');
+    if (v === 'degraded') return item('Last run ended degraded: the tip in reach, the chain not back at the design spacing after its last loss or swap; worst hop margin ' + db(m.minHopMarginDb) + '.', 'Degraded', 'warn');
+    return null;
+  }
+  function counts(plans) {
+    var c = { total: plans.length, feasible: 0, run: 0, unrun: 0, holding: 0, lost: 0, degraded: 0 };
+    plans.forEach(function (p) {
+      var v = verdict(p);
+      if (feasible(p)) { c.feasible++; if (!v) c.unrun++; }
+      if (v) c.run++;
+      if (v === 'held' || v === 'restored') c.holding++;
+      if (v === 'lost') c.lost++;
+      if (v === 'degraded') c.degraded++;
+    });
+    c.infeasible = c.total - c.feasible;
+    return c;
+  }
+  function stats(c) {
+    return [
+      { id: 'chains', label: 'Relay chains', value: c.total, hint: c.run + ' with a saved run' },
+      { id: 'feasible', label: 'Feasible as sized', value: c.feasible, tone: c.infeasible ? 'warn' : null, hint: c.infeasible ? c.infeasible + ' not feasible' : null },
+      { id: 'holding', label: 'Held or restored', value: c.holding, tone: c.holding ? 'ok' : null, hint: 'In the last saved run' },
+      { id: 'lost', label: 'Lost the tip', value: c.lost, tone: c.lost ? 'bad' : null, hint: 'In the last saved run' }
+    ];
+  }
+  function title(c) {
+    if (!c.total) return 'No relay chains designed yet';
+    if (c.lost) return c.lost === 1 ? '1 chain lost the tip in its last run' : c.lost + ' chains lost the tip in their last run';
+    if (c.infeasible) return c.infeasible === 1 ? '1 chain is not feasible as sized' : c.infeasible + ' chains are not feasible as sized';
+    if (c.degraded) return c.degraded === 1 ? '1 chain ended its last run degraded' : c.degraded + ' chains ended their last run degraded';
+    if (c.unrun) return plural(c.total, 'relay chain', 'relay chains') + ', ' + c.unrun + ' not run yet';
+    return plural(c.total, 'relay chain', 'relay chains') + ', every last run held or restored';
+  }
+  function model(plans) {
+    var c = counts(plans), newest = plans[0];
+    var concerns = plans.map(concern).filter(Boolean).sort(function (a, b) { return RANK[a.badge] - RANK[b.badge]; }).slice(0, CONCERNS);
+    return { kicker: KICKER, title: title(c), lede: (newest ? 'Newest: ' + named(newest) + ', changed ' + A.when(newest.updated_at) + '. ' : '') + LEDE,
+      actions: [{ label: 'Open the chain designer', primary: true, onClick: openFull }],
+      stats: stats(c),
+      sections: [
+        { kind: 'table', id: 'chains', title: 'Newest relay chains', note: (c.total > ROWS ? 'The newest ' + ROWS + ' of ' + c.total + ' chains. ' : '') + NOTE,
+          empty: 'No relay chains saved yet. Size one in the designer and it appears here with its last run.',
+          columns: ['Chain', 'Design', 'Relays', 'Hop · margin', 'Last run', 'Changed'], rows: plans.slice(0, ROWS).map(row) },
+        c.total ? { kind: 'list', id: 'attention', title: 'Needs a look', empty: 'Every saved chain is feasible as sized and no last run was lost or degraded.', items: concerns } : null
+      ] };
+  }
+  function company() {
+    return read('/plans').then(function (res) {
+      if (res.status === 401 || res.status === 403) return { kicker: KICKER, title: res.status === 401 ? 'Sign in to see the relay chains' : 'This account cannot open Drone Relay',
+        lede: res.status === 401 ? 'Drone Relay shows the relay-chain designs of whoever is signed in, and this session is not signed in.' : 'The Drone Relay routes refused this account (HTTP 403).' };
+      if (!res.ok) throw new Error('Drone Relay could not read the saved relay chains (HTTP ' + res.status + ').');
+      if (!res.body || !Array.isArray(res.body.plans)) throw new Error('Drone Relay sent an answer this view could not read.');
+      return model(res.body.plans);
+    }, function () { throw new Error('Drone Relay could not be reached just now.'); });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'drone-relay', escapeLabel: 'Open Drone Relay in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
   :root { --dr-bg: var(--bg, var(--bg-primary, #12151c)); --dr-panel: var(--panel, var(--bg-card, #1b1f29)); --dr-panel2: var(--panel2, var(--bg-tertiary, #232836));
           --dr-text: var(--text, var(--text-primary, #e6e9ef)); --dr-muted: var(--muted, var(--text-muted, #9aa3b2)); --dr-line: var(--line, var(--border-color, #2f3646));

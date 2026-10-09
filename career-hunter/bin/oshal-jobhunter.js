@@ -32,6 +32,10 @@
  * 26 | maintainer@emeraldcoastsystemsgroup.com  | Bring the master-resume input ceiling under the platform limit that actually governs it: 96 KiB, not 256 KiB. CH_RESUME_DOC is delivered through execve, and Linux caps a single environment string at 128 KiB, so the old ceiling could never fire on a Linux deployment — an oversize document failed the spawn with E2BIG and surfaced an opaque error instead of the designed refusal. The guard was unreachable in production and only ever passed its test on Windows.
  * 27 | maintainer@emeraldcoastsystemsgroup.com  | ADR-137 amendment A, launcher half: this file re-applied the .brokered-auth-only wall to the Python child on every run, so the runner's 1.12.4 operator carve never reached the engine (live 2026-09-05: "No AI auth found" after the carve shipped). The wall now yields only to the runner's explicit OSHAL_PORTAL_LOGINS=1 verdict, passing the mounted login locations (and HOME) through instead.
  * 28 | maintainer@emeraldcoastsystemsgroup.com  | User-owned scrape targets: `classify` (pattern-only ATS gate, JSON, no DB) and `add-target` (register one validated URL in the shared corpus + scrape now, JSON) join the corpus verbs so the per-user target routes reach the engine's own URL classifier instead of a second copy of its patterns.
+ * 29 | maintainer@emeraldcoastsystemsgroup.com  | Career worker rail, launcher half: the Python child is always walled into the empty per-user login sandbox (the OSHAL_PORTAL_LOGINS pass-through is gone) and is never handed a model-provider key — the Anthropic credential is no longer resolved or injected; only the Firecrawl key (deterministic web search) is. The runner's rail entries (CAREER_RAIL_*) are forwarded exactly, so the engine's model calls reach the dedicated Career bot through the package rail and nowhere else.
+ * 30 | maintainer@emeraldcoastsystemsgroup.com  | Forward the signed rail contract only (1.25.1): the URL, the per-run callback grant, the run id and the client timeout. The fleet service secret and the 1.24.0 bearer token are no longer names this launcher knows, so even a value present in its own environment never reaches the Python child.
+ * 31 | maintainer@emeraldcoastsystemsgroup.com  | Map `packet-remove` (1.26.0): discard the caller's own generated packet for CH_JOB through jobhunter.packets.remove, inside the same leased child that owns the user store, so DELETE /jobs/:id/packet never touches the files or the per-user row from the controller.
+ * 32 | maintainer@emeraldcoastsystemsgroup.com  | Keep the Python engine in this wrapper's process group under the runner's adopted lease (1.27.1). The engine was always started detached, so on Linux it led a session and group of its own, and the runner's cancel, deadline and lease-loss fence (process.kill(-wrapperPid)) killed only the wrapper: a cancelled run's engine kept calling the rail and held the inherited pipes, so the run stayed `running` until the engine exited by itself. It now joins the wrapper's group whenever /proc proves the wrapper leads that group (the runner always starts it detached), and the wrapper's own deadline and lease-loss fence kill every other member of that group instead of the engine's group, sparing the wrapper so its lease release and terminal-state write still run. A direct CLI run, or a wrapper that shares its parent's group, keeps the engine in a group of its own as before.
  *
  * Verbs (each forwards extra args to the engine):
  *   pull      -> scrape --all  then  match.rescore_recent  (nightly corpus refresh + keyword index)
@@ -41,6 +45,7 @@
  *   enrich    -> enrich --missing
  *   board     -> dashboard --no-browser --host 127.0.0.1 --port <port>
  *   resume    -> base (master editor document) | base-save (whitelist profile write-back)
+ *   packet-remove -> jobhunter.packets.remove(CH_JOB)       (discard the caller's own packet)
  *
  * Per-user data lives under {STORE}/{tenant}/{user_segment}/; portable lowercase subjects retain
  * their legacy segment and every unsafe subject is reversibly encoded. The jobs corpus is shared
@@ -62,6 +67,7 @@ const {
   releaseRunLocks,
   tryAcquireRunLocks,
 } = require('../lib/career-run-lock');
+const processGroup = require('../lib/career-process-group');
 
 // Engine lives beside this wrapper in the package (../engine). The real per-user store is
 // always JOBHUNTER_STORE_ROOT (the api-output volume); the package-relative path is only a
@@ -72,6 +78,10 @@ const STORE_ROOT = process.env.JOBHUNTER_STORE_ROOT
 const PYTHON = process.env.JOBHUNTER_PYTHON || 'python3';
 let activeEngineChild;
 let cliLeaseLost = false;
+/** Engine children started inside this wrapper's own process group (see engineJoinsWrapperGroup). */
+const groupSharedEngines = new WeakSet();
+/** Rail entries the runner mints per run; forwarded to Python exactly, never derived here. */
+const RAIL_ENV_KEYS = ['CAREER_RAIL_URL', 'CAREER_RAIL_GRANT', 'CAREER_RAIL_RUN_ID', 'CAREER_RAIL_TIMEOUT_S'];
 const ENGINE_ENV_KEYS = new Set([
   'PATH', 'PATHEXT', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'TEMP', 'TMP', 'TMPDIR',
   'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'LANG', 'LC_ALL', 'TZ',
@@ -235,20 +245,11 @@ function prepareStore(userSub, tenant) {
 }
 
 /**
- * Where the Python child may look for vendor logins. The runner (career-engine-runner.ts) is the
- * only party that evaluates ADR-137 amendment A's two gates; it states its verdict as
- * OSHAL_PORTAL_LOGINS=1, and only that exact value lifts the brokered-only wall here — the mounted
- * ~/.codex and ~/.claude then reach the engine through HOME (plus any explicit location the
- * controller itself runs with). Everything else gets the empty per-user sandbox.
+ * The Python child never sees a vendor login. Both login locations point at an empty per-user
+ * sandbox for every subject and deployment mode, so no codex/claude credential is discoverable;
+ * model reasoning reaches the dedicated Career bot through the worker rail instead.
  */
-function vendorLoginEnv(store) {
-  if (process.env.OSHAL_PORTAL_LOGINS === '1') {
-    const passThrough = {};
-    for (const key of ['HOME', 'USERPROFILE', 'CODEX_HOME', 'CLAUDE_CONFIG_DIR']) {
-      if (process.env[key]) passThrough[key] = process.env[key];
-    }
-    return passThrough;
-  }
+function vendorLoginSandbox(store) {
   const authRoot = path.join(store.userDir, '.brokered-auth-only');
   return {
     CLAUDE_CONFIG_DIR: path.join(authRoot, 'claude'),
@@ -256,7 +257,24 @@ function vendorLoginEnv(store) {
   };
 }
 
-/** Build the least-privilege Python environment and add only this user's brokered secrets. */
+/** Forward exactly the rail entries the runner minted for this run; nothing else is inferred. */
+function railEngineEnv() {
+  const env = {};
+  for (const key of RAIL_ENV_KEYS) {
+    if (process.env[key]) env[key] = process.env[key];
+  }
+  return env;
+}
+
+/** Resolve the caller's Firecrawl key: the controller's brokered copy, else the bounded fallback. */
+async function resolveFirecrawl(userSub, deadlineAt) {
+  if (process.env.CAREER_HUNTER_BROKER_COMPLETE === '1') return process.env.OSHAL_CRED_FIRECRAWL;
+  return beforeCliDeadline(resolveSecret('firecrawl', userSub, (provider, sub) => (
+    readStoredSecret(provider, sub, undefined, deadlineAt)
+  )), deadlineAt, 'credential brokerage');
+}
+
+/** Build the least-privilege Python environment and add only this user's brokered Firecrawl key. */
 async function buildEngineEnv(userSub, tenant, verb, store, deadlineAt) {
   const env = {
     ...inheritedEngineEnv(verb),
@@ -269,27 +287,10 @@ async function buildEngineEnv(userSub, tenant, verb, store, deadlineAt) {
     JOBHUNTER_CORPUS_DB: store.corpusDb,
     JOBHUNTER_USER_DB: store.userDb,
     JOBHUNTER_CAREER_DB: store.careerDb,
-    ...vendorLoginEnv(store),
+    ...vendorLoginSandbox(store),
+    ...railEngineEnv(),
   };
-  let anthropic;
-  let firecrawl;
-  if (process.env.CAREER_HUNTER_BROKER_COMPLETE === '1') {
-    anthropic = process.env.OSHAL_CRED_ANTHROPIC;
-    firecrawl = process.env.OSHAL_CRED_FIRECRAWL;
-  } else {
-    const credentials = Promise.all([
-      resolveSecret('anthropic', userSub, (provider, sub) => (
-        readStoredSecret(provider, sub, undefined, deadlineAt)
-      )),
-      resolveSecret('firecrawl', userSub, (provider, sub) => (
-        readStoredSecret(provider, sub, undefined, deadlineAt)
-      )),
-    ]);
-    [anthropic, firecrawl] = await beforeCliDeadline(
-      credentials, deadlineAt, 'credential brokerage',
-    );
-  }
-  if (anthropic) env.ANTHROPIC_API_KEY = anthropic;
+  const firecrawl = await resolveFirecrawl(userSub, deadlineAt);
   if (firecrawl) env.FIRECRAWL_API_KEY = firecrawl;
   return env;
 }
@@ -474,6 +475,8 @@ function applicationRuns(verb, rest) {
       + 'res=generate.generate_for(pid, include_oshal=oshal)\n'
       + 'print(json.dumps({"dir":res.get("dir"),"changelog":cl}))']];
     case 'stories': return [['-m', 'jobhunter', 'stories', ...rest]];
+    case 'packet-remove': return [['-c', 'import os, json\nfrom jobhunter import packets\n'
+      + 'print(json.dumps(packets.remove(int(os.environ.get("CH_JOB","0")))))']];
     case 'guide-actions': return [guideActionsRun()];
     case 'query': return [queryRun()];
     case 'board': return [['-m', 'jobhunter', 'dashboard', '--no-browser', ...rest]];
@@ -597,15 +600,46 @@ function terminateEngineTree(child) {
     killer.once('close', (code) => { if (code !== 0) fallback(); });
     return;
   }
+  if (groupSharedEngines.has(child)) {
+    // The engine shares this wrapper's group, so signalling the group would kill the wrapper
+    // before it releases its lease; kill every other member of the group instead.
+    try { processGroup.killOwnGroupExceptSelf(); }
+    catch (error) { console.error(`Career engine group fence failed: ${error?.message || error}`); }
+    fallback();
+    return;
+  }
   try { process.kill(-child.pid, 'SIGKILL'); } catch { fallback(); }
+}
+
+/**
+ * Under the runner's adopted lease the engine joins this wrapper's process group, so the runner's
+ * cancel, deadline and lease-loss fence (process.kill(-wrapperPid)) reach Python and everything it
+ * started. Only when /proc proves this wrapper leads its own group (the runner starts it detached):
+ * otherwise the group is the parent's, and the engine keeps a group of its own as a direct run does.
+ */
+function engineJoinsWrapperGroup() {
+  if (process.platform === 'win32' || !process.env[RUN_LOCK_ADOPTION_ENV]) return false;
+  try { return processGroup.leadsOwnProcessGroup(); }
+  catch (error) {
+    console.error(`Career engine process group check failed: ${error?.message || error}`);
+    return false;
+  }
+}
+
+/** Start one Python leg, inside this wrapper's group when engineJoinsWrapperGroup allows it. */
+function spawnEngineChild(args, env) {
+  const joinsGroup = engineJoinsWrapperGroup();
+  const child = spawn(PYTHON, args, {
+    cwd: ENGINE_DIR, env, stdio: 'inherit', detached: process.platform !== 'win32' && !joinsGroup,
+  });
+  if (joinsGroup) groupSharedEngines.add(child);
+  return child;
 }
 
 /** Spawn one deadline-bound Python engine leg while the filesystem lease heartbeat can run. */
 function runEngineCommand(args, env, deadlineAt) {
   return new Promise((resolve, reject) => {
-    const child = spawn(PYTHON, args, {
-      cwd: ENGINE_DIR, env, stdio: 'inherit', detached: process.platform !== 'win32',
-    });
+    const child = spawnEngineChild(args, env);
     activeEngineChild = child;
     let settled = false;
     let timedOut = false;

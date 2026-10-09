@@ -1,14 +1,24 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Supply the explicit diagnostic logger fixture for Calendar's failed optional operations.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Load the real extracted school transaction helper in the strict compiled identity fixture.
+ */
 const fs=require('fs'),path=require('path'),test=require('node:test'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');
 function load(app,file,deps={}){const m={exports:{}};new Function('require','module','exports',fs.readFileSync(path.join(root,app,'routes',file+'.js'),'utf8'))(name=>{if(name in deps)return deps[name];throw Error('Unexpected dependency '+name);},m,m.exports);return m.exports;}
 const req=(extra={})=>({oidc:{user:{sub:'alice'},isAuthenticated:()=>true},...extra});
 const res=()=>({statusCode:200,setHeader(){},status(n){this.statusCode=n;return this;},json(body){this.body=body;}});
 test('school setup gaps do not turn a valid framework login into a Home-wide login redirect',async()=>{
- const education=load('little-monsters','education-access',{'node:crypto':require('node:crypto'),'@/shared/logger':{createChildLogger:()=>({error(){},info(){}})}});
+ const diagnostic={'@/shared/logger':{createChildLogger:()=>({error(){},info(){}})}};
+ const transactions=load('little-monsters','education-transactions',diagnostic);
+ const education=load('little-monsters','education-access',{'node:crypto':require('node:crypto'),...diagnostic,'./education-transactions':transactions});
  const saved=process.env.MOCK_OIDC;delete process.env.MOCK_OIDC;
  try{const {get}=route('little-monsters','home-summary','createHomeSummaryRoutes',{query:()=>assert.fail('identity is not school-bound')},{'./education-access':education});let r=res();await get(req(),r);assert.equal(r.statusCode,403);r=res();await get(req({oidc:null}),r);assert.equal(r.statusCode,401);}finally{if(saved===undefined)delete process.env.MOCK_OIDC;else process.env.MOCK_OIDC=saved;}
 });
-function route(app,file,factory,pool,imports={}){let get,post;load(app,file,{'express':{Router:()=>({get:(_,f)=>get=f,post:(_,f)=>post=f})},...imports})[factory]({pool});return {get,post};}
+function route(app,file,factory,pool,imports={}){let get,post;load(app,file,{'express':{Router:()=>({get:(_,f)=>get=f,post:(_,f)=>post=f})},'@/shared/logger':{createChildLogger:()=>({error(){},info(){}})},...imports})[factory]({pool});return {get,post};}
 test('calendar evidence distinguishes no sync, empty sync, future events, and all-day dates',()=>{
  const {calendarEvidence}=load('calendar','home-summary',{'express':{}}),now=new Date('2026-09-10T12:00:00Z');
  assert.equal(calendarEvidence(null,now).metrics[0].value,'Not synced');assert.equal(calendarEvidence({synced_at:now,events:[]},now).metrics[0].value,'0');

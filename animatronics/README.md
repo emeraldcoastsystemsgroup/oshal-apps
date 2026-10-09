@@ -1,5 +1,7 @@
 # Animatronics
 
+0.2.3 adds the company audience view beside the family one (ADR-164 D6): Studio, Orbit and Commons (the Business shells) open this package's first surface with `?audience=company`, and the shared kit paints the same account-scoped card in the company grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 The **motion layer** for a Halloween prop or any servo animatronic. A prop is a **rig** — hobby
 or bus servos with per-channel calibration (centre pulse, microseconds per degree, reversal,
 hard pulse clamps) and **software limits** in mechanism degrees, grouped into **mechanisms**: an
@@ -94,12 +96,32 @@ pose, scenario, rehearsal, supply budget, arming and Web Serial stream works, wi
 capability manifest withheld. `marketplace.json` mirrors that block; it is generated from the
 manifest by `scripts/gen-catalog-dependencies.mjs`, so change the manifest and regenerate.
 
+## The family view (Home shell)
+
+The Jarvis Home shell frames this page with `?audience=family` (ADR-164 D6). The page then paints
+the caller's saved props through the shared audience-view kit instead of the editor: how many
+props, shows (scenarios) and poses are saved and how many props are armed, a title led by an armed
+prop, a tile per prop (its template, servos, poses and shows, when it last changed), the shows in
+plain words with their descriptions, and each prop's last practice run — the rehearsal report the
+routes saved with it, passed with its length or not passed with its first reason. One action and
+the kit's escape open Animatronics in the cockpit.
+
+On open the view makes exactly one read, `GET /api/animatronics/rigs`, an owner-scoped SELECT the
+full page already makes. It never reads the capabilities, the catalog, a rig's detail, runs or
+manifest, never rehearses (a rehearsal writes a command-log row), never arms, plays, looks, jogs or
+disarms, and never opens a Web Serial link. Signed out, refused, no props, a failed read, an
+unreadable answer and an unreachable server each read as what they are. The editor's start (the
+contract and catalog reads, the rig poll, the controller link and the disarm beacon) runs only when
+no view renders; without the parameter the page runs exactly as before.
+
 ## Tests
 
 ```bash
 node --test "tests/*-*.test.js"                                   # engine, protocol, seam, surface link — 35 cases, dependency-free
+node --test tests/audience-view.test.cjs                          # the family view: kit contract, behaviour over the real rig route, the gate — dependency-free
 OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/routes.core.test.js    # the routes over loopback HTTP (needs a framework checkout)
 OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/surface.core.spec.mjs   # the actual page in headless Chromium with a fake serial port
+OSHAL_FRAMEWORK=C:/Projects/oshal node scripts/audience-views.browser.cjs animatronics   # from the store root: the family view and the untouched full page in headless Chromium
 ```
 
 Registered in `tests/test-lab.yaml`. The firmware sketch has no registered case: nothing here
@@ -110,3 +132,16 @@ compiles or runs it (BACKLOG B2).
 Load, inertia and stall on the servo (the rehearsal is rate-limited tracking, not dynamics);
 linkage geometry and collisions between mechanisms; sound and lip-sync; a bus servo's position
 readback. Each is a BACKLOG entry with done-when criteria, not a hidden assumption.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| motion-director-chat | director chat turn | T4 | none | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

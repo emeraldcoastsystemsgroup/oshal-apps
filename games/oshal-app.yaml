@@ -7,6 +7,11 @@
 
 name: games
 suite: ai-creative
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features: []   # no model in the loop (T0)
 displayName: Games
 description: >-
   One focused cockpit toolbar for OSHAL games. Open the AI Dungeon Master table

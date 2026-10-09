@@ -7,19 +7,23 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Serialize shared-corpus writers while preserving caller-owned preclaims through brokerage and start rejection.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Claim automatic command resources before credential brokerage so rejected duplicate work cannot query or decrypt caller secrets.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Enforce one absolute admission deadline across bounded Postgres brokerage, decryption, wrapper adoption, and engine execution.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Career worker rail: broker only the caller's Firecrawl key. Model reasoning runs on the dedicated Career bot through the worker rail, so the engine child is never given a model-provider credential and the caller's Anthropic row is no longer read or decrypted here.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Hand the runner the owner's verified issuer for the run's callback grant (1.25.1). A route caller's issuer is the kernel's request identity for this request (the application-authorization guard establishes it, so nothing a client sends can choose it); scheduled work passes the issuer recorded when the owner opted in. The grant is what the kernel's signed-package-callbacks rail refreshes and authorizes before an engine completion runs.
  */
 /**
  * Career engine dispatch with controller-side credential brokering.
  *
  * Career settings are stored with the kernel's per-user `v2:` connector envelope. The standalone
  * package CLI cannot unwrap that kernel-owned DEK and must never forward its ciphertext as an API
- * key, so mounted routes decrypt only the authenticated caller's two Career providers here and
- * pass short-lived plaintext in the child environment.
+ * key, so mounted routes decrypt only the authenticated caller's Firecrawl key here (deterministic
+ * web search I/O) and pass short-lived plaintext in the child environment. No model-provider key
+ * is brokered: model work leaves the controller through the Career worker rail.
  *
  * @module career-engine-dispatch
  */
 import { decryptToken } from '@/app/routes/connector-token-crypto';
 import { createChildLogger } from '@/shared/logger';
+import { getRequestIdentity } from '@/shared/services/database/request-identity';
 import { readRemoteOnly } from './career-match-prefs';
 import {
   releaseRun, runCliAsync, runCliAwait, tryAcquireCliRun,
@@ -28,7 +32,7 @@ import {
 } from './career-engine-runner';
 
 const logger = createChildLogger({ module: 'career-engine-dispatch' });
-const PROVIDER_ENV = { anthropic: 'OSHAL_CRED_ANTHROPIC', firecrawl: 'OSHAL_CRED_FIRECRAWL' } as const;
+const PROVIDER_ENV = { firecrawl: 'OSHAL_CRED_FIRECRAWL' } as const;
 const USER_STORE_SLOT = 'user-store';
 const SHARED_CORPUS_SLOT = 'corpus-write';
 const SHARED_CORPUS_WRITERS = new Set(['pull', 'score', 'score-titles', 'seturl', 'discover', 'enrich']);
@@ -88,7 +92,8 @@ function deadlineQueryPool(pool: QueryPool, deadlineAt: number): QueryPool {
 }
 
 /**
- * @description Resolve only this caller's latest Career provider rows through kernel cryptography.
+ * @description Resolve only this caller's latest Firecrawl row through kernel cryptography. Any
+ * other provider row the query returns is ignored, so no model credential can reach the engine.
  * @param pool query boundary for caller-scoped connection rows
  * @param userSub authenticated caller subject
  * @param decrypt kernel token decryptor, injectable for boundary tests
@@ -104,14 +109,14 @@ export async function resolveCareerEngineEnv(
   const queryPool = deadlineAt ? deadlineQueryPool(pool, deadlineAt) : pool;
   const rows = (await queryPool.query(
     `SELECT provider, access_token FROM oshal_connections
-      WHERE user_sub=$1 AND provider IN ('anthropic','firecrawl')
+      WHERE user_sub=$1 AND provider = 'firecrawl'
       ORDER BY updated_at DESC`,
     [userSub],
   )).rows;
   const env: Record<string, string> = {};
   for (const row of rows) {
     const provider = String(row.provider) as keyof typeof PROVIDER_ENV;
-    const envKey = PROVIDER_ENV[provider];
+    const envKey = Object.prototype.hasOwnProperty.call(PROVIDER_ENV, provider) ? PROVIDER_ENV[provider] : undefined;
     if (!envKey || env[envKey] || !row.access_token) continue;
     const decrypted = decrypt(queryPool, userSub, String(row.access_token));
     env[envKey] = deadlineAt ? await beforeDeadline(decrypted, deadlineAt) : await decrypted;
@@ -158,7 +163,17 @@ function acquireAutomaticRun(
 function commandOptions(args: string[], options: CliRunOptions): CliRunOptions {
   const globalSlots = [...(options.globalSlots || [])];
   if (SHARED_CORPUS_WRITERS.has(args[0])) globalSlots.push(SHARED_CORPUS_SLOT);
-  return { ...options, slot: USER_STORE_SLOT, globalSlots: [...new Set(globalSlots)] };
+  return { ...options, slot: USER_STORE_SLOT, globalSlots: [...new Set(globalSlots)], ownerIssuer: ownerIssuerFor(options) };
+}
+
+/**
+ * The issuer the run's callback grant records: an explicit one from scheduled work, else the
+ * verified issuer of the kernel's request identity for this request. Never a request field.
+ */
+function ownerIssuerFor(options: CliRunOptions): string | null {
+  if (typeof options.ownerIssuer === 'string' && options.ownerIssuer) return options.ownerIssuer;
+  const issuer = getRequestIdentity()?.principalIssuer;
+  return typeof issuer === 'string' && issuer ? issuer : null;
 }
 
 /**
@@ -259,7 +274,8 @@ export async function runUserMatch(pool: QueryPool, userSub: string): Promise<{ 
  * @returns success state without child diagnostics
  */
 export async function runUserScore(
-  pool: QueryPool, userSub: string, opts: { limit?: number; firstSeenDays?: number } = {},
+  pool: QueryPool, userSub: string,
+  opts: { limit?: number; firstSeenDays?: number; ownerIssuer?: string | null } = {},
 ): Promise<{ ok: boolean }> {
   const args = ['score', '--min-keyword', '40'];
   // The standing remote-only preference (migration 104) is applied HERE, at the one place every
@@ -273,6 +289,6 @@ export async function runUserScore(
   if (opts.limit && Number.isFinite(opts.limit)) {
     args.push('--limit', String(Math.max(1, Math.floor(opts.limit))));
   }
-  const result = await runCareerCliAwait(pool, userSub, args);
+  const result = await runCareerCliAwait(pool, userSub, args, {}, { ownerIssuer: opts.ownerIssuer ?? null });
   return { ok: result.ok };
 }

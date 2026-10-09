@@ -1,0 +1,146 @@
+{
+  "schema": "ocean-lab.explorer-seed/1",
+  "kind": "wave-explorer",
+  "name": "Explorer",
+  "study": {
+    "document": "docs/research/autonomous-explorer-design-study.md",
+    "report": "docs/research/ambient-energy-vessel-report.pdf",
+    "repository": "the core repository (emeraldcoastsystemsgroup/oshal)",
+    "dated": "2026-08-02",
+    "role": "The dated record of ONE run (ADR-160 D4) of a wave-propulsion model that no repository of this project holds; this package's engine is written from the report's governing math. The study is not regenerated and not edited to match a later engine: tests/engine-explorer-regression.test.js asserts that this package's engine reproduces the study's published figures from this seed within a stated tolerance."
+  },
+  "designVector": {
+    "wings": {
+      "count": 4,
+      "spanM": 0.093,
+      "chordM": 0.048,
+      "section": "NACA 0012",
+      "stopAngleDeg": 20
+    },
+    "tether": {
+      "lengthM": 2.0,
+      "diameterM": 0.006
+    },
+    "float": {
+      "diameterM": 0.28,
+      "heightM": 0.56,
+      "displacementL": 24.1
+    },
+    "sub": {
+      "diameterM": 0.11,
+      "lengthM": 0.54,
+      "netWeightN": 12
+    },
+    "site": {
+      "name": "Temperate coastal year (illustrative)",
+      "underWayMinSpeedMs": 0.05,
+      "seaStates": [
+        {
+          "id": "flat",
+          "label": "Flat",
+          "heightM": 0.1,
+          "periodS": 18,
+          "occurrence": 0.1085
+        },
+        {
+          "id": "calm",
+          "label": "Calm",
+          "heightM": 0.25,
+          "periodS": 3.91,
+          "occurrence": 0.2415
+        },
+        {
+          "id": "light-swell",
+          "label": "Light swell",
+          "heightM": 0.5,
+          "periodS": 4.72,
+          "occurrence": 0.35
+        },
+        {
+          "id": "moderate",
+          "label": "Moderate",
+          "heightM": 1.0,
+          "periodS": 5.12,
+          "occurrence": 0.22
+        },
+        {
+          "id": "rough",
+          "label": "Rough",
+          "heightM": 2.0,
+          "periodS": 6.09,
+          "occurrence": 0.08
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "wings.count": {
+      "source": "published",
+      "basis": "Study, 'The explorer': 'four propulsion wings on two ranks'."
+    },
+    "wings.spanM": {
+      "source": "reconstructed",
+      "basis": "Study: wing span deployed 296 mm; report front elevation: 296 mm tip to tip across the 110 mm sub. One wing is (296 - 110) / 2 = 93 mm."
+    },
+    "wings.chordM": {
+      "source": "published",
+      "basis": "Report page 4, 'WING SECTION - ROOT': chord 48 mm."
+    },
+    "wings.section": {
+      "source": "published",
+      "basis": "Report page 4: NACA 0012, t/c 12 %, pitch axis at 25 % chord."
+    },
+    "wings.stopAngleDeg": {
+      "source": "reconstructed",
+      "basis": "The study does not state the explorer's stop. The report's bill of materials gives its sweep winner '316 SS axle, PTFE bushing, 20 deg stops', and the study says real vehicles use 20-25 deg."
+    },
+    "tether.lengthM": {
+      "source": "published",
+      "basis": "Study: tether 2.0 m."
+    },
+    "tether.diameterM": {
+      "source": "assumed",
+      "basis": "Not published. The report's bill of materials says '2 m, Kevlar-reinforced, 4-conductor' with no diameter; 6 mm is an assumption, stated as one. It enters only through the tether's wetted area."
+    },
+    "float.diameterM": {
+      "source": "published",
+      "basis": "Study: body diameter 280 mm; report float side elevation: 280 mm."
+    },
+    "float.heightM": {
+      "source": "published",
+      "basis": "Report page 3, float side elevation: 560 mm."
+    },
+    "float.displacementL": {
+      "source": "published",
+      "basis": "Study: float displacement 24.1 L giving 24.7 kg of buoyancy (0.0241 m^3 * 1025 kg/m^3)."
+    },
+    "sub.diameterM": {
+      "source": "published",
+      "basis": "Study: '110 mm sub'; report bill of materials: sub body 110 mm diameter."
+    },
+    "sub.lengthM": {
+      "source": "published",
+      "basis": "Report pages 1-3, sub assembly side elevation and plan: 540 mm."
+    },
+    "sub.netWeightN": {
+      "source": "reconstructed",
+      "basis": "Not stated for the explorer. The report's bill of materials trims its sweep winner's ballast 'to 12 N net negative'."
+    },
+    "site.seaStates.heightM": {
+      "source": "published",
+      "basis": "Study performance table: flat H 0.10 m, calm 0.25 m, light swell 0.50 m, moderate 1.0 m, rough 2.0 m."
+    },
+    "site.seaStates.periodS": {
+      "source": "reconstructed",
+      "basis": "NOT PUBLISHED. Each period is the one at which THIS engine (ocean-lab.wave-propulsion 1.0.0) reproduces the study's published row, solved once and rounded to 0.01 s: calm 3.91 s is where all three published calm columns (0.033 m/s, 0.06 kn, 2.8 km/day) agree; flat 18 s is a long low swell at which the speed rounds to the published 0.000. Agreement at this seed is therefore BY CONSTRUCTION at 1.0.0; what the regression guards is the engine drifting from the version these were solved at, which is the job ADR-160 D4 gives it. The periods land at 3.9-6.1 s for the moving rows, wave steepness 0.011-0.035, well short of breaking."
+    },
+    "site.seaStates.occurrence": {
+      "source": "reconstructed",
+      "basis": "NOT PUBLISHED; the report calls the occurrence mix an illustrative parameter set. These satisfy every published constraint: rough 8 % ('93 % arrives during the 8 % of the year that is rough'), flat-to-light 70 % (report page 7, 'roughly 70 % of a temperate year is flat-to-light'), under way 65 % (light swell and above), and the flat/calm split solved for the published 0.46 kn, 20.4 km/day and 7,444 km/year."
+    },
+    "site.underWayMinSpeedMs": {
+      "source": "reconstructed",
+      "basis": "The study counts 65 % under way and says 'below roughly 0.5 m of wave height it does not move at all - it drifts and waits'. 0.05 m/s (about 0.1 kn) separates the calm row (0.033 m/s) from the light-swell row (0.103 m/s)."
+    }
+  }
+}

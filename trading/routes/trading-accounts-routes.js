@@ -22,8 +22,11 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Cash-account settlement (ADR-134 D8): GET /accounts books[] carries accountType ('cash'|'margin'|null, from the core listBooks accounts join — ONE source; the UI no longer needs to derive it from accounts[]) and settlementPolicy; PATCH /accounts/books/:bookId accepts settlementPolicy as 'refuse' | 'warn' | null only (400 settlement_policy_invalid otherwise — 'off' is env-only, and the column CHECK is the DB-side pin). Not confirm-gated: the field can only tighten or soften a guard, never open an order path.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-134 pin retirement: GET /summary's double-count guard no longer reads SCHWAB_ACCOUNT_NUMBER. The kernel adapter's unbound rule is now single-account-or-refuse, so the ONLY state in which the legacy 'live' row still stands for a discovered account is: that book is UNBOUND and the login discovered exactly ONE Schwab account. The skip is now computed from those two facts (books.account_id IS NULL + the account count) instead of a last4 match against an env pin that no longer exists. On a multi-account login an unbound legacy book renders the adapter's refusal as this row's `error` - an honest row rather than another account's money.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The arming acknowledgement (BACKLOG "Arming a second autopilot leg is a deliberate, gated act"). POST /accounts/books/:bookId/arm-ack records - or withdraws - the acknowledgement the kernel dispatch now requires before an autopilot leg pinned to a NON-LEGACY book may fire, and GET /accounts books[] carries armAckRequired/armAckAt/armAckBy so the surface can say whether an account is armed. It is a route of its own rather than another field on PATCH: `enabled` says this book may take risk, the acknowledgement says the operator has read what an armed leg does to an account whose positions the engine did not open, and one PATCH carrying both would collapse the very distinction the gate exists to hold. Recording is confirm-gated like every other risk action here; WITHDRAWING is not, because it can only ever stop a leg.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | ADR-052 addendum (paper-to-live parity): the three parity knobs — marketGapFilterPct, exitPlanSessions, yieldSleeveFloatPct — reach a book only through the confirm-gated applies, normalized by the kernel's own normalizeConfig (parityKnobsOf: absent or junk = inherit the book's env default, a number clamped to the kernel's range, 0 = an explicit off). POST /strategy normalized them already on its strategyId path; its full-snapshot body path now overlays the normalized knobs instead of storing whatever was posted. POST /mix accepts them beside the mix keys and normalizes the merged snapshot's knobs, so an edit that does not name a knob keeps the applied strategy's value. Both paths are still 428 without confirm:true before any read.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.PARITY_KNOBS = void 0;
+exports.parityKnobsOf = parityKnobsOf;
 exports.registerTradingAccountRoutes = registerTradingAccountRoutes;
 exports.routeBook = routeBook;
 const logger_1 = require("@/shared/logger");
@@ -38,6 +41,22 @@ const trading_strategy_lab_sim_1 = require("@/app/trading-strategy-lab-sim");
 const trading_daily_equity_store_1 = require("@/app/trading-daily-equity-store");
 const trading_strategy_journal_1 = require("@/app/trading-strategy-journal");
 const logger = (0, logger_1.createChildLogger)({ module: 'trading-accounts-routes' });
+/** The ADR-052 paper-to-live parity knobs a per-book apply carries (the dispatch reads each through one resolver). */
+exports.PARITY_KNOBS = ['marketGapFilterPct', 'exitPlanSessions', 'yieldSleeveFloatPct'];
+/**
+ * @description The parity knobs of a posted or merged config, normalized by the kernel's own
+ * normalizeConfig — the Strategy Lab's rule — so a knob can reach a book only in the shape the
+ * dispatch resolver reads: absent or junk = null (inherit the book's env default), a number clamped
+ * to the kernel's range, 0 = an explicit off. A knob this kernel does not know yet comes back null.
+ * @param raw - The config object (untrusted).
+ * @returns Exactly the three knobs, normalized.
+ */
+function parityKnobsOf(raw) {
+    const src = (raw && typeof raw === 'object' ? raw : {});
+    const n = (0, trading_strategy_lab_sim_1.normalizeConfig)(Object.fromEntries(exports.PARITY_KNOBS.map((k) => [k, src[k]])));
+    const pick = (k) => (typeof n[k] === 'number' && Number.isFinite(n[k]) ? n[k] : null);
+    return { marketGapFilterPct: pick('marketGapFilterPct'), exitPlanSessions: pick('exitPlanSessions'), yieldSleeveFloatPct: pick('yieldSleeveFloatPct') };
+}
 /** Resolve + 401 helper shared by every handler. */
 function sub(req, res) {
     const s = (0, trading_routes_helpers_1.callerSub)(req);
@@ -254,7 +273,8 @@ function registerTradingAccountRoutes(router, ctx) {
             }
             let strategyId = b.strategyId ? String(b.strategyId) : null;
             let strategyName = b.strategyName ? String(b.strategyName) : '';
-            let config = b.config;
+            // ADR-052 addendum: the full-snapshot body's parity knobs are normalized, never stored as posted.
+            let config = b.config && typeof b.config === 'object' ? { ...b.config, ...parityKnobsOf(b.config) } : undefined;
             if (strategyId && !config) {
                 const strat = await (0, trading_strategy_lab_store_1.getStrategy)(ctx.pool, s, strategyId);
                 if (!strat) {
@@ -321,11 +341,12 @@ function registerTradingAccountRoutes(router, ctx) {
                 rank: 'momentum', cadenceDays: 5, topN: 8, weighting: 'conviction', universe: [],
                 warmupDays: 60, windowDays: 365, earningsGateDays: 0,
             };
-            const MIX_KEYS = ['coreSymbol', 'corePct', 'universe', 'rank', 'cadenceDays', 'topN', 'weighting', 'posture'];
+            const MIX_KEYS = ['coreSymbol', 'corePct', 'universe', 'rank', 'cadenceDays', 'topN', 'weighting', 'posture', ...exports.PARITY_KNOBS];
             const merged = { ...base };
             for (const k of MIX_KEYS)
                 if (posted[k] !== undefined)
                     merged[k] = posted[k];
+            Object.assign(merged, parityKnobsOf(merged)); // ADR-052 addendum: the knobs are stored normalized
             const row = await (0, trading_config_overrides_1.applyOverride)(ctx.pool, s, {
                 strategyId: null, strategyName: 'manual-mix', config: merged,
                 applyPct: Number(posted.applyPct) || current?.applyPct || 100,

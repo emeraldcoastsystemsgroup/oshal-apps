@@ -321,6 +321,24 @@ Proven on the platform's own image regardless: a sandbox api beside the stack (o
 redis, mock identity, `legacy` mode; the recipe is in the core runbook `docs/runbooks/embodied-tile.md`)
 acknowledged the container node, reset a world onto it and ran a drone-first exploration to done through
 the api's own timer (2026-09-13).
+**Decided and built (0.18.0, 2026-10-05):** the operator chose option D of the four (device-bound credentials). Core ADR-175
+(oshal #1080) adds the `auth: node` mount mode: the PAT middleware admits a node-bound credential (`POST /api/join/enroll`, one node
+id, the owner's verified issuer) only beneath a registered node rail and stamps `req.oshalNodeToken`; the application
+authorization guard then decides on the owner's own rights. This package mounts `/api/embodied/nodes` as `auth: node`, binds every
+heartbeat to the credential's node id (`403 node_binding_mismatch` otherwise), and the plant and the PX4 node each heartbeat with
+their own credential (`EMBODIED_NODE_TOKEN(_FILE)`, `EMBODIED_PX4_NODE_TOKEN(_FILE)`). The secret now only guards inbound commands.
+Proven by `tests/routes.core.test.js` (the binding, the secret refused, no credential refused), `tests/engine-node.live.test.js` (the
+real Python node with a credential) and `engine/tests/test_node.py`; core's `tests/unit/package-node-rail.spec.ts` proves the
+admission through the real middleware, mounter and enforce-mode runtime. Still open: the live proof below, which needs core #1080
+deployed and the owner's one-time enrollment.
+**Live on the box (2026-10-05 20:12 CDT):** core #1080 deployed (2bb126a4), embodied 0.18.0 installed, `embodied-plant` enrolled from the
+owner's signed-in session; install-engine.sh: "the api acknowledged the plant's heartbeat"; as the owner, `/physics/status` listed it online,
+a world reset onto it (`backend: node`, link `rail`) and a drone-first exploration ran to done (landed, not down, 46 % known after 4 scans).
+**Hardened in 0.18.1** after a security review of 0.18.0: the api had sent `SWARM_SERVICE_SECRET` to the endpoint a device credential
+declares (an ordinary user with embodied access could have obtained machine trust) and dialled any host (SSRF). Commands now carry a
+per-node command key, endpoints are allowlisted, the listing is scoped to the caller, one owner cannot fill the fleet, and the engine no longer
+holds the swarm secret. Proven by `tests/engine-node.test.js` (the double records that no `x-service-secret` ever reached it), the routes and
+live suites, and mutation checks (secret header restored, host check removed, listing unscoped: each goes red).
 **Done when (the box):** a heartbeat from the engine container is acknowledged by the api under
 ADR-149 enforce and `GET /physics/status` lists `embodied-plant` online — after the core decision above.
 **B6 (0.11.0):** a PX4 flight stack joins as that `drone` node (refusing `load` and `clone`), proven in
@@ -416,3 +434,92 @@ should take a medium explicitly rather than simply read the row.
 a `Medium` passed in by its caller rather than from a file-local literal, `ARM_PREAMBLE` is generated
 from that medium, the arm fixtures are regenerated, `KNOWN` in `tests/engine-medium.test.js` is empty,
 and the arm suites stay green.
+
+## B27 — The bought parts this package owns are data another package reads — DONE 0.16.2
+
+ADR-152 D1 says a number lives in one place, and Circuit Lab had to restate the two drone motors' name,
+mass and price to describe them, because they were TypeScript literals in `parts-model.ts` (and the arm's
+STS3215 one in `servos.ts`). They are now one committed row each in
+`src-routes/engine/design/parts-catalog.json` — identity, mass, price and a source line, plus the
+`propulsion` block (KV) for a motor and the `jointDrive` block (stall, speed, case, spline offset, horn)
+for the servo — and `DRONE_FITS[...].motor` and `STS3215_12V` are built from those rows by id. A missing
+or malformed row fails the load naming the list, row and field. The compiled copy
+(`routes/engine/design/parts-catalog.json`) is what another package reads, as data, never as an imported
+runtime. No number moved: `tests/engine-parts-catalog.test.js` pins every figure the design documents
+print (recon-mini 746 g / USD 582, recon-3d 1193 g / USD 1447, the arm 961 g moving / USD 240) and edits
+the row in a copy of the compiled engine to prove the model reads it.
+
+Still open (carried over from Circuit Lab's B4), done when: the MJCF actuator reads what it needs from the
+same motor row (thrust per rpm) once aero-lab's propeller curves exist (the hardware design's section 7).
+Today `physics/mjcf.ts` takes only the motor's mass from the row, through the fit's bill, and sizes thrust
+from the momentum-theory budget; the KV is carried for the package that models the motor electrically.
+
+## B28 — Cross-check the PX4 node against an outside 6-DOF simulator — HARNESS AND THE SIH LEG DONE 0.17.0, THE EXTERNAL LEG WAITS ON A LICENCE
+
+The core backlog asks for one reproducible cross-check of our PX4 SIH node against PteroSim (JSBSim
+6-DOF, PX4 over the lockstep Simulator MAVLink API on TCP 4560): the same vehicle and the same
+commanded manoeuvre through both, the two trajectories and their divergence published, and a
+disagreement named as a finding about one of the two models. The comparison itself, the verdict per
+simulator and the licence position live in core `docs/research/pterosim-comparison/README.md`.
+
+**Done (0.17.0):** `engine/crosscheck/` — `px4_crosscheck.py` flies one fixed, versioned manoeuvre
+(takeoff to 2 m, 5 m north, a 90° yaw, a 10 s hover, LAND) in OFFBOARD through a PX4 stack and records
+LOCAL_POSITION_NED and ATTITUDE on the vehicle's clock; `--backend sih` is the node's own vehicle,
+`--backend external` is PX4 `none_iris` in lockstep with an outside simulator (compose profile
+`px4-external`, `PX4_SIM_HOSTNAME` the simulator's host). The vehicle is one declared file,
+`f450-sih.params.json`: its SIH values go in by PARAM_SET where SIH flies, its allocator geometry on
+both backends, every value confirmed by the vehicle's PARAM_VALUE echo, the controller parameters read
+back so the divergence refuses two runs flown by different controllers, and a vehicle whose
+SYS_AUTOSTART is not the backend's SITL airframe is refused before anything is armed. `divergence.py`
+aligns each commanded phase from its own command (a setpoint one run sent a tick later is harness
+timing, not a model difference — two real SIH runs read 23.5° of yaw apart under a single alignment
+and 3.0° per phase), resamples both runs onto one clock, and reports per-axis RMS and max position and
+yaw error and per-leg rise, overshoot and settling against declared tolerances; past a tolerance it
+names a finding about one of the two models and never says which. `run-leg.sh` flies one leg on a
+private docker network with the official PX4 SITL image and the engine image, and removes everything
+after. `embodied_px4_node.py` is reused through pymavlink's message hooks and not modified.
+
+**Recorded, not asserted (2026-09-28, PX4 1.18.0, `px4io/px4-sitl:latest`):** the SIH leg flew twice
+from the same vehicle file — 03:49 UTC (2210 position samples) and 03:50 UTC (2211), both complete,
+all sixteen parameters confirmed, the PX4 log reading *Armed by external command … Takeoff detected …
+Landing detected … Disarmed by landing*. The two runs compare as **agree**: position RMS 0.02 m (max
+0.06 m horizontal, 0.18 m up), yaw RMS 0.26° (max 3.0°), rise/overshoot/settling within 0.09 s, 0.3 %
+and 0.09 s. That is the repeatability floor any external leg is read against. Both trajectories and
+the divergence are published under the core research note. `engine/tests/test_px4_crosscheck.py`
+(14 cases, standard library only, its own runner) and `tests/engine-crosscheck.test.js` guard it;
+Test Lab cases `engine-crosscheck` and `engine-px4-crosscheck-sih`.
+
+**0.17.1:** 0.17.0 never loaded. The framework's catalog loader refused the whole package at install
+(`Application embodied testing.cases[19].expected[7]: must be non-empty text of at most 500 characters`:
+575 characters in `engine-plant-python`, and 550 in `engine-px4-crosscheck-sih` behind it), so the
+two over-long expected lines are each split in two with their meaning kept. The store gate now runs
+that loader over every package's catalog (`scripts/check-test-catalogs.mjs`, job `test-catalogs`).
+
+**Still open, done when:** the external leg has been flown and its trajectory published beside the SIH
+one, with the divergence and any finding named. It waits on a decision this package cannot make:
+running PteroSim requires accepting its EULA (`PTEROSIM_ACCEPT_EULA=Y` or `-AcceptEula`, headless
+included; the process exits 1 without it), its Free tier is one vehicle, the F450, 2 h sessions with a
+5 h cooldown and no commercial use, and the EULA does not define the Free tier's permitted purposes.
+Once the operator has accepted (or bought Edu/Pro), the leg is: start PteroSim windowless on the host
+(`-nullrhi -nosplash -unattended`, PX4 as the control source, the F450 spawned), then
+`bash engine/crosscheck/run-leg.sh external <out> pterosim-f450` and
+`python engine/crosscheck/divergence.py <out>/sih-trajectory.json <out>/external-trajectory.json --out <out>/divergence.json`.
+The declared F450 in `f450-sih.params.json` is our declaration; reconciling it with the F450 PteroSim
+flies (its JSBSim XML ships in the release under `PteroSimAircrafts/`, readable only after the EULA) is
+the first step of that leg. If the operator declines, the core entry records *neither: licence* and
+closes; this entry closes with it.
+
+## The assistant cannot call its route-backed tools yet (2026-10-06)
+
+Since core #1101 and #1103 (2026-10-06), `embodied-operator` answers the deployment operator's chat on the
+operator's own Antigravity login, from the shared concierge node. One chat turn as the operator on 2026-10-06 confirmed it.
+Its 9 tools are route-backed (`executorType: api`): `embodied-capabilities`, `embodied-state`, `embodied-physics-status`, `embodied-physics-reports`, `embodied-build-drone`, `embodied-world`, `embodied-label`, `embodied-tasks`, `embodied-command-log`.
+Core documents that a route-backed tool answers 401 when a bot calls it (core
+`docs/security/remote-application-execution.md`, "Limits"), and Scene Studio's director hit exactly
+that before 0.2.0. No tool call from this package's assistant has been run yet.
+
+- **Done when:** every tool the assistant is meant to call is a package tool
+  (`executor: { executorType: builtin, builtinKey: package }`) bound in an ADR-149 authorization
+  catalog (this package has none yet, so that means writing `authorization.yaml`), the bot is bound in `bindings.bots` (core `docs/apps/package-tools.md`), and one live chat
+  turn as the operator runs a tool and its result is checked against the app's own state. Scene
+  Studio 0.2.0 is the worked example.

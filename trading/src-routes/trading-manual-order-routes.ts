@@ -344,9 +344,11 @@ export function registerTradingManualOrderRoutes(router: Router, ctx: AppContext
       const book = await resolveBook(ctx.pool, sub, (req.query.book as string | undefined) ?? (req.query.mode as string | undefined));
       const md = getMarketData(book.kind, sub);
       if (!md.configured()) { res.status(503).json({ error: 'market_data_not_configured', message: 'Market data is not connected for this account.' }); return; }
+      const tick = await md.latestTrade(symbol);
+      if (tick) { res.json({ symbol, price: tick.price, book: book.ref, asOf: tick.asOf.toISOString() }); return; }
       const price = await md.latestPrice(symbol);
       if (price == null) { res.status(404).json({ error: 'no_quote', message: `No quote for ${symbol}.` }); return; }
-      res.json({ symbol, price, book: book.ref, asOf: new Date().toISOString() });
+      res.json({ symbol, price, book: book.ref, asOf: null });
     } catch (err) {
       if (err instanceof TradingError) { res.status(err.httpStatus).json({ error: err.code, message: err.message }); return; }
       logger.error({ err, symbol }, 'trading quote failed');

@@ -14,12 +14,25 @@
 
 name: storage
 suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }
+  features:
+    - id: storage-assistant-command
+      unit: storage command
+      tier: T1
+      generation: none
+      degrade: disable
 displayName: Storage
 description: >-
   Your storage hub: choose where OSHAL saves generated code vs files (GitHub / Dropbox /
   OSHAL-local), and browse your files. Generators (e.g. Presentations) save to the target you
   set here.
-version: 1.2.0
+version: 1.2.2
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: active
 
 source:
@@ -49,6 +62,7 @@ smoke:
 uses:
   - storage          # storage-routes.js calls the kernel storage-target resolver
   - app-dependencies # compatibility floor for the tiered dependencies block (ADR-085 addendum)
+  - test-catalog
 
 dependencies:
   required:

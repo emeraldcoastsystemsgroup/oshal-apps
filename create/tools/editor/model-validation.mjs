@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Bound portable layered documents and owner-qualified raster references before editing or rendering.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Add four bounded image filters (saturation, grayscale, sepia, blur). A filter at its neutral value is omitted from the normalized layer, so a project that uses none keeps the exact 1.8.2 document shape and still opens in earlier releases.
  */
 
 /** @description Shared resource ceilings for browser edits and reference-only persistence.
@@ -11,9 +12,19 @@
 export const LIMITS = Object.freeze({ dimension: 8192, pixels: 33554432, layers: 200, images: 64,
   points: 10000, totalPoints: 50000, text: 20000, dataBytes: 8388608, portableBytes: 33554432,
   referenceBytes: 262144 });
+
+/** @description The simple image filters, their inclusive bounds and the neutral value that is never stored.
+ * Blur is measured in canvas pixels; the others are CSS filter percentages.
+ * @returns {object} Immutable filter name to { min, max, neutral, unit } map, in render order. */
+export const IMAGE_FILTERS = Object.freeze({
+  saturation: Object.freeze({ min: 0, max: 300, neutral: 100, unit: '%' }),
+  grayscale: Object.freeze({ min: 0, max: 100, neutral: 0, unit: '%' }),
+  sepia: Object.freeze({ min: 0, max: 100, neutral: 0, unit: '%' }),
+  blur: Object.freeze({ min: 0, max: 64, neutral: 0, unit: 'px' }),
+});
 const TYPES = new Set(['image', 'text', 'rect', 'ellipse', 'freehand']);
 const COMMON = ['id', 'type', 'name', 'x', 'y', 'w', 'h', 'rotation', 'opacity', 'visible', 'locked'];
-const FIELDS = { image: ['assetId', 'brightness', 'contrast', 'crop'], text: ['text', 'fontFamily', 'fontSize', 'fontWeight', 'fill', 'align'],
+const FIELDS = { image: ['assetId', 'brightness', 'contrast', 'crop', ...Object.keys(IMAGE_FILTERS)], text: ['text', 'fontFamily', 'fontSize', 'fontWeight', 'fill', 'align'],
   rect: ['fill', 'stroke', 'strokeWidth'], ellipse: ['fill', 'stroke', 'strokeWidth'], freehand: ['points', 'stroke', 'strokeWidth'] };
 
 /** @description Reject invalid input with a stable, user-readable boundary error.
@@ -100,6 +111,19 @@ function cropRectangle(value = { x: 0, y: 0, w: 1, h: 1 }) {
   return crop;
 }
 
+/** @description Validate each present filter and drop the neutral ones, so unfiltered layers keep their earlier shape.
+ * @param {object} layer Image layer candidate.
+ * @returns {object} Only the non-neutral filter values. */
+function imageFilterFields(layer) {
+  const result = {};
+  for (const [name, bounds] of Object.entries(IMAGE_FILTERS)) {
+    if (layer[name] === undefined) continue;
+    const value = number(layer[name], bounds.min, bounds.max, `Image ${name}`);
+    if (value !== bounds.neutral) result[name] = value;
+  }
+  return result;
+}
+
 /** @description Normalize one complete layer while preserving its exact ID and type.
  * @param {object} layer Layer with required ID and type; omitted presentation fields get defaults.
  * @returns {object} Independent normalized layer. */
@@ -113,7 +137,8 @@ export function normalizeLayer(layer) {
     rotation: ((rotation % 360) + 540) % 360 - 180, opacity: number(layer.opacity ?? 1, 0, 1, 'Opacity'),
     visible: boolean(layer.visible, true, 'Visibility'), locked: boolean(layer.locked, false, 'Lock') };
   if (layer.type === 'image') return { ...result, assetId: identifier(layer.assetId), crop: cropRectangle(layer.crop),
-    brightness: number(layer.brightness ?? 100, 0, 300, 'Brightness'), contrast: number(layer.contrast ?? 100, 0, 300, 'Contrast') };
+    brightness: number(layer.brightness ?? 100, 0, 300, 'Brightness'), contrast: number(layer.contrast ?? 100, 0, 300, 'Contrast'),
+    ...imageFilterFields(layer) };
   if (layer.type === 'text') return { ...result, ...textFields(layer) };
   if (layer.type === 'freehand') return { ...result, ...freehandFields(layer) };
   return { ...result, ...shapeFields(layer) };

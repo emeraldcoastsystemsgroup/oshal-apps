@@ -1,20 +1,125 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>OSHAL Eats</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: what Eats keeps for the
+     household (the dishes waiting in the order, the saved tastes, the recent checkout links, whether Uber Eats is
+     linked) from the SAME /api/eats routes the full page reads, painted by the shared kit in the family grammar. On
+     open it reads only /home-summary, /profile, /orders/history and /config: never /cart (the full page's own order
+     read), never /search or /menu (the catalog provider), never the concierge, never a write. Ordering stays
+     in the full page; the one action opens Eats in the cockpit. Any other request runs the full Eats page below
+     unchanged, and so does a core without the shared kit. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<style>
+  /* This page pins its body to the viewport and hides overflow for its own two-pane layout; under an audience view
+     the kit's root must be free to grow and scroll. */
+  html[data-audience] body { height: auto; overflow: auto; }
+</style>
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=eats', CART = 'In your meal cart · ', LIMIT = 20;
+  function call(path) {
+    return fetch('/api/eats' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; });
+    });
+  }
+  function refused(e) { return !!e && (e.status === 401 || e.status === 403); }
+  // The side reads may each fail on their own: a refusal ends the view, anything else reads as "could not check".
+  function optional(path) { return call(path).catch(function (e) { if (refused(e)) throw e; return null; }); }
+  function metric(sum, id) { return ((sum && sum.metrics) || []).filter(function (m) { return m.id === id; })[0] || null; }
+  function known(m) { return !!m && m.value !== 'Unavailable'; }
+  // A dish waiting in the order, as the home summary lists it: text is the title, detail is 'In your meal cart · <stamp>'.
+  function isDish(item) { return !!item && typeof item.detail === 'string' && item.detail.indexOf(CART) === 0; }
+  function added(item) { var stamp = item.detail.slice(CART.length); return stamp === 'date unknown' ? 'time not saved' : A.when(stamp); }
+  function dish(item) { return { icon: '🍽️', title: item.text || 'Untitled', text: 'Waiting in the order', meta: 'added ' + added(item) }; }
+  function words(values) { return Array.isArray(values) ? values.filter(Boolean).map(String) : []; }
+  function budget(p) { var n = Number(p.budget_per_order); return p.budget_per_order !== null && p.budget_per_order !== undefined && p.budget_per_order !== '' && isFinite(n) ? A.money(n) : null; }
+  // The saved tastes, in the full page's own words for what is not set; nothing at all saved is an empty section, not four blanks.
+  function tastes(p) {
+    var cuisines = words(p.favorite_cuisines), diet = words(p.dietary), cap = budget(p), address = p.default_address ? String(p.default_address) : null;
+    if (!cuisines.length && !diet.length && !cap && !address) return [];
+    return [
+      { icon: '🍜', title: 'Favorite food', text: cuisines.length ? cuisines.join(', ') : 'Any craving' },
+      { icon: '🥗', title: 'Dietary needs', text: diet.length ? diet.join(', ') : 'No diet set' },
+      { icon: '💵', title: 'Budget per order', text: cap || 'Budget open' },
+      { icon: '📍', title: 'Delivers to', text: address || 'No address saved' }
+    ];
+  }
+  function checkout(o) { return { icon: '🧾', title: o.store_name || 'A restaurant', text: o.total === null || o.total === undefined ? 'Checkout link, no total saved' : 'Checkout link, ' + A.money(o.total), meta: A.when(o.created_at) }; }
+  function stats(sum, orders, cfg) {
+    var pending = metric(sum, 'pending-meal-items'), five = metric(sum, 'meal-handoffs-5d');
+    return [
+      { id: 'pending', label: 'In the order now', value: known(pending) ? pending.value : '—', hint: known(pending) ? null : 'Could not check' },
+      { id: 'links', label: 'Checkout links, 5 days', value: known(five) ? five.value : '—', hint: known(five) ? 'Not placed orders' : 'Could not check' },
+      { id: 'saved', label: 'Saved checkouts', value: !orders ? '—' : orders.length >= LIMIT ? LIMIT + '+' : orders.length, hint: orders ? null : 'Could not check' },
+      { id: 'uber', label: 'Uber Eats', value: !cfg ? '—' : cfg.uberConnected ? 'Linked' : 'Not linked', hint: !cfg ? 'Could not check' : cfg.uberConnected ? null : 'Eats still browses its built-in catalog' }
+    ];
+  }
+  // Nothing waiting and no checkout link to name: "Nothing saved yet" only when the history answered empty AND the
+  // profile answered with no tastes. A read that failed, or tastes that are saved, are named, never guessed over.
+  function idle(orders, profile) {
+    var saved = !!profile && tastes(profile).length > 0, said = [];
+    if (orders && profile && !saved) return { title: 'Nothing saved yet', lede: 'Open Eats to find a restaurant and start an order. You confirm and pay in Uber Eats, never here.' };
+    if (!orders) said.push('Saved checkouts could not be checked.');
+    if (!profile) said.push('Saved tastes could not be checked.');
+    if (saved) said.push('Eats keeps the saved tastes for the next order.');
+    return { title: 'Nothing in the order right now', lede: said.join(' ') };
+  }
+  function headline(n, items, orders, profile) {
+    var first = items[0], last = orders && orders[0];
+    if (n === null) return { title: 'Some saved data cannot be checked', lede: 'Eats could not read part of what it keeps. Open Eats to see the order.' };
+    if (n > 0) return { title: n === 1 ? '1 thing in the order' : n + ' things in the order', lede: (first ? 'Newest: ' + (first.text || 'Untitled') + ', added ' + added(first) + '. ' : '') + 'Finish or change the order in Eats.' };
+    if (last) return { title: 'Nothing in the order right now', lede: 'Last checkout link: ' + (last.store_name || 'a restaurant') + ', ' + A.when(last.created_at) + '.' };
+    return idle(orders, profile);
+  }
+  function model(sum, profile, orders, cfg) {
+    var pending = metric(sum, 'pending-meal-items'), n = known(pending) && isFinite(Number(pending.value)) ? Number(pending.value) : null;
+    var items = ((sum && sum.items) || []).filter(isDish), head = headline(n, items, orders, profile), more = n !== null && n > items.length;
+    return {
+      kicker: 'Food delivery',
+      title: head.title,
+      lede: head.lede,
+      actions: [{ label: 'Order food in Eats', primary: true, onClick: function () { A.open(FULL); } }],
+      stats: stats(sum, orders, cfg),
+      sections: [
+        { kind: 'list', id: 'order', title: 'In the order now', empty: n === null ? 'The order could not be checked.' : 'Nothing in the order right now.', items: items.map(dish),
+          note: sum && sum.partial ? 'Some saved data could not be checked.' : more ? 'Showing the newest ' + items.length + ' of ' + n + '. Open Eats for the whole order.' : null },
+        { kind: 'tiles', id: 'tastes', title: 'What Eats knows about us', empty: profile ? 'Nothing saved yet. Eats learns tastes as you order.' : 'Saved tastes could not be checked.', items: profile ? tastes(profile) : [] },
+        { kind: 'list', id: 'checkouts', title: 'Recent checkout links', empty: orders ? 'No checkout links yet.' : 'Saved checkouts could not be checked.', items: (orders || []).slice(0, 8).map(checkout),
+          note: 'A checkout link opens Uber Eats. It does not mean an order was placed or delivered.' }
+      ]
+    };
+  }
+  function family() {
+    return Promise.all([call('/home-summary'), optional('/profile'), optional('/orders/history'), optional('/config')]).then(function (r) {
+      return model(r[0], r[1] && r[1].profile ? r[1].profile : null, r[2] && Array.isArray(r[2].orders) ? r[2].orders : null, r[3]);
+    }).catch(function (e) {
+      if (!refused(e)) throw e && e.status >= 500 ? new Error('Eats could not read the saved order (HTTP ' + e.status + ').') : e;
+      return { kicker: 'Food delivery', title: e.status === 401 ? 'Sign in to see the order' : 'This account cannot open Eats',
+        lede: e.status === 401 ? 'Eats shows the order of whoever is signed in, and this session is not signed in.' : 'The Eats routes refused this account (HTTP 403).' };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'eats', escapeLabel: 'Open Eats in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
 <style>
   :root {
-    --bg: #0f1115;
-    --surface: #171a21;
-    --surface-2: #20242d;
-    --line: rgba(255,255,255,.1);
-    --text: #f6f7fb;
-    --muted: #a8adba;
-    --dim: #747b8c;
-    --accent: #25c06d;
-    --accent-2: #18a95d;
+    --bg: var(--bg-primary, #0f1115);
+    --surface: var(--bg-card, #171a21);
+    --surface-2: var(--bg-card-hover, #20242d);
+    --line: var(--border-color, rgba(255,255,255,.1));
+    --text: var(--text-primary, #f6f7fb);
+    --muted: var(--text-secondary, #a8adba);
+    --dim: var(--text-muted, #747b8c);
+    --accent: var(--accent-primary, #25c06d);
+    --accent-2: var(--accent-primary-hover, #18a95d);
     --warn: #f4b64a;
     --bad: #f06278;
   }
@@ -633,6 +738,21 @@
   .price {
     color: var(--accent);
   }
+
+  /* The assistant rail's cards. Class names are the ones the SHARED surface-bridge client renders
+     (bridge-propose / bridge-confirm / bridge-cancel / bridge-notice); an order the concierge or
+     the floating assistant proposes lands here and opens nothing until the diner confirms. */
+  .bridge-dock:empty { display: none; }
+  .bridge-dock { display: grid; gap: 8px; padding: 0 12px 10px; }
+  .bridge-propose { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--accent); border-radius: 10px; background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+  .bridge-propose p { margin: 0; font-size: 13px; line-height: 1.4; }
+  .bridge-confirm, .bridge-cancel { min-height: 36px; border-radius: 8px; font-weight: 850; border: 1px solid var(--line); background: var(--eats-control); color: var(--text); }
+  .bridge-confirm { border-color: transparent; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; }
+  .bridge-option { display: grid; gap: 2px; text-align: left; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--eats-control); color: var(--text); }
+  .bridge-option-desc { color: var(--muted); font-size: 12px; }
+  .bridge-notices { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); display: grid; gap: 6px; z-index: 11; width: min(420px, calc(100vw - 20px)); }
+  .bridge-notice { padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--eats-shadow); font-size: 13px; }
+  .bridge-notice-warn, .bridge-notice-error { border-color: var(--warn); }
 </style>
 <script>
 (function(){
@@ -681,14 +801,14 @@
           <h1 class="location-title">Food delivered where you are.</h1>
           <label class="field-label" for="address">Delivery address</label>
           <div class="location-row">
-            <input class="input" id="address" placeholder="Delivery address or current location" />
+            <input class="input" id="address" data-bridge-field="address" placeholder="Delivery address or current location" />
             <button class="btn" id="locBtn" type="button">Use location</button>
           </div>
         </div>
         <div class="search-panel">
           <label class="field-label" for="query">Restaurants and cravings</label>
           <div class="search-row">
-            <input class="search-input" id="query" placeholder="Search food, restaurants, cravings" />
+            <input class="search-input" id="query" data-bridge-field="query" placeholder="Search food, restaurants, cravings" />
             <button class="btn primary" id="searchBtn" type="button">Search</button>
           </div>
           <div class="quick-row" id="chips"></div>
@@ -734,6 +854,7 @@
         <div class="messages" id="messages">
           <div class="msg bot">Tell me what sounds good. I can search, add items, remember preferences, and hand off checkout.</div>
         </div>
+        <div class="bridge-dock" id="bridgeOptions" data-bridge-host="options" aria-live="polite"></div>
         <div class="chat-row">
           <input class="input" id="chatInput" placeholder="I want spicy Italian for two..." />
           <button class="btn primary" id="chatSend" type="button">Send</button>
@@ -743,16 +864,21 @@
   </div>
 </div>
 <div class="toast" id="toast"></div>
+<div class="bridge-notices" data-bridge-host="notices"></div>
 
 <script>
 const API = '/api/eats';
 const $ = (selector) => document.querySelector(selector);
 const state = {
   conversationId: localStorage.getItem('oshalEatsConv') || '',
-  cart: { items: [], total: 0, storeName: '' },
+  cart: { items: [], total: 0, totalCents: 0, unpricedLines: 0, storeName: '' },
+  cartId: '',
   profile: null,
   history: [],
-  mode: 'restaurants'
+  mode: 'restaurants',
+  restaurants: [],
+  dishes: [],
+  proposedAction: null
 };
 const chips = ['Pizza', 'Burgers', 'Sushi', 'Tacos', 'Healthy', 'Italian', 'Ramen', 'Fast food'];
 
@@ -830,9 +956,7 @@ function renderDishCard(item) {
         data-store-id="${escapeHtml(item.storeId)}"
         data-store-name="${escapeHtml(item.brand)}"
         data-product-id="${escapeHtml(item.productId)}"
-        data-title="${escapeHtml(item.title)}"
-        data-price="${escapeHtml(item.price)}"
-        data-image-url="${escapeHtml(item.imageUrl || '')}">Add to order</button>
+        data-title="${escapeHtml(item.title)}">Add to order</button>
     </div>
   </article>`;
 }
@@ -846,10 +970,27 @@ async function search(query = '') {
   $('#grid').innerHTML = '<div class="empty">Finding restaurants...</div>';
   const result = await getJson(`${API}/search?q=${encodeURIComponent(query)}&limit=16`);
   const items = result.items || [];
+  state.restaurants = items.slice(0, 40);
+  state.dishes = [];
   $('#grid').innerHTML = items.length ? items.map(renderRestaurantCard).join('') : '<div class="empty">No restaurants matched that craving.</div>';
   document.querySelectorAll('[data-store]').forEach((card) => {
     card.addEventListener('click', () => openMenu(card.dataset.store || '', card.dataset.storeName || 'Restaurant'));
   });
+  publishContext();
+}
+
+/** Wire every rendered dish's Add button (menu and chat cards alike) and remember what is shown. */
+function hydrateDishButtons(items) {
+  state.dishes = items.slice(0, 40);
+  document.querySelectorAll('[data-add]').forEach((button) => {
+    button.addEventListener('click', () => addItem({
+      storeId: button.dataset.storeId,
+      storeName: button.dataset.storeName,
+      productId: button.dataset.productId,
+      title: button.dataset.title
+    }));
+  });
+  publishContext();
 }
 
 async function openMenu(storeId, storeName) {
@@ -861,28 +1002,32 @@ async function openMenu(storeId, storeName) {
   const result = await getJson(`${API}/menu?storeId=${encodeURIComponent(storeId)}`);
   const items = result.items || [];
   $('#grid').innerHTML = items.length ? items.map(renderDishCard).join('') : '<div class="empty">No menu items found.</div>';
-  document.querySelectorAll('[data-add]').forEach((button) => {
-    button.addEventListener('click', () => addItem({
-      storeId: button.dataset.storeId,
-      storeName: button.dataset.storeName,
-      productId: button.dataset.productId,
-      title: button.dataset.title,
-      price: Number(button.dataset.price || 0),
-      imageUrl: button.dataset.imageUrl
-    }));
-  });
+  hydrateDishButtons(items);
 }
 
 async function addItem(item) {
-  const result = await postJson(`${API}/cart/items`, { ...item, quantity: 1 });
-  if (result.storeSwitched) toast(`Started a new order at ${item.storeName || 'this restaurant'}`);
-  else toast(`Added ${item.title}`);
+  // The server prices the line from the restaurant's menu: only the ids travel, never a price.
+  const result = await postJson(`${API}/cart/items`, { storeId: item.storeId, productId: item.productId, quantity: 1 });
+  if (!result || result.error) {
+    toast((result && result.message) || 'That dish could not be confirmed');
+    return;
+  }
+  const title = (result.item && result.item.title) || item.title || 'item';
+  if (result.storeSwitched) toast(`Started a new order at ${result.storeName || item.storeName || 'this restaurant'}`);
+  else toast(`Added ${title}`);
   renderCart(result);
 }
 
 function renderCart(data) {
   const items = data.items || [];
-  state.cart = { items, total: Number(data.total || 0), storeName: data.storeName || data.cart?.store_name || '' };
+  if (data.cartId) state.cartId = data.cartId;
+  state.cart = {
+    items,
+    total: Number(data.total || 0),
+    totalCents: Number(data.totalCents) || 0,
+    unpricedLines: Number(data.unpricedLines) || 0,
+    storeName: data.storeName || data.cart?.store_name || ''
+  };
   $('#cartStore').textContent = data.storeName || state.cart.storeName || (items.length ? 'Restaurant order' : 'Pick a restaurant or ask the concierge.');
   $('#total').textContent = `$${Number(data.total || 0).toFixed(2)}`;
   $('#orderBtn').disabled = items.length === 0;
@@ -900,6 +1045,7 @@ function renderCart(data) {
       renderCart(await response.json());
     });
   });
+  publishContext();
 }
 
 async function loadCart() {
@@ -948,16 +1094,164 @@ async function sendChat() {
     if (state.conversationId) localStorage.setItem('oshalEatsConv', state.conversationId);
     pending.textContent = result.reply || 'I could not build that order yet.';
     if (Array.isArray(result.cards) && result.cards.length) {
+      state.mode = 'menu';
+      $('#sectionTitle').textContent = 'Concierge picks';
+      $('#sectionSub').textContent = '';
+      $('#backBtn').style.display = 'inline';
       $('#grid').innerHTML = result.cards.map(renderDishCard).join('');
+      hydrateDishButtons(result.cards);
     }
     if ((result.added || []).length || result.cart) await loadCart();
-    if (result.checkout?.checkoutUrl) {
-      toast('Opening Uber Eats');
-      window.open(result.checkout.checkoutUrl, '_blank');
-      loadHistory();
-    }
+    // A chat order is a PROPOSAL: it becomes a confirm card and nothing opens until the diner
+    // clicks Confirm (onProposalClick -> requestOrder()).
+    if (result.proposal) proposeOrder(result.proposal);
   } catch {
     pending.textContent = 'I hit an error building that order. Try searching directly.';
+  }
+}
+
+// ── The assistant rail (shared surface bridge) ───────────────────────────────
+// The page publishes what it is showing (`context`) so the floating assistant answers about the
+// restaurants, menu and order on screen, and it takes the assistant's `custom` ops through the
+// same functions the buttons call. An order anyone proposes (the embedded concierge or the
+// floating assistant) is a `propose` card rendered by the shared client; only the diner's
+// Confirm opens Uber Eats.
+const EATS_APP = 'eats';
+const BRIDGE_CHANNEL = 'oshal-surface-bridge';
+const DIGEST_CAP = 3900;
+const SEARCH_DOC = 'Search restaurants and cravings and show them. data = {"query":"<words>"}.';
+const MENU_DOC = 'Open one restaurant\'s menu. data = {"storeId":"<a restaurant id from the digest>"}.';
+const ADD_DOC = 'Add one dish to the order; the server prices it from the menu, so send no price. data = {"storeId":"<restaurant id>","productId":"<dish id from the digest Menu line>"}.';
+const ORDER_DOC = 'Ask the diner to confirm opening the order in Uber Eats. It shows a confirm card; nothing opens until they click it. data = {}.';
+
+/** The page state the digest summarises, read once so the digest itself stays a pure function. */
+function eatsView() {
+  return {
+    cart: state.cart,
+    mode: state.mode,
+    heading: $('#sectionTitle').textContent,
+    address: $('#address').value.trim(),
+    restaurants: state.restaurants,
+    dishes: state.dishes
+  };
+}
+
+// digest-helpers:start
+function eatsDigest(view) {
+  const items = view.cart.items || [];
+  const unpriced = Number(view.cart.unpricedLines) || 0;
+  const lines = [`Order: ${items.length} line${items.length === 1 ? '' : 's'}${view.cart.storeName ? ` from ${view.cart.storeName}` : ''}, total $${Number(view.cart.total || 0).toFixed(2)}${unpriced ? ` (${unpriced} without a price)` : ''}`];
+  if (items.length) lines.push('Lines: ' + items.map((i) => `${i.item_id} ${i.title} x${i.quantity} @ $${Number(i.price || 0).toFixed(2)}`).join('; '));
+  lines.push(`Deliver to: ${view.address || 'not set'}`);
+  lines.push(`Showing: ${view.heading} (${view.mode === 'menu' ? 'menu' : 'restaurants'})`);
+  if (view.mode === 'menu' && view.dishes.length) lines.push('Menu: ' + view.dishes.map((d) => `${d.storeId}/${d.productId} ${d.title} $${Number(d.price || 0).toFixed(2)}`).join('; '));
+  if (view.mode !== 'menu' && view.restaurants.length) lines.push('Restaurants: ' + view.restaurants.map((r) => `${r.productId} ${r.title}${r.cuisine ? ` (${r.cuisine})` : ''}`).join('; '));
+  const text = lines.join('\n');
+  return text.length > DIGEST_CAP ? text.slice(0, DIGEST_CAP) + '\n…(truncated)' : text;
+}
+// digest-helpers:end
+
+function publishContext() {
+  if (!window.__bridge) return;
+  const view = eatsView();
+  try {
+    window.__bridge.emitContext({
+      surface: view.mode === 'menu' ? 'eats-menu' : 'eats-restaurants',
+      title: view.cart.storeName ? `Order from ${view.cart.storeName}` : 'Eats order',
+      ...(state.cartId ? { recordId: String(state.cartId) } : {}),
+      digest: eatsDigest(view),
+      fields: {
+        orderLines: (view.cart.items || []).length,
+        totalCents: Number(view.cart.totalCents) || 0,
+        address: view.address.slice(0, 200),
+        query: $('#query').value.trim().slice(0, 200),
+        view: view.mode
+      },
+      can: ['set_field', 'custom', 'propose', 'notify'],
+      customOps: [
+        { name: 'search', description: SEARCH_DOC },
+        { name: 'open_menu', description: MENU_DOC },
+        { name: 'add_item', description: ADD_DOC },
+        { name: 'place_order', description: ORDER_DOC }
+      ]
+    });
+  } catch (err) {
+    console.warn('[eats] context publish failed', err && err.message);
+  }
+}
+
+/** The confirm card for the current order (the server computed the total it quotes). */
+function cartProposal() {
+  const items = state.cart.items || [];
+  if (!items.length) return null;
+  const units = items.reduce((n, i) => n + (Number(i.quantity) || 1), 0);
+  const store = state.cart.storeName ? ` from ${state.cart.storeName}` : '';
+  return { summary: `Open Uber Eats for ${units} item${units === 1 ? '' : 's'}${store} totalling $${Number(state.cart.total || 0).toFixed(2)}? You confirm the address and pay in Uber Eats; nothing is charged here.` };
+}
+
+/** Show an order proposal as the shared client's confirm card; never opens anything itself. */
+function proposeOrder(proposal) {
+  const summary = String((proposal && proposal.summary) || '').trim();
+  if (!summary) return;
+  if (window.__bridgeProducer) {
+    window.__bridgeProducer.emitOps([{ op: 'propose', actionId: 'place_order', summary, confirmLabel: 'Open Uber Eats', cancelLabel: 'Not yet' }]);
+    return;
+  }
+  // No bridge module (an old cockpit or a static preview): say it; the explicit button stays the only way out.
+  addMessage('bot', `${summary} Use "Open Uber Eats" to continue.`);
+}
+
+/** Remember which action the card on screen proposes (every propose replaces the last card). */
+function trackProposal(evt) {
+  if (evt.origin !== window.location.origin) return;
+  const d = evt.data;
+  if (!d || d.channel !== BRIDGE_CHANNEL || d.v !== 1 || d.app !== EATS_APP) return;
+  if (d.op === 'propose') {
+    state.proposedAction = String(d.actionId || '');
+    setTimeout(() => $('#bridgeOptions').scrollIntoView({ block: 'nearest' }), 0);
+  } else if (d.op === 'render_options') {
+    state.proposedAction = null;
+  }
+}
+
+/** Capture-phase click on the options host: the diner's Confirm is the ONLY hand-off trigger. */
+function onProposalClick(event) {
+  const button = event.target && event.target.closest ? event.target.closest('button') : null;
+  if (!button) return;
+  const action = state.proposedAction;
+  if (button.classList.contains('bridge-cancel')) { state.proposedAction = null; return; }
+  if (!button.classList.contains('bridge-confirm')) return;
+  state.proposedAction = null;
+  if (action === 'place_order') requestOrder();
+}
+
+/** The assistant's custom ops, applied through the same functions the page's own buttons use. */
+function onBridgeCustom(evt) {
+  const detail = evt.detail || {};
+  const data = detail.data || {};
+  if (detail.name === 'request_context') { publishContext(); return; }
+  if (detail.name === 'search') {
+    const query = String(data.query || '').trim().slice(0, 200);
+    $('#query').value = query;
+    search(query);
+    return;
+  }
+  if (detail.name === 'open_menu') {
+    const storeId = String(data.storeId || '').trim();
+    const known = state.restaurants.find((r) => String(r.productId) === storeId);
+    if (storeId) openMenu(storeId, (known && known.title) || String(data.storeName || 'Restaurant'));
+    return;
+  }
+  if (detail.name === 'add_item') {
+    const storeId = String(data.storeId || '').trim();
+    const productId = String(data.productId || '').trim();
+    const shown = state.dishes.find((d) => String(d.productId) === productId && String(d.storeId) === storeId);
+    if (storeId && productId) addItem({ storeId, productId, title: shown ? shown.title : '', storeName: shown ? shown.brand : '' });
+    return;
+  }
+  if (detail.name === 'place_order') {
+    const proposal = cartProposal();
+    if (proposal) proposeOrder(proposal); else toast('Add items first');
   }
 }
 
@@ -1015,6 +1309,11 @@ async function boot() {
   $('#orderBtn').addEventListener('click', requestOrder);
   $('#chatSend').addEventListener('click', sendChat);
   $('#chatInput').addEventListener('keydown', (event) => { if (event.key === 'Enter') sendChat(); });
+  $('#address').addEventListener('change', publishContext);
+  $('#bridgeOptions').addEventListener('click', onProposalClick, true);
+  window.addEventListener('message', trackProposal);
+  document.addEventListener('surface-bridge:custom', onBridgeCustom);
+  window.addEventListener('bridge-ready', publishContext);
   await Promise.all([loadProfile(), loadHistory(), loadCart()]);
   await search('');
   try {
@@ -1026,13 +1325,38 @@ async function boot() {
   }
 }
 
-boot();
+// Under an audience view (ADR-164 D6) the kit paints from its own reads; the full page starts only when no view
+// renders, and always when the shared kit is absent.
+if (!window.AppView || !AppView.active()) boot();
+</script>
+
+<!-- The assistant rail: the shared surface-bridge client renders what the floating assistant sends
+     (set_field / propose / notify / custom) and publishes what this page shows (`context`). The
+     producer in 'self' mode lets the embedded concierge's order proposal travel the SAME path, so
+     both assistants drive one confirm card. Degrades silently without the module. -->
+<script type="module">
+  // Under an audience view the assistant rail stays off: the view publishes no context and takes no relayed op.
+  if (!window.AppView || !AppView.active()) {
+  try {
+    const { createSurfaceBridgeClient } = await import('/shared/ui/js/surface-bridge-client.js');
+    const { createSurfaceProducer } = await import('/shared/ui/js/surface-bridge-producer.js');
+    const bridge = createSurfaceBridgeClient({ app: 'eats' });
+    bridge.attach();
+    window.__bridge = bridge;
+    window.__bridgeProducer = createSurfaceProducer({ win: window, postTarget: 'self', app: 'eats' });
+    window.dispatchEvent(new Event('bridge-ready'));
+  } catch (err) {
+    console.warn('[eats] assistant rail unavailable', err && err.message);
+  }
+  }
 </script>
 
 <!-- App-owned context integration: drafts only; existing actions still execute explicitly. -->
 <script type="module">
 import { receiveHandoff } from '/cockpit/js/app-handoff.js';
 import { mountConnectedActions } from '/cockpit/js/app-workflows.js';
+// Under an audience view no handoff listener binds and the connected-actions plan is not read.
+if (!window.AppView || !AppView.active()) {
 const clip = value => String(value || '').slice(0,2000);
 const val = id => clip(document.getElementById(id)?.value?.trim());
 const set = (id,value) => { const el=document.getElementById(id); el.value = el.tagName === 'INPUT' ? String(value || '').replace(/\s*\n+\s*/g, ' · ') : value || ''; };
@@ -1042,6 +1366,7 @@ const element = document.createElement('section'); element.className='connected-
 element.style.cssText='margin:0 0 12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel,var(--surface));display:flex;gap:8px;align-items:center;flex-wrap:wrap';
 document.querySelector('.results').prepend(element);
 void mountConnectedActions({ app:"eats", element, contextForOffer:()=>{ const notes=val('chatInput') || val('query'); if(!notes) return null; return {title:'Prepare for my meal request',notes:clip(notes+(val('address')?'\nMeal location: '+val('address'):''))}; } }).then(()=>element.querySelectorAll('button').forEach(button=>button.classList.add('btn')));
+}
 </script>
 </body>
 </html>

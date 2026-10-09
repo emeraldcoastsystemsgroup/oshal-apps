@@ -6,6 +6,7 @@
 # 2026-07-24 15:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog burn-down: four shows (Feud+Fast Money, Jeopardy+Double Jeopardy, Wheel of Fortune, Whammy), the one-window rehearsal surface, spoken answers, single-TTS-speaker election, broadcast reactions, per-room cost, manual host questions, localJudge, retention. v0.4.0.
 # 2026-07-25 02:20:00 | codex                                      | Release v0.5.0 with theme-following responsive surfaces and reusable TV cutaways that prefer pre-rendered MP4s and fail soft to local animations.
 # 2026-07-31 23:20:00 | roger.murphy@emeraldcoastsystemsgroup.com  | v0.10.0 backlog pass: the show open auto-narrates (#4), the Whammy ring closes at 8-12 panels (#3) and its centre screen shows the current beat (#5), the set photographer stages deterministically instead of racing the NPC (#9), and the lobby grew the cross-game Hall of fame over the seat score snapshots (#11).
+# 2026-09-28 12:31:00 | maintainer@emeraldcoastsystemsgroup.com    | 0.11.3, ADR-164 D6: the family audience view for the Home (Jarvis) shell. The shell opens the first surface, Game Show Review, with ?audience=family; the page now answers with the account's game nights in plain words, painted by the shared kit: the three hosted-room counts (waiting in the lobby, marked live, ended in the last 5 days), the three newest hosted rooms with their state and last update, and the hall of fame of best scores, from three plain GETs (/home-summary, the lobby's /leaderboard, the static /shows catalog for show names). It never reads /rooms (its listing runs the ended-room retention DELETE), a room's state, sync, cost, QR or camera stills, never opens, joins or starts a room, never calls the host bot, a voice or a model, never fetches connected-actions offers and writes nothing. The full page's start is gated on the kit's decision and runs unchanged without the parameter. Registers the audience-view Test Lab case (testing: + uses: test-catalog). No route, schema or authorization change.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Game Show (AI game night, live at the table or across phones)
@@ -34,6 +35,31 @@
 
 name: game-show
 suite: ai-creative   # ADR-097: primary catalog shelf (games/entertainment live under creative)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: round-generation
+      unit: round of questions
+      tier: T2
+      generation: none
+      degrade: template
+    - id: answer-judging
+      unit: judged guess
+      tier: T1
+      generation: none
+      degrade: template
+    - id: host-narration
+      unit: spoken host line
+      tier: T2
+      generation: hosted
+      degrade: disable
+    - id: contestant-interview
+      unit: interview beat
+      tier: T2
+      generation: hosted
+      degrade: disable
 displayName: Game Show
 description: >-
   AI game night that plays like the real TV show. A host opens a room, everyone
@@ -46,8 +72,11 @@ description: >-
   with the rehearsal view. Four shows ship on the one modular engine: Family Feud
   (with Fast Money), Jeopardy (with Double Jeopardy), Wheel of Fortune, and Whammy;
   the host can also play their OWN questions, no AI required.
-version: 0.11.1
+version: 0.11.4
 
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: active
 
 # The app TILE is public so every signed-in player sees it in the ribbon (a
@@ -86,6 +115,7 @@ uses:
   - voice
   - media-generation
   - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
+  - test-catalog
 
 # ── ADR-085: dependencies ───────────────────────────────────────────────────
 # Self-contained: the host invents show content live, so no external data source.
@@ -144,10 +174,10 @@ ui:
       iframeUrl: /api/game-show/review
       section: top
     - { toolName: game-show-stage,   label: Play,        icon: codicon codicon-game,           iframeUrl: /api/game-show/stage,               section: top }
-    - { toolName: game-show-tv,      label: Big Screen,  icon: codicon codicon-device-desktop,  iframeUrl: /api/game-show/stage?view=tv,       section: top }
-    - { toolName: game-show-clicker, label: Clicker,     icon: codicon codicon-radio-tower,     iframeUrl: /api/game-show/stage?view=clicker,  section: top }
-    - { toolName: game-show-host,    label: Host Desk,   icon: codicon codicon-mortar-board,    iframeUrl: /api/game-show/stage?view=host,     section: top }
-    - { toolName: game-show-help,    label: How to Play, icon: codicon codicon-book,            iframeUrl: /api/game-show/stage?view=help,     section: bottom }
+    - { toolName: game-show-tv,      label: Big Screen,  icon: codicon codicon-device-desktop,  iframeUrl: "/api/game-show/stage?view=tv",       section: top }
+    - { toolName: game-show-clicker, label: Clicker,     icon: codicon codicon-radio-tower,     iframeUrl: "/api/game-show/stage?view=clicker",  section: top }
+    - { toolName: game-show-host,    label: Host Desk,   icon: codicon codicon-mortar-board,    iframeUrl: "/api/game-show/stage?view=host",     section: top }
+    - { toolName: game-show-help,    label: How to Play, icon: codicon codicon-book,            iframeUrl: "/api/game-show/stage?view=help",     section: bottom }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ROUTES — compiled JS bundled in this package, mounted in-process at activation

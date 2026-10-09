@@ -14,6 +14,109 @@
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the signed-in account's saved
+     spaces (real spaces ready to explore, practice rooms, scans still being built, scans that did not finish, and the
+     latest three scans) from the SAME GET /api/spaces/home-summary the full page's evidence panel reads, painted by the
+     shared kit in the family grammar. On open it makes that one read and nothing else: never the scan list or the scene
+     list (both run the orphaned-scan self-heal, an UPDATE), never a scan's dimensions, scene, artifact or geometry (each
+     reads the whole model file), never the 3D viewer, a capture plan, an upload, an import, a drone scan or a coverage
+     run. Any other request runs the full Spaces page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<style>
+  /* This page pins a two-column body to one screen with overflow hidden, paints every main dark for the 3D viewer and
+     stretches every button; under an audience view the kit's page lays out as a block that grows and scrolls, keeps
+     the skin's background, and its buttons keep their own width. */
+  html[data-audience] body { display: block; height: auto; overflow: visible; }
+  html[data-audience] #av-root { background: transparent; }
+  html[data-audience] #av-root button { width: auto; }
+</style>
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=spaces', KICKER = 'Spaces in 3D';
+  var STATES = { ready: 'Ready to explore', queued: 'Waiting to be built', reconstructing: 'Being built', failed: 'Did not finish' };
+  var KINDS = { edge: 'Built from a walk-through video', 'import': 'Imported from a 3D scan', sim: 'Practice room, made up and not measured' };
+  var ICONS = { ready: '🏠', queued: '⏳', reconstructing: '⏳', failed: '⚠️' };
+  // One GET under the caller's session: an HTTP answer resolves with its status and parsed body (null when not JSON); a network failure rejects.
+  function read() {
+    return fetch('/api/spaces/home-summary', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }, function () { return { ok: r.ok, status: r.status, body: null }; });
+    });
+  }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  // home-summary sends each count as digits in a string ('0', '12'), or the word 'Unavailable' when its count query failed.
+  function count(value) { return typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : null; }
+  function metric(body, id) {
+    var m = (Array.isArray(body.metrics) ? body.metrics : Array.isArray(body.tiles) ? body.tiles : []).filter(function (x) { return x && x.id === id; })[0];
+    return m ? count(m.value) : null;
+  }
+  // A saved scan is an item carrying the prepare-document action; its own notes (the empty state, the unchecked source,
+  // the route's explainer) carry none. The route writes a scan's detail as 'status / provider / updated_at'
+  // (routes/home-summary.js): the provider reads 'provider pending' until one is picked, the time is ISO or 'date unavailable'.
+  function scans(body) { return body.items.filter(function (i) { return i && Array.isArray(i.actions) && i.actions.length > 0 && typeof i.detail === 'string'; }); }
+  function fields(detail) { var p = detail.split(' / '); return p.length === 3 ? { status: p[0], provider: p[1], at: p[2] } : null; }
+  function known(at) { return !isNaN(new Date(at).getTime()); }
+  function state(f) { return STATES[f.status] || 'Status: ' + f.status; }
+  function tile(item) {
+    var f = fields(item.detail), title = item.text || 'Untitled space';
+    if (!f) return { icon: '🧊', title: title, text: item.detail || null };
+    return { icon: f.status === 'ready' && f.provider === 'sim' ? '🧪' : ICONS[f.status] || '🧊', title: title, text: KINDS[f.provider] || null, meta: known(f.at) ? 'updated ' + A.when(f.at) : null,
+      badge: state(f), tone: item.tone === 'warn' ? 'warn' : null };
+  }
+  function stat(id, label, n, tone, hint) { return { id: id, label: label, value: n === null ? '—' : n, tone: n === null ? null : tone, hint: n === null ? 'Could not check' : hint }; }
+  function stats(c) {
+    return [
+      stat('real', 'Real spaces ready', c.ready, null, 'Imported scans and video builds'),
+      stat('practice', 'Practice rooms', c.practice, null, 'Made up to try Spaces, not measured'),
+      stat('building', 'Being built', c.building, null, null),
+      stat('failed', 'Did not finish', c.failed, c.failed > 0 ? 'warn' : null, null)
+    ];
+  }
+  function headline(c, rows) {
+    if (c.ready > 0) return plural(c.ready, 'real space', 'real spaces') + ' ready to explore';
+    if (c.building > 0) return plural(c.building, 'space', 'spaces') + ' being built';
+    if (c.practice > 0) return plural(c.practice, 'practice room', 'practice rooms') + ', no real space yet';
+    if (c.failed > 0) return plural(c.failed, 'scan', 'scans') + ' did not finish';
+    return rows.length ? 'Your latest spaces' : 'No saved spaces yet';
+  }
+  function lede(rows) {
+    var first = rows[0], f = first && fields(first.detail);
+    if (!first) return 'Spaces turns a walk-through video or a 3D scan from a phone or tablet into a room you can walk around on screen. Spaces saved there show up here.';
+    var where = f ? ', ' + state(f).toLowerCase() + (known(f.at) ? ', updated ' + A.when(f.at) : '') : '';
+    return 'Latest: ' + (first.text || 'Untitled space') + where + '. Adding, building and walking through a space happen in Spaces.';
+  }
+  // Both counts and the latest scans come from one route; when only its scan query failed the counts still read, and the
+  // latest-scans section says it could not check rather than claiming nothing is saved.
+  function latest(rows, partial, countsRead) {
+    return { kind: 'tiles', id: 'latest', title: 'Latest spaces', items: rows.map(tile),
+      empty: partial && countsRead ? 'The latest scans could not be checked just now.' : 'No saved spaces yet.',
+      note: (partial ? 'Some saved details could not be checked just now. ' : '') + 'Up to three of this account’s most recently updated scans. A practice room is made up to try Spaces, not a copy of a real room. Nothing on this page films, imports or builds a space.' };
+  }
+  function model(body) {
+    var c = { ready: metric(body, 'scans-ready'), practice: metric(body, 'sim-ready'), building: metric(body, 'scans-active'), failed: metric(body, 'scans-failed') };
+    var rows = scans(body);
+    return { kicker: KICKER, title: headline(c, rows), lede: lede(rows),
+      actions: [{ label: 'Open Spaces', primary: true, onClick: function () { A.open(FULL); } }],
+      stats: stats(c), sections: [latest(rows, body.partial === true, c.ready !== null)] };
+  }
+  function refusal(status) {
+    return { kicker: KICKER, title: status === 401 ? 'Sign in to see your spaces' : 'This account cannot open Spaces',
+      lede: status === 401 ? 'Spaces shows the saved scans of whoever is signed in, and this session is not signed in.' : 'The Spaces routes refused this account (HTTP 403).' };
+  }
+  function family() {
+    return read().then(function (res) {
+      if (res.status === 401 || res.status === 403) return refusal(res.status);
+      if (!res.ok) throw new Error('Spaces could not read the saved scans (HTTP ' + res.status + ').');
+      var b = res.body;
+      if (!b || !Array.isArray(b.items) || (!Array.isArray(b.metrics) && !Array.isArray(b.tiles))) throw new Error('Spaces sent an answer this view could not read.');
+      return model(b);
+    }, function () { throw new Error('Spaces could not be reached just now.'); });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'spaces', escapeLabel: 'Open Spaces in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
 <!-- ADR-139 send-to: every ready scan is tagged as an embodied-scene source; the shared component draws the 📤 chip. -->
 <script src="/api/artifacts/send-to.js" defer></script>
 <style>
@@ -143,7 +246,9 @@
   </main>
 
 <script>
-(() => {
+// The full page only: under an audience view the shared kit paints instead (see the head block), so nothing below binds
+// a control, reads the scan list (whose GET self-heals orphaned scans with an UPDATE) or starts the 8 s refresh.
+if (!window.AppView || !AppView.active()) (() => {
   "use strict";
   const API = "/api/spaces";
   const listEl = document.getElementById("scan-list");
@@ -166,6 +271,33 @@
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   let toastTimer;
   const toast = (msg) => { toastEl.textContent = msg; toastEl.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2600); };
+
+  // ADR-169 L7: the guided capture page remembers its session id in this browser. An upload made
+  // within two hours of that capture names the session, so the scan is anchored to where it was
+  // captured; the id is forgotten once an upload has carried it.
+  const SESSION_KEY = "oshal-spaces-capture-session";
+  const SESSION_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+  function capturedSession() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+      if (!saved || typeof saved.id !== "string" || typeof saved.at !== "number") return null;
+      return Date.now() - saved.at <= SESSION_MAX_AGE_MS ? saved.id : null;
+    } catch (_) { return null; /* storage refused or unreadable: upload without a session */ }
+  }
+  function forgetSession() {
+    try { localStorage.removeItem(SESSION_KEY); } catch (_) { /* nothing was stored */ }
+  }
+  function nameCapture(fd) {
+    const session = capturedSession();
+    if (session) fd.append("captureSessionId", session);
+    return session;
+  }
+  function anchorNote(anchor) {
+    if (anchor && anchor.anchored) return " — anchored to where it was captured";
+    if (anchor && anchor.reason === "no_capture_gps") return " — no GPS fix in the capture, so it is not anchored";
+    if (anchor && anchor.reason === "location_precision_stores_no_coordinates") return " — not anchored: your location precision stores no coordinates";
+    return "";
+  }
 
   // The to-scale footprint of a ready scan — the "it measured my real room" proof. Metres for a
   // LiDAR/photogrammetry import (metric by construction); labelled "relative scale" otherwise so a
@@ -285,12 +417,14 @@
       const fd = new FormData();
       fd.append("video", fileInput.files[0]);
       fd.append("title", document.getElementById("title").value || fileInput.files[0].name);
-      const { scan } = await j(API + "/scans", { method: "POST", body: fd });
+      const named = nameCapture(fd);
+      const { scan, anchor } = await j(API + "/scans", { method: "POST", body: fd });
+      if (named) forgetSession();
       form.reset();
       scans.unshift(scan);
       render();
       pollScan(scan.id);
-      toast("Reconstruction started — this runs in the background");
+      toast("Reconstruction started" + (anchorNote(anchor) || " — this runs in the background"));
     } catch (e) {
       toast("Upload failed: " + e.message);
     } finally {
@@ -309,12 +443,14 @@
       const fd = new FormData();
       fd.append("model", modelInput.files[0]);
       fd.append("title", document.getElementById("title").value || modelInput.files[0].name);
-      const { scan } = await j(API + "/scans/import", { method: "POST", body: fd });
+      const named = nameCapture(fd);
+      const { scan, anchor } = await j(API + "/scans/import", { method: "POST", body: fd });
+      if (named) forgetSession();
       importForm.reset();
       scans.unshift(scan);
       render();
       pollScan(scan.id);
-      toast("Import started — converting your capture");
+      toast("Import started" + (anchorNote(anchor) || " — converting your capture"));
     } catch (e) {
       toast("Import failed: " + e.message);
     } finally {
@@ -384,7 +520,8 @@
  <div id="evidenceActions"></div>
 </details>
 <script>
-(async()=>{
+// The full page only: under an audience view no connected-actions offer is fetched and the evidence panel is not wired.
+if (!window.AppView || !AppView.active()) (async()=>{
 const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');
 const panel=document.getElementById('evidenceReview'),pick=document.getElementById('evidenceChoice'),notes=document.getElementById('evidenceNotes'),state=document.getElementById('evidenceState');let records=[],loaded=false;
 await mountConnectedActions({element:document.getElementById('evidenceActions'),app:"spaces",contextForOffer:()=>({title:records[pick.selectedIndex]?.text||'Diagnostic review',notes:notes.value})});

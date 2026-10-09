@@ -14,11 +14,60 @@ The authoritative profile-v1 controls are:
 - `installLifecycle`: install, update, uninstall, and reinstall against the real package boundary.
 - `surface`: responsive and theme behavior on the declared surfaces.
 
-Evidence entries contain a human-readable name and the SHA-256 of the preserved evidence bytes.
-A `passed` record needs every control passed, at least one evidence digest, a UTC audit timestamp,
+A `passed` or `failed` record names exactly seven evidence documents: one per control plus
+`goldenPath`. `goldenPath` is the package's own offline Test Lab case, and it gates `authz`. A
+`pending` record names none. A `passed` record needs every control passed, a UTC audit timestamp,
 and the exact 40-character Git SHA reviewed. Run an audit against an already committed source SHA,
 then publish its record and matching marketplace binding as a separate reviewed change. Never use
 the commit containing the attestation as a self-referential source SHA.
+
+## Evidence
+
+Each evidence document is stored at `audits/evidence/<app>/<sourceSha>/<name>.json`. It is
+canonical JSON: keys are sorted at every depth, with two-space indentation and one trailing
+newline. It carries no timestamp or duration, so re-running a control over the same source
+reproduces the same bytes. A document names the app, version, source SHA, `source.path`, the Git
+tree ID of the package at that SHA (`packageTree`), its control, its result, and the named checks
+with their problems. The record's `evidence[].sha256` is the SHA-256 of those bytes.
+
+The validator and the core installer both re-hash every document. They also require it to describe
+this record, and require the record's control statuses to equal the documents' results. A changed
+byte, a missing document, or a record that disagrees with its evidence fails in every mode.
+
+A passed record is **current** only while the package tree at `HEAD` equals the tree at
+`sourceSha`. Any later change to the package, including a manifest version bump, makes the record
+stale, and CI fails with "re-audit required". The validator therefore needs a checkout that holds
+the audited commit. The security workflow's inventories job fetches full history for that reason.
+
+## Running an audit
+
+`scripts/security/run-package-audit.mjs` extracts the committed SHA with `git archive`. It never
+uses a worktree and never touches the checkout. It runs each control against the extracted tree:
+
+| Evidence | Checks |
+|---|---|
+| `manifest` | core `oshal-app.js validate`; `check-catalog` problems for this package; compiled-route peers from the route inventory |
+| `authz` | the package's route/auth/write inventory equals the reviewed `store-route-inventory.json`; machine-write routes need a passing authorization/isolation test |
+| `rls` | `check-forced-rls` for this package's migrations; a package with migrations fails until the disposable-PostgreSQL replay and two-owner proof is added to the runner |
+| `dependencies` | undeclared cross-package edges, the connector allow-list, public secret fallbacks; third-party `package.json`/Python dependencies fail until an advisory scan is added |
+| `installLifecycle` | install, update, uninstall and reinstall through the core installer CLI from a throwaway single-commit store. The installed files must equal the audited package tree |
+| `surface` | `audit-live-surfaces.mjs` in Chromium on desktop and mobile in two themes, against a loopback host that mounts the package's own routes. A route that needs the framework host fails with that reason |
+| `goldenPath` | every offline `node-test` case in the package's `tests/test-lab.yaml`, with outcomes recorded by name |
+
+```text
+node scripts/security/run-package-audit.mjs <app> --sha <40-hex> --framework <core checkout>
+node scripts/security/run-package-audit.mjs <app> --sha <40-hex> --framework <core checkout> --write
+node scripts/security/run-package-audit.mjs <app> --verify --framework <core checkout>
+```
+
+A run without `--write` only prints the results. `--write` writes the seven documents, the record
+and the catalog binding together, and removes this app's evidence for older SHAs. `--verify`
+re-runs every control at the recorded SHA and fails unless each document reproduces byte for byte
+and still hashes to the recorded digest.
+
+The public snapshot (`scripts/build-store-public.sh`) is a fresh single-commit history, so no
+audited trunk SHA exists in it. Step 4c publishes every attestation there as a truthful pending
+record until the promoted catalog is audited against its own commit.
 
 ## Truthful pending records
 
@@ -57,12 +106,14 @@ install has a genuine passed record.
 
 ## Maintainer workflow
 
-1. Commit the package candidate and capture its full Git SHA.
-2. Run every profile control at that SHA, preserving the actual outputs as evidence artifacts.
-3. Hash the preserved evidence bytes with SHA-256.
-4. Update `audits/<app>.json` and the matching `marketplace.json` `audit.sourceSha` together.
-5. Run `node --test scripts/security/package-audit.test.mjs` and the validator in `enforce` mode
-   for that package decision before review.
+1. Commit the package candidate and capture its full Git SHA (a commit on `main`, so installers
+   can fetch it).
+2. Run `node scripts/security/run-package-audit.mjs <app> --sha <sha> --framework <core> --write`.
+   It runs every control at that SHA and writes the evidence, the record and the binding together.
+3. Run `node scripts/security/run-package-audit.mjs <app> --verify --framework <core>` to prove
+   the audit reproduces.
+4. Run `node --test scripts/security/package-audit.test.mjs` and the validator in `enforce` mode
+   for that package decision before review, then commit the record, binding and evidence.
 
 The checked-in `profile-v1.schema.json` is documentation/tooling support. The JavaScript validator
 is the release gate because the store CI intentionally has no dependency-install step.

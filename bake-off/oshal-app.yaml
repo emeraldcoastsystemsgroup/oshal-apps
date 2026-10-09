@@ -3,6 +3,7 @@
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.1.1: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.3: the company audience view (ADR-164 D6) on the first surface, tools/review.html, which the Business shells open with ?audience=company: saved runs and saved benchmarks from GET /home-summary and GET /jobs, painted by the shared kit; the page's module script runs only when no view renders. Never a run, a verdict or a write from the view. No route, schema or manifest key change beyond the version.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — bake-off ("AI Bake-Off")
@@ -29,13 +30,33 @@
 
 name: bake-off
 suite: ai-engineering   # ADR-097: one primary catalog shelf. It serves whoever owns the LLM bill.
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: model-race
+      unit: bake-off run
+      tier: T3
+      generation: none
+      degrade: disable
+    - id: lane-grading
+      unit: lane grade
+      tier: T2
+      generation: none
+      degrade: template
+    - id: bake-off-verdict
+      unit: verdict narration
+      tier: T2
+      generation: none
+      degrade: template
 displayName: AI Bake-Off
 description: >-
   Race one job across every AI lane you already have — each bot x harness x provider pairing —
   grade every output on the shared quality judge against your own rubric, and get one
   recommendation: the cheapest lane that still clears your quality bar, and what switching saves
   per month. Refuses to recommend anything it cannot honestly measure.
-version: 1.1.1
+version: 1.1.4
 testing:
   version: 1
   catalog: tests/test-lab.yaml

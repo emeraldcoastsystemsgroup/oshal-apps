@@ -16,6 +16,83 @@
      matters — without it the surface would have no colors at all. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience views (ADR-164 D6). The Home shell opens this page with ?audience=family (household money: net
+     worth, where it goes, recent activity) and the Business shell with ?audience=company (cash position:
+     accounts, holdings, month by month, transfers). Both read the SAME routes as the full page and are painted
+     by the shared kit; any other request runs the full Finance page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  function call(path, body) {
+    var opt = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' } : { credentials: 'same-origin' };
+    return fetch('/api/finance' + path, opt).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.message || j.error || ('HTTP ' + r.status)); e.code = j.error; e.status = r.status; throw e; } return j; }); });
+  }
+  function openFull() { window.location.assign(window.location.pathname); }
+  function syncAction(ctx) { return { label: 'Sync accounts', onClick: function () { call('/sync', {}).then(ctx.refresh, function (e) { alert(e.message); }); } }; }
+  function monthLabel(m) { var d = new Date(String(m).length === 7 ? m + '-01T00:00:00' : m); return isNaN(d) ? String(m) : d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' }); }
+  /** The shared read: status first, then the aggregate; a not-linked or not-synced answer becomes a model instead of an error. */
+  function picture(ctx, audience) {
+    return call('/status').then(function (st) {
+      if (!st.connected) return { setup: 'link', st: st };
+      return call('/summary').then(function (sum) { return { st: st, sum: sum }; }, function (e) { if (e.code === 'no_data' || e.status === 404) return { setup: 'sync', st: st }; throw e; });
+    }).then(function (r) {
+      var kicker = audience === 'company' ? 'Finance' : 'Money at home';
+      if (r.setup === 'link') return { kicker: kicker, title: 'Connect a bank or brokerage', lede: 'Nothing is linked yet. Finance links your accounts with your consent and reads balances and activity; it never moves money on its own.', actions: [{ label: 'Connect in Finance', primary: true, onClick: openFull }] };
+      if (r.setup === 'sync') return { kicker: kicker, title: 'Linked, not synced yet', lede: (r.st.institutions || []).length + ' institution(s) linked. Run a sync to read balances and activity.', actions: [{ label: 'Sync now', primary: true, onClick: syncAction(ctx).onClick }] };
+      return r;
+    });
+  }
+  function family(ctx) {
+    return picture(ctx, 'family').then(function (r) {
+      if (!r.sum) return r;
+      var a = r.sum.aggregate, cur = a.currency || 'USD', nw = a.netWorth || {}, months = a.spendByMonth || [], last = months[months.length - 1] || {}, top = a.topSpending || [], max = top.reduce(function (m, t) { return Math.max(m, Number(t.total) || 0); }, 0);
+      return {
+        kicker: 'Money at home', title: A.money(nw.net, cur), lede: (a.accounts || []).length + ' accounts at ' + (r.st.institutions || []).length + ' institution(s) · synced ' + A.when(r.sum.syncedAt),
+        actions: [syncAction(ctx)],
+        stats: [
+          { id: 'net', label: 'Net worth', value: A.money(nw.net, cur), tone: Number(nw.net) < 0 ? 'bad' : 'ok' },
+          { id: 'assets', label: 'What we have', value: A.money(nw.assets, cur) },
+          { id: 'debts', label: 'What we owe', value: A.money(nw.liabilities, cur), tone: Number(nw.liabilities) > 0 ? 'warn' : null },
+          { id: 'spend', label: last.month ? 'Spent in ' + monthLabel(last.month) : 'Spent this month', value: A.money(last.spend, cur) }
+        ],
+        sections: [
+          { kind: 'progress', id: 'spending', title: 'Where the money goes', note: 'Top categories in the last ' + (a.transactionWindowDays || 30) + ' days.', empty: 'No spending categories yet.', items: top.slice(0, 6).map(function (t) { return { label: t.category, value: max ? (Number(t.total) || 0) / max : 0, text: A.money(t.total, cur) }; }) },
+          { kind: 'list', id: 'accounts', title: 'Accounts', empty: 'No accounts yet.', items: (a.accounts || []).map(function (x) { return { title: x.name + (x.mask ? ' ····' + x.mask : ''), text: [x.institution, x.subtype || x.type].filter(Boolean).join(' · '), meta: A.money(x.balance, cur) }; }) },
+          { kind: 'table', id: 'recent', title: 'Recent activity', wide: true, empty: 'No transactions in the window.', columns: ['When', 'Who', 'Category', { label: 'Amount', align: 'right' }], rows: (a.recentTransactions || []).slice(0, 10).map(function (t) { return [A.date(t.date), t.name, t.category || '', { text: A.money(t.amount, cur), tone: Number(t.amount) < 0 ? 'ok' : null }]; }) }
+        ]
+      };
+    });
+  }
+  function company(ctx) {
+    return Promise.all([picture(ctx, 'company'), call('/payments').catch(function () { return { payments: [] }; })]).then(function (res) {
+      var r = res[0], payments = res[1].payments || [];
+      if (!r.sum) return r;
+      var a = r.sum.aggregate, cur = a.currency || 'USD', nw = a.netWorth || {}, months = (a.spendByMonth || []).slice(-6), last = months[months.length - 1] || {}, holdings = a.holdings || [], hv = holdings.reduce(function (m, h) { return m + (Number(h.value) || 0); }, 0);
+      return {
+        kicker: 'Finance', title: 'Cash position', lede: (a.accounts || []).length + ' accounts · ' + (r.st.institutions || []).length + ' institution(s) · synced ' + A.when(r.sum.syncedAt) + (a.sourceEnvironment ? ' · ' + a.sourceEnvironment : ''),
+        actions: [syncAction(ctx)],
+        stats: [
+          { id: 'net', label: 'Net', value: A.money(nw.net, cur), tone: Number(nw.net) < 0 ? 'bad' : null },
+          { id: 'assets', label: 'Assets', value: A.money(nw.assets, cur) },
+          { id: 'liabilities', label: 'Liabilities', value: A.money(nw.liabilities, cur) },
+          { id: 'income', label: last.month ? 'Income ' + monthLabel(last.month) : 'Income', value: A.money(last.income, cur) },
+          { id: 'spend', label: last.month ? 'Spend ' + monthLabel(last.month) : 'Spend', value: A.money(last.spend, cur) },
+          { id: 'holdings', label: 'Holdings', value: A.money(hv, cur), hint: holdings.length + ' positions' }
+        ],
+        sections: [
+          { kind: 'table', id: 'accounts', title: 'Accounts', empty: 'No accounts yet.', columns: ['Account', 'Institution', 'Type', { label: 'Balance', align: 'right' }], rows: (a.accounts || []).map(function (x) { return [x.name + (x.mask ? ' ····' + x.mask : ''), x.institution || '', x.subtype || x.type || '', { text: A.money(x.balance, cur) }]; }) },
+          { kind: 'table', id: 'months', title: 'Month by month', empty: 'No monthly history yet.', columns: ['Month', { label: 'Income', align: 'right' }, { label: 'Spend', align: 'right' }, { label: 'Net', align: 'right' }], rows: months.map(function (m) { var n = (Number(m.income) || 0) - (Number(m.spend) || 0); return [monthLabel(m.month), { text: A.money(m.income, cur) }, { text: A.money(m.spend, cur) }, { text: A.money(n, cur), tone: n < 0 ? 'bad' : 'ok' }]; }) },
+          { kind: 'table', id: 'holdings', title: 'Holdings', empty: 'No holdings.', columns: ['Position', 'Ticker', { label: 'Qty', align: 'right' }, { label: 'Value', align: 'right' }], rows: holdings.slice(0, 10).map(function (h) { return [h.name, h.ticker || '—', { text: A.num(h.quantity) }, { text: A.money(h.value, cur) }]; }) },
+          { kind: 'table', id: 'transfers', title: 'Recent transfers', empty: 'No transfers sent.', columns: ['When', 'Payee', { label: 'Amount', align: 'right' }, 'Status'], rows: payments.slice(0, 8).map(function (p) { return [A.date(p.created_at), p.payee || p.description || '', { text: A.money((Number(p.amount_cents) || 0) / 100, p.currency || cur) }, { text: (p.status || '') + (p.test_mode ? ' (test)' : ''), tone: /fail|return|cancel/i.test(p.status || '') ? 'bad' : /paid|complete|succeed/i.test(p.status || '') ? 'ok' : null }]; }) }
+        ]
+      };
+    });
+  }
+  A.boot({ app: 'finance', escapeLabel: 'Open Finance in the cockpit', audiences: { family: family, company: company } });
+})();
+</script>
 <style>
   /* This surface keeps its own short alias names, but DERIVES them from the framework theme rather
      than hardcoding hex — so all eleven themes work, not just the dark ones. The palette used to be
@@ -329,7 +406,8 @@ $('syncBtn').onclick = doSync;
 $('briefBtn').onclick = () => loadBrief(true);
 
 /** Boot: dashboard if connected, else the connect screen. */
-(async function init() {
+// The full page only: under an audience view the shared kit paints instead (see the head script).
+if (!window.AppView || !AppView.active()) (async function init() {
   try {
     const st = await api('/status');
     if (st.connected > 0) await renderDashboard(false);

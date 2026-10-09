@@ -31,10 +31,18 @@
  *                     |                             | runs three. Pinning this package's guards to a tree
  *                     |                             | another workflow is rewriting makes the suite a drift
  *                     |                             | alarm, not a test.
+ * 2026-09-27 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | 'certify' over the real adapter
+ *                     |                             | transport: the four reference presets on the
+ *                     |                             | vendored engine's REAL chain, each pass or fail with
+ *                     |                             | reasons from the closed aerosim.validity set (read
+ *                     |                             | from the engine itself, never restated here), the
+ *                     |                             | report stamped with the fingerprint capabilities
+ *                     |                             | reports.
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { spawnSync } from 'child_process';
 import { afterAll, describe, expect, it } from 'vitest';
 import { AeroEngineAdapter, AeroEngineError } from '../src-routes/engine-adapter';
 import { DEFAULT_DESIGN, DESIGN_SANITY_BOUNDS } from '../src-routes/aero-lab-routes';
@@ -218,6 +226,32 @@ describe('LIVE engine round-trip — the engine VENDORED IN THIS PACKAGE (the by
       `allUp=${build.massAllUpKg.toFixed(3)}kg packWh=${build.packWh.toFixed(1)} socPts=${energy.soc.length}`,
     );
   }, 300_000);
+
+  it('certify: the four reference presets on the REAL chain, each pass or fail for a closed-set reason', async () => {
+    if (!PYTHON) throw new Error(MISSING_ENGINE_MESSAGE);
+    const closed = spawnSync(PYTHON, ['-c', 'import json,sys; sys.path.insert(0, sys.argv[1]); from aerosim import validity; print(json.dumps(sorted(validity.CODES)))', VENDORED_ENGINE_DIR], { encoding: 'utf8' });
+    expect(closed.status, closed.stderr).toBe(0);
+    const codes = new Set(JSON.parse(closed.stdout) as string[]);
+    const caps = (await adapter.capabilities()) as { engineFingerprint?: string; capabilities?: { certify?: boolean } };
+    expect(caps.capabilities?.certify).toBe(true);
+    const r = (await adapter.request('certify', {})) as {
+      chain: string;
+      engineFingerprint: string;
+      presets: Array<{ key: string; outcome: string; reasons: Array<{ code: string }> }>;
+      summary: Record<string, number>;
+    };
+    expect(r.chain).toBe('real');
+    expect(r.engineFingerprint).toBe(caps.engineFingerprint);
+    expect(r.presets.map((p) => p.key)).toEqual(['tier1', 'fixedwing', 'hybrid80', 'r7winner']);
+    for (const p of r.presets) {
+      expect(['pass', 'fail'], `${p.key} is ${p.outcome}`).toContain(p.outcome);
+      if (p.outcome === 'fail') expect(p.reasons.length, p.key).toBeGreaterThan(0);
+      for (const reason of p.reasons) expect(codes.has(reason.code), `${p.key}: ${reason.code}`).toBe(true);
+    }
+    expect(r.summary.error).toBe(0);
+    // eslint-disable-next-line no-console -- deliberate: build-log evidence
+    console.log(`VENDORED certify (real chain): ${r.presets.map((p) => `${p.key}=${p.outcome}:${p.reasons.map((x) => x.code).join('+')}`).join(' ')}`);
+  }, 600_000);
 
   it('the shipped hybrid f=0.80 preset: real physics or a TYPED refusal, and the outcome is printed', async () => {
     if (!PYTHON) throw new Error(MISSING_ENGINE_MESSAGE);

@@ -37,6 +37,16 @@
 
 name: sat-ops
 suite: ai-engineering   # ADR-097: primary catalog shelf
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: sat-command-draft
+      unit: command draft chat turn
+      tier: T2
+      generation: none
+      degrade: disable
 displayName: Sat Ops
 description: >-
   Satellite fleet plane — a 3D orbit console with fleet attitude telemetry
@@ -44,7 +54,10 @@ description: >-
   from SGP4, pairwise conjunction screening, and an approval-gated command
   console (point / detumble / desat / safe). Sim engines only: the in-process
   RK4 gyrostat or the NASA 42 referee. Commands cannot leave simulation.
-version: 1.2.0
+version: 1.2.3
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: active
 
 source:
@@ -84,6 +97,7 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BOTS — the operations-planning brain (Form B inline concierge — drafts only,

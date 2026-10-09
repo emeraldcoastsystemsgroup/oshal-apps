@@ -21,6 +21,9 @@
   5   | maintainer@emeraldcoastsystemsgroup.com     | Add the 3D and print category and Scan-to-Print starter using the owning studio's fixed entry point.
   6   | maintainer@emeraldcoastsystemsgroup.com     | Add the owned layered-image editor as one distinct Image design starter and category.
   7   | maintainer@emeraldcoastsystemsgroup.com     | Link the original editable image template gallery with exact query context.
+  8   | maintainer@emeraldcoastsystemsgroup.com     | Add the Edit video card: it opens Video Studio's own manual timeline editor through the create-video-editor rail tile (CREATE-EDIT-05d); the existing Short video card still opens generation.
+  9   | maintainer@emeraldcoastsystemsgroup.com     | 1.9.3: the family audience view and its company alias for the whole-portal shells (ADR-164 D6): the kit and one builder over the package's own home-summary follow the theme bootstrap; the page's start (render, the per-studio access checks and the AI Office starter read) runs only when no view is active.
+  10  | maintainer@emeraldcoastsystemsgroup.com     | Add the Brand intro clip card in Video; it opens the brand-graphics package's own review page.
 -->
 <html lang="en" data-theme="create">
 <head>
@@ -29,6 +32,62 @@
 <title>Create — New</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). Jarvis (the Home shell) opens this page with ?audience=family and Studio, Orbit and Commons
+     with ?audience=company: the signed-in account's OWN image projects from GET /api/create/home-summary (the package's
+     bound summary read: project.view + project.read, owner-scoped), painted by the shared kit in each shell's grammar, and
+     what Create can open. The view asks no studio for its access, reads no AI Office starter catalog and writes nothing.
+     Any other request runs the full Create page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var KICKER = 'Creative · Create';
+  var LEDE = 'Say what you are making (a resume, a budget, a launch deck, a headshot, a short video) and Create opens the studio that owns it, already set up. Your own image projects are listed here; looking starts nothing.';
+  var STUDIOS = [
+    ['AI Office', 'Presentations, documents and spreadsheets'], ['Portrait Studio', 'Headshots and character portraits'],
+    ['Video Studio', 'Short videos and the manual timeline editor'], ['Vids Studio', 'Clips rendered on your own worker'],
+    ['Stories', 'Kid-safe animated episodes'], ['3D Scan-to-Print', 'Printable objects from photos'], ['Image editor', 'Layered image designs']
+  ];
+  var REFUSALS = { 401: 'Sign in to see your projects.', 403: 'Create is not available to this account.' };
+  function read() {
+    return fetch('/api/create/home-summary', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j && typeof j === 'object' ? j : {} }; });
+    }, function () { return { ok: false, status: 0, body: {} }; });
+  }
+  function openFull() { window.location.assign(window.location.pathname); }
+  function count(v) { return typeof v === 'string' && /^\d+$/.test(v.trim()) ? Number(v) : null; }
+  // A project item is '<title>' with the detail 'Layered image · updated <ISO instant>' and one image-editor action.
+  function project(item) {
+    var d = String(item.detail || ''), at = d.indexOf(' · updated '), when = at < 0 ? '' : d.slice(at + 11);
+    var a = Array.isArray(item.actions) ? item.actions[0] : null;
+    var q = a && typeof a.query === 'string' && /^project=[A-Za-z0-9-]+$/.test(a.query) ? a.query : '';
+    return { title: String(item.text || 'Untitled project'), text: at < 0 ? d : d.slice(0, at),
+      meta: /^\d{4}-\d{2}-\d{2}T/.test(when) ? 'Updated ' + A.when(when) : '', href: q ? '/api/create/editor?' + q : undefined };
+  }
+  function refusal(res) {
+    var why = REFUSALS[res.status] || (res.status ? 'Your projects cannot be checked right now (HTTP ' + res.status + ').' : 'Create could not be reached.');
+    return { kicker: KICKER, title: 'Your projects are not available right now', lede: why + ' No figure is shown in its place.',
+      actions: [{ label: 'Open Create', primary: true, onClick: openFull }] };
+  }
+  function family() {
+    return read().then(function (res) {
+      if (!res.ok) return refusal(res);
+      var items = Array.isArray(res.body.items) ? res.body.items : [], metrics = Array.isArray(res.body.metrics) ? res.body.metrics : [];
+      var m = metrics[0] || null, n = m ? count(m.value) : null;
+      return { kicker: KICKER, title: n === null ? 'Your image projects' : n === 0 ? 'No image projects yet' : n + ' image project' + (n === 1 ? '' : 's'), lede: LEDE,
+        actions: [{ label: 'Open Create', primary: true, onClick: openFull }],
+        stats: m ? [{ id: 'image-projects', label: String(m.label || 'Image projects'), value: m.value, tone: n > 0 ? 'ok' : null, hint: n === null ? 'Could not be checked' : null }] : [],
+        sections: [
+          { kind: 'list', id: 'projects', title: 'Your image projects', wide: true, note: items.length ? 'Newest first. Each opens in the image editor.' : 'Nothing saved yet. Open Create to start one.', items: items.map(project) },
+          { kind: 'list', id: 'studios', title: 'What Create can open', wide: true, items: STUDIOS.map(function (s) { return { title: s[0], text: s[1] }; }) }
+        ] };
+    });
+  }
+  // ADR-164 D6: the Business shells' audience (company) paints this same account-scoped card in its own grammar.
+  A.boot({ app: 'create', escapeLabel: 'Open Create in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
 <link rel="stylesheet" href="/api/create/theme/create.css" />
 <style>
   :root {
@@ -176,9 +235,11 @@
     office:   { tool: 'create-office',   app: 'presentations',   name: 'AI Office',       url: '/api/presentations/sections/ui' },
     portrait: { tool: 'create-portrait', app: 'portrait-studio', name: 'Portrait Studio', url: '/api/portrait-studio/app' },
     video:    { tool: 'create-video',    app: 'video',           name: 'Video Studio',    url: '/api/video/ui' },
+    videoEditor: { tool: 'create-video-editor', app: 'video',     name: 'Video editor',    url: '/api/video/editor' },
     vids:     { tool: 'create-vids',     app: 'vids',            name: 'Vids Studio',     url: '/api/vids/app' },
     story:    { tool: 'create-story',    app: 'creative-studio', name: 'Stories',         url: '/api/creative-studio/review' },
-    scan:     { tool: 'create-scan-to-print', app: 'scan-to-print', name: '3D Scan-to-Print', url: '/api/scan-to-print/app' }
+    scan:     { tool: 'create-scan-to-print', app: 'scan-to-print', name: '3D Scan-to-Print', url: '/api/scan-to-print/app' },
+    brand:    { tool: 'create-brand-graphics', app: 'brand-graphics', name: 'Brand Graphics', url: '/api/brand-graphics/review' }
   };
 
   /* ── Categories (the left rail). Office kinds carry the catalog's own groups once loaded. ── */
@@ -205,6 +266,8 @@
     { id: 'group',     cat: 'portrait', group: 'group',        groupLabel: 'Group',        studio: 'portrait', name: 'Group portrait',     desc: 'Everyone from one photo, boxed and placed into a single scene together.', preview: 'photo' },
     { id: 'short',     cat: 'video',    group: 'shortform',    groupLabel: 'Short-form',   studio: 'video',    name: 'Short video',        desc: 'Reels, Shorts and TikTok from a storyboard you approve before anything renders.', preview: 'phone' },
     { id: 'clip',      cat: 'video',    group: 'render',       groupLabel: 'Render queue', studio: 'vids',     name: 'Video clip',         desc: 'A clip rendered on your own desktop worker and delivered to your Drive.', preview: 'phone' },
+    { id: 'edit-video', cat: 'video',   group: 'editing',      groupLabel: 'Editing',      studio: 'videoEditor', name: 'Edit video',      desc: 'Trim, split and reorder your own clips, add a title and music, then export an MP4.', preview: 'phone' },
+    { id: 'brand-intro', cat: 'video', group: 'brand', groupLabel: 'Brand', studio: 'brand', name: 'Brand intro clip', desc: 'An on-brand oshal motion graphic from a short brief, made in Google Vids on your signed-in Chrome.', preview: 'phone' },
     { id: 'episode',   cat: 'story',    group: 'episodes',     groupLabel: 'Episodes',     studio: 'story',    name: 'Story episode',      desc: 'A kid-safe animated episode from the rotating story library, produced on a schedule.', preview: 'phone' },
     { id: 'scan-to-print', cat: '3d', group: 'objects', groupLabel: 'Objects', studio: 'scan', name: '3D scan to print', desc: 'Capture photos or upload views, review the model and prepare a 3D print.', preview: 'cube' }
   ];
@@ -408,6 +471,8 @@
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .finally(function () { clearTimeout(t); });
   }
+  // Audience view (ADR-164 D6): under a view the page starts nothing; without one, or on a core without the kit, it starts as before.
+  if (!window.AppView || !AppView.active()) {
   render();
   Object.keys(STUDIO).forEach(function (key) {
     var app = STUDIO[key].app;
@@ -423,6 +488,7 @@
 
   /* Deep link into a category: /api/create/new?cat=docx */
   try { var want = new URLSearchParams(location.search).get('cat'); if (want && CATEGORIES.some(function (c) { return c.id === want; })) { activeCat = want; render(); } } catch (_) {}
+  }
 })();
 </script>
 </body>

@@ -3,6 +3,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Expose private project CRUD, immutable revision history, explicit document export and bounded owner-scoped raster uploads.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Mount the personal brand kit routes on this router, before its shared error handler, with the same personal-scope and error guards.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Mount region editing on this router with the same guards and the shared project validator; a test may name its fixture provider through options.regionEdits, production always uses the media-generation kernel skill.
  */
 import { Router, json, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import multer from 'multer';
@@ -14,6 +15,7 @@ import { CreateProjectStore } from './create-project-store';
 import { registerCreateProjectAuthorization, requireProjectAccess, projectPermissions, type ProjectAction } from './create-project-authorization';
 import { projectAssetRoot, saveProjectImage, readProjectImage, removeProjectImage } from './create-project-assets';
 import { registerBrandKitRoutes } from './create-brand-kit-routes';
+import { registerRegionEditRoutes, type RegionEditDependencies, type RegionEditSettings } from './create-region-edit-routes';
 
 interface RouteEnvironment { ctx: ProjectContext; store: CreateProjectStore; validator: Promise<ProjectValidator>; dataRoot: string }
 type ProjectWork = (req: Request, res: Response, owner: ProjectOwner) => Promise<void>;
@@ -108,7 +110,7 @@ function projectAssets(router: Router, env: RouteEnvironment): void {
 }
 
 /** Mount separately from the retained Create static routes; initialization performs no database writes. */
-export function createCreateProjectRoutes(ctx: ProjectContext, options: { dataRoot?: string } = {}): Router {
+export function createCreateProjectRoutes(ctx: ProjectContext, options: { dataRoot?: string; regionEdits?: { dependencies?: RegionEditDependencies; settings?: RegionEditSettings } } = {}): Router {
   registerCreateProjectAuthorization(ctx);
   const router = Router();
   const env = { ctx, store: new CreateProjectStore(ctx.pool), dataRoot: options.dataRoot ?? projectAssetRoot(),
@@ -116,6 +118,8 @@ export function createCreateProjectRoutes(ctx: ProjectContext, options: { dataRo
   router.get('/permissions', admit(env, 'view'), handler(env, 'view', async (_req, res) => { res.json({ permissions: await projectPermissions(ctx) }); }));
   projectReads(router, env); projectWrites(router, env); projectAssets(router, env);
   registerBrandKitRoutes(router, { ctx, projects: env.store, dataRoot: env.dataRoot, guards: { personalOnly, sendError } });
+  registerRegionEditRoutes(router, { ctx, projects: env.store, dataRoot: env.dataRoot, guards: { personalOnly, sendError }, validator: env.validator,
+    dependencies: options.regionEdits?.dependencies, settings: options.regionEdits?.settings });
   router.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (error instanceof multer.MulterError) return sendError(res, new ProjectError(error.code === 'LIMIT_FILE_SIZE' ? 413 : 400, 'invalid_project_upload'));
     if (error && typeof error === 'object' && 'status' in error && (error.status === 400 || error.status === 413)) return sendError(res, new ProjectError(error.status, 'invalid_project_body'));

@@ -1,5 +1,7 @@
 # Drone Relay
 
+0.4.2 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 A chain of mini drones that relays commands and telemetry **drone to drone** so that one drone —
 the *tip*, the one collecting data — can work beyond the base station's own radio reach. This
 package **designs and rehearses** that chain before a radio is soldered: it sizes the hop from a
@@ -104,6 +106,25 @@ ageS}`, carrying the tip's last heartbeat untouched; a command for the tip waits
 and goes out on its original signature the moment the tip is heard again, or is dropped naming why
 once it is older than the tip's replay window would accept.
 
+## Company audience view (0.4.1)
+
+The Business shell (and every shell that opens applications with `?audience=company`) opens the tile as
+`/api/drone-relay/app?audience=company` (ADR-164 D6). The shared kit (`/shared/ui/js/app-view.js`, loaded right
+after the theme bootstrap) paints the signed-in account's own saved relay chains as a dense board: four stats
+(relay chains, feasible as sized, last runs that held or restored, last runs that lost the tip), a title naming
+the worst state, the newest eight chains in a table (corridor, tree or lattice, the radio, relays and spares, the
+hop and its margin, the last run's verdict and outage, when it changed) and a "Needs a look" list, worst first
+(a lost tip, a chain the fleet cannot fill, a degraded run). A row opens the chain's generated design write-up in
+a new tab. On open it makes exactly one read, `GET /plans`, an owner-scoped SELECT under the caller's session. It
+never sizes, previews, saves, changes or deletes a chain, never runs a scenario, traces an envelope or drafts a
+formation, and commands no vehicle; the one action opens the full designer in the frame and the escape opens
+Drone Relay in the cockpit. Signed out, refused, no chain yet, a server failure, an unreadable answer and an
+unreachable server each read as what they are. The surface script's one start path (`boot`) runs only when no
+audience view renders; any other request runs the full page unchanged. Guards: `tests/audience-view.test.cjs`
+(static contract + behaviour over the real route) and `tests/audience-view.fixture.cjs` for
+`OSHAL_FRAMEWORK=<core checkout> node scripts/audience-views.browser.cjs drone-relay` (headless Chromium over the
+real page and kit).
+
 ## Tests
 
 | Suite | What it proves | Run |
@@ -122,6 +143,7 @@ once it is older than the tip's replay window would accept.
 | `surface-parse` | the tile's script parses, ids exist, no markup interpolation | `node --test tests/surface-parse.test.js` |
 | `routes.core` | the compiled routes over loopback HTTP (framework checkout) | `OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/routes.core.test.js` |
 | `fleetmission.core` | the draft through the drone package's own fleet-mission gate (framework checkout) | `OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/fleetmission.core.test.js` |
+| `audience-view` | the company audience view: the kit contract, the view over the real `GET /plans` mount (one read, one owner-scoped SELECT, stats, title, table, needs-a-look list, every refusal and failure state) and the gated start path | `node --test tests/audience-view.test.cjs` |
 
 Store CI runs `node --test "tests/*-*.test.js"` (every plain-node suite); the two framework-coupled
 suites are registered in `tests/test-lab.yaml` with their checkout prerequisite.
@@ -141,3 +163,16 @@ personas/                 relay-designer
 migrations/               drone_relay_plan with owner RLS
 docs/ARCHITECTURE.md      the contract: frames, the budget, the plan, the rules, the envelope
 ```
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| relay-design-chat | relay design chat turn | T3 | none | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

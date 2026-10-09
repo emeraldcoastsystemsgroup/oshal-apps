@@ -87,3 +87,32 @@ cases:
     isolation: { mode: disposable, cleanup: The harness closes Chromium and its loopback HTTP server; settings and accounts exist only in fixture memory. }
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
     installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) and family (Home shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the company view reads only GET /scan (the saved snapshot), GET /alerts (the ledger and its paper record) and GET /home-summary; it never reads /status, /portfolio or /alerts/pops, which ask Kalshi live, never /trends or /settings, and never writes.
+      - The stats are the playable-hand count, the snapshot's age with its freshness, the paper alert record and the recorded alerts over five days; the hands table names strength, side, market, ask, net edge, stake, close and risk flags as the snapshot ranks them, capped at ten; the alerts list names each alert's strength, side, edge, delivery and settlement outcome, newest first, capped at eight, under the record line.
+      - Waiting for the first scan, a running first scan, the scan switched off, a folded scan, a stale or failed snapshot, an open staking gate, a 401, a 403, a failed snapshot read, a failed or refused alerts read (which never hides the hands), a failed, unavailable or partial home summary and no alerts at all each read as what they are.
+      - Under an audience view the page's own start (the snapshot, alert, settings and trend loads, the pollers, the account read) and its connected-actions mount do not run; without the audience, and without the kit, they run as before.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

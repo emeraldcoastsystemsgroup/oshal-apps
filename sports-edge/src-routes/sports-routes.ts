@@ -22,6 +22,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Mount the line-capture reads: GET /lines/status (how long we have been watching, which cannot be improved retroactively) and GET /lines/:eventId (the observation series plus its movement summary).
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Mount the fantasy routes (/fantasy/*): ESPN Fantasy league link, the lineup advisor, and its graded record.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | GET /games returns upstreamOk, so an unreachable schedule service is never rendered as "your team is not playing" — an empty list is only an answer when the read actually succeeded.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | The fantasy routes moved to the fantasy-football package (ADR-146 D1, operator decisions 2026-09-27): /fantasy/* now answers 410 Gone with the new app's address (sports-fantasy-moved.ts) instead of mounting the league link, lineup advisor and ledger here.
  *
  * @module sports-routes
  */
@@ -44,7 +45,7 @@ import { listTeams } from './sports-espn';
 import {
   currentSeason, followedGames, previewFor, refreshRatings, startSportsRefresh, refreshStatus,
 } from './sports-refresh';
-import { registerFantasyRoutes } from './sports-fantasy-routes';
+import { registerFantasyMoved } from './sports-fantasy-moved';
 import { summariseMovement } from './sports-line-history';
 import { captureStats, ensureLineSchema, observationsFor } from './sports-line-store';
 
@@ -110,10 +111,9 @@ export function createSportsEdgeRoutes(ctx: AppContext): Router {
   registerGameRoutes(router, pool);
   registerRecordRoutes(router, pool);
   registerSettingsRoutes(router, pool);
-  // The fantasy half. Its reads need the caller's ESPN cookies, resolved per request from the
-  // connector broker; the public projection feed it leans on needs no credential at all.
   registerLineRoutes(router, pool);
-  registerFantasyRoutes(router, pool);
+  // The fantasy half moved to the fantasy-football package (ADR-146 D1); its old routes say so.
+  registerFantasyMoved(router);
   return router;
 }
 

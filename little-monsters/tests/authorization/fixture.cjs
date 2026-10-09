@@ -2,6 +2,7 @@
  * CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the real core policy and package adapters with synthetic in-memory assignments and a read-only roster fixture.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Bind the actual tsx environment option so catalog-driven runs resolve core aliases from the package working directory.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Add directory-group changes and verified group evidence so the pilot proves group-derived grants, group denies and unmapping through the same real preview/apply path as direct grants.
  */
 'use strict';
 const fs = require('node:fs');
@@ -29,6 +30,22 @@ const { ApplicationAuthorizationRuntime } = coreRequire('./src/app/composition/a
 const { registerEducationAuthorization } = require('../../src-routes/education-authorization.ts');
 const access = require('../../src-routes/education-access.ts');
 const express = coreRequire('express');
+
+/** One synthetic directory tenant; group ids are opaque object ids, never display names. */
+const DIRECTORY = Object.freeze({ issuer: 'https://login.example.test/school-directory', tenantId: 'directory-school-a' });
+
+/**
+ * @description Verified group evidence as the identity layer attaches it to an actor. `complete: false` is an
+ * overage/partial claim and `observedAt` is the freshness fact the core policy bounds; tests override either to
+ * prove refusal.
+ * @param groups Opaque directory group object ids the actor is a member of.
+ * @param overrides Evidence fields to replace (issuer, tenantId, complete, observedAt).
+ * @returns The actor's `directory` array with one evidence entry.
+ */
+function directoryEvidence(groups, overrides = {}) {
+  return [{ issuer: DIRECTORY.issuer, tenantId: DIRECTORY.tenantId, groups: [...groups], complete: true,
+    observedAt: new Date().toISOString(), ...overrides }];
+}
 
 /** Synthetic exact identities; a grant never infers a role from display name or email. */
 function actors() {
@@ -72,8 +89,14 @@ async function fixture({ catalogless = false } = {}) {
       expectedRevision: (await store.read()).revision, ...extra });
     return policy.applyChange(people.operator, { previewId: preview.previewId, idempotencyKey: randomUUID() });
   };
+  const groupChange = async (role, groupId, action = 'group-map', extra = {}) => {
+    const preview = await policy.previewChange(people.operator, { app: manifest.name, action, role,
+      group: { issuer: DIRECTORY.issuer, tenantId: DIRECTORY.tenantId, id: groupId },
+      reason: 'Synthetic Little Monsters directory-group proof', expectedRevision: (await store.read()).revision, ...extra });
+    return policy.applyChange(people.operator, { previewId: preview.previewId, idempotencyKey: randomUUID() });
+  };
   const authorize = (who, operation) => policy.authorize(people[who], { app: manifest.name, ...operation });
-  return { people, rows, pool, policy, store, runtime, record, change, authorize };
+  return { people, rows, pool, policy, store, runtime, record, change, groupChange, authorize };
 }
 
 /** Loopback HTTP reaches the actual core guard. No provider, browser, disk mutation or deployment data. */
@@ -88,4 +111,4 @@ async function httpFixture() {
 }
 
 module.exports = { PKG, CORE, coreRequire, yaml, manifest, loadApplicationAuthorization, fixture, httpFixture, access,
-  registerEducationAuthorization };
+  registerEducationAuthorization, DIRECTORY, directoryEvidence };

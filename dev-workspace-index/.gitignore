@@ -1,0 +1,3 @@
+# The built index is an operator-local artifact of one checkout (and optionally local notes).
+# It is served from here and must never be committed.
+data/

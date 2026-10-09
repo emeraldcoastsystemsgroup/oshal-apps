@@ -103,6 +103,16 @@ SEQ                 | AUTHOR                      | DESCRIPTION
   |                                           | floor 3.4e-3 (factor ~1.8 of honest);
   |                                           | 0.0001 on a kg-scale pod REFUSES.
   |                                           | CFRP_SOLID_DENSITY_KG_M3 retired.
+5 | maintainer@emeraldcoastsystemsgroup.com   | Structured screen reasons: each failed
+  |                                           | screen appends its aerosim.validity
+  |                                           | screen_rule (rule + hard/flag severity)
+  |                                           | beside its prose, stamped into
+  |                                           | result.detail["screen_reason_codes"] and
+  |                                           | build.meta the same way tree_fingerprint
+  |                                           | is. verify_survivor takes chain=, so a
+  |                                           | real-chain sweep's survivor is re-built on
+  |                                           | the chain that scored it, and reports its
+  |                                           | codes. Verdicts are unchanged.
 
 aerosim.validate_screen -- per-design admissibility for the optimizer sweep.
 
@@ -147,6 +157,7 @@ from typing import Any
 from . import validate_bounds as bounds
 from .env import atmosphere, day_length_h
 from .integrate import EnvBundle, integrate_energy
+from .validity import screen_rule as _rule
 from .vehicle import (
     MAX_STRUCTURAL_ASPECT_RATIO,
     AeroSurface,
@@ -352,7 +363,7 @@ from aerosim.validate_designs import _SolarCruiseDesign, build_solar_cruise
 from aerosim.integrate import integrate_energy
 from aerosim.validate_screen import screen_design, tree_fingerprint
 design = _SolarCruiseDesign(**payload["design"])
-build = build_solar_cruise(design)
+build = build_solar_cruise(design, chain=payload["chain"])
 result = integrate_energy(build.vehicle, build.env, 0.0,
                           payload["window_s"], payload["dt_s"])
 admissible, reasons = screen_design(build, result,
@@ -363,6 +374,8 @@ print("VERIFY_SURVIVOR_JSON:" + json.dumps({
     "reasons": list(reasons),
     "closed": bool(result.closed),
     "min_soc": float(result.min_soc),
+    "closed_reason_codes": result.detail.get("closed_reason_codes", []),
+    "screen_reason_codes": result.detail.get("screen_reason_codes", []),
 }))
 """
 
@@ -372,6 +385,7 @@ def verify_survivor(
     expected_fingerprint: str | None = None,
     check_seasonal: bool = True,
     timeout_s: float = 900.0,
+    chain: str = "ideal",
 ) -> dict:
     """Re-evaluate a sweep survivor in a FRESH subprocess against the CURRENT tree.
 
@@ -391,8 +405,10 @@ def verify_survivor(
         comparison (the fresh-subprocess comparison still runs).
     @param check_seasonal Forwarded to screen_design in the subprocess.
     @param timeout_s Subprocess wall-clock limit, s.
+    @param chain build_solar_cruise chain the survivor was scored on
+        ('ideal' | 'real'); the fresh rebuild uses the same one.
     @returns The subprocess verdict: {tree_fingerprint, admissible, reasons,
-        closed, min_soc}.
+        closed, min_soc, closed_reason_codes, screen_reason_codes}.
     @raises SweepIntegrityError On any fingerprint mismatch, or when the
         subprocess produces no verdict.
     """
@@ -405,7 +421,7 @@ def verify_survivor(
     fields = (dataclasses.asdict(design) if dataclasses.is_dataclass(design)
               else dict(design))
     payload = json.dumps({"design": fields, "window_s": _SEASONAL_WINDOW_S,
-                          "dt_s": _SEASONAL_DT_S,
+                          "dt_s": _SEASONAL_DT_S, "chain": str(chain),
                           "check_seasonal": bool(check_seasonal)})
     proc = subprocess.run(
         [sys.executable, "-c", _VERIFY_SCRIPT], input=payload,
@@ -509,6 +525,7 @@ def screen_design(build: Any, result: Any,
         informational and do not affect admissibility.
     """
     reasons: list[str] = []
+    codes: list[dict] = []    # aerosim.validity screen_rule twin of each reason
     vehicle = build.vehicle
 
     # INTEGRITY STAMP -- the tree this verdict was scored against, on disk.
@@ -523,6 +540,7 @@ def screen_design(build: Any, result: Any,
         vehicle.assert_mass_declared()
     except UndeclaredMassError as exc:
         reasons.append(f"mass declaration: {exc}")
+        codes.append(_rule("mass_declaration"))
 
     # 2. Defense-in-depth parameter re-check on the LIVE instances.
     for element in vehicle.elements:
@@ -531,11 +549,13 @@ def screen_design(build: Any, result: Any,
         except Exception as exc:  # noqa: BLE001 - the reason string is the point
             reasons.append(
                 f"param bounds: {type(element).__name__}: {exc}")
+            codes.append(_rule("param_recheck"))
 
     # 3. Closure, in the integrator's own words.
     if not bool(result.closed):
         reasons.append(
             f"not closed: {result.detail.get('closed_reasons')}")
+        codes.append(_rule("closure"))
 
     # 4. SOC-floor standoff.
     packs = vehicle.batteries
@@ -547,6 +567,7 @@ def screen_design(build: Any, result: Any,
                 f"SOC standoff: limit-cycle min_soc {min_soc:.4f} is within "
                 f"{SOC_FLOOR_STANDOFF} of soc_min {soc_min:.4f} -- round 2's "
                 f"exploit winners all sat exactly on the floor")
+            codes.append(_rule("soc_standoff"))
 
     # 5. Unmet / excess thrust against the integrator's own weight scale.
     tol_N = 1e-6 * max(1.0, vehicle.weight_N())
@@ -556,8 +577,10 @@ def screen_design(build: Any, result: Any,
         reasons.append(
             f"unmet thrust: {unmet_N:.4g} N of commanded thrust could not be "
             f"served (billed, and inadmissible)")
+        codes.append(_rule("unmet_thrust"))
     if excess_N > tol_N:
         reasons.append(f"excess thrust: {excess_N:.4g} N of uncommanded force")
+        codes.append(_rule("excess_thrust"))
 
     # 6. Closed-form drag floor on the trimmed point (winged designs).
     reference = getattr(build, "reference", None)
@@ -574,6 +597,7 @@ def screen_design(build: Any, result: Any,
         )
         if not report.ok:
             reasons.append(f"drag floor: {'; '.join(report.violations)}")
+            codes.append(_rule("drag_floor"))
 
     # 7. K_eff ceiling on the design's own catalogue numbers (solar designs).
     #    ROUND 4: the ceiling is ALTITUDE-AWARE -- 1.5 is honest at 20 km and
@@ -603,6 +627,7 @@ def screen_design(build: Any, result: Any,
                     f"{float(altitude_m):.0f} m (anchor {SCREEN_K_EFF_MAX} at "
                     f"20 km, scaled by the clear-sky attainable) -- the array "
                     f"claims more than geometry and transmittance allow")
+                codes.append(_rule("harvest_bound"))
 
     # 8. Wing loading and aspect ratio plausibility (winged designs).
     if surfaces:
@@ -614,12 +639,14 @@ def screen_design(build: Any, result: Any,
                 f"wing loading {loading_N_m2:.1f} N/m2 outside the "
                 f"[{lo:g}, {hi:g}] N/m2 plausibility band for the "
                 f"persistent-flight class")
+            codes.append(_rule("wing_loading"))
         ar_lo, ar_hi = SCREEN_ASPECT_RATIO
         for s in surfaces:
             ar = s.geometry.aspect_ratio
             if not (ar_lo <= ar <= ar_hi):
                 reasons.append(
                     f"aspect ratio {ar:.1f} outside [{ar_lo:g}, {ar_hi:g}]")
+                codes.append(_rule("aspect_ratio"))
 
     # 9. TECHNOLOGY CATALOGUE (round 4) -- coupled parameters must exist
     #    TOGETHER, not merely each inside its own scalar band. The measured
@@ -632,11 +659,13 @@ def screen_design(build: Any, result: Any,
             check_pv_technology_pair(a.cell_efficiency_stc, a.areal_density_kg_m2)
         except TechCatalogueError as exc:
             reasons.append(str(exc))
+            codes.append(_rule("pv_technology"))
     for p in packs:
         try:
             check_pack_technology(p.specific_energy_Wh_per_kg)
         except TechCatalogueError as exc:
             reasons.append(str(exc))
+            codes.append(_rule("pack_technology"))
 
     # 10. FUSELAGE/BOOM/TAIL REMAINDER FLOOR (round 4, winged designs) -- the
     #     structural remainder must be able to CARRY the pack, payload and
@@ -657,6 +686,7 @@ def screen_design(build: Any, result: Any,
                 f"of pack+payload+drive on a {span_m:.2f} m span -- the "
                 f"AS-2-anchored floor is {floor_kg:.3f} kg "
                 f"(structure.min_fuselage_boom_tail_mass_kg)")
+            codes.append(_rule("fuselage_floor"))
 
     # 11. EXTRA_CD0 SHELL/SLENDER-BODY FLOOR (rounds 4+5, winged designs with
     #     a reference trim) -- a fuselage that weighs something wets something.
@@ -693,6 +723,7 @@ def screen_design(build: Any, result: Any,
                     f"structure.min_extra_CD0) -- a fuselage that weighs "
                     f"something wets something, and it is a SHELL, not a "
                     f"solid billet")
+                codes.append(_rule("extra_cd0_floor"))
 
     # 12. PAYLOAD FLOOR (rounds 4+5, solar designs) -- an aircraft with a
     #     token avionics draw cannot fly a mission. Round 4 required "> 0 W";
@@ -717,6 +748,7 @@ def screen_design(build: Any, result: Any,
                 f"absolute floor {AVIONICS_MIN_DRAW_W:g} W) -- autopilot, "
                 f"radios and sensors are not optional on a mission aircraft; "
                 f"a token draw is an optimizer artifact")
+            codes.append(_rule("payload_floor"))
         min_payload_mass_kg = (payload_draw_W
                                / AVIONICS_MAX_SPECIFIC_POWER_W_PER_KG)
         if payload_draw_W > 0.0 and payload_mass_kg < min_payload_mass_kg * (1.0 - 1.0e-9):
@@ -727,6 +759,7 @@ def screen_design(build: Any, result: Any,
                 f"installed against the "
                 f"{AVIONICS_MAX_SPECIFIC_POWER_W_PER_KG:g} W/kg ceiling "
                 f"(densest catalogued suite: AS-2 at 38.7 W/kg)")
+            codes.append(_rule("payload_mass"))
 
     # 13. SEASONAL ROBUSTNESS (round 5, solar designs) -- re-close the SAME
     #     ship at the SAME site on the equinox. Only run when the design
@@ -768,8 +801,13 @@ def screen_design(build: Any, result: Any,
                 f"{equinox_min_soc:.4f}) -- a seasonal specialist, not "
                 f"site-flat hardware; flagged, not rejected, because "
                 f"latitude/season may be a legitimate mission choice")
+            codes.append(_rule("solstice_only", hard=False))
         hard_reasons = [r for r in reasons if not r.startswith(FLAG_PREFIX)]
 
+    if isinstance(getattr(result, "detail", None), dict):
+        result.detail["screen_reason_codes"] = codes
+    if isinstance(getattr(build, "meta", None), dict):
+        build.meta["screen_reason_codes"] = codes
     return (not hard_reasons), reasons
 
 

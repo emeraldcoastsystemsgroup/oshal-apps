@@ -1,0 +1,84 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | First Scene Studio authorization catalog (ADR-149, 0.2.0; BACKLOG B6). The director's 22 tools became in-process package tools, which the kernel admits only for a package that declares a catalog, so every mounted route, every tool and the director are bound to named permissions here. Until now the package had no catalog and, under enforce, admitted only holders of the application's @app-admin assignment; that posture is mirrored, not widened: one creator role carries the whole app.
+#
+# One resource, `scene`, with `own` scope only. Ownership stays where it was: every store statement filters on
+# owner_sub (src-routes/project-store.ts), both tables FORCE row security on oshal.current_sub
+# (migrations/001-scene-studio.sql), and project files live under the owner's hashed directory
+# (src-routes/data-dir.ts). The adapter (src-routes/scene-authorization.ts) admits any active verified actor.
+#
+# Bindings match the path relative to the longest mount that owns the request: GET / is both the Home
+# summary (/api/scene-studio/home-summary) and the readiness smoke (/api/scene-studio/_smoke).
+# Effects: read for every GET and the POSTs that only read; edit (write) for every project change, each a
+# revision restore undoes; run (execute) for headless runs, Blender Python, preview renders and the director
+# (the caller's model provider); export for downloads.
+version: 1
+resources:
+  scene: { scopes: [own] }
+permissions:
+  app.open: { resource: scene, effect: read, minimumTier: viewer }
+  scene.read: { resource: scene, effect: read, minimumTier: viewer }
+  scene.edit: { resource: scene, effect: write, minimumTier: editor }
+  scene.run: { resource: scene, effect: execute, minimumTier: editor }
+  scene.export: { resource: scene, effect: export, minimumTier: editor }
+roles:
+  creator:
+    tier: editor
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: scene.read, scope: own }
+      - { permission: scene.edit, scope: own }
+      - { permission: scene.run, scope: own }
+      - { permission: scene.export, scope: own }
+bindings:
+  http:
+    - { id: root, method: GET, path: /, allOf: [scene.read] }
+    - { id: app, method: GET, path: /app, allOf: [app.open] }
+    - { id: app-script, method: GET, path: /assets/scene-studio.js, allOf: [app.open] }
+    - { id: capabilities, method: GET, path: /capabilities, allOf: [scene.read] }
+    - { id: projects, method: GET, path: /projects, allOf: [scene.read] }
+    - { id: project-create, method: POST, path: /projects, allOf: [scene.edit] }
+    - { id: project, method: GET, path: /projects/:projectId, allOf: [scene.read] }
+    - { id: project-rename, method: PATCH, path: /projects/:projectId, allOf: [scene.edit] }
+    - { id: project-delete, method: DELETE, path: /projects/:projectId, allOf: [scene.edit] }
+    - { id: file-read, method: POST, path: /projects/:projectId/files/read, allOf: [scene.read] }
+    - { id: file-download, method: GET, path: /projects/:projectId/files/download, allOf: [scene.read, scene.export] }
+    - { id: file-write, method: PUT, path: /projects/:projectId/files, allOf: [scene.edit] }
+    - { id: file-upload, method: POST, path: /projects/:projectId/files/upload, allOf: [scene.edit] }
+    - { id: file-delete, method: DELETE, path: /projects/:projectId/files, allOf: [scene.edit] }
+    - { id: godot-tool, method: POST, path: /projects/:projectId/godot/:tool, allOf: [scene.edit] }
+    - { id: blender-tool, method: POST, path: /projects/:projectId/blender/:tool, allOf: [scene.edit, scene.run] }
+    - { id: docs, method: POST, path: /blender-docs, allOf: [scene.read] }
+    - { id: import-model, method: POST, path: /projects/:projectId/import-model, allOf: [scene.edit] }
+    - { id: restore, method: POST, path: /projects/:projectId/restore, allOf: [scene.edit] }
+    - { id: run, method: POST, path: /projects/:projectId/run, allOf: [scene.run] }
+    - { id: preview, method: POST, path: /projects/:projectId/preview, allOf: [scene.run] }
+    - { id: export, method: POST, path: /projects/:projectId/export, allOf: [scene.export] }
+    - { id: artifact, method: GET, path: /projects/:projectId/artifacts/:name, allOf: [scene.read] }
+  tools:
+    - { id: scene-capabilities, allOf: [scene.read] }
+    - { id: scene-list-projects, allOf: [scene.read] }
+    - { id: scene-get-project, allOf: [scene.read] }
+    - { id: scene-create-project, allOf: [scene.edit] }
+    - { id: scene-read-file, allOf: [scene.read] }
+    - { id: scene-write-file, allOf: [scene.edit] }
+    - { id: scene-delete-file, allOf: [scene.edit] }
+    - { id: godot-create-scene, allOf: [scene.edit] }
+    - { id: godot-add-node, allOf: [scene.edit] }
+    - { id: godot-save-scene, allOf: [scene.edit] }
+    - { id: godot-load-sprite, allOf: [scene.edit] }
+    - { id: godot-export-mesh-library, allOf: [scene.edit] }
+    - { id: godot-get-uid, allOf: [scene.read] }
+    - { id: godot-project-info, allOf: [scene.read] }
+    - { id: godot-run-project, allOf: [scene.run] }
+    - { id: blender-run-python, allOf: [scene.edit, scene.run] }
+    - { id: blender-file-summary, allOf: [scene.read] }
+    - { id: blender-docs, allOf: [scene.read] }
+    - { id: scene-render-preview, allOf: [scene.run] }
+    - { id: scene-export, allOf: [scene.export] }
+    - { id: scene-import-model, allOf: [scene.edit] }
+    - { id: scene-restore-revision, allOf: [scene.edit] }
+  bots:
+    - { id: 117640d5-e8a6-4a54-b8f4-c6c926172b88, allOf: [scene.run] }

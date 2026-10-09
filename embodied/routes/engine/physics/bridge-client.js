@@ -7,6 +7,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Initial creation — the SYNCHRONOUS client to the physics engine container. The simulation steps in a plain synchronous loop (advance → stepDrone → guards) and must stay deterministic, so a request to the plant cannot be a promise: the socket lives in a worker thread (bridge-worker) and this class posts a request line and blocks on Atomics.wait until the response lands in the shared buffer. The hello (protocol, engine version, build hash) is verified before the first request; a bridge that is down, slow or speaking another protocol raises a typed EngineFailure the routes turn into an honest 503 naming the install command.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Two links, one contract (B20): `lines` is the container's JSON-lines bridge we dial by address; `http` is the swarm node rail — a node that joined by heartbeat, commanded at the endpoint it declared under the swarm service secret, its hello the one it heartbeat in (checked exactly as a dialled hello is: protocol, and the build hash for a plant node). The bridge names the node it speaks for (nodeId, link, endpoint) so a world can say which node flies it.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | callAsync: the same request without blocking the event loop, for the ops that take seconds (the arm's physics check). One request at a time per bridge either way.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The node rail authenticates commands with the node's command key (x-node-command-key), not the swarm service secret (ADR-175 hardening).
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -71,12 +72,12 @@ class SyncBridge {
         if (opts.transport === 'http') {
             if (!opts.endpoint || !opts.hello || !opts.nodeId)
                 throw new EngineFailure('engine_error', 'a node-rail bridge needs the node\'s endpoint, hello and id');
-            if (!opts.secret)
-                throw new EngineFailure('capability_unavailable', 'the swarm service secret is not configured — a node on the rail cannot be commanded', 'SWARM_SERVICE_SECRET is not set');
+            if (!opts.commandKey)
+                throw new EngineFailure('capability_unavailable', 'the node has no command key yet — wait for its next heartbeat', 'no command key');
             this.nodeId = opts.nodeId;
             this.link = 'rail';
             this.endpoint = opts.endpoint.replace(/\/+$/, '');
-            this.worker = new node_worker_threads_1.Worker(workerFile, { workerData: { transport: 'http', endpoint: this.endpoint, secret: opts.secret, hello: JSON.stringify(opts.hello), timeoutMs: this.timeoutMs, sab: this.sab } });
+            this.worker = new node_worker_threads_1.Worker(workerFile, { workerData: { transport: 'http', endpoint: this.endpoint, commandKey: opts.commandKey, hello: JSON.stringify(opts.hello), timeoutMs: this.timeoutMs, sab: this.sab } });
         }
         else {
             if (!opts.host || !opts.port)

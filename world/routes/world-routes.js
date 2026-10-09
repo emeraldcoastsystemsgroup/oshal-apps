@@ -1,6 +1,7 @@
 "use strict";
 /**
  * CHANGE LOG
+ * 2026-10-07 | maintainer@emeraldcoastsystemsgroup.com | Preserve legacy token guards while native writes prove current scoped authority without exported secrets.
  * -----------------------------------------------------------------------------
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -8,6 +9,7 @@
  * 2026-07-20 05:10:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the world app package (ADR-085 Wave 3, "skill with a surface"). The route body is byte-identical to the kernel original — same WORLD_INGEST_TOKEN fail-closed write guard, same open reads, same ENABLE_WORLD_INTELLIGENCE 503 gating, same WORLD_APP_HTML surface. The Layer-B ENGINE (@/features/world-data: service, schemas, outlet ratings, news fetcher, the surface HTML module) stays framework-resident — it keeps kernel importers (jarvis brief, the trading dispatch family, world-schedule-dispatch) — and is imported back via the preserved @/ aliases (D8 verified NOT orphaned).
  * 2026-07-19 16:20:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Surface HTML bundled INTO the package (./world-app-html): the deep module @/features/world-data/world-app-html lost its only importer at the carve and tsc pruned it from dist independently of the (well-anchored) rest of the slice - the packaged route failed at mount. Deep modules prune per-file; surface content rides with the surface (pumpkin f0e4ed1 doctrine).
  * 2026-08-05 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Retired URL query-token authentication for every World machine write; accept bearer/dedicated headers with constant-time comparison and log only credential-source booleans
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: the disabled-state /sentiment answer has the observed-rating shape (lean axis, bySource, ratings: null) instead of the retired political/econ/kind axes, and the /seed-outlets doc says what core's seed now does (identity nodes, retired rating props cleared). No route, guard or auth change.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createWorldRoutes = createWorldRoutes;
@@ -65,10 +67,21 @@ function createWorldRoutes() {
         res.status(503).json({ error: 'world intelligence disabled' });
         return true;
     };
-    const guard = (req, res, next) => {
+    const guard = async (req, res, next) => {
         if (Object.prototype.hasOwnProperty.call(req.query, 'token')) {
             logger.warn({ method: req.method, path: req.path, queryTokenPresent: true }, 'World ingest rejected: URL query credentials are prohibited');
             res.status(401).json({ error: 'query_token_not_allowed' });
+            return;
+        }
+        const native = svc;
+        if (native?.runtimeKind === 'native-scoped') {
+            try {
+                await native.authorizeWrite();
+                next();
+            }
+            catch {
+                res.status(403).json({ error: 'native_world_write_refused' });
+            }
             return;
         }
         if (!token) {
@@ -121,7 +134,8 @@ function createWorldRoutes() {
             .then((r) => res.json(r))
             .catch((e) => { logger.error({ err: e }, 'world metric read failed'); res.status(500).json({ error: 'read failed' }); });
     });
-    /** POST /api/world/seed-outlets — load the rated news outlets (bias + reliability) into the graph. */
+    /** POST /api/world/seed-outlets — seed the known outlets' identity nodes into the graph and clear the
+     *  rating props the retired seed table wrote there (ratings are observed on read, never seeded). */
     router.post('/seed-outlets', guard, (req, res) => {
         if (!svc) {
             res.status(503).json({ error: 'world intelligence disabled' });
@@ -156,17 +170,17 @@ function createWorldRoutes() {
             .then((result) => res.json({ ok: true, result }))
             .catch((e) => { logger.error({ err: e }, 'feed ingest failed'); res.status(500).json({ error: 'feed ingest failed' }); });
     });
-    /** GET /api/world/sentiment?entity=&days= — BIAS-AWARE sentiment: per-lean, balanced, consensus,
-     *  reliability-weighted, per-outlet. The signal a naive average destroys. */
+    /** GET /api/world/sentiment?entity=&days= — BIAS-AWARE sentiment read through oshal's own observed
+     *  outlet ratings: the lean axis, balanced, consensus, reliability-weighted, and per-source ratings with
+     *  their counts and date range. The signal a naive average destroys. */
     router.get('/sentiment', (req, res) => {
         if (!svc) {
             sendDisabled(req, res, {
                 naive: null,
                 reliabilityWeighted: null,
-                political: { balanced: null, consensus: 'unavailable', byLean: {} },
-                econ: { balanced: null, consensus: 'unavailable', byEcon: {} },
-                byKind: {},
+                lean: { balanced: null, consensus: 'unavailable', byLean: {} },
                 bySource: [],
+                ratings: null,
             });
             return;
         }

@@ -1,8 +1,111 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Daily Trade Recap</title><style>
-:root{color-scheme:dark;--accent:#b0b8ff;--ink:#edf0fa;--muted:#a2adc5;--border:#ffffff1c}*{box-sizing:border-box}body{margin:0;background:#10131e;color:var(--ink);font:15px/1.55 system-ui}main{max-width:1180px;margin:auto;padding:40px 24px}header{margin-bottom:30px}h1{font-size:clamp(28px,5vw,44px);letter-spacing:-.035em;margin:8px 0}h2{font-size:19px;margin:0 0 18px}.eyebrow{color:var(--accent);text-transform:uppercase;font-size:11px;letter-spacing:.16em}.hint{color:var(--muted);font-size:13px}#metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}.metric,.panel{border:1px solid var(--border);border-radius:18px;background:linear-gradient(135deg,#202638,#171b28)}.metric{padding:18px}.metric strong{display:block;font-size:27px;font-weight:650}.metric span{color:var(--muted);font-size:12px}.layout{display:grid;grid-template-columns:1.05fr 1fr;gap:22px}.panel{padding:24px;min-width:0}.record{border-bottom:1px solid var(--border);padding:16px 0;overflow-wrap:anywhere}.record:first-child{padding-top:0}.record p{color:var(--muted);margin:5px 0 12px;font-size:13px}label{display:block;color:var(--muted);font-size:12px;margin:15px 0 6px}input,textarea,select{font:inherit;color:var(--ink);background:#0e1320;border:1px solid #ffffff26;border-radius:10px;width:100%;padding:11px;display:block;margin-top:7px}textarea{min-height:190px;resize:vertical}button,a{font:inherit}button{color:var(--ink);background:#ffffff0c;border:1px solid #ffffff25;border-radius:9px;padding:9px 13px;cursor:pointer;margin:5px 6px 5px 0}button:hover{background:#ffffff1c}button:disabled{opacity:.5;cursor:wait}.primary{background:#b7beff;color:#151b34;font-weight:650}a{color:var(--accent)}#status{min-height:24px;color:var(--accent);overflow-wrap:anywhere}.connected-app-actions{display:flex;flex-wrap:wrap;margin-top:16px}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:720px){main{padding:22px 16px}.layout{grid-template-columns:1fr}.panel{padding:18px}}
+<!doctype html><html lang="en" data-theme="midnight"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Daily Trade Recap</title><link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shell and the all-inclusive shells (Studio, Orbit, Commons) open this
+     page with ?audience=company: the signed-in owner's OWN recap record for the closed Eastern trading days in the
+     last 7 days, today excluded (the four counts, each closed session with whether its recap was recorded and when,
+     the recap tickets parked at their approval gate) from the SAME GET /api/daily-trade-recap/home-summary the full
+     page reads, painted by the shared kit in the company grammar. On open it reads only that route: owner-scoped
+     SELECTs with no side effect. It never reads the framework plan for connected-actions offers
+     (/api/swarm/apps/home-plan), never registers the handoff bridge listener and writes nothing; nothing here
+     renders, emails or re-runs a recap. Any other request runs the full Recap Review page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var RECORDED = 'Recap recorded for ', MISSING = 'No recap recorded for ', SINCE = ' since ';
+  function call(path) {
+    return fetch('/api/daily-trade-recap' + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j || {} }; });
+    });
+  }
+  function refused(res) { return res.status === 401 || res.status === 403; }
+  function openFull() { window.location.assign(window.location.pathname); }
+  // A metric value is a count as text ('3') or the route's 'Unavailable' when that source failed.
+  function count(value) { return /^\d+$/.test(String(value)) ? Number(value) : null; }
+  function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+  // Items exactly as routes/home-summary.js writes them, newest session first: 'Recap recorded for YYYY-MM-DD' (detail
+  // 'recorded <iso>'), 'No recap recorded for YYYY-MM-DD' (detail 'closed session with no published report'), then the
+  // parked tickets (their title, detail '<status> since <iso>'), then the notes, which carry no actions.
+  function kind(item) {
+    var text = String(item.text || '');
+    if (text.indexOf(RECORDED) === 0) return 'recorded';
+    if (text.indexOf(MISSING) === 0) return 'missing';
+    return Array.isArray(item.actions) && item.actions.length ? 'ticket' : 'note';
+  }
+  function sessionRow(item) {
+    var recorded = kind(item) === 'recorded', prefix = recorded ? RECORDED : MISSING, detail = String(item.detail || '');
+    // session_day is to_char(et_day, 'YYYY-MM-DD'): a calendar day, formatted as that day (A.day), never as UTC midnight.
+    var day = String(item.text || '').slice(prefix.length, prefix.length + 10);
+    return [A.day(day), { text: recorded ? 'Recorded' : 'Missing', tone: recorded ? 'ok' : 'warn' }, recorded && detail.indexOf('recorded ') === 0 ? A.when(detail.slice(9)) : '—'];
+  }
+  function ticketItem(item) {
+    var detail = String(item.detail || ''), at = detail.indexOf(SINCE), status = at > 0 ? detail.slice(0, at) : detail, since = at > 0 ? detail.slice(at + SINCE.length) : '';
+    var label = status.replace(/_/g, ' ');
+    label = label.charAt(0).toUpperCase() + label.slice(1);
+    return { title: item.text || 'Daily trade recap ticket', text: label + (since ? ' since ' + A.when(since) : ''), badge: 'Parked', tone: 'warn' };
+  }
+  function tone(id, value) {
+    var n = count(value);
+    if (n === null) return 'warn';
+    if (id === 'recaps-missed' || id === 'recaps-awaiting-review') return n > 0 ? 'warn' : null;
+    return id === 'recaps-recorded' && n > 0 ? 'ok' : null;
+  }
+  function stats(metrics) {
+    return metrics.map(function (m) { return { id: m.id, label: m.label, value: m.value, tone: tone(m.id, m.value), hint: count(m.value) === null ? 'Could not check' : null }; });
+  }
+  function metric(metrics, id) { var m = metrics.filter(function (x) { return x.id === id; })[0]; return m ? count(m.value) : null; }
+  function title(metrics, partial) {
+    var sessions = metric(metrics, 'trading-sessions'), missed = metric(metrics, 'recaps-missed');
+    if (partial || sessions === null || missed === null) return 'Some saved sources cannot be checked';
+    if (sessions === 0) return 'No closed trading session in the last 7 days';
+    if (missed > 0) return plural(missed, 'closed session') + ' with no recap';
+    return 'Every closed session has a recap';
+  }
+  function parked(review) {
+    if (review === null) return 'The approval backlog could not be checked.';
+    if (review === 0) return 'No recap ticket is parked at its approval gate.';
+    return plural(review, 'recap ticket') + ' parked at ' + (review === 1 ? 'its approval gate.' : 'their approval gates.');
+  }
+  function sessionsSection(sessions, bounds, unknown) {
+    return { kind: 'table', id: 'sessions', title: 'Closed sessions', note: bounds, columns: ['Session', 'Recap', 'Recorded'],
+      empty: unknown ? 'Closed sessions could not be checked.' : 'No closed trading session in the last 7 days. A market holiday records no session.',
+      rows: sessions.map(sessionRow) };
+  }
+  function reviewSection(tickets, review) {
+    return { kind: 'list', id: 'review', title: 'Awaiting review',
+      note: 'Approving or cancelling a parked ticket is the only thing that clears it; this view changes nothing.' + (review !== null && review > tickets.length ? ' The newest ' + tickets.length + ' of ' + review + '.' : ''),
+      empty: parked(review), items: tickets.map(ticketItem) };
+  }
+  function model(body) {
+    var metrics = body.metrics || body.tiles || [], items = body.items || [], of = function (k) { return items.filter(function (i) { return kind(i) === k; }); };
+    var sessions = of('recorded').concat(of('missing')).sort(function (a, b) { return items.indexOf(a) - items.indexOf(b); }), tickets = of('ticket'), notes = of('note');
+    var review = metric(metrics, 'recaps-awaiting-review'), bounds = notes.length ? String(notes[notes.length - 1].text || '') : null;
+    return { kicker: 'Finance · Daily Trade Recap', title: title(metrics, !!body.partial),
+      lede: 'Closed Eastern trading days in the last 7 days for the signed-in owner, today excluded. ' + parked(review),
+      actions: [{ label: 'Open Recap Review', primary: true, onClick: openFull }],
+      stats: stats(metrics), sections: [sessionsSection(sessions, bounds, metric(metrics, 'trading-sessions') === null), reviewSection(tickets, review)] };
+  }
+  function company() {
+    return call('/home-summary').then(function (res) {
+      if (refused(res)) return { kicker: 'Finance · Daily Trade Recap', title: res.status === 401 ? 'Sign in to see the recap record' : 'This account cannot open Daily Trade Recap',
+        lede: res.status === 401 ? 'This view shows the recap record of whoever is signed in, and this session is not signed in.' : 'The Daily Trade Recap routes refused this account (HTTP 403).' };
+      if (!res.ok) throw new Error((res.body && res.body.error) || 'Daily Trade Recap could not read the saved record (HTTP ' + res.status + ').');
+      return model(res.body);
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'daily-trade-recap', escapeLabel: 'Open Daily Trade Recap in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
+<style>
+:root{color-scheme:dark;--accent:var(--accent-primary,#b0b8ff);--ink:var(--text-primary,#edf0fa);--muted:var(--text-muted,#a2adc5);--border:var(--border-color,#ffffff1c)}*{box-sizing:border-box}body{margin:0;background:var(--bg-primary,#10131e);color:var(--ink);font:15px/1.55 system-ui}main{max-width:1180px;margin:auto;padding:40px 24px}header{margin-bottom:30px}h1{font-size:clamp(28px,5vw,44px);letter-spacing:-.035em;margin:8px 0}h2{font-size:19px;margin:0 0 18px}.eyebrow{color:var(--accent);text-transform:uppercase;font-size:11px;letter-spacing:.16em}.hint{color:var(--muted);font-size:13px}#metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}.metric,.panel{border:1px solid var(--border);border-radius:18px;background:var(--bg-card,linear-gradient(135deg,#202638,#171b28))}.metric{padding:18px}.metric strong{display:block;font-size:27px;font-weight:650}.metric span{color:var(--muted);font-size:12px}.layout{display:grid;grid-template-columns:1.05fr 1fr;gap:22px}.panel{padding:24px;min-width:0}.record{border-bottom:1px solid var(--border);padding:16px 0;overflow-wrap:anywhere}.record:first-child{padding-top:0}.record p{color:var(--muted);margin:5px 0 12px;font-size:13px}label{display:block;color:var(--muted);font-size:12px;margin:15px 0 6px}input,textarea,select{font:inherit;color:var(--ink);background:var(--bg-secondary,#0e1320);border:1px solid var(--border-color,#ffffff26);border-radius:10px;width:100%;padding:11px;display:block;margin-top:7px}textarea{min-height:190px;resize:vertical}button,a{font:inherit}button{color:var(--ink);background:var(--glass-bg,#ffffff0c);border:1px solid var(--border-color,#ffffff25);border-radius:9px;padding:9px 13px;cursor:pointer;margin:5px 6px 5px 0}button:hover{background:var(--bg-card-hover,#ffffff1c)}button:disabled{opacity:.5;cursor:wait}.primary{background:var(--accent-primary,#b7beff);color:var(--text-on-accent,#151b34);font-weight:650}a{color:var(--accent)}#status{min-height:24px;color:var(--accent);overflow-wrap:anywhere}.connected-app-actions{display:flex;flex-wrap:wrap;margin-top:16px}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:720px){main{padding:22px 16px}.layout{grid-template-columns:1fr}.panel{padding:18px}}
 </style></head><body><main><header><div class="eyebrow">Connected creative workspace</div><h1>Daily Trade Recap</h1><p class="hint">Review recorded work. Shape the next brief. Continue in the app that owns the next step.</p></header><div id="metrics" aria-label="Saved work metrics"></div><div class="layout"><section class="panel"><h2>Recorded work</h2><div id="records">Loading saved evidence…</div><button id="refresh">Refresh evidence</button></section><section class="panel"><h2>Your next brief</h2><label>Title<input id="title" maxlength="120" placeholder="What should happen next?"></label><label>Brief<textarea id="notes" maxlength="2000" placeholder="Select recorded work or write a new brief."></textarea></label><label>Source link<input id="sourceUrl" type="url" maxlength="2000"></label><div class="connected-app-actions"></div><p id="status" role="status" aria-live="polite"></p><p class="hint">Connected actions open editable drafts. Review and approve any publishing or generation in the destination app.</p></section></div></main><script type="module">
 import {receiveHandoff} from '/cockpit/js/app-handoff.js';
 import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
+// The full page only: under an audience view the shared kit paints instead (see the head script), so the handoff bridge
+// listener is not registered, no connected-actions offer is fetched, no Refresh handler is bound and the record is not read twice.
+if (!window.AppView || !AppView.active()) {
 const app="daily-trade-recap",title=document.querySelector('#title'),notes=document.querySelector('#notes'),sourceUrl=document.querySelector('#sourceUrl'),status=document.querySelector('#status');
 const fill=c=>{title.value=String(c.title||'').slice(0,120);notes.value=String(c.notes||'').slice(0,2000);sourceUrl.value=c.sourceUrl||'';};
 receiveHandoff({app,action:'prepare-brief',version:1,contextType:'research-brief',fields:['title','notes','sourceUrl']},fill);
@@ -10,4 +113,5 @@ await mountConnectedActions({app,element:document.querySelector('.connected-app-
 async function refresh(){const list=document.querySelector('#records'),metrics=document.querySelector('#metrics');try{const r=await fetch('/api/'+app+'/home-summary',{cache:'no-store'}),data=await r.json();if(!r.ok)throw Error('Saved evidence cannot be checked right now.');list.replaceChildren();metrics.replaceChildren();for(const m of data.metrics||[]){const card=document.createElement('div');card.className='metric';const v=document.createElement('strong'),l=document.createElement('span');v.textContent=m.value;l.textContent=m.label;card.append(v,l);metrics.append(card);}for(const item of data.items||[]){const el=document.createElement('div'),heading=document.createElement('strong'),detail=document.createElement('p');el.className='record';heading.textContent=item.text;detail.textContent=item.detail||'';el.append(heading,detail);const context=item.actions?.[0]?.context;if(context){const b=document.createElement('button');b.textContent='Use this evidence';b.addEventListener('click',()=>{fill(context);status.textContent='Evidence loaded. Edit the brief before continuing.';});el.append(b);}list.append(el);}}catch(e){list.textContent=e.message;metrics.replaceChildren();}}
 document.querySelector('#refresh').addEventListener('click',refresh);
 await refresh();
+}
 </script></body></html>

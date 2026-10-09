@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Delegate score admission and global-ceiling ownership to the shared engine runner for one fail-safe lease lifecycle.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Complete exported title-profile data, normalization, persistence, cursor, and registrar documentation.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Complete the cron cursor's explicit return contract for generated API documentation.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Accept the owner's recorded issuer from the cron so the title pass's engine run carries a callback grant the kernel's signed rail can admit (1.25.1); a route caller's issuer still comes from the request identity.
  */
 /**
  * Career title-based scoring — the per-user "title pass" that AI-scores roles whose
@@ -336,14 +337,14 @@ function parseEngineVerdict(out: string): { scored?: number; skipped?: number } 
  * @returns what happened, for logs/routes
  */
 export async function runTitlePassForUser(
-  ctx: AppContext, userSub: string, opts: { force?: boolean } = {},
+  ctx: AppContext, userSub: string, opts: { force?: boolean; ownerIssuer?: string | null } = {},
 ): Promise<TitlePassResult> {
   const profile = await readTitleProfile(ctx.pool, userSub);
   if (!profile.titleTerms.length) return { ran: false, reason: 'no-title-profile' };
   if (!opts.force && !dueSince(profile.lastTitlePassAt)) return { ran: false, reason: 'already-ran-today' };
   try {
     const inv = buildTitlePassInvocation(profile.titleTerms, TITLE_PASS_LIMIT);
-    const r = await runCareerCliAwait(ctx.pool, userSub, inv.args, inv.env, { slot: 'score' });
+    const r = await runCareerCliAwait(ctx.pool, userSub, inv.args, inv.env, { slot: 'score', ownerIssuer: opts.ownerIssuer ?? null });
     if (r.limitReason) {
       logger.info({ userSub, limit: r.limitReason }, 'title pass: skipped - score run in flight or box busy');
       return { ran: false, reason: r.limitReason === 'inflight' ? 'score-in-flight' : 'busy' };

@@ -21,6 +21,11 @@
  *                     |                             | is the real production guard now that the factory takes an
  *                     |                             | injectable one — a packaged route the framework does not wrap is
  *                     |                             | anonymous, and these routes integrate millions of timesteps.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 S2: the third surface. The Explorer page and its script
+ *                     |                             | ship in tools/, every /api/ocean-lab/vehicles path the script
+ *                     |                             | calls is routable through the same factory (the record routes
+ *                     |                             | answer 503 without a store rather than 404), and the page, its
+ *                     |                             | script and the record's routes all refuse an anonymous caller.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -49,8 +54,8 @@ const TOOLS_DIR = path.join(PACKAGE_DIR, 'tools');
 const MOUNT = '/api/ocean-lab';
 
 /** The two pages, and the engine scripts each one's inline loader gives up on if it cannot reach. */
-const PAGES = ['harvest-console.html', 'blade-studio.html'] as const;
-const SCRIPTS = ['harvest-console.js', 'blade-studio.js', 'blade-studio-gl.js'] as const;
+const PAGES = ['harvest-console.html', 'blade-studio.html', 'explorer.html'] as const;
+const SCRIPTS = ['harvest-console.js', 'blade-studio.js', 'blade-studio-gl.js', 'explorer.js'] as const;
 
 /** requiresAuth stub mirroring express-openid-connect: 401 without a session, else pass through. */
 function requiresAuthStub(req: Request, res: Response, next: NextFunction): void {
@@ -231,7 +236,7 @@ describe('ocean-lab surfaces ship inside the package', () => {
 
 describe('ocean-lab surfaces are reachable', () => {
   it('serves each page as HTML', async () => {
-    for (const route of [`${MOUNT}/app`, `${MOUNT}/harvest-console`, `${MOUNT}/blade-studio`]) {
+    for (const route of [`${MOUNT}/app`, `${MOUNT}/harvest-console`, `${MOUNT}/blade-studio`, `${MOUNT}/explorer`]) {
       const res = await get(authed, route);
       expect(res.status, route).toBe(200);
       expect(res.contentType, route).toMatch(/text\/html/);
@@ -279,6 +284,9 @@ describe('ocean-lab surfaces are guarded', () => {
       `${MOUNT}/app`,
       `${MOUNT}/harvest-console`,
       `${MOUNT}/blade-studio`,
+      `${MOUNT}/explorer`,
+      `${MOUNT}/vehicles`,
+      `${MOUNT}/vehicles/kinds`,
       `${MOUNT}/capabilities`,
       `${MOUNT}/harvest/sites`,
       ...SCRIPTS.map((f) => `${MOUNT}/assets/${f}`),

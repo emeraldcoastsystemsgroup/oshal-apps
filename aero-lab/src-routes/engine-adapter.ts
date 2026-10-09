@@ -54,6 +54,18 @@
  *                     |                             | order is now opts -> AERO_LAB_ENGINE_DIR -> the
  *                     |                             | vendored tree; with no vendored aerosim the
  *                     |                             | package's own engine dir is still what gets named.
+ * 2026-09-27 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | 'certify' joins the command set
+ *                     |                             | (the four reference presets on the real chain,
+ *                     |                             | engine/certify_reference.py) with a 10 min
+ *                     |                             | wall clock like mission. No route calls it yet;
+ *                     |                             | the adapter carries it so the spec drives the
+ *                     |                             | worker over the same transport a route would.
+ * 2026-10-05 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | resolvePython accepts only this
+ *                     |                             | platform's venv layout. A Windows venv restored
+ *                     |                             | onto a Linux box (.venv/Scripts/python.exe)
+ *                     |                             | counted as a present local engine, so the
+ *                     |                             | transport went local and every spawn failed
+ *                     |                             | ENOEXEC while the engine container sat idle.
  */
 
 import * as fs from 'fs';
@@ -67,7 +79,7 @@ import { LineSplitter, openContainerChannel, type ChannelFailure, type ChannelHa
 const logger = createChildLogger({ module: 'aero-engine-adapter' });
 
 /** The engine commands the frozen §5b wire protocol knows. */
-export type AeroCmd = 'capabilities' | 'polar' | 'evaluate' | 'screen' | 'mission' | 'export';
+export type AeroCmd = 'capabilities' | 'polar' | 'evaluate' | 'screen' | 'mission' | 'export' | 'certify';
 
 /**
  * Adapter/worker error codes (frozen §5b plus the two transport-side codes).
@@ -133,6 +145,7 @@ export const COMMAND_TIMEOUTS_MS: Record<AeroCmd, number> = {
   evaluate: 300_000,
   mission: 600_000,
   export: 300_000,
+  certify: 600_000,
 };
 
 /**
@@ -210,7 +223,10 @@ function resolvePython(engineDir: string, override?: string): { python: string; 
   if (override) return { python: override, venvOk: fs.existsSync(override) };
   const winVenv = path.join(engineDir, '.venv', 'Scripts', 'python.exe');
   const posixVenv = path.join(engineDir, '.venv', 'bin', 'python');
-  const candidates = [process.env.AERO_LAB_PYTHON || '', winVenv, posixVenv].filter(Boolean);
+  // Only this platform's venv layout can run here: a Windows venv copied onto a Linux box
+  // still "exists", and accepting it made the transport local and every spawn fail ENOEXEC.
+  const ownVenv = process.platform === 'win32' ? winVenv : posixVenv;
+  const candidates = [process.env.AERO_LAB_PYTHON || '', ownVenv].filter(Boolean);
   for (const p of candidates) {
     if (fs.existsSync(p)) return { python: p, venvOk: true };
   }

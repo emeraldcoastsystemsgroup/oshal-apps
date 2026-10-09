@@ -21,6 +21,18 @@
  *                     |                             | route, load order and classic-script syntax
  *                     |                             | so browser/server parity cannot be bypassed
  *                     |                             | by shipping the helper without loading it.
+ * 2026-09-27 05:00:00 | maintainer@emeraldcoastsystemsgroup.com | ADR-160 S4: the surface now calls
+ *                     |                             | a SECOND router mounted at /vehicles
+ *                     |                             | (src-routes/vehicle-routes.ts). Its registered
+ *                     |                             | paths join the contract under that prefix, and
+ *                     |                             | the concatenated /vehicles/<id> read is pinned
+ *                     |                             | to the parameterised route the same way the
+ *                     |                             | export download is.
+ * 2026-09-27 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | The engine's reference certification
+ *                     |                             | reads the presets from engine/reference_presets.json;
+ *                     |                             | that file must carry exactly the surface's four
+ *                     |                             | presets (key, name, vector), so the preset a user
+ *                     |                             | presses is the preset the engine certifies.
  */
 
 import * as fs from 'fs';
@@ -34,11 +46,15 @@ const SURFACE_HTML = path.join(PACKAGE_DIR, 'tools', 'aero-lab.html');
 const SURFACE_JS = path.join(PACKAGE_DIR, 'tools', 'aero-lab.js');
 const GEOMETRY_JS = path.join(PACKAGE_DIR, 'tools', 'aero-lab-geometry.js');
 const ROUTES_TS = path.join(PACKAGE_DIR, 'src-routes', 'aero-lab-routes.ts');
+const VEHICLE_ROUTES_TS = path.join(PACKAGE_DIR, 'src-routes', 'vehicle-routes.ts');
+/** The manifest mounts vehicle-routes.ts under this prefix of the same API. */
+const VEHICLE_MOUNT = '/vehicles';
 
 const html = fs.readFileSync(SURFACE_HTML, 'utf8');
 const js = fs.readFileSync(SURFACE_JS, 'utf8');
 const geometryJs = fs.readFileSync(GEOMETRY_JS, 'utf8');
 const routesSrc = fs.readFileSync(ROUTES_TS, 'utf8');
+const vehicleRoutesSrc = fs.readFileSync(VEHICLE_ROUTES_TS, 'utf8');
 
 interface PresetEntry { key: string; name: string; needs?: string; v: Record<string, number> }
 interface FieldEntry { k: string; min: number; max: number }
@@ -67,8 +83,17 @@ describe('surface ↔ router contract', () => {
     expect(called.size).toBeGreaterThan(5);
     const registered = new Set<string>();
     for (const m of routesSrc.matchAll(/router\.(?:get|post)\(\s*'([^']+)'/g)) registered.add(m[1]);
+    // The vehicle router is a second factory the manifest mounts under /vehicles: its paths join the contract prefixed.
+    for (const m of vehicleRoutesSrc.matchAll(/router\.(?:get|post|patch)\(\s*'([^']+)'/g)) registered.add(m[1] === '/' ? VEHICLE_MOUNT : VEHICLE_MOUNT + m[1]);
     const missing = [...called].filter((p) => !registered.has(p));
     expect(missing, `surface calls endpoints the router never registers: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('the parameterised vehicle read the surface builds matches a registered route, and the manifest mounts that router', () => {
+    expect(js).toContain("'/vehicles/' + encodeURIComponent(");
+    expect(vehicleRoutesSrc).toMatch(/router\.get\(\s*'\/:id'/);
+    const manifest = fs.readFileSync(path.join(PACKAGE_DIR, 'oshal-app.yaml'), 'utf8');
+    expect(manifest).toMatch(/module: routes\/vehicle-routes\.js\n\s+factory: createAeroVehicleRoutes\n\s+mountPath: \/api\/aero-lab\/vehicles\n\s+requiresAuth: true/);
   });
 
   it('the parameterised export-download path the surface builds matches a registered route', () => {
@@ -102,6 +127,12 @@ describe('surface presets survive the route layer (a preset that 400s is a broke
       expect(Object.keys(out.design as object).sort()).toEqual(Object.keys(DEFAULT_DESIGN).sort());
     });
   }
+
+  it('engine/reference_presets.json carries exactly the surface presets (key, name, vector)', () => {
+    const file = JSON.parse(fs.readFileSync(path.join(PACKAGE_DIR, 'engine', 'reference_presets.json'), 'utf8')) as { presets: unknown };
+    const surface = JSON.parse(JSON.stringify(data.presets.map((p) => ({ key: p.key, name: p.name, v: p.v }))));
+    expect(file.presets).toEqual(surface);
+  });
 
   it('a buoyant preset declares needs:"hybrid" so the surface can gate it', () => {
     for (const p of data.presets) {

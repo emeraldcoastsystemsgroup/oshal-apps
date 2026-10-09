@@ -11,8 +11,20 @@
 # The ENGINE IS BUNDLED — src-routes/engine/ compiled to routes/engine/. Nothing
 # is fetched, nothing is called out to, and there is no LLM in any path here: the
 # numbers are deterministic in-process arithmetic. That is why this package
-# declares no bot. A design lab that only computes owns no domain data and has
-# nothing to reason about (sat-ops precedent — a package may own no tables).
+# declares no bot: there is nothing here for a model to reason about.
+#
+# ADR-160 S2 (1.2.0): the 300 mm wave explorer from the design study is a
+# RECORD — an owned vehicle whose design vector a person edits, its "What is not
+# true" limits as rows, and every run recorded against it with the medium it ran
+# in and the engine fingerprints that answered. The stage is computed on read.
+# That is this package's first schema (migrations/001-ocean-lab.sql).
+#
+# ADR-160 S3 (1.3.0): the explorer's PARTS — derived from the record's vector on
+# every read, never stored: each of its eleven watertight parts as a CAD Studio
+# program drawn from the report's drawings, with Open in CAD Studio; the D8
+# portable object each part carries; the bought rows with the masses and prices
+# the report never published left null and named; the displacement budget that
+# gates parts-complete; and a generated design document. No new table.
 #
 # PROVENANCE, stated once and repeated on both surfaces: every site, soil and
 # constituent set is an ILLUSTRATIVE PARAMETER SET over a real model. No survey
@@ -25,16 +37,24 @@
 
 name: ocean-lab
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features: []   # no model in the loop (T0)
 displayName: Ocean Lab
 description: >-
   Ambient-energy design lab — model a machine that moves on tidal and current
   flow or on the soil thermal gradient, size its rotor with real blade-element
-  momentum theory, and export printable geometry. Two surfaces: a harvest siting
-  console (marine and ground energy budgets, seasonal gap analysis, storage
-  sizing) and a blade studio (NACA sections, panel-method polars, Cp sweeps,
-  STL/OBJ/SCAD/DXF export). Every model runs in-process and deterministically;
-  every site parameter is illustrative, not surveyed.
-version: 1.1.1
+  momentum theory, and export printable geometry. Three surfaces: a harvest
+  siting console (marine and ground energy budgets, seasonal gap analysis,
+  storage sizing), a blade studio (NACA sections, panel-method polars, Cp
+  sweeps, STL/OBJ/SCAD/DXF export), and the Explorer — the design study's
+  300 mm wave explorer as a saved vehicle whose sea-state table, year and stage
+  recompute from its design vector, with its eleven parts as CAD Studio programs
+  and a displacement budget that gates the stage. Every model runs in-process and
+  deterministically; every site parameter is illustrative, not surveyed.
+version: 1.3.1
 status: active
 scope: person
 # Ocean Lab has deterministic tools but no packaged bot; use the stable framework concierge.
@@ -59,14 +79,16 @@ smoke:
       rejectValues: [noop, stub, empty]
     requiresAi: false
 
-# No connectors, no dependencies: the engine is bundled and local.
+# No connectors, and no required app: the engine is bundled and local. Two optional apps: embodied,
+# whose hull drop the Explorer records as a run (ADR-160 S2), and cad-studio, which Open in CAD
+# Studio posts each part's program to (ADR-160 S3).
 dependencies:
   required:
     apps: []
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [cad-studio, embodied]   # embodied: the Explorer asks it to drop the hull and records the result as a run; cad-studio: Open in CAD Studio POSTs each part's program to it. Absent, each button reports it and nothing else changes
     tools: []
     connectors: []
 
@@ -76,6 +98,13 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog       # the package's tests are registered with the AI Test Lab (tests/test-lab.yaml)
+
+# The package's Test Lab catalog (ADR-160 S2): every shipped suite with its runner, prerequisites
+# and isolation. Registration does not execute a suite or certify a pass.
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TOOLS — every one is route-backed and deterministic. A bot that calls these
@@ -217,9 +246,10 @@ tools:
     tags: [ocean-lab, route-backed]
 
 # ─────────────────────────────────────────────────────────────────────────────
-# COCKPIT UI SURFACES — two, because they are two different jobs: siting an
-# energy budget, and shaping the rotor that feeds it. Both self-served by this
-# package's route from tools/ (ctx.appPackageDir).
+# COCKPIT UI SURFACES — three, because they are three different jobs: siting an
+# energy budget, shaping the rotor that feeds it, and developing one vehicle as a
+# record (the Explorer). All self-served by this package's route from tools/
+# (ctx.appPackageDir).
 # ─────────────────────────────────────────────────────────────────────────────
 ui:
   static:
@@ -233,12 +263,22 @@ ui:
       icon: codicon codicon-settings-gear
       iframeUrl: /api/ocean-lab/blade-studio
       section: top
+    # ADR-160 S2: the explorer as a record — its stage (with the sentence that fabricable is
+    # not a safety claim), the sea-state table, the open limits and the recorded runs; S3: its
+    # parts, the displacement budget, Open in CAD Studio and the generated design document.
+    - toolName: ocean-lab-explorer
+      label: Explorer
+      icon: codicon codicon-rocket
+      iframeUrl: /api/ocean-lab/explorer
+      section: top
 
-# One mounted factory composing both halves. requiresAuth is TRUE and is the real
-# guard: express-openid-connect runs authRequired:false, so an unwrapped packaged
-# route is anonymous — and these routes integrate up to two million synchronous
-# timesteps, which is a denial of service against the controller's only thread,
-# not merely a slow response.
+# One mounted factory composing every half — harvest, rotor, and (ADR-160 S2) the
+# vehicle record under /api/ocean-lab/vehicles, owner-scoped on the framework's
+# GUC-stamped pool. requiresAuth is TRUE and is the real guard:
+# express-openid-connect runs authRequired:false, so an unwrapped packaged route is
+# anonymous — and these routes integrate up to two million synchronous timesteps,
+# which is a denial of service against the controller's only thread, not merely a
+# slow response.
 routes:
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
@@ -253,8 +293,11 @@ routes:
     requiresAuth: true
     requiresContext: true
 
-# No migrations: every result is computed on demand from the posted design.
-# This surface owns no tables and no RAG collections (sat-ops precedent).
+# The app's own schema (ADR-160 S2): the vehicle record, its limit rows and its runs, each
+# with FORCEd owner RLS, applied on install. The harvest and rotor routes still compute on
+# demand from the posted design and store nothing.
+migrations:
+  - migrations/001-ocean-lab.sql
 
 # RIBBON VISIBILITY — focus mode for /cockpit?app=ocean-lab
 ribbon:

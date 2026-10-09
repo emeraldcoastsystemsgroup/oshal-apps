@@ -12,6 +12,17 @@
 # 8   | maintainer@emeraldcoastsystemsgroup.com     | Record what the dependency tiers mean for this package: both stay empty because nothing here reads another package, the empty connector list is what keeps the provider catalog out of a children's app, and the reasoning credentials are process-level rather than connectors
 # 9   | maintainer@emeraldcoastsystemsgroup.com     | Import student, teacher and admin structural roles and register existing and new package tests
 # 10  | maintainer@emeraldcoastsystemsgroup.com     | Resolve package-owned migrations/019-education-platform.sql from package directory rather than pre-carve-out kernel path
+# 11  | maintainer@emeraldcoastsystemsgroup.com     | Declare the compatibility floor for the existing shared orchestration prompt-containment import
+# 12  | maintainer@emeraldcoastsystemsgroup.com     | Add the owner-bound class-material destination for cockpit images and PDFs with teacher/requested sharing semantics
+# 13  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.0: the Little Monsters UX. One design system and page frame across every surface (shared theme bootstrap, classroom skin default, learner and teacher views by real role), plain Home and Voice labels
+# 14  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.1: the page frame ships inside the already-bound mascot script; the frame route and its bindings are withdrawn so the authorization catalog keeps the revision installed assignments reference (activation refused 1.4.0 with authorization_catalog_migration_required)
+# 15  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.2: the visibility rule covers every lm-* tool through GET /tool-keys (teacher-only tabs are not offered to learners in any rail), the class-material import is bound, lm_rewards ships as migration 038
+# 16  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.3: authorization.yaml back to the bytes installations were granted under (1.4.2 could not activate where assignments exist: a changed catalog needs an operator migration this build cannot complete for a self-held sensitive role); the visibility answer moves onto the already-bound /class-tool-keys; the import binding waits for that migration
+# 17  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.4: bind POST /import-artifact and the class-material artifact action (material.create + material.share) so File into a class is no longer refused as authorization_operation_unbound; this moves the catalog revision, so an installation with existing assignments runs the docs/authorization.md migration before 1.4.4 activates
+# 18  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.5: enterprise-authorization pilot suites (directory-group grants and the delegated-AI execution guard, record rights on a disposable PostgreSQL through the compiled routes, permission-aware pages in Chromium) registered in tests/test-lab.yaml; authorization.yaml and every route are unchanged, so the catalog revision stays what 1.4.4 installs
+# 19  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.6: the File into a class import hands its own request to core redeemArtifactViaRelay, so the loopback redeem carries the caller's session or PAT; the core relay refuses the service rail for a principal-bound handle, and 1.4.5 answered 404 "artifact handle not found" for a handle minted seconds earlier. Needs core with the request-carrying redeem. authorization.yaml, pages and migrations unchanged
+# 20  | maintainer@emeraldcoastsystemsgroup.com     | Include AI Office and Circuit Lab in native student, teacher and admin application composites while preserving school record authority and the empty child connector filter.
+# 21  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.8: honor native admitted identity and avoid hidden enrollment or reward writes during reads.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Little Monsters
@@ -26,29 +37,91 @@
 
 name: little-monsters
 suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: lecture-study-materials
+      unit: lecture study pack
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: lecture-recording-pipeline
+      unit: lecture recording ticket
+      tier: T4
+      generation: none
+      degrade: disable
+    - id: study-set-generation
+      unit: flashcard set or quiz
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: tutoring-turn
+      unit: tutoring turn
+      tier: T3
+      generation: hosted
+      degrade: disable
 displayName: Little Monsters
 description: >-
   Voice-first ADHD study companion for K-12 students. Record lectures,
   generate flashcards and authoritative quizzes, and chat with a Socratic tutor
   grounded only in caller-owned or teacher/admin-approved class material through
   per-material RAG collections.
-version: 1.3.5
+version: 1.4.10
 
 authorization:
   version: 1
   catalog: authorization.yaml
+  roleTemplates:
+    - id: student
+      version: 1
+      label: Student
+      members:
+        - app: little-monsters
+          role: student
+        - app: presentations
+          role: '@app-admin'
+        - app: circuit-lab
+          role: '@app-admin'
+    - id: teacher
+      version: 1
+      label: Teacher
+      members:
+        - app: little-monsters
+          role: teacher
+        - app: presentations
+          role: '@app-admin'
+        - app: circuit-lab
+          role: '@app-admin'
+    - id: admin
+      version: 1
+      label: School administrator
+      members:
+        - app: little-monsters
+          role: admin
+        - app: presentations
+          role: '@app-admin'
+        - app: circuit-lab
+          role: '@app-admin'
 testing:
   version: 1
   catalog: tests/test-lab.yaml
 
-# ADR-139 wave 1 — "Send to…" destination (open mode): an image or PDF from anywhere in the
-# swarm lands in the Tutor as the pending attachment ("here's my homework"), riding the chat's
-# existing attach flow. No class-scoping needed; materials filing stays a wave-2 candidate.
+# ADR-139 wave 1/2 — "Send to…" destinations: an image or PDF can open in the Tutor as a
+# pending attachment, or open the dashboard's class picker for teacher/requested class filing.
 artifacts:
   accepts:
     - id: tutor
       label: Ask the Tutor about it
       icon: 🧑‍🏫
+      types: [image/*, application/pdf]
+      mode: open
+    - id: class-material
+      label: File into a class
+      icon: 📚
+      keywords: [class, classroom, handout, material, school]
+      useWhen: Choose a class before filing this owner-bound image or PDF as a class material.
       types: [image/*, application/pdf]
       mode: open
 status: active
@@ -110,7 +183,9 @@ smoke:
 # can never again be broken at mount by a core-side prune (which is exactly how it lost
 # google-calendar, and how `notifications` was pruned).
 uses:
+  - bound-workflow-results # prompt-containment imports the shared orchestration module
   - application-authorization
+  - experience-roles
   - test-catalog
   - deck-generation
   - voice
@@ -142,46 +217,23 @@ skillProfiles:
       - homework-and-assignments
     outputContract: markdown study notes, concept-first
 
-# ── ADR-085: dependencies ───────────────────────────────────────────────────
-# Both tiers are EMPTY, and that is the ESTABLISHED answer rather than an undeclared one. Every
-# import and every fetch in this package was read: it pulls nothing from another PACKAGE and calls
-# no other package's mount. What it does reach is the kernel, through the skills in `uses:` above:
+# ── ADR-085: complete application prerequisites ──────────────────────────────
+# The product bundle includes the full AI Office and Circuit Lab applications for every
+# student/teacher/admin role. The local lecture player and PPTX export still use the
+# kernel deck-generation engine; these requirements describe the complete learning
+# workspace, including the prepare-study-plan handoff, rather than a new code import.
+# Each native role template above names all included application roles explicitly.
 #
-#   deck-generation  src-routes/education-pptx.ts:20   renderPptx   @/features/presentation-generation
-#   storage          src-routes/education-pptx.ts:22   saveContent  @/app/routes/storage-target
-#   voice            src-routes/education-voice-routes.ts:20        @/features/voice-providers
-#   rag              src-routes/education-tutor-routes.ts:199, education-study-model.ts:80,
-#                    education-material-storage.ts:192 + :204, education-lecture-transcript-routes.ts:89
-#
-# Three results that are easy to get backwards, so they are written down with what proved them:
-#
-#   * AI OFFICE (`presentations`) IS NOT A DEPENDENCY. The Presentations tab is this package's own
-#     picker (ui.static `lm-presentations` -> /api/education/presentation, served by
-#     tools/presentation.html, which fetches only /api/education/*), rendering through the KERNEL
-#     deck-generation engine. presentations/oshal-app.yaml states the same boundary from the other
-#     side: the engine "STAYS core ... (Little Monsters calls it too)" and only the SURFACE carved.
-#     The one link between the two packages is the `integrations.offers` hand-off below, and the
-#     framework resolves an offer whose target is not active to state:'unavailable'
-#     (features/swarm-apps/services/app-integrations.ts, resolveAppIntegrations) - one hand-off
-#     that does nothing, not a broken app. Store-wide this is the convention rather than a local
-#     choice: ~50 packages offer to `presentations` and none of them declares it as a dependency.
-#
-#   * NO CONNECTORS - AND THE EMPTY LIST IS LOAD-BEARING, NOT FILLER. `connectors` is declared in
-#     both tiers so the platform's connector allow-list is [] rather than ABSENT; absent means
-#     UNFILTERED (shared/app-dependencies), and the cockpit then pins the Connectors tile and the
-#     whole provider catalog inside a children's app (RibbonNav.js `connectorsAllowed`,
-#     cockpit-view-controller.js renderConnectorDiscoverView). Deleting either key re-opens that,
-#     which is why tests/lm-dependencies.test.cjs pins the declaration.
-#
-#   * THE CREDENTIALS THIS APP'S REASONING NEEDS ARE PROCESS-LEVEL, so they are not declarable here
-#     at all: GOOGLE_API_KEY / GEMINI_API_KEY behind the `gemini-tts` read-aloud voice
-#     (features/voice-providers/providers/gemini-tts-provider.ts), and ANTHROPIC_API_KEY on the
-#     image/PDF tutor path (src-routes/education-tutor-routes.ts:262). Text tutoring goes through
-#     the accountable bot boundary (executeBotOrInline) and carries no key of its own - deployment
-#     configuration, not an app/tool/connector prerequisite.
+# Both connector tiers stay DECLARED and empty: this keeps the general connector
+# catalog out of the child-facing ribbon. Kernel voice/model/storage readiness and
+# caller-owned provider connections are separate from application role assignments.
+# Teacher/admin catalog grants still require the existing issuer-bound school roster;
+# a composite never creates a school membership, enrollment or provider credential.
 dependencies:
   required:
-    apps: []
+    apps:
+      - presentations
+      - circuit-lab
     tools: []
     connectors: []
   optional:
@@ -262,23 +314,23 @@ ui:
     iframeUrl: /api/education/tutor
     title: Little Monster Expert
   static:
-    - { toolName: lm-dashboard,     label: Student Dashboard, icon: codicon codicon-mortar-board,        iframeUrl: /api/education/dashboard,        section: top }
+    - { toolName: lm-dashboard,     label: Home,              icon: codicon codicon-home,        iframeUrl: /api/education/dashboard,        section: top }
     - { toolName: lm-myday,         label: My Day,            icon: codicon codicon-calendar,            iframeUrl: /api/education/my-day,           section: top }
     - { toolName: lm-tutor,         label: Tutor,             icon: codicon codicon-comment-discussion,  iframeUrl: /api/education/tutor,            section: top }
     - { toolName: lm-flashcards,    label: Flashcards,        icon: codicon codicon-versions,            iframeUrl: /api/education/flashcards-hub,   section: top }
+    - { toolName: lm-arcade,        label: Games,             icon: codicon codicon-game,                iframeUrl: /api/education/arcade,           section: top }
+    - { toolName: lm-monsters,      label: My Monsters,       icon: codicon codicon-heart,               iframeUrl: /api/education/my-monsters,      section: top }
     - { toolName: lm-recorder,      label: Record,            icon: codicon codicon-record,              iframeUrl: /api/education/recorder,         section: top }
+    # This package-owned lecture picker calls the framework-resident deck-generation skill
+    # declared in `uses`; it does not require the separately packaged AI Office surface.
+    - { toolName: lm-presentations, label: Presentations,     icon: codicon codicon-graph,               iframeUrl: /api/education/presentation, section: top }
     - { toolName: lm-timelines,     label: Timelines,         icon: codicon codicon-history,             iframeUrl: /api/education/timelines,        section: top }
     - { toolName: lm-formula-lab,   label: Formula Lab,       icon: codicon codicon-symbol-operator,     iframeUrl: /api/education/formula-lab,      section: top }
     - { toolName: lm-stem,          label: STEM Helpers,      icon: codicon codicon-beaker,              iframeUrl: /api/education/stem-helpers,     section: top }
     - { toolName: lm-citations,     label: Citations,         icon: codicon codicon-quote,               iframeUrl: /api/education/citations,        section: top }
     - { toolName: lm-files,         label: My Files,          icon: codicon codicon-folder,              iframeUrl: /api/education/files,            section: top }
-    - { toolName: lm-arcade,        label: Games,             icon: codicon codicon-game,                iframeUrl: /api/education/arcade,           section: top }
-    - { toolName: lm-monsters,      label: My Monsters,       icon: codicon codicon-heart,               iframeUrl: /api/education/my-monsters,      section: top }
-    # This package-owned lecture picker calls the framework-resident deck-generation skill
-    # declared in `uses`; it does not require the separately packaged AI Office surface.
-    - { toolName: lm-presentations, label: Presentations,     icon: codicon codicon-graph,               iframeUrl: /api/education/presentation, section: top }
     - { toolName: lm-teacher,       label: Teacher,           icon: codicon codicon-mortar-board,        iframeUrl: /api/education/teacher,          section: bottom }
-    - { toolName: lm-voice-settings, label: Voice Settings,   icon: codicon codicon-unmute,              iframeUrl: /api/education/voice-settings,   section: bottom }
+    - { toolName: lm-voice-settings, label: Voice,            icon: codicon codicon-unmute,              iframeUrl: /api/education/voice-settings,   section: bottom }
   dynamic:
     source: lm_classes
     where: "status = 'active'"
@@ -288,10 +340,11 @@ ui:
     iframeUrlTemplate: /api/education/class?classId={class_id}
     section: top
     # ADR-085 generic per-user visibility: the framework asks THIS endpoint (with the
-    # caller's session) which lm-class-* icons the caller may see. Fail-closed.
+    # caller's session) which lm-* tools the caller may see — the static surfaces for their
+    # role plus their class icons. Fail-closed.
     visibility:
       endpoint: /api/education/class-tool-keys
-      pattern: "lm-class-*"
+      pattern: "lm-*"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ROUTES — compiled JS bundled in this package (routes/*.js), mounted in-process
@@ -348,6 +401,7 @@ migrations:
   - migrations/035-enrollment-tenant-invariant.sql
   - migrations/036-authoritative-progress.sql
   - migrations/037-authorization-audit.sql
+  - migrations/038-rewards.sql
 
 # Voice channels (provider ids from the swarm voice-providers registry; swarm-default defers).
 voice:

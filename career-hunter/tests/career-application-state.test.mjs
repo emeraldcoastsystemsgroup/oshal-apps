@@ -120,6 +120,7 @@ function boardStatusHandler(ctx) {
   let handler;
   const router = {
     get() {},
+    delete() {},
     post(path, callback) { if (path === '/jobs/:id/status') handler = callback; },
   };
   boardRoutes.registerCareerBoardRoutes(router, ctx);

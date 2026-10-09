@@ -17,6 +17,14 @@
  *                     |                             | test: "ends at or above its starting charge" was a clause
  *                     |                             | the top clamp made unsatisfiable, and the store search no
  *                     |                             | longer silently starts every trial full.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 D8 (S5a): `turbinePowerW` takes the medium's density from
+ *                     |                             | its caller instead of multiplying by the module constant at the
+ *                     |                             | point of use, and the unit config carries it. The constant stays
+ *                     |                             | declared here as the DEFAULT (the seawater row), pinned by the
+ *                     |                             | store's cross-package drift guard (scripts/check-medium-
+ *                     |                             | properties.mjs) against embodied's committed medium row and this
+ *                     |                             | package's second declaration in rotor-presets.ts. A zero or
+ *                     |                             | negative density is refused, never a quiet zero harvest.
  */
 
 import {
@@ -28,7 +36,12 @@ import {
 import type { MarineUnitConfig, PowerBudgetSample, PowerBudgetVerdict, TurbineConfig } from '../model/marine-types';
 import { currentSpeedAt } from './tidal-current';
 
-/** @description Density of seawater at typical coastal temperature/salinity, kg/m³. */
+/**
+ * @description Density of seawater at typical coastal temperature/salinity, kg/m³ — the DEFAULT
+ * medium of the marine budget, not an assumption baked into the cube law. The same value is
+ * declared in rotor-design/services/rotor-presets.ts and in embodied's committed medium row;
+ * scripts/check-medium-properties.mjs fails the store when any of the three disagree (ADR-160 S5).
+ */
 export const SEAWATER_DENSITY_KGM3 = 1025;
 
 /** @description Betz limit — the theoretical ceiling on Cp for any open-flow rotor, 16/27. */
@@ -58,16 +71,25 @@ export interface PowerBudgetResult {
 /**
  * @description Electrical power a rotor extracts from a flow: P = ½·ρ·A·|v|³·Cp·η, zero below
  * cut-in, clamped at rated. The cube is why cut-in dominates the design — halving the flow
- * speed cuts power by 8×, so a site spends most of its time producing almost nothing.
+ * speed cuts power by 8×, so a site spends most of its time producing almost nothing. The
+ * density ρ is the CALLER's medium (ADR-160 D8): this function no longer assumes seawater at the
+ * point of use; it defaults to the seawater row when no medium is named.
  * @param turbine - Harvester model.
  * @param speedMs - Signed flow speed, m/s (sign ignored — a rotor harvests either direction).
+ * @param densityKgM3 - Density of the medium the rotor harvests from, kg/m³. Default: the
+ * seawater row, {@link SEAWATER_DENSITY_KGM3}.
  * @returns Electrical power, W.
+ * @throws RangeError when the density is not a finite positive number — a medium with no mass
+ * harvests nothing, and that is a refusal to state, not a zero to return.
  */
-export function turbinePowerW(turbine: TurbineConfig, speedMs: number): number {
+export function turbinePowerW(turbine: TurbineConfig, speedMs: number, densityKgM3: number = SEAWATER_DENSITY_KGM3): number {
+  if (!Number.isFinite(densityKgM3) || densityKgM3 <= 0) {
+    throw new RangeError(`turbinePowerW: densityKgM3 must be a finite positive number (received ${densityKgM3})`);
+  }
   const v = Math.abs(speedMs);
   if (v < turbine.cutInSpeedMs) return 0;
   const raw =
-    0.5 * SEAWATER_DENSITY_KGM3 * turbine.sweptAreaM2 * v ** 3 * turbine.powerCoefficient * turbine.drivetrainEfficiency;
+    0.5 * densityKgM3 * turbine.sweptAreaM2 * v ** 3 * turbine.powerCoefficient * turbine.drivetrainEfficiency;
   return Math.min(raw, turbine.ratedPowerW);
 }
 
@@ -75,14 +97,17 @@ export function turbinePowerW(turbine: TurbineConfig, speedMs: number): number {
  * @description Collapse a marine design onto the generic energy design the shared core consumes.
  * This adapter IS the marine slice's entire contribution to the budget: the site harmonics and
  * the rotor's cube law compose into one `(t) => watts` closure, and everything downstream — the
- * store model, the verdict, the search — is domain-free.
- * @param config - Site, harvester, loads and store.
+ * store model, the verdict, the search — is domain-free. The medium's density is read from the
+ * config ONCE here and handed to the cube law, so the budget integrates in the fluid the caller
+ * named (the seawater row when it named none).
+ * @param config - Site, harvester, loads and store, and optionally the medium's density.
  * @returns The same design expressed as a harvest sampler plus loads and store.
  */
 function toEnergyDesign(config: MarineUnitConfig): EnergyBudgetDesign {
+  const densityKgM3 = config.densityKgM3 ?? SEAWATER_DENSITY_KGM3;
   return {
     label: config.site.name,
-    harvestAt: (t) => turbinePowerW(config.turbine, currentSpeedAt(config.site, t)),
+    harvestAt: (t) => turbinePowerW(config.turbine, currentSpeedAt(config.site, t), densityKgM3),
     loads: config.loads,
     storage: config.storage,
   };

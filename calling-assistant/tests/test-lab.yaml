@@ -1,0 +1,89 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register native callback proof and durable acknowledgement tests without claiming provider or database acceptance.
+version: 1
+cases:
+  - id: native-continuations
+    name: Native callback proof and durable audio acknowledgement
+    purpose: Exercise the actual package service and callback route factory with synthetic native proof and queue recorders; no carrier, speech provider or database is reached.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-continuations.test.cjs] }
+    expected:
+      - Audio acknowledgement waits for durable enqueue without starting an unowned background processor.
+      - Failed enqueue refuses acknowledgement and makes no SQL processing claim.
+      - Forged callback JSON and direct worker requests cannot reach owned rows without native proof.
+      - Legacy callbacks retain their conditional SQL claim and processor.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: calling-policy
+    name: Calling configuration, menu and carrier boundaries
+    purpose: Exercise menu decisions, bounded configuration, TwiML responses and carrier signature validation without a live call.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/policy.test.cjs] }
+    expected: [Invalid configuration is refused, Menu decisions generate the expected response, Unsigned carrier requests are refused]
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: calling-integration
+    name: Durable task and signed carrier lifecycle
+    purpose: Run the registered tool through PostgreSQL persistence and a loopback mock carrier; optional real local speech fixtures exercise the full audio workflow.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/integration.test.cjs] }
+    expected:
+      - Duplicate starts do not redial
+      - Ownership and callback signatures are enforced
+      - Carrier outcomes and cleanup failures remain visible
+      - A restarted worker resumes a persisted run without redialing, and an interrupted audio turn stops at the processing bound instead of being acted on twice
+      - Owner no-answer on the handoff leg fails the run and nothing dials the owner again
+      - The Twilio credential appears in no tool result, callback response or stored row, and nowhere in the stdout, stderr or working-directory files of the separate worker process that runs the package code
+    prerequisites: [runner:node-test, fixture:core-checkout, fixture:calling-postgres]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/integration.test.cjs, tests/calling-worker.fixture.cjs]
+      cleanup: The uniquely named fixture schema and local HTTP servers are removed after the run; the worker process exits and its temporary working directory is deleted.
+    limits: { timeoutMs: 240000 }
+    installation: never
+  - id: calling-ui
+    name: Calling setup desktop and mobile, and the company view gate
+    purpose: Verify explicit connection and sender selection, saved disabled settings, a usable mobile layout, and that the company audience view paints from the shared kit while the full client stays idle.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/ui.test.cjs] }
+    expected: [No account is silently selected, Configuration saves the chosen connection, Mobile layout fits the viewport, The company view reads only /tasks and the full client attaches nothing, Without the audience the full page boots with the kit present]
+    prerequisites: [runner:node-test, fixture:core-checkout, runtime:browser]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/ui.test.cjs]
+      cleanup: Headless browser and loopback fixture server are closed after the run.
+    limits: { timeoutMs: 60000 }
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) and family (Home shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

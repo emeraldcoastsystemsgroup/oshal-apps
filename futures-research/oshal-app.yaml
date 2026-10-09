@@ -1,0 +1,69 @@
+# CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Separate opt-in Futures reasoning from equity decisions; execution is bound to durable owner-scoped study evidence.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Release exact-citation, outcome-aware reasoning without changing tools or automatic enrollment.
+name: futures-research
+suite: ai-finance
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }
+  features:
+    - id: futures-study-review
+      unit: study review
+      tier: T3
+      generation: none
+      degrade: disable
+displayName: Futures Research
+description: Tool-less scheduled review of owner-scoped Futures studies; proposals require explicit adoption in the Trading console.
+version: 1.1.0
+status: active
+scope: public
+uses: [bound-workflow-results, app-dependencies, test-catalog]
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: futures-research
+  ref: main
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+ticketType: futures-research
+workflow:
+  name: Futures Research Review
+  pipeline: manifest-worker
+  workerBot: futures-research-worker
+  autoStart: true
+bots:
+  - agentId: 7c51c6e6-cc8a-4de9-8695-40584737789d
+    name: futures-research-worker
+    container: futures-research-worker
+    persona: personas/futures-research-worker.yaml
+    role: trading/futures-research
+    capabilities: [futures-study-review]
+    accessRoles: [operator, swarm]
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/futures-research/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/futures-research/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+theme: midnight

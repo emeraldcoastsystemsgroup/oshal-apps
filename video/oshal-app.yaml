@@ -1,3 +1,16 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.6.2: ship the manual timeline editor's pure half (CREATE-EDIT-05a) - the shared timeline document contract, immutable operations, bounded history and the timeline-to-FFmpeg compiler - with two registered Lab cases. No route, table, permission or surface change.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: the manual editor's persistence and routes (CREATE-EDIT-05b) - migration 068 (private forced-RLS projects, immutable revisions and owned media), the /api/video/editor routes mounted beside the studio, and Video's first named authorization catalog, which binds every existing studio, series, pump, summary and readiness endpoint as well. Activating this release on an installation with existing Video grants needs the reviewed AUTH-07 catalog migration; a legacy app-admin assignment is not translated.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: export jobs for the manual editor (CREATE-EDIT-05c) - migration 069 (forced two-arm owner RLS), the runtime FFmpeg behind a Video-owned adapter with one encode per process, one job per owner, four queued, cancellation that terminates only the tracked child, a private work directory that is always removed, epoch-scoped interruption on restart and publication only after the real output is decoded and verified. Five export bindings join the catalog; no new permission or role.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0: the manual editor screen (CREATE-EDIT-05d) - a Video editor tile at /api/video/editor: import clips and music with the native picker, trim, split, reorder and remove, clip and music volume, titles, undo and redo, frame-exact in-browser preview, save and reopen, and export or preview through the export jobs; every action has a keyboard equivalent. Three bindings join the catalog: the page and its fixed module allowlist under editor.view, and deleting one unused upload under editor.delete. Ships the installed-box acceptance walk (tests/editor-live-acceptance.mjs) with its committed one-second clip.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: authorization.yaml binds the package's three bots to studio.generate, so a protected chat turn to the concierge (screenplay-writer) is admitted instead of refused authorization_operation_unbound. No route, tool or bot change.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Import vids-operator from its single owning application, vids, instead of relying on global aliases or duplicate bot ownership.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4: declare existing series storyboarding and pump schema; await native ticket and screenplay acknowledgements.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.9.5: use declared native media transport and full-read-set transactions while retaining ordinary PostgreSQL behavior.
+# -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — video ("Video Studio")
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -26,12 +39,32 @@
 
 name: video
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: storyboard
+      unit: storyboard
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: clip-render
+      unit: short video
+      tier: T2
+      generation: hosted
+      degrade: disable
+    - id: series-episode
+      unit: series episode
+      tier: T3
+      generation: hosted
+      degrade: disable
 displayName: Video Studio
 description: >-
   Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from an idea.
   Shape the style, tone, length, captions and voiceover; the director storyboards it and the
   studio renders a real .mp4 with voiceover and captions, saved to your Files storage.
-version: 1.5.1
+version: 1.9.6
 status: active
 
 # Per-app skin (approved palette) — sakura so the media studio reads distinct.
@@ -63,6 +96,18 @@ uses:
   - media-generation # video-routes.js renders through the video-generation slice (Veo + storyboard)
   - storage          # video-routes.js saves finished MP4s through the kernel storage target
   - app-dependencies # compatibility floor for the tiered dependencies block (ADR-085 addendum)
+  - test-catalog
+  - application-authorization # the named catalog below; older cores refuse it instead of ignoring it
+
+# ADR-149 named catalog: studio view/read/generate, pump management, and the manual editor's own
+# view/read/create/change/delete/export. Every endpoint of every route below has a binding.
+authorization:
+  version: 1
+  catalog: authorization.yaml
+
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 
 # ── Cross-package prerequisites: what this package actually reaches ─────────
 # OPTIONAL, NOT REQUIRED: tools/video.html:461 reads /api/create/brand-kit to offer the "in brand
@@ -70,7 +115,10 @@ uses:
 # and the series lifecycle are identical without Create.
 dependencies:
   required:
-    apps: []
+    apps: [vids]
+    bots:
+      - app: vids
+        name: vids-operator
     tools: []
     connectors: []
   optional:
@@ -111,18 +159,7 @@ bots:
       - dialogue-writing
       - shot-direction
 
-  # The renderer. Already registered (kernel swarm-bot-registry blocks) — it drives
-  # Google Vids by clicking on the operator's remote node. Named here so
-  # `agentBinding: vids-operator` resolves.
-  - agentId: b00e0000-0000-0000-0000-000000000001
-    name: vids-operator
-    persona: personas/vids-operator.yaml
-    role: media/video
-    capabilities:
-      - veo-prompt-craft
-      - vids-generate
-      - vids-operate
-      - shot-planning
+# Vids owns the renderer. Its stable bot identity is imported above.
 
 # A series is a queued, multi-stage job (unlike a single clip, which is interactive).
 ticketType: video-series
@@ -132,6 +169,10 @@ ticketType: video-series
 migrations:
   - migrations/066-video-series.sql
   - migrations/067-video-episode-scenes.sql
+  - migrations/070-video-series-storyboarding-status.sql
+  - migrations/071-video-pump.sql
+  - migrations/068-video-edit-projects.sql   # the manual editor's own private, forced-RLS tables
+  - migrations/069-video-edit-exports.sql    # its export jobs, same forced two-arm policy
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ROUTES — the packaged surface router, mounted /api/video on activation. (In core
@@ -160,6 +201,15 @@ routes:
     auth: oidc   # what core server.ts mounted (requiresAuth — ADR-085 D2)
     requiresAuth: true
     requiresContext: true
+  # The manual timeline editor (CREATE-EDIT-05): its own projects, owned media and revisions under
+  # /api/video/editor. Mounted beside the studio; it makes no provider call and spends nothing.
+  - module: routes/video-editor-routes.js
+    factory: createVideoEditorRoutes
+    mountPath: /api/video
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
   # The joke-shorts pump's controls: import the show library, enrol a show (the operator's
   # one-time authorization for its render spend), read the node's availability + the run
   # ledger, run one cycle on demand. The pump ENGINE is framework-resident (ADR-093:
@@ -195,6 +245,12 @@ ui:
       label: Video Studio
       icon: codicon codicon-device-camera-video
       iframeUrl: /api/video/ui
+      section: top
+    # The manual timeline editor: your own clips, trimmed, split, reordered, titled and scored, then exported.
+    - toolName: video-editor
+      label: Video editor
+      icon: codicon codicon-edit
+      iframeUrl: /api/video/editor
       section: top
 
 # Trim the ribbon to the studio + the essentials. Hide the generic framework items.

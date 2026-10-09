@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Initial creation — the DroneNode a node on the swarm rail is (ADR-099, B20), the core RemoteDroneProvider's shape: built from the fleet's record of a node that joined by heartbeat, commanded at the endpoint it declared over the swarm service secret (one bridge per world, closed on drop), its hello checked like a dialled one (the build hash for a plant node, whose engine tree must be this package's). `load` is what a plant node accepts and a real body refuses; a `clone` the node refuses (cannot_clone: one body) is null, and the rehearsal runs on the kinematic twin. The sim flies it through the same seam as the dialled plant.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-175 hardening: commands carry the node's own command key from its fleet record, never SWARM_SERVICE_SECRET. The node's heartbeat declares its endpoint, so the machine secret must not follow it there.
  */
 
 import { EngineFailure, SyncBridge } from '../physics/bridge-client';
@@ -12,8 +13,6 @@ import type { Pose3Yaw } from '../drone/quad-model';
 import type { NodeKind, NodeRecord } from './node-fleet';
 
 export interface RailNodeOptions {
-  /** The swarm service secret every envelope carries (SWARM_SERVICE_SECRET). Empty = the rail cannot be used. */
-  secret: string;
   /** This package's engine tree hash; a plant node built from another tree is refused before the first request. */
   expectedBuildHash: string | null;
   timeoutMs?: number;
@@ -40,11 +39,11 @@ export class RailDroneNode implements DroneNode {
    * @description Open the node's command channel and load the world's MJCF into a session there.
    * @param record - The fleet's record (an online node; the fleet refuses an offline one before this is reached).
    * @param mjcf - The scene and the drone, generated from the parts model. @param seed - The gust seed.
-   * @param controller - The plant's controller or a certified policy. @param opts - Secret, expected build hash, timeout.
+   * @param controller - The plant's controller or a certified policy. @param opts - Expected build hash, timeout.
    * @returns The node, flying the session.
    */
   static load(record: NodeRecord, mjcf: string, seed: number, controller: ControllerSpec, opts: RailNodeOptions): RailDroneNode {
-    const bridge = new SyncBridge({ transport: 'http', endpoint: record.endpointUrl, secret: opts.secret, hello: record.hello, nodeId: record.nodeId, expectedBuildHash: record.kind === 'plant' ? opts.expectedBuildHash : null, timeoutMs: opts.timeoutMs ?? 30000 });
+    const bridge = new SyncBridge({ transport: 'http', endpoint: record.endpointUrl, commandKey: record.commandKey, hello: record.hello, nodeId: record.nodeId, expectedBuildHash: record.kind === 'plant' ? opts.expectedBuildHash : null, timeoutMs: opts.timeoutMs ?? 30000 });
     try {
       const plant = RemotePlant.load(bridge, mjcf, seed, controller);
       return new RailDroneNode(plant, bridge, record);

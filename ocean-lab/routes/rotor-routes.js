@@ -20,6 +20,12 @@
  *                     |                             | per-field bounds alone still admit 64 stations at 200 panel
  *                     |                             | stations (5.1e8 panel work units, seconds of wall clock) and
  *                     |                             | 400 elements across 64 tip-speed ratios (25600 element solves).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 D8 (S5a): POST /harvest hands the flow's density to the
+ *                     |                             | marine budget explicitly (`densityKgM3` on the unit config) now
+ *                     |                             | that `turbinePowerW` takes it from its caller. The seawater pin
+ *                     |                             | stays, with its reason restated: the SITE this budget integrates
+ *                     |                             | is a seawater tidal channel, so a rotor solved in another fluid
+ *                     |                             | would be harvesting a site that does not carry that fluid.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ROTOR_EXPORT_FORMATS = exports.RotorSolutionError = exports.RotorInputError = exports.ROTOR_LIMITS = void 0;
@@ -725,17 +731,19 @@ const CONSTANT_CP_NOTE = 'Cp is solved once, at the posted flow, and then held c
     'blade. Sweep POST /cp-curve to see how much Cp actually moves off the design point.';
 /**
  * @description Reject a harvest request whose rotor was solved in a different fluid from the one
- * the budget integrates in. `turbinePowerW` hard-codes {@link SEAWATER_DENSITY_KGM3}, so a Cp
- * solved in fresh water or in air would be re-applied at 1025 kg/m³ and the verdict would describe
- * a rotor nobody solved. The two numbers are the same physical quantity and must agree.
+ * the budget's SITE carries. The cube law itself now takes the density from its caller (ADR-160
+ * D8) and this route passes the flow's density through, so the number the verdict re-applies is
+ * the number the rotor was solved at — but the tidal site model behind the budget is a seawater
+ * channel, and a Cp solved in fresh water or in air would be harvesting a site that does not
+ * carry that fluid. The pin keeps the site and the fluid the same thing.
  * @param flow - The validated flow condition.
  * @returns Nothing; throws {@link RotorInputError} on a mismatch.
  */
 function assertMarineDensity(flow) {
     if (Math.abs(flow.densityKgM3 - marine_1.SEAWATER_DENSITY_KGM3) > 1e-6) {
         bad(`flow.densityKgM3 must be the marine budget's own seawater density ${marine_1.SEAWATER_DENSITY_KGM3} kg/m³ ` +
-            `(received ${flow.densityKgM3}) — turbinePowerW re-applies the solved Cp at that density, so solving ` +
-            'the rotor in another fluid would produce a verdict for a rotor nobody solved');
+            `(received ${flow.densityKgM3}) — the tidal site this budget integrates is a seawater channel, so a ` +
+            'rotor solved in another fluid would produce a verdict for a site that does not carry that fluid');
     }
 }
 /**
@@ -830,6 +838,8 @@ function handleHarvest(req, res) {
         site: parseTidalSite(body.site),
         loads: parseLoads(body),
         storage: parseStorage(body),
+        // The budget integrates in the fluid the rotor was solved in — passed, never assumed (ADR-160 D8).
+        densityKgM3: flow.densityKgM3,
     };
     const drivetrain = parseDrivetrain(body.drivetrain);
     const bemt = (0, rotor_design_1.solveBemt)(blade, flow, bemtOptions);

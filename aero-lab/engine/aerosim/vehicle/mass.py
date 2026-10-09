@@ -6,6 +6,7 @@ SEQ                 | AUTHOR                      | DESCRIPTION
 1 | maintainer@emeraldcoastsystemsgroup.com   | New module: the mass-closure layer. Sourced specific-energy / areal-density / linear-density constants, the element mass-declaration protocol, per-body aggregation, the MassBudget record, and the credibility bounds that stop an optimizer from buying a massless pack.
 2 | maintainer@emeraldcoastsystemsgroup.com   | Header truth update: the "AeroSurface is undeclared" statement is no longer true -- the wing mass model landed in vehicle/structure.py and AeroSurface now declares real mass. No code change in this file.
 2 | maintainer@emeraldcoastsystemsgroup.com   | Credible bands for the gravimetric-power DIVISORS (motor / ESC / generator-class specific power). Round 2 found the class: any divided-by constructor number an optimizer can raise is a mass discount -- motor_specific_power_W_per_kg = 1e9 was a weightless drive. Bands are fail-closed like the pack ceiling; enforced by the elements through vehicle/param_bounds.py.
+3 | maintainer@emeraldcoastsystemsgroup.com   | MassClosureError declares the family's structured validity code (mass_closure_refused) on the class; the subclasses that carry numbers (ParamBoundsError, TechCatalogueError) attach their own reasons at the raise. No bound changes.
 
 WHY THIS MODULE EXISTS
 ----------------------
@@ -286,6 +287,10 @@ class MassClosureError(ValueError):
         carbon. Every one of these is a way for an optimizer to obtain a
         capability without paying its weight, so every one is fail-closed.
     """
+
+    #: aerosim.validity code for the family (subclasses that carry numbers --
+    #: ParamBoundsError, TechCatalogueError -- attach their own at the raise).
+    VALIDITY_CODE = "mass_closure_refused"
 
 
 class UndeclaredMassError(MassClosureError):

@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<!--
+  Fantasy Football — manage the team you have (?app=fantasy-football).
+
+  Moved out of Sports Edge's Fantasy tab (ADR-146 D1). Everything here is YOUR team only: the
+  leagues you linked, the lineup for the team your own ESPN account owns, and the ledger of calls
+  made for it. Nothing on this page changes a lineup on ESPN or submits a claim — it advises, you act.
+
+  Self-contained: no external assets. Framework theme tokens + the shared glass sheet only.
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fantasy Football</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shells (Studio, Orbit, Commons) open this page with ?audience=company: the
+     signed-in account's OWN fantasy team (linked leagues, start/sit calls waiting to be graded, calls graded in five
+     days) from GET /api/fantasy-football/home-summary (the read Home makes: owner-scoped, bounded, side-effect free),
+     painted by the shared kit in the company grammar. The view never reads ESPN, changes a lineup, submits a claim or
+     writes anything. Any other request runs the full Fantasy Football page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var KICKER = 'Productivity · Fantasy Football';
+  var LEDE = 'Your own fantasy team: the leagues you linked and the start/sit calls registered for it, graded as the weeks settle. Looking here never reads ESPN, changes a lineup or submits a claim; the app advises, you act.';
+  var REFUSALS = { 401: 'Sign in to see your fantasy team.', 403: 'Fantasy Football is not available to this account.' };
+  function read() {
+    return fetch('/api/fantasy-football/home-summary', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j && typeof j === 'object' ? j : {} }; });
+    }, function () { return { ok: false, status: 0, body: {} }; });
+  }
+  function openFull() { window.location.assign(window.location.pathname); }
+  // The route sends metrics and tiles as one list; a value is digits in a string, or 'Unavailable' when its source failed.
+  function metrics(body) { return Array.isArray(body.metrics) ? body.metrics : Array.isArray(body.tiles) ? body.tiles : []; }
+  function count(v) { return typeof v === 'string' && /^\d+$/.test(v.trim()) ? Number(v) : null; }
+  function value(body, id) { var m = metrics(body).filter(function (x) { return x && x.id === id; })[0]; return m ? count(m.value) : null; }
+  function stat(m) {
+    var n = count(m.value), known = m.value !== 'Unavailable';
+    return { id: m.id, label: m.label, value: m.value, tone: !known ? 'warn' : n === null || n === 0 ? null : m.id === 'calls-ungraded' ? 'warn' : 'ok', hint: known ? null : 'Could not be checked' };
+  }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function title(body) {
+    var leagues = value(body, 'fantasy-leagues'), pending = value(body, 'calls-ungraded'), graded = value(body, 'graded-5d');
+    if (body.partial === true) return 'Some saved sources cannot be checked';
+    if (leagues === 0) return 'No fantasy league linked yet';
+    if (pending > 0) return plural(pending, 'start/sit call', 'start/sit calls') + ' waiting to be graded';
+    if (graded > 0) return plural(graded, 'call', 'calls') + ' graded in 5 days';
+    return leagues > 0 ? 'No start/sit calls yet' : 'Nothing recorded yet';
+  }
+  function refusal(res) {
+    var why = REFUSALS[res.status] || (typeof res.body.error === 'string' && res.body.error) || (res.status ? 'Saved evidence cannot be checked right now (HTTP ' + res.status + ').' : 'Fantasy Football could not be reached.');
+    return { kicker: KICKER, title: 'Your fantasy team is not available right now', lede: why + ' No figure is shown in its place.', actions: [{ label: 'Open Fantasy Football', primary: true, onClick: openFull }] };
+  }
+  function company() {
+    return read().then(function (res) {
+      if (!res.ok) return refusal(res);
+      var body = res.body, items = Array.isArray(body.items) ? body.items : [];
+      var notes = items.filter(function (i) { return i && i.text; }).map(function (i) { return { title: String(i.text), tone: i.tone === 'warn' ? 'warn' : null }; });
+      return { kicker: KICKER, title: title(body), lede: LEDE + (body.asOf ? ' Read ' + A.when(body.asOf) + '.' : ''),
+        actions: [{ label: 'Open Fantasy Football', primary: true, onClick: openFull }], stats: metrics(body).map(stat),
+        sections: notes.length ? [{ kind: 'list', id: 'notes', title: 'How these figures are read', wide: true, items: notes }] : [] };
+    });
+  }
+  A.boot({ app: 'fantasy-football', escapeLabel: 'Open Fantasy Football in the cockpit', audiences: { company: company } });
+})();
+</script>
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<style>
+  /* Short aliases DERIVED from the framework theme, never literal hex — so all themes work. */
+  :root {
+    --bg: var(--bg-primary);
+    --panel: var(--bg-card);
+    --border: var(--border-color);
+    --text: var(--text-primary);
+    --dim: var(--text-muted);
+    --green: var(--status-success, #3fb950);
+    --red: var(--status-error, #f85149);
+    --amber: var(--status-warning, #d29922);
+    --blue: var(--accent-primary, #58a6ff);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header {
+    position: sticky; top: 0; z-index: 5; height: 44px;
+    display: flex; align-items: center; gap: 14px; padding: 0 16px;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  header h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: .2px; }
+  header .sub { color: var(--dim); font-size: 12px; }
+  main { padding: 16px; max-width: 1180px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; margin-bottom: 14px;
+  }
+  .card > h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; }
+  .muted { color: var(--dim); }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  button.act {
+    background: var(--blue); color: var(--bg); border: none; border-radius: 5px;
+    padding: 6px 12px; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button.ghost {
+    background: none; color: var(--text); border: 1px solid var(--border);
+    border-radius: 5px; padding: 5px 10px; font: inherit; cursor: pointer;
+  }
+  button.ghost:hover { border-color: var(--blue); }
+  input, textarea {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 5px; padding: 6px 9px; font: inherit;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--dim); font-weight: 500; font-size: 12px; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pos { color: var(--green); } .neg { color: var(--red); }
+  .lines { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .linebox { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; }
+  .linebox .k { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+  .linebox .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 3px; }
+  .banner {
+    border-left: 3px solid var(--amber); background: var(--bg); padding: 9px 12px;
+    border-radius: 0 6px 6px 0; margin-bottom: 12px; font-size: 12px;
+  }
+  .banner.hard { border-left-color: var(--red); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Fantasy Football</h1>
+  <span class="sub" id="statusline">your team only &middot; advice, never an automatic change</span>
+</header>
+<main>
+  <div id="fantasyBody" class="muted">loading&hellip;</div>
+</main>
+
+<script>
+// Classic script, no modules — the surface convention across this codebase.
+var API = '/api/fantasy-football';
+var fantasyState = { season: null, leagues: [], connected: false };
+
+function el(id) { return document.getElementById(id); }
+function esc(s) {
+  return String(s === undefined || s === null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function box(k, v) { return '<div class="linebox"><div class="k">' + k + '</div><div class="v">' + v + '</div></div>'; }
+function jget(url) {
+  return fetch(url, { credentials: 'same-origin' }).then(function (r) {
+    return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || r.status); return b; });
+  });
+}
+function jbody(method, url, obj) {
+  return fetch(url, {
+    method: method, credentials: 'same-origin',
+    headers: { 'content-type': 'application/json' },
+    body: obj === undefined ? undefined : JSON.stringify(obj)
+  }).then(function (r) {
+    return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || r.status); return b; });
+  });
+}
+
+function loadFantasy() {
+  el('fantasyBody').innerHTML = '<div class="muted">loading&hellip;</div>';
+  jget(API + '/status').then(function (d) {
+    fantasyState.connected = d.connected;
+    fantasyState.leagues = d.leagues || [];
+    fantasyState.season = d.season;
+    renderFantasyHome(d);
+  }).catch(function (e) {
+    el('fantasyBody').innerHTML = '<div class="muted">' + esc(e.message) + '</div>';
+  });
+}
+
+function connectCard(d) {
+  return '<div class="card"><h2>Connect ESPN Fantasy</h2>' +
+    (d.connectHint ? '<p>' + esc(d.connectHint) + '</p>' : '') +
+    '<div class="banner hard">These are your ESPN <strong>account session cookies</strong>, not an ' +
+    'API key. ESPN publishes no OAuth for fantasy, so they are not scoped to fantasy, cannot be ' +
+    'revoked per app, and stop working only when you sign out of ESPN everywhere. They are stored ' +
+    'encrypted, used only to read your league, and only ever your own &mdash; a connection someone ' +
+    'shared with your household is never used here.</div>' +
+    '<p class="muted">In a browser signed in to ESPN, open DevTools &rarr; Application &rarr; ' +
+    'Cookies &rarr; <code>espn.com</code>, then on the connectors page paste:</p>' +
+    '<table><tr><th>Field</th><th>Cookie</th></tr>' +
+    '<tr><td>Account / identifier</td><td><code>SWID</code> &mdash; looks like <code>{XXXXXXXX-...}</code></td></tr>' +
+    '<tr><td>Token</td><td><code>espn_s2</code> &mdash; a long URL-encoded string</td></tr></table>' +
+    '<p class="muted" style="margin-top:10px">The player projection feed itself needs no credential at all.</p></div>';
+}
+
+function renderFantasyHome(d) {
+  if (!d.connected) {
+    // No connection is not a dead end: a league typed in by hand runs every board.
+    el('fantasyBody').innerHTML = connectCard(d) + '<div id="manualBody"></div><div id="lineupBody"></div>';
+    loadManual();
+    return;
+  }
+  var parts = ['<div class="card"><h2>Link a league</h2>' +
+    '<p class="muted">The league id is the <code>leagueId=</code> number in your ESPN league URL.</p>' +
+    '<div class="row"><input id="fLeagueId" placeholder="league id" style="width:160px">' +
+    '<input id="fSeason" value="' + esc(d.season) + '" style="width:90px">' +
+    '<button class="act" id="fLink">Link</button></div></div>'];
+  if (!fantasyState.leagues.length) {
+    parts.push('<div class="card"><span class="muted">No leagues linked yet.</span></div>');
+  } else {
+    parts.push('<div class="card"><h2>Your leagues</h2><table>' +
+      '<tr><th>Season</th><th>League</th><th>Your team</th><th></th></tr>' +
+      fantasyState.leagues.map(function (l) {
+        return '<tr><td>' + esc(l.season) + '</td><td>' + esc(l.leagueName || l.leagueId) + '</td>' +
+          '<td>' + esc(l.teamName || '—') + '</td>' +
+          '<td class="num">' + boardButtons('espn', l.season, l.leagueId) + ' ' +
+          '<button class="ghost" data-unlink="' + esc(l.season) + '/' + esc(l.leagueId) + '">unlink</button></td></tr>';
+      }).join('') + '</table></div>');
+  }
+  parts.push('<div id="manualBody"></div><div id="lineupBody"></div>');
+  el('fantasyBody').innerHTML = parts.join('');
+  bindHome();
+  loadManual();
+}
+
+function bindHome() {
+  var link = el('fLink');
+  if (link) {
+    link.addEventListener('click', function () {
+      var id = el('fLeagueId').value.trim();
+      if (!id) { alert('league id is required'); return; }
+      link.disabled = true; link.textContent = 'linking…';
+      jbody('POST', API + '/link', { leagueId: id, season: Number(el('fSeason').value) })
+        .then(function () { loadFantasy(); })
+        .catch(function (e) { alert(e.message); link.disabled = false; link.textContent = 'Link'; });
+    });
+  }
+  Array.prototype.forEach.call(el('fantasyBody').querySelectorAll('[data-unlink]'), function (b) {
+    b.addEventListener('click', function () {
+      fetch(API + '/leagues/' + b.getAttribute('data-unlink'), { method: 'DELETE', credentials: 'same-origin' })
+        .then(function () { loadFantasy(); });
+    });
+  });
+  bindBoards(el('fantasyBody'));
+}
+
+// The matchup card: a week is head-to-head, so what matters is the chance of clearing the
+// opponent's number, and for an underdog that chance rises with variance. The safe lineup's own
+// win probability is always shown beside it, so a recommendation that gives up projected points
+// has to visibly buy something.
+function noOpponentCard(m) {
+  var reason = m && m.opponentReason;
+  var why = reason === 'unreadable'
+    ? 'This week’s schedule could not be read from ESPN' +
+      (m.scheduleError ? ' (' + esc(m.scheduleError) + ')' : '') + ' — that is a read failure, not a week off.'
+    : (reason === 'bye'
+      ? 'You have a BYE this week — there is no opponent to beat.'
+      : (reason === 'not-scheduled'
+        ? 'The league schedule carries no fixture for this week.'
+        : 'No opponent could be read for this week.'));
+  return '<div class="card"><h2>This week</h2><p class="muted">' + why +
+    ' The lineup below is simply the highest-projected legal one.</p></div>';
+}
+
+function matchupCard(m) {
+  if (!m || m.meanFallback || m.winProbability === null) return noOpponentCard(m);
+  var pct = function (p) { return (p * 100).toFixed(0) + '%'; };
+  var word = m.posture === 'underdog'
+    ? 'You are the UNDERDOG this week, so the lineup changes shape — you need the tail, not the average.'
+    : (m.posture === 'favourite'
+      ? 'You are FAVOURED this week, so the lineup gets safer — refuse the coin flip.'
+      : 'This week is close to even, so the two objectives agree.');
+  var parts = ['<div class="card"><h2>Week ' + esc(m.week || '') + ' vs ' + esc(m.opponentName || 'your opponent') + '</h2>' +
+    '<div class="lines">' + box('You project', m.yourProjected.toFixed(1)) +
+      box('They project', m.opponentProjected.toFixed(1)) + box('Win chance', pct(m.winProbability)) +
+      box('Safest lineup wins', pct(m.meanWinProbability)) +
+    '</div><p class="muted" style="margin:10px 0 0">' + word + '</p>'];
+  if (m.swaps && m.swaps.length) {
+    parts.push('<table style="margin-top:10px">' +
+      '<tr><th>Start</th><th>Over</th><th class="num">Points given up</th><th class="num">Win % gained</th></tr>' +
+      m.swaps.map(function (s) {
+        return '<tr><td class="pos"><strong>' + esc(s.start.name) + '</strong> (' + s.start.points.toFixed(1) +
+          ', swing ' + s.start.sd.toFixed(1) + ')</td>' +
+          '<td class="neg">' + esc(s.sit.name) + ' (' + s.sit.points.toFixed(1) + ', swing ' + s.sit.sd.toFixed(1) + ')</td>' +
+          '<td class="num">' + (s.meanCost > 0 ? '-' : '+') + Math.abs(s.meanCost).toFixed(1) + '</td>' +
+          '<td class="num pos">+' + s.winGain.toFixed(1) + '</td></tr>';
+      }).join('') + '</table>' +
+      '<p class="muted" style="margin:9px 0 0">Swing is a modelled spread, not a measured one — ' +
+      'ESPN publishes a projection with no dispersion, so it starts from a positional prior and moves ' +
+      'toward each player’s own weekly scores as the season gives us some.</p>');
+  }
+  return parts.join('') + '</div>';
+}
+
+function callsCard(d) {
+  if (!d.calls || !d.calls.length) {
+    return '<div class="card"><h2>Start / sit</h2><p class="muted">Your lineup is already the best ' +
+      'legal one. That is the normal answer &mdash; a tool that always finds something to change is ' +
+      'fidgeting, not advising.</p></div>';
+  }
+  return '<div class="card"><h2>Start / sit</h2><table>' +
+    '<tr><th>Start</th><th>Sit</th><th class="num">Gain</th><th>Why</th></tr>' +
+    d.calls.map(function (c) {
+      return '<tr><td class="pos"><strong>' + esc(c.start.name) + '</strong> (' + c.start.points.toFixed(1) + ')</td>' +
+        '<td class="neg">' + esc(c.sit.name) + ' (' + c.sit.points.toFixed(1) + ')</td>' +
+        '<td class="num pos">+' + c.gain.toFixed(1) + '</td><td class="muted">' + esc(c.reason) + '</td></tr>';
+    }).join('') + '</table>' +
+    '<p class="muted" style="margin:9px 0 0">Every one of these is recorded before kickoff and graded ' +
+    'against what the benched player actually scored.</p></div>';
+}
+
+function startersCard(d) {
+  return '<div class="card"><h2>Projected starters</h2><table>' +
+    '<tr><th>Slot</th><th>Player</th><th class="num">Projected</th></tr>' +
+    d.optimal.starters.map(function (a) {
+      return '<tr><td class="muted">' + esc(a.slotId) + '</td><td>' + esc(a.player.name) + '</td>' +
+        '<td class="num">' + a.points.toFixed(1) + '</td></tr>';
+    }).join('') + '</table>' +
+    (d.optimal.bench.length ? '<h2 style="margin-top:14px">Bench</h2><table>' +
+      d.optimal.bench.slice(0, 10).map(function (b) {
+        return '<tr><td>' + esc(b.player.name) + '</td><td class="num">' + b.points.toFixed(1) + '</td></tr>';
+      }).join('') + '</table>' : '') +
+    '<p class="muted" style="margin:9px 0 0">Projections from ' +
+    (d.projectionsGeneratedAt ? esc(new Date(d.projectionsGeneratedAt).toLocaleString()) : 'an unavailable feed') +
+    ' &middot; ' + esc(d.projectionsAvailable) + ' players.</p></div>';
+}
+
+function renderLineup(d) {
+  var gain = Math.round((d.optimal.total - d.currentTotal) * 100) / 100;
+  if (d.matchup) d.matchup.week = d.league.week;
+  el('lineupBody').innerHTML = [matchupCard(d.matchup),
+    '<div class="card"><h2>' + esc(d.team.name) + ' &middot; week ' + esc(d.league.week) + '</h2>' +
+    '<div class="lines">' + box('Lineup as set', d.currentTotal.toFixed(1)) +
+      box('Recommended lineup', d.optimal.total.toFixed(1)) +
+      box('On the table', (gain > 0 ? '+' : '') + gain.toFixed(1)) + box('Scoring rules used', esc(d.scoringRules)) +
+    '</div><p class="muted" style="margin:10px 0 0">Points come from ESPN raw projections scored by ' +
+    '<strong>your own league rules</strong> &mdash; ESPN publishes projections as stats, not as points, ' +
+    'so a total only exists relative to a league.</p></div>',
+    callsCard(d), startersCard(d)].join('');
+  loadFantasyRecord();
+}
+
+function recordHtml(d) {
+  var r = d.record;
+  var html = '<div class="card"><h2>Start/sit record</h2>';
+  if (r.graded) {
+    html += '<div class="lines">' + box('Graded calls', r.graded) +
+      box('Actually gained', (r.actualPoints > 0 ? '+' : '') + r.actualPoints.toFixed(1)) +
+      box('We projected', (r.projectedPoints > 0 ? '+' : '') + r.projectedPoints.toFixed(1)) +
+      box('Right', r.right + ' / ' + r.graded) +
+      '</div><p class="muted" style="margin:10px 0 0">Projected and actual sit side by side on purpose: ' +
+      'claiming +40 and delivering +2 is a different tool from claiming +3 and delivering +2, and a ' +
+      'win rate alone hides that.</p>';
+  } else {
+    html += '<p class="muted">Nothing graded yet &mdash; calls are graded once the week finishes.</p>';
+  }
+  return html + weeksHtml(d.weeks) + '<table style="margin-top:12px"><tr><th>Wk</th><th>Start</th><th>Sit</th>' +
+    '<th class="num">Projected</th><th class="num">Actual</th></tr>' +
+    (d.calls || []).slice(0, 25).map(function (c) {
+      var act = c.settled
+        ? (Number(c.actual_gain) > 0
+          ? '<span class="pos">+' + Number(c.actual_gain).toFixed(1) + '</span>'
+          : '<span class="neg">' + Number(c.actual_gain).toFixed(1) + '</span>')
+        : '<span class="muted">pending</span>';
+      return '<tr><td>' + esc(c.week) + '</td><td>' + esc(c.start_player_name) + '</td>' +
+        '<td>' + esc(c.sit_player_name) + '</td>' +
+        '<td class="num">+' + Number(c.projected_gain).toFixed(1) + '</td><td class="num">' + act + '</td></tr>';
+    }).join('') + '</table></div>';
+}
+
+// The week ledger: the lineup advised against the lineup actually started, once each week is over,
+// beside the win probability that was claimed for it before kickoff.
+function weeksHtml(w) {
+  if (!w || !w.weeks) return '';
+  return '<h2 style="margin-top:14px">Week by week</h2><div class="lines">' + box('Weeks graded', w.graded + ' / ' + w.weeks) +
+    box('Advice vs what was started', (w.actualGain > 0 ? '+' : '') + Number(w.actualGain).toFixed(1)) +
+    box('Weeks with a variance swap', w.varianceWeeks) + '</div>' +
+    '<table style="margin-top:8px"><tr><th>Wk</th><th class="num">Win chance claimed</th><th class="num">Safest lineup claimed</th><th class="num">Advised scored</th><th class="num">Started scored</th></tr>' +
+    (w.rows || []).slice(0, 18).map(function (r) {
+      var pct = function (p) { return p === null || p === undefined ? '\u2014' : (Number(p) * 100).toFixed(0) + '%'; };
+      return '<tr><td>' + esc(r.week) + '</td><td class="num">' + pct(r.win_probability) + '</td><td class="num">' + pct(r.mean_win_probability) + '</td>' +
+        '<td class="num">' + (r.graded ? Number(r.actual_advised).toFixed(1) : '<span class="muted">pending</span>') + '</td>' +
+        '<td class="num">' + (r.graded ? Number(r.actual_started).toFixed(1) : '<span class="muted">pending</span>') + '</td></tr>';
+    }).join('') + '</table>';
+}
+
+function loadFantasyRecord() {
+  jget(API + '/record?limit=50').then(function (d) {
+    if (!d.record.graded && !(d.calls || []).length && !(d.weeks && d.weeks.weeks)) return;
+    el('lineupBody').innerHTML += recordHtml(d);
+  }).catch(function () { /* the record is additive; its absence must not blank the lineup */ });
+}
+
+// ---- boards: lineup, season, waivers, trades, for an ESPN league or a hand-typed one -----------
+// Every board is advice. Nothing on this page claims a player, bids, proposes a trade or changes a
+// lineup on ESPN: the numbers are here so a person can act on ESPN themselves.
+var BOARDS = {
+  lineup: API + '/lineup',
+  season: API + '/season',
+  waivers: API + '/waivers',
+  trades: API + '/trades'
+};
+
+function boardButtons(source, season, id) {
+  return ['lineup', 'season', 'waivers', 'trades'].map(function (kind) {
+    return '<button class="ghost" data-board="' + esc(source) + '|' + esc(season) + '|' + esc(id) + '|' + kind + '">' +
+      kind.charAt(0).toUpperCase() + kind.slice(1) + '</button>';
+  }).join(' ');
+}
+
+function bindBoards(root) {
+  Array.prototype.forEach.call(root.querySelectorAll('[data-board]'), function (b) {
+    b.addEventListener('click', function () {
+      var bits = b.getAttribute('data-board').split('|');
+      loadBoard(bits[0], bits[1], bits[2], bits[3]);
+    });
+  });
+}
+
+function loadBoard(source, season, id, kind) {
+  el('lineupBody').innerHTML = '<div class="card muted">building the ' + esc(kind) + '&hellip;</div>';
+  var q = (source === 'manual' ? 'manualId=' : 'leagueId=') + encodeURIComponent(id) + '&season=' + encodeURIComponent(season);
+  var render = { lineup: renderLineup, season: renderSeason, waivers: renderWaivers, trades: renderTrades }[kind];
+  jget(BOARDS[kind] + '?' + q).then(render)
+    .catch(function (e) { el('lineupBody').innerHTML = '<div class="card muted">' + esc(e.message) + '</div>'; });
+}
+
+// Which remaining weeks came from ESPN's own weekly projection and which from this week's projection
+// used as a rate. A number built on an assumption must never read as one built on data.
+function provenance(d) {
+  var w = d.weeks || {};
+  return '<p class="muted" style="margin:9px 0 0">Weeks ' + esc((w.fromFeed || []).join(', ') || 'none') +
+    ' priced from their own weekly projection; weeks ' + esc((w.fromRate || []).join(', ') || 'none') +
+    ' from this week’s projection used as a rate' + (d.byesKnown ? '' : ', with bye weeks not known for those weeks') +
+    (w.playoffStart ? '. Playoff weeks from ' + esc(w.playoffStart) + ' count extra.' : '.') + '</p>';
+}
+
+function renderSeason(d) {
+  el('lineupBody').innerHTML = '<div class="card"><h2>' + esc(d.team.name) + ' &middot; rest of season</h2>' +
+    '<div class="lines">' + box('Season value', d.total.toFixed(1)) +
+      box('Weeks left', (d.byWeek || []).length) +
+      box('Cheapest to drop', d.drop ? esc(d.drop.name) + ' (' + d.drop.cost.toFixed(1) + ')' : '—') +
+    '</div><p class="muted" style="margin:10px 0 0">The points your best legal starting lineup scores in every week ' +
+    'that remains, under your league’s rules. Every waiver claim and trade below is priced as the change in this number.</p>' +
+    provenance(d) + '</div>';
+}
+
+function renderWaivers(d) {
+  var rows = (d.rows || []).map(function (r) {
+    return '<tr><td class="pos"><strong>' + esc(r.add.name) + '</strong>' + (r.scarcity ? ' <span class="muted">(fills a replacement-level slot)</span>' : '') + '</td>' +
+      '<td>' + esc(r.drop.name) + '</td><td class="num">+' + r.gain.toFixed(1) + '</td>' +
+      '<td class="num">' + esc(r.weeksStarting) + '</td><td class="num">' + (r.bid === null ? 'priority' : '$' + esc(r.bid)) + '</td></tr>';
+  }).join('');
+  var streams = (d.streaming || []).map(function (s) {
+    return '<tr><td><strong>' + esc(s.add.name) + '</strong></td><td>' + esc(s.drop.name) + '</td><td class="num">+' + s.gain.toFixed(1) + '</td></tr>';
+  }).join('');
+  el('lineupBody').innerHTML = '<div class="card"><h2>Waiver board &middot; ' + esc(d.team.name) + '</h2>' +
+    (d.mode === 'faab' ? '<div class="lines">' + box('Budget left', '$' + esc(d.budget)) + box('Most one claim may spend', '$' + esc(d.cap)) + '</div>' : '<p class="muted">This league claims by waiver priority, so there is no bid.</p>') +
+    (rows ? '<table style="margin-top:10px"><tr><th>Add</th><th>Drop</th><th class="num">Rest-of-season gain</th><th class="num">Weeks starting</th><th class="num">Bid</th></tr>' + rows + '</table>'
+      : '<p class="muted">Nobody on the wire improves your starting lineup over the weeks that remain.</p>') +
+    provenance(d) + '</div>' +
+    '<div class="card"><h2>Streaming &middot; this week only</h2>' +
+    (streams ? '<table><tr><th>Add</th><th>Drop</th><th class="num">Gain this week</th></tr>' + streams + '</table>' : '<p class="muted">No streamer beats who you have this week.</p>') +
+    '<p class="muted" style="margin:9px 0 0">Streaming is priced on this week alone and never spends the rest-of-season budget. Nothing is claimed for you.</p></div>';
+}
+
+function renderTrades(d) {
+  var list = (d.proposals || []).map(function (t) {
+    var names = function (xs) { return xs.map(function (x) { return esc(x.name); }).join(' + '); };
+    return '<tr><td>' + esc(t.teamName) + '</td><td class="neg">' + names(t.give) + '</td><td class="pos">' + names(t.get) + '</td>' +
+      '<td class="num pos">+' + t.youGain.toFixed(1) + '</td><td class="num pos">+' + t.themGain.toFixed(1) + '</td></tr>';
+  }).join('');
+  el('lineupBody').innerHTML = '<div class="card"><h2>Trades both sides gain from &middot; ' + esc(d.team.name) + '</h2>' +
+    (list ? '<table><tr><th>With</th><th>You give</th><th>You get</th><th class="num">Your gain</th><th class="num">Their gain</th></tr>' + list + '</table>'
+      : '<p class="muted">No trade was found that improves both starting lineups over the weeks that remain.</p>') +
+    '<p class="muted" style="margin:9px 0 0">Every proposal gains for the other manager too — their gain is the argument that gets it accepted. Nothing is sent to ESPN.</p>' +
+    provenance(d) + '</div>';
+}
+
+// ---- hand-typed leagues ----------------------------------------------------------------------
+// A league typed in once runs every board above with no ESPN connection at all.
+var MANUAL_TEMPLATE = {
+  name: 'My league', season: 2026,
+  scoring: [{ statId: 0, points: 0 }],
+  slots: [{ slotId: 0, count: 1 }, { slotId: 2, count: 2 }, { slotId: 4, count: 2 }, { slotId: 23, count: 1 }],
+  teams: [
+    { teamId: 1, name: 'My team', mine: true, roster: [], starting: [] },
+    { teamId: 2, name: 'Their team', roster: [], starting: [] }
+  ],
+  schedule: [{ week: 4, home: 1, away: 2 }],
+  byes: {}, faab: { budget: 100, spent: 0 }, lastWeek: 17, playoffStart: 15
+};
+
+function loadManual() {
+  jget(API + '/manual-leagues').then(function (d) {
+    var rows = (d.leagues || []).map(function (l) {
+      return '<tr><td>' + esc(l.season) + '</td><td>' + esc(l.name) + '</td><td class="num">' + boardButtons('manual', l.season, l.id) +
+        ' <button class="ghost" data-edit="' + esc(l.id) + '">edit</button> <button class="ghost" data-drop="' + esc(l.id) + '">delete</button></td></tr>';
+    }).join('');
+    el('manualBody').innerHTML = '<div class="card"><h2>Leagues typed in by hand</h2>' +
+      '<p class="muted">Needs no ESPN connection. Rosters are ESPN player ids; scoring is ESPN stat id → points, exactly as your league’s settings state it — nothing here assumes what a stat is worth.</p>' +
+      (rows ? '<table>' + rows + '</table>' : '') +
+      '<textarea id="mDoc" rows="10" style="width:100%;margin-top:10px;font-family:monospace"></textarea>' +
+      '<div class="row" style="margin-top:8px"><button class="act" id="mSave">Save</button><span class="muted" id="mNote"></span></div></div>';
+    el('mDoc').value = JSON.stringify(MANUAL_TEMPLATE, null, 2);
+    el('mDoc').setAttribute('data-id', '');
+    bindManual();
+  }).catch(function (e) { el('manualBody').innerHTML = '<div class="card muted">' + esc(e.message) + '</div>'; });
+}
+
+function bindManual() {
+  var root = el('manualBody');
+  bindBoards(root);
+  el('mSave').addEventListener('click', function () {
+    var doc;
+    try { doc = JSON.parse(el('mDoc').value); } catch (e) { el('mNote').textContent = 'That is not valid JSON.'; return; }
+    var id = el('mDoc').getAttribute('data-id');
+    fetch(API + '/manual-leagues' + (id ? '/' + encodeURIComponent(id) : ''), {
+      method: id ? 'PUT' : 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(doc)
+    }).then(function (r) { return r.json().then(function (b) { return { ok: r.ok, b: b }; }); }).then(function (x) {
+      el('mNote').textContent = x.ok ? 'Saved.' : (x.b.problems || [x.b.error]).join(' • ');
+      if (x.ok) loadManual();
+    });
+  });
+  Array.prototype.forEach.call(root.querySelectorAll('[data-edit]'), function (b) {
+    b.addEventListener('click', function () {
+      jget(API + '/manual-leagues/' + encodeURIComponent(b.getAttribute('data-edit'))).then(function (d) {
+        el('mDoc').value = JSON.stringify(d.league, null, 2);
+        el('mDoc').setAttribute('data-id', String(d.id));
+      });
+    });
+  });
+  Array.prototype.forEach.call(root.querySelectorAll('[data-drop]'), function (b) {
+    b.addEventListener('click', function () {
+      fetch(API + '/manual-leagues/' + encodeURIComponent(b.getAttribute('data-drop')), { method: 'DELETE', credentials: 'same-origin' })
+        .then(function () { loadManual(); });
+    });
+  });
+}
+
+// Audience view (ADR-164 D6): under a view the page starts nothing; without one, or on a core without the kit, it starts exactly as before.
+if (!window.AppView || !AppView.active()) loadFantasy();
+</script>
+</body>
+</html>

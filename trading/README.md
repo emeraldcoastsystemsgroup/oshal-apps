@@ -274,9 +274,12 @@ changed, not setting an enforce flag that is already on.
 1. **Pick the stock** — type a ticker or a company name into the searchable dropdown (1.9.0,
    `GET /api/trading/symbols/search` over the market-wide asset directory: exact symbol first, then
    symbol prefix, then name) and look it up (`GET /api/trading/quote`). The last price re-polls every
-   5 s with a Refresh button and an as-of time; the chart and signal model open alongside while you
-   size the order, and the line under the price shows what is available to spend (buying power, else
-   cash) or, for a sell, what you hold.
+   5 s with a Refresh button and an as-of time; on an Alpaca-backed book with the ADR-143 stream
+   armed, prints replace the poll while they are fresh (a `live · IEX` pill names the feed) and the
+   line greys to `stale · last IEX print <time>` once no print has arrived for
+   `TRADING_STREAM_STALE_SEC`, at which point the poll resumes; the chart and signal model open
+   alongside while you size the order, and the line under the price shows what is available to spend
+   (buying power, else cash) or, for a sell, what you hold.
 2. **Size & price rule** — shares, a dollar amount, or a percent of available funds (1.8.1; whole
    shares, rounded down; a sell is capped at what you hold, and a one-click *Sell all* is offered), and
    a plain-word price rule that maps onto the same order types the broker already runs:
@@ -367,6 +370,19 @@ end-of-last-session daily bars on the free IEX feed, said plainly on the surface
 it never blanks. The other Research sub-tabs — *Recommendations*,
 *Algorithms*, *Capture & signals* — are the pre-existing research tools moved under this view.
 
+The watchlist also carries an optional `congress` block sourced only from the World service's
+`quiver-congress` metric points. It includes the available buy/sell/net values, the source
+`disclosureDate` (the STOCK Act report day) and `observedAt` (when the world collector read it)
+beside the symbol; the Trading caller's owner scope still controls which symbols are returned.
+Missing, disabled, non-feed or unobserved rows render as unavailable, and the request body cannot
+supply congressional holdings.
+
+Under the watchlist, **Congress disclosures** lists the names the disclosure feed reported in the
+last 90 days (`GET /api/trading/reports/congress`), newest first, each with "disclosed" and its
+report day. **Add to watchlist** is the owner's explicit choice and posts only the symbol through the
+existing `POST /watchlist`; the congressional figures are read from the feed again every time the
+watchlist loads, never stored in it.
+
 ### Event playbooks — the Anthropic IPO plan (1.7.0, ADR-136 D6)
 
 An **event playbook** is a plan on one account that fires on a market event instead of a signal.
@@ -384,6 +400,81 @@ Event playbooks** and on the account page (arm / disarm / delete). Routes: `GET`
 /api/trading/events/plans/:id/arm` (428 without confirm) and `/disarm`. Not automated, by design: the
 Schwab Conditional Offer to Purchase and its post-pricing confirmation are manual steps the dry run
 lists; a reminder sequence for them is in the BACKLOG.
+
+### Each position's exit plan, and the paper-to-live parity knobs (1.32.0, ADR-052 addendum)
+
+While per-position exit plans are armed for an account, every position the engine buys carries its own
+plan. Plans are armed by `TRADING_EXIT_PLANS` on the server, or by an applied strategy's `exitPlanSessions`.
+Each plan stores:
+
+- the entry price;
+- the stop, take-profit and trailing dials of the posture in force at the buy;
+- an expiry in market sessions.
+
+The engine then exits that position on the plan's stored terms. A later posture change does not
+re-price the position.
+
+- **The plan pill.** The positions table shows a **plan** pill beside the governance badge, with the
+  stop and the expiry. Hover it for the entry, take-profit, trailing arm and giveback, and the posture.
+  A position without a pill has no plan and runs on the account's global exit rules.
+- **Amending plans.** Amending is the deliberate action that changes a plan's terms:
+  `POST /api/trading/position-plans/amend`, confirm-gated. The new terms are priced from each plan's
+  original entry. The caller and the note are recorded on the new plan. From 1.33.0 the account page
+  has a control for it (below).
+- **The three parity knobs.** They are `marketGapFilterPct`, `exitPlanSessions` and
+  `yieldSleeveFloatPct`. They reach an account only through the per-account strategy apply or the mix
+  editor, and both are confirm-gated. Both store the knobs through the framework's own normalization:
+  - a number is clamped;
+  - `0` turns the feature off for that account;
+  - junk or absent means inherit the server's setting.
+
+  A mix edit that does not name a knob keeps the applied strategy's value.
+- **Framework support for the sleeve.** Only a framework that ships the idle-cash yield sleeve (ADR-052
+  addendum P6) keeps `yieldSleeveFloatPct`. An older framework stores it as absent, which means inherit.
+- **The live account.** Applying any of these to the live account does not arm live trading. The
+  framework still requires `TRADING_LIVE_ENABLED` and `TRADING_AUTOPILOT_LIVE`.
+
+### The Exit plans card, the knob reference and the sleeve badge (1.33.0, ADR-052 addendum)
+
+- **The Exit plans card.** While the account has open plans, an **Exit plans** card sits under the
+  positions table. Choose new dials (a posture), a new life in sessions, or both; optionally name the
+  symbols and add a note; then press **Amend plans…**. The first request goes without a confirmation,
+  and the server refuses it (428) before it reads anything, so nothing changes; the card shows that
+  refusal. A confirmation then names the plans, the account and the new terms. Only **OK** sends the
+  amend with the confirmation. **Cancel** leaves every plan as it was. A new life is a whole number
+  of sessions, 1 or more: the card refuses 0, a negative or a fraction before it sends anything.
+- **The knob reference and the Lab editor.** `GET /api/trading/lab/knobs` (the Strategy Lab's
+  *Knobs & formulas* panel) documents `marketGapFilterPct`, `exitPlanSessions` and
+  `yieldSleeveFloatPct`: each is OFF by default, `0` is an explicit off, a blank inherits the
+  server's arm for the account's kind (off unless armed), and a Lab walk runs off unless the knob is
+  set. The *New variation* form has a field for each; a blank field saves as inherit.
+- **The yield sleeve's fund.** On an account where the idle-cash yield sleeve is armed, the engine
+  treats its fund (SGOV unless the server names another) as parked cash and never runs a stop,
+  take-profit, trailing exit or trim on it. The positions table now says so with a **yield sleeve**
+  badge, in the same style as a ring-fence, and prints the engine's sentence under the table in the
+  fund's own block. The fund is not counted among the positions the engine will not trade, because
+  the sleeve trades it. The Exits card marks the fund's rules inactive. This needs a framework that
+  ships `armedYieldSleeve`; on an older one the badge and the card read as before.
+- **Test Lab.** The package declares its first Test Lab catalog (`tests/test-lab.yaml`): the
+  readiness smoke and the ADR-052 addendum parity suites.
+
+### API added in 1.32.0 (exit plans and the parity knobs, ADR-052 addendum)
+
+- `GET /api/trading/position-plans?book=<ref>&status=open|closed|superseded|amended|all&limit=N` answers
+  `{ book, plans[], armed: { sessions, source } }`.
+  - The default status is `open`.
+  - `armed` is the account's plan life, from the same rule the autopilot reads, and its `source`
+    (`strategy`, `env` or `off`).
+- `POST /api/trading/position-plans/amend` takes
+  `{ confirm: true, posture?, sessions?, symbols?, note? }` and answers `{ book, amended[] }`.
+  - `posture` takes a posture's stop, take-profit and trailing dials.
+  - `sessions` is a new life, from 1 to 252, counted from each plan's original stamp.
+  - `symbols` limits the amend to those names.
+  - It answers 428 `confirm_required` without the flag, before anything is read.
+  - It answers 400 with `posture_invalid`, `sessions_invalid`, `symbols_invalid`, `nothing_to_amend` or
+    `unknown_book`.
+- `POST /api/trading/accounts/books/:bookId/strategy` and `POST /api/trading/accounts/books/:bookId/mix`
+  carry the three parity knobs, normalized as above. Both are still 428 without `confirm: true`.
 
 ### Arming an account is a deliberate, gated act (1.20.0)
 
@@ -490,6 +581,9 @@ again, so a missing scheduler answers 503 and stores nothing.
   shares sizing, available funds, 5-second quote poll).
 - 1.9.0 — `GET /api/trading/symbols/search?q=&limit=` (limit capped at 25) and
   `GET /api/trading/reports/movers?kind=`.
+- 1.30.0 — `GET /api/trading/reports/congress?limit=` (default 25, capped at 100): `{ status: 'ok' |
+  'unavailable', source: 'quiver-congress', windowDays: 90, rows: [{ symbol, buys, sells, net,
+  sentiment, notional, disclosureDate, observedAt, source }], note }`.
 
 ### API added in 1.9.2 (timed orders, ADR-136 D4)
 
@@ -702,7 +796,225 @@ watchdog + daily-recap CLIs, and the default ribbon tile.
 
 ## Build
 
+The **Schwab forward-bar controls** on Strategies → Tuning use the signed-in operator's existing
+connector. Probe checks dated ES/CL quotes and OHLCV samples separately and returns only
+status/count/coverage. Manual capture and explicit enable collect closed dated-contract 30-minute
+bars into a forced-RLS, owner-private table; stop removes the capture schedule but retains bars.
+The enabled collector runs hourly or half-hourly without placing orders or starting a study. The
+operator plans a separate one-time historical backfill. Kibot is a future data-streaming discussion,
+not a prerequisite. A quote or equity candle is never treated as a Futures bar. Recent Schwab ES/CL
+bars and one-shot private storage were verified on the installed connection. A short canary
+dispatched twice successfully on the installed scheduler, then returned to hourly. Signed-in
+console click-through, committed-image promotion, historical depth, gap integrity and
+research-source admission remain separate acceptance checks.
+The current configurable research schedule still uses its existing archive source.
+
+Strategies → Tuning configures bounded, paper-only ADR-116 permutation studies through
+`/api/trading/autopilot/futures`; UTC cron, roots,
+timeframes, Kibot source/container path, rolling-or-fixed end policy, walk-forward split, source-date
+lag and per-window OOS trade-count floors, and reviewed stage-grid axes are editable
+without environment-file changes. Run/pause/resume/stop are separate from the stock advisor; stopping
+the latter does not delete Futures. A run returns an ID promptly and its expandable, owner-scoped
+report settles in the console ledger. No route here places an order or promotes a study. The current
+worker is deterministic. Completed runs offer an interactive, tool-less Futures research reviewer
+through the owner's hosted provider. Reviews explain the evidence and may propose validated stage
+grids; loading a proposal changes only the form until Save is chosen. The reviewed study is restored
+with its proposal, so a grid is not accidentally applied to unrelated controls. Review failures and
+retries are durable and do not change the study's outcome. Source-date lag defaults to 7 days against
+the resolved study end (1–366 configurable); coarse bar-start timeframes may need a larger limit.
+This is not real-time quote freshness. The sample floor defaults to 10 trades in every OOS window
+(1–100,000 configurable). Deficient windows remain explicitly insufficient and reviewable, while
+meeting the floor does not claim statistical confidence. Old runs without receipts are unassessed.
+Proposals preserve these operator-owned gates. Requires framework migrations 159/160 and its
+matching bound-workflow implementation before installing this package. Install the optional
+`futures-research` companion, enable `futures-research-worker` in Bots, and explicitly select
+**Queue research-bot review after new evidence** in the Tuning form to use scheduled reasoning.
+This defaults off, uses the owner's configured hosted provider, and incurs provider cost. New
+historical or settled forward evidence gets an owner/run/attempt-bound workflow ticket; failed
+studies and identical settled evidence do not. Pending calls alone do not trigger another review.
+Current schedule opt-in and operator access are checked again before dispatch. Queued state and
+ticket identity are shown beside the run; proposals still require explicit Save. Installation
+alone does not enroll users, and the equities workflow is unchanged.
+The separate default-off forward-call controls select dated contracts, archive zone,
+horizon, freshness, outcome tolerance and bounded replay history. Requires migration 161
+and `futures-forward-receipts` in the matching framework. The locked strategy replays raw
+same-contract bars; actual database issuance, frozen inputs and later directional outcomes
+are distinct from historical OOS or real trade P&L. Missing/revised data stays unscored;
+abstentions are not accuracy successes. The console lists receipts and loads full frozen
+inputs on demand. Pausing the loop pauses forward work. No automated rolling, order
+placement, proposal adoption or probability claim is added. With the matching framework, reviews
+freeze the latest 25 graded and 25 other owner receipts for the configured roots, separately from
+historical evidence. The console shows supplied/available counts, distinct contract/model/study/
+horizon cohorts and frozen citations; the bot must cite the exact forward context. Overlapping
+horizons are not independent. Flat/unscored calls are not wins, and pooled strategy accuracy is
+not claimed. Completed reviews replay their original context; a later run can review newly settled
+outcomes even when historical OOS is unchanged. Identical settled evidence is visibly skipped;
+an explicit review can still be requested. Outcome-informed grids are exploratory and need a new
+untouched holdout; Save remains the adoption boundary. Deployed nightly/provider-cost receipts,
+matured real forward evidence and paper-book acceptance remain open. The full as-built/remaining split is in the framework's
+`docs/apps/trading/futures-research-loop.md`.
+
+Trading 1.26.1 corrects the interactive reviewer's manifest declaration: omitting `container`
+registers it inline; explicitly naming `oshal-api` is rejected by the kernel. The dedicated
+scheduled worker remains in the optional companion package. `futures-research-review.spec.ts`
+now passes the shipped manifest through the actual kernel reader and runtime mapper, not just
+a YAML parser. This guard reproduced the installed 1.26.0 load refusal before the correction;
+it does not claim provider execution or installed nightly acceptance.
+
+Trading 1.27.0 displays each market's optimizer computation receipt: computed this run, report
+reused from an exact owned run, or unassessed when an older framework/run has no receipt. Expand
+the evidence to see input/report fingerprints. With the matching framework, reuse rereads the
+archive and checks current source freshness before skipping optimization; changed consumed data,
+settings or completed windows recompute. Reuse expires on API restart/deployment. A longer
+incomplete tail can refresh source dates/counts without repeating historical optimization.
+Forward settlement and review of newly matured outcomes still run. Reuse is not a passing sample
+or promotion decision, and no new opt-in, schedule write or provider request comes from rendering
+it. The review console suite exercises the actual loop handler with fixture HTTP results and
+escaped source-run IDs; the framework supplies real-file and private-worker/JSONB reuse guards.
+
+Local console guards: `OSHAL_FRAMEWORK=<framework-checkout> npx vitest run --no-file-parallelism`
+from `trading/`. `futures-predictions.spec.ts` crosses the real router with a fixture ledger
+and actual browser handlers; `trading-surface-expansion.spec.ts` exercises normalized schedule
+creation. The framework's prediction suites supply real CSV, worker and private PostgreSQL
+companions. Local tests do not establish deployed nightly or market performance acceptance.
+
+Trading 1.28.0 adds a default-off **Notify me when stale, empty or unconfigured source data
+blocks a run** checkbox in Tuning. Save explicitly to apply it. With matching framework migration
+163, each such failed run (nightly or Run once) can attempt one owner notification using the
+existing Notifications topic `futures-source`, falling back to the user's default routing.
+Quiet hours and mutes still apply; skipped messages are not deferred. Each run displays its
+source evidence and disabled/pending/claimed/delivered/skipped/failed/unknown receipt. A claim
+is not proof of delivery. Timeouts or interrupted receipt writes remain uncertain and are never
+automatically resent. A subsequent failed run has its own attempt; there is no cross-run deduplication.
+Neither the checkbox nor displaying a receipt changes source freshness limits, starts provider
+review, imports bars or approves trading. Local tests use real worker/files and private PostgreSQL
+with fixture notification transports; installed channel delivery requires separate acceptance.
+
+Trading 1.26.0 also provides **Import Futures archives into the shared bar store** in Tuning.
+It requires `futures-archive-import` and owner migration 162 after the shared-bar migration 096.
+Use the form's roots, absolute server directory, volume floor and UTC date range; explicitly choose
+the archive clock and 1Hour/1Day sources. Preview records an owned bounded manifest without shared
+bar writes. Inspect coverage and the fingerprint, type `IMPORT SHARED FUTURES BARS`, then select
+the exact ready receipt to import. Source re-reading must match; conflicts roll back every insert,
+and identical repeats preserve existing rows. Legacy source/clock tags are not silently replaced.
+Raw unadjusted front-month data becomes true UTC bar opens; daily files represent local calendar
+days, not settlement. Model coverage is not complete-vendor or underlying-minute proof. Limits:
+eight roots, ten years, one million output bars, 128 MiB/file, one active ten-minute worker.
+Refresh shows the owner's latest twenty receipts. No study Save, provider request, order or nightly
+archive refresh is implicit. `futures-archive-import.spec.ts` tests mounted routes with a service
+fixture and actual browser handlers; core supplies real-file/worker/private-database companions.
+Installed archive import and repeat receipts remain separate acceptance work.
+
+Trading 1.29.3 adds owner-gated Schwab Futures probe and private ES/CL capture controls in
+Strategies → Tuning. The route only brokers the signed-in owner's connection; bounded hourly or
+half-hour collection, explicit stop and coverage status are separate from research scheduling and
+orders. The installed one-shot and short scheduler canary are recorded in the framework Futures
+runbook. Normal deployment and the signed-in capture-status check were subsequently completed
+with Trading 1.29.5, as recorded below.
+
+Trading 1.29.4 adds active ES/CL session-model diagnostics to that private capture status. Each
+current contract reports observed/expected closed 30-minute buckets, missing and trailing buckets,
+gap runs, and out-of-session rows over at most five days, starting at its first captured bar.
+Closed-market hours do not create gaps; an unobserved contract has no denominator. This is a
+forward-source health estimate, not complete historical coverage or permission to run a study.
+The route returns no OHLCV rows or connector credential. The matching framework build was
+installed with Trading 1.29.5.
+
+Trading 1.29.5 adds an explicit preview-and-confirm catch-up for the currently active dated ES/CL
+contracts. The operator selects at most 14 UTC dates within 180 days; the preview names the
+contracts and maximum provider requests, and a changed preview is refused before a token lookup.
+Closed bars enter the same owner-private immutable store. This cannot rebuild expired front-month
+contracts or a roll-adjusted multi-year archive, and it never starts a study or places an order.
+The matching framework image was installed on 2026-09-26; the owner signed in and verified
+capture status, stored counts, coverage and the preview controls. The browser's own catch-up
+confirmation was not used; the approved bounded catch-up ran in the API container.
+
+Trading 1.29.6 adds **Schwab private captured bars** to the bounded Futures research source
+selector. The matching framework worker reads only the signed-in owner's stored dated ES/CL
+30-minute bars, converts them to exchange wall time after checking true-UTC session coverage,
+and resamples to 1Hour or 1Day. A missing or malformed session bucket or a roll without
+overlapping outgoing/incoming bars refuses the
+study before optimization; the optional source notification reports the refusal. No container
+archive directory is used. This does not turn today's current-contract capture into a complete
+front-month history: a one-time historical source/import path and enough in-sample/OOS windows
+are still needed. Forward prediction calls remain file-only and off for this source. Saving a
+schedule never places an order or promotes a strategy. Local PostgreSQL/worker tests and the
+actual console form prove the source boundary; an installed real-source nightly study is not
+yet accepted.
+
+Trading 1.31.0 completes the client half of ADR-143's display-only market stream (D3 staleness,
+D9 wiring). `tools/ui/quote-stream.js` keeps hello's `feed` and `staleAfterSec`; a one-second sweep
+greys every `[data-stream-symbol]` cell whose last print is older than that and rewrites the ticket
+as-of to `stale · last <FEED> print <time>`; the feed pill is built from hello's feed name and shown
+only while a print is fresh; a silent stream hands the ticket back to its 5 s poll so a price never
+freezes unlabelled. The ticket's price and the positions table's Last / Mkt value / Total $ / Total %
+cells carry `data-stream-symbol` (Today $/% stay the broker's values, said in the table foot); a
+symbol looked up inside the ticket and a closed ticket both re-sync the stream instead of stopping it.
+`GET /stream` now subscribes the kernel to hello's accepted list only, so a dropped tail no longer
+takes listener slots while the browser is told it is polling. Guards: the loopback relay spec grows
+the ADR-named cases (JSON 400 before any SSE header, book beats mode, the exact five-key print frame,
+a Schwab book held open across heartbeats, the cap-derived dropped tail, and a source/twin import
+allowlist), and a new `tests/trading-quote-stream-client.spec.ts` runs the shipped script in a
+`node:vm` sandbox with a fake EventSource. Still separate acceptance work: the operator arming
+`TRADING_STREAM_ENABLED` and a dated regular-hours paper-ticket print/reconnect observation.
+
+Trading 1.30.0 adds the **Congress disclosures** list on the Research stock tab and its route,
+`GET /reports/congress`, over core's bounded `recentFeedMetricPoints` read. Every date shown is
+the disclosure (ReportDate) day, printed as that calendar day in every timezone. Rows without a
+recorded `observedAt` are never shown; core wrote those before it keyed the series on the report
+day. A core without the read answers `unavailable`. Install this after the core change that adds
+`recentFeedMetricPoints` and `observed_at` is deployed.
+
+Trading 1.29.7 declares `uses: world-data` for the research route's existing shared-world-index
+reader. This is a manifest compatibility floor only: a core without the declared kernel skill
+refuses the package before mount. The World application surface remains optional; no order, capture,
+strategy or schedule behavior changes in this release.
+
+Trading 1.29.2 adds the owner-scoped watchlist projection for dated congressional disclosures. The
+projection reads the shared World metric head in one bounded query, retains the Quiver source and
+disclosure timestamp, and renders the result beside each watchlist symbol. This is a read-only
+source/package slice; a live TSDB receipt is still required before the political-trades backlog item
+can close.
+
+Trading 1.29.1 adds a rendered-console acceptance guard for the Futures research loop. The guard
+executes the shipped Strategies → Tuning renderer, checks that roots, UTC cadence, walk-forward
+and permutation controls, research-bot review, source alerts, forward prediction/outcome settings,
+archive controls and pause/resume/stop actions are all present, then invokes Save against a captured
+owner-scoped route seam. It proves the operator surface is wired without inventing market evidence;
+it does not establish an installed schedule, archive import, provider review, nightly result or
+matured forward outcome. Futures remains open for those real receipts.
+
+Trading 1.29.0 adds the Phase 2 half of ADR-143's display-only market stream. The kernel owns the
+single default-off Alpaca IEX websocket; this package exposes only an owner-authenticated,
+same-origin `GET /api/trading/stream?book=&symbols=` SSE relay. The hello frame names the feed,
+staleness threshold, accepted ticket-first symbols and dropped tail. Print frames are allowlisted to
+`symbol`, `price`, `size`, `asOf` and `feed`; no venue URL, key or token reaches the browser. Schwab
+books and disabled/entitlement-blocked streams stay on the ordinary quote poll while the SSE
+connection remains held with heartbeat comments, so the surface never blanks. `GET /quote` now
+returns the venue trade timestamp and uses `asOf: null` only when the provider has no stamped trade.
+The ticket and positions table patch on prints and fall back to polling when the stream is not
+active. Local package guards cross a real loopback HTTP/SSE server; deployment, operator arming and
+a dated regular-hours paper-ticket print/reconnect observation remain separate acceptance work.
+
 ```bash
 node scripts/oshal-app.js build trading --framework <oshal-checkout>
 node scripts/oshal-app.js validate trading
 ```
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **64 / 256 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| trade-decision | trade decision | T2 | none | template | not yet measured | none recorded |
+| strategy-draft | strategy draft | T2 | none | disable | not yet measured | none recorded |
+| strategy-studio | strategy studio turn | T3 | none | disable | not yet measured | none recorded |
+| futures-study-review | futures study review | T3 | none | disable | not yet measured | none recorded |
+| earnings-release-read | earnings release | T1 | none | disable | not yet measured | none recorded |
+| trading-decision-ticket | trading decision ticket | T4 | none | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

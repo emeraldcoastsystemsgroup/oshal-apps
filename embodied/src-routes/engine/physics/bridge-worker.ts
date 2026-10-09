@@ -5,13 +5,14 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Initial creation — the worker-thread half of the synchronous bridge to the physics engine container: it owns the TCP socket, keeps the hello the bridge sent on connect, writes every request line the main thread posts, and hands each response line back through the shared buffer with an Atomics notify. The main thread blocks on that buffer, so the simulation's step stays a plain synchronous call and stays deterministic; this thread is the only place network time exists.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | A second transport, the swarm node rail (ADR-099, B20): a node that joined by heartbeat is commanded by POSTing each request as a {id, command, args} envelope to its declared endpoint under the swarm service secret — the core drone node's command channel — and its hello is the one it heartbeat in. The main thread's blocking contract is unchanged over both.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Node-rail envelopes carry x-node-command-key (the node's own key), never x-service-secret, and redirects are refused so an allowed endpoint cannot bounce a command elsewhere (ADR-175 hardening).
  */
 
 import net from 'node:net';
 import { parentPort, workerData } from 'node:worker_threads';
 
 interface LinesInit { transport?: 'lines'; host: string; port: number; sab: SharedArrayBuffer }
-interface HttpInit { transport: 'http'; endpoint: string; secret: string; hello: string; timeoutMs: number; sab: SharedArrayBuffer }
+interface HttpInit { transport: 'http'; endpoint: string; commandKey: string; hello: string; timeoutMs: number; sab: SharedArrayBuffer }
 type WorkerInit = LinesInit | HttpInit;
 
 /** Shared buffer layout: Int32[0] state (0 waiting, 1 response ready, 2 failure), Int32[1] byte length; bytes from offset 8. */
@@ -76,9 +77,9 @@ function runHttp(cfg: HttpInit): void {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), cfg.timeoutMs);
     try {
-      const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-secret': cfg.secret }, body: JSON.stringify({ id, command: op, args }), signal: ctl.signal });
+      const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-node-command-key': cfg.commandKey }, body: JSON.stringify({ id, command: op, args }), signal: ctl.signal, redirect: 'error' });
       const text = await res.text();
-      if (res.status === 401 || res.status === 403) { deliver(unavailable(`the node refused the swarm service secret (HTTP ${res.status})`), 2); return; }
+      if (res.status === 401 || res.status === 403) { deliver(unavailable(`the node refused its command key (HTTP ${res.status}) - it may have restarted; its next heartbeat brings the current key`), 2); return; }
       if (res.status >= 500) { deliver(unavailable(`the node answered HTTP ${res.status}: ${reasonOf(text)}`), 2); return; }
       if (!res.ok) { deliver(JSON.stringify({ id, ok: false, error: 'engine_error', reason: `HTTP ${res.status}: ${reasonOf(text)}` }), 1); return; }
       deliver(text, 1);

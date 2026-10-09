@@ -14,9 +14,19 @@
 # keeps the heavy artifacts (.safetensors / datasets / samples).
 #
 # AUTH SHAPE (first package to exercise the D2 split-mountPath pattern): the
-# box→controller callback mounts at /api/lora/ingest with auth: public. GET is a
-# health-only probe; POST self-guards on BOTH x-service-secret and the canonical
-# x-oshal-user-sub-b64 owner assertion. The studio mounts at /api/lora with auth: oidc.
+# box→controller callback mounts at /api/lora/ingest with auth: public on the kernel's
+# signed-package-callbacks rail (1.7.0). The rail admits POST only and runs the
+# package's callbackVerifier before any other code: POST /, POST /cell-image and the
+# worker's staged-image download (POST /dataset-download/:id) must carry a
+# per-dispatch callback grant (lora-callback-grants.ts). Every train/validate/improve/
+# overnight/dataset dispatch mints one grant bound to its owner (subject AND issuer),
+# character, ticket and callback kinds, hands it to the worker in the
+# OSHAL_LORA_CALLBACK_GRANT environment variable, and each request is HMAC-signed with a
+# fresh nonce and timestamp. Expired, revoked, replayed, cross-owner, cross-character and
+# wrong-kind requests are refused, and the fleet service secret alone is not accepted.
+# The verifier returns only the grant owner; the kernel refreshes that owner, requires
+# the authorization.yaml permission bound to the route (lora.execute) and runs the
+# handler as that owner. The studio mounts at /api/lora with auth: oidc.
 # The loader forbids mixing modes on ONE mountPath — splitting is the sanctioned
 # carve shape (see swarm-app-loader.ts's own /api/lora comment).
 #
@@ -28,13 +38,23 @@
 
 name: lora
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: training-ticket-review
+      unit: training loop ticket
+      tier: T2
+      generation: local
+      degrade: disable
 displayName: LoRA Studio
 description: >-
   Train a reusable character (a "sprite") from images and captions, validate it on a fixed held-out
   matrix, and improve it by regenerating data aimed at its weak spots and retraining — with every
   version scored objectively so "better" is a number. Generation/validation run free on your GPU box;
   paid escalation never happens without an approval gate.
-version: 1.1.0
+version: 1.7.4
 status: active
 
 # Per-app skin — indigo so the model-lab reads distinct from the sakura Video Studio.
@@ -77,6 +97,39 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
+  # The dataset import redeems a Send-to handle through core's handle routes with the caller's own
+  # cookie or PAT; core's authenticated relay then rechecks the exact principal and source rights.
+  # Naming the skill makes a core without that relay refuse this package.
+  - authenticated-artifacts
+  # ADR-149 permissions: authorization.yaml binds every route, the director bot and the worker
+  # callbacks to named permissions. The loader admits a callbackVerifier only with a catalog.
+  - application-authorization
+  # The GPU worker has no browser or PAT identity. Its callbacks are admitted by this package's
+  # verifier (routes/lora-ingest-routes.js) and run as the grant owner the kernel refreshes; a core
+  # without the rail refuses this package instead of refusing every worker request at runtime.
+  - signed-package-callbacks
+
+authorization: { version: 1, catalog: authorization.yaml }
+
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+# ADR-139 — an image sent from Portrait Studio or another owner-visible source opens LoRA Studio
+# so the operator chooses the named character. Import redeems the handle as that signed-in caller,
+# checks the bytes (PNG/JPEG/WebP, 10 MiB), stages them owner-scoped and expiring, and the GPU
+# worker downloads them with a signed POST to /api/lora/ingest/dataset-download/:id under that
+# import's callback grant.
+artifacts:
+  accepts:
+    - id: dataset-image
+      label: Add to LoRA dataset
+      icon: 🧬
+      types: [image/*]
+      mode: open
+      keywords: [lora, character, dataset, training]
+      useWhen: Choose a character in LoRA Studio, then import this owner-owned image into its curated training set.
 
 # Guests never reach the studio (was hardcoded core Tier-C pre-carve). Declaring it
 # here is a REQUEST (ADR-085 D4) — unapproved default already blocks guest writes.
@@ -118,16 +171,33 @@ routes:
     requiresContext: true
     requiresAi: false
 
-  - module: routes/bot-lora-routes.js
+  - module: routes/lora-ingest-routes.js
     factory: createLoraIngestRoutes
+    callbackVerifier: createLoraCallbackVerifier   # signed-package-callbacks: POST only, grant-signed, runs as the grant owner
     mountPath: /api/lora/ingest
-    auth: public          # GET health-only; POST requires service secret + exact encoded owner
+    auth: public
     requiresContext: true
   - module: routes/bot-lora-routes.js
     factory: createBotLoraRoutes
     mountPath: /api/lora
     auth: oidc
     requiresContext: true
+
+  - module: routes/bot-lora-routes.js
+    factory: createLoraScheduleRoutes
+    mountPath: /api/lora/schedule
+    auth: service
+    requiresContext: true
+
+schedules:
+  - id: lora-autonomous-overnight
+    cron: "0 2 * * *"
+    description: Run owner-enabled LoRA overnight improvement loops and park morning reviews.
+    target: service-route
+    runsAs: system
+    route: /api/lora/schedule
+    handler: runLoraOvernightSchedule
+    body: {}
 
 ui:
   static:
@@ -151,9 +221,20 @@ ribbon:
 # (app_package_migrations tracks them). The route ALSO carries the identical lazy
 # ensureLoraSchema as belt-and-braces, matching core behavior. Migration 100 upgrades
 # installations that already recorded 058; both enforce mandatory ownership + FORCE RLS.
+# Migration 102 adds the rest of a character identity - its own negative prompt and its own
+# contrastive structural pair - which the box scripts used to carry as constants.
+# Migration 105 adds the per-dispatch callback grants and their single-use nonces. Migration 106
+# records the issuer of each grant's owner (and of the owner who enabled autonomous mode), which
+# the signed-callback verifier returns for the kernel to refresh.
 migrations:
   - migrations/058-lora-studio.sql
   - migrations/100-lora-owner-rls.sql
+  - migrations/101-lora-cell-images.sql
+  - migrations/102-lora-character-identity.sql
+  - migrations/103-lora-dataset-images.sql
+  - migrations/104-lora-dataset-staging.sql
+  - migrations/105-lora-callback-grants.sql
+  - migrations/106-lora-callback-identity.sql
 
 # WORKFLOW — training tickets of type 'lora-train' route to the director, which authorizes the
 # box-side kohya run via the worker node's gated shell.exec (lora-train-dispatch, vendored).

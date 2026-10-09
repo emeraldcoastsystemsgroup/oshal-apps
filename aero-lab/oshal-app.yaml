@@ -16,6 +16,16 @@
 
 name: aero-lab
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 544, high: 2176, basis: declared }
+  features:
+    - id: aero-design-draft
+      unit: design draft chat turn
+      tier: T2
+      generation: none
+      degrade: disable
 displayName: Aero Lab
 description: >-
   Persistent-flight design lab — shape a solar-endurance aircraft with real
@@ -25,7 +35,7 @@ description: >-
   trace, polar, drag buildup, margins), and download the build package
   (STL / DXF / BOM). A design concierge turns plain language into a design
   vector; the deterministic engine is the only source of numbers.
-version: 1.2.1
+version: 1.4.1
 status: active
 
 source:
@@ -64,6 +74,11 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog       # the package's tests are registered with the AI Test Lab (tests/test-lab.yaml)
+
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BOTS — the design brain (Form B inline concierge — drafts design vectors only,
@@ -213,8 +228,19 @@ routes:
     requiresAuth: true
     requiresContext: true
 
-# No migrations: evaluations are computed on demand; exports live in a per-run
-# temp dir under the package workdir. This surface owns no tables (sat-ops precedent).
+  # ADR-160 S4: the vehicle record. Owner-scoped rows behind the same auth; the stage is
+  # computed on every read, never stored.
+  - module: routes/vehicle-routes.js
+    factory: createAeroVehicleRoutes
+    mountPath: /api/aero-lab/vehicles
+    requiresAuth: true
+    requiresContext: true
+
+# The app's own schema (ADR-160 S4): a vehicle record and its evaluations, with FORCEd owner
+# RLS, applied on install. Engine runs (polar, evaluate, export) are still computed on demand
+# and their files live in a per-run temp dir under the package workdir.
+migrations:
+  - migrations/001-aero-lab.sql
 
 # RIBBON VISIBILITY — focus mode for /cockpit?app=aero-lab
 ribbon:

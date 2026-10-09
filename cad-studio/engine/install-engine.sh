@@ -54,7 +54,7 @@ NETWORK=$(detect_network)
 docker network inspect "$NETWORK" >/dev/null 2>&1 || die "network $NETWORK does not exist"
 
 say "building $IMAGE from $ENGINE_DIR"
-say "(official python:3.11-slim + the requirements pins; the first build downloads ~250 MB of CadQuery/OCCT wheels)"
+say "(official python:3.11-slim + the requirements pins; the first build downloads ~410 MB of CadQuery/OCCT/VTK wheels)"
 docker build -t "$IMAGE" -f "$ENGINE_DIR/container/Dockerfile" "$ENGINE_DIR"
 
 say "starting $CONTAINER on network $NETWORK (compose project $PROJECT)"

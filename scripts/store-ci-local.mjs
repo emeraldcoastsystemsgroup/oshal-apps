@@ -11,12 +11,23 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Carry store-ci's new connector-declaration check: one `check` policy entry for scripts/check-connector-declarations.mjs. The gate REFUSES to run when it meets a command it has no policy for, so without this entry the check that keeps every package's connector allow-list DECLARED would be a step this mirror cannot see - and an undeclared package hands its users the entire provider catalog.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Carry store-ci's new forced-row-security check: one `check` policy entry for scripts/check-forced-rls.mjs. The gate REFUSES to run when it meets a command it has no policy for, so without this entry the job that refuses a migration enabling row security without FORCEing it would be a step this mirror cannot see - and PostgreSQL exempts the table OWNER, which is the role the api connects as, so an unforced table carries a policy that never once executes.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Carry store-ci's whole-tree concierge-coverage check. The local gate refuses commands it has no policy for, so this entry keeps the surface-without-right-rail contract present in the on-box pre-push gate as well as workflow_dispatch.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Carry store-ci's medium-property drift check (ADR-160 S5a): one `check` policy entry for scripts/check-medium-properties.mjs. The gate REFUSES to run when it meets a command it has no policy for, so without this entry the job that keeps three labs' copies of seawater and air one answer would be a step this mirror cannot see.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Carry store-ci's new Career loader-driver step: one `provision` policy entry and the CAREER_LOADER_NODE_PATH capability, resolved to a local node_modules that holds BOTH pg and better-sqlite3. Without the entry the gate would refuse the whole workflow at the new install command; without the capability the career-hunter step could not hand the cutover contracts their loader drivers.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Carry store-ci's ADR-160 contract check: one `check` policy entry for scripts/check-adr160-contract.mjs. The gate REFUSES to run when it meets a command it has no policy for, so without this entry the cross-lab vehicle-record, stage and medium-shape guard would be a step this mirror cannot see.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Carry store-ci's new test-catalogs job: one `check` policy entry for scripts/check-test-catalogs.mjs, which runs the framework's own catalog loader over every package. Its framework checkout is the existing OSHAL_FRAMEWORK capability (the job provisions it with the same `npm ci --prefix framework` as trading), so a workstation without one reports the check SKIPPED, never green. This is the push-time half of the fix for embodied 0.17.0, which the kernel refused at install for one expected line over 500 characters while every check in this gate passed.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Carry store-ci's new app-scopes job: one `check` policy entry for scripts/check-app-scopes.mjs, which calls the framework's own app-scope contract over every package. Its framework checkout is the existing OSHAL_FRAMEWORK capability, so a workstation without one reports the check SKIPPED, never green. dev-workspace-index 0.2.0's `scope: deployment` passed this whole gate and was refused by the kernel database mid-install on 2026-09-28.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Carry store-ci's rating-ledger step: one `check` policy entry for `node scripts/ai-usage-ledger.mjs --check` with an optional `--allow-unrated`, so the local gate runs it instead of refusing an unknown command.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Drop --allow-unrated from ai-usage-ledger check policy now that all 67 store packages are rated.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | Run the bot dependency gate beside the framework scope checks so canonical ownership errors block every push.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | Mirror the explicit Presentations Chromium prerequisite and require the real Career engine pins and python alias rather than grading --version as provisioned dependencies.
  */
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// CHANGE LOG: maintainer@emeraldcoastsystemsgroup.com | Isolate fixture Git commands from inherited pre-push repository locations.
 
 // STORE_CI_LOCAL_ROOT exists so the guard spec can drive this runner over a small fixture store
 // instead of the real 45-check one. Nothing else sets it.
@@ -142,6 +153,12 @@ const POLICY = [
   { match: /^node\s+scripts\/check-connector-declarations\.mjs$/, kind: 'check' },
   { match: /^node\s+scripts\/check-concierge-coverage\.mjs$/, kind: 'check' },
   { match: /^node\s+scripts\/check-forced-rls\.mjs$/, kind: 'check' },
+  { match: /^node\s+scripts\/check-medium-properties\.mjs$/, kind: 'check' },
+  { match: /^node\s+scripts\/check-adr160-contract\.mjs$/, kind: 'check' },
+  { match: /^node\s+scripts\/check-test-catalogs\.mjs$/, kind: 'check' },
+  { match: /^node\s+scripts\/check-app-scopes\.mjs$/, kind: 'check' },
+  { match: /^node\s+scripts\/check-bot-dependencies\.mjs$/, kind: 'check' },
+  { match: /^node\s+scripts\/ai-usage-ledger\.mjs\s+--check$/, kind: 'check' },
   { match: /^node\s+scripts\/check-store-separation\.mjs\s+\.$/, kind: 'check' },
   { match: /^node\s+scripts\/check-no-public-secret-fallback\.mjs\s+\.$/, kind: 'check' },
   { match: /^node\s+--test\s+/, kind: 'test' },
@@ -152,8 +169,10 @@ const POLICY = [
   // itself instead of leaving that to the TAP reader below.
   { match: /^node\s+scripts\/run-trading-specs\.mjs$/, kind: 'test' },
   { match: /^npm\s+install\b[\s\S]*\btypescript@/, kind: 'provision', capability: 'OSHAL_ROOT' },
+  { match: /^npm\s+install\b[\s\S]*\bbetter-sqlite3@/, kind: 'provision', capability: 'CAREER_LOADER_NODE_PATH' },
   { match: /^npm\s+ci\b[\s\S]*--prefix\s+framework$/, kind: 'provision', capability: 'OSHAL_FRAMEWORK' },
   { match: /^mkdir[\s\S]*playwright[\s\S]*install --with-deps chromium$/, kind: 'provision', capability: 'KALSHI_BROWSER_DEPS' },
+  { match: /^node framework\/node_modules\/playwright\/cli\.js install --with-deps chromium$/, kind: 'provision', capability: 'OSHAL_FRAMEWORK' },
   { match: /^python\s+-m\s+pip\s+install\b/, kind: 'provision', capability: 'CAREER_PYTHON' },
 ];
 
@@ -188,17 +207,31 @@ function findModuleRoot(moduleName) {
   return candidates.find((root) => existsSync(join(root, 'node_modules', moduleName, 'package.json'))) ?? '';
 }
 
+/** Verify the same Python alias and exact engine dependencies the cloud install provides. */
+function careerPythonCapability() {
+  const requirements = join(ROOT, 'career-hunter', 'engine', 'requirements.txt');
+  if (!existsSync(requirements)) return '';
+  const probe = spawnSync('python', ['-c', [
+    'import importlib.metadata as m, pathlib, sys',
+    'pins = [line.split("#", 1)[0].strip() for line in pathlib.Path(sys.argv[1]).read_text().splitlines()]',
+    'for pin in filter(None, pins):',
+    '    name, version = pin.split("==", 1)',
+    '    assert m.version(name) == version, name + " does not match the engine pin"',
+    'print(sys.executable)',
+  ].join('\n'), requirements], {encoding: 'utf8', timeout: 10_000});
+  return !probe.error && probe.status === 0 ? probe.stdout.trim() : '';
+}
+
 /**
  * @description Resolve locally what the cloud runner provisions with an install step.
  * @returns {Record<string,{value:string,reason:string}>} Capability name to its local resolution.
  */
 function resolveCapabilities() {
   const typescriptRoot = findModuleRoot('typescript');
+  const pgRoot = findModuleRoot('pg');
+  const loaderRoot = pgRoot && pgRoot === findModuleRoot('better-sqlite3') ? pgRoot : '';
   const browserRoot = findModuleRoot('playwright') && findModuleRoot('express') ? findModuleRoot('playwright') : '';
-  const python = ['python3', 'python'].find((bin) => {
-    const probe = spawnSync(bin, ['--version'], { encoding: 'utf8' });
-    return !probe.error && probe.status === 0;
-  }) ?? '';
+  const python = careerPythonCapability();
   return {
     OSHAL_ROOT: {
       value: typescriptRoot,
@@ -227,7 +260,13 @@ function resolveCapabilities() {
     },
     CAREER_PYTHON: {
       value: python,
-      reason: 'no python interpreter on PATH — the Career engine requirements cannot be installed',
+      reason: 'Career requires python on PATH with exact engine/requirements.txt pins; activate a disposable venv installed from that file',
+    },
+    // The Career cutover contracts run the real SQLite -> PostgreSQL loader, which needs both
+    // database drivers from ONE node_modules (store-ci installs them into their own prefix).
+    CAREER_LOADER_NODE_PATH: {
+      value: loaderRoot ? join(loaderRoot, 'node_modules') : '',
+      reason: 'no checkout whose node_modules has both pg and better-sqlite3 — set OSHAL_ROOT to one',
     },
   };
 }
@@ -278,6 +317,13 @@ function runCheck(check) {
   // from an exit code, so inheriting it would turn this whole gate into a vacuous pass whenever it
   // is itself invoked from a test — which is exactly how its own guard spec runs it.
   const { NODE_TEST_CONTEXT: _drop, ...cleanEnv } = process.env;
+  // A pre-push hook exports its repository location. A fixture's `git -C` cannot
+  // override GIT_DIR: carrying it into tests writes fixture commits into this repo.
+  for (const key of [
+    'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_PREFIX',
+    'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_NAMESPACE',
+    'GIT_SHALLOW_FILE', 'GIT_CEILING_DIRECTORIES',
+  ]) delete cleanEnv[key];
   const options = {
     cwd: join(ROOT, check.workingDirectory || '.'),
     env: { ...cleanEnv, ...check.env },

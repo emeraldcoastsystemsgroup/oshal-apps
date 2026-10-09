@@ -3,13 +3,16 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep gateway and bounded-timeout failures readable without changing admission codes or request deadlines.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Explain bounded save-queue refusals while preserving the current draft.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Return an unsubscribe callback so optional context observers release their owned state listener.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Hold the current region selection and region mode; opening another document clears both so a region never carries into a different project.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Explain the region-edit refusals in plain words: one at a time, the daily limit, a region or image that changed, a locked target and an unconfigured image service.
  */
 import { createProject, applyOperation, serializeProject } from './model.mjs';
 import { createHistory } from './history.mjs';
 
 export const $ = id => document.getElementById(id);
 export const state = { project: createProject(), history: null, selected: null, id: null, revision: 0,
-  saved: '', permissions: {}, loading: true, saving: false, conflict: false, saveFailed: false, draw: false, images: new Map() };
+  saved: '', permissions: {}, loading: true, saving: false, conflict: false, saveFailed: false, draw: false, images: new Map(),
+  region: null, regionMode: false };
 state.history = createHistory(state.project);
 const listeners = new Set();
 export const dirty = () => serializeProject(state.project) !== state.saved;
@@ -29,6 +32,14 @@ const API_MESSAGES = {
   project_not_found: 'This project is unavailable to your account.',
   project_image_too_large: 'This image exceeds the 8 MB upload or normalized-image limit.',
   invalid_project_image: 'Choose a supported raster image within the canvas size limits.',
+  region_edit_in_progress: 'A region is already being regenerated. Wait for it to finish or cancel it.',
+  region_edit_daily_limit: 'You have reached today\u2019s region regeneration limit. Your project is unchanged.',
+  region_selection_stale: 'The saved project no longer matches this region. Select the region again.',
+  region_edit_stale: 'The image changed after this region was regenerated. Regenerate the region again.',
+  region_edit_layer_locked: 'Unlock the image layer to accept this candidate.',
+  region_edit_not_ready: 'This candidate is no longer waiting for a decision.',
+  region_edit_not_cancellable: 'This request has already finished.',
+  region_edit_provider_unavailable: 'Region regeneration is not configured on this server.',
 };
 
 /** Apply only authorized local edits and leave rejected operations untouched. */
@@ -44,7 +55,8 @@ export function edit(operation) {
 export function openDocument(project, record = null) {
   state.project = state.history.reset(project); state.id = record?.id ?? null;
   state.revision = record?.revision ?? 0; state.saved = record ? serializeProject(state.project) : '';
-  state.selected = null; state.conflict = false; state.saveFailed = false; state.draw = false; error(''); notify();
+  state.selected = null; state.conflict = false; state.saveFailed = false; state.draw = false;
+  state.region = null; state.regionMode = false; error(''); notify();
 }
 
 /** Keep event-handler failures visible without leaking a rejected promise. */

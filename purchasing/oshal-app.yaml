@@ -1,3 +1,10 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Release 1.3.4: GET /cart is a pure read (a shopper with no list gets listId null) and the chat surface creates the default list through POST /lists before its first add; the native host refuses SQL writes on a GET.
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — purchasing ("Shopping" Concierge)
 # Carved out of OSHAL core 2026-07-18 (ADR-085 Wave 2 carve #5). The shop-concierge
@@ -20,12 +27,27 @@
 
 name: purchasing
 suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }
+  features:
+    - id: shopping-chat
+      unit: shopping chat turn
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: shopping-ticket
+      unit: shopping request ticket
+      tier: T4
+      generation: none
+      degrade: disable
 displayName: Shopping
 description: >-
   AI shopping concierge — search Walmart/Amazon, build lists, learn your
   preferences, find deals, and hand off a ready-to-checkout cart. Other swarm
   bots can ask it to make a purchase.
-version: 1.2.0
+version: 1.3.4
 status: active  # active | inactive
 
 source:
@@ -65,6 +87,12 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
+
+# Test Lab registration (TLAB-07): every shipped suite with its runner and fixture boundary.
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 
 # Guests never build carts (this app hands off to retailer checkout). Request only —
 # grants come from the operator endpoint (D4).
@@ -208,6 +236,17 @@ ui:
       iframeUrl: /api/purchasing/dashboard?view=deals
       section: top
 
+# THE ASSISTANT RAIL (surface-bridge). Without this block the cockpit relay forwards NOTHING for
+# this app (fail-closed). context = the Shopping surface publishes the cart, its server-computed
+# total, the ship address and the products on screen, so the floating assistant answers about the
+# screen the shopper is on; set_field = it can fill the ship address or the search box, and
+# field_change = the shopper's own edits of those two fields travel back; custom = its `search`,
+# `add_product` and `checkout` ops run through the same functions the buttons call; propose/submit
+# = a checkout is ALWAYS a confirm card and the shopper's answer returns to the assistant (nothing
+# opens until Confirm); notify = it can confirm in the surface.
+surface:
+  ops: [context, set_field, field_change, custom, propose, submit, notify]
+
 # ─────────────────────────────────────────────────────────────────────────────
 # ROUTES — app-owned API + surface, gated to this app's activation.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -303,3 +342,14 @@ summary:
   tilesPointer: /tiles
   metricsPointer: /metrics
   itemsPointer: /items
+
+# Preserve the existing worker UUID and dedicated-node posture in the package contract.
+bots:
+  - agentId: b0070000-0000-0000-0000-000000000001
+    name: shopping-concierge
+    persona: personas/shopping-concierge.yaml
+    container: shopping-bot
+    port: 5000
+    requiresOwnNode: true
+    role: commerce/purchasing
+    capabilities: ['product-search', 'retail-price-comparison', 'shopping-list-management', 'cross-retailer-cart-building', 'rollback-deal-tracking', 'retail-checkout-handoff', 'purchase-preference-memory']

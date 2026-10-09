@@ -23,21 +23,59 @@
   })();
 </script>
 <link rel="stylesheet" href="/fonts/codicon.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/midnight.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/daylight.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/ocean.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/sakura.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/forest.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/gray.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/black.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/light-blue.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/aurora.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/graphite.css" />
-<link rel="stylesheet" href="/cockpit/css/themes/amber.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shell opens this page with ?audience=company: money in (completed,
+     awaiting, failed, test) and the providers, from the same routes as the full page, painted by the shared kit.
+     Any other request runs the full Payments page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  function call(path, body) {
+    var opt = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' } : { credentials: 'same-origin', headers: { Accept: 'application/json' } };
+    return fetch('/api/payments' + path, opt).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.message || j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; }); });
+  }
+  function openFull(query) { window.location.assign(window.location.pathname + (query || '')); }
+  var LABEL = { square: 'Square', paypal: 'PayPal', stripe: 'Stripe' };
+  function cents(v) { return (Number(v) || 0) / 100; }
+  function kind(status) { var s = String(status || '').toLowerCase(); return /fail|declin|cancel|void|error/.test(s) ? 'failed' : /complet|paid|succeed|captur|settled/.test(s) ? 'done' : 'pending'; }
+  function within(c, hours) { var t = new Date(c.created_at || 0).getTime(); return t && Date.now() - t <= hours * 36e5; }
+  function company(ctx) {
+    return Promise.all([call('/providers'), call('/history').catch(function () { return { charges: [] }; })]).then(function (r) {
+      var providers = r[0].providers || [], charges = (r[1].charges || []).slice().sort(function (a, b) { return new Date(b.created_at || 0) - new Date(a.created_at || 0); });
+      var live = charges.filter(function (c) { return !c.test_mode; }), connected = providers.filter(function (p) { return p.connected; });
+      var sum = function (list) { return list.reduce(function (m, c) { return m + cents(c.amount_cents); }, 0); };
+      var done24 = live.filter(function (c) { return kind(c.status) === 'done' && within(c, 24); }), done5d = live.filter(function (c) { return kind(c.status) === 'done' && within(c, 120); });
+      var pending = live.filter(function (c) { return kind(c.status) === 'pending'; }), failed5d = live.filter(function (c) { return kind(c.status) === 'failed' && within(c, 120); }), test5d = charges.filter(function (c) { return c.test_mode && within(c, 120); });
+      return {
+        kicker: 'Payments', title: connected.length ? 'Money in' : 'Connect a payment provider',
+        lede: connected.length ? connected.length + ' of ' + providers.length + ' providers connected' + (charges[0] ? ' \u00b7 last charge ' + A.when(charges[0].created_at) : '') : 'Link Square, PayPal or Stripe in Payments to take a payment and see it here.',
+        actions: [{ label: 'Take a payment', primary: true, onClick: function () { openFull(); } }],
+        stats: [
+          { id: 'done24h', label: 'Completed / 24h', value: done24.length, hint: done24.length ? A.money(sum(done24)) : null, tone: done24.length ? 'ok' : null },
+          { id: 'done5d', label: 'Completed / 5 days', value: done5d.length, hint: done5d.length ? A.money(sum(done5d)) : null },
+          { id: 'pending', label: 'Awaiting payment', value: pending.length, hint: pending.length ? A.money(sum(pending)) : null, tone: pending.length ? 'warn' : null },
+          { id: 'failed5d', label: 'Failed / 5 days', value: failed5d.length, tone: failed5d.length ? 'bad' : null },
+          { id: 'test5d', label: 'Test charges / 5 days', value: test5d.length }
+        ],
+        sections: [
+          { kind: 'tiles', id: 'providers', title: 'Providers', empty: 'No providers available.', items: providers.map(function (p) { return { title: LABEL[p.provider] || p.provider, text: p.connected ? (p.testMode ? 'Connected \u00b7 test mode' : 'Connected') + (p.sourceLabel ? ' \u00b7 ' + p.sourceLabel : '') : 'Not connected', badge: p.connected ? (p.testMode ? 'test' : 'live') : 'connect', tone: p.connected ? (p.testMode ? 'info' : 'ok') : null, onClick: function () { openFull(); } }; }) },
+          { kind: 'table', id: 'charges', title: 'Recent charges', wide: true, empty: 'No charges yet.', columns: ['When', 'Provider', { label: 'Amount', align: 'right' }, 'Note', 'Status'],
+            rows: charges.slice(0, 12).map(function (c) { var k = kind(c.status); return [A.date(c.created_at), LABEL[c.provider] || c.provider, { text: A.money(cents(c.amount_cents), c.currency || 'USD') }, (c.note || '') + (c.test_mode ? ' (test)' : ''), { text: c.status || '', tone: k === 'failed' ? 'bad' : k === 'done' ? 'ok' : 'warn' }]; }) }
+        ]
+      };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'payments', escapeLabel: 'Open Payments in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
   :root {
-    --bg:#0f1417; --panel:#151b20; --panel2:#1c252b; --line:#28333a;
-    --text:#e9f0f4; --muted:#90a4b0; --accent:#3aa0ff; --accent2:#9ed0ff; --danger:#ff8b8b; --ok:#37d27f;
+    --bg:var(--bg-primary,#0f1417); --panel:var(--bg-card,#151b20); --panel2:var(--bg-card-hover,#1c252b); --line:var(--border-color,#28333a);
+    --text:var(--text-primary,#e9f0f4); --muted:var(--text-secondary,#90a4b0); --accent:var(--accent-primary,#3aa0ff); --accent2:var(--accent-primary-hover,#9ed0ff); --danger:#ff8b8b; --ok:#37d27f;
   }
   * { box-sizing:border-box; }
   body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
@@ -227,7 +265,8 @@ let providers = [];
 let active = null;
 
 /** Boot: load providers + history. */
-(async function init() {
+// The full page only: under an audience view the shared kit paints instead (see the head script).
+if (!window.AppView || !AppView.active()) (async function init() {
   try {
     providers = (await api('/providers')).providers || [];
     active = (providers.find((p) => p.connected) || providers[0] || {}).provider || null;

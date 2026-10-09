@@ -6,11 +6,14 @@
  * preview/download; publishing is Phase 3.
  *
  * CHANGE LOG
+ * 2026-10-08 | maintainer@emeraldcoastsystemsgroup.com | Await native owner-bound conductor steps and report actual blocked rendering before request authority expires.
  * -----------------------------------------------------------------------------
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-06-22 12:25:00 | roger.murphy@emeraldcoastsystemsgroup.com | Initial Video Studio routes (storyboard / generate / list / ui) for the thin vertical slice (ADR-036 bot-owned app).
  * 2026-07-19 21:55:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the video app package (ADR-085 Wave 3, "skill with a surface"). Standard (ctx) factory; the surface serves from ctx.appPackageDir/tools (load-time env fallback, D10). Shared core helpers import via @/ aliases: storage-target, inline-bot-execution, connectors-routes, and the series conductor (series-pipeline/orchestrator/dispatch/drive) + video-generation slice — all framework-resident per ADR-093. ensureVideosSchema now appends buildOwnerRlsPolicyStatements (owner-RLS on the packaged lazy DDL). The video-director + screenplay-writer inline nodes (BOTH swarm-bot-registry blocks) and migrations 066/067 stay framework-resident; this package ships migration COPIES for fresh installs.
+ * 2026-09-21 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | GET /series now carries the series' season-level artifact (intro clip, stitched season cut, its Drive link) so the studio can show the one thing a finished multi-episode series produces. Read through a SEPARATE tolerant query: the season columns are kernel-owned and this package ships ahead of the framework migration that adds them, so an older kernel costs the season line rather than 502-ing the whole panel.
+ * 2026-09-25 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Restrict compatibility fallback to PostgreSQL undefined-column failures; permission and connectivity failures remain visible instead of looking like absent season artifacts.
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -71,6 +74,51 @@ function callerSub(req: Request): string | null {
   const u = (req as { oidc?: { user?: { sub?: string } } }).oidc?.user;
   return u?.sub ? String(u.sub) : null;
 }
+
+/** @description One series' season-level artifact, as the surface reads it. */
+interface SeasonArtifact {
+  /** The cached intro clip every episode of this series opens with, or null. */
+  introClip: string | null;
+  /** Where the stitched season cut lives on the render node, or null. */
+  seasonPath: string | null;
+  /** The season cut's Drive link, present only when the upload actually returned one. */
+  seasonDriveUrl: string | null;
+}
+
+/**
+ * @description Read the season-level artifact of each of the caller's series.
+ *
+ * Deliberately a SEPARATE, tolerant query rather than more columns on the series SELECT. The season
+ * columns are kernel-owned (`video_series`), and this package ships ahead of the framework that
+ * adds them: an install whose kernel has not applied the season-artifact migration would otherwise
+ * turn the whole series panel into a 502 over one missing column. A missing column set here costs
+ * the season line and nothing else.
+ * @param ctx - The per-package app context; only its pool is used.
+ * @param sub - The caller's OIDC subject. The read is owner-scoped, exactly like the series read.
+ * @returns Season artifacts by series id; empty when the kernel has no season columns yet.
+ */
+async function seasonArtifacts(ctx: AppContext, sub: string): Promise<Map<string, SeasonArtifact>> {
+  try {
+    const { rows } = await ctx.pool.query(
+      `SELECT series_id, intro_clip, season_path, season_drive_url
+         FROM video_series WHERE user_sub = $1`,
+      [sub],
+    );
+    return new Map((rows as Array<Record<string, unknown>>).map((r) => [String(r.series_id), {
+      introClip: (r.intro_clip as string | null) ?? null,
+      seasonPath: (r.season_path as string | null) ?? null,
+      seasonDriveUrl: (r.season_drive_url as string | null) ?? null,
+    }]));
+  } catch (err) {
+    if ((err as { code?: string })?.code !== '42703') throw err;
+    logger.warn(
+      { err: (err as Error).message },
+      'no season columns on this framework yet - the series panel omits the season line',
+    );
+    return new Map();
+  }
+}
+
 
 /** Validate an optional per-save target override (the "Save to…" choice). */
 function cleanOverride(t: unknown): StorageTarget | undefined {
@@ -307,6 +355,12 @@ export function createBotVideoRoutes(ctx: AppContext): Router {
       // at the approval gate. Nothing an image or a clip costs runs here. If the writer is slow or
       // unavailable the series simply stays `scripting` and can be advanced again; the response does
       // not wait on it.
+      if ((ctx.pool as unknown as { storageModel?: string }).storageModel === 'kernel-scoped-documents') {
+        const step = await advanceVideoSeries(ctx, seriesId);
+        res.json({ ok: step.status !== 'failed', seriesId, ticketId: ticket.ticketId,
+          status: step.status, step, message: step.detail });
+        return;
+      }
       void advanceVideoSeries(ctx, seriesId).catch((err) => logger.warn({ err: (err as Error).message, seriesId }, 'initial advance failed (series stays scripting)'));
       res.json({
         ok: true,
@@ -340,6 +394,11 @@ export function createBotVideoRoutes(ctx: AppContext): Router {
 
       // Advance as far as it will go now — storyboard the episodes, dispatch the first render. The
       // rest is driven by the reconciler as each render lands. Do not block the response on it.
+      if ((ctx.pool as unknown as { storageModel?: string }).storageModel === 'kernel-scoped-documents') {
+        const step = await runVideoSeries(ctx, String(req.params.seriesId));
+        res.json({ ok: true, status: step.status, step, message: step.detail });
+        return;
+      }
       void runVideoSeries(ctx, String(req.params.seriesId))
         .catch((err) => logger.warn({ err: (err as Error).message }, 'post-approval run failed'));
       res.json({ ok: true, status: 'storyboarding', message: 'approved — storyboarding now, then rendering one episode at a time.' });
@@ -499,6 +558,7 @@ export function createBotVideoRoutes(ctx: AppContext): Router {
         `SELECT series_id, episode_id, ordinal, title, status, drive_url, assembled_path
            FROM video_episodes WHERE user_sub = $1 ORDER BY series_id, ordinal`, [sub],
       )).rows as Array<Record<string, unknown>>;
+      const seasons = await seasonArtifacts(ctx, sub);
 
       const bySeries = new Map<string, Array<Record<string, unknown>>>();
       for (const e of episodes) {
@@ -506,7 +566,13 @@ export function createBotVideoRoutes(ctx: AppContext): Router {
         if (!bySeries.has(k)) bySeries.set(k, []);
         bySeries.get(k)!.push(e);
       }
-      res.json({ series: series.map((s) => ({ ...s, episodes: bySeries.get(String(s.series_id)) ?? [] })) });
+      res.json({
+        series: series.map((s) => ({
+          ...s,
+          episodes: bySeries.get(String(s.series_id)) ?? [],
+          ...(seasons.get(String(s.series_id)) ?? { introClip: null, seasonPath: null, seasonDriveUrl: null }),
+        })),
+      });
     } catch (err) {
       logger.error({ err }, 'list video series failed');
       res.status(502).json({ error: (err as Error).message });

@@ -17,6 +17,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | GET /orders and the /journal trades price each close on the engine's own cost (priceOrdersOnEngineCost over core engineRealizedForBook): realized_pnl is the engine figure, venue_realized_pnl the stored venue-basis one, which counts each wash-sale disallowed loss twice. A close the ledger cannot price shows no gain/loss rather than a guessed one.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | GET /ledger answers `governance` beside `positions` (ADR-159): per symbol, whether the engine's protective exit set runs, whether it emits any order at all, and in the operator's words why not. /ledger is THE positions payload the hub paints from, and it carried no trace of a rule the engine has been enforcing since #486/#497 - the operator could see a holding with no stop and no exit and no way to tell that was deliberate. Every part of the answer is the kernel's: subtractPinnedLots + withEngineCostBasis over the same pinned-subtracted positions the dispatch costs, then positionGovernance. A failed read answers `{}` and the surface says NOT KNOWN for those rows - it never says managed about a position nobody could check.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | GET /ledger stops disagreeing with itself, and answers for the position it was silently skipping. (a) `positions` is the RAW venue array while the governance beside it is computed over `subtractPinnedLots(positions, pinned)`, so a partially pinned symbol showed the full quantity next to a sentence about the smaller one - one payload, two numbers, on the same screen. Each answer now carries the two quantities it was measured between (heldQty, the row; governedQty, what the autopilot can act on), both taken from the kernel's OWN subtraction, so the surface can say which is which instead of leaving the operator to reconcile them. (b) `subtractPinnedLots` DROPS a symbol whose every share is pinned, so a fully protected holding reached no governance answer at all and the surface's fallback called it NOT KNOWN - a deliberately protected position shown as unexamined, which is ADR-159's own failure inverted. Such a symbol - present at the venue, absent from the kernel's subtraction - now gets the kernel's `pinnedInFullGovernance`. The words and the reason code are core's; the only thing decided here is which symbols core's subtraction dropped, read off that subtraction's own output.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | GET /ledger's `governance` (and GET /exposure's, through the same function) knows the idle-cash yield sleeve (ADR-052 addendum P6). New exported bookGovernance: the ring-fence coreConfig parses from the applied override, and the book's armed sleeve through the kernel's own armedYieldSleeve (override, book kind, that ring-fence), handed to positionGovernanceBySymbol - so on a book where the sleeve is armed its fund reads 'yield sleeve' with no exits, as the dispatch treats it, instead of as an ordinary managed holding. Unarmed, the answer is unchanged. A kernel that predates armedYieldSleeve passes no sleeve, so the readout stays as it was instead of failing the payload (the package can be staged before the core that carries it).
  *
  * @module trading-routes-order-flow-builders
  */
@@ -54,6 +55,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.bookGovernance = bookGovernance;
 exports.ledgerGovernance = ledgerGovernance;
 exports.registerTradingOrderFlowRoutes = registerTradingOrderFlowRoutes;
 const crypto = __importStar(require("crypto"));
@@ -74,6 +76,24 @@ const trading_realized_1 = require("./trading-realized");
 const authz_1 = require("@/shared/middleware/authz");
 // Same module tag as the entry file so structured log output is unchanged by the split.
 const logger = (0, logger_1.createChildLogger)({ module: 'trading-routes' });
+/**
+ * @description The engine's posture per symbol for one costed book, knowing the idle-cash yield sleeve
+ * (ADR-052 addendum P6): the ring-fence coreConfig parses from the applied override, plus the armed sleeve
+ * through the kernel's own armedYieldSleeve, so the fund of an armed sleeve reads exempt from every exit -
+ * as the dispatch treats it - and every other holding reads as before. A kernel that predates
+ * armedYieldSleeve passes no sleeve, so the readout keeps its old answer instead of failing the payload
+ * (the package can be staged before the core that carries the export). GET /ledger and GET /exposure
+ * both call this, so the positions badge and the Exits card cannot disagree about the fund.
+ * @param costed - Positions after the pinned-lot subtraction and the engine's cost attachment.
+ * @param override - The book's applied Strategy Library override, or null for env behaviour.
+ * @param kind - The book kind, which the sleeve's mode-aware arm reads.
+ * @returns UPPER-CASE symbol to the engine's posture, one entry per position.
+ */
+function bookGovernance(costed, override, kind) {
+    const core = (0, trading_dispatch_core_1.coreConfig)(override);
+    const sleeve = typeof trading_position_governance_1.armedYieldSleeve === 'function' ? (0, trading_position_governance_1.armedYieldSleeve)(override, kind, core) : null;
+    return (0, trading_position_governance_1.positionGovernanceBySymbol)(costed, core, sleeve);
+}
 /**
  * @description The engine's OWN answer, per symbol, for what it will and will not do with this
  * book's positions (ADR-159) — so the positions table can mark a holding the engine withholds for
@@ -117,7 +137,7 @@ async function ledgerGovernance(ctx, sub, book, positions) {
         ]);
         const visible = (0, trading_pinned_lots_1.subtractPinnedLots)(positions, pinned);
         const costed = await (0, trading_engine_cost_basis_1.withEngineCostBasis)(ctx, sub, book, visible);
-        const answered = (0, trading_position_governance_1.positionGovernanceBySymbol)(costed, (0, trading_dispatch_core_1.coreConfig)(override));
+        const answered = bookGovernance(costed, override, book.kind);
         const governedQty = new Map();
         for (const p of visible)
             governedQty.set(p.symbol.toUpperCase(), Number(p.qty));

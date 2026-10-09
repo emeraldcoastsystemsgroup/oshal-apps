@@ -10,6 +10,7 @@ exports.registerCreateProjectRoutes = registerCreateProjectRoutes;
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Expose private project CRUD, immutable revision history, explicit document export and bounded owner-scoped raster uploads.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Mount the personal brand kit routes on this router, before its shared error handler, with the same personal-scope and error guards.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Mount region editing on this router with the same guards and the shared project validator; a test may name its fixture provider through options.regionEdits, production always uses the media-generation kernel skill.
  */
 const express_1 = require("express");
 const multer_1 = __importDefault(require("multer"));
@@ -21,6 +22,7 @@ const create_project_store_1 = require("./create-project-store");
 const create_project_authorization_1 = require("./create-project-authorization");
 const create_project_assets_1 = require("./create-project-assets");
 const create_brand_kit_routes_1 = require("./create-brand-kit-routes");
+const create_region_edit_routes_1 = require("./create-region-edit-routes");
 const bodyParser = (0, express_1.json)({ limit: create_project_types_1.PROJECT_LIMITS.documentBytes + 4096, strict: true });
 /** Personal projects never accept a caller-selected shared tenant or owner scope. */
 function personalOnly(req) {
@@ -135,6 +137,8 @@ function createCreateProjectRoutes(ctx, options = {}) {
     projectWrites(router, env);
     projectAssets(router, env);
     (0, create_brand_kit_routes_1.registerBrandKitRoutes)(router, { ctx, projects: env.store, dataRoot: env.dataRoot, guards: { personalOnly, sendError } });
+    (0, create_region_edit_routes_1.registerRegionEditRoutes)(router, { ctx, projects: env.store, dataRoot: env.dataRoot, guards: { personalOnly, sendError }, validator: env.validator,
+        dependencies: options.regionEdits?.dependencies, settings: options.regionEdits?.settings });
     router.use((error, _req, res, _next) => {
         if (error instanceof multer_1.default.MulterError)
             return sendError(res, new create_project_types_1.ProjectError(error.code === 'LIMIT_FILE_SIZE' ? 413 : 400, 'invalid_project_upload'));

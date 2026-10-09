@@ -1,5 +1,7 @@
 # Game Show — AI game night (ADR-085 app package; architecture ADR-112)
 
+0.11.4 adds the company audience view beside the family one (ADR-164 D6): Studio, Orbit and Commons (the Business shells) open this package's first surface with `?audience=company`, and the shared kit paints the same account-scoped card in the company grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 A TV-style game show run by an AI host. One person hosts, everyone joins from their phone
 and takes a podium, and the same synced state renders as a broadcast big screen, a phone
 buzzer, a host desk, or a spectator view.
@@ -223,6 +225,14 @@ node tests/cutaways.test.js           # 14 — catalog, state selection, media a
 `tests/npc.test.js` plays full NPC-vs-NPC Feud, Wheel, and Whammy rounds in-process, so
 "solo night actually finishes a game" is a guard, not a hope.
 
+The audience view contract is registered in the Test Lab (`audience-view` in `tests/test-lab.yaml`):
+
+- `node --test tests/audience-view.test.cjs` — the contract and behaviour of the family view on
+  Game Show Review (stub kit, stub fetch, stub DOM; no browser).
+- `OSHAL_FRAMEWORK=<core checkout> node scripts/audience-views.browser.cjs game-show` from the store
+  root drives `tests/audience-view.fixture.cjs` over the real page and the real kit in headless
+  Chromium.
+
 **The browser playthroughs** (the P0 that used to need a human, a TV and two phones):
 
 ```bash
@@ -380,3 +390,39 @@ reproduced — confirm the shot before you spend a fix on it.
 - ~~Per-room cost visibility~~ (#15) · ~~Broadcast audience reactions~~ (#16)
 - ~~Buzz fairness~~ → documented as a deliberate local-play-first trade-off (#17)
 - ~~Decide `gameshow_seats.score`~~ → end-of-game snapshot, leaderboard hook (#19)
+
+## Audience view (ADR-164 D6)
+
+Game Show 0.11.3 answers `?audience=family` on Game Show Review, which is how the Home (Jarvis)
+shell opens the application's first surface. The view is the signed-in account's game nights in
+plain words, painted by the shared kit: the rooms it hosts (waiting in the lobby, marked live,
+ended in the last 5 days), its three newest rooms with their state and last update, the top score,
+and the hall of fame of best scores from ended games it hosted or played in. On open it makes three
+plain GETs under the caller's session: `/home-summary` (the same read the full page makes),
+`/leaderboard` (the lobby's hall-of-fame read) and `/shows` (the static show catalog, for show
+names). It never reads `/rooms` (listing rooms runs the ended-room retention DELETE), a room's
+state, sync, cost, QR or camera stills; it never opens, joins or starts a room, never calls the host
+bot, a voice or a model, and writes nothing. "Marked live" is named as a persisted room state, not
+as anyone playing right now. Failed scores or show names keep the rooms on screen; a partly
+unreadable record, no game nights, 401, 403 and a failed read are each named. The one action and
+the escape open Game Show in the cockpit. Any other request runs the full page unchanged, and its
+start (the connected-actions mount, the Refresh handler, the evidence read) is gated on the kit's
+decision.
+
+Game Show 0.11.2 loads the shared theme bootstrap (`/shared/ui/css/surface-themes.css` + `/shared/ui/js/surface-theme.js`) in `tools/review.html` and derives its palette from the framework tokens with the previous colors as fallbacks, so the surface follows the operator's chosen cockpit or experience skin whether embedded or opened standalone. No route, data or permission change.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| round-generation | round of questions | T2 | none | template | not yet measured | none recorded |
+| answer-judging | judged guess | T1 | none | template | not yet measured | none recorded |
+| host-narration | spoken host line | T2 | hosted | disable | not yet measured | none recorded |
+| contestant-interview | interview beat | T2 | hosted | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

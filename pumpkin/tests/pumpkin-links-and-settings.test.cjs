@@ -1,4 +1,10 @@
 /**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Make the unavailable-encoder fixture explicit so installed framework dependencies do not invalidate the compiled-route refusal regression.
+ *
  * DEVICE LINKS, QR, AND THE SHORT PROJECTOR URL.
  *
  * Three things the prop's night depends on, all of which were broken in a way no compiler and no
@@ -86,9 +92,8 @@ function fakeRouterFactory() {
   return lastRouter;
 }
 
-// The QR encoder is a CORE-image dependency, absent from this repo on purpose (these suites run with
-// no install). The route requires it lazily, which is exactly why the module still loads here — and
-// the "encoder unavailable" path below is therefore the real one, not a simulation.
+// The QR encoder is a core-image dependency loaded lazily by the real route.
+// Its absence is simulated only inside the unavailable-encoder case below.
 const origLoad = Module._load;
 Module._load = function shimmedLoad(request, ...rest) {
   if (request === '@/shared/logger') {
@@ -296,11 +301,20 @@ test('the two allowed targets encode EXACTLY the urls /links published', () => {
 });
 
 test('a valid target with no encoder available fails as qr_unavailable, never as a broken app', async () => {
-  // `qrcode` is a core-image dependency and is genuinely absent here, so this exercises the real
-  // lazy-require failure path. The surface hides the <img> and tells the operator to copy the link.
-  const res = await call('GET /qr', browserReq('owner-1', { query: { target: 'remote', label: 'Front Porch' } }));
-  assert.equal(res.statusCode, 503);
-  assert.equal(res.body.error, 'qr_unavailable');
+  // NODE_PATH may expose the real core encoder. Model only its missing-module condition;
+  // the compiled route must still catch that failure and produce the same unavailable response.
+  const previous = Module._load;
+  Module._load = function withoutEncoder(request, ...args) {
+    if (request === 'qrcode') throw Object.assign(new Error('Fixture encoder unavailable'), { code: 'MODULE_NOT_FOUND' });
+    return previous.call(this, request, ...args);
+  };
+  try {
+    const res = await call('GET /qr', browserReq('owner-1', { query: { target: 'remote', label: 'Front Porch' } }));
+    assert.equal(res.statusCode, 503);
+    assert.equal(res.body.error, 'qr_unavailable');
+  } finally {
+    Module._load = previous;
+  }
 });
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════

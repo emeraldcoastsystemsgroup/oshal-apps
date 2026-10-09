@@ -20,6 +20,7 @@ const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)
 const DECLARED = [
   ['calendar', 'calendar-meeting-briefs', 'system'],
   ['daily-trade-recap', 'daily-trade-recap-recorded-reports', 'system'],
+  ['lora', 'lora-autonomous-overnight', 'system'],
   ['marketing-engine', 'daily-metrics-ingest', 'system'],
   ['marketing-engine', 'weekly-campaign-review', 'system'],
   ['venture-plan', 'rebaseline-policy-tick', 'system'],

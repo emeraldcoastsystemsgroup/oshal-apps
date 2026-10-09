@@ -392,9 +392,10 @@ kind, the mass and price other packages share, an optional KV / cell count, a **
 is exactly the part's properties (loaded through the same `validateProps`, so a row that drifts
 from the contract fails the mount naming the row and the field), a **source** line saying where
 each number came from (a number marked typical is not a measurement), and **usedBy**. The two
-motors embodied's fits name are rows here; `tests/driver-catalog.test.js` reads embodied's compiled
-parts model read-only and fails when either name, mass or price differs between the packages
-(B4, this lab's half). The inspector's "nameplate from the catalog" and the
+motors embodied's fits fly are rows here that READ embodied's own rows (below);
+`tests/driver-catalog.test.js` goes through embodied's compiled row reader and parts model read-only
+and fails when the resolved row, embodied's row and the fit disagree on name, mass, price or KV
+(B4). The inspector's "nameplate from the catalog" and the
 `circuit-driver-catalog` tool fill a part's properties from a row.
 
 **A row may not describe a part another package already owns.** A servo bought once should be
@@ -403,7 +404,14 @@ price, source, and the pulse / travel / speed / torque / current block a rig is 
 this catalog restated it under its own name at its own price. Such a row now carries
 `sharedPart: {owner, file, list, id}` instead, declares only the block this lab adds — the
 operating point the solver runs it at and the reflected rotor inertia — plus a `note` saying so,
-and `loadDriverCatalog` reads the rest out of the owner's catalog **file**. It is data, not an
+and `loadDriverCatalog` reads the rest out of the owner's catalog **file**. The same holds for
+the two brushless motors, whose owner is embodied (`routes/engine/design/parts-catalog.json`, list
+`motors`): the row keeps this lab's electrical block — the operating point and cell count, the
+winding's stall current, the no-load current, the inductance and the rotor inertia — and reads the
+name, mass, price, source and the propulsion block's KV; noLoadRpm is derived as KV x the operating
+voltage. Each part type has its own reader, which names the row and nameplate fields its owner
+publishes (refused if restated) and the fields this lab must declare for the read (a motor's
+nominalVolts). It is data, not an
 imported runtime: nothing here requires a sibling package's module, so the scoped route compile is
 untouched and the store's package-separation guard has nothing to weaken. The translation into
 this lab's units (µs → ms, s/60° → deg/s, kg·cm → mN·m, mA → A) lives here, once, so the owner

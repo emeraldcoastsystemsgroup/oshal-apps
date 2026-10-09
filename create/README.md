@@ -4,7 +4,7 @@ The design-tool front door for everything you make with oshal. One rail, one ski
 one home page — "What will you create today?" — over the creative studios that are
 already installed: **AI Office** (deck / document / workbook), **Portrait Studio**,
 **Video Studio**, **LoRA Studio**, **Vids Studio**, the **Creative Studio** story
-pipeline and **3D Scan-to-Print**. `create.oshal.ai` lands here.
+pipeline, **3D Scan-to-Print** and **Brand Graphics**. `create.oshal.ai` lands here.
 
 Create 1.5.0 adds an owned layered **Image editor** alongside the existing studios.
 Open **Create → Image editor** or Home's **Image design** quick start. See
@@ -85,6 +85,125 @@ The package ships:
 - **the image editor and project API** — `/api/create/editor`, owned immutable
   revisions, raster assets and named permissions. [Architecture and limits](EDITOR.md).
 
+## Image filters (1.8.3)
+
+Image layers take a named filter look and bounded saturation, grayscale, sepia and
+blur adjustments that save, undo, reopen and export with the project. No route or
+permission changed. See [image filters](EDITOR.md#image-filters-183). Not yet
+installed on any box; local proof only.
+
+## Region selection (1.8.4)
+
+Select part of an image layer (lasso, box or whole image) for the upcoming region
+edit. The region is kept in the image's own pixels and re-checked before use, and
+Jarvis sees only its bounded summary. No route or permission changed. See
+[region selection](EDITOR.md#region-selection-184). Local proof only.
+
+## Command-line image rails (1.9.5)
+
+Region regeneration now accepts the kernel's operator-only `antigravity-cli` image rail
+(operator decision 2026-10-02). Under demo mode the kernel's storyboard image rail is picked by the
+render bot's own harness, its own provider row or else the swarm default (core ADR-130 amendment),
+so on a render bot that runs Antigravity the provider Create resolves is agy's own image tool on
+that bot. The kernel reports that rail available
+only to the deployment operator in demo mode and checks the same thing again at the bot. The
+command-line transport still does not carry Create's `project.generate` permission to the bot, so
+the rail serves the operator only:
+
+- `project.generate` is checked first, unchanged.
+- The resolved provider must report itself available for the caller before anything is generated.
+- A caller the kernel has no provider for, or whose provider is not available to them, sees
+  `configured: false` (`reason: region_edit_provider_unavailable`, no provider named) on
+  `GET /api/create/region-edit-provider`, and their edit fails `region_edit_provider_unavailable`.
+  No other provider is tried, nothing is generated and nothing is charged. Before 1.9.5 the
+  provider report answered 503 `project_service_unavailable` when the kernel had no provider
+  for the caller, such an edit failed as `region_edit_provider_failed`, and an edit was generated
+  on a provider that reported itself unavailable.
+- `codex-cli` stays refused for everyone.
+
+No permission, catalog, migration or `authorization.yaml` change. See
+[EDITOR.md](EDITOR.md#region-regeneration-190).
+
+Local verification on **2026-10-02** (synthetic fixture provider, compiled routes):
+
+- `tests/region-edit-api.test.mjs`: **8/8**, no skips. With store main's compiled route swapped
+  in, **7/8**: the new rail case fails because the refused caller's provider report answers 503
+  `project_service_unavailable`. With only the availability check removed from the 1.9.5 route,
+  **6/8** (the rail case and the offline-provider case).
+- `tests/region-edit-postgres.test.mjs`: **23/23**, no skips, real disposable PostgreSQL; owned
+  fixture `oshal-create-project-test-0c8199fb975247d5` reported `cleanupVerified: true`. With store
+  main's compiled route, **22/23**: the refused caller's edit fails `region_edit_provider_failed`.
+  With only the availability check removed, **22/23**: an edit is generated (`ready`) for a person
+  the provider is not available to.
+- The compiled route matches `ts.transpileModule` of the source under the framework's compiler
+  options, except the `sourceMappingURL` trailer the committed file already carried.
+
+## Region-edit cost consent (1.9.4)
+
+The provider report advertises `costConsentVersion: 1`; new clients can submit
+`maxCostClass: 'free' | 'paid'` on an edit. The actual post-queue provider must
+respect that cap before generation. Omitted caps preserve legacy behavior, so new
+acceptance clients must require the version before any fixture writes and always
+send their cap. The editor captures the displayed class before asynchronous save,
+and a refusal refreshes the disclosure without retrying or escalating.
+See the [contract and compatibility boundary](EDITOR.md#cost-consent-for-region-regeneration-194).
+No permissions or catalog bindings change.
+
+Coordinated local verification on **2026-09-29**, against the actual generated routes:
+
+- Canonical compiler passed: 14 sources, one package, zero stale modules. Only
+  `create-region-edit-routes.js` changed in the 14-output comparison. A subsequent
+  trailing-CR stdin transport error made the outer shell exit 127; this is recorded
+  separately from the compiler's PASS, not as a clean overall process exit.
+- `tests/region-edit-api.test.mjs`: **7/7**, exit 0, no skips (~1.30 s), real HTTP
+  and compiled routes with a strict non-writing database double.
+- `tests/region-edit-postgres.test.mjs`: **22/22**, exit 0, no skips (~9.25 s), real
+  disposable PostgreSQL and migrations. Covers compatible/unknown cost classes,
+  both generation methods, queued free-to-paid/unknown refusal with zero generation,
+  checked-instance execution, forced owner/issuer isolation and the edit lifecycle.
+  Owned fixture `oshal-create-project-test-5ced48c6405f4885` reported `cleanupVerified: true`.
+- `tests/browser/create-region-edit-proof.mjs`: **6/6**, exit 0, no skips (22.61 s),
+  actual Chromium, editor, compiled routes and disposable PostgreSQL. Covers the
+  click-time free cap across asynchronous save/paid refresh, a required new click
+  for paid work, unsupported-disclosure refusal and retained editing workflows.
+  Owned fixture `oshal-create-project-test-c56efa29daf541bd` reported `cleanupVerified: true`.
+
+Re-run on **2026-10-02** after rebasing onto store main (Create's routes, sources,
+editor tools, tests and migrations had not changed on main since the 2026-09-29 base):
+
+- `tests/region-edit-api.test.mjs`: **7/7**, no skips. With main's 1.9.3 compiled
+  route swapped in, the same suite fails **2 of 7**: the provider report lacks
+  `costConsentVersion: 1`, and a malformed cap answers `invalid_project_fields`
+  instead of `invalid_region_cost_cap`.
+- `tests/region-edit-postgres.test.mjs`: **22/22**, no skips; owned fixture
+  `oshal-create-project-test-2502a531c94f44ea` reported `cleanupVerified: true`.
+- `tests/browser/create-region-edit-proof.mjs`: **6/6**, no skips; owned fixture
+  `oshal-create-project-test-521e9cc51ca64687` reported `cleanupVerified: true`.
+- The store CI create job (`node --test "tests/*.test.js"`): **23/23**.
+
+Test results above are the coordinating runner's receipts. The provider and accounting
+are explicit synthetic fixtures; no real provider calls or spend are claimed. Tested
+route SHA-256 (both runs): `4cd40009302b3c80e1c0c60acc8ac702c44e8526b41ede9df9d0212003749ace`.
+Not installed or live-proven; installation and the live `create-region-edit` case
+remain separate.
+
+## Region editing in the editor (1.9.1)
+
+Select a region, describe the change, and **Regenerate region**; compare the
+candidate side by side, then accept it as a new revision (undoable) or reject it. The
+panel says what will be sent and what it costs first. See
+[changing a region](EDITOR.md#changing-a-region-in-the-editor-191). Local proof only;
+installing needs the 1.9.0 reviewed catalog migration.
+
+## Region regeneration (1.9.0)
+
+Regenerate only a selected region of an image layer into a candidate you accept,
+reject or cancel. Outside the region the image is byte-identical; accepting appends one
+revision on the revision you hold and keeps your manual edits. Generating is the new
+`project.generate` permission (`generator` or `admin` role); spend lands in the cost
+ledger. See [region regeneration](EDITOR.md#region-regeneration-190). Installing needs
+the reviewed authorization catalog migration. Local proof only.
+
 ## Image template installation status
 
 Create **1.6.0** is installed from published source
@@ -113,12 +232,24 @@ editing and selected-region AI regeneration remain planned. Later documentation
 commits do not change this installed source. Security audit status remains
 pending; no GitHub Actions were used.
 
+## Audience views (1.9.3)
+
+The whole-portal shells open the New surface inside their own frame (ADR-164 D6): Jarvis (the Home shell) with
+`/api/create/new?audience=family`, and Studio, Orbit and Commons (the Business shells) with `?audience=company`. Under
+either, the shared kit paints one account-scoped card from `GET /api/create/home-summary` (the package's bound summary
+read, `project.view` + `project.read`, owner-scoped): the count of the account's own image projects, the newest six with
+their update time and an image-editor link, and what Create can open. The view asks no studio for its access, reads no AI
+Office starter catalog and writes nothing; a refusal is said in the card with no figure in its place. Without an audience
+the full New page runs unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`; the view is
+fed by the real compiled router over a strict read-only pool double) and the store's `scripts/audience-views.browser.cjs`
+over `tests/audience-view.fixture.cjs`.
+
 ## How the home page gets its data (nothing is faked)
 
 | Section | Source | Session |
 |---|---|---|
 | Your studios | `GET /api/ui/profile?name=create` — the rail this app is rendering right now | viewer's |
-| Continue creating / This week | `GET /api/<member>/home-summary` for presentations, portrait-studio, video, lora, vids, creative-studio, scan-to-print and Create's owned image projects (the ADR-145 Home probes) | viewer's |
+| Continue creating / This week | `GET /api/<member>/home-summary` for presentations, portrait-studio, video, lora, vids, creative-studio, scan-to-print, brand-graphics and Create's owned image projects (the ADR-145 Home probes) | viewer's |
 | Quick start | static starters, each pinned by test to a rail tile the manifest declares | — |
 
 Probes are asked from the page in the signed-in user's own session with a 3 s timeout;
@@ -150,6 +281,7 @@ kernel's role-guidance page.
 | Video | `/api/video/ui` | video |
 | LoRA | `/api/lora/ui` | lora |
 | 3D Scan-to-Print | `/api/scan-to-print/app` | scan-to-print |
+| Brand Graphics | `/api/brand-graphics/review` | brand-graphics |
 | Vids | `/api/vids/app` | vids |
 | Stories | `/api/creative-studio/review` | creative-studio |
 
@@ -196,16 +328,18 @@ from the fonts that ship with Office on Windows and macOS, a one-line voice, and
   in the heading face, the name on the signature line, the logo in each design's logo slot, and
   text re-inked when it would lose contrast), offers the brand swatches and faces beside every
   layer, and adds the logo as a layer without a new upload. Home shows the kit or a setup prompt.
-  AI Office badges the built-in look nearest the brand and picks it when nothing else chose a
-  look, fills an empty cover byline with the brand name, and can add the brand voice to AI
-  drafts. Portrait Studio and Video Studio offer a **Use my brand colors** button that adds the
-  colors, in words, to the notes or style field.
-- **Limit.** AI Office renders its own ten built-in looks; drawing a deck in the brand's exact
-  colors and fonts needs the renderer to accept a custom look, which is a core change.
+  AI Office (2.13.0) draws decks, documents and workbooks in the brand's exact colors and faces
+  through the look **Your brand**, which the core deck engine builds on the nearest built-in
+  look's layout and which is picked when nothing else chose a look. It also fills an empty cover
+  byline with the brand name and can add the brand voice to AI drafts. Portrait Studio and Video
+  Studio offer a **Use my brand colors** button that adds the colors, in words, to the notes or
+  style field.
+- **Limit.** AI Office keeps the cover and decoration of its nearest built-in look and does not
+  place the kit's logo in the file.
 
 ## Dependencies
 
-`dependencies.apps`: presentations, portrait-studio, video, lora, vids, creative-studio, scan-to-print —
+`dependencies.apps`: presentations, portrait-studio, video, lora, vids, creative-studio, scan-to-print, brand-graphics —
 resolved npm-style on install; the reverse-dependency guard blocks a member's uninstall
 while Create is active. Manual editing has no bot or provider dependency. Create
 owns the private project schema and image summary; members retain their evidence.
@@ -249,6 +383,20 @@ remain visibly unavailable. Camera capture, uploads, reconstruction, model revie
 and confirmed printing stay in Scan-to-Print. Create adds no calls to those
 actions and grants no application access. Existing platform artifact handoffs
 remain with the owning studio.
+
+### Brand Graphics (1.9.6)
+
+Open **Brand Graphics** from the Studios rail, Home's studio card, the **Brand intro clip**
+quick start, or **Create → Video → Brand intro clip**. Every entry opens the brand-graphics
+package's own review page at `/api/brand-graphics/review`, through `create-brand-graphics` in
+Cockpit or the fixed URL standalone. The brief, the render on the operator's signed-in Chrome
+through the Vids worker, and the delivered project link all stay in Brand Graphics. Create
+checks the viewer's existing Brand Graphics access before reading its Home summary and grants
+no access of its own. Brand Graphics ships opt-in (`status: inactive`). Until the operator turns
+it on, the tile still shows: it opens the platform's "owning app is inactive" answer, and Home
+reports "Can't check: Brand Graphics". That is how every installed-but-inactive member studio
+behaves; the rail locks only tiles under an active package. Proof:
+`tests/browser/create-brand-graphics-proof.mjs` (Test Lab `create-brand-graphics-browser`).
 
 ### Installed acceptance (2026-09-12)
 
@@ -319,6 +467,7 @@ audit completion are separate release records.
 
 ```bash
 cd create && node --test "tests/*.test.js"
+node --test tests/audience-view.test.cjs
 
 # Real Chromium proof, using an adjacent core checkout or OSHAL_CORE_ROOT:
 node --test tests/browser/create-theme-proof.mjs
@@ -329,6 +478,11 @@ node --test tests/browser/create-brand-proof.mjs
 # Brand kit contract, HTTP boundary and PostgreSQL (the last needs Docker and postgres:16-alpine):
 node --test tests/editor/brand-kit.test.mjs
 node --test tests/brand-api.test.mjs tests/brand-postgres.test.mjs
+
+# Region cost consent: compiled HTTP guards; PostgreSQL and Chromium recipes need the disposable fixture:
+node --test tests/region-edit-api.test.mjs
+node --test --test-concurrency=1 tests/region-edit-postgres.test.mjs
+node --test tests/browser/create-region-edit-proof.mjs
 ```
 
 - `tests/create-surface.test.js` — every inline script parses; the surface wears the
@@ -412,3 +566,16 @@ data are synthetic. Host-dependent API/PostgreSQL and Vitest recipes are registe
 with explicit prerequisites; registration alone does not make them available in
 the installed sealed Node runner. Every fixture and cleanup boundary appears in
 the catalog. See [EDITOR.md](EDITOR.md) for supported formats and limits.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| region-regenerate | region regeneration | T0 | hosted | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

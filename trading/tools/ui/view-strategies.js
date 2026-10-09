@@ -21,6 +21,13 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Strict-CSP cleanup + the sub-tab race (ADR-136 D2 tail). The four handler attributes here are gone: the roster is #rosterHost with ONE delegated listener (wireRoster/rosterAction) where only the BOOK ID rides the markup and the trading state is read from BOOKS at click time, and the applied-panel's 'Account strategies' link is a delegated data-act. Every sub-tab loader (roster, lab-applied, lab-knobs, tuning recs, tuning params) now captures RENDER_TOKEN and tabGen() before its first await and bails after it - including the catch paths - so a slow answer for the sub-tab just left can no longer overpaint the one just chosen; loadRosterTab bails BEFORE writing BOOKS or filling the live pickers. loadTuning is a plain function (it paints nothing after an await).
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Review follow-ups on the SEQ 2 lines: loadRosterTab carries JSDoc rather than a prose block, and loadTuneParams' catch binds its error and shows it in the same "foot err" shape its sibling loaders use instead of blanking the panel and swallowing the reason - a silent empty panel is indistinguishable from "no parameters".
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | acknowledgeArming(): the operator-facing half of the arming gate the kernel dispatch now enforces for a non-legacy book. Its copy states what an armed leg actually does to an account whose positions the engine did not open - it BUYS with the idle cash, and under ADR-159 it neither sells, trims, tops up nor stops a holding its own filled orders cannot account for, while a pinned lot still places real GTC sells for the shares its own entry bought. That last clause is a CORRECTION: before ADR-159 the engine did rotation-sell a hand-picked name, and copy still saying so would be wrong in the direction that makes an operator distrust what they are reading. toggleBook's confirm no longer implies that turning an account on is what starts a leg; it names the acknowledgement as the second act.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Delegate Futures review cards and proposal actions to their own bounded UI module.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Expose last-bar date lag and per-window sample gates, preserving them with study proposals.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Round-trip explicit provider-cost opt-in for scheduled Futures reviews through the console.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Decompose the Futures lifecycle before adding explicit forward controls and receipt views.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Mount the separate confirmed archive-import controls and receipt view without arming a study.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Add the default-off Futures source-alert control and explain its owner routing and per-run cadence.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | ADR-052 addendum: the Strategy Lab editor gains the three paper-to-live parity knobs the kernel's StrategyConfig carries - market gap-down filter %, exit plan life in sessions and yield sleeve float % - each blank by default. Blank saves null (inherit the account's mode-aware env arm, off unless armed; a Lab walk runs off), 0 saves an explicit off, a number arms it; the kernel's normalizeConfig clamps. GET /lab/knobs explains each under Knobs & formulas. Only renderLabForm and saveLabStrategy change; the Futures sub-view is untouched.
  */
 
 /* ── Account strategies roster — per-book strategy + trading control (ADR-134) ── */
@@ -546,6 +553,9 @@ function renderLabForm(v) {
     '<label class="foot">Top N<input id="lfTopN" type="number" min="1" max="64" value="' + c.topN + '"></label>' +
     '<label class="foot">Weighting<select id="lfWeight">' + opt(['conviction','equal'], c.weighting) + '</select></label>' +
     '<label class="foot">Window (calendar days)<input id="lfWin" type="number" min="200" max="2000" value="' + c.windowDays + '"></label>' +
+    '<label class="foot">Market gap-down filter % (blank = inherit, 0 = off)<input id="lfGap" type="number" min="0" max="50" step="0.1" value="' + (c.marketGapFilterPct==null?'':c.marketGapFilterPct) + '"></label>' +
+    '<label class="foot">Exit plan life, sessions (blank = inherit, 0 = off)<input id="lfPlan" type="number" min="0" max="252" step="1" value="' + (c.exitPlanSessions==null?'':c.exitPlanSessions) + '"></label>' +
+    '<label class="foot">Yield sleeve float % (blank = inherit, 0 = off)<input id="lfSleeve" type="number" min="0" max="95" step="0.5" value="' + (c.yieldSleeveFloatPct==null?'':c.yieldSleeveFloatPct) + '"></label>' +
     '</div>' +
     '<label class="foot" style="display:block;margin-top:8px">Universe (comma tickers; blank = default ~140)<input id="lfUni" value="' + esc((c.universe||[]).join(',')) + '" placeholder="default universe"></label>' +
     '<label class="foot" style="display:block;margin-top:8px">Description<input id="lfDesc" value="' + esc(v.description||'') + '"></label>' +
@@ -555,6 +565,7 @@ function renderLabForm(v) {
 async function saveLabStrategy() {
   const msg = $('labFormMsg'); msg.className='sub'; msg.textContent = 'saving…';
   const tp = $('lfTp').value.trim();
+  const knob = (id) => { const v = $(id).value.trim(); return v === '' ? null : Number(v); };   // blank = inherit (null), 0 = off
   const body = {
     name: $('lfName').value.trim(), description: $('lfDesc').value.trim(),
     config: {
@@ -564,6 +575,7 @@ async function saveLabStrategy() {
       rank: $('lfRank').value, cadenceDays: Number($('lfCad').value)||1, topN: Number($('lfTopN').value)||12,
       weighting: $('lfWeight').value, windowDays: Number($('lfWin').value)||780, warmupDays: 80,
       universe: $('lfUni').value.split(',').map(s=>s.trim().toUpperCase()).filter(Boolean),
+      marketGapFilterPct: knob('lfGap'), exitPlanSessions: knob('lfPlan'), yieldSleeveFloatPct: knob('lfSleeve'),
     },
   };
   try { await labApi('/strategies', jbody('POST', body)); msg.className='sub ok'; msg.textContent = 'Saved. Now hit Backtest to give it a baseline.'; refreshLabList(); }
@@ -771,11 +783,61 @@ function loadTuning() {
     '<div id="optMsg" class="sub" style="min-height:18px"></div>' +
     '<div id="tunePending"><div class="spin"><span class="dot"></span></div></div>' +
     '<div id="tuneParams" style="margin-top:18px"></div>' +
-    '<div id="tuneHistory" style="margin-top:18px"></div></div>';
+    '<div id="tuneHistory" style="margin-top:18px"></div></div>' +
+    '<div class="panel" style="margin-top:12px"><div class="panel head2"><h2 style="margin:0">Futures research loop</h2><span class="pill hold" style="margin-left:auto">paper / research only</span></div>' +
+    '<div class="sub" style="margin-bottom:10px">Configure a bounded Futures permutation study. Cron is UTC. File archives need a path visible inside the API container; Schwab capture uses your private stored bars instead. Runs stay research-only and never place an order or promote a strategy.</div>' +
+    '<div class="panel"><div class="panel head2"><h3 style="margin:0">Schwab forward bars</h3><button class="btn ghost sm" id="futSchwabProbe">Check ES/CL</button></div>' +
+    '<div class="foot">Use the connected account for genuine dated-contract 30-minute OHLCV. Capture is owner-private, paper/research-only and never sends an order. It does not replace the one-time historical backfill or automatically enable studies.</div>' +
+    '<div class="grid2"><label class="f">Roots<select id="futSchwabRoots"><option value="ES,CL">ES and CL</option><option value="ES">ES only</option><option value="CL">CL only</option></select></label>' +
+    '<label class="f">Capture cadence<select id="futSchwabCadence"><option value="hourly">Hourly at :07 UTC</option><option value="half-hour">Every 30 minutes at :07/:37 UTC</option></select></label></div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="futSchwabStart">Start capture</button><button class="btn ghost" id="futSchwabRun">Capture now</button><button class="btn ghost" id="futSchwabStop">Stop capture</button></div>' +
+    '<pre id="futSchwabProbeResult" style="white-space:pre-wrap;margin:8px 0 0"></pre><pre id="futSchwabCaptureStatus" style="white-space:pre-wrap;margin:8px 0 0"></pre>' +
+    '<div class="panel" style="margin-top:10px"><h4>Catch up current dated contracts</h4><div class="foot">Fetch an explicitly chosen recent UTC range for the contracts active now, at most 14 dates per request. Preview before fetching. This is not a rolled or multi-year historical archive; expired-contract windows may be empty.</div>' +
+    '<div class="grid2"><label class="f">From UTC date<input id="futSchwabBackfillFrom" type="date" /></label><label class="f">Through UTC date<input id="futSchwabBackfillThrough" type="date" /></label></div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" id="futSchwabBackfillPreview">Preview catch-up</button><button class="btn primary" id="futSchwabBackfillRun" disabled>Confirm and fetch private bars</button></div>' +
+    '<pre id="futSchwabBackfillStatus" style="white-space:pre-wrap;margin:8px 0 0"></pre></div></div>' +
+    '<div id="futMsg" class="sub" style="min-height:18px"></div>' +
+    '<div class="grid2"><label class="f">Roots (comma-separated)<input id="futRoots" value="ES,CL" /></label><label class="f">Nightly cron<input id="futCron" value="0 2 * * *" /></label>' +
+    '<label class="f">Chart timeframe<select id="futTf"><option>1Hour</option><option>1Day</option><option>5Min</option><option>1Week</option><option>3Month</option></select></label><label class="f">Higher timeframe<select id="futLtf"><option>1Day</option><option>1Hour</option><option>1Week</option><option>3Month</option></select></label>' +
+    '<label class="f">Source<select id="futSource"><option value="kibot-file">Kibot files</option><option value="schwab-capture">Schwab private captured bars</option><option value="kibot">Kibot API (endpoint verification pending)</option></select></label><label class="f">Container data directory<input id="futDir" placeholder="/app/data/kibot" /></label>' +
+    '<div id="futSourceNote" class="foot" style="grid-column:1/-1"></div>' +
+    '<label class="f">Start date<input id="futStart" type="date" value="2021-01-01" /></label><label class="f">End policy<select id="futEndMode"><option value="latest">Latest completed day (New York for Schwab)</option><option value="fixed">Fixed end date</option></select></label>' +
+    '<label class="f">Fixed end date (used only for fixed policy)<input id="futEnd" type="date" value="2025-12-31" /></label>' +
+    '<label class="f">In-sample months<input id="futIs" type="number" min="1" max="120" value="24" /></label><label class="f">Out-of-sample months<input id="futOos" type="number" min="1" max="60" value="6" /></label>' +
+    '<label class="f">Step months<input id="futStep" type="number" min="1" max="60" value="6" /></label><label class="f">Minimum volume<input id="futVolume" type="number" min="1" max="1000000" value="1" /></label>' +
+    '<label class="f">Maximum last-bar date lag (days)<input id="futMaxLag" type="number" min="1" max="366" value="7" /></label><label class="f">Minimum OOS trades per window<input id="futMinTrades" type="number" min="1" max="100000" value="10" /></label>' +
+    '<label class="f">Roll adjustment<select id="futAdjust"><option value="panama">Panama</option><option value="none">None</option></select></label><label class="f">Stage grids (JSON, optional)<textarea id="futGrids" placeholder="{&quot;Entry&quot;:{&quot;entry.ensembleEntryThresholdPct&quot;:[62,70,78]}}"></textarea></label></div>' +
+    '<div class="foot">Lag compares bar-start calendar dates with the study end, not real-time quote age; coarse timeframes may need a larger limit. The trade floor applies to every OOS window and does not establish statistical confidence.</div>' +
+    '<label class="f"><span><input id="futNightlyReview" type="checkbox" /> Queue research-bot review after new evidence (uses your configured provider)</span><span class="foot">Requires the Futures Research package and its worker enabled in the Bots console. Proposals never change the study until you explicitly save them.</span></label>' +
+    '<label class="f"><span><input id="futSourceAlerts" type="checkbox" /> Notify me when stale, empty, incomplete or unconfigured source data blocks a run</span><span class="foot">One attempt per failed run, including Run once. Uses your Notifications topic futures-source, or your default channel and quiet hours. Skipped/uncertain sends are not retried or deferred; delivery status appears on the run. Save to apply.</span></label>' +
+    futuresPredictionControls() + futuresArchiveControls() +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="futSave">Save / enable nightly loop</button><button class="btn ghost" id="futRun">Run once now</button><button class="btn ghost" id="futPause">Pause</button><button class="btn ghost" id="futResume">Resume</button><button class="btn ghost" id="futStop">Stop</button></div>' +
+    '<div id="futStatus" style="margin-top:12px"></div><div id="futRuns" style="margin-top:12px"></div><div id="futPredictions" style="margin-top:12px"></div></div>';
   $('optRunBtn').onclick = runOptimizeNow;
+  $('futSave').onclick = saveFuturesResearch;
+  $('futSchwabProbe').onclick = () => probeSchwabFuturesFromConsole($('futSchwabProbe'));
+  $('futSchwabStart').onclick = () => schwabCaptureAction('enable', $('futSchwabStart'));
+  $('futSchwabRun').onclick = () => schwabCaptureAction('run', $('futSchwabRun'));
+  $('futSchwabStop').onclick = () => schwabCaptureAction('stop', $('futSchwabStop'));
+  $('futSchwabBackfillFrom').value = new Date(Date.now() - 13 * 86_400_000).toISOString().slice(0, 10);
+  $('futSchwabBackfillThrough').value = new Date().toISOString().slice(0, 10);
+  $('futSchwabBackfillPreview').onclick = () => previewSchwabBackfill($('futSchwabBackfillPreview'));
+  $('futSchwabBackfillRun').onclick = () => runSchwabBackfill($('futSchwabBackfillRun'));
+  for (const id of ['futSchwabRoots', 'futSchwabBackfillFrom', 'futSchwabBackfillThrough']) {
+    $(id).onchange = () => { schwabBackfillPlan = null; $('futSchwabBackfillRun').disabled = true; $('futSchwabBackfillStatus').textContent = 'Range changed; preview again.'; };
+  }
+  wireFuturesArchive();
+  $('futRun').onclick = () => futuresAction('run');
+  $('futPause').onclick = () => futuresAction('pause');
+  $('futResume').onclick = () => futuresAction('resume');
+  $('futStop').onclick = () => futuresAction('stop');
+  $('futSource').onchange = syncFuturesResearchSource;
+  syncFuturesResearchSource();
+  $('futEndMode').onchange = () => { $('futEnd').disabled = $('futEndMode').value !== 'fixed'; };
+  $('futEnd').disabled = true;
   refreshTuning();
 }
-async function refreshTuning() { await Promise.all([loadTuneRecs(), loadTuneParams()]); }
+async function refreshTuning() { await Promise.all([loadTuneRecs(), loadTuneParams(), loadFuturesResearch(), loadFuturesPredictions(), loadFuturesArchiveImports(), loadSchwabCaptureStatus()]); }
 async function loadTuneRecs() {
   const token = RENDER_TOKEN, gen = tabGen();
   const host = $('tunePending'), hist = $('tuneHistory'); if (!host) return;

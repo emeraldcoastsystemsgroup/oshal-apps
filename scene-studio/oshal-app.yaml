@@ -1,0 +1,644 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — scene-studio ("Scene Studio")
+#
+# Godot (games and 3-D scenes) and Blender (models) that the swarm can DRIVE through their
+# own MCP servers: Coding-Solo/godot-mcp and the official Blender Lab MCP run inside this
+# package's engine container, and every tool below (in-process package tools, bound in
+# authorization.yaml) is one of their tools (or a project operation around them). A project
+# is a Godot project or a Blender .blend; every change is a revision (restore = undo); a
+# preview is a Cycles still rendered on the CPU — a Godot scene goes through glTF into
+# Blender, because headless Godot cannot draw — plus an orbit view in the studio. A Blender
+# model can be imported into a Godot project.
+#
+# THE ENGINE RUNS IN THE PACKAGE'S OWN CONTAINER (engine/, installed by engine/install-engine.sh
+# — the cad-studio shape): the api's client verifies the container's engine build hash before
+# the first request. Code a person or the concierge writes (GDScript, Blender Python) runs
+# there under a per-job sandbox with NO IP networking, one job at a time, and every job's
+# leftovers are wiped before the next (docs/ARCHITECTURE.md §3).
+#
+# The Unreal Engine counterpart is core ADR-051 (a Windows satellite PC); this is the 3-D
+# option that runs on the DGX Spark itself.
+#
+# Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md,
+# docs/adr/036-bot-owned-application-architecture.md, docs/adr/051-unreal-engine-mcp-worker.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 0.1.0: initial package — Godot 4.7.2 + godot-mcp, Blender 5.1 + the Blender Lab MCP in a sandboxed engine container; projects with revisions, previews (still + orbit view), headless runs, exports, Blender-to-Godot model import; the Scene Studio Director concierge.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1 (from the first live test): the director's persona declares its tool authorizations (install seeded none, so every tool call was refused); create_scene refuses an existing scene instead of letting godot-mcp replace it; the studio's godot-mcp panel opens on add_node with per-tool examples, reports an outcome only after refreshing, and marks an older preview. The engine tree changed, so the engine build hash changes: re-run engine/install-engine.sh after updating.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: the director's 22 tools run in-process as package tools (executor builtin/package) instead of loopback HTTP calls that the package's oidc mount refused; an ADR-149 catalog (authorization.yaml: app.open, scene.read, scene.edit, scene.run, scene.export; one creator role) binds every route, tool and the director. Adopting a catalog over the app-admin fallback is a breaking catalog change: the install refuses with authorization_catalog_migration_required until an administrator approves the review, the migration removes the fallback @app-admin grant, and a person then needs the creator role. The director runs on its own bot node (bots[].container: scene-studio-bot, port 5000; the core compose service scene-studio-bot, profile scene-studio-node), where its turns are protected direct turns that use these brokered package tools. A protected node turn runs on the generic protected prompt, so the director's working rules (the Godot 4.7 .tscn guide, the Blender 5.1 API notes, read-before-you-claim) ride in the tools' usage text, which the node's tool bridge forwards to the model as description plus usage, up to 1024 characters per tool. Input schemas stay open: core passes tool input raw and readToolInput closes it server-side. Engine tree unchanged (no engine reinstall).
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 0.2.1: the director no longer declares its own node. Core's shared concierge node (concierge-bot, profile concierge-node) serves every inline app bot for a caller whose brain is a CLI login (the operator's Antigravity), so `container: scene-studio-bot` and `port` are dropped and the core scene-studio-bot service folds into it (the oshal_bot pool stays at 40 nodes x 3). Other callers keep the inline hosted path. Turns stay protected direct turns over the same package tools; the persona now rides in the controller-signed dispatch.
+name: scene-studio
+suite: ai-creative   # ADR-097: primary catalog shelf — exactly one (games and models are creative deliverables)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 600, high: 6400, basis: declared }
+  features:
+    - id: scene-director-chat
+      unit: director chat turn
+      tier: T4
+      generation: none
+      degrade: disable
+displayName: Scene Studio
+description: >-
+  Build games and 3-D scenes in Godot and models in Blender, by hand or by asking the
+  Scene Studio Director: it drives both through their own MCP servers (godot-mcp and the
+  Blender Lab MCP) running in the package's sandboxed engine container. Every change is a
+  revision you can undo; render a preview (a still plus a 3-D orbit view), run a Godot
+  project headless to read its output, bring a Blender model into a Godot game, and export
+  a Godot project zip or glTF, FBX, OBJ, STL or the .blend.
+version: 0.2.3
+status: active
+scope: person
+
+uses: [test-catalog, app-dependencies, application-authorization, package-tools, experience-roles, intent.run]
+authorization:
+  version: 1
+  catalog: authorization.yaml
+  roleTemplates:
+  - id: creator
+    version: 1
+    label: Scene creator
+    members:
+    - app: scene-studio
+      role: creator
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: scene-studio
+  ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/scene-studio/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+# Native execution uses declared intent.run with the operator-owned fixed Scene sidecar;
+# it grants no package network access. The engine remains an installation service, not an app dependency.
+# No connector allow-list entries: the inputs are the person's own projects and files; the
+# engine is a container on the stack network, and the jobs it runs have no network at all.
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — one concierge, declared without its own node. For a caller whose brain is a CLI login
+# (the operator's Antigravity) core dispatches it to the shared concierge node (concierge-bot);
+# other callers run it inline on their hosted lane. Its turns are protected direct turns (bound to
+# scene.run in authorization.yaml) that use the brokered package tools below through the node's
+# tools bridge. harnessType is deliberately omitted: the inherited codex-cli default is what lets
+# the controller stamp the caller's resolved brain onto each node turn. It turns "a small island
+# with three palm trees" into tool calls; Godot and Blender do the building.
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: 117640d5-e8a6-4a54-b8f4-c6c926172b88
+    name: scene-studio-director
+    persona: personas/scene-studio-director.yaml
+    role: creative/scene-director
+    capabilities:
+      - godot-scene-authoring
+      - gdscript-authoring
+      - blender-python-modeling
+      - preview-rendering
+      - model-pipeline
+    selectorDescriptor: >-
+      Select for the Scene Studio app ONLY: building or changing a Godot game or 3-D scene
+      (scenes, nodes, GDScript, running it headless and reading its errors), building or
+      changing a Blender model with Blender Python, rendering a preview, exporting, bringing
+      a Blender model into a Godot project, or undoing to an earlier revision. Do NOT select
+      for parametric CAD parts (cad-studio-designer), physics simulation (embodied), or
+      anything that is not this app.
+    routingKeywords:
+      - godot
+      - blender
+      - game
+      - 3d scene
+      - gdscript
+      - bpy
+      - render
+      - scene studio
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOLS — in-process package tools (ADR-149: authorization.yaml). Each runs in the api under the
+# caller's verified actor; writes edit only the caller's own projects and every write is a
+# revision (restore is undo). Deleting a project is not a tool.
+# ─────────────────────────────────────────────────────────────────────────────
+tools:
+  - name: scene-capabilities
+    displayName: Scene Studio Capabilities
+    category: creative
+    description: Engine status and versions (Godot, Blender, godot-mcp, Blender Lab MCP), the upstream MCP tools Scene Studio runs with their input schemas, project templates, export formats and limits — or, when the engine is down, the reason and the install command.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema: { type: object, properties: {} }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read this FIRST in a conversation. If capabilities is null, tell the person the engine
+      container is down and quote installHint verbatim; do not retry edits until it is up.
+      Working rules: one logical change per call; read each reply (changed, delta, result.isError)
+      before the next call, and when one fails say the error in one sentence and fix it. Never
+      claim how a scene looks without scene-render-preview, and never invent a file, node or object
+      name: read it first (scene-get-project, scene-read-file, blender-file-summary). Keep scenes
+      modest: the engine renders on the CPU under a time limit. Deleting a project is the person's
+      decision in the studio, not yours.
+    routingTags: [godot, blender, capabilities]
+    tags: [scene-studio, package-tool]
+
+  - name: scene-list-projects
+    displayName: List Projects
+    category: creative
+    description: The caller's Scene Studio projects (Godot games and Blender models) with kind, revision, file count, last preview and last run.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema: { type: object, properties: {} }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Owner-scoped. Use it to find the projectId the person means; ask when two projects could match.
+    routingTags: [godot, blender, projects, list]
+    tags: [scene-studio, package-tool]
+
+  - name: scene-get-project
+    displayName: Read a Project
+    category: creative
+    description: One project in full — its files (path and size; Godot's derived .godot/ import files are counted, not listed), the last 20 revisions, the last preview and the last run.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties: { projectId: { type: string, description: "the project's projectId (UUID)" } }
+      required: [projectId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Quote file paths and revision numbers from this reply; never invent one.
+    routingTags: [godot, blender, project, read]
+    tags: [scene-studio, package-tool]
+
+  - name: scene-create-project
+    displayName: Create a Project
+    category: creative
+    description: "Create a project: kind godot (a game or 3-D scene; templates 3d = ground, sun and camera, 2d, empty) or blender (a model; templates default = cube, camera and light, empty). The engine writes the starting files as revision 1."
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties:
+        title: { type: string, description: "project name" }
+        kind: { type: string, enum: [godot, blender] }
+        template: { type: string, description: "godot: 3d | 2d | empty; blender: default | empty" }
+      required: [title, kind]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: The reply carries the new projectId; keep using it.
+    routingTags: [godot, blender, create, project]
+    tags: [scene-studio, package-tool]
+
+  - name: scene-read-file
+    displayName: Read a File
+    category: creative
+    description: One project file — its text (UTF-8; over 96 kB it comes back cut, truncated true) or, for a binary file, its size.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        path: { type: string, description: "project-relative path, e.g. main.tscn or scripts/player.gd" }
+      required: [projectId, path]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read a scene or script before you rewrite it, so the rewrite keeps what is already there.
+      Text over 96 kB comes back cut (truncated: true, shownBytes); never rewrite a file you could
+      not read whole.
+    routingTags: [godot, blender, file, read]
+    tags: [scene-studio, package-tool]
+
+  - name: scene-write-file
+    displayName: Write a File
+    category: creative
+    description: Create or replace one UTF-8 text file in the project (a .tscn scene, a .gd script, project.godot, a .tres resource) — the whole file, up to about 90 kB. The change is a new revision.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        path: { type: string, description: "project-relative path" }
+        text: { type: string, description: "the complete file contents" }
+      required: [projectId, path, text]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Send the WHOLE file; Godot 4 text formats only (.tscn format=3); never write under .godot/.
+      Then run godot-run-project and fix every error. A .tscn is [gd_scene format=3],
+      [ext_resource type="Script" path="res://player.gd" id="1"] and
+      [sub_resource type="BoxMesh" id="Box"] blocks, then [node name="Main" type="Node3D"] and
+      children with parent="." or parent="World". Transform3D takes the 3x3 rotation ROW BY ROW,
+      then the position (Y up, metres): identity is Transform3D(1,0,0, 0,1,0, 0,0,1, x,y,z); a
+      camera at (0,4,9) tilted 25 degrees down is Transform3D(1,0,0, 0,0.906,0.423, 0,-0.423,0.906,
+      0,4,9). Use primitive meshes with a StandardMaterial3D albedo_color, a DirectionalLight3D and
+      a Camera3D framing the action. GDScript is Godot 4 (extends Node3D, func _ready() -> void:);
+      attach with script = ExtResource("1").
+    routingTags: [godot, file, write, tscn, gdscript]
+    tags: [scene-studio, package-tool]
+
+  - name: scene-delete-file
+    displayName: Delete a File
+    category: creative
+    description: Delete one file from the project (a new revision; restore brings it back).
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties: { projectId: { type: string }, path: { type: string } }
+      required: [projectId, path]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Say which file you deleted and why.
+    routingTags: [godot, blender, file, delete]
+    tags: [scene-studio, package-tool]
+
+  - name: godot-create-scene
+    displayName: Godot — Create a Scene
+    category: creative
+    description: godot-mcp create_scene — a new scene file with a root node of the given type.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        scenePath: { type: string, description: "project-relative path for the new .tscn" }
+        rootNodeType: { type: string, description: "e.g. Node3D, Node2D, CharacterBody3D" }
+      required: [projectId, scenePath]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: For a scene with meshes, materials and transforms, write the .tscn with scene-write-file instead.
+    routingTags: [godot, scene, create]
+    tags: [scene-studio, package-tool, godot-mcp]
+
+  - name: godot-add-node
+    displayName: Godot — Add a Node
+    category: creative
+    description: godot-mcp add_node — add a node of a built-in type to a scene; plain properties only (numbers, strings, booleans, res:// resources).
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        scenePath: { type: string }
+        parentNodePath: { type: string, description: "root, or root/Child" }
+        nodeType: { type: string, description: "e.g. MeshInstance3D, OmniLight3D, Sprite2D" }
+        nodeName: { type: string }
+        properties: { type: object, description: "plain properties; a res:// string loads that resource" }
+      required: [projectId, scenePath, nodeType, nodeName]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: godot-mcp cannot set Vector3 / Transform3D / Color values; write those into the .tscn with scene-write-file.
+    routingTags: [godot, node, add]
+    tags: [scene-studio, package-tool, godot-mcp]
+
+  - name: godot-save-scene
+    displayName: Godot — Save a Scene
+    category: creative
+    description: godot-mcp save_scene — re-save a scene, or save it under a new path as a variant.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        scenePath: { type: string }
+        newPath: { type: string, description: "optional: save a copy here" }
+      required: [projectId, scenePath]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Use newPath to branch a level or a variant without touching the original.
+    routingTags: [godot, scene, save]
+    tags: [scene-studio, package-tool, godot-mcp]
+
+  - name: godot-load-sprite
+    displayName: Godot — Load a Sprite
+    category: creative
+    description: godot-mcp load_sprite — set a Sprite2D node's texture to an image in the project.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        scenePath: { type: string }
+        nodePath: { type: string, description: "e.g. root/Player/Sprite2D" }
+        texturePath: { type: string, description: "project-relative image path (upload it first)" }
+      required: [projectId, scenePath, nodePath, texturePath]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: The image must already be in the project (the person uploads it in the studio).
+    routingTags: [godot, sprite, texture]
+    tags: [scene-studio, package-tool, godot-mcp]
+
+  - name: godot-export-mesh-library
+    displayName: Godot — Export a Mesh Library
+    category: creative
+    description: godot-mcp export_mesh_library — turn a scene of meshes into a MeshLibrary resource (for GridMap level building).
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        scenePath: { type: string }
+        outputPath: { type: string, description: "project-relative .res path" }
+        meshItemNames: { type: array, items: { type: string } }
+      required: [projectId, scenePath, outputPath]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: The scene's direct children with meshes become the library's items.
+    routingTags: [godot, meshlibrary, gridmap]
+    tags: [scene-studio, package-tool, godot-mcp]
+
+  - name: godot-get-uid
+    displayName: Godot — Get a UID
+    category: creative
+    description: godot-mcp get_uid — the uid:// of a file in the project (Godot 4.4+ references).
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties: { projectId: { type: string }, filePath: { type: string } }
+      required: [projectId, filePath]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Read-only.
+    routingTags: [godot, uid]
+    tags: [scene-studio, package-tool, godot-mcp]
+
+  - name: godot-project-info
+    displayName: Godot — Project Info
+    category: creative
+    description: godot-mcp get_project_info — the project's name, Godot version and its scenes, scripts and assets.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties: { projectId: { type: string } }
+      required: [projectId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Read-only.
+    routingTags: [godot, project, info]
+    tags: [scene-studio, package-tool, godot-mcp]
+
+  - name: godot-run-project
+    displayName: Godot — Run the Project
+    category: creative
+    description: Run the Godot project headless for 1-30 seconds (godot-mcp run_project, get_debug_output, stop_project) and return its printed output and error lines. Nothing it writes is kept.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        seconds: { type: integer, minimum: 1, maximum: 30 }
+        scene: { type: string, description: "optional: run this scene instead of the main one" }
+      required: [projectId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Run after every change to scenes or scripts; quote and fix each error line. Headless runs print, they do not draw.
+    routingTags: [godot, run, test, errors]
+    tags: [scene-studio, package-tool, godot-mcp]
+
+  - name: blender-run-python
+    displayName: Blender — Run Python
+    category: creative
+    description: Blender Lab MCP execute_blender_code_for_cli — run Blender Python (bpy) on the project's .blend in a background Blender 5.1; assign a dict to `result` to get data back. With save (default true) the changed scene is saved as a new revision.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        code: { type: string, description: "Blender Python; set result = {...} to return data" }
+        save: { type: boolean, description: "keep the changes (default true); false for read-only queries" }
+        file: { type: string, description: "optional .blend in the project (default scene.blend)" }
+      required: [projectId, code]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Name the objects you create. Use save=false to inspect. The code runs with no network.
+      When unsure of an API, look it up with blender-docs before guessing. Blender 5.1:
+      bpy.ops.mesh.primitive_*_add(...), objects through bpy.data.objects; a material is
+      m = bpy.data.materials.new("Red") (set m.use_nodes = True only if m.node_tree is None), then
+      m.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (1, 0, 0, 1).
+      Return what you report, e.g. result = {"objects": sorted(o.name for o in bpy.data.objects)}.
+    routingTags: [blender, python, bpy, model]
+    tags: [scene-studio, package-tool, blender-mcp]
+
+  - name: blender-file-summary
+    displayName: Blender — File Summary
+    category: creative
+    description: Blender Lab MCP get_blendfile_summary_datablocks_for_cli — counts of every datablock in the .blend (objects, meshes, materials, cameras, lights …), the render engine and scene name.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties: { projectId: { type: string }, file: { type: string } }
+      required: [projectId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Read-only. For object names, run blender-run-python with save=false.
+    routingTags: [blender, summary]
+    tags: [scene-studio, package-tool, blender-mcp]
+
+  - name: blender-docs
+    displayName: Blender — Search the Docs
+    category: creative
+    description: The Blender Lab MCP's bundled Blender 5.1 documentation — search_api_docs {query}, search_manual_docs {query} or get_python_api_docs {identifier, e.g. bpy.types.Object}.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties:
+        tool: { type: string, enum: [search_api_docs, search_manual_docs, get_python_api_docs] }
+        query: { type: string }
+        identifier: { type: string }
+        max_results: { type: integer }
+      required: [tool]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Check an operator's or property's exact name before writing code that uses it.
+    routingTags: [blender, docs, api]
+    tags: [scene-studio, package-tool, blender-mcp]
+
+  - name: scene-render-preview
+    displayName: Render a Preview
+    category: creative
+    description: Render a still of the current revision with Blender Cycles on the CPU (a Godot scene is exported to glTF first) plus glTF and STL for the studio's orbit view. Uses the scene's camera, or frames every mesh when there is none.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        scene: { type: string, description: "Godot: a scene other than the main one" }
+        width: { type: integer, minimum: 64, maximum: 1920 }
+        height: { type: integer, minimum: 64, maximum: 1080 }
+        samples: { type: integer, minimum: 1, maximum: 256 }
+      required: [projectId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Render after a visible change and tell the person it is ready in the studio; keep samples at
+      the default unless asked. If the reply is tool_deadline_exceeded the engine may still
+      finish; read the project (scene-get-project) before retrying.
+    routingTags: [render, preview, godot, blender]
+    tags: [scene-studio, package-tool]
+
+  - name: scene-export
+    displayName: Export a Project
+    category: creative
+    description: "A download of the current revision: Godot — zip (the whole project); Blender — glb, fbx, obj, stl or zip (the .blend and its files)."
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        format: { type: string, enum: [zip, glb, fbx, obj, stl] }
+      required: [projectId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      The reply carries the download URL; the person downloads it from the studio. If the reply
+      is tool_deadline_exceeded the engine may still finish; read the project (scene-get-project)
+      before retrying.
+    routingTags: [export, download, gltf, fbx]
+    tags: [scene-studio, package-tool]
+
+  - name: scene-import-model
+    displayName: Bring a Blender Model into Godot
+    category: creative
+    description: Export a Blender project's scene to glTF into this Godot project's models/ folder, import it, and (with instance) add it to a scene as a node.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string, description: "the Godot project" }
+        fromProjectId: { type: string, description: "the Blender project" }
+        name: { type: string, description: "file name for the model: letters, digits, - and _" }
+        instance:
+          type: object
+          description: "optional: add it to a scene"
+          properties:
+            scenePath: { type: string, description: "default: the main scene" }
+            nodeName: { type: string }
+            parentNodePath: { type: string, description: "'.' (default) or a node path" }
+      required: [projectId, fromProjectId, name]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Model in Blender, play in Godot. After importing with instance, position the node by editing
+      the .tscn, then run and preview. If the reply is tool_deadline_exceeded the engine may still
+      finish; read the project (scene-get-project) before retrying.
+    routingTags: [godot, blender, import, model, gltf]
+    tags: [scene-studio, package-tool]
+
+  - name: scene-restore-revision
+    displayName: Restore a Revision (undo)
+    category: creative
+    description: Put back an earlier revision's files as a NEW revision — undo to any point in the history; nothing is lost.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scene-studio
+    inputSchema:
+      type: object
+      properties: { projectId: { type: string }, revision: { type: integer, description: "a revision from scene-get-project" } }
+      required: [projectId, revision]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Use when the person says "undo" or "go back to before the …".
+    routingTags: [undo, revision, restore]
+    tags: [scene-studio, package-tool]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon tile opens the studio, self-served by this package's route.
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: scene-studio
+      label: Scene Studio
+      icon: codicon codicon-symbol-misc
+      iframeUrl: /api/scene-studio/app
+      section: top
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — compiled JS bundled in this package, mounted in-process. OIDC only.
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/scene-studio/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/scene-studio/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/scene-studio-routes.js
+    factory: createSceneStudioRoutes
+    mountPath: /api/scene-studio
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+# The app's own schema (projects, revisions) with owner RLS, applied on install.
+migrations:
+  - migrations/001-scene-studio.sql
+
+# The right-rail chat agent when this app is focused.
+chatBot: scene-studio-director
+
+# RIBBON VISIBILITY — focus mode for /cockpit?app=scene-studio (the chat panel stays: the
+# director is how the person builds by talking).
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - calendar
+    - addressbook
+    - dashboard
+    - logs
+    - operations
+  defaultView: scene-studio
+
+summary:
+  path: /api/scene-studio/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items

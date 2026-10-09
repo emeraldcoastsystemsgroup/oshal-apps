@@ -88,6 +88,22 @@ pins both halves of this contract.
   differs. Without it those checks report `SKIPPED`, never `PASS` — including the **little-monsters
   security suite**. With it you run *two cases store-ci itself cannot*: the real-Multer resume cases
   skip on a runner, which has no kernel checkout.
+- **Career engine Python pins** — activate an isolated venv installed from the package's exact
+  requirements. The contracts execute `python`; a machine with only `python3`, or an interpreter
+  without those dependencies, cannot run them. The local gate verifies the installed versions:
+
+  ```bash
+  python3 -m venv /tmp/career-contract-venv
+  source /tmp/career-contract-venv/bin/activate
+  python -m pip install -r career-hunter/engine/requirements.txt
+  ```
+
+  Keep this environment separate from the deployed engine and use only disposable fixture data.
+- **Presentations framework and Chromium** — the guide/artifact contracts compile the real framework
+  renderer source and the browser contract needs its locked Playwright dependency and Chromium.
+  Set `OSHAL_FRAMEWORK` explicitly when it differs from `OSHAL_ROOT`. The hosted job checks out the
+  reviewed framework revision, installs its lockfile and provisions Chromium before running these
+  contracts; a missing local fixture is a refusal.
 - **A disposable PostgreSQL** for the Career storage contract. **store-ci runs this** — it declares a
   `pgvector/pgvector:pg16` service and `career-hunter/tests/career-storage-contract.test.mjs` asserts
   the URL is present when `CI` is set — so skipping it locally is a **real loss of coverage**, not a

@@ -9,6 +9,7 @@
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | B23: `@/shared/artifact-exchange` is doubled by a FAITHFUL MIRROR of the kernel's redeem (src/shared/artifact-exchange/redeem.ts) — the same ref shape, the same two loopback fetches on the caller's own port with the service secret and user-sub headers, the same 404/502/413 statuses — and `artifactRelayDouble` is the handle store the suite mounts on that same port. The redemption the scene-import route performs therefore crosses a REAL socket to a REAL handle endpoint; only the kernel's handle table is doubled.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Resolve the framework checkout from OSHAL_CORE_ROOT first (what the Test Lab sandbox sets, /app) and OSHAL_CORE_DIR second, and fail loud when neither is set. The old default C:/Projects/oshal existed on one Windows box only and turned a missing variable into a confusing module error.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Redirect a bare require to the framework checkout only when the package itself asks for it. Requires made inside node_modules resolve normally again: redirecting them to core's root broke in the Test Lab sandbox, where the image's pruned node_modules keeps semver only nested under sharp (Cannot find module 'semver'); a developer checkout hoists it, which is why no local run saw it.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | nodeCredentialMirror: a faithful double of core ADR-175 for the bare nodes mount. A known Bearer device credential stamps req.oshalNodeToken {clientId, tokenId} and the owner as req.oidc; anything else (no credential, an unknown one, the service secret) is the mount guard's 401. trustedSubMirror stays for routes that still resolve a trusted user sub.
  */
 'use strict';
 const assert = require('node:assert/strict');
@@ -146,4 +147,21 @@ function trustedSubMirror() {
   };
 }
 
-module.exports = { trustedSubMirror, CORE, PKG, coreRequire, loadRoutes, fakePool, artifactRelayDouble, redeemArtifactViaRelay };
+/**
+ * @description Core ADR-175 for a bare `auth: node` mount: the PAT middleware admits a device-bound credential beneath the
+ * rail and stamps its binding and owner; the mount guard refuses every request without that binding.
+ * @param {Record<string, {clientId: string, sub: string}>} credentials Known device credentials.
+ * @returns {import('express').RequestHandler} The admission middleware.
+ */
+function nodeCredentialMirror(credentials) {
+  return (req, res, next) => {
+    const m = /^Bearer (.+)$/.exec(String(req.headers.authorization || ''));
+    const row = m ? credentials[m[1]] : undefined;
+    if (!row) { res.status(401).json({ error: 'This route requires a device-bound node credential' }); return; }
+    req.oshalNodeToken = { clientId: row.clientId, tokenId: `t-${row.clientId}` };
+    req.oidc = { user: { sub: row.sub }, isAuthenticated: () => true };
+    next();
+  };
+}
+
+module.exports = { nodeCredentialMirror, trustedSubMirror, CORE, PKG, coreRequire, loadRoutes, fakePool, artifactRelayDouble, redeemArtifactViaRelay };

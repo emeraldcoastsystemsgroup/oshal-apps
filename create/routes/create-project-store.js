@@ -7,6 +7,7 @@ exports.CreateProjectStore = void 0;
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Persist exact-owner project snapshots atomically, lock optimistic writes and verify immutable referenced assets.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Serialize bounded writer admission before shared-pool checkout while retaining both current authorization checks.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Unused-upload cleanup keeps the image a brand kit uses as its logo.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Share the owner lock, the optimistic project lock and one revision-append step with region-edit acceptance, so an accepted candidate becomes a revision by exactly the same path a manual save does; unused-upload cleanup also keeps a candidate that is still generating or waiting for review.
  */
 const node_crypto_1 = require("node:crypto");
 const create_project_validation_1 = require("./create-project-validation");
@@ -64,7 +65,11 @@ class CreateProjectStore {
             client.release(discard);
         }
     }
-    /** Serialize per-owner admissions so concurrent requests cannot bypass storage quotas. */
+    /**
+     * @description Serialize per-owner admissions so concurrent requests cannot bypass storage quotas.
+     * @param client - Transaction client. @param owner - Verified owner.
+     * @returns void
+     */
     async ownerLock(client, owner) {
         await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [JSON.stringify([owner.issuer, owner.sub])]);
     }
@@ -78,6 +83,11 @@ class CreateProjectStore {
             throw new create_project_types_1.ProjectError(400, 'project_asset_unavailable');
         }
     }
+    /**
+     * @description Lock the exact owner's project row and require the revision the caller last saw.
+     * @param client - Transaction client. @param owner - Verified owner. @param id - Project. @param expected - Expected current revision.
+     * @returns The locked metadata row; a missing project is 404 and a newer revision is 409.
+     */
     async lockProject(client, owner, id, expected) {
         const result = await client.query(`SELECT ${METADATA} FROM create_projects WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 FOR UPDATE`, [owner.issuer, owner.sub, id]);
         const row = result.rows[0];
@@ -142,21 +152,30 @@ class CreateProjectStore {
             return { ...metadata(result.rows[0]), document: input.document };
         }, confirm);
     }
+    /**
+     * @description Append the next immutable revision inside a transaction that already holds the owner and project locks.
+     * @param client - Transaction client. @param owner - Verified owner. @param id - Project.
+     * @param expected - The locked current revision. @param input - Validated title and reference-mode document.
+     * @returns The new project snapshot.
+     */
+    async appendRevision(client, owner, id, expected, input) {
+        await this.checkAssets(client, owner, input);
+        const revision = expected + 1;
+        await client.query('INSERT INTO create_project_revisions (project_id,owner_issuer,owner_sub,revision,title,document) VALUES ($3,$1,$2,$4,$5,$6::jsonb)', [owner.issuer, owner.sub, id, revision, input.title, JSON.stringify(input.document)]);
+        await this.recordAssets(client, owner, id, revision, input);
+        const result = await client.query(`UPDATE create_projects SET title=$4,current_revision=$5,updated_at=NOW()
+      WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 AND current_revision=$6 RETURNING ${METADATA}`, [owner.issuer, owner.sub, id, input.title, revision, expected]);
+        if (!result.rows.length)
+            throw new create_project_types_1.ProjectError(409, 'project_revision_conflict');
+        return { ...metadata(result.rows[0]), document: input.document };
+    }
     async save(owner, id, expected, input, confirm) {
         return this.transaction(owner, true, async (client) => {
             await this.ownerLock(client, owner);
             await this.lockProject(client, owner, id, expected);
             if (expected >= create_project_types_1.PROJECT_LIMITS.revisions)
                 throw new create_project_types_1.ProjectError(409, 'project_revision_limit_reached');
-            await this.checkAssets(client, owner, input);
-            const revision = expected + 1;
-            await client.query('INSERT INTO create_project_revisions (project_id,owner_issuer,owner_sub,revision,title,document) VALUES ($3,$1,$2,$4,$5,$6::jsonb)', [owner.issuer, owner.sub, id, revision, input.title, JSON.stringify(input.document)]);
-            await this.recordAssets(client, owner, id, revision, input);
-            const result = await client.query(`UPDATE create_projects SET title=$4,current_revision=$5,updated_at=NOW()
-        WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 AND current_revision=$6 RETURNING ${METADATA}`, [owner.issuer, owner.sub, id, input.title, revision, expected]);
-            if (!result.rows.length)
-                throw new create_project_types_1.ProjectError(409, 'project_revision_conflict');
-            return { ...metadata(result.rows[0]), document: input.document };
+            return this.appendRevision(client, owner, id, expected, input);
         }, confirm);
     }
     async delete(owner, id, expected, confirm) {
@@ -183,7 +202,7 @@ class CreateProjectStore {
             await client.query('INSERT INTO create_project_assets (asset_id,owner_issuer,owner_sub,width,height,byte_length,sha256) VALUES ($3,$1,$2,$4,$5,$6,$7)', [owner.issuer, owner.sub, value.id, value.width, value.height, value.bytes, value.sha256]);
         }, confirm);
     }
-    /** Retire only old assets referenced by no retained revision and no brand kit logo; serialize against new references. */
+    /** Retire only old assets referenced by no retained revision, no brand kit logo and no pending region candidate; serialize against new references. */
     async cleanupAssets(owner, removeFile, confirm) {
         return this.transaction(owner, true, async (client) => {
             await this.ownerLock(client, owner);
@@ -191,6 +210,8 @@ class CreateProjectStore {
         WHERE a.owner_issuer=$1 AND a.owner_sub=$2 AND a.created_at<NOW()-INTERVAL '24 hours'
         AND NOT EXISTS (SELECT 1 FROM create_project_revision_assets r WHERE r.asset_id=a.asset_id AND r.owner_issuer=$1 AND r.owner_sub=$2)
         AND NOT EXISTS (SELECT 1 FROM create_brand_kits b WHERE b.logo_asset_id=a.asset_id AND b.owner_issuer=$1 AND b.owner_sub=$2)
+        AND NOT EXISTS (SELECT 1 FROM create_region_edits e WHERE e.result_asset_id=a.asset_id AND e.owner_issuer=$1 AND e.owner_sub=$2
+          AND e.status IN ('generating','ready'))
         ORDER BY a.created_at,a.asset_id LIMIT 25 FOR UPDATE`, [owner.issuer, owner.sub]);
             for (const row of result.rows) {
                 await confirm();

@@ -1,5 +1,7 @@
 # Smart Home (home) — OSHAL app package
 
+1.2.4 adds the company audience view beside the family one (ADR-164 D6): Studio, Orbit and Commons (the Business shells) open this package's first surface with `?audience=company`, and the shared kit paints the same account-scoped card in the company grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 Control your smart home by chat (ADR-036/038): connect a hub at `/utilities`
 (SmartThings = token paste; Google Nest = OAuth), then the home-bot reads your real
 devices + scenes via your connector token and turns "turn off the living room
@@ -39,3 +41,17 @@ node scripts/oshal-app.js install home
 
 No migrations — the per-user store is files on the `home-data` volume; nothing
 in Postgres. Uninstall/toggle never touches device data.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **64 / 256 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| home-assistant | home assistant request | T2 | none | disable | not yet measured | none recorded |
+| scheduled-home-control | timer firing | T2 | none | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

@@ -187,14 +187,17 @@ function buildJobFilters(query) {
  */
 function runPooled(db, parts, plan) {
     const bound = plan.poolN === null ? '' : `LIMIT ${plan.poolN}`;
+    // SQLite may reorder ordinary joins to scan the corpus before probing cand. CROSS JOIN
+    // keeps the bounded candidate pool outermost; exhaustive walks retain planner freedom.
+    const join = plan.poolN === null ? 'JOIN' : 'CROSS JOIN';
     const sql = `WITH cand AS (
         SELECT ${CAND_COLS} FROM user_signals s
          WHERE s.ai_fit_score IS NOT NULL AND ${parts.scoredWhere}
          ORDER BY ${plan.poolOrder} ${bound})
       SELECT ${SELECT_COLS}
         FROM cand s
-        JOIN corpus.postings_corpus p ON p.id = s.posting_id
-        JOIN corpus.companies c ON c.id = p.company_id
+        ${join} corpus.postings_corpus p ON p.id = s.posting_id
+        ${join} corpus.companies c ON c.id = p.company_id
        WHERE ${parts.corpWhere}
        ORDER BY ${plan.order}
        LIMIT ? OFFSET ?`;

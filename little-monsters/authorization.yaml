@@ -1,5 +1,7 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Import named school roles with explicit HTTP, bot and tutor handoff bindings; existing roster relationships still restrict every record.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Bind POST /import-artifact and the class-material artifact action to app.open + material.create + material.share: the ADR-139 receiver always files a material and always asks to share it (approved for the class teacher, requested for an enrolled student), and it was refused as authorization_operation_unbound. This moves the catalog revision, so an installation with existing assignments migrates them first (docs/authorization.md).
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Bind native lecture artifact downloads to the existing explicit export permission.
 # Own scope describes the caller and their existing school relationships, not every school record.
 # Teacher and admin structural grants also require a current issuer-bound teacher/admin roster row.
 # No wildcard HTTP binding: unknown paths, tool operations and jobs remain denied.
@@ -164,6 +166,7 @@ roles:
       - { permission: class-study.generate, scope: own }
 bindings:
   http:
+    - {id: native-lecture-download, method: GET, path: /api/applications/little-monsters/storage/download, allOf: [app.open, lecture.export]}
     - {id: delete-classes-classid, method: DELETE, path: /classes/:classId, allOf: [app.open, class.delete]}
     - {id: delete-classes-classid-students-studentid, method: DELETE, path: /classes/:classId/students/:studentId, allOf: [app.open, roster.change]}
     - {id: delete-flashcards-cards-cardid, method: DELETE, path: /flashcards/cards/:cardId, allOf: [app.open, study.delete]}
@@ -310,6 +313,7 @@ bindings:
     - {id: post-flashcards-review, method: POST, path: /flashcards/review, allOf: [app.open, study.change]}
     - {id: post-flashcards-sets, method: POST, path: /flashcards/sets, allOf: [app.open, study.create]}
     - {id: post-flashcards-sets-setid-cards, method: POST, path: /flashcards/sets/:setId/cards, allOf: [app.open, study.create]}
+    - {id: post-import-artifact, method: POST, path: /import-artifact, allOf: [app.open, material.create, material.share]}
     - {id: post-lectures-lectureid-audio, method: POST, path: /lectures/:lectureId/audio, allOf: [app.open, lecture.create]}
     - {id: post-lectures-lectureid-pptx, method: POST, path: /lectures/:lectureId/pptx, allOf: [app.open, lecture.export]}
     - {id: post-materials, method: POST, path: /materials, allOf: [app.open, material.create]}
@@ -336,3 +340,4 @@ bindings:
     - {id: ed000000-0000-0000-0000-000000000006, allOf: [app.open, tutor.execute]}
   artifactActions:
     - {id: tutor, allOf: [app.open, tutor.execute]}
+    - {id: class-material, allOf: [app.open, material.create, material.share]}

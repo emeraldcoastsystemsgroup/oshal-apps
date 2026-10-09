@@ -1,4 +1,13 @@
-/** Actual household schemas, owner RLS, SELECT-only source grants and rendered Home cards. */
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Actual household schemas, owner RLS, SELECT-only source grants and rendered Home cards.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Serve platform display preferences outside the installed Smart Home namespace.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Traverse all six household sources and the complete independent directory on desktop/mobile while retaining every owner and read-only check.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Compare every selected household metric and item with its real response; Spotify intentionally reports preference items without numeric metrics.
+ */
 const fs=require('fs'),path=require('path'),crypto=require('crypto'),assert=require('node:assert/strict'),{createRequire}=require('module');
 const root=path.resolve(__dirname,'..'),core=path.resolve(root,'../oshal'),load=createRequire(path.join(core,'package.json'));
 process.env.TSX_TSCONFIG_PATH=path.join(core,'tsconfig.json');process.env.NODE_PATH=path.join(core,'node_modules');require('module').Module._initPaths();load('tsx/cjs');
@@ -8,6 +17,47 @@ const {runWithRequestIdentity}=load(path.join(core,'src/shared/services/database
 const {buildOwnerRlsPolicyStatements}=load(path.join(core,'src/shared/services/database/owner-rls-policy.ts'));
 const {readManifest,buildHomePlan,validateSummaryDeclaration}=load(path.join(core,'src/features/swarm-apps/index.ts'));
 const apps=['movies','spotify','travel','rides','eats','purchasing'];
+const metricCounts={movies:1,spotify:0,travel:3,rides:2,eats:3,purchasing:4};
+/** @description Select a household source through its actual named area/detail controls.
+ * @param {object} page Isolated Playwright page. @param {object} manifest Household fixture manifest.
+ * @returns {Promise<object>} Its actual selected detail card. */
+async function selectSource(page,manifest){
+ await page.locator('[data-home-area="'+manifest.suite+'"]').click();
+ await page.locator('select[data-choice="detail"]').selectOption(manifest.name);
+ const card=page.locator('.apps-home-detail .apps-home-card[data-card="'+manifest.name+'"]');
+ await card.waitFor({state:'visible'});await card.locator('.apps-home-loading').waitFor({state:'detached'});
+ assert.equal(await page.locator('.apps-home-detail .apps-home-card').count(),1);return card;
+}
+
+/** @description Compare the actual selected source's complete displayed facts with its existing successful own-data response.
+ * @param {object} page Isolated Playwright page. @param {object} manifest Household source manifest.
+ * @param {object} expected Actual Alice response already checked by this fixture.
+ * @returns {Promise<object>} Actual selected card after exact metric and item assertions. */
+async function checkSelectedFacts(page,manifest,expected){
+ const card=await selectSource(page,manifest);
+ assert.equal(expected.metrics.length,metricCounts[manifest.name],manifest.name+' source metric cardinality');
+ assert.ok(expected.items.length>0,manifest.name+' must retain real saved source items');
+ if(expected.metrics.length)await card.locator('.apps-home-tile').first().waitFor({state:'visible'});
+ await card.locator('.apps-home-items li > span').first().waitFor({state:'visible'});
+ const metrics=await card.locator('.apps-home-tile').evaluateAll(nodes=>nodes.map(el=>({
+  label:el.querySelector('.apps-home-tile-label').textContent,value:el.querySelector('strong').textContent})));
+ assert.deepEqual(metrics,expected.metrics.map(m=>({label:m.label.slice(0,24),value:m.value.slice(0,16)})),manifest.name+' complete displayed metrics');
+ const items=await card.locator('.apps-home-items li > span').evaluateAll(nodes=>nodes.map(el=>({
+  text:Array.from(el.childNodes).filter(n=>n.nodeType===Node.TEXT_NODE).map(n=>n.textContent).join(''),
+  detail:el.querySelector('.apps-home-item-detail')?.textContent||''})));
+ assert.deepEqual(items,expected.items.slice(0,5).map(i=>({text:i.text.slice(0,120),detail:(i.detail||'').slice(0,400)})),manifest.name+' complete displayed source items');
+ return card;
+}
+
+/** @description Check every household app independently of the selected source.
+ * @param {object} page Isolated Playwright page. @param {Array<object>} manifests All household fixtures.
+ * @returns {Promise<void>} Exact complete household directory assertions. */
+async function checkDirectory(page,manifests){
+ await page.getByRole('button',{name:'All applications',exact:true}).click();
+ assert.deepEqual((await page.locator('#appsHomeDirectory li strong').allTextContents()).sort(),manifests.map(m=>m.displayName).sort());
+ await page.getByRole('button',{name:'Done',exact:true}).click();
+}
+
 (async()=>{
  const url=new URL(process.env.HOME_TEST_DATABASE_URL||'postgresql://localhost/invalid');assert.equal(url.pathname,'/home_summary_test');assert.ok(['localhost','127.0.0.1'].includes(url.hostname));
  const schema='household_'+crypto.randomBytes(6).toString('hex'),admin=new Pool({connectionString:url.href});let pool,server,browser;
@@ -51,19 +101,31 @@ const apps=['movies','spotify','travel','rides','eats','purchasing'];
   const app=express();app.use((req,_res,next)=>{const sub=req.headers['x-test-user']||'alice';req.oidc={user:{sub},isAuthenticated:()=>sub!=='anonymous'};as(sub,next);});
   const manifests=apps.map(name=>readManifest(path.join(root,name,'oshal-app.yaml')));
   for(const [i,name]of apps.entries()){validateSummaryDeclaration(manifests[i],path.join(root,name,'oshal-app.yaml'));const mount=manifests[i].routes.find(r=>r.module==='routes/home-summary.js');assert.equal(mount.auth,'oidc');assert.equal(mount.requiresAi,false);app.use(mount.mountPath,require(path.join(root,name,mount.module))[mount.factory]({pool}));}
-  app.get('/api/swarm/apps/home-plan',(_req,res)=>res.json({apps:buildHomePlan(manifests)}));app.get('/api/home/preferences',(_req,res)=>res.json({preferences:{version:1},revision:0}));
+  app.get('/api/swarm/apps/home-plan',(_req,res)=>res.json({apps:buildHomePlan(manifests)}));app.get('/api/cockpit/home/preferences',(_req,res)=>res.json({preferences:{version:1},revision:0}));
   app.use('/cockpit',express.static(path.join(core,'src/pages/cockpit')));
   app.get('/',(_req,res)=>res.send(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/cockpit/css/apps-home.css"></head><body><main id="home"></main><script type="module">import {AppsHomeView} from '/cockpit/js/views/AppsHomeView.js';new AppsHomeView({navigateToView:()=>{}}).render(document.querySelector('#home'));</script></body></html>`));
   server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>resolve(s));});const base=`http://127.0.0.1:${server.address().port}`;
   const get=async(name,user='alice')=>{const r=await fetch(base+'/api/'+name+'/home-summary?user_sub=bob',{headers:{'x-test-user':user}});return {status:r.status,body:await r.json()};};
-  const values=r=>Object.fromEntries(r.body.metrics.map(m=>[m.id,m.value]));
-  for(const name of apps){assert.equal((await get(name,'anonymous')).status,401);for(let i=0;i<2;i++){const r=await get(name);assert.equal(r.status,200);assert.equal(r.body.partial,false);assert.ok(!JSON.stringify(r.body).includes('bob'));assert.ok(!JSON.stringify(r.body).includes('Cross-owner'));assert.ok(!JSON.stringify(r.body).includes('Excluded'));assert.ok(!JSON.stringify(r.body).includes('DO-NOT-SEND'));assert.ok(r.body.items.some(x=>x.actions?.length));}assert.ok(!JSON.stringify((await get(name,'bob')).body).includes('alice'));assert.equal((await get(name,'empty')).status,200);}
+  const values=r=>Object.fromEntries(r.body.metrics.map(m=>[m.id,m.value]));const expectedSummaries={};
+  for(const name of apps){assert.equal((await get(name,'anonymous')).status,401);for(let i=0;i<2;i++){const r=await get(name);assert.equal(r.status,200);assert.equal(r.body.partial,false);expectedSummaries[name]=r.body;assert.ok(!JSON.stringify(r.body).includes('bob'));assert.ok(!JSON.stringify(r.body).includes('Cross-owner'));assert.ok(!JSON.stringify(r.body).includes('Excluded'));assert.ok(!JSON.stringify(r.body).includes('DO-NOT-SEND'));assert.ok(r.body.items.some(x=>x.actions?.length));}assert.ok(!JSON.stringify((await get(name,'bob')).body).includes('alice'));assert.equal((await get(name,'empty')).status,200);}
   assert.equal(values(await get('movies'))['watchlist-titles'],'1');
   assert.equal(values(await get('travel'))['saved-fare-watches'],'1');
   assert.equal(values(await get('eats'))['pending-meal-items'],'1');
   assert.equal(values(await get('purchasing'))['pending-shopping-items'],'1');
   for(const [name,prefix]of [['rides','ride-handoffs'],['travel','flight-searches'],['eats','meal-handoffs'],['purchasing','shopping-handoffs']]){const v=values(await get(name));assert.equal(v[prefix+'-24h'],'1');assert.equal(v[prefix+'-5d'],'3');}
-  browser=await chromium.launch();const page=await browser.newPage({viewport:{width:1400,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base);await page.locator('[data-card="movies"]').getByText('alice private movie',{exact:false}).first().waitFor();await page.locator('[data-card="spotify"]').getByText('Your music preferences',{exact:false}).first().waitFor();assert.equal(await page.locator('.apps-home-card').count(),6);assert.deepEqual(errors,[]);await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  browser=await chromium.launch();const page=await browser.newPage({viewport:{width:1400,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base);
+  const assistant=await page.locator('#appsHomeJarvisFrame').elementHandle(),visited=[];
+  for(const manifest of manifests){const card=await checkSelectedFacts(page,manifest,expectedSummaries[manifest.name]);
+   await card.getByRole('heading',{name:manifest.displayName,exact:true}).waitFor();
+   assert.equal(await card.locator('.apps-home-tile').count(),metricCounts[manifest.name],manifest.name+' selected numeric metrics');
+   assert.doesNotMatch(await card.textContent(),/bob|Cross-owner|Excluded|DO-NOT-SEND/);visited.push(manifest.name);
+   if(manifest.name==='movies')await card.getByText('alice private movie',{exact:false}).first().waitFor();
+   if(manifest.name==='spotify')await card.getByText('Your music preferences',{exact:false}).first().waitFor();}
+  assert.deepEqual(visited.sort(),apps.slice().sort());await checkDirectory(page,manifests);
+  assert.equal(await assistant.evaluate(el=>el===document.getElementById('appsHomeJarvisFrame')),true);assert.deepEqual(errors,[]);
+  await page.setViewportSize({width:390,height:844});
+  for(const manifest of manifests){await checkSelectedFacts(page,manifest,expectedSummaries[manifest.name]);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);}
+  await checkDirectory(page,manifests);
   await admin.query(`REVOKE SELECT ON travel_searches FROM ${schema}`);const partial=await get('travel');assert.equal(partial.status,200);assert.equal(partial.body.partial,true);assert.equal(values(partial)['saved-fare-watches'],'1');assert.equal(values(partial)['flight-searches-24h'],'Unavailable');
   console.log('PASS household PostgreSQL/Chromium: six cards, two owners, readonly, time windows, parent ownership, saved states, partial failures and mobile');
  }finally{await browser?.close();if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await pool?.end();await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE; DROP ROLE IF EXISTS ${schema}`);await admin.end();}

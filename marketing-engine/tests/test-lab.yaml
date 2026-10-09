@@ -3,6 +3,9 @@
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped Node test suite with exact files and honest fixture boundaries; retain readiness smoke identity.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register the company audience view contract (ADR-164 D6, 0.5.2): kit placement and boot, both extra start paths gated, the view's four GETs and what it paints, and its named refusals.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Expect each refused or failed publish run to show its recorded cause instead of a fixed "daily cap reached" / "no consent" label.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 0.5.3: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -118,4 +121,33 @@ cases:
     limits:
       timeoutMs: 60000
       maxMemoryMb: 256
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) and family (Home shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - The board's refresh and the connected-actions module run only without an audience view; under a view no handoff is received, nothing is mounted and no section is appended to the page.
+      - The company view sends only its four GETs, lists pending budget approvals and drafts (never published content), flags a channel that is on with a daily cap of 0, and marks a scorecard source without events as No data.
+      - Each refused or failed publish run shows the cause the run ledger recorded (detail.reason from the real publish gate for every consent and cap branch, detail.error for a failed send), and a run without a recorded reason gets a label naming every cause its outcome covers.
+      - Refusals are named - an unreadable board keeps the setup probes, a signed-out caller gets a sign-in message, and a failed Home summary or content read degrades to what is known instead of a guessed number.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

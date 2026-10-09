@@ -39,12 +39,13 @@
     },
     "evidence": {
       "type": "array",
+      "uniqueItems": true,
       "items": {
         "type": "object",
         "additionalProperties": false,
         "required": ["name", "sha256"],
         "properties": {
-          "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+          "name": { "enum": ["manifest", "authz", "rls", "dependencies", "installLifecycle", "surface", "goldenPath"] },
           "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
         }
       }
@@ -59,7 +60,17 @@
       "then": {
         "properties": {
           "sourceSha": { "const": "0000000000000000000000000000000000000000" },
-          "auditedAt": { "type": "null" }
+          "auditedAt": { "type": "null" },
+          "evidence": { "maxItems": 0 }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "failed" } } },
+      "then": {
+        "properties": {
+          "auditedAt": { "type": "string" },
+          "evidence": { "minItems": 7, "maxItems": 7 }
         }
       }
     },
@@ -78,7 +89,7 @@
               "surface": { "const": "passed" }
             }
           },
-          "evidence": { "minItems": 1 }
+          "evidence": { "minItems": 7, "maxItems": 7 }
         }
       }
     }

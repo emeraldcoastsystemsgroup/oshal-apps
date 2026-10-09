@@ -10,6 +10,9 @@
 !HYBRID_piecewise.py
 !requirements.txt
 !requirements-lock.txt
+!certify_reference.py
+!reference_presets.json
+!build_certification.py
 !aerosim
 !container
 **/__pycache__

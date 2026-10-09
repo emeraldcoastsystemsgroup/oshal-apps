@@ -86,3 +86,14 @@ A standalone core checkout explicitly skips this suite when the default sibling
 fixtures are absent; an invalid explicit `OSHAL_PUBLIC_STORE_ROOT` fails. The core
 Lab scenario `cockpit-workspace-navigation` links this suite and the group guards. The group retains its
 no-code manifest contract and declares no package runner or capability exception.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+No model in the loop (T0): every feature of this application is deterministic code.
+<!-- oshal-rating:end -->

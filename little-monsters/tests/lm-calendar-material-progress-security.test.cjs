@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Add source-level adversarial guards for calendar, notification, material, XP, and quiz security boundaries
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Refresh material lifecycle guards for locked tenant authority and exact fail-closed artifact cleanup
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Track the minimized locked quiz-attempt projection used by server-authoritative grading
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | Await material storage while retaining exact containment, content classification and exclusive-create refusal assertions
  * -----------------------------------------------------------------------------
  *
  * This dependency-free node:test suite transpiles the current TypeScript sources
@@ -233,19 +234,19 @@ function makeClassInfoPool() {
   };
 }
 
-function exerciseMaterialStorage() {
+async function exerciseMaterialStorage() {
   const originalCwd = process.cwd();
   const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-material-security-'));
   try {
     process.chdir(temporaryRoot);
     const pdf = Buffer.from('%PDF-1.7\ncontent');
-    const saved = modules.materialStorage.saveMaterialFile(
+    const saved = await modules.materialStorage.saveMaterialFile(
       CLASS_ID, CALLER_ID, { buffer: pdf, mimetype: 'image/png' },
     );
     assert.equal(saved.mimeType, 'application/pdf');
     assert.match(saved.storedPath, /90000000-0000-4000-8000-000000000001\.pdf$/);
-    assert.throws(
-      () => modules.materialStorage.saveMaterialFile(
+    await assert.rejects(
+      async () => modules.materialStorage.saveMaterialFile(
         CLASS_ID, CALLER_ID, { buffer: pdf, mimetype: 'image/png' },
       ),
       error => error?.code === 'EEXIST',
@@ -383,9 +384,9 @@ test('class info excludes another student\'s personal calendar events', async ()
   assert.doesNotMatch(handler, /lm_calendar_events|upcomingEvents/i);
 });
 
-test('material storage is contained, no-clobber, content-classified, and per-material', () => {
+test('material storage is contained, no-clobber, content-classified, and per-material', async () => {
   resetSeam();
-  exerciseMaterialStorage();
+  await exerciseMaterialStorage();
   const unknown = modules.materialStorage.classifyMaterial(
     Buffer.from([0x50, 0x4b, 0x03, 0x04]), 'application/pdf',
   );
@@ -403,8 +404,8 @@ test('material storage is contained, no-clobber, content-classified, and per-mat
   assert.match(containment, /realRelative\.startsWith\('\.\.'\)[\s\S]*path\.isAbsolute\(realRelative\)/);
   const materials = sourceFile('education-materials-routes.ts');
   assert.match(functionBlock(materials, 'ensureMaterialGrounding'), /materialCollectionName\(row\.material_id\)/);
-  assert.match(functionBlock(materials, 'deleteLockedMaterial'), /deleteMaterialCollection\(transaction\.row\.rag_collection\)/);
-  assert.match(functionBlock(materials, 'deleteLockedMaterial'), /deleteStoredMaterial\(transaction\.row\)/);
+  assert.match(functionBlock(materials, 'deleteLockedMaterial'), /deleteMaterialCollection\(transaction\.row\.rag_collection, transaction\.client as any\)/);
+  assert.match(functionBlock(materials, 'deleteLockedMaterial'), /deleteStoredMaterial\(transaction\.row, transaction\.client as any\)/);
   assert.match(functionBlock(materials, 'deleteAuthorizedMaterialRow'), /USING lm_classes c, lm_students a, lm_students uploader/);
 });
 

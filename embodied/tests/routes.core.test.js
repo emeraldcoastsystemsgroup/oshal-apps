@@ -16,6 +16,9 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | B4: capabilities list the scenarios; a reset chooses one; an unknown scene is 400.
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | The printed arm's routes (ADR-152 D5 task 3): the design, a part as a CAD Studio program, the document, the model, and the check — measured in the container, refused honestly when it is not there.
  * 10 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 S1 over the API: /physics/media publishes the three medium records and both force models' declared envelopes; /physics/hull drops the explorer hull in air with the fall the plant reproduces AND the flotation question refused by name in the same answer; seawater is 422 carrying model_not_valid_in_medium; a medium this lab does not implement is 400 unknown_medium and is never substituted; the caller gate 401s on all three.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 D5 over the API: /physics/hull answers as oshal.run-result/1 carrying the medium id and the engine fingerprints (the manifest's version, the compiled engine tree's hash, the analytic plant and the MuJoCo tree it targets); /physics/media publishes the same fingerprints; a mount whose package dir has no manifest answers 503 run_unfingerprinted instead of an unlabelled run.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | ADR-175: the nodes mount is `auth: node`; the node double heartbeats with its device credential through nodeCredentialMirror, the owner comes from the credential, a credential for another node id is 403 node_binding_mismatch, and no credential is the mount guard's 401.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | ADR-175 hardening: the B20 world flies under the node's command key (the double proves no x-service-secret ever reached it), /physics/status names the device-credential rail and its endpoint hosts, and the nodes listing shows a credential only its owner's nodes.
  */
 'use strict';
 const test = require('node:test');
@@ -351,37 +354,45 @@ test('B20: a node that joined the rail by heartbeat flies an owner\'s world thro
   const fs = require('node:fs'); const path = require('node:path');
   const { startFakeNode } = require('./fake-node');
   const { E } = require('./helpers');
-  const { createEmbodiedNodeRoutes } = loadRoutes(); const { coreRequire, trustedSubMirror } = require('./routes.harness');
-  const fleet = new E.DroneNodeFleet();
+  const { createEmbodiedNodeRoutes } = loadRoutes(); const { coreRequire, nodeCredentialMirror } = require('./routes.harness');
+  const fleet = new E.DroneNodeFleet({ endpointHosts: ['127.0.0.1'] });
   let wall3 = 1_700_000_000_000;
   const app3 = express(); app3.use(express.json());
-  // The heartbeat mount carries no identity: in the loader it is `auth: service` (asserted below), the secret being the mounter's guard.
-  app3.use('/api/embodied/nodes', trustedSubMirror(), createEmbodiedNodeRoutes({ pool, appPackageDir: PKG }, { now: () => wall3, fleet }));
+  // The heartbeat mount is `auth: node` in the loader (asserted below): core admits only a device credential and stamps its binding.
+  const credentials = { 'cred-plant-a': { clientId: 'plant-a', sub: 'dave' }, 'cred-erin-1': { clientId: 'erin-1', sub: 'erin' } };
+  app3.use('/api/embodied/nodes', nodeCredentialMirror(credentials), createEmbodiedNodeRoutes({ pool, appPackageDir: PKG }, { now: () => wall3, fleet }));
   app3.use((req, _res, next) => { req.oidc = { user: { sub: String(req.headers['x-test-sub'] || 'dave') }, isAuthenticated: () => true }; next(); });
-  app3.use('/api/embodied', createEmbodiedRoutes({ pool, appPackageDir: PKG }, { now: () => wall3, noTimer: true, engineAddr: '127.0.0.1:1', fleet, serviceSecret: () => 'rail-secret' }));
+  app3.use('/api/embodied', createEmbodiedRoutes({ pool, appPackageDir: PKG }, { now: () => wall3, noTimer: true, engineAddr: '127.0.0.1:1', fleet }));
   const server3 = await new Promise((r) => { const sv = app3.listen(0, '127.0.0.1', () => r(sv)); });
   const base3 = `http://127.0.0.1:${server3.address().port}`;
   const call3 = async (p, init = {}) => { const res = await fetch(`${base3}/api/embodied${p}`, init); const text = await res.text(); let body = null; try { body = text ? JSON.parse(text) : null; } catch (_) { body = text; } return { status: res.status, body }; };
   // The node double heartbeats THIS package's engine tree hash, as the container does: the fleet must not flag it stale and the load must accept it.
-  const node = await startFakeNode({ nodeId: 'plant-a', secret: 'rail-secret', apiUrl: base3, heartbeatMs: 100, buildHash: E.engineBuildHash(path.join(PKG, 'engine')), ownerSub: 'dave' });
+  const node = await startFakeNode({ nodeId: 'plant-a', apiUrl: base3, heartbeatMs: 100, buildHash: E.engineBuildHash(path.join(PKG, 'engine')), credential: 'cred-plant-a' });
   const asErin = (init = {}) => ({ ...init, headers: { ...(init.headers || {}), 'x-test-sub': 'erin' } });
   try {
-    const bad = await fetch(`${base3}/api/embodied/nodes/heartbeat`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ nodeId: '../x' }) });
-    assert.equal(bad.status, 400); assert.equal((await bad.json()).error, 'invalid_heartbeat');
+    const bearer = { 'content-type': 'application/json', authorization: 'Bearer cred-plant-a' };
+    const none = await fetch(`${base3}/api/embodied/nodes/heartbeat`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-secret': 'rail-secret' }, body: JSON.stringify({ nodeId: 'plant-a' }) });
+    assert.equal(none.status, 401, 'the service secret is not a device credential');
+    const other = await fetch(`${base3}/api/embodied/nodes/heartbeat`, { method: 'POST', headers: bearer, body: JSON.stringify({ nodeId: 'plant-b' }) });
+    assert.equal(other.status, 403); assert.equal((await other.json()).error, 'node_binding_mismatch');
+    const bad = await fetch(`${base3}/api/embodied/nodes/heartbeat`, { method: 'POST', headers: bearer, body: JSON.stringify({ nodeId: '../x' }) });
+    assert.equal(bad.status, 403, 'a body naming any other node id is refused before it is parsed');
     let status = null;
     for (let i = 0; i < 50 && !(status && status.nodes.some((n) => n.nodeId === 'plant-a' && n.online)); i += 1) { await new Promise((r) => setTimeout(r, 100)); status = (await call3('/physics/status')).body; }
     const row = status.nodes.find((n) => n.nodeId === 'plant-a');
     assert.ok(row && row.online, JSON.stringify(status.nodes));
     assert.equal(row.stale, false, 'the node heartbeats the package\'s engine tree hash');
     assert.equal(row.endpointUrl, node.endpointUrl); assert.equal(row.kind, 'plant'); assert.equal(row.engine, 'fake');
-    assert.equal(status.rail.serviceSecretConfigured, true);
-    assert.equal(row.ownerSub, 'dave', 'the node belongs to the owner its heartbeats carry');
+    assert.deepEqual(status.rail.endpointHosts, ['127.0.0.1']); assert.match(status.rail.command, /x-node-command-key/);
+    assert.equal(row.ownerSub, 'dave', 'the node belongs to the owner its credential was enrolled by');
     // Another owner neither sees nor uses dave's node (ADR-114: a node belongs to one person); the machine view lists it.
     assert.deepEqual((await call3('/physics/status', asErin())).body.nodes, []);
     const erin = await call3('/world/reset', asErin(json('POST', { backend: 'node', node: 'plant-a' })));
     assert.equal(erin.status, 404); assert.equal(erin.body.error, 'unknown_node');
     assert.deepEqual(status.backends, ['kinematic', 'physics', 'node']);
-    assert.deepEqual((await fetch(`${base3}/api/embodied/nodes`).then((r) => r.json())).nodes.map((n) => n.nodeId), ['plant-a'], 'the machine listing on the nodes mount');
+    assert.deepEqual((await fetch(`${base3}/api/embodied/nodes`, { headers: bearer }).then((r) => r.json())).nodes.map((n) => n.nodeId), ['plant-a'], 'the owner\'s listing on the nodes mount');
+    const erinList = await fetch(`${base3}/api/embodied/nodes`, { headers: { authorization: 'Bearer cred-erin-1' } }).then((r) => r.json());
+    assert.deepEqual(erinList.nodes, [], 'another owner\'s device credential lists none of dave\'s nodes');
     const noNode = await call3('/world/reset', json('POST', { backend: 'node' }));
     assert.equal(noNode.status, 400); assert.equal(noNode.body.error, 'node_required'); assert.deepEqual(noNode.body.nodes, ['plant-a']);
     const unknown = await call3('/world/reset', json('POST', { backend: 'node', node: 'nobody' }));
@@ -417,7 +428,8 @@ test('B20: a node that joined the rail by heartbeat flies an owner\'s world thro
     const manifest = yaml.load(fs.readFileSync(path.join(PKG, 'oshal-app.yaml'), 'utf8'));
     const mount = manifest.routes.find((r) => r.mountPath === '/api/embodied/nodes');
     assert.ok(mount, 'the nodes mount is declared');
-    assert.equal(mount.auth, 'service'); assert.equal(mount.factory, 'createEmbodiedNodeRoutes'); assert.equal(mount.module, 'routes/embodied-node-routes.js');
+    assert.equal(mount.auth, 'node'); assert.equal(mount.factory, 'createEmbodiedNodeRoutes'); assert.equal(mount.module, 'routes/embodied-node-routes.js');
+    assert.equal((await node.stats()).serviceSecretSeen, false, 'the api never sent the swarm service secret to the node');
   } finally { await node.close(); await new Promise((r) => server3.close(r)); }
 });
 
@@ -552,9 +564,21 @@ test('ADR-160 S1: the media publish, the hull falls in air, and seawater is refu
   assert.deepEqual(plant.validIn, ['vacuum', 'air'], 'the envelope is declared by the model author');
   assert.ok(Object.keys(media.body.refusals).includes('model_not_valid_in_medium'));
 
+  // ADR-160 D5: the engine answering is published before any run, by fingerprint.
+  const declaredVersion = /^version:\s*([^#\r\n]+)/m.exec(require('node:fs').readFileSync(require('node:path').join(PKG, 'oshal-app.yaml'), 'utf8'))[1].trim();
+  assert.equal(media.body.engine.package, 'embodied');
+  assert.equal(media.body.engine.packageVersion, declaredVersion, 'the version is the installed manifest\'s, never typed');
+  assert.match(media.body.engine.routesBuildHash, /^[0-9a-f]{64}$/);
+
   // In AIR the hull falls at g, and the flotation question is refused in the same answer.
   const air = await call('/physics/hull?medium=air&dropHeightM=2');
   assert.equal(air.status, 200);
+  assert.equal(air.body.schema, 'oshal.run-result/1');
+  assert.equal(air.body.medium.id, 'air', 'the run carries its medium id');
+  assert.equal(air.body.engine.packageVersion, declaredVersion);
+  assert.equal(air.body.engine.routesBuildHash, media.body.engine.routesBuildHash, 'the run names the same engine the media route published');
+  assert.equal(air.body.engine.plant.kind, 'analytic', 'which plant answered is said, not implied');
+  assert.doesNotThrow(() => require('../routes/engine').requireDisplayable(air.body), 'the answer is displayable by the rule the tile applies');
   assert.equal(air.body.hull.allUpMassKg, 24.7);
   assert.equal(air.body.hull.envelopeM, 0.3);
   assert.ok(Math.abs(air.body.fall.fallTimeS - Math.sqrt(4 / 9.81)) < 1e-9, 'sqrt(2h/g)');
@@ -593,4 +617,25 @@ test('ADR-160 S1: the media publish, the hull falls in air, and seawater is refu
       assert.equal((await call(path)).status, 401, path);
     }
   } finally { currentSub = was; }
+});
+
+test('ADR-160 D5: a package that cannot read its own manifest version refuses to produce a run rather than an unlabelled one', async () => {
+  const os = require('node:os'); const fs = require('node:fs'); const path = require('node:path');
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'embodied-bare-pkg-'));
+  const app2 = express();
+  app2.use(express.json());
+  app2.use((req, _res, next) => { req.oidc = { user: { sub: 'alice' }, isAuthenticated: () => true }; next(); });
+  app2.use('/api/embodied', createEmbodiedRoutes({ pool: fakePool(), appPackageDir: bare }, { now: () => wall, noTimer: true }));
+  const sv = app2.listen(0, '127.0.0.1');
+  await new Promise((r) => sv.once('listening', r));
+  try {
+    const b = `http://127.0.0.1:${sv.address().port}/api/embodied`;
+    const media = await (await fetch(`${b}/physics/media`)).json();
+    assert.equal(media.engine, null, 'no manifest, no fingerprint — and the media route says so rather than inventing one');
+    const res = await fetch(`${b}/physics/hull?medium=air`);
+    assert.equal(res.status, 503);
+    const body = await res.json();
+    assert.equal(body.error, 'run_unfingerprinted');
+    assert.match(body.message, /ADR-160 D5/);
+  } finally { await new Promise((r) => sv.close(r)); fs.rmSync(bare, { recursive: true, force: true }); }
 });

@@ -16,6 +16,16 @@
 
 name: portrait-studio
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: portrait-generation
+      unit: portrait
+      tier: T0
+      generation: hosted
+      degrade: disable
 displayName: Portrait Studio
 description: >-
   Turn any photo into a portrait worth framing — a professional studio
@@ -23,7 +33,7 @@ description: >-
   whole crew from one group shot placed in a scene as a superhero team.
   Take the photo with your camera or upload one, crop the head (or every
   head), pick a style, generate.
-version: 1.15.1
+version: 1.15.4
 status: active
 # Deployment-wide tile visibility (the little-monsters lesson: person-scope hid
 # the installed row from every other user). Portrait DATA stays strictly
@@ -83,7 +93,7 @@ readiness:
     detailPointer: /portrait/detail
 
 # ── Cross-package prerequisites: what this package actually reaches ─────────
-# OPTIONAL, NOT REQUIRED: tools/portrait-studio.html:329 reads /api/create/brand-kit to offer the
+# OPTIONAL, NOT REQUIRED: tools/portrait-studio.html:444 reads /api/create/brand-kit to offer the
 # "brand colours" chip. The code already hides the chip when the read does not return a kit, so
 # without Create — or without access to it — the studio is the same studio minus one shortcut.
 dependencies:

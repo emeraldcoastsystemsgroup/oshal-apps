@@ -3,6 +3,9 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Admit editable template browsing after current access resolves and preserve saved project links.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Publish bounded read-only selected-layer context with the shared bridge while preserving manual editing when it is unavailable.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Read the brand kit beside permissions and settle it before template deep links, so designs open in the brand.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Offer the named image filter looks from the model; choosing one is a single undoable edit of the selected image layer.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Bind region mode (exclusive with drawing), whole-image selection for keyboard users and Clear region.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Bind the Change a region panel and ask which image service would answer once permissions are known.
  */
 import { $, state, edit, notify, subscribe, handle, api, error, openDocument } from './editor-state.mjs';
 import { render, fitCanvas, paint } from './editor-view.mjs';
@@ -12,6 +15,9 @@ import { bindInteractions } from './editor-interactions.mjs';
 import { bindTemplates, acceptIncomingTemplate } from './editor-templates.mjs';
 import { bindEditorContext } from './editor-context.mjs';
 import { bindBrand, loadBrand } from './brand-editor.mjs';
+import { IMAGE_FILTER_LOOKS } from './model.mjs';
+import { selectionFromLayer } from './region-select.mjs';
+import { bindRegionEditPanel, loadRegionProvider } from './region-edit-panel.mjs';
 
 function addLayer(type) {
   const layer = { id: crypto.randomUUID(), type, name: type === 'text' ? 'Your title' : type === 'rect' ? 'Rectangle' : 'Ellipse',
@@ -29,6 +35,11 @@ function bindProperties() {
   });
   $('applyCrop').onclick = handle(() => changeSelected({ crop: Object.fromEntries(['x', 'y', 'w', 'h'].map(key => [key, Number($(`crop${key.toUpperCase()}`).value) / 100])) }));
   $('resetCrop').onclick = handle(() => changeSelected({ crop: { x: 0, y: 0, w: 1, h: 1 } }));
+  for (const [id, look] of Object.entries(IMAGE_FILTER_LOOKS)) $('filterLook').append(new Option(look.label, id));
+  $('filterLook').onchange = handle(() => {
+    const id = $('filterLook').value; $('filterLook').value = '';
+    if (Object.hasOwn(IMAGE_FILTER_LOOKS, id)) changeSelected({ ...IMAGE_FILTER_LOOKS[id].patch });
+  });
   $('projectName').onchange = handle(() => edit({ type: 'project', patch: { name: $('projectName').value || 'Untitled image' } }));
   $('applyCanvas').onclick = handle(() => edit({ type: 'project', patch: {
     width: Number($('canvasWidth').value), height: Number($('canvasHeight').value),
@@ -43,7 +54,10 @@ function reorder(direction) {
 
 function bindEditing() {
   for (const [id, type] of [['addText', 'text'], ['addRectangle', 'rect'], ['addEllipse', 'ellipse']]) $(id).onclick = handle(() => addLayer(type));
-  $('drawMode').onclick = () => { state.draw = !state.draw; notify(); };
+  $('drawMode').onclick = () => { state.draw = !state.draw; if (state.draw) state.regionMode = false; notify(); };
+  $('regionMode').onclick = () => { state.regionMode = !state.regionMode; if (state.regionMode) state.draw = false; notify(); };
+  $('selectWholeImage').onclick = handle(() => { state.region = selectionFromLayer(state.project, state.selected); notify(); });
+  $('clearRegion').onclick = () => { state.region = null; notify(); };
   $('raiseLayer').onclick = handle(() => reorder(1)); $('lowerLayer').onclick = handle(() => reorder(-1));
   $('deleteLayer').onclick = handle(() => edit({ type: 'remove', id: state.selected }));
   $('duplicateLayer').onclick = handle(() => {
@@ -57,7 +71,7 @@ function bindEditing() {
 
 async function start() {
   if (matchMedia('(max-width:720px)').matches) $('canvasOptions').open = false;
-  bindEditing(); bindProperties(); bindProjects(); bindFiles(); bindInteractions(); bindTemplates(); bindBrand();
+  bindEditing(); bindProperties(); bindProjects(); bindFiles(); bindInteractions(); bindTemplates(); bindBrand(); bindRegionEditPanel();
   const brandReady = loadBrand();
   subscribe(render); subscribe(queueAutosave); render();
   void bindEditorContext().catch(() => console.warn('[Create] Shared screen context is unavailable. Manual editing remains available.'));
@@ -67,7 +81,7 @@ async function start() {
     if (id && /^[a-f0-9-]{36}$/i.test(id) && state.permissions.read) {
       const { project } = await api(`/projects/${id}`); openDocument(project.document, project);
     }
-    state.loading = false; notify(); await brandReady; acceptIncomingTemplate(); await acceptIncomingArtifact();
+    state.loading = false; notify(); void loadRegionProvider(); await brandReady; acceptIncomingTemplate(); await acceptIncomingArtifact();
   } catch (failure) { state.loading = false; notify(); error(failure.message); }
 }
 start();

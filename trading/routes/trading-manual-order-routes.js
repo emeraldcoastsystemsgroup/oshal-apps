@@ -373,12 +373,17 @@ function registerTradingManualOrderRoutes(router, ctx) {
                 res.status(503).json({ error: 'market_data_not_configured', message: 'Market data is not connected for this account.' });
                 return;
             }
+            const tick = await md.latestTrade(symbol);
+            if (tick) {
+                res.json({ symbol, price: tick.price, book: book.ref, asOf: tick.asOf.toISOString() });
+                return;
+            }
             const price = await md.latestPrice(symbol);
             if (price == null) {
                 res.status(404).json({ error: 'no_quote', message: `No quote for ${symbol}.` });
                 return;
             }
-            res.json({ symbol, price, book: book.ref, asOf: new Date().toISOString() });
+            res.json({ symbol, price, book: book.ref, asOf: null });
         }
         catch (err) {
             if (err instanceof trading_routes_helpers_1.TradingError) {

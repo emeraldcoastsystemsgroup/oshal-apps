@@ -1,0 +1,64 @@
+{
+  "schema": "embodied.px4-crosscheck.vehicle/1",
+  "vehicle": "F450",
+  "revision": 1,
+  "status": "declared: the inputs below are our F450 declaration, not yet reconciled with the F450 PteroSim flies (its JSBSim XML ships in the PteroSim release under PteroSimAircrafts/, readable only after the operator accepts the PteroSim EULA). Reconciling them is part of the PteroSim leg; until then the SIH leg flies this declaration.",
+  "inputs": {
+    "diagonalWheelbaseM": 0.45,
+    "takeoffMassKg": 1.2,
+    "rotorUnitMassKg": 0.09,
+    "bodyBoxM": [0.15, 0.15, 0.08],
+    "thrustToWeight": 2.0,
+    "torqueToThrustM": 0.05,
+    "gravityMps2": 9.80665
+  },
+  "provenance": {
+    "diagonalWheelbaseM": "DJI Flame Wheel F450 specification: diagonal wheelbase 450 mm (https://www.dji.com/flame-wheel-arf/spec).",
+    "takeoffMassKg": "The midpoint of DJI's published F450 takeoff weight, 800 g to 1600 g (same page).",
+    "rotorUnitMassKg": "Declared: one motor, propeller and arm ESC at each arm tip.",
+    "bodyBoxM": "Declared: the rest of the mass as a uniform 150 x 150 x 80 mm central box (x forward, y right, z down).",
+    "thrustToWeight": "Declared: a thrust-to-weight of 2 at full throttle.",
+    "torqueToThrustM": "The magnitude of the rotor moment coefficient both PX4 airframes the cross-check flies give the allocator: 10016_none_iris sets CA_ROTORn_KM to 0.05, 0.05, -0.05, -0.05, and PX4 1.18.0 SIH (10040_sihsim_quadx) read the same four values back.",
+    "gravityMps2": "Standard gravity."
+  },
+  "sih": {
+    "SIH_MASS": 1.2,
+    "SIH_IXX": 0.011135,
+    "SIH_IYY": 0.011135,
+    "SIH_IZZ": 0.021375,
+    "SIH_T_MAX": 5.88399,
+    "SIH_Q_MAX": 0.2942,
+    "SIH_L_ROLL": 0.159099,
+    "SIH_L_PITCH": 0.159099
+  },
+  "allocation": {
+    "CA_ROTOR0_PX": 0.159099,
+    "CA_ROTOR0_PY": 0.159099,
+    "CA_ROTOR1_PX": -0.159099,
+    "CA_ROTOR1_PY": -0.159099,
+    "CA_ROTOR2_PX": 0.159099,
+    "CA_ROTOR2_PY": -0.159099,
+    "CA_ROTOR3_PX": -0.159099,
+    "CA_ROTOR3_PY": 0.159099
+  },
+  "readBack": {
+    "controller": [
+      "MPC_XY_P", "MPC_Z_P",
+      "MPC_XY_VEL_P_ACC", "MPC_XY_VEL_I_ACC", "MPC_XY_VEL_D_ACC",
+      "MPC_Z_VEL_P_ACC", "MPC_Z_VEL_I_ACC", "MPC_Z_VEL_D_ACC",
+      "MPC_XY_VEL_MAX", "MPC_Z_VEL_MAX_UP", "MPC_Z_VEL_MAX_DN",
+      "MPC_ACC_HOR", "MPC_ACC_UP_MAX", "MPC_ACC_DOWN_MAX",
+      "MPC_TILTMAX_AIR", "MPC_THR_HOVER", "MPC_LAND_SPEED",
+      "MC_ROLL_P", "MC_PITCH_P", "MC_YAW_P",
+      "MC_ROLLRATE_P", "MC_ROLLRATE_I", "MC_ROLLRATE_D",
+      "MC_PITCHRATE_P", "MC_PITCHRATE_I", "MC_PITCHRATE_D",
+      "MC_YAWRATE_P", "MC_YAWRATE_I", "MC_YAWRATE_MAX",
+      "CA_ROTOR0_KM", "CA_ROTOR1_KM", "CA_ROTOR2_KM", "CA_ROTOR3_KM"
+    ],
+    "sihUnset": ["SIH_KDV", "SIH_KDW", "SIH_T_TAU"]
+  },
+  "sitlAirframes": {
+    "sih": 10040,
+    "external": 10016
+  }
+}

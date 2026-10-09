@@ -10,6 +10,8 @@
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | Serve the editable template catalog and picker through the same fixed module allowlist.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Serve the bounded read-only editor context adapter through the existing exact module allowlist.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Serve the Brand Kit page at /brand and its shared brand modules through the same exact allowlist.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Serve the region selection module through the same exact allowlist; the existing editor-assets binding already admits it, so the authorization catalog is unchanged.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Serve the region edit panel module through the same exact allowlist.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -101,7 +103,8 @@ function createCreateRoutes(ctx) {
     const modules = ['editor.mjs', 'editor-state.mjs', 'editor-view.mjs', 'editor-projects.mjs',
         'editor-files.mjs', 'editor-interactions.mjs', 'model.mjs', 'model-validation.mjs',
         'history.mjs', 'renderer.mjs', 'image-assets.mjs', 'hit-test.mjs', 'editor.css',
-        'templates.mjs', 'editor-templates.mjs', 'editor-context.mjs', 'brand-kit.mjs', 'brand-page.mjs', 'brand-editor.mjs', 'brand.css'];
+        'templates.mjs', 'editor-templates.mjs', 'editor-context.mjs', 'brand-kit.mjs', 'brand-page.mjs', 'brand-editor.mjs', 'brand.css',
+        'region-select.mjs', 'region-edit-panel.mjs'];
     for (const file of modules) {
         const type = file.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8';
         router.get('/editor/' + file, (_req, res) => sendBundled(res, path.join(root, 'tools', 'editor', file), type));

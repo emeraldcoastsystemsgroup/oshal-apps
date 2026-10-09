@@ -15,6 +15,18 @@
       run ledger), Experiments (ICE registry), Approvals (budget proposals). Every
       outward write goes through an explicit confirm dialog that sends confirm:true;
       428/409/503 responses are rendered honestly, never papered over.
+  2 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.2: the company audience view for the
+      Business shell (ADR-164 D6). With ?audience=company the shared kit paints the caller's
+      campaigns, pending budget approvals and drafts, setup readiness, the latest scorecard
+      week, channel consent and recent publish outcomes from GET /overview, /content,
+      /api/marketing-engine/readiness and /home-summary. The view is read-only: approve,
+      reject and publish stay on the full board, which owns every confirm. The full board's
+      start (refresh) and its connected-actions module (which appended a section to <body>
+      unconditionally) run only when no audience view is active.
+  3 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.2: in the company view's "Latest scorecard
+      week", a source without events read "Not configured, or it failed on ingest", a cause
+      the scorecard week does not record (its sources carry only ok / no_data). It now reads
+      "No events recorded this week", still badged No data.
 -->
 <!-- Marketing Engine — the campaign cockpit. Bots draft and propose; the human on this
      surface approves, publishes, and spends. Nothing goes out without an explicit
@@ -27,6 +39,136 @@
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shell opens this page with ?audience=company: the caller's campaigns,
+     what waits on a decision, setup readiness, the latest scorecard week, channel consent and recent publish
+     outcomes, from the same owner-scoped reads the full board makes, painted by the shared kit. Read-only: approving,
+     rejecting and publishing stay on the full board, which owns every confirm. Any other request runs the full
+     Marketing Engine below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var OPTS = { credentials: 'same-origin', headers: { Accept: 'application/json' } };
+  var CHANNELS = ['linkedin', 'mastodon', 'bluesky', 'email'];
+  var CHLABEL = { linkedin: 'LinkedIn', mastodon: 'Mastodon', bluesky: 'Bluesky', email: 'Email', launch: 'Launch (human-posted)' };
+  var STAGE = ['0 · validate', '1 · organic', '2 · monetize', '3 · paid scale'];
+  var SOURCES = [['gsc', 'Search Console'], ['posthog', 'PostHog'], ['github', 'GitHub traffic']];
+  var PROBES = [['campaign', 'Campaign'], ['channels', 'Channel consent'], ['sender', 'Email sender']];
+  // One ledger outcome covers several causes (skipped_consent: not enabled or paused; skipped_cap: a cap of 0, an
+  // unknown count or a used-up cap), so these labels name every cause and stand only where no reason was recorded.
+  var OUTCOME = { published: ['Published', 'ok'], skipped_consent: ['Skipped: not enabled or paused', 'warn'], skipped_cap: ['Skipped: cap 0, cap used up or count unknown', 'warn'], skipped_confirm: ['Skipped: not confirmed', 'warn'], error: ['Error', 'bad'] };
+  // A refusal is named for what it is: signed out, or the board could not be read (with its status).
+  function answer(r) {
+    return r.json().catch(function () { return {}; }).then(function (j) {
+      if (r.ok) return j;
+      var e = new Error(r.status === 401 ? 'Sign in to see your campaigns.' : 'The campaign board could not be read right now (HTTP ' + r.status + ').'); e.status = r.status; throw e;
+    });
+  }
+  function board(path) { return fetch('/api/marketing' + path, OPTS).then(answer); }
+  function engine(path) { return fetch('/api/marketing-engine' + path, OPTS).then(answer); }
+  function settle(p) { return p.then(function (v) { return { ok: true, v: v }; }, function (e) { return { ok: false, e: e }; }); }
+  function openFull() { window.location.assign(window.location.pathname); }
+  function cap(s) { s = String(s || ''); return s ? s.charAt(0).toUpperCase() + s.slice(1) : '—'; }
+  function metric(summary, id) { var m = summary && (summary.metrics || []).filter(function (x) { return x.id === id; })[0]; return m ? m.value : null; }
+  function armed(c) { return c.enabled === true && Number(c.daily_cap) > 0; }
+  function stats(o, summary, content) {
+    var campaigns = o.campaigns || [], channels = o.channels || [], pending = (o.pendingProposals || []).length;
+    var trap = channels.some(function (c) { return c.enabled === true && !armed(c); });
+    var drafts = metric(summary, 'content-drafts');
+    if (drafts === null && content) drafts = content.filter(function (i) { return i.status === 'draft'; }).length;
+    return [
+      { id: 'active-campaigns', label: 'Active campaigns', value: campaigns.filter(function (c) { return c.status === 'active'; }).length, hint: 'of ' + campaigns.length },
+      { id: 'drafts', label: 'Drafts to review', value: drafts, tone: /^[1-9]/.test(String(drafts)) ? 'warn' : null },
+      { id: 'published-24h', label: 'Published / 24h', value: metric(summary, 'published-24h') },
+      { id: 'approvals', label: 'Pending approvals', value: pending, tone: pending ? 'warn' : null },
+      { id: 'armed-channels', label: 'Armed channels', value: channels.filter(armed).length + '/' + CHANNELS.length, tone: trap ? 'warn' : null, hint: trap ? 'A channel is on with a daily cap of 0' : null },
+      { id: 'experiments', label: 'Experiments running', value: (o.experiments || []).filter(function (e) { return e.status === 'running' || e.status === 'extended'; }).length }
+    ];
+  }
+  function attention(o, content) {
+    var names = {}; (o.campaigns || []).forEach(function (c) { names[c.campaign_id] = c.name; });
+    var items = (o.pendingProposals || []).map(function (p) {
+      return { title: p.field + ': ' + (p.old_value == null ? '—' : p.old_value) + ' → ' + p.new_value, text: [names[p.campaign_id], CHLABEL[p.channel] || p.channel].filter(Boolean).join(' · ') || 'Budget proposal', meta: A.when(p.created_at), badge: 'Awaiting approval', tone: 'warn', onClick: openFull };
+    });
+    (content || []).filter(function (i) { return i.status === 'draft' || i.status === 'approved'; }).slice(0, 6).forEach(function (i) {
+      items.push({ title: i.title || 'Untitled draft', text: (CHLABEL[i.channel] || i.channel) + (i.status === 'draft' ? ' · draft to review' : ' · approved, not yet published'), meta: A.when(i.updated_at), badge: cap(i.status), onClick: openFull });
+    });
+    return items;
+  }
+  function setupItems(ready) {
+    return (ready ? PROBES : []).map(function (p) {
+      var s = ready[p[0]] || {};
+      return { title: p[1], text: s.detail || 'Not reported.', badge: s.ready ? 'Ready' : 'Not ready', tone: s.ready ? 'ok' : 'warn', onClick: openFull };
+    });
+  }
+  // The newest scorecard week as the rollup stored it: a source without events says No data, never a number.
+  // The week records only ok / no_data per source (no cause), so a gap names what is known: no events this week.
+  function scorecardItems(o) {
+    var w = (o.scorecard || [])[0]; if (!w) return [];
+    var data = w.data || {}, totals = data.totals || {}, by = data.bySource || {}, src = w.sources || {};
+    var items = [{ title: 'Week of ' + A.day(w.week_start), text: A.num(totals.events) + ' events · value ' + A.num(totals.value), meta: w.computed_at ? 'computed ' + A.when(w.computed_at) : '' }];
+    SOURCES.forEach(function (s) {
+      var ok = !!(src[s[0]] && src[s[0]].status === 'ok' && by[s[0]]);
+      items.push({ title: s[1], text: ok ? A.num(by[s[0]].events) + ' events' : 'No events recorded this week', badge: ok ? 'Data' : 'No data', tone: ok ? 'ok' : 'warn' });
+    });
+    return items;
+  }
+  function campaignRows(o) {
+    return (o.campaigns || []).map(function (c) {
+      var tone = c.status === 'active' ? 'ok' : c.status === 'paused' ? 'warn' : null;
+      return { cells: [c.name, c.product, STAGE[Number(c.stage)] || String(c.stage), { text: cap(c.status), tone: tone }, cap(c.motion), A.money(c.budget_monthly_usd), A.when(c.updated_at)], onClick: openFull };
+    });
+  }
+  function channelRows(o) {
+    var rows = o.channels || [];
+    return CHANNELS.map(function (ch) {
+      var r = rows.filter(function (x) { return x.channel === ch; })[0] || { enabled: false, daily_cap: 0 };
+      var consent = armed(r) ? { text: 'Armed', tone: 'ok' } : r.enabled === true ? { text: 'On, cap 0: never sends', tone: 'warn' } : { text: 'Off' };
+      return { cells: [CHLABEL[ch], consent, String(Number(r.daily_cap) || 0), r.standing_authorization ? { text: 'Granted', tone: 'warn' } : 'No', r.paused_reason ? { text: r.paused_reason, tone: 'bad' } : '—'], onClick: openFull };
+    });
+  }
+  // The run ledger records why an attempt did not publish: detail.reason for a consent or cap refusal (the gate's own
+  // words, e.g. "channel is paused: ..."), detail.error for a failed send. Show that cause, not a guess at it.
+  function outcomeCell(r) {
+    var out = OUTCOME[r.outcome] || [r.outcome || '—', null], d = r.detail && typeof r.detail === 'object' ? r.detail : {};
+    var why = r.outcome === 'error' ? d.error : r.outcome === 'skipped_consent' || r.outcome === 'skipped_cap' ? d.reason : null;
+    why = typeof why === 'string' ? why.trim().slice(0, 200) : '';
+    return { text: why ? (r.outcome === 'error' ? 'Error: ' : 'Skipped: ') + why : out[0], tone: out[1] };
+  }
+  function outcomeRows(o) {
+    return (o.recentRuns || []).map(function (r) { return [A.when(r.ts), CHLABEL[r.channel] || r.channel, r.action, outcomeCell(r)]; });
+  }
+  // The board itself could not be read: say why, and keep the setup probes, which degrade per probe.
+  function unavailable(error, ready) {
+    if (!ready) throw error;
+    return { kicker: 'Marketing Engine', title: 'The campaign board could not load', lede: error.message, actions: [{ label: 'Open the campaign board', primary: true, onClick: openFull }],
+      sections: [{ kind: 'list', id: 'setup', title: 'Setup', wide: true, items: setupItems(ready) }] };
+  }
+  function sections(o, ready, content) {
+    return [
+      { kind: 'list', id: 'attention', title: 'Needs action', note: content ? null : 'Saved drafts could not be read right now.', empty: 'Nothing waits on you: no pending approvals and no drafts to review.', items: attention(o, content) },
+      { kind: 'list', id: 'setup', title: 'Setup', empty: 'Setup status is unavailable right now.', items: setupItems(ready) },
+      { kind: 'list', id: 'scorecard', title: 'Latest scorecard week', empty: 'No scorecard week yet: the daily ingest fills events and the Monday rollup writes the first week.', items: scorecardItems(o) },
+      { kind: 'table', id: 'campaigns', title: 'Campaigns', empty: 'No campaign yet: the board is where a campaign starts.', columns: ['Campaign', 'Product', 'Stage', 'Status', 'Motion', { label: 'Monthly budget', align: 'right' }, 'Updated'], rows: campaignRows(o) },
+      { kind: 'table', id: 'channels', title: 'Channel consent', note: 'Armed means on with a daily cap of at least 1. Every channel starts off.', columns: ['Channel', 'Consent', { label: 'Daily cap', align: 'right' }, 'Standing authorization', 'Paused'], rows: channelRows(o) },
+      { kind: 'table', id: 'outcomes', title: 'Recent publish outcomes', empty: 'No publish attempts yet. Every attempt, refusals included, is recorded here.', columns: ['When', 'Channel', 'Action', 'Outcome'], rows: outcomeRows(o) }
+    ];
+  }
+  function company() {
+    return Promise.all([settle(board('/overview')), settle(engine('/readiness')), settle(engine('/home-summary')), settle(board('/content'))]).then(function (r) {
+      var ready = r[1].ok ? r[1].v : null;
+      if (!r[0].ok) return unavailable(r[0].e, ready);
+      var o = r[0].v || {}, content = r[3].ok ? (r[3].v.items || []) : null, campaigns = o.campaigns || [];
+      var lede = ready && ready.campaign && ready.campaign.detail ? ready.campaign.detail : campaigns.length + ' campaigns, ' + campaigns.filter(function (c) { return c.status === 'active'; }).length + ' active.';
+      return { kicker: 'Marketing Engine', title: 'Campaigns and approvals', lede: lede, actions: [{ label: 'Open the campaign board', primary: true, onClick: openFull }],
+        stats: stats(o, r[2].ok ? r[2].v : null, content), sections: sections(o, ready, content) };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'marketing-engine', escapeLabel: 'Open Marketing Engine in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
   /* ── standalone fallback palette (only applies when framework tokens are absent) ──────────── */
   :root {
@@ -1226,14 +1368,19 @@
   });
 
   // ── boot ──────────────────────────────────────────────────────────────────────────────────
-  refresh();
+  // The full board only: under an audience view the shared kit paints instead (see the head script).
+  if (!window.AppView || !AppView.active()) refresh();
 })();
 </script>
 
-<!-- App-owned context integration: drafts only; existing actions still execute explicitly. -->
+<!-- App-owned context integration: drafts only; existing actions still execute explicitly. The full board only:
+     under an audience view no handoff is received, nothing is mounted and no section is appended to <body>. The
+     imports stay static (both modules only define functions): the shell posts a handoff on the frame's load event,
+     which does not wait for a dynamic import, so the receiver must be registered by this script's first run. -->
 <script type="module">
 import { receiveHandoff } from '/cockpit/js/app-handoff.js';
 import { mountConnectedActions } from '/cockpit/js/app-workflows.js';
+if (!window.AppView || !AppView.active()) {
 const clip = value => String(value || '').slice(0,2000);
 const val = id => clip(document.getElementById(id)?.value?.trim());
 const set = (id,value) => { const el=document.getElementById(id); el.value = el.tagName === 'INPUT' ? String(value || '').replace(/\s*\n+\s*/g, ' · ') : value || ''; };
@@ -1242,6 +1389,7 @@ receiveHandoff({"app":"marketing-engine","action":"prepare-brief","contextType":
 const element = document.createElement('section'); element.className='connected-app-actions'; element.setAttribute('aria-label','Connected application actions'); element.style.cssText='margin:16px auto;padding:16px;max-width:1200px;border:1px solid currentColor;border-radius:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap';
 document.body.append(element);
 void mountConnectedActions({ app:"marketing-engine", element, contextForOffer:()=>{ const detail={}; document.dispatchEvent(new CustomEvent('marketing:selected-brief',{detail})); return detail.context || null; } });
+}
 </script>
 </body>
 </html>

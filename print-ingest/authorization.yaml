@@ -1,0 +1,203 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Explicit current named intake and scoped RAG grants; declaration assigns no roles.
+version: 1
+resources:
+  app:
+    scopes:
+    - own
+  intake:
+    scopes:
+    - own
+  rag.private:
+    scopes:
+    - own
+  rag.shared:
+    scopes:
+    - tenant
+  rag.bot:
+    scopes:
+    - tenant
+permissions:
+  app.open:
+    resource: app
+    effect: read
+    minimumTier: viewer
+  intake.read:
+    resource: intake
+    effect: read
+    minimumTier: viewer
+  intake.write:
+    resource: intake
+    effect: write
+    minimumTier: editor
+  rag.private.read:
+    resource: rag.private
+    effect: read
+    minimumTier: viewer
+  rag.private.write:
+    resource: rag.private
+    effect: write
+    minimumTier: editor
+  rag.private.administer:
+    resource: rag.private
+    effect: administer
+    minimumTier: admin
+  rag.shared.read:
+    resource: rag.shared
+    effect: read
+    minimumTier: viewer
+  rag.shared.write:
+    resource: rag.shared
+    effect: write
+    minimumTier: editor
+  rag.shared.administer:
+    resource: rag.shared
+    effect: administer
+    minimumTier: admin
+  rag.bot.read:
+    resource: rag.bot
+    effect: read
+    minimumTier: viewer
+  rag.bot.write:
+    resource: rag.bot
+    effect: write
+    minimumTier: editor
+  rag.bot.administer:
+    resource: rag.bot
+    effect: administer
+    minimumTier: admin
+roles:
+  reader:
+    tier: viewer
+    grants:
+    - &id001
+      permission: app.open
+      scope: own
+    - &id002
+      permission: intake.read
+      scope: own
+    - &id003
+      permission: rag.private.read
+      scope: own
+    - &id004
+      permission: rag.shared.read
+      scope: tenant
+    - &id005
+      permission: rag.bot.read
+      scope: tenant
+  printer:
+    tier: editor
+    grants:
+    - *id001
+    - *id002
+    - *id003
+    - *id004
+    - *id005
+    - &id006
+      permission: intake.write
+      scope: own
+    - &id007
+      permission: rag.private.write
+      scope: own
+  publisher:
+    tier: editor
+    grants:
+    - *id001
+    - *id002
+    - *id003
+    - *id004
+    - *id005
+    - *id006
+    - *id007
+    - &id008
+      permission: rag.shared.write
+      scope: tenant
+    - &id009
+      permission: rag.bot.write
+      scope: tenant
+  administrator:
+    tier: admin
+    sensitive: true
+    grants:
+    - *id001
+    - *id002
+    - *id003
+    - *id004
+    - *id005
+    - *id006
+    - *id007
+    - *id008
+    - *id009
+    - permission: rag.private.administer
+      scope: own
+    - permission: rag.shared.administer
+      scope: tenant
+    - permission: rag.bot.administer
+      scope: tenant
+bindings:
+  http:
+  - id: readiness
+    method: GET
+    path: /api/print-ingest/readiness
+    allOf:
+    - app.open
+    - intake.read
+  - id: destinations
+    method: GET
+    path: /api/print-ingest/destinations
+    allOf:
+    - app.open
+    - intake.read
+  - id: documents
+    method: GET
+    path: /api/print-ingest/documents
+    allOf:
+    - app.open
+    - intake.read
+  - id: app
+    method: GET
+    path: /api/print-ingest/app
+    allOf:
+    - app.open
+    - intake.read
+  - id: summary
+    method: GET
+    path: /api/print-ingest/home-summary
+    allOf:
+    - app.open
+    - intake.read
+  - id: smoke
+    method: GET
+    path: /api/print-ingest/_smoke
+    allOf:
+    - app.open
+    - intake.read
+  - id: intake
+    method: POST
+    path: /api/print-ingest/documents
+    allOf:
+    - app.open
+    - intake.write
+  - id: artifact
+    method: POST
+    path: /api/print-ingest/documents/import-artifact
+    allOf:
+    - app.open
+    - intake.write
+  - id: approve
+    method: POST
+    path: /api/print-ingest/documents/:id/approve
+    allOf:
+    - app.open
+    - intake.write
+  - id: reject
+    method: POST
+    path: /api/print-ingest/documents/:id/reject
+    allOf:
+    - app.open
+    - intake.write
+  bots:
+  - id: print-ingest-bot
+    allOf:
+    - app.open
+    - intake.read

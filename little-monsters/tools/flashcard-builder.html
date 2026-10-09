@@ -3,127 +3,158 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Little Monsters - Flashcard Builder</title>
-<script>
-(function(){function a(n){if(!n)return;document.documentElement.setAttribute('data-theme',n);var h='/cockpit/css/themes/'+n+'.css',l=document.querySelector('link[data-lm-theme-link]');if(l){if(l.getAttribute('href')!==h)l.setAttribute('href',h);return;}l=document.createElement('link');l.rel='stylesheet';l.href=h;l.setAttribute('data-lm-theme-link','1');document.head.appendChild(l);}function i(){try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(e){}try{var s=localStorage.getItem('cockpit-theme');if(s)return s;}catch(e){}return 'little-monsters';}a(i());try{if(window.parent&&window.parent!==window){var ph=window.parent.document.documentElement;new MutationObserver(function(m){for(var k=0;k<m.length;k++)if(m[k].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)a(t);}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});}}catch(e){}})();
-</script>
+<title>Little Monsters — Flashcard Builder</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  SEQ | AUTHOR                                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com   | Flashcard builder: manual set creation with quick fill from pasted notes and class auto-build
+  2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass and literal palette; hero, cards, fields and status lines use the system. Role truth: the class picker and "Build a set from my class" appear only for a teacher/admin and list only classes they teach (the store's write rule); students build private sets; a saved set links straight to the hub
+  ---------------------------------------------------------------------------
+-->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
 <link rel="stylesheet" href="/api/education/education.css">
 <style>
-  body{margin:0;color:var(--text-primary,#fdeaf6);font-family:system-ui,'Inter',sans-serif;}
-  .wrap{padding:22px clamp(14px,4vw,40px) 60px;max-width:760px;}
-  .head{display:flex;align-items:center;gap:12px;}
-  .head img{width:48px;height:48px;border-radius:12px;border:3px solid var(--accent-primary,#ec4faa);background:var(--bg-card);}
-  h1{margin:0;font-size:clamp(20px,3vw,28px);}
-  .sub{color:var(--text-muted);font-size:13px;margin:4px 0 18px;}
-  .card{border:1px solid var(--border-color);border-radius:16px;background:var(--bg-card);padding:16px;margin-bottom:16px;}
-  label{display:block;font-size:12px;color:var(--text-muted);margin:8px 0 4px;}
-  input,select,textarea{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid var(--border-color);
-    background:var(--bg-secondary);color:inherit;font-size:14px;font-family:inherit;}
-  .row{display:flex;gap:8px;margin-bottom:8px;}
-  .row input{flex:1;}
-  .row .del{flex:0 0 auto;width:38px;border:1px solid var(--border-color);background:transparent;color:var(--status-error,#ff6b8b);border-radius:10px;cursor:pointer;}
-  .btn{background:var(--accent-primary,#ec4faa);color:#fff;border:none;border-radius:12px;padding:11px 16px;font-weight:800;cursor:pointer;}
-  .btn.ghost{background:transparent;color:var(--text-primary);border:1px solid var(--border-color);}
-  .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
-  .small{font-size:12px;color:var(--text-muted);margin-top:8px;}
-  .msg{font-weight:700;font-size:13px;min-height:18px;margin-top:8px;}
+  /* A front/back card row: two inputs and a 44px remove control; stacks on phones. */
+  .card-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--lm-touch); gap: 8px; align-items: center; margin-bottom: 8px; }
+  @media (max-width: 640px) {
+    .card-row { grid-template-columns: minmax(0, 1fr) var(--lm-touch); }
+    .card-row .card-row-del { grid-row: 1 / span 2; grid-column: 2; }
+  }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
-<div class="wrap">
-  <div class="head"><img src="/api/education/mascot.png" alt=""><div><h1>Flashcard Builder</h1></div></div>
-  <p class="sub">Make your own cards — type them, paste your notes, or let your monster build a set from your class.</p>
-
-  <div class="card">
-    <div class="row" style="gap:10px;">
-      <div style="flex:1;"><label>Class</label><select id="classSel"><option value="">No class</option></select></div>
-      <div style="flex:1;"><label>Set title</label><input id="title" placeholder="e.g. Chapter 5 terms"></div>
+<main class="lm-page is-narrow">
+  <header class="lm-hero">
+    <div>
+      <div class="lm-eyebrow">Card maker</div>
+      <h1 class="lm-display">Build a set.</h1>
+      <p class="lm-lead">Make your own cards — type them in, or paste your notes and each line becomes a card.</p>
+      <div class="lm-hero-actions"><a class="lm-btn lm-btn-ghost" href="/api/education/flashcards-hub">My flashcards →</a></div>
     </div>
-  </div>
+    <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
+  </header>
 
-  <div class="card">
-    <h2 style="margin:0 0 6px;font-size:15px;">⚡ Quick fill from notes</h2>
-    <p class="small" style="margin-top:0;">Paste lines like <b>term: definition</b> (or <b>term - definition</b>) and I'll turn each into a card.</p>
-    <textarea id="paste" rows="4" placeholder="Mitochondria: the powerhouse of the cell&#10;Photosynthesis - how plants make food from sunlight"></textarea>
-    <div class="btns"><button class="btn ghost" onclick="fromText()">Make cards from notes</button></div>
-  </div>
+  <div class="lm-stack">
+    <section class="lm-card">
+      <div class="lm-field"><label for="title">Set title</label><input id="title" placeholder="e.g. Chapter 5 terms"></div>
+      <div class="lm-field hide" id="classField">
+        <label for="classSel">Class</label>
+        <select id="classSel"><option value="">Just for me (private set)</option></select>
+        <div class="lm-help">A class set is shared with everyone in that class. Only classes you teach are listed.</div>
+      </div>
+      <div class="lm-help" id="privateNote">This set is private to you. Sets your teacher shares with a class show up on their own.</div>
+    </section>
 
-  <div class="card">
-    <h2 style="margin:0 0 10px;font-size:15px;">✍️ Cards</h2>
-    <div id="cards"></div>
-    <div class="btns">
-      <button class="btn ghost" onclick="addRow()">+ Add a card</button>
-      <button class="btn" onclick="saveSet()">💾 Save my set</button>
-    </div>
-    <div class="msg" id="msg"></div>
-  </div>
+    <section class="lm-card">
+      <h3>⚡ Quick fill from notes</h3>
+      <p class="lm-help lm-mb-sm">Paste lines like <b>term: definition</b> (or <b>term - definition</b>) and each line becomes a card.</p>
+      <div class="lm-field"><textarea id="paste" rows="4" placeholder="Mitochondria: the powerhouse of the cell&#10;Photosynthesis - how plants make food from sunlight"></textarea></div>
+      <button type="button" class="lm-btn lm-btn-ghost" onclick="fromText()">Make cards from notes</button>
+    </section>
 
-  <div class="card">
-    <h2 style="margin:0 0 6px;font-size:15px;">🤖 Auto-build from my class</h2>
-    <p class="small" style="margin-top:0;">Pick a class above, and your monster makes a study set from that class's textbook &amp; lecture notes.</p>
-    <div class="btns"><button class="btn" onclick="aiGenerate()" id="aiBtn">Build a set from my class</button></div>
-    <div class="msg" id="aiMsg"></div>
+    <section class="lm-card">
+      <h3 class="lm-mb-sm">✍️ Cards</h3>
+      <div id="cards"></div>
+      <div class="lm-row is-wrap lm-mt-md">
+        <button type="button" class="lm-btn lm-btn-ghost" onclick="addRow()">＋ Add a card</button>
+        <button type="button" class="lm-btn lm-btn-primary" onclick="saveSet()">💾 Save my set</button>
+      </div>
+      <div class="lm-status lm-mt-md" id="msg" role="status"></div>
+    </section>
+
+    <section class="lm-card hide" id="aiCard">
+      <h3>🤖 Auto-build from my class</h3>
+      <p class="lm-help lm-mb-sm">Pick one of your classes above, and your monster makes a study set from that class's textbook and lecture notes.</p>
+      <button type="button" class="lm-btn lm-btn-soft" onclick="aiGenerate()" id="aiBtn">Build a set from my class</button>
+      <div class="lm-status lm-mt-md" id="aiMsg" role="status"></div>
+    </section>
   </div>
-</div>
+</main>
+
+<script src="/api/education/mascot.js?v=4"></script>
 <script>
-function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
-async function loadClasses(){
-  try{ var r=await fetch('/api/education/classes'); if(!r.ok)return; var cs=(await r.json()).classes||[];
-    var sel=document.getElementById('classSel');
-    cs.forEach(function(c){ var o=document.createElement('option'); o.value=c.class_id; o.textContent=c.name+(c.subject?(' · '+c.subject):''); sel.appendChild(o); });
-  }catch(e){}
+var esc = window.LM.esc;
+var me = null;
+function isTeacher() { return !!me && (me.role === 'teacher' || me.role === 'admin'); }
+function status(id, text, isError) { var el = document.getElementById(id); el.textContent = text || ''; el.classList.toggle('is-error', !!isError); }
+
+/** Teachers and admins pick a class they may write to (the store's rule); everyone else builds a private set. */
+async function loadClasses() {
+  if (!isTeacher()) return;
+  var mine = [];
+  try {
+    var r = await fetch('/api/education/classes');
+    if (r.ok) mine = ((await r.json()).classes || []).filter(function (c) { return me.role === 'admin' || c.teacher_student_id === me.studentId; });
+  } catch (e) { mine = []; }
+  var sel = document.getElementById('classSel');
+  mine.forEach(function (c) { var o = document.createElement('option'); o.value = c.class_id; o.textContent = c.name + (c.subject ? (' · ' + c.subject) : ''); sel.appendChild(o); });
+  document.getElementById('classField').classList.remove('hide');
+  document.getElementById('privateNote').classList.add('hide');
+  if (mine.length) document.getElementById('aiCard').classList.remove('hide');
 }
-function addRow(front,back){
-  var d=document.createElement('div'); d.className='row';
-  d.innerHTML='<input class="f" placeholder="Front (term / question)" value="'+esc(front||'')+'">'
-    +'<input class="b" placeholder="Back (definition / answer)" value="'+esc(back||'')+'">'
-    +'<button class="del" title="Remove">✕</button>';
-  d.querySelector('.del').onclick=function(){ d.remove(); };
+function addRow(front, back) {
+  var d = document.createElement('div'); d.className = 'card-row';
+  d.innerHTML = '<input class="lm-input f" placeholder="Front (term / question)" aria-label="Front" value="' + esc(front || '') + '">' +
+    '<input class="lm-input b" placeholder="Back (definition / answer)" aria-label="Back" value="' + esc(back || '') + '">' +
+    '<button type="button" class="lm-btn lm-btn-ghost lm-btn-icon card-row-del" title="Remove" aria-label="Remove card">✕</button>';
+  d.querySelector('.card-row-del').onclick = function () { d.remove(); };
   document.getElementById('cards').appendChild(d);
 }
-function fromText(){
-  var lines=document.getElementById('paste').value.split('\n');
-  var n=0;
-  lines.forEach(function(ln){ ln=ln.trim(); if(!ln)return;
-    var m=ln.split(/\s*[:\-–]\s+/); if(m.length>=2){ addRow(m[0], m.slice(1).join(' - ')); n++; } });
-  document.getElementById('paste').value='';
-  document.getElementById('msg').textContent = n? ('Added '+n+' card'+(n>1?'s':'')+' — edit or save.') : 'Use "term: definition" on each line.';
+function fromText() {
+  var lines = document.getElementById('paste').value.split('\n');
+  var n = 0;
+  lines.forEach(function (ln) {
+    ln = ln.trim(); if (!ln) return;
+    var m = ln.split(/\s*[:\-–]\s+/); if (m.length >= 2) { addRow(m[0], m.slice(1).join(' - ')); n++; }
+  });
+  document.getElementById('paste').value = '';
+  status('msg', n ? ('Added ' + n + ' card' + (n > 1 ? 's' : '') + ' — edit or save.') : 'Use "term: definition" on each line.', !n);
 }
-function collect(){
-  var rows=document.querySelectorAll('#cards .row'), cards=[];
-  rows.forEach(function(r){ var f=r.querySelector('.f').value.trim(), b=r.querySelector('.b').value.trim(); if(f&&b) cards.push({front:f,back:b}); });
+function collect() {
+  var rows = document.querySelectorAll('#cards .card-row'), cards = [];
+  rows.forEach(function (r) { var f = r.querySelector('.f').value.trim(), b = r.querySelector('.b').value.trim(); if (f && b) cards.push({ front: f, back: b }); });
   return cards;
 }
-async function saveSet(){
-  var title=document.getElementById('title').value.trim()||'My cards';
-  var classId=document.getElementById('classSel').value||null;
-  var cards=collect();
-  if(!cards.length){ document.getElementById('msg').textContent='Add at least one card (front and back).'; return; }
-  document.getElementById('msg').textContent='Saving…';
-  try{
-    var r=await fetch('/api/education/flashcards/sets',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({classId:classId,title:title,sourceType:'manual',cards:cards})});
-    var d=await r.json();
-    if(!r.ok) throw new Error(d.error||'save failed');
-    document.getElementById('msg').textContent='Saved “'+title+'” ('+cards.length+' cards)! Study it in Flashcards. 🎉';
-    document.getElementById('cards').innerHTML=''; addRow();
-  }catch(e){ document.getElementById('msg').textContent='Could not save: '+e.message; }
+async function saveSet() {
+  var title = document.getElementById('title').value.trim() || 'My cards';
+  var classId = document.getElementById('classSel').value || null;
+  var cards = collect();
+  if (!cards.length) { status('msg', 'Add at least one card (front and back).', true); return; }
+  status('msg', 'Saving…');
+  try {
+    var r = await fetch('/api/education/flashcards/sets', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ classId: classId, title: title, sourceType: 'manual', cards: cards }) });
+    var d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'save failed');
+    var msg = document.getElementById('msg');
+    msg.classList.remove('is-error');
+    msg.innerHTML = 'Saved “' + esc(title) + '” (' + cards.length + (cards.length === 1 ? ' card' : ' cards') + '). 🎉 <a href="/api/education/flashcards-hub">Study it in My flashcards →</a>';
+    window.LM.toast('Saved “' + title + '”');
+    document.getElementById('cards').innerHTML = ''; addRow();
+  } catch (e) { status('msg', 'Could not save: ' + e.message, true); }
 }
-async function aiGenerate(){
-  var classId=document.getElementById('classSel').value;
-  if(!classId){ document.getElementById('aiMsg').textContent='Pick a class first.'; return; }
-  var btn=document.getElementById('aiBtn'); btn.disabled=true;
-  document.getElementById('aiMsg').textContent='Your monster is reading your class notes…';
-  try{
-    var r=await fetch('/api/education/flashcards/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({classId:classId})});
-    var d=await r.json();
-    if(!r.ok) throw new Error(d.error||d.reason||'generation unavailable');
-    document.getElementById('aiMsg').textContent='Made a set from your class! Find it in Flashcards. 🎉';
-  }catch(e){ document.getElementById('aiMsg').textContent='Could not build: '+e.message; }
-  btn.disabled=false;
+async function aiGenerate() {
+  var classId = document.getElementById('classSel').value;
+  if (!classId) { status('aiMsg', 'Pick one of your classes first.', true); return; }
+  var btn = document.getElementById('aiBtn'); btn.disabled = true;
+  status('aiMsg', 'Your monster is reading your class notes…');
+  try {
+    var r = await fetch('/api/education/flashcards/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ classId: classId }) });
+    var d = await r.json();
+    if (!r.ok) throw new Error(d.error || d.reason || 'generation unavailable');
+    var el = document.getElementById('aiMsg');
+    el.classList.remove('is-error');
+    el.innerHTML = 'Made “' + esc(d.title || 'a set') + '” from your class! 🎉 <a href="/api/education/flashcards-hub">Find it in My flashcards →</a>';
+    window.LM.toast('Built a set from your class');
+  } catch (e) { status('aiMsg', 'Could not build: ' + e.message, true); }
+  btn.disabled = false;
 }
-loadClasses(); addRow(); addRow();
+
+addRow(); addRow();
+(async function () { me = await window.LM.me(); await loadClasses(); })();
 </script>
 </body>
 </html>

@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Hold this package's prerequisite declaration to what its code actually does: the tiers must read through the store's OWN catalog reader, every kernel skill the code imports must be declared in uses:, the tiered block must name its compatibility floor, the connector allow-list must stay declared-and-empty, and no source file may reach outside the package. A catalog --check cannot stand in for any of this - marketplace.json is GENERATED from this manifest, so a declaration that goes missing disappears from both sides at once and the mirror stays "current".
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | Record the core owner-bound artifact relay as an intentionally uncontracted framework security seam used by the class-material receiver
  * -----------------------------------------------------------------------------
  *
  * Dependency-free prerequisite contract for the Little Monsters store package.
@@ -68,6 +69,9 @@ const UNCONTRACTED_FRAMEWORK_SPECIFIERS = new Set([
   '@/features/agent-management',
   '@/features/swarm-orchestration/services/prompt-containment',
   '@/entities/ticket/internal-ticket',
+  // The artifact relay is a core owner-bound security seam, not a provider, tool, or
+  // package dependency. The app is allowed to consume it without declaring a connector.
+  '@/shared/artifact-exchange',
 ]);
 
 /** Source trees whose imports decide what this package needs at runtime. */
@@ -171,14 +175,17 @@ test('the connector allow-list stays DECLARED and empty in both tiers', async ()
   assert.deepEqual(dependencies.connectors, [], 'the mirrored allow-list must be an empty list, never absent');
 });
 
-test('no app or tool prerequisite is declared, and nothing in the package contradicts that', async () => {
+test('the complete learning bundle includes Office and Circuit Lab while source and tools stay package-local', async () => {
   const { readManifestDependencies } = await readerPromise;
   const { dependencies } = readManifestDependencies(MANIFEST, 'little-monsters/oshal-app.yaml');
+  assert.deepEqual(dependencies.required.apps, ['presentations', 'circuit-lab'], 'complete learning workflows include the full Office suite and Circuit Lab');
+  assert.deepEqual(dependencies.optional.apps, [], 'component access is included without selections');
+  assert.ok(declaredSkills().includes('experience-roles'), 'native application composites require their core compatibility floor');
   for (const tier of ['required', 'optional']) {
-    assert.deepEqual(dependencies[tier].apps, [], `${tier}.apps must stay empty while nothing here reads another package`);
     assert.deepEqual(dependencies[tier].tools, [], `${tier}.tools must stay empty while nothing here uses a registry tool`);
   }
-  // The claim above is only true while the code stays inside the package and the framework aliases.
+  // Bundle requirements do not move the native lecture player or export out of this package.
+  // Its source must still use only package-owned files and declared framework skills.
   const escapes = [];
   const unknown = [];
   for (const file of sourceFiles()) {
@@ -200,7 +207,7 @@ test('no app or tool prerequisite is declared, and nothing in the package contra
     'a new @/ framework import must be recorded: map it to its kernel skill and declare that skill, or record why no skill contracts it');
 });
 
-test('no surface or route calls another installed package\'s mount', () => {
+test('native surfaces stay independent of the bundled applications and use only their declared kernel engines', () => {
   const catalog = JSON.parse(fs.readFileSync(path.join(STORE_ROOT, 'marketplace.json'), 'utf8'));
   const others = catalog.apps.map((app) => app.name).filter((name) => name !== 'little-monsters');
   const files = [...sourceFiles()];

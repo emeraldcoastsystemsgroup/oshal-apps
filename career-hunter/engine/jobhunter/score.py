@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                    | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Career worker rail: a CareerWorkerUnavailable from the model chokepoint ends the scoring run instead of being counted as one more skipped posting, so a lost Career worker fails the run visibly and the nightly scoring cursor does not advance.
+
 """The matching algorithm: for every relevant posting, fetch the FULL job description,
 then have the LLM score it against the user's actual resume — fit 0-100, why it fits, what
 he's missing, and a salary estimate. Runs in parallel so it covers the whole relevant
@@ -246,6 +252,10 @@ def _score_one(row, prof_summary):
     try:
         data = enrich.parse_json(enrich.complete(SYSTEM, prompt, max_tokens=700,
                                                  model=config.ANTHROPIC_SCORE_MODEL))
+    except enrich.CareerWorkerUnavailable:
+        # The Career worker could not score: end the run so it fails visibly and the scoring
+        # cursor does not advance. Swallowing it would record the posting as merely unscored.
+        raise
     except Exception:
         data = None
     if not data or "fit_score" not in data:

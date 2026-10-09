@@ -1,0 +1,117 @@
+{
+  "medium": {
+    "id": "air",
+    "label": "Air (ISA sea level)",
+    "gravityMps2": [
+      0,
+      0,
+      -9.81
+    ],
+    "densityKgM3": 1.225,
+    "resolution": "constant-at-reference-station"
+  },
+  "hull": {
+    "id": "explorer-hull",
+    "label": "Autonomous explorer — hull as one solid",
+    "envelopeM": 0.3,
+    "bodyDiameterM": 0.28,
+    "wingSpanDeployedM": 0.296,
+    "tetherM": 2,
+    "floatDisplacementL": 24.1,
+    "allUpMassKg": 24.7,
+    "inertia": {
+      "massKg": 24.7,
+      "ixx": 0.3705,
+      "iyy": 0.3705,
+      "izz": 0.3705,
+      "halfM": 0.15
+    }
+  },
+  "fall": {
+    "gravityMps2": [
+      0,
+      0,
+      -9.81
+    ],
+    "gMagnitudeMps2": 9.81,
+    "dropHeightM": 2,
+    "fallTimeS": 0.638550856814101,
+    "impactSpeedMs": 6.26418390534633,
+    "trace": [
+      {
+        "tS": 0,
+        "heightM": 2
+      },
+      {
+        "tS": 0.0798,
+        "heightM": 1.9688
+      },
+      {
+        "tS": 0.1596,
+        "heightM": 1.875
+      },
+      {
+        "tS": 0.2395,
+        "heightM": 1.7188
+      },
+      {
+        "tS": 0.3193,
+        "heightM": 1.5
+      },
+      {
+        "tS": 0.3991,
+        "heightM": 1.2188
+      },
+      {
+        "tS": 0.4789,
+        "heightM": 0.875
+      },
+      {
+        "tS": 0.5587,
+        "heightM": 0.4687
+      },
+      {
+        "tS": 0.6386,
+        "heightM": 0
+      }
+    ],
+    "basis": "Analytic: the scene the plant loads carries this medium's gravity and NOTHING else — no <option> density, no viscosity, no buoyancy, no added mass — so the only body force on the hull is m*g and the fall is h - |g|t^2/2 until contact. |g| = 9.81 m/s^2 comes from the Air (ISA sea level) row, and the plant reads the same vector back out of the model it is handed."
+  },
+  "mjcf": "<mujoco model=\"explorer-hull-air\">\n  <!-- ADR-160 S1. The autonomous explorer's hull as ONE SOLID: the published 300 mm envelope and the\n       published 24.7 kg all-up mass, uniform box inertia. Simulation only; nothing was built or wetted.\n       MEDIUM: air — Air (ISA sea level). rho = 1.225 kg/m^3, mu = 0.0000178938 Pa*s, nu = 0.000014607183673469388 m^2/s.\n       The plant takes ONLY the gravity vector from the medium. No density and no viscosity are emitted here, so\n       MuJoCo's own fluid model does not run: this scene makes no fluid claim of any kind (ADR-160 D7). -->\n  <compiler angle=\"radian\" autolimits=\"true\"/>\n  <option timestep=\"0.002\" gravity=\"0 0 -9.81\" integrator=\"implicitfast\"/>\n  <default>\n    <default class=\"scene\"><geom contype=\"1\" conaffinity=\"1\" friction=\"0.8 0.005 0.0001\" rgba=\"0.6 0.6 0.65 1\"/></default>\n    <default class=\"hull\"><geom contype=\"1\" conaffinity=\"1\" friction=\"0.6 0.005 0.0001\" rgba=\"0.35 0.6 0.9 1\"/></default>\n  </default>\n  <worldbody>\n    <geom name=\"floor\" class=\"scene\" type=\"plane\" pos=\"0 0 0\" size=\"5 5 0.1\"/>\n    <body name=\"explorer-hull\" pos=\"0 0 2.15\" quat=\"1 0 0 0\">\n      <freejoint name=\"explorer-hull-free\"/>\n      <inertial pos=\"0 0 0\" mass=\"24.7\" diaginertia=\"0.3705 0.3705 0.3705\"/>\n      <geom name=\"explorer-hull-solid\" class=\"hull\" type=\"box\" pos=\"0 0 0\" size=\"0.15 0.15 0.15\"/>\n    </body>\n  </worldbody>\n  <sensor>\n    <framepos name=\"hull-pos\" objtype=\"body\" objname=\"explorer-hull\"/>\n    <framelinvel name=\"hull-vel\" objtype=\"body\" objname=\"explorer-hull\"/>\n  </sensor>\n</mujoco>\n",
+  "flotation": {
+    "error": "medium_property_unavailable",
+    "refusal": "medium_property_unavailable: freeSurface",
+    "medium": "air",
+    "property": "freeSurface",
+    "model": null,
+    "because": "Air (ISA sea level) carries no free surface in this package — nothing here models one. A model that needs an interface to work against gets this refusal, not a zero: undefined and zero are different answers"
+  },
+  "notModelled": [
+    "free-surface hydrodynamics — no engine in this package has a free surface",
+    "added mass and radiation damping",
+    "cavitation",
+    "aerodynamics: lift and drag polars stay in each lab's own models, never in this plant",
+    "the eleven-part parts model and its displacement budget (ADR-160 S3)"
+  ],
+  "schema": "oshal.run-result/1",
+  "engine": {
+    "package": "embodied",
+    "packageVersion": "0.16.3",
+    "routesBuildHash": "2cdfa4779916f0c317e6362db25b3e12114c6304bf879bf5205177e1ce121b9c",
+    "plant": {
+      "kind": "analytic",
+      "mujocoEngineTreeBuildHash": "d552dfedceed332ed08ec13e1cf74c4cd54bc4dfa481930fe7628ed970e030c4"
+    }
+  },
+  "provenance": {
+    "source": "docs/research/autonomous-explorer-design-study.md (2026-08-02), \"The explorer\" — a 300 mm envelope vehicle, modelled completely. Simulation only: nothing was built, wetted or tested.",
+    "envelopeM": "The study's headline envelope, 300 mm. It bounds the two dimensions the study tabulates — the 280 mm body diameter and the 296 mm deployed wing span. The 2.0 m tether is not inside it and is not part of this solid.",
+    "bodyDiameterM": "Published: body diameter 280 mm.",
+    "wingSpanDeployedM": "Published: wing span deployed 296 mm.",
+    "tetherM": "Published: tether 2.0 m.",
+    "floatDisplacementL": "Published: float displacement 24.1 L.",
+    "allUpMassKg": "READ, not quoted. The study publishes one mass for the vehicle — \"24.1 L -> 24.7 kg buoyancy\" — and no separate dry-mass breakdown. 24.7 kg is the mass the float is sized to support, so it is the all-up mass at flotation; ADR-160 D7 puts it plainly: \"Displacement in water and mass in air are the same numbers read two ways\". The arithmetic closes on the shared seawater row: 0.0241 m^3 * 1025 kg/m^3 = 24.7025 kg.",
+    "shape": "A uniform box of the published envelope. The study's eleven-part parts model is NOT used and is explicitly out of this slice (ADR-160 S1/S3), so mass is distributed uniformly and the inertia below is that of a uniform box — an estimate, and it travels as one."
+  },
+  "simulated": true
+}

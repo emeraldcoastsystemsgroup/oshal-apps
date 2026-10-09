@@ -46,7 +46,11 @@ previous lazy status sweep; interrupted rows are repaired at package startup.
 The platform `codex`, `openrouter` and configured `comfyui` image providers retain their
 normal configuration requirements. The subject-only `codex-cli` operator rail cannot carry
 these app rights and is refused with `portrait_cli_authorization_unavailable` before a row
-is queued. Email is refused with `portrait_mail_identity_unavailable` before any connection
+is queued. Since 1.15.4 the operator-only `antigravity-cli` rail is accepted when the kernel
+resolves it and it reports itself available for the caller, which today is only the deployment
+operator in demo mode; Portrait's own create permission is still checked first. Anyone else is
+refused with `portrait_provider_unavailable` before a row is queued, and no other provider is
+tried. Email is refused with `portrait_mail_identity_unavailable` before any connection
 lookup because the existing mailbox broker has no verified issuer ownership argument.
 These are capability failures, separate from a missing role (403). Downloading a portrait
 and using one's own mail application remains available to an exporter. No connector storage

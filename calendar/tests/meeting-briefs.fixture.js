@@ -14,6 +14,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Compose the registered briefing runtime, an owner-scoped synthetic store and a loopback surface read around the compiled meeting-brief modules.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Serve core's own ADR-100 consent-gate statement (ambient_speaker_assignments UNION the latest ambient_speaker_consents row per profile) with its real semantics, and record the exact SQL text of every package read and write. The consent rule and the columns a query selects are both now boundaries a test can assert on rather than infer: a suite can prove that a declined voice is not admitted and that the recorded words are never selected at all.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Reuse the fixture logger for package-level optional-service diagnostics.
  */
 'use strict';
 const assert = require('node:assert/strict');
@@ -78,6 +79,7 @@ function loadPackage(file, store = taskStore) {
   const subject = new Module(filename, module);
   subject.filename = filename;
   subject.require = name => name === '@/app/routes/jarvis-task-store' ? store
+    : name === '@/shared/logger' ? { createChildLogger: () => ({ warn: noop, info: noop, error: noop }) }
     : name.startsWith('@/') ? loadCore(resolveSource(name.slice(2)))
       : name.startsWith('.') ? loadPackage(`${path.basename(name)}${name.endsWith('.js') ? '' : '.js'}`, store)
         : coreRequire(name);

@@ -7,6 +7,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add an explicit opt-in live PostgreSQL proof for LoRA/Vids owner isolation, operator visibility, migration idempotence, and guaranteed database/role cleanup.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Add a separate pre-owner legacy schema and prove the 100-only backfill, constraint replacement, FORCE RLS, isolation, and repeat-upgrade path.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Make the proof safe for required CI by documenting its ephemeral-service invocation while retaining explicit confirmation and guaranteed unique-object cleanup.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Cover the hosted validation thumbnails (migration 101). They are image BYTES sitting beside the score, so "another user cannot fetch it" has to hold in the database and not only in the route predicate: two owners store a thumbnail for the same subject, neither can read, change or delete the other's, the operator sees both, the expiry predicate the read carries hides a lapsed row, and deleting the character takes its thumbnails with it.
  */
 
 import { randomBytes } from 'node:crypto';
@@ -166,6 +167,8 @@ function migrationSql(storeRoot) {
     join(storeRoot, 'lora', 'migrations', '058-lora-studio.sql'),
     join(storeRoot, 'lora', 'migrations', '100-lora-owner-rls.sql'),
     join(storeRoot, 'lora', 'migrations', '100-lora-owner-rls.sql'),
+    join(storeRoot, 'lora', 'migrations', '101-lora-cell-images.sql'),
+    join(storeRoot, 'lora', 'migrations', '101-lora-cell-images.sql'),
     join(storeRoot, 'vids', 'migrations', '059-vids-platform.sql'),
     join(storeRoot, 'vids', 'migrations', '100-vids-owner-rls.sql'),
     join(storeRoot, 'vids', 'migrations', '100-vids-owner-rls.sql'),
@@ -261,7 +264,7 @@ export function ownerIsolationProofSql(role) {
   return `
 GRANT USAGE ON SCHEMA public TO ${role};
 GRANT SELECT, INSERT, UPDATE, DELETE ON
-  oshal_lora_characters, oshal_lora_models, oshal_lora_scores, vids_jobs
+  oshal_lora_characters, oshal_lora_models, oshal_lora_scores, oshal_lora_cell_images, vids_jobs
 TO ${role};
 
 SET ROLE ${role};
@@ -277,6 +280,15 @@ INSERT INTO oshal_lora_scores (id, character_id, version, overall)
 VALUES ('30000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 1, 0.9);
 INSERT INTO vids_jobs (job_id, user_sub, idea)
 VALUES ('40000000-0000-4000-8000-000000000001', 'sec06-owner-a', 'owner a clip');
+-- One live thumbnail and one already-lapsed thumbnail, so the expiry predicate the read carries is
+-- exercised against a row that really is past its expiry rather than against an absent row.
+INSERT INTO oshal_lora_cell_images
+  (id, character_id, version, cell_index, content_type, byte_size, image, expires_at)
+VALUES
+  ('50000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 1, 0,
+   'image/png', 8, '\\x89504e470d0a1a0a'::bytea, NOW() + INTERVAL '30 days'),
+  ('50000000-0000-4000-8000-00000000000e', '10000000-0000-4000-8000-000000000001', 1, 1,
+   'image/png', 8, '\\x89504e470d0a1a0a'::bytea, NOW() - INTERVAL '1 minute');
 RESET ROLE;
 
 SET ROLE ${role};
@@ -292,6 +304,11 @@ INSERT INTO oshal_lora_scores (id, character_id, version, overall)
 VALUES ('30000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000002', 1, 0.8);
 INSERT INTO vids_jobs (job_id, user_sub, idea)
 VALUES ('40000000-0000-4000-8000-000000000002', 'sec06-owner-b', 'owner b clip');
+INSERT INTO oshal_lora_cell_images
+  (id, character_id, version, cell_index, content_type, byte_size, image, expires_at)
+VALUES
+  ('50000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000002', 1, 0,
+   'image/png', 8, '\\x89504e470d0a1a0a'::bytea, NOW() + INTERVAL '30 days');
 RESET ROLE;
 
 SET ROLE ${role};
@@ -318,6 +335,27 @@ BEGIN
   UPDATE vids_jobs SET status = 'failed' WHERE job_id = '40000000-0000-4000-8000-000000000002';
   GET DIAGNOSTICS affected = ROW_COUNT;
   IF affected <> 0 THEN RAISE EXCEPTION 'owner A changed owner B vids job'; END IF;
+  IF (SELECT count(*) FROM oshal_lora_cell_images) <> 2 THEN RAISE EXCEPTION 'owner A cell image isolation failed'; END IF;
+  -- The predicate readCellImage issues, against the live row and against the lapsed one.
+  IF (SELECT count(*) FROM oshal_lora_cell_images
+       WHERE character_id = '10000000-0000-4000-8000-000000000001' AND version = 1 AND cell_index = 0
+         AND expires_at > NOW()) <> 1 THEN
+    RAISE EXCEPTION 'owner A live cell image is not readable';
+  END IF;
+  IF (SELECT count(*) FROM oshal_lora_cell_images
+       WHERE character_id = '10000000-0000-4000-8000-000000000001' AND version = 1 AND cell_index = 1
+         AND expires_at > NOW()) <> 0 THEN
+    RAISE EXCEPTION 'an expired cell image is still readable';
+  END IF;
+  IF (SELECT count(*) FROM oshal_lora_cell_images WHERE id = '50000000-0000-4000-8000-000000000002') <> 0 THEN
+    RAISE EXCEPTION 'owner A can see owner B cell image';
+  END IF;
+  UPDATE oshal_lora_cell_images SET byte_size = 0 WHERE id = '50000000-0000-4000-8000-000000000002';
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected <> 0 THEN RAISE EXCEPTION 'owner A changed owner B cell image'; END IF;
+  DELETE FROM oshal_lora_cell_images WHERE id = '50000000-0000-4000-8000-000000000002';
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected <> 0 THEN RAISE EXCEPTION 'owner A deleted owner B cell image'; END IF;
 END
 $owner_a$;
 RESET ROLE;
@@ -346,6 +384,13 @@ BEGIN
   UPDATE vids_jobs SET status = 'failed' WHERE job_id = '40000000-0000-4000-8000-000000000001';
   GET DIAGNOSTICS affected = ROW_COUNT;
   IF affected <> 0 THEN RAISE EXCEPTION 'owner B changed owner A vids job'; END IF;
+  IF (SELECT count(*) FROM oshal_lora_cell_images) <> 1 THEN RAISE EXCEPTION 'owner B cell image isolation failed'; END IF;
+  IF (SELECT count(*) FROM oshal_lora_cell_images WHERE id = '50000000-0000-4000-8000-000000000001') <> 0 THEN
+    RAISE EXCEPTION 'owner B can see owner A cell image';
+  END IF;
+  DELETE FROM oshal_lora_cell_images WHERE id = '50000000-0000-4000-8000-000000000001';
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected <> 0 THEN RAISE EXCEPTION 'owner B deleted owner A cell image'; END IF;
 END
 $owner_b$;
 RESET ROLE;
@@ -361,8 +406,33 @@ BEGIN
   IF (SELECT count(*) FROM oshal_lora_models) <> 2 THEN RAISE EXCEPTION 'operator model visibility failed'; END IF;
   IF (SELECT count(*) FROM oshal_lora_scores) <> 2 THEN RAISE EXCEPTION 'operator score visibility failed'; END IF;
   IF (SELECT count(*) FROM vids_jobs) <> 2 THEN RAISE EXCEPTION 'operator vids visibility failed'; END IF;
+  IF (SELECT count(*) FROM oshal_lora_cell_images) <> 3 THEN RAISE EXCEPTION 'operator cell image visibility failed'; END IF;
 END
 $operator$;
+RESET ROLE;
+
+-- A deleted run must lose its bytes, not merely its row. Owner A deletes its own character and the
+-- thumbnails go with it through the foreign key, which the operator then confirms is really gone.
+SET ROLE ${role};
+SET oshal.current_sub = 'sec06-owner-a';
+SET oshal.is_operator = 'off';
+DELETE FROM oshal_lora_characters WHERE id = '10000000-0000-4000-8000-000000000001';
+RESET ROLE;
+
+SET ROLE ${role};
+SET oshal.current_sub = 'sec06-operator';
+SET oshal.is_operator = 'on';
+DO $cascade$
+BEGIN
+  IF (SELECT count(*) FROM oshal_lora_cell_images
+       WHERE character_id = '10000000-0000-4000-8000-000000000001') <> 0 THEN
+    RAISE EXCEPTION 'deleting a character left its cell images behind';
+  END IF;
+  IF (SELECT count(*) FROM oshal_lora_cell_images) <> 1 THEN
+    RAISE EXCEPTION 'cascade removed the wrong owner cell images';
+  END IF;
+END
+$cascade$;
 RESET ROLE;
 `;
 }

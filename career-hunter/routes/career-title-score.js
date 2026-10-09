@@ -329,7 +329,7 @@ async function runTitlePassForUser(ctx, userSub, opts = {}) {
         return { ran: false, reason: 'already-ran-today' };
     try {
         const inv = buildTitlePassInvocation(profile.titleTerms, TITLE_PASS_LIMIT);
-        const r = await (0, career_engine_dispatch_1.runCareerCliAwait)(ctx.pool, userSub, inv.args, inv.env, { slot: 'score' });
+        const r = await (0, career_engine_dispatch_1.runCareerCliAwait)(ctx.pool, userSub, inv.args, inv.env, { slot: 'score', ownerIssuer: opts.ownerIssuer ?? null });
         if (r.limitReason) {
             logger.info({ userSub, limit: r.limitReason }, 'title pass: skipped - score run in flight or box busy');
             return { ran: false, reason: r.limitReason === 'inflight' ? 'score-in-flight' : 'busy' };

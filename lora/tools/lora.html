@@ -3,6 +3,11 @@
   CHANGE LOG
   2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | Render every database/callback value as
   escaped text, bind actions outside inline JavaScript, and allow only parsed HTTP(S) gallery URLs.
+  2 | maintainer@emeraldcoastsystemsgroup.com | Render only live owner-hosted cell images; an expired or missing thumbnail never falls back to a callback-supplied external URL.
+  3 | maintainer@emeraldcoastsystemsgroup.com | Add bounded console character creation, persisted identity inspection and explicit worker storage preparation without starting training.
+  4 | maintainer@emeraldcoastsystemsgroup.com | Add the owner-bound ADR-139 image destination, named-character dataset import control, and queued/ready receipt view without claiming live GPU delivery.
+  5 | maintainer@emeraldcoastsystemsgroup.com | The family audience view for the Home shell (ADR-164 D6): with ?audience=family the shared kit, loaded right after the theme bootstrap, paints the signed-in account's saved characters in plain words from GET /api/lora/home-summary alone (three counts, the three newest characters with their latest recorded version and score). The full page's own first read, GET /characters, saves the starter character for a new account, and every other studio read needs a character that read picks, so the view makes none of them; it never trains, validates, improves, imports or changes anything. The studio's control wiring and its character-list start now run only when no audience view renders; without the parameter the studio runs unchanged.
+  6 | maintainer@emeraldcoastsystemsgroup.com | GET /characters no longer saves the starter character (a GET is admitted read-only and must not write; the native host refused it, so the list failed to load for every account). An account with no characters now sees an explicit "Add the starter character" action, which calls POST /characters/starter and paints the list it returns; a refusal (a viewer may not create characters) is shown in place. The audience-view note no longer gives the starter as the reason the view skips /characters.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -11,6 +16,110 @@
 <title>LoRA Studio — OSHAL</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the signed-in account's saved
+     characters in plain words, from this package's own GET /api/lora/home-summary (owner-scoped and side-effect free:
+     three counts and the three newest characters with their latest recorded version and score), painted by the shared
+     kit in the family grammar. On open it reads only that summary: never /characters (the studio's own list), never
+     versions, scorecards, cell images or dataset receipts (each needs a character the studio picks), and it never
+     trains, validates, improves, imports or changes anything. Any other request runs
+     the full LoRA Studio below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=lora', KICKER = 'Character studio', NAMELESS = 'Saved character';
+  // The route's three counts (routes/home-summary.js metric ids) with the family view's stat id and plain label.
+  var COUNTS = [['characters', 'characters', 'Saved characters'], ['training-active', 'training', 'Versions waiting or training'], ['training-failed', 'failed', 'Versions that did not finish']];
+  // A version's status as the studio records it (queued | training | trained | scored | failed), in plain words.
+  var STATUS = { queued: 'Waiting to train', training: 'Training now', trained: 'Trained, not scored yet', scored: 'Trained and scored', failed: 'Did not finish' };
+  function call(path) {
+    return fetch('/api/lora' + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (j) {
+        if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
+        if (!j || typeof j !== 'object') throw new Error('not JSON');
+        return j;
+      });
+    });
+  }
+  function refused(e) { return !!e && (e.status === 401 || e.status === 403); }
+  // A status is looked up as an own key only, so a stored 'constructor' stays a word.
+  function own(map, key) { return typeof key === 'string' && Object.prototype.hasOwnProperty.call(map, key) ? map[key] : null; }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  // The route sends each count as digits in a string, or the word 'Unavailable' when that source failed.
+  function count(body, id) {
+    var list = Array.isArray(body.metrics) ? body.metrics : Array.isArray(body.tiles) ? body.tiles : [];
+    var m = list.filter(function (x) { return x && x.id === id; })[0];
+    return m && typeof m.value === 'string' && /^\d+$/.test(m.value.trim()) ? Number(m.value) : null;
+  }
+  function isPartial(body) { return body.partial === true || COUNTS.some(function (c) { return count(body, c[0]) === null; }); }
+  // A character item carries the route's prepare-document offer; the partial, no-work and bounds notes carry none.
+  function isCharacter(item) { return !!item && Array.isArray(item.actions) && item.actions.length > 0; }
+  function name(item) { return String(item.text || '').trim() || NAMELESS; }
+  // Its detail is 'No saved model version' or 'Latest version <n> · <status> · registered <ISO instant, or the route's
+  // 'date unavailable'>'. A detail in neither shape names no version state, so the character then shows by name alone.
+  function unversioned(item) { return item.detail === 'No saved model version'; }
+  function version(item) {
+    var m = /^Latest version (\d+) · ([a-z]+) · registered (.*)$/.exec(String(item.detail || ''));
+    return m ? { number: Number(m[1]), status: m[2], registered: /^\d{4}-\d{2}-\d{2}T/.test(m[3]) ? m[3] : null } : null;
+  }
+  function statusWords(v) { return own(STATUS, v.status) || 'Saved'; }
+  // The offer's notes carry the route's sentence 'Latest-version evaluation: <score> on a 0-1 scale at <ISO>', or '... not recorded.'
+  function score(item) {
+    var c = item.actions[0] && item.actions[0].context, notes = c && typeof c.notes === 'string' ? c.notes : '';
+    var m = /Latest-version evaluation: (\d+(?:\.\d+)?) on a 0/.exec(notes);
+    return m && isFinite(Number(m[1])) ? Number(m[1]).toFixed(2) : null;
+  }
+  function tile(item) {
+    var v = version(item), s = v ? score(item) : null;
+    return { icon: '🧿', title: name(item), text: v ? 'Version ' + v.number + ' · ' + statusWords(v) : unversioned(item) ? 'No trained version yet' : null,
+      meta: v && v.registered ? 'version recorded ' + A.when(v.registered) : null, badge: s ? 'Score ' + s : null };
+  }
+  function title(body, chars, partial) {
+    var total = count(body, 'characters'), training = count(body, 'training-active');
+    if (partial) return 'Some saved characters cannot be checked';
+    if (training > 0) return plural(training, 'version', 'versions') + ' waiting or training';
+    if (total > 0) return plural(total, 'character', 'characters') + ' saved';
+    return chars.length ? 'Your saved characters' : 'No characters saved yet';
+  }
+  function lede(chars, partial) {
+    if (!chars.length) return partial ? 'Your saved characters could not be checked right now.' : 'LoRA Studio teaches the computer to draw one character the same way every time. Characters you save there show up here.';
+    var v = version(chars[0]), s = v ? score(chars[0]) : null;
+    var state = v ? 'version ' + v.number + ' ' + statusWords(v).toLowerCase() : unversioned(chars[0]) ? 'no trained version yet' : null;
+    return 'Newest: ' + [name(chars[0]), state, s ? 'score ' + s + ' of 1' : null].filter(Boolean).join(', ') + '.';
+  }
+  function stats(body, chars) {
+    var v = chars.length ? version(chars[0]) : null, s = v ? score(chars[0]) : null;
+    return COUNTS.map(function (c) {
+      var n = count(body, c[0]);
+      return { id: c[1], label: c[2], value: n === null ? '—' : n, tone: n === null || (c[1] === 'failed' && n > 0) ? 'warn' : null, hint: n === null ? 'Could not check' : null };
+    }).concat([{ id: 'score', label: 'Newest score', value: s || '—', hint: chars.length ? (s ? name(chars[0]) : 'Not scored yet') : null }]);
+  }
+  function section(chars, partial) {
+    return { kind: 'tiles', id: 'characters', title: 'Your newest characters', items: chars.map(tile),
+      empty: partial ? 'Some saved characters could not be checked.' : 'No characters yet. Characters you save in LoRA Studio show up here.',
+      note: chars.length ? 'A score runs from 0 to 1: closer to 1 means the pictures look more like the character. Recorded is when a version was added, not when its training finished. Training starts only in LoRA Studio.' : null };
+  }
+  function model(body) {
+    var chars = (Array.isArray(body.items) ? body.items : []).filter(isCharacter), partial = isPartial(body);
+    return { kicker: KICKER, title: title(body, chars, partial), lede: lede(chars, partial),
+      actions: [{ label: 'Open LoRA Studio', primary: true, onClick: function () { A.open(FULL); } }],
+      stats: stats(body, chars), sections: [section(chars, partial)] };
+  }
+  function refusal(e) {
+    return { kicker: KICKER, title: e.status === 401 ? 'Sign in to see your characters' : 'This account cannot see saved characters',
+      lede: e.status === 401 ? 'LoRA Studio shows the characters of whoever is signed in, and this session is not signed in.' : 'The LoRA Studio routes refused this account (HTTP 403): seeing saved characters needs permission to read them.' };
+  }
+  function family() {
+    return call('/home-summary').then(model, function (e) {
+      if (refused(e)) return refusal(e);
+      throw new Error('LoRA Studio could not read your saved characters' + (e && e.status ? ' (HTTP ' + e.status + ')' : '') + '.');
+    });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'lora', escapeLabel: 'Open LoRA Studio in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
 <style>
   /* Keep the surface's short alias names, but DERIVE each from a framework theme token so all eleven
      themes work — not just the dark one whose hex this used to hardcode. Chrome aliases map straight
@@ -62,6 +171,15 @@
   .result.warn { background:rgba(255,180,80,.1); border:1px solid var(--status-warning,#ffb15a); color:var(--status-warning,#ffd29a); display:block; }
   .empty { background:var(--panel); border:1px dashed var(--line); border-radius:12px; padding:22px; text-align:center; color:var(--muted); font-size:13px; }
   .spin { color:var(--muted); font-size:13px; }
+  .character-editor { margin-bottom:18px; border:1px solid var(--line); border-radius:10px; padding:12px; background:var(--panel); }
+  .character-editor summary { cursor:pointer; font-size:14px; font-weight:600; }
+  .character-editor fieldset { margin:12px 0 0; border:0; padding:0; display:grid; gap:10px; }
+  .character-editor label { display:grid; gap:4px; font-size:12px; }
+  .character-editor input,.character-editor textarea { width:100%; padding:8px; background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:6px; font:inherit; }
+  .character-editor textarea { min-height:65px; resize:vertical; }
+  .character-config { margin-top:12px; font-size:12px; overflow-wrap:anywhere; }
+  .character-config dt { margin-top:8px; color:var(--muted); }
+  .character-config dd { margin:3px 0; white-space:pre-wrap; }
   ::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-track{background:transparent}
   ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
   html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
@@ -77,9 +195,31 @@
   <div class="split">
     <div class="pane left">
       <div class="lbl">Characters</div>
+      <details class="character-editor" id="characterEditor">
+        <summary>Create a character</summary>
+        <p class="hint">Save the identity here, then prepare its own curated dataset on the GPU worker. Saving starts no training and creates no schedule.</p>
+        <form id="characterForm">
+          <fieldset id="characterFields">
+            <label>Subject slug<input name="subject" maxlength="64" required autocomplete="off" /></label>
+            <label>Display name<input name="displayName" maxlength="2048" autocomplete="off" /></label>
+            <label>Trigger word<input name="triggerWord" maxlength="2048" autocomplete="off" /></label>
+            <label>Hero image on the worker<input name="heroImage" maxlength="2048" required autocomplete="off" /></label>
+            <label>Identity sentence<textarea name="identPrompt" maxlength="2048" required></textarea></label>
+            <label>Negative prompt<textarea name="negativePrompt" maxlength="2048"></textarea></label>
+            <label>Expected structure<textarea name="identityStructure" maxlength="2048"></textarea></label>
+            <label>Structure violation<textarea name="identityViolation" maxlength="2048"></textarea></label>
+            <span class="hint">Provide both structural prompts or neither. Each field is limited to 2048 UTF-8 bytes.</span>
+            <label>Base checkpoint<input name="baseModel" maxlength="2048" placeholder="v1-5-pruned-emaonly-fp16.safetensors" autocomplete="off" /></label>
+            <button class="btn" type="submit">Save character</button>
+            <button class="btn ghost" id="cancelCharacter" type="button">Cancel</button>
+          </fieldset>
+        </form>
+        <div class="result" id="createResult" role="status" aria-live="polite"></div>
+      </details>
       <div id="chars"><div class="spin">Loading…</div></div>
       <div id="actions" style="display:none">
         <div class="lbl" style="margin-top:20px">Actions · <span id="actName"></span></div>
+        <div class="character-config" id="characterConfig"></div>
         <div class="bar">
           <button class="btn" id="trainBtn" onclick="act('train')">⚙️ Train new version</button>
           <button class="btn ghost" id="valBtn" onclick="act('validate')">📊 Validate latest</button>
@@ -88,6 +228,15 @@
         <label class="toggle"><input type="checkbox" id="autoTog" onchange="setAuto()" /> Improve overnight (autonomous, gated review)</label>
         <div class="bar"><button class="btn ghost sm" id="overnightBtn" onclick="act('improve-overnight')">🌙 Run overnight now</button></div>
         <div class="result" id="result"></div>
+        <div class="character-editor" id="datasetPanel" style="margin-top:16px">
+          <div class="lbl">Curated dataset</div>
+          <p class="hint" id="artifactHint">Send an owner-owned image here from Portrait Studio or another image source, then choose this character before queueing it to the GPU worker.</p>
+          <label class="hint" style="display:grid;gap:4px">Caption for the training pair
+            <textarea id="datasetCaption" maxlength="2048" placeholder="Leave blank to use this character's trigger word."></textarea>
+          </label>
+          <div class="bar"><button class="btn sm" id="importArtifactBtn" type="button" disabled>Import selected image</button><button class="btn ghost sm" id="refreshDatasetBtn" type="button">Refresh dataset</button></div>
+          <div id="datasetRows" class="hint" style="margin-top:10px">Loading dataset receipts…</div>
+        </div>
       </div>
     </div>
     <div class="pane right">
@@ -100,24 +249,128 @@
 <script>
 const $ = (id) => document.getElementById(id);
 let CHARS = [], SEL = null;
+const ARTIFACT_REF = (()=>{
+  try{
+    const locations=[window.location,window.top&&window.top.location];
+    for(const location of locations){
+      const ref=new URLSearchParams(location.search).get('artifact')||'';
+      if(/^art_[A-Za-z0-9_-]{8,64}$/.test(ref)) return ref;
+    }
+  }catch(e){}
+  return '';
+})();
 
 async function api(path, opts){ const r = await fetch('/api/lora'+path, opts); const j = await r.json().catch(()=>({})); return { ok:r.ok, status:r.status, j }; }
 function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function fmt(n){ const value=Number(n); return Number.isFinite(value)?value.toFixed(2):'—'; }
 function safeInt(n){ const value=Number(n); return Number.isInteger(value)?value:null; }
 function safeStatus(v){ const value=String(v||'unknown'); return ['queued','training','trained','scored','failed'].includes(value)?value:'unknown'; }
+function safeDatasetStatus(v){ const value=String(v||'unknown'); return ['queued','ready','failed'].includes(value)?value:'unknown'; }
 function safeImageUrl(v){
   if(typeof v!=='string'||v.length>2048) return '';
   try{ const u=new URL(v); return ((u.protocol==='https:'||u.protocol==='http:')&&!u.username&&!u.password)?u.href:''; }catch(e){ return ''; }
 }
+// A cell's image source is DERIVED from values this page already holds — never from a string the
+// GPU box put in the cell. The box reports a filename on its own disk, which no browser can fetch;
+// the controller hosts a bounded copy and serves it only to the owner.
+function hostedCellImageUrl(subject, version, index){
+  const v=safeInt(version), i=safeInt(index);
+  if(typeof subject!=='string'||!subject||v==null||i==null) return '';
+  return '/api/lora/cell-image?subject='+encodeURIComponent(subject)+'&version='+v+'&cell='+i;
+}
 function empty(id,msg){ $(id).innerHTML='<div class="empty">'+esc(msg)+'</div>'; }
-function showResult(kind, msg){ const e=$('result'); e.className='result '+kind; e.textContent=String(msg||''); }
+function showResult(kind, msg){ const e=$('result'); e.style.display=''; e.className='result '+kind; e.textContent=String(msg||''); }
+function creationResult(kind, msg){ const e=$('createResult'); e.className='result '+kind; e.textContent=String(msg||''); }
+
+async function saveCharacter(event){
+  event.preventDefault();
+  if($('characterFields').disabled) return;
+  const body=Object.fromEntries(new FormData($('characterForm')));
+  for(const [key,value] of Object.entries(body)){
+    if(typeof value!=='string'||value.includes('\0')||new TextEncoder().encode(value).length>2048){
+      creationResult('err',key+' must be text of at most 2048 UTF-8 bytes with no NUL characters.'); return;
+    }
+  }
+  $('characterFields').disabled=true;
+  creationResult('warn','Saving character configuration…');
+  let saved=false;
+  try{
+    const {ok,j}=await api('/characters',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+    if(!ok){ creationResult('err',j.message||j.error||'Could not save the character.'); return; }
+    saved=true;
+    $('characterForm').reset();
+    if(await loadChars()){
+      await select(j.subject);
+      creationResult('ok',j.message||'Character saved. No training was started.');
+    }
+    else creationResult('warn','Character saved. No training was started. Refresh to reload the character list.');
+  }catch(error){
+    creationResult('err',saved?'Character saved, but the list could not refresh. Reload to view it.':'Could not confirm the save. Refresh the list before retrying; your draft is still here.');
+  }finally{ $('characterFields').disabled=false; }
+}
+// The studio's controls are wired only for the full page (the gate at the end of this script).
+function bindStudio(){
+  $('characterForm').addEventListener('submit',saveCharacter);
+  $('cancelCharacter').addEventListener('click',()=>{
+    $('characterForm').reset(); $('createResult').className='result'; $('createResult').textContent=''; $('characterEditor').open=false;
+  });
+  $('importArtifactBtn').addEventListener('click',importIncomingArtifact);
+  $('refreshDatasetBtn').addEventListener('click',()=>{ if(SEL) void loadDataset(SEL); });
+}
+
+function showCharacterConfig(c){
+  const fields=[['Trigger',c.trigger_word],['Hero image',c.hero_image],['Identity',c.ident_prompt],
+    ['Negative prompt',c.negative_prompt],['Expected structure',c.identity_structure],
+    ['Structure violation',c.identity_violation],['Base checkpoint',c.base_model]];
+  const destination=c.storage_key?'LORA_BOX_ROOT/'+c.storage_key+'/curated':'Storage destination unavailable; refresh before preparing a dataset.';
+  $('characterConfig').innerHTML='<p class="hint">Curated dataset: <code>'+esc(destination)+'</code>. Only transfer data whose ownership is established. A compatible worker and judged dataset are required before training.</p><dl>'+
+    fields.map(([label,value])=>'<dt>'+esc(label)+'</dt><dd>'+esc(value||'Not configured')+'</dd>').join('')+'</dl>';
+}
+
+function datasetStatusText(status){ return status==='ready'?'ready on worker':status==='failed'?'worker write failed':'queued for worker'; }
+
+async function loadDataset(subject){
+  const {ok,j}=await api('/dataset?subject='+encodeURIComponent(subject));
+  if(!ok){ $('datasetRows').textContent=j.error||'Dataset receipts unavailable.'; return; }
+  const rows=Array.isArray(j.images)?j.images:[];
+  $('datasetRows').innerHTML=rows.length?rows.map((row)=>{
+    const status=safeDatasetStatus(row.status);
+    const bytes=Number(row.byte_size);
+    const size=Number.isFinite(bytes)?' · '+Math.round(bytes/1024)+' KiB':'';
+    return '<div class="card" style="cursor:default;padding:9px 10px;margin:7px 0"><div><b>'+esc(row.filename)+'</b> <span class="badge '+(status==='ready'?'scored':status)+'">'+esc(datasetStatusText(status))+'</span></div><div class="hint">'+esc(row.caption||'')+esc(size)+'</div></div>';
+  }).join(''):'<div class="hint">No curated images recorded yet.</div>';
+}
+
+async function importIncomingArtifact(){
+  if(!SEL||!ARTIFACT_REF) return;
+  $('importArtifactBtn').disabled=true;
+  showResult('warn','Queueing the owner-bound image for '+SEL+'…');
+  const caption=$('datasetCaption').value.trim();
+  const {ok,j}=await api('/dataset/import',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({ref:ARTIFACT_REF,subject:SEL,caption})});
+  if(ok){ showResult('ok',j.message||'Image queued for the GPU worker.'); $('datasetCaption').value=''; await loadDataset(SEL); }
+  else { showResult(j.status===503?'warn':'err',j.message||j.error||'Image import failed.'); $('importArtifactBtn').disabled=false; }
+}
+
+// The list is a pure read (a GET is admitted read-only), so an account with no characters is offered its own copy of
+// the starter character explicitly: POST /characters/starter saves it and answers the list. A viewer may only read,
+// and its refusal is shown in place.
+function renderNoCharacters(){
+  $('chars').innerHTML='<div class="empty">No characters yet.<div class="bar"><button class="btn sm" id="addStarterBtn" type="button">Add the starter character</button></div></div>';
+  $('addStarterBtn').addEventListener('click', addStarterCharacter);
+}
+
+async function addStarterCharacter(){
+  $('addStarterBtn').disabled=true;
+  const { ok, j } = await api('/characters/starter',{method:'POST',headers:{'content-type':'application/json'},body:'{}'});
+  if(!ok){ empty('chars', j.message||j.error||'Could not add the starter character.'); return; }
+  await loadChars();
+}
 
 async function loadChars(){
   const { ok, j } = await api('/characters');
-  if(!ok){ empty('chars',j.error||'Failed to load'); return; }
+  if(!ok){ empty('chars',j.error||'Failed to load'); return false; }
   CHARS = Array.isArray(j.characters)?j.characters:[];
-  if(!CHARS.length){ $('chars').innerHTML='<div class="empty">No characters yet.</div>'; return; }
+  if(!CHARS.length){ renderNoCharacters(); return true; }
   $('chars').innerHTML = CHARS.map((c,index)=>`
     <div class="card ${SEL===c.subject?'sel':''}" data-char-index="${index}">
       <div class="ch">
@@ -134,6 +387,7 @@ async function loadChars(){
   $('chars').querySelectorAll('[data-char-index]').forEach((node)=>{
     node.addEventListener('click',()=>{ const c=CHARS[Number(node.dataset.charIndex)]; if(c) void select(c.subject); });
   });
+  return true;
 }
 
 async function select(subject){
@@ -142,8 +396,12 @@ async function select(subject){
   await loadChars();
   $('actions').style.display='block';
   $('actName').textContent = c.display_name;
+  showCharacterConfig(c);
   $('autoTog').checked = !!c.autonomous;
+  $('artifactHint').textContent=ARTIFACT_REF?'An owner-owned image is ready to import. Confirm the character and caption, then queue it to the GPU worker.':'Send an owner-owned image here from Portrait Studio or another image source, then choose this character before queueing it to the GPU worker.';
+  $('importArtifactBtn').disabled=!ARTIFACT_REF;
   $('result').className='result'; $('result').style.display='none';
+  await loadDataset(subject);
   await loadVersions(subject);
 }
 
@@ -194,10 +452,11 @@ async function gallery(subject, version){
   const { ok, j } = await api('/scorecard?subject='+encodeURIComponent(subject)+'&version='+version);
   if(!ok){ empty('gallery',j.error||'No scorecard'); return; }
   const cells = Array.isArray(j.scorecard&&j.scorecard.cells)?j.scorecard.cells:[];
+  const hosted = new Set((Array.isArray(j.hostedCells)?j.hostedCells:[]).map(safeInt).filter(i=>i!=null));
   $('gallery').innerHTML = `<div class="lbl" style="margin-top:18px">Scorecard · v${version} · ${cells.length} cells</div>
-    <div class="cells">${cells.map(c=>{ const image=safeImageUrl(c&&c.image); return `
+    <div class="cells">${cells.map((c,index)=>{ const image=hosted.has(index)?hostedCellImageUrl(subject,version,index):''; return `
       <div class="cell">
-        ${image?`<img src="${esc(image)}" loading="lazy" referrerpolicy="no-referrer" />`:''}
+        ${image?`<img src="${esc(image)}" loading="lazy" referrerpolicy="no-referrer" />`:'<div class="cm">no hosted image</div>'}
         <div class="cs">${fmt(c.score!=null?c.score:(0.6*c.identity+0.4*c.quality))}</div>
         <div class="cm">${esc(String(c.cell||'').replace(/\|/g,' · '))}</div>
         <div class="cm">id ${fmt(c.identity)} · q ${fmt(c.quality)}</div>
@@ -227,7 +486,9 @@ async function act(kind){
   else showResult('err', j.error||(kind+' failed'));
 }
 
-loadChars();
+// The full studio only: under an audience view the shared kit paints instead (see the head script) and nothing here
+// starts: no character list, no dataset, version or scorecard read, and no control is wired.
+if (!window.AppView || !AppView.active()) { bindStudio(); loadChars(); }
 </script>
 </body>
 </html>

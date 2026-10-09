@@ -48,6 +48,12 @@
  *                     |                             | and a poll that refreshes the circuit while the concierge
  *                     |                             | edits it from the chat rail. Every node is built with
  *                     |                             | textContent; every call goes through one `api()` helper.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com  | The classroom audience view (ADR-164 D6) paints from the page's
+ *                     |                             | head script, so under any audience view the lab's own start
+ *                     |                             | stays off: the boot (capabilities, driver catalog, designs,
+ *                     |                             | ?design=) and the assistant-rail listeners (bridge-ready's
+ *                     |                             | context publish and the circuit_action handler) run only
+ *                     |                             | when the kit renders no view, or when it is absent.
  */
 (function () {
   'use strict';
@@ -573,15 +579,18 @@
     publishContext();
     return { applied, errors };
   }
-  document.addEventListener('surface-bridge:custom', (evt) => {
-    const detail = evt.detail || {};
-    // The floating assistant's panel is created lazily and asks for a snapshot when it opens.
-    if (detail.name === 'request_context') { publishContext(); return; }
-    if (detail.name !== 'circuit_action') return;
-    const actions = Array.isArray(detail.data && detail.data.actions) ? detail.data.actions : [detail.data];
-    applyAssistantActions(actions).catch((e) => toast(e.message, 'error'));
-  });
-  window.addEventListener('bridge-ready', publishContext);
+  // The full lab only: under an audience view (the page's head script) the rail takes no ops and publishes nothing.
+  if (!window.AppView || !AppView.active()) {
+    document.addEventListener('surface-bridge:custom', (evt) => {
+      const detail = evt.detail || {};
+      // The floating assistant's panel is created lazily and asks for a snapshot when it opens.
+      if (detail.name === 'request_context') { publishContext(); return; }
+      if (detail.name !== 'circuit_action') return;
+      const actions = Array.isArray(detail.data && detail.data.actions) ? detail.data.actions : [detail.data];
+      applyAssistantActions(actions).catch((e) => toast(e.message, 'error'));
+    });
+    window.addEventListener('bridge-ready', publishContext);
+  }
   window.CircuitLabAssistant = { contextDigest, applyAssistantActions, publishContext, ACTION_DOC };
 
   // ── Wiring ─────────────────────────────────────────────────────────────────
@@ -632,7 +641,8 @@
   });
   window.addEventListener('beforeunload', () => { if (state.dirty) flushSave(); });
 
-  (async () => {
+  // The full lab only: under an audience view the shared kit paints instead (see the page's head script).
+  if (!window.AppView || !AppView.active()) (async () => {
     try { await loadCaps(); await loadDesigns(); }
     catch (e) { toast('Circuit Lab could not load: ' + e.message, 'error'); }
     const params = new URLSearchParams(location.search);

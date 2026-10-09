@@ -5,6 +5,8 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped package test with explicit runner and fixture boundaries; retain the readiness smoke identity. The framework-coupled route suite is registered with its real prerequisite (a framework checkout); the actual page runs in headless Chromium against a fake Web Serial port; the seam suite reads embodied's compiled manifest module read-only; the firmware sketch has NO registered case because nothing here compiles or runs it (BACKLOG B2).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Rename the drifted framework-checkout prerequisites to the Test Lab's own vocabulary so these cases can run: node-test cases declare fixture:core-checkout (the sealed Node profile runs on the oshal image, where /app is the checkout); browser cases declare harness:oshal-core-root and core:dependencies, as create does. A case that imports core's tests/fixtures, which the image does not ship, also declares harness:core-test-fixtures and stays pending with that exact reason instead of an unknown name.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | The prop-kind case also covers the DECLARATION behind the read: the manifest offers embodied under dependencies.optional.apps, the store's own dependency reader sees the same offer, and the generated marketplace.json block mirrors it. A run-time edge that only the code knows about is one an installer cannot offer.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register the audience-view case: the page's family view for the Jarvis Home shell (ADR-164 D6), its static kit contract and its behaviour over the package's real rig route and real rehearsal reports, plus the gate that keeps the full page's start from running under the view. Dependency-free node:test, no browser, no network, no framework checkout.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 0.2.3: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -220,4 +222,33 @@ cases:
     limits:
       timeoutMs: 180000
       maxMemoryMb: 1024
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its family (Home shell) and company (Business shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the family view makes exactly one read, GET /api/animatronics/rigs, answered by the rig router the package really composes, and that route only SELECTs the caller's rigs; never the capabilities, the catalog, a rig's detail, runs or manifest, the home summary, a rehearsal, arm, play, look-at, jog, disarm or any write.
+      - Real template rigs paint as props, shows, poses and armed counts, a title led by an armed prop, tiles that open nothing, the shows in plain words, and the last practice run from the real saved rehearsal (passed with its length, or not passed with its first reason).
+      - More than twelve props, more than thirty shows, no props, signed out (the router's own 401, no query), refused, the route's own 500, an unreadable answer and an unreachable server each read as what they are.
+      - Under the view the full page's main script makes no read, binds no listener and starts no poll; without the view or without the kit it starts as before, and the helper scripts only define their globals.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

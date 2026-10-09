@@ -1,0 +1,17 @@
+{
+  "schema": "oshal.force-model-envelopes/1",
+  "adr": "ADR-160 D7 — a force model declares the medium properties it requires and the media it is valid in; the envelope is declared by the model author, never inferred by the caller",
+  "lab": "ocean-lab",
+  "defaultMedium": "seawater",
+  "mediaKnown": ["vacuum", "air", "seawater"],
+  "mediaKnownWhy": "The three media embodied's committed row implements, carried by this lab as data in medium-properties.json (ADR-160 D3: shared as data, never imported). This lab implements seawater with a free surface; it knows the other two by their rows and answers for nothing in them.",
+  "undeclared": "FAILS CLOSED. A model with no entry here is treated as valid in this lab's default medium only and refuses every other medium by name (model_not_valid_in_medium). An undeclared envelope is the part most likely to be skipped, so its absence never reads as permission.",
+  "models": {
+    "wave-propulsion": {
+      "label": "Wave propulsion (engine/wave/wave-propulsion.ts)",
+      "requires": ["freeSurface", "densityKgM3", "dynamicViscosityPaS", "gravityMps2"],
+      "validIn": ["seawater", "air"],
+      "why": "Its lift is the panel method's (inviscid, the same in any fluid) and its drag a Reynolds correlation, so the force terms are not what exclude air: the kinematic ceiling U_max = w_heave / tan(beta_stop) is medium-independent. What air lacks is the free surface the float heaves on, and asking for heave there is medium_property_unavailable: freeSurface, never a quiet zero. A vacuum has no fluid at all (density zero, no Reynolds number, no lift), so the model declines it by this envelope."
+    }
+  }
+}

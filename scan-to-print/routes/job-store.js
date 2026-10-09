@@ -13,6 +13,18 @@
  *                     |                             | personal-data vault and the list query never selects the
  *                     |                             | column at all — the plaintext exists in memory for the length
  *                     |                             | of one upload and nowhere else.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Bambu Lab LAN printers for the print service (operator-approved
+ *                     |                             | 2026-10-06): the printer row carries the device serial and model
+ *                     |                             | code read from the printer's certificate, the slice profile the
+ *                     |                             | slicer engine needs, and the owner's per-printer AUTO_START
+ *                     |                             | opt-in (migration 002, default off). updatePrinterSettings
+ *                     |                             | changes only those owner choices; identity and the key are fixed
+ *                     |                             | at registration. A submission may now come from the print
+ *                     |                             | service with a posted file instead of a scan job: job_id is
+ *                     |                             | optional, source_name names the file, requested_by says who.
+ *                     |                             | The printer's certificate fingerprint is pinned at registration
+ *                     |                             | (device_cert_sha256); getPrinterAutoStart re-reads the owner's
+ *                     |                             | choice at the moment a service job would start.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.listJobs = listJobs;
@@ -26,14 +38,17 @@ exports.assignView = assignView;
 exports.deleteImage = deleteImage;
 exports.listPrinters = listPrinters;
 exports.insertPrinter = insertPrinter;
+exports.getPrinterAutoStart = getPrinterAutoStart;
+exports.updatePrinterSettings = updatePrinterSettings;
 exports.getPrinterWithKey = getPrinterWithKey;
 exports.deletePrinter = deletePrinter;
 exports.insertSubmission = insertSubmission;
+exports.listRecentSubmissions = listRecentSubmissions;
 exports.listSubmissions = listSubmissions;
 const JOB_COLUMNS = 'job_id, owner_sub, title, source_kind, state, known_dimensions, settings, report, failure_reason, created_at, updated_at';
 const IMAGE_COLUMNS = 'image_id, job_id, file_name, view, width, height, silhouette, created_at';
-const PRINTER_COLUMNS = 'printer_id, label, kind, base_url, created_at';
-const SUBMISSION_COLUMNS = 'submission_id, job_id, printer_id, file_name, file_kind, started, state, failure_reason, remote_response, created_at';
+const PRINTER_COLUMNS = 'printer_id, label, kind, base_url, device_serial, device_model, device_cert_sha256, slice_profile, auto_start, created_at';
+const SUBMISSION_COLUMNS = 'submission_id, job_id, source_name, requested_by, printer_id, file_name, file_kind, started, state, failure_reason, remote_response, created_at';
 /** @description Jobs newest first, capped so a runaway owner cannot make the list unbounded. */
 async function listJobs(pool, sub) {
     const { rows } = await pool.query(`SELECT ${JOB_COLUMNS} FROM scan_print_job WHERE owner_sub = $1 ORDER BY updated_at DESC LIMIT 200`, [sub]);
@@ -94,10 +109,40 @@ async function listPrinters(pool, sub) {
     const { rows } = await pool.query(`SELECT ${PRINTER_COLUMNS} FROM scan_print_printer WHERE owner_sub = $1 ORDER BY created_at`, [sub]);
     return rows;
 }
-/** @description Insert a printer; `apiKeyCiphertext` must already be vault-encrypted. */
+/**
+ * @description Insert a printer. Auto-start is never set here: it is a separate, explicit owner choice.
+ * @param pool - Pool.
+ * @param sub - Owner.
+ * @param printer - What registration validated, with the key already vault-encrypted.
+ * @returns The stored row, without its key.
+ */
 async function insertPrinter(pool, sub, printer) {
-    const { rows } = await pool.query(`INSERT INTO scan_print_printer (owner_sub, label, kind, base_url, api_key_ciphertext) VALUES ($1, $2, $3, $4, $5) RETURNING ${PRINTER_COLUMNS}`, [sub, printer.label, printer.kind, printer.baseUrl, printer.apiKeyCiphertext]);
+    const { rows } = await pool.query(`INSERT INTO scan_print_printer (owner_sub, label, kind, base_url, api_key_ciphertext, device_serial, device_model, device_cert_sha256, slice_profile) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING ${PRINTER_COLUMNS}`, [sub, printer.label, printer.kind, printer.baseUrl, printer.apiKeyCiphertext, printer.deviceSerial ?? null, printer.deviceModel ?? null,
+        printer.deviceCertSha256 ?? null, JSON.stringify(printer.sliceProfile ?? {})]);
     return rows[0];
+}
+/**
+ * @description The owner's auto-start choice as it stands now (re-read just before a service job would start).
+ * @param pool - Pool.
+ * @param sub - Owner.
+ * @param printerId - Printer.
+ * @returns True only when the printer still exists and auto-start is on.
+ */
+async function getPrinterAutoStart(pool, sub, printerId) {
+    const { rows } = await pool.query('SELECT auto_start FROM scan_print_printer WHERE owner_sub = $1 AND printer_id = $2', [sub, printerId]);
+    return rows[0]?.auto_start === true;
+}
+/**
+ * @description Change the owner's choices on a printer. Null leaves a value as it is.
+ * @param pool - Pool.
+ * @param sub - Owner.
+ * @param printerId - Printer.
+ * @param change - New auto-start flag and/or slice profile.
+ * @returns The updated row, or null when the printer is not the caller's.
+ */
+async function updatePrinterSettings(pool, sub, printerId, change) {
+    const { rows } = await pool.query(`UPDATE scan_print_printer SET auto_start = COALESCE($3, auto_start), slice_profile = COALESCE($4::jsonb, slice_profile), updated_at = now() WHERE owner_sub = $1 AND printer_id = $2 RETURNING ${PRINTER_COLUMNS}`, [sub, printerId, change.autoStart, change.sliceProfile === null ? null : JSON.stringify(change.sliceProfile)]);
+    return rows[0] ?? null;
 }
 /** @description One printer WITH its ciphertext — only the upload and status paths call this. */
 async function getPrinterWithKey(pool, sub, printerId) {
@@ -109,11 +154,27 @@ async function deletePrinter(pool, sub, printerId) {
     const { rowCount } = await pool.query('DELETE FROM scan_print_printer WHERE owner_sub = $1 AND printer_id = $2', [sub, printerId]);
     return (rowCount ?? 0) > 0;
 }
-/** @description Record a print submission attempt. */
+/**
+ * @description Record a print submission attempt.
+ * @param pool - Pool.
+ * @param sub - Owner.
+ * @param s - The attempt: job or source name, printer, file, outcome, requester.
+ * @returns The stored row.
+ */
 async function insertSubmission(pool, sub, s) {
-    const { rows } = await pool.query(`INSERT INTO scan_print_submission (owner_sub, job_id, printer_id, file_name, file_kind, started, state, failure_reason, remote_response)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb) RETURNING ${SUBMISSION_COLUMNS}`, [sub, s.jobId, s.printerId, s.fileName, s.fileKind, s.started, s.state, s.failureReason, JSON.stringify(s.remote ?? null)]);
+    const { rows } = await pool.query(`INSERT INTO scan_print_submission (owner_sub, job_id, source_name, requested_by, printer_id, file_name, file_kind, started, state, failure_reason, remote_response)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING ${SUBMISSION_COLUMNS}`, [sub, s.jobId, s.sourceName ?? null, s.requestedBy ?? 'person', s.printerId, s.fileName, s.fileKind, s.started, s.state, s.failureReason, JSON.stringify(s.remote ?? null)]);
     return rows[0];
+}
+/**
+ * @description The caller's latest submissions across all printers, newest first.
+ * @param pool - Pool.
+ * @param sub - Owner.
+ * @returns Up to 50 rows.
+ */
+async function listRecentSubmissions(pool, sub) {
+    const { rows } = await pool.query(`SELECT ${SUBMISSION_COLUMNS} FROM scan_print_submission WHERE owner_sub = $1 ORDER BY created_at DESC LIMIT 50`, [sub]);
+    return rows;
 }
 /** @description Submissions of a job, newest first. */
 async function listSubmissions(pool, sub, jobId) {

@@ -79,14 +79,14 @@ test('class deletion locks authorization, cleans material artifacts, and commits
 
 test('material lifecycle side effects remain inside locked authorization transactions', () => {
   const source = routeSource('education-materials-routes.ts');
-  assert.match(source, /FOR UPDATE OF c, a[\s\S]*FOR UPDATE OF m, uploader/);
+  assert.match(source, /FOR UPDATE OF c FOR UPDATE OF a[\s\S]*FOR UPDATE OF m FOR UPDATE OF uploader/);
   assert.match(source, /runLockedMaterialTransaction[\s\S]*createdCollection/);
   assert.match(source, /const \{ client, row \} = transaction[\s\S]*UPDATE lm_materials SET rag_collection/);
   assert.match(source, /UPDATE lm_materials m SET share_status[\s\S]*EXISTS \(SELECT 1 FROM lm_enrollments/);
   assert.match(source, /UPDATE lm_materials m SET share_status[\s\S]*c\.teacher_student_id = a\.student_id/);
   assert.match(
     source,
-    /deleteMaterialCollection\(transaction\.row\.rag_collection\)[\s\S]*deleteStoredMaterial\(transaction\.row\)[\s\S]*deleteAuthorizedMaterialRow/,
+    /deleteMaterialCollection\(transaction\.row\.rag_collection, transaction\.client as any\)[\s\S]*deleteStoredMaterial\(transaction\.row, transaction\.client as any\)[\s\S]*deleteAuthorizedMaterialRow/,
   );
   assert.match(source, /DELETE FROM lm_materials m USING lm_classes c, lm_students a, lm_students uploader/);
 });

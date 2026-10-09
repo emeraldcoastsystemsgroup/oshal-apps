@@ -11,6 +11,8 @@
  * ---------------------------------------------------------------------------
  * 2026-06-27 | roger.murphy@agenticfederal.us | Initial rewards/loot-box + collection system
  * ---------------------------------------------------------------------------
+ * 2026-10-07 | maintainer@emeraldcoastsystemsgroup.com | Read persisted reward inventory without creating rows or modifying timestamps on GET
+ * 2026-10-08 | maintainer@emeraldcoastsystemsgroup.com | Preserve expected school setup and access refusals across reward operations; sanitize unexpected failures
  * @module education-rewards-routes
  */
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -54,6 +56,16 @@ function rollItem() {
     }
     return exports.REWARD_CATALOG[0];
 }
+/** Keep expected account setup refusals distinct from an unexpected storage failure. */
+function sendRewardsError(res, error, operation) {
+    if (error instanceof education_access_1.EducationAccessError) {
+        res.status(error.status).json({ error: error.message });
+        return;
+    }
+    // Database messages may contain private values; record only the static operation.
+    logger.error({ operation }, 'Reward operation failed');
+    res.status(500).json({ error: 'Could not complete the reward operation' });
+}
 function createEducationRewardsRoutes(ctx) {
     const router = (0, express_1.Router)();
     // Self-contained table bootstrap (idempotent) — awardXP also writes `boxes` here.
@@ -64,8 +76,9 @@ function createEducationRewardsRoutes(ctx) {
        equipped jsonb NOT NULL DEFAULT '{}'::jsonb,
        updated_at timestamptz NOT NULL DEFAULT now()
      )`).catch((err) => logger.warn({ err }, 'lm_rewards table bootstrap failed (non-fatal)'));
-    async function loadState(studentId) {
-        const r = await ctx.pool.query(`INSERT INTO lm_rewards (student_id) VALUES ($1)
+    async function loadState(studentId, readOnly = false) {
+        const r = await ctx.pool.query(readOnly ? 'SELECT boxes, inventory, equipped FROM lm_rewards WHERE student_id = $1' :
+            `INSERT INTO lm_rewards (student_id) VALUES ($1)
        ON CONFLICT (student_id) DO UPDATE SET updated_at = NOW()
        RETURNING boxes, inventory, equipped`, [studentId]);
         const row = r.rows[0] || { boxes: 0, inventory: [], equipped: {} };
@@ -75,7 +88,7 @@ function createEducationRewardsRoutes(ctx) {
     router.get('/rewards', async (req, res) => {
         try {
             const me = await (0, education_access_1.resolveAuthedStudent)(req, ctx.pool);
-            const st = await loadState(me.studentId);
+            const st = await loadState(me.studentId, true);
             const prog = await ctx.pool.query('SELECT xp, level FROM lm_students WHERE student_id = $1', [me.studentId]);
             // The default pink monster is always owned so the avatar is never empty.
             const inventory = Array.from(new Set(['mon-pink', ...st.inventory]));
@@ -85,8 +98,7 @@ function createEducationRewardsRoutes(ctx) {
             });
         }
         catch (err) {
-            logger.error({ err }, 'Failed to load rewards');
-            res.status(500).json({ error: err.message });
+            sendRewardsError(res, err, 'load');
         }
     });
     /** POST /api/education/rewards/open — spend a box, win an item (server-authoritative). */
@@ -120,8 +132,7 @@ function createEducationRewardsRoutes(ctx) {
             res.json({ item, duplicate: owned, bonusXp, boxesLeft });
         }
         catch (err) {
-            logger.error({ err }, 'Failed to open box');
-            res.status(500).json({ error: 'Could not open the box' });
+            sendRewardsError(res, err, 'open');
         }
     });
     /** POST /api/education/rewards/equip { itemId } — wear a monster skin or accessory. */
@@ -151,10 +162,8 @@ function createEducationRewardsRoutes(ctx) {
             res.json({ equipped });
         }
         catch (err) {
-            logger.error({ err }, 'Failed to equip');
-            res.status(500).json({ error: err.message });
+            sendRewardsError(res, err, 'equip');
         }
     });
     return router;
 }
-//# sourceMappingURL=education-rewards-routes.js.map

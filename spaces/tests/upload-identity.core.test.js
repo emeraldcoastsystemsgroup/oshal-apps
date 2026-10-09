@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Regression guard for the multipart lanes losing the RLS request identity. The PACKAGED, COMPILED router runs over real loopback HTTP with express + multer resolved from the framework checkout (OSHAL_CORE_DIR); the multipart body is written to the socket in several chunks with gaps, exactly like a browser or curl upload of a multi-megabyte .splat, so busboy finishes on a LATER socket chunk than the one the identity middleware ran on. The kernel's SpatialMappingService is a double that records the AsyncLocalStorage identity it was called under — the database itself is not the boundary that failed here; the async-context hand-off between the identity middleware and the post-multer handler is, and both sides of it (a real AsyncLocalStorage, real multer streaming) are real in this suite. Before the fix the recorded identity is undefined (the GUC pool then refuses the insert under OSHAL_DB_GUC_STRICT=deny); after it the caller's sub is present on both the model and the video lane. Named *.core.test.js so the bare-checkout store CI glob (tests/spaces-*.test.js) does not run it without a framework checkout; run locally: OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/upload-identity.core.test.js
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Redirect a bare require to the framework checkout only when the package itself asks for it. Requires made inside node_modules resolve normally again: redirecting them to core's root broke in the Test Lab sandbox, where the image's pruned node_modules keeps semver only nested under sharp (Cannot find module 'semver'); a developer checkout hoists it, which is why no local run saw it.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | ADR-169 L7: the route now imports the location kernel skill and the capture-session id shape. Neither is on this suite's path (its uploads name no capture session), so the location seam refuses any call and the id shape is the kernel's.
  */
 'use strict';
 
@@ -64,7 +65,9 @@ const STUBS = {
     sanitizeCaptureTelemetry: (x) => x,
     captureTelemetryPath: (sub, scanId) => path.join(scratchRoot, sub, scanId, 'telemetry.json'),
     CAPTURE_TELEMETRY_MAX_BYTES: 1024,
+    CAPTURE_SESSION_ID_RE: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
   },
+  '@/features/location': { anchorMap: async () => { throw new Error('not used in this suite'); } },
   '@/features/drone': { SimDroneProvider: class {}, validateMission: () => ({ ok: true }) },
   '@/app/routes/cli-token-routes': { insertCliToken: async () => { throw new Error('not used in this suite'); } },
 };

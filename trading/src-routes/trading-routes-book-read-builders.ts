@@ -20,6 +20,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com   | ADR-159 reaches the Exits card. The card printed a stop price and a take-profit for EVERY held name, including one the engine cannot account for from its own filled orders - for which it now emits no order at all - so the one row where the absence of protection actually mattered looked exactly like the fourteen where it did not. Each rule row now carries the kernel's `positionGovernance` for its symbol, read off the SAME costed array the card already builds (withEngineCostBasis over the pinned-subtracted positions), and a row the engine will not exit is marked inactive with no `wouldFireNow` computed - the same shape a core hold has had since SEQ 6. Nothing is re-derived here: a second answer to "is this unmanaged?" is precisely what would drift from the engine's. `exitsApply: null` (the ledger read failed) deliberately leaves the rules shown and carries the doubt in `governance` instead, because blanking a row on a failed read hides protection that is probably there; a failed PROTECTED-LOT read withholds the governance entirely, since `exits.rules` is already withheld for the same reason.
  * 11 | maintainer@emeraldcoastsystemsgroup.com  | GET /realized is now a call to realizedReport (trading-realized.ts) - the same body, moved. The trading specialist's bounded facts read today's realized from that helper too, and a money figure must not have two implementations to drift between.
  * 12 | maintainer@emeraldcoastsystemsgroup.com  | The two cost bases stop being reconciled in silence. The venue reports the WASH-SALE-ADJUSTED average, so after a loss sale and a re-buy inside 30 days the disallowed loss rides on the replacement shares; the engine vetoes a stop drawn off that number (SEQ 9), but the card still printed the venue average and a stop price derived from it - so the row said a position was 5-18% under water and about to be sold while the engine quietly measured something else, which is the same silent-correct this package spent SEQ 10 removing from the other half of the card. Each rule row now carries `engineBasisPx` - the engine's own average cost for the holding, the kernel number from withEngineCostBasis rounded for display, never recomputed here - and `engineStopPx`, the stop measured from it, which is the price the stop ACTUALLY fires at whenever the venue average is the higher of the two. Both are null where the engine's ledger does not cover the quantity: there is no second basis to show, and inventing one is the failure this closes.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com  | GET /exposure knows the idle-cash yield sleeve (ADR-052 addendum P6): readExposureInputs answers its governance through bookGovernance (trading-routes-order-flow-builders.ts, the function GET /ledger uses), which hands the book's armed sleeve to positionGovernanceBySymbol, so the fund of an armed sleeve reads exitsApply false and exitRuleRows marks its stop / take-profit / trailing / trim rules inactive with no wouldFireNow - the dispatch never fires them. Unarmed, the payload is unchanged. A kernel without armedYieldSleeve passes no sleeve.
  *
  * @module trading-routes-book-read-builders
  */
@@ -46,7 +47,8 @@ import { pinnedQtyBySymbol, subtractPinnedLots, listPinnedLots, isLotOrderClient
 // The engine's own cost: the stop veto the dispatch applies, and realized P&L priced without the
 // venue's wash-sale adjustment. The card and the tally read the same functions the engine does.
 import { withEngineCostBasis } from '@/app/trading-engine-cost-basis';
-import { positionGovernanceBySymbol, type PositionGovernance } from '@/app/trading-position-governance';
+import type { PositionGovernance } from '@/app/trading-position-governance';
+import { bookGovernance } from './trading-routes-order-flow-builders';
 import { realizedReport } from './trading-realized';
 // ADR-134 PR3: every read resolves the BOOK (query.book, falling back to legacy ?mode= aliases via
 // resolveBook) — with two live books both mode='live', an unconverted read would merge BOTH books'
@@ -450,7 +452,7 @@ async function readExposureInputs(ctx: AppContext, sub: string, book: TradingBoo
   // and `costed` is then built over unsubtracted positions, so the governance is withheld with it:
   // `{}` reads as NOT KNOWN on the card rather than as a claim the engine manages the book.
   const governance = sections.pinnedLots === 'unavailable'
-    ? {} : positionGovernanceBySymbol(costed, coreConfig(override as Parameters<typeof coreConfig>[0]));
+    ? {} : bookGovernance(costed, override as Parameters<typeof coreConfig>[0], book.kind);
   return { account, positions, pinned, lots: lots as unknown as Array<Record<string, unknown>>, peaks, override, orders, kinds, engineCost, governance, sections };
 }
 

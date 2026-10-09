@@ -23,6 +23,7 @@
  * 18 | maintainer@emeraldcoastsystemsgroup.com  | Prove owner TTLs defeat short-contender reaping and abandoned transition markers recover without weakening live transitions.
  * 19 | maintainer@emeraldcoastsystemsgroup.com  | Prove a hung asynchronous completion observer is aborted and cannot retain its engine lease indefinitely.
  * 20 | maintainer@emeraldcoastsystemsgroup.com  | Observe a fresh adopted heartbeat after the parent TTL instead of assuming a sub-100ms Windows timer schedule.
+ * 21 | maintainer@emeraldcoastsystemsgroup.com  | Career worker rail: the adopted wrapper trusts the broker sentinel for Firecrawl only; a brokered Anthropic value in its environment never becomes the engine's ANTHROPIC_API_KEY.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -615,7 +616,7 @@ test('an adopted wrapper trusts the controller broker sentinel and never re-quer
   const saved = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   process.env.CAREER_HUNTER_BROKER_COMPLETE = '1';
   process.env.OSHAL_CRED_ANTHROPIC = 'controller-anthropic';
-  delete process.env.OSHAL_CRED_FIRECRAWL;
+  process.env.OSHAL_CRED_FIRECRAWL = 'controller-firecrawl';
   const buildEngineEnv = loadCliEnvironmentBoundary();
   const originalLoad = Module._load;
   let pgLoaded = false;
@@ -627,8 +628,8 @@ test('an adopted wrapper trusts the controller broker sentinel and never re-quer
     const env = await buildEngineEnv('adopted-user', 'default', 'score', {
       userDir: path.join(fixtureRoot, 'adopted-user'), corpusDb: 'corpus', userDb: 'user', careerDb: 'career',
     }, Date.now() + 1_000);
-    assert.equal(env.ANTHROPIC_API_KEY, 'controller-anthropic');
-    assert.equal(env.FIRECRAWL_API_KEY, undefined);
+    assert.equal(env.ANTHROPIC_API_KEY, undefined, 'the engine is never handed a model key');
+    assert.equal(env.FIRECRAWL_API_KEY, 'controller-firecrawl');
     assert.equal(env.CAREER_HUNTER_BROKER_COMPLETE, undefined);
     assert.equal(pgLoaded, false);
   } finally {

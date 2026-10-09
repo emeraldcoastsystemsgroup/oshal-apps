@@ -10,6 +10,12 @@
  *   |                                           | engine. Byte-for-byte the same algorithm as
  *   |                                           | build_hash() in engine/container/
  *   |                                           | aero_engine_bridge.py (cross-checked by spec).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The image also bakes the reference
+ *   |                                           | certification (certify_reference.py + its
+ *   |                                           | reference_presets.json) and the physical
+ *   |                                           | build-certification gate the exporter loads
+ *   |                                           | (build_certification.py), so the container
+ *   |                                           | serves 'certify' and exports carry the gate.
  */
 
 import * as crypto from 'crypto';
@@ -23,6 +29,7 @@ const logger = createChildLogger({ module: 'aero-engine-build-hash' });
 export const ENGINE_RUNTIME_FILES = [
   'aero_lab_worker.py', 'service.py', 'export_build_files.py',
   'HYBRID_common.py', 'HYBRID_piecewise.py', 'requirements.txt', 'requirements-lock.txt',
+  'certify_reference.py', 'reference_presets.json', 'build_certification.py',
 ] as const;
 
 /** Trees the image bakes in whole, minus caches — mirrors RUNTIME_TREES. */

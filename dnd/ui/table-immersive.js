@@ -6,6 +6,7 @@
  * 2026-07-23 00:01:42 | roger.murphy@emeraldcoastsystemsgroup.com  | Add a true immersive-table controller and a persistent right gameplay rail for the active character, ready actions, inventory, story, and Dungeon Master chat.
  * 2026-07-23 00:12:33 | roger.murphy@emeraldcoastsystemsgroup.com  | Add direct quick questions that ask the contextual Dungeon Master for known facts, searchable leads, or three non-repeating ways forward.
  * 2026-07-23 00:31:18 | roger.murphy@emeraldcoastsystemsgroup.com  | Present recurring NPC names, roles, and player-visible personality cues in the active-character rail.
+ * 2026-09-28 23:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Wire the full-screen, Dungeon Master panel, Escape and quick-question controls only when no audience view renders (ADR-164 D6): under the family view of table.html the table is hidden and never starts. The full table wires them exactly as before.
  */
 
 'use strict';
@@ -118,4 +119,5 @@ function wireImmersiveTable() {
   });
 }
 
-wireImmersiveTable();
+// Audience view (ADR-164 D6): the family view of table.html hides the table, so its controls are never wired.
+if (!window.AppView || !AppView.active()) wireImmersiveTable();

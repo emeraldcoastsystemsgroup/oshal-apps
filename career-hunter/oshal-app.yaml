@@ -25,6 +25,16 @@
 # 21 | maintainer@emeraldcoastsystemsgroup.com | Release connected Job Board/open search views, responsive result-first controls and bounded retryable board reads as version 1.21.0.
 # 22 | maintainer@emeraldcoastsystemsgroup.com | Release the ADR-141 D7 evidence half as version 1.22.0. The story review already recorded a defensible story per job title; nothing downstream could show it or cite it. The master resume document now carries each role's stories with the bullet each one supports, and the Resume Studio renders the story UNDER that bullet (a story whose bullet an edit rewrote falls to the end of its role rather than disappearing). A tailored packet's prompt carries the same evidence role by role with the rule that a role holding a story must spend a bullet on it, every citation the model returns is verified against the story the profile actually holds ON THE ROLE it belongs to (an invented story, a weak one, or one moved to another employer is dropped), and application.json records what was cited. A profile that has never been through the review builds a byte-identical prompt to before.
 # 23 | maintainer@emeraldcoastsystemsgroup.com | Declare the runtime connector allow-list as version 1.23.0. `dependencies.connectors` was ABSENT, and absent does not mean empty: the cockpit reads it as UNFILTERED, pins the Connectors tile and offers every provider in the platform catalog inside this app (RibbonNav.js connectorsAllowed, cockpit-view-controller.js renderConnectorDiscoverView). The four ids below are the complete set this package's own code reads a caller-owned credential for, each cited at the block; LinkedIn is deliberately not among them because the Profile Studio applies a profile change through desktop browser control, not an API credential.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | Release the Career worker rail as version 1.24.0. Every model call the engine makes (fit scoring, tailoring, profile extraction, stories, interview prep, outreach) now runs on the dedicated career-bot node through the new trusted-service route /api/career-hunter/engine (auth: service), cost-attributed to the run's owner by the kernel's accounted bot rail. The engine child on the controller no longer inherits vendor logins or receives a model-provider key for any user or deployment mode (the ADR-137 amendment-A portal carve is retired); a lost or stale career-bot turns a run into a visible failed/career-worker-unavailable state instead of falling back, and the owner can list and cancel their own engine runs. This changes how an installed Career's scoring runs: a deployment without the career-bot node running can no longer score or tailor.
+# 25 | maintainer@emeraldcoastsystemsgroup.com | Release the storage-cutover tooling as version 1.25.0 (BACKEND-CUTOVER.md). Migration 106 adds the reverse-synchronization outbox: an operator-only FORCE-RLS change log written by transaction-local capture triggers on the eight mutable tables with a SQLite counterpart, plus the projector checkpoint; it is inert while SQLite is authoritative (nothing but the loader writes those tables and the loader's operator replay is not captured). engine/sync/reverse_sync.py projects the outbox back into corpus.db and each user store, engine/sync/observe_cutover.py samples the seven-day observation window, and GET /api/career-hunter/cutover/status (auth: oidc, operator-only) serves it, with a `cutover-status` PAT smoke for the Test Lab. SQLite stays authoritative: the store selector, the cron and every engine write path are unchanged; the loader only marks its operator session as a SQLite replay.
+# 26 | maintainer@emeraldcoastsystemsgroup.com | Release the ADR-149 authorization catalog and the signed engine rail as version 1.25.1. Under the kernel's application-authorization ENFORCE rollout (the box default) the engine child's completion call to /api/career-hunter/engine/complete was refused 401 authorization_identity_required before any package code ran, because a service-secret caller has no verified identity: 1.24.0 and 1.25.0 could not score or tailor on an enforce box (core tests/unit/career-rail-enforce-posture.spec.ts). The rail now runs on the kernel's signed-package-callbacks rail, which the loader admits only for a package that declares a catalog: authorization.yaml binds every mounted route, the eight tools, the Career bot and the Send-to-Career action to named permissions, mirroring the app-admin-only posture the catalog-less package had (one member role carries the whole app; admin adds the operator-only routes). The runner mints a per-run callback grant recording the owner's verified subject and issuer, the engine child signs every completion with it (never the fleet service secret, which is no longer forwarded to the child), and the kernel refreshes and authorizes that owner before the handler runs as them. Installing this over a catalog-less 1.23.0/1.24.0/1.25.0 with an existing app-admin assignment is a reviewed catalog migration (README: Installing 1.25.1 on an enforce box).
+# 27 | maintainer@emeraldcoastsystemsgroup.com | Release the story review's live acceptance as version 1.26.0 (ADR-141 D7). Two owner-scoped removals join the catalog, each bound once to career.change: DELETE /stories/test-lab/:tag removes only the caller's stories whose answer carries that acceptance run's Test Lab mark, and DELETE /jobs/:id/packet discards the caller's own generated packet and returns the caller's row to unworked (409 once the posting is applied). GET /resume/doc?id=<posting> also returns the packet's verified story citations. tests/stories-live-acceptance.mjs walks the review, readiness, the master document and one tailored packet on the installed package as the operator automation identity and removes exactly what it created. A new catalog revision: the install needs its AUTH-07 review.
+# 28 | maintainer@emeraldcoastsystemsgroup.com | Release the Test Lab application seam as version 1.27.0 (backlog #23, the approve -> draft half of the Career worker rail's live acceptance). POST /test-lab/applications plants one application, marked with an acceptance run's tag, on one untouched posting of the caller through the queue's own ticket and row writes (the shared jobs corpus is not written), and DELETE /test-lab/applications/:postingId/:tag removes only the caller's application whose ticket carries that tag (a drafting or applied one answers 409). Both are bound once to career.change. With DELETE /jobs/:id/packet (1.26.0) they let the core proof scripts/operations/career-rail-live-proof.js --complete drive a real approve -> draft on the Career bot and leave the owner's store as it found it. A new catalog revision: the install needs its AUTH-07 review.
+# 29 | maintainer@emeraldcoastsystemsgroup.com | Release the engine process-group fix as version 1.27.1. Cancelling a run, its runner deadline and the lease-loss fence signal the wrapper's process group, but bin/oshal-jobhunter.js started the Python engine detached, so on Linux it led a group of its own and survived: a cancelled score run kept calling the rail (refused rail_grant_revoked) and, holding the inherited pipes, stayed `running` with its user-store and corpus-write slots until the engine exited by itself. Under the runner's adopted lease the engine now joins the wrapper's group whenever /proc proves the wrapper leads it, so the runner's group kill reaches the engine and everything it started; the wrapper's own deadline and lease-loss fence kill every other member of that group (lib/career-process-group.js) and still release the lease. A direct CLI run keeps the engine in a group of its own. No route, migration or authorization catalog change.
+# 30 | maintainer@emeraldcoastsystemsgroup.com | Release truthful refresh completion status as version 1.27.2: lastCompletedAt reads the persisted successful-chain marker separately from progressive corpusFreshAt. Existing authenticated route admission remains required; the refresh CLI authentication path is unchanged.
+# 31 | maintainer@emeraldcoastsystemsgroup.com | Release source-generated native board root routes, actual summary counters and explicit member/admin role templates as version 1.27.3; preserve observed resume lifecycle fields.
+# 32 | maintainer@emeraldcoastsystemsgroup.com | Release bounded candidate-first SQLite board lookups as version 1.27.4, preserving ranking, filters, pagination and exhaustive search while eliminating the foreground corpus scan.
+# 33 | maintainer@emeraldcoastsystemsgroup.com | Register owner-scoped native saved Career reads and required facts without enabling any engine mutation as version 1.27.5.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -34,38 +44,91 @@
 # sync tooling) and the CLI wrapper moved to bin/oshal-jobhunter.js (engine resolved
 # package-relative). Manifest cliCommands invoke it via {packageDir}/bin/. Core keeps only
 # the Python INTERPRETER as a base-image runtime (like node); nothing career-specific.
+# WORKER RAIL 1.24.0: the engine's deterministic work (corpus, stores, PDF rendering) still runs
+# on the controller, but every MODEL call it makes goes to the dedicated career-bot node through
+# the package route /api/career-hunter/engine (see routes below). The engine child holds no
+# vendor login and no model-provider key; the bot's own provider does the reasoning.
 # The per-user job store stays on the api-output volume (JOBHUNTER_STORE_ROOT unchanged) —
 # that is this swarm's installed-app DATA, not code, and never lived in the repo.
-# ONE-BOT 2026-07-20: career-advisor (cb…0002) retired; the app has a SINGLE agent that
-# registers inline from this manifest (packaged claude-code shape on the api) — so there
-# are NO dedicated career containers and NO compose fragment. Engine work runs server-side
-# via the {packageDir}/bin CLI tools (the inline bot calls tools; it never shells out).
+# ONE-BOT 2026-07-20: career-advisor (cb…0002) retired; the app has a SINGLE agent,
+# registered from this manifest. It declares `container: career-bot`, so it runs on the
+# dedicated career-bot node the core compose ships (profile career-node), not inline on the
+# api. Engine work runs server-side via the {packageDir}/bin CLI; the engine's model calls
+# come back to this bot through the worker rail.
 # Framework: OSHAL (see docs/adr/2026-04-20-ADR-swarm-application-manifests.md)
 #
 # A node in the hive: turns the battle-tested Python job-hunter engine into an OSHAL
 # app. The shared jobs CORPUS is ingested once from employers' public ATS feeds and shared
 # by all users; every per-user
 # signal (keyword/AI fit, status, resume/cover, lifecycle) is isolated per user_sub.
-# ONE career-hunter agent (inline packaged shape) owns the domain — it calls the framework
-# tools below; the native cockpit board is served directly by the package; an Approvals surface
-# (near Settings) drives the human-in-the-loop application ticket queue.
+# ONE career-hunter agent (on its career-bot node) owns the domain's reasoning — it calls the
+# framework tools below and answers the engine's worker-rail completions; the native cockpit
+# board is served directly by the package; an Approvals surface (near Settings) drives the
+# human-in-the-loop application ticket queue.
 #
 # Everything reduces to a tool, a CLI, a connector, or a surface:
 #   CLI        bin/oshal-jobhunter.js  (query/draft/score/refresh — engine in engine/)
 #   Tools      the framework `tools:` below ({packageDir} cliCommands, server-side)
-#   Connector  anthropic (click-to-connect)   [firecrawl = a per-user settings field]
+#   Connector  anthropic (Career Settings card; not brokered into the engine since 1.24.0)
+#              [firecrawl = a per-user settings field, brokered for web search]
+#   Rail       /api/career-hunter/engine — the engine's model calls, run on the career-bot
 #   Surfaces   board (native package surface) · approvals · settings
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: career-hunter
 suite: ai-knowledge   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }
+  features:
+    - id: career-assistant
+      unit: career assistant task
+      tier: T4
+      generation: none
+      degrade: disable
+    - id: job-fit-scoring
+      unit: job posting fit score
+      tier: T2
+      generation: none
+      degrade: template
+    - id: application-packet
+      unit: tailored resume and cover letter
+      tier: T3
+      generation: none
+      degrade: disable
+    - id: resume-studio-guide
+      unit: resume edit turn
+      tier: T3
+      generation: none
+      degrade: disable
+    - id: job-guide
+      unit: job guide turn
+      tier: T3
+      generation: none
+      degrade: disable
+    - id: linkedin-profile-draft
+      unit: profile draft turn
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: profile-ingest
+      unit: resume or artifact ingest
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: story-review
+      unit: story review answer
+      tier: T2
+      generation: none
+      degrade: template
 displayName: Intelligent Career
 description: >-
   Reads openings from employers' own public ATS job feeds into a shared corpus, scores every
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.23.0
+version: 1.27.5
 
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent
@@ -92,10 +155,38 @@ theme: daylight
 # invisible to the prune guard: the first carve that drops the skill would break this app at
 # MOUNT time, not at compile time. See docs/apps/kernel-skills.md.
 uses:
+  - package-tools
+  - specialist-context
   - test-catalog     # installed scenario registration; unavailable harnesses stay pending
   - graph            # career-graph-routes.js queries the caller-scoped graph tier
   - notifications    # career-digest.js sends the digest through the kernel notifier
   - app-dependencies # compatibility floor for the tiered dependencies block (ADR-085 addendum)
+  # ADR-149 permissions (1.25.1): authorization.yaml binds every route, tool, the Career bot and
+  # the Send-to-Career action to named permissions. The loader admits a callbackVerifier only with
+  # a catalog, and an older core refuses this capability instead of mounting the rail unguarded.
+  - application-authorization
+  # The engine rail's per-run grants ride the kernel's signed-package-callbacks rail: the kernel
+  # runs the package verifier first, refreshes the grant owner and checks career.execute before
+  # routes/career-worker-rail.js runs as that owner.
+  - signed-package-callbacks
+  - experience-roles
+
+authorization:
+  version: 1
+  catalog: authorization.yaml
+  roleTemplates:
+    - id: member
+      version: 1
+      label: Career Hunter Member
+      members:
+        - app: career-hunter
+          role: member
+    - id: admin
+      version: 1
+      label: Career Hunter Administrator
+      members:
+        - app: career-hunter
+          role: admin
 
 
 testing:
@@ -118,6 +209,19 @@ smoke:
     expect:
       status: 200
       jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+  # Operator-only storage-cutover observation status (BACKEND-CUTOVER.md). Read-only: it serves
+  # the archive engine/sync/observe_cutover.py writes and answers `state: not-started` until the
+  # first sample exists. Run from the Test Lab with the operator automation identity's PAT.
+  - name: cutover-status
+    method: GET
+    path: /api/career-hunter/cutover/status
+    auth: pat
+    requiresUser: true
+    expect:
+      status: 200
+      jsonPointer: /state
       rejectValues: [noop, stub, empty]
     requiresAi: false
 
@@ -176,9 +280,11 @@ dependencies:
     tools: []
     # The runtime connector allow-list. Every id is one THIS package's own code reads a
     # caller-owned credential for, and nothing else is:
-    #   anthropic  routes/career-settings-routes.js:24 and routes/career-engine-dispatch.js:83
-    #   firecrawl  read exactly provider IN ('anthropic','firecrawl') out of oshal_connections,
-    #              and bin/oshal-jobhunter.js:281/:284 broker those two into the engine.
+    #   anthropic  routes/career-settings-routes.js reads, saves and clears this row for the
+    #              Career Settings card. Since 1.24.0 it is NOT brokered into the engine.
+    #   firecrawl  routes/career-engine-dispatch.js reads exactly provider = 'firecrawl' out of
+    #              oshal_connections and bin/oshal-jobhunter.js brokers it into the engine for
+    #              deterministic web search.
     #              firecrawl has no platform connector spec today — its key is pasted on this
     #              app's own Settings card and stored as a provider row. It is named here so the
     #              allow-list covers every credential this package reads, and so a firecrawl
@@ -187,7 +293,9 @@ dependencies:
     #   twilio     the digest through the user's own Google token and :165 texts through their
     #              own Twilio connection.
     # All four are OPTIONAL because the app installs and runs with none of them connected: the
-    # digest reports itself unready and the engine falls back to the default kernel LLM.
+    # digest reports itself unready, and the engine's model work runs on the career-bot node
+    # under the user's configured brain (1.24.0 worker rail) — the anthropic row is still saved
+    # and cleared by the Career Settings card, but the engine is no longer handed it.
     # LinkedIn is deliberately absent — the Profile Studio plans and approves a profile change
     # and then applies it through desktop browser control ("no LinkedIn edit API exists", see the
     # ribbon comment below), so it never reads a LinkedIn credential.
@@ -200,10 +308,11 @@ guestTier: readonly
 # ─────────────────────────────────────────────────────────────────────────────
 # BOT — ONE registered bot (2026-07-20 consolidation: career-advisor cb…0002 retired;
 # career-hunter absorbs the advisor/chat duties). It registers from THIS manifest at
-# activate (standard inline packaged shape) — no kernel registry entry, no container.
+# activate and runs on its own `career-bot` node (container below).
 # It never shells out: every engine action is a framework tool below, executed
-# server-side from this package ({packageDir}/bin/oshal-jobhunter.js); the engine does
-# its own LLM work under the user's connected key.
+# server-side from this package ({packageDir}/bin/oshal-jobhunter.js). Since 1.24.0 the
+# engine does NO LLM work of its own: each model call it needs is sent through the worker
+# rail (/api/career-hunter/engine) to THIS bot, cost-attributed to the run's owner.
 # ─────────────────────────────────────────────────────────────────────────────
 chatBot: career-hunter
 
@@ -250,26 +359,31 @@ bots:
 tools:
   - name: career_database
     displayName: Career Database
-    type: cli
+    type: builtin
     description: >-
       Read the signed-in user's career-hunter data — scored job matches, applied/generated
-      pipeline counts, fresh high-fit roles, and resume gap themes — from their migrated jobs
+      pipeline counts, fresh high-fit roles, and a bounded profile — from their migrated jobs
       database. Use it to answer anything about their job search with real numbers.
     executor:
-      executorType: cli
-      cliCommand: node {packageDir}/bin/oshal-jobhunter.js query
+      executorType: builtin
+      builtinKey: package
+    inputSchema: { type: object, properties: {}, additionalProperties: false }
+    outputSchema: { type: object, additionalProperties: true }
     defaultAuthMode: auto
     usageInstructions: >-
-      Call career_database (no arguments) to get a JSON snapshot of THIS user's hunt:
-      freshHighFit.count = roles ≥70% fit posted in the last 3 days; topMatches = best-fit
+      Call career_database with {} to get a read-only JSON snapshot of THIS user's saved hunt.
+      The snapshot reports source timestamps, a bounded profile, scored topMatches, recentApplied,
+      pipeline and freshHighFit. It does not refresh or score jobs. topGaps explicitly reports
+      unavailable until a native gap reader exists. If the saved source is unavailable, report
+      that refusal; never invent matches or claim that a refresh ran.
+      freshHighFit.count = saved roles ≥70% fit first seen in the last 3 days; topMatches = best-fit
       roles (title/company/fit/salary/status); recentApplied = the user's MOST RECENTLY
       APPLIED jobs (title/company/fit/salary_max/applied_at), newest first; pipeline =
-      applied/generated/promoted counts; topGaps = resume gap themes by how many jobs they
-      cost. For ANY question about jobs the user APPLIED to / recent applications, answer
+      applied/generated/promoted counts. For ANY question about jobs the user APPLIED to / recent applications, answer
       ONLY from recentApplied — NEVER from topMatches (those are best-FIT roles, not
       applications). ALWAYS call this before answering questions about their jobs, matches,
       applications, fit, or gaps. The data is already scoped to the signed-in user — never
-      ask them to set up a database or for their role/location; you already have it.
+      request another user's data or infer missing details.
 
   # ── engine work tools: what the codex sandbox shell-out used to do, now server-side ──
   - name: career_draft
@@ -277,8 +391,8 @@ tools:
     type: cli
     description: >-
       Write the tailored resume + cover letter PDFs for ONE approved posting — the engine
-      tailors against the user's real profile (its own LLM pass under their connected key)
-      and returns the output packet paths.
+      tailors against the user's real profile (the model pass runs on the career-bot through
+      the worker rail) and returns the output packet paths.
     executor:
       executorType: cli
       cliCommand: node {packageDir}/bin/oshal-jobhunter.js draft --job {input.postingId}
@@ -305,7 +419,7 @@ tools:
     type: cli
     description: >-
       AI fit-score the signed-in user's fresh in-lane postings (bounded to recent postings;
-      the engine's own scoring pass under the user's connected key).
+      each fit judgement runs on the career-bot through the worker rail).
     executor:
       executorType: cli
       cliCommand: node {packageDir}/bin/oshal-jobhunter.js score
@@ -333,13 +447,14 @@ tools:
       detached and takes hours, so tell the operator it's underway, never that it's done. If it
       returns 403/admin-only, this user isn't a career admin: say so and stop (do not retry). If
       it returns "already running", report that the refresh is in progress. To check progress,
-      call career_refresh_status and read {running, corpusFreshAt}.
+      Once admitted through the existing authenticated route,
+      career_refresh_status reports {running, corpusFreshAt, lastCompletedAt}.
   - name: career_refresh_status
     displayName: Refresh Status
     type: cli
     description: >-
-      Whether a jobs-database refresh is currently running, plus the corpus's newest
-      last-seen timestamp (how fresh the data is).
+      Whether a jobs-database refresh is currently running, the corpus's newest
+      last-seen timestamp, and the last successful chain completion timestamp.
     executor:
       executorType: cli
       cliCommand: node {packageDir}/bin/oshal-jobhunter.js refresh-status
@@ -347,7 +462,9 @@ tools:
     usageInstructions: >-
       Call career_refresh_status (no arguments) to answer "is the refresh done / how fresh is
       the jobs data". {running:true} = scrape+index still going; corpusFreshAt = newest
-      last-seen timestamp in the shared corpus (UTC). Data from tonight = the morning is ready.
+      last-seen timestamp in the shared corpus (UTC), which advances during a scrape.
+      lastCompletedAt = last successful chain completion (UTC), or null if unavailable.
+      Use lastCompletedAt to confirm completion; fresh corpus rows alone do not confirm it.
 
   # ── resume editing tools: "a bot and a tool to edit the database and re-render the resume" ──
   # The bot reads the master editor document with career_resume_read, proposes edits in
@@ -546,6 +663,13 @@ surface:
 # ROUTES — mounted conditionally by the loader.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: lib/native-career-read.js
+    factory: createNativeCareerReadRoutes
+    mountPath: /api/career-hunter
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
   - module: routes/review.js
     factory: createReviewRoutes
     mountPath: /api/career-hunter
@@ -576,6 +700,23 @@ routes:
     requiresAuth: true
     requiresContext: true
 
+  # The Career worker rail (1.24.0; signed since 1.25.1): the engine's only model path, on the
+  # kernel's signed-package-callbacks rail. The rail admits POST only and runs the package's
+  # callbackVerifier before any other code: every completion must be signed with the per-run
+  # grant the runner minted for that engine child (grant id, owner, timestamp, single-use nonce
+  # and an HMAC over the method, path and body), and the verifier returns only the grant's
+  # recorded owner subject and issuer. The kernel refreshes that owner and requires the
+  # authorization.yaml permission bound to POST /complete (career.execute) before the handler
+  # runs as them. No browser session, service secret or asserted subject header reaches the
+  # handler. Its own mountPath because the loader forbids mixing auth modes on one mount.
+  - module: routes/career-worker-rail.js
+    factory: createCareerWorkerRailRoutes
+    mountPath: /api/career-hunter/engine
+    auth: public
+    callbackVerifier: createCareerRailCallbackVerifier
+    requiresContext: true
+    requiresAi: true
+
 # ─────────────────────────────────────────────────────────────────────────────
 # DATABASE MIGRATIONS — applied idempotently on first load.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -583,6 +724,16 @@ routes:
     factory: createCareerGraphRoutes
     mountPath: /api/career-hunter/graph
     auth: oidc
+
+  # Storage-cutover observation status (1.25.0): operator-only, read-only view over the archive
+  # engine/sync/observe_cutover.py writes. The handler also refuses anonymous (401) and
+  # non-operator (403) callers itself, before it reads anything.
+  - module: routes/career-cutover-status.js
+    factory: createCareerCutoverStatusRoutes
+    mountPath: /api/career-hunter/cutover
+    auth: oidc
+    requiresAuth: true
+    requiresAi: false
 
 # Package copies are idempotent (safe on DBs where the core migrations already ran).
 # NEW career-rls.sql closes the 060 gap: career_digest_settings + career_score_settings
@@ -630,6 +781,16 @@ migrations:
   - migrations/102-career-apply-run-binding.sql
   - migrations/103-career-interview-source-identity.sql
   - migrations/105-career-home-evidence-indexes.sql
+  # 107: the verified issuer of the owner who saved an automation opt-in, so the nightly chain can
+  # mint that owner's callback grants for the signed engine rail (1.25.1). Nullable: a row saved
+  # before 1.25.1 has none and the cron skips its model passes until the owner saves again.
+  - migrations/107-career-automation-owner-issuer.sql
+  # 106: the reverse-synchronization outbox (BACKEND-CUTOVER.md). Operator-only FORCE-RLS change
+  # log + checkpoint, and transaction-local AFTER ROW capture triggers on the eight mutable tables
+  # above that have a SQLite counterpart. Must run AFTER 095-103 (it attaches to their tables).
+  # Inert while SQLite is authoritative: nothing but the loader writes those tables, and the
+  # loader's operator replay session is not captured.
+  - migrations/106-career-store-change-log.sql
 
 # ─────────────────────────────────────────────────────────────────────────────
 # WORKFLOW — career-application tickets route to the career-hunter worker bot.

@@ -4,6 +4,9 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped test suite with explicit sealed-runner prerequisites; preserve readiness smoke (1.4.1).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2, ADR-157 S3: classify the hourly rebaseline tick as a system service. runDueRebaselineTick calls listEnabledRebaselinePoliciesSystem inside runWithSystemIdentity — every owner's enabled policy, not the caller's — and dispatches each under the ownerSub the policy row carries, so the run is application-wide and a per-person activation would repeat the whole sweep once per activating person. No `requires:` is declared: this package imports no ADR-149 authorization catalog, and the loader refuses a `requires` naming a permission no catalog defines.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3, ADR-164 D6: tools/venture.html provides the company audience view the Business shell requests with ?audience=company — the caller's own saved ventures as a portfolio (at most eight headers joined), what needs attention, recent analyst runs and the evidence mix, over the existing GET routes, read-only; the console's start and both module scripts run only without a view. No route, schema or permission change. Guarded by tests/audience-view.test.cjs (test-lab.yaml).
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0, ADR-149/ADR-157: import an authorization catalog (authorization.yaml) and declare `requires: [venture.rebaseline]` on the rebaseline tick. A system activation of a protected package with no catalog is refused 409 authorization_service_catalog_required, so the tick could never be turned on. The catalog binds every mounted route once, the four bots, and the tick as a `jobs` operation; venture.rebaseline is granted by no role, only to the application's service principal by a swarm administrator's system activation. Installing this version on a box where 1.4.x is installed is a catalog ADOPTION: the kernel refuses the load and records a breaking AUTH-07 review, so the package is not mounted until that review is approved and the package is loaded again; the old @app-admin assignment is not carried, so people are granted the `member` role afterwards. Guarded by tests/venture-catalog-bindings.test.js and tests/venture-catalog-kernel.core.spec.mjs.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: the schema bootstrap runs under a package-owned advisory lock (VENTURE_SCHEMA_LOCK_KEY in src-routes/venture-schema.ts). Every api boot builds the console and rebaseline-tick routers in one synchronous loop and each starts the whole bootstrap; unserialised, the pair deadlocked in PostgreSQL (40P01 on a pg_proc row, "venture rebaseline schema bootstrap failed" at boot) and raced CREATE TABLE IF NOT EXISTS on a first install. No route, migration, persona or authorization catalog change.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — venture-plan ("Venture Plan")
@@ -38,6 +41,9 @@
 #     to evaluate policy; it does NOT override an owner's enabled=false, dryRun=true,
 #     UTC slot idempotency, or positive integer micro-USD cap. Those gates remain the
 #     spending authority, and every new policy defaults disabled+dry-run.
+#   - Nothing runs by declaration (ADR-157): the tick skips until a swarm
+#     administrator activates it as a system service, which grants the application's
+#     service principal exactly venture.rebaseline from authorization.yaml.
 #
 # WHAT THIS PACKAGE DELIBERATELY DOES NOT DECLARE:
 #
@@ -59,6 +65,41 @@
 
 name: venture-plan
 suite: ai-finance   # ADR-097: one primary shelf, chosen by WHO IT SERVES — the owner-operator
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: venture-scoping
+      unit: venture scope
+      tier: T2
+      generation: none
+      degrade: template
+    - id: assumption-authoring
+      unit: assumption run
+      tier: T2
+      generation: none
+      degrade: template
+    - id: document-narration
+      unit: plan document
+      tier: T3
+      generation: none
+      degrade: disable
+    - id: scheduled-rebaseline
+      unit: scheduled rebaseline run
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: venture-chat
+      unit: strategist chat turn
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: venture-plan-ticket
+      unit: venture plan ticket
+      tier: T3
+      generation: none
+      degrade: disable
                     # deciding whether to commit capital and place a manufacturing order. It emits
                     # documents, but the shelf is never derived from the artifact.
 displayName: Venture Plan
@@ -68,7 +109,7 @@ description: >-
   Bots supply assumptions with a source, a band and a confidence; a deterministic engine does
   every calculation. Every number is either computed and traceable, or visibly a labelled guess
   you should go replace with a quote.
-version: 1.4.2
+version: 1.5.1
 status: active
 scope: person
 
@@ -104,12 +145,23 @@ smoke:
 # `notifications` — a full run is four model calls across four bots and takes
 #   minutes, so it runs out-of-band and the owner is told when it lands, through
 #   the kernel notification router and their own preference-center routing.
+# `application-authorization` — the ADR-149 catalog below. Declared so a core that
+#   predates catalogs refuses to activate the package instead of ignoring it.
 # ─────────────────────────────────────────────────────────────────────────────
 uses:
   - test-catalog
   - deck-generation
   - notifications
   - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
+  - application-authorization
+
+# ADR-149 permission catalog: every route, bot and the scheduled tick is bound to a named
+# permission there. One `member` role carries the app; venture.rebaseline belongs to no role.
+# Block form on purpose: scripts/check-service-activations.mjs reads the catalog a schedule's
+# `requires` is judged against from this block form only.
+authorization:
+  version: 1
+  catalog: authorization.yaml
 
 dependencies:
   required:
@@ -241,7 +293,9 @@ bots:
 # own venture — their idea, their costs, their cash position — or spends their
 # money on a model call. The handlers ALSO self-gate on callerSub before any
 # query and scope every statement to it, with owner-or-operator RLS underneath as
-# the backstop.
+# the backstop. Under the kernel's authorization gate each request also needs the
+# named permission its binding in authorization.yaml declares; an unbound path is
+# refused before package code runs.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
   - module: routes/home-summary.js
@@ -283,9 +337,13 @@ schedules:
   # comes from whoever turned it on. A swarm administrator activates it once for the application.
   # Classifying it does not widen it — the owner's enabled/dryRun/slot/cap gates are still the
   # spending authority, and execute=true only crosses the outer tick gate.
+  # `requires` is what that activation grants the application's service principal, and nothing
+  # else: venture.rebaseline, the permission the catalog's `jobs` binding for this schedule
+  # (venture-plan-rebaseline-policy-tick) names. Current rights are rechecked on every tick.
   - id: rebaseline-policy-tick
     cron: "7 * * * *"
     runsAs: system
+    requires: [venture.rebaseline]
     target: service-route
     route: /api/venture-rebaseline/tick
     handler: runScheduledRebaselineTick

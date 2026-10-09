@@ -29,6 +29,7 @@
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial guards — the blanket owner-predicate sweep over every store read and write, cross-sub isolation asserted on returned values and on the parameters actually sent, the supersede-not-overwrite proof, applyQuote's three-part transaction, and the schema/RLS/migration agreement checks.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Guard immutable/concurrently idempotent FX persistence, exact foreign-quote binding, owner-bound quote references, atomic quote writes, and scenario micro-price storage.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Guard owner-bound rebaseline policy/run writes, slot idempotency, exact cost evidence, and migration/runtime schema agreement.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Guard that ensureVentureSchema hands the kernel bootstrap the package-owned advisory-lock key (1.5.1), a positive 32-bit key outside the kernel's 4711xxxx block; the disposable-PostgreSQL proof of the deadlock it prevents is tests/venture-schema-postgres.test.mjs.
  */
 'use strict';
 
@@ -775,6 +776,17 @@ test('ensureVentureSchema applies an RLS policy for EVERY owned table', async ()
   }
   assert.deepEqual(opts.requirements.map((r) => r.table).sort(), [...schema.VENTURE_TABLES].sort());
   for (const r of opts.requirements) assert.deepEqual(r.columns, ['owner_sub']);
+});
+
+test('ensureVentureSchema runs under the package-owned advisory lock, outside the kernel block', async () => {
+  // Two unserialised bootstraps (one api boot starts two) deadlock in PostgreSQL; the real proof is
+  // tests/venture-schema-postgres.test.mjs. This bare guard keeps the lock handed to the kernel.
+  captured.bootstrap.length = 0;
+  await schema.ensureVentureSchema(makePool());
+  const key = schema.VENTURE_SCHEMA_LOCK_KEY;
+  assert.equal(captured.bootstrap[0].lockKey, key, 'the exported key is the one the bootstrap uses');
+  assert.ok(Number.isSafeInteger(key) && key > 0 && key <= 0x7fffffff, 'a positive 32-bit key pg_advisory_xact_lock accepts');
+  assert.ok(key < 47110000 || key > 47119999, 'outside the kernel SCHEMA_LOCK_KEYS block');
 });
 
 /* ══ 9. the migration files and the runtime schema agree ════════════════ */

@@ -7,6 +7,7 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | 1.2.0 — the access probe, the locked state and the Access link are pinned.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Require the 3D category alongside the retained studio categories.
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | Include the image-editor category and catalog-compatible theme namespace.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | CREATE-EDIT-05d: the Edit video card opens the Video-owned editor rail tile; Short video still opens generation.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -110,4 +111,13 @@ test('a studio the person is not provisioned for is locked, never opened, never 
   // Every studio names the package the probe asks about.
   const studios = literal(source, 'STUDIO');
   for (const key of Object.keys(studios)) assert.match(studios[key].app, /^[a-z0-9-]+$/, `${key} names its package`);
+});
+
+test('the Edit video card opens the Video-owned editor, and Short video still opens generation', () => {
+  const studios = literal(html(), 'STUDIO'), other = literal(html(), 'OTHER'), urls = railUrls(manifest());
+  const card = other.find((o) => o.id === 'edit-video');
+  assert.deepEqual([card.cat, card.studio], ['video', 'videoEditor']);
+  assert.deepEqual([studios.videoEditor.tool, studios.videoEditor.app, studios.videoEditor.url], ['create-video-editor', 'video', '/api/video/editor']);
+  assert.equal(urls.get('create-video-editor'), '/api/video/editor');
+  assert.equal(studios[other.find((o) => o.id === 'short').studio].tool, 'create-video');
 });

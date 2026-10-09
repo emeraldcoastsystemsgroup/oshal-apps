@@ -14,6 +14,12 @@
  *                     |                             | capability_unavailable with the exact reason). The
  *                     |                             | double fakes the TRANSPORT only — engine numbers are
  *                     |                             | proven in aero-live-engine.spec.ts.
+ * 2026-10-05 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Transport choice against a package
+ *                     |                             | dir holding the OTHER platform's venv (the laptop's
+ *                     |                             | Windows .venv restored onto the arm64 Linux box): it
+ *                     |                             | must not count as a local engine, so the container
+ *                     |                             | is used; this platform's own layout still selects
+ *                     |                             | the local transport (the guard is not a blanket).
  */
 
 import * as fs from 'fs';
@@ -166,5 +172,40 @@ describe('AeroEngineAdapter engine-absent honesty (no fallback, no fabrication)'
     const err = await rejectionOf(a.request('polar', {}));
     expect(err.code).toBe('capability_unavailable');
     expect(String(err.reason)).toContain('worker');
+  });
+});
+
+describe('AeroEngineAdapter transport - a venv built for another platform is not a local engine', () => {
+  const ENV_KEYS = ['AERO_LAB_ENGINE_DIR', 'AERO_LAB_PYTHON', 'AERO_LAB_ENGINE_ADDR'] as const;
+  const saved: Record<string, string | undefined> = {};
+  const foreign = process.platform === 'win32' ? ['.venv', 'bin', 'python'] : ['.venv', 'Scripts', 'python.exe'];
+  const own = process.platform === 'win32' ? ['.venv', 'Scripts', 'python.exe'] : ['.venv', 'bin', 'python'];
+
+  /** A deployed package dir: vendored aerosim, the worker script, and one venv interpreter file. */
+  function packageWithVenv(layout: string[]): string {
+    const pkg = fs.mkdtempSync(path.join(os.tmpdir(), 'aero-lab-pkg-'));
+    const engine = path.join(pkg, 'engine');
+    fs.mkdirSync(path.join(engine, 'aerosim'), { recursive: true });
+    fs.writeFileSync(path.join(engine, 'aerosim', '__init__.py'), '');
+    fs.writeFileSync(path.join(engine, 'aero_lab_worker.py'), '');
+    fs.mkdirSync(path.join(engine, ...layout.slice(0, -1)), { recursive: true });
+    fs.writeFileSync(path.join(engine, ...layout), '');
+    return pkg;
+  }
+
+  beforeAll(() => { for (const k of ENV_KEYS) { saved[k] = process.env[k]; delete process.env[k]; } });
+  afterAll(() => { for (const k of ENV_KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } });
+
+  it("ignores the other platform's venv and uses the engine container", () => {
+    const a = new AeroEngineAdapter({ appPackageDir: packageWithVenv(foreign) });
+    expect(a.engineStatus().transport).toBe('container');
+    expect(a.engineStatus().engineAddr).toBe('aero-lab-engine:7411');
+  });
+
+  it("still runs locally from this platform's own venv layout", () => {
+    const pkg = packageWithVenv(own);
+    const status = new AeroEngineAdapter({ appPackageDir: pkg }).engineStatus();
+    expect(status.transport).toBe('local');
+    expect(status.python).toBe(path.join(pkg, 'engine', ...own));
   });
 });

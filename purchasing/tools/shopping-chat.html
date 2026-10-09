@@ -6,6 +6,144 @@
 <title>OSHAL Shopping</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience views (ADR-164 D6). This concierge page is Shopping's first surface, so the shells frame it: Studio, Orbit
+     and Commons with ?audience=company, Jarvis with ?audience=family. The page then answers with the shopper's saved
+     cart and lists from the SAME /api/purchasing reads as the dashboard's family view, painted by the shared kit: the
+     company view is the cart as a table (quantity, unit and line price, the whole-cent total the routes' cart-totals
+     module computes), the lists and the five-day checkout-link count; the family view is the household list in the
+     dashboard's own words. On open it reads only /lists, the active list's /items and /home-summary: never /cart (the
+     concierge's own read), never /deals or /search (the Walmart catalog), never the concierge, the profile or a
+     write. Buying stays in the full page; the escape opens Shopping in the cockpit. Any other request runs the full
+     concierge below unchanged (its start, the assistant rail and the handoff module are gated on the kit's decision),
+     and so does a core without the shared kit. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<style>
+  /* This page pins its body to the viewport and hides overflow for its own layout; under an audience view the kit's
+     root must be free to grow and scroll. */
+  html[data-audience] body { height: auto; overflow: auto; }
+</style>
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=purchasing', KICKER = 'Productivity · Shopping', ROWS = 12, LINES = 30;
+  function call(path) {
+    return fetch('/api/purchasing' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; });
+    });
+  }
+  function refused(e) { return !!e && (e.status === 401 || e.status === 403); }
+  // The home summary is its own mount and may fail on its own: the cart still shows and the checkout-link count reads as unknown.
+  function summary() { return call('/home-summary').catch(function (e) { if (refused(e)) throw e; return null; }); }
+  function isPending(item) { return !item.status || item.status === 'pending'; }
+  function isActive(list) { return !list.status || list.status === 'active'; }
+  // The same pick as the routes' GET /cart: the oldest list still active (GET /lists is ordered by creation).
+  function activeList(lists) { return lists.filter(isActive)[0] || null; }
+  function stamp(value) { var t = new Date(String(value)).getTime(); return isFinite(t) ? t : 0; }
+  function newestFirst(items) { return items.slice().sort(function (a, b) { return stamp(b.created_at) - stamp(a.created_at); }); }
+  // Whole cents as the routes' cart-totals module counts them: an empty, unreadable, negative or oversized unit price is
+  // no price (the line is counted, never priced at zero), and a line's quantity counts from 1 to 10.
+  function cents(v) {
+    if (v === null || v === undefined || v === '') return null;
+    var n = typeof v === 'number' ? v : Number(String(v).trim());
+    if (!isFinite(n) || n < 0) return null;
+    var c = Math.round(n * 100); return c <= 99999999 ? c : null;
+  }
+  function qty(v) { var n = Math.floor(Number(v)); return isFinite(n) && n >= 1 ? Math.min(10, n) : 1; }
+  function total(items) { return items.reduce(function (t, i) { var c = cents(i.unit_price); if (c === null) t.unpriced += 1; else t.cents += c * qty(i.quantity); return t; }, { cents: 0, unpriced: 0 }); }
+  // A count the summary could not read arrives as the word 'Unavailable': that is unknown, never a number.
+  function handoffs(sum) { var m = ((sum && sum.metrics) || []).filter(function (x) { return x.id === 'shopping-handoffs-5d'; })[0]; return m && m.value !== 'Unavailable' ? m : null; }
+  function linksStat(sum, label) { var m = handoffs(sum); return { id: 'handoffs', label: label, value: m ? m.value : '—', hint: m ? 'Not confirmed purchases' : 'Could not check' }; }
+  // Everything both views paint, from three owner-scoped reads; with no active list the items are not read.
+  function load() {
+    return Promise.all([call('/lists'), summary()]).then(function (r) {
+      var lists = r[0].lists || [], list = activeList(lists);
+      return (list ? call('/lists/' + encodeURIComponent(list.list_id) + '/items') : Promise.resolve({ items: [] })).then(function (j) {
+        return { lists: lists, list: list, items: (j.items || []).filter(isPending), sum: r[1] };
+      });
+    });
+  }
+  // A refusal is a state of its own; a server failure names its status, never the route's raw (database) message.
+  function settle(kicker, words) {
+    return function (e) {
+      if (!refused(e)) throw e && e.status >= 500 ? new Error('Shopping could not read the ' + words.noun + ' (HTTP ' + e.status + ').') : e;
+      return { kicker: kicker, title: e.status === 401 ? words.signIn : 'This account cannot open Shopping',
+        lede: e.status === 401 ? words.signedOut : 'The Shopping routes refused this account (HTTP 403).' };
+    };
+  }
+  function cartRow(item) {
+    var c = cents(item.unit_price), q = qty(item.quantity);
+    return [item.title || 'Untitled', { text: String(q) }, { text: c === null ? 'no price' : A.money(c / 100), tone: c === null ? 'warn' : null },
+      { text: c === null ? '—' : A.money(c * q / 100) }, A.when(item.created_at)];
+  }
+  function listRow(l, list) {
+    var picked = !!list && l.list_id === list.list_id, status = isActive(l) ? 'Active' : l.status === 'archived' ? 'Archived' : String(l.status);
+    return [l.name || 'My List', { text: picked ? 'Active · the cart' : status, tone: picked ? 'ok' : null }, { text: String(Number(l.item_count) || 0) }, A.date(l.created_at)];
+  }
+  function companyStats(d) {
+    var t = total(d.items), archived = d.lists.filter(function (l) { return l.status === 'archived'; }).length;
+    return [
+      { id: 'lines', label: 'Cart lines', value: d.items.length },
+      { id: 'total', label: 'Cart total', value: d.list ? A.money(t.cents / 100) : '—', hint: t.unpriced ? t.unpriced + ' without a price' : null, tone: t.unpriced ? 'warn' : null },
+      { id: 'lists', label: 'Active lists', value: d.lists.filter(isActive).length, hint: archived ? archived + ' archived' : null },
+      linksStat(d.sum, 'Checkout links / 5 days')
+    ];
+  }
+  function companyHead(d) {
+    var n = d.items.length, last = newestFirst(d.items)[0], name = d.list ? (d.list.name || 'My List') : '';
+    if (!d.list) return { title: 'No cart yet', lede: 'Nothing has been added yet. Open Shopping to search the catalog and build a cart.' };
+    if (!n) return { title: 'The cart is empty', lede: name + ' has nothing pending. Open Shopping to add products.' };
+    return { title: n === 1 ? '1 line in the cart' : n + ' lines in the cart', lede: name + ' · last added ' + A.when(last.created_at) + '. Checkout hands the cart to Walmart; nothing is charged here.' };
+  }
+  function companyModel(d) {
+    var head = companyHead(d), rows = newestFirst(d.items);
+    return {
+      kicker: KICKER, title: head.title, lede: head.lede, stats: companyStats(d),
+      sections: [
+        { kind: 'table', id: 'cart', title: 'Cart lines', wide: true, empty: d.list ? 'Nothing in the cart yet.' : 'No cart yet.',
+          columns: ['Item', { label: 'Qty', align: 'right' }, { label: 'Unit', align: 'right' }, { label: 'Line', align: 'right' }, 'Added'], rows: rows.slice(0, ROWS).map(cartRow),
+          note: d.sum && d.sum.partial ? 'Some saved shopping data could not be checked.' : rows.length > ROWS ? 'The newest ' + ROWS + ' of ' + rows.length + ' lines. Open Shopping for the whole cart.' : null },
+        { kind: 'table', id: 'lists', title: 'Lists', empty: 'No lists yet.', columns: ['List', 'Status', { label: 'Pending', align: 'right' }, 'Started'],
+          rows: d.lists.map(function (l) { return listRow(l, d.list); }) }
+      ]
+    };
+  }
+  function line(item) { var c = cents(item.unit_price); return { icon: '🛒', title: item.title || 'Untitled', text: '×' + (Number(item.quantity) || 1) + ' · ' + (c === null ? 'no price yet' : A.money(c / 100) + ' each'), meta: 'added ' + A.when(item.created_at) }; }
+  function tile(l) { var n = Number(l.item_count) || 0; return { icon: '📝', title: l.name || 'My List', text: n === 1 ? '1 thing on it' : n + ' things on it', meta: 'started ' + A.when(l.created_at), badge: l.status === 'archived' ? 'Archived' : null }; }
+  function familyLede(d, last) {
+    if (!d.list) return 'Nothing has been started yet. Open Shopping to start a list.';
+    if (!d.items.length) return 'The list is empty. Add things in Shopping or on the home list.';
+    return d.items.length + (d.items.length === 1 ? ' thing' : ' things') + ' to pick up. Newest: ' + (last.title || 'Untitled') + ', added ' + A.when(last.created_at) + '.';
+  }
+  function familyModel(d) {
+    var others = d.lists.filter(function (l) { return !d.list || l.list_id !== d.list.list_id; }), last = newestFirst(d.items)[0], n = d.items.length;
+    return {
+      kicker: 'Our list', title: d.list ? (d.list.name || 'My List') : 'No list yet', lede: familyLede(d, last),
+      actions: [{ label: 'Open the shopping list', primary: true, onClick: function () { A.open(FULL); } }],
+      stats: [
+        { id: 'pending', label: 'On the list', value: n },
+        { id: 'lists', label: 'Lists', value: d.lists.length },
+        { id: 'added', label: 'Last added', value: last ? A.when(last.created_at) : '—' },
+        linksStat(d.sum, 'Checkout links, 5 days')
+      ],
+      sections: [
+        { kind: 'list', id: 'items', title: 'On the list', empty: d.list ? 'Nothing on the list yet.' : 'No list yet.', items: d.items.slice(0, LINES).map(line),
+          note: d.sum && d.sum.partial ? 'Some saved shopping data could not be checked.' : n > LINES ? 'The first ' + LINES + ' of ' + n + '. Open Shopping for the whole list.' : null },
+        others.length ? { kind: 'tiles', id: 'lists', title: 'Other lists', items: others.map(tile) } : null
+      ]
+    };
+  }
+  function company() {
+    return load().then(companyModel).catch(settle(KICKER, { noun: 'cart', signIn: 'Sign in to see the shopping cart',
+      signedOut: 'Shopping shows the cart of whoever is signed in, and this session is not signed in.' }));
+  }
+  function family() {
+    return load().then(familyModel).catch(settle('Our list', { noun: 'list', signIn: 'Sign in to see the shopping list',
+      signedOut: 'Shopping shows the list of whoever is signed in, and this session is not signed in.' }));
+  }
+  A.boot({ app: 'purchasing', escapeLabel: 'Open Shopping in the cockpit', audiences: { company: company, family: family } });
+})();
+</script>
 <style>
   :root {
     --bg: var(--bg-primary, #0f1117);
@@ -564,6 +702,36 @@
   .vendor-price {
     color: var(--accent);
   }
+
+  /* The assistant rail's cards. Class names are the ones the SHARED surface-bridge client renders
+     (bridge-propose / bridge-confirm / bridge-cancel / bridge-notice); a checkout the concierge or
+     the floating assistant proposes lands here and opens nothing until the shopper confirms. */
+  .bridge-dock:empty { display: none; }
+  .bridge-dock { display: grid; gap: 8px; }
+  .bridge-propose {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  }
+  .bridge-propose p { margin: 0; font-size: 13px; line-height: 1.4; }
+  .bridge-confirm,
+  .bridge-cancel {
+    min-height: 36px;
+    border-radius: 8px;
+    font-weight: 850;
+    border: 1px solid var(--line);
+    background: var(--shop-control);
+    color: var(--text);
+  }
+  .bridge-confirm { border-color: transparent; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; }
+  .bridge-option { display: grid; gap: 2px; text-align: left; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--shop-control); color: var(--text); }
+  .bridge-option-desc { color: var(--muted); font-size: 12px; }
+  .bridge-notices { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); display: grid; gap: 6px; z-index: 11; width: min(420px, calc(100vw - 20px)); }
+  .bridge-notice { padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shop-shadow); font-size: 13px; }
+  .bridge-notice-warn, .bridge-notice-error { border-color: var(--warn); }
 </style>
 <script>
 (function(){
@@ -612,13 +780,13 @@
           <h1>Shop the things you need.</h1>
           <p class="subcopy">Browse products, compare retailer options, build a cart, and let the concierge help choose.</p>
           <div class="ship-row">
-            <input class="input" id="shipAddress" placeholder="Ship to address or store pickup location" />
+            <input class="input" id="shipAddress" data-bridge-field="shipAddress" placeholder="Ship to address or store pickup location" />
             <button class="btn" id="locBtn" type="button">Use location</button>
           </div>
         </div>
         <div>
           <div class="search-row">
-            <input class="input" id="query" placeholder="Search Walmart, Amazon, products, deals" />
+            <input class="input" id="query" data-bridge-field="query" placeholder="Search Walmart, Amazon, products, deals" />
             <button class="btn primary" id="searchBtn" type="button">Search</button>
           </div>
           <div class="chips" id="chips"></div>
@@ -678,6 +846,7 @@
           <div class="msg bot">Tell me what you need. I can search products, compare options, add to the cart, and remember preferences.</div>
         </div>
         <div class="assistant-footer">
+          <div class="bridge-dock" id="bridgeOptions" data-bridge-host="options" aria-live="polite"></div>
           <div class="chat-row">
             <input class="input" id="chatInput" placeholder="Find cheaper dish soap and bananas..." />
             <button class="btn primary" id="chatSend" type="button">Send</button>
@@ -688,6 +857,7 @@
   </div>
 </div>
 <div class="toast" id="toast"></div>
+<div class="bridge-notices" data-bridge-host="notices"></div>
 
 <script>
 const API = '/api/purchasing';
@@ -697,7 +867,10 @@ const state = {
   listId: '',
   selected: null,
   conversationId: localStorage.getItem('oshalShopConv') || '',
-  source: 'walmart'
+  source: 'walmart',
+  products: [],
+  cart: null,
+  proposedAction: null
 };
 
 function escapeHtml(value) {
@@ -769,6 +942,7 @@ function renderProductCard(product) {
 }
 
 function hydrateProductEvents(products) {
+  state.products = products.slice(0, 40);
   const byId = new Map(products.map((product) => [String(product.productId), product]));
   document.querySelectorAll('[data-product]').forEach((card) => {
     card.addEventListener('click', (event) => {
@@ -779,6 +953,7 @@ function hydrateProductEvents(products) {
   document.querySelectorAll('[data-add]').forEach((button) => {
     button.addEventListener('click', () => addProduct(byId.get(button.dataset.add)));
   });
+  publishContext();
 }
 
 async function search(query = '') {
@@ -837,29 +1012,52 @@ function selectProduct(product) {
   $('#compareAdd').disabled = false;
 }
 
+// GET /cart only reads (a GET is admitted read-only), so a shopper with no list yet reads listId null. The first add
+// creates the default list through POST /lists, exactly as the dashboard's ensureList does; concurrent adds share one
+// creation request.
+let listCreation = null;
+function ensureList() {
+  if (state.listId) return Promise.resolve(state.listId);
+  listCreation = listCreation || postJson(`${API}/lists`, {})
+    .then((result) => {
+      if (result && result.list && result.list.list_id) state.listId = result.list.list_id;
+      else toast((result && result.error) || 'Could not start a shopping list');
+      return state.listId;
+    })
+    .catch(() => { toast('Could not start a shopping list'); return state.listId; })
+    .finally(() => { listCreation = null; });
+  return listCreation;
+}
+
 async function addProduct(product) {
   if (!product || !state.listId) await loadCart();
+  if (product && !state.listId) await ensureList();
   if (!product || !state.listId) return;
-  await postJson(`${API}/lists/${encodeURIComponent(state.listId)}/items`, {
+  // The server prices the line from the catalog by productId; the title is only a search hint.
+  // No price, image or brand is sent: the total must not depend on what the browser claims.
+  const result = await postJson(`${API}/lists/${encodeURIComponent(state.listId)}/items`, {
     productId: product.productId,
     title: product.title,
-    brand: product.brand,
-    retailer: product.retailer || 'walmart',
-    imageUrl: product.imageUrl,
-    productUrl: product.productUrl,
-    price: product.price,
     quantity: 1,
     itemKey: product.title,
     reason: 'Added from marketplace surface.'
   });
-  toast(`Added ${product.title}`);
-  loadCart();
+  if (!result || result.error) {
+    toast((result && result.message) || 'That product could not be confirmed');
+    return;
+  }
+  toast(`Added ${(result.item && result.item.title) || product.title || 'item'}`);
+  await loadCart();
 }
 
 function renderCart(data) {
   state.listId = data.listId || state.listId;
+  state.cart = data;
   const items = data.items || [];
-  $('#cartMeta').textContent = items.length ? `${items.length} cart line${items.length === 1 ? '' : 's'}` : 'One active shopping list.';
+  const unpriced = Number(data.unpricedLines) || 0;
+  $('#cartMeta').textContent = items.length
+    ? `${items.length} cart line${items.length === 1 ? '' : 's'}${unpriced ? ` · ${unpriced} without a price` : ''}`
+    : 'One active shopping list.';
   $('#total').textContent = money(data.total || 0);
   $('#checkoutBtn').disabled = items.length === 0;
   $('#cartItems').innerHTML = items.length ? items.map((item) => `<div class="cart-row">
@@ -872,6 +1070,7 @@ function renderCart(data) {
       loadCart();
     });
   });
+  publishContext();
 }
 
 async function loadCart() {
@@ -919,10 +1118,144 @@ async function sendChat() {
       hydrateProductEvents(products);
       selectProduct(products[0]);
     }
-    if ((result.added || []).length || result.checkout) await loadCart();
-    if (result.checkout?.checkoutUrl) window.open(result.checkout.checkoutUrl, '_blank');
+    if ((result.added || []).length || result.proposal) await loadCart();
+    // A chat checkout is a PROPOSAL: it becomes a confirm card and nothing opens until the
+    // shopper clicks Confirm (onProposalClick -> checkout()).
+    if (result.proposal) proposeCheckout(result.proposal);
   } catch {
     pending.textContent = 'I hit an error. Try searching directly.';
+  }
+}
+
+// ── The assistant rail (shared surface bridge) ───────────────────────────────
+// The page publishes what it is showing (`context`) so the floating assistant answers about the
+// cart on screen, and it takes the assistant's `custom` ops through the same functions the
+// buttons call. A checkout anyone proposes (the embedded concierge or the floating assistant)
+// is a `propose` card rendered by the shared client; only the shopper's Confirm opens Walmart.
+const SHOP_APP = 'purchasing';
+const BRIDGE_CHANNEL = 'oshal-surface-bridge';
+const DIGEST_CAP = 3900;
+const SEARCH_DOC = 'Search the catalog and show the results on the grid. data = {"query":"<words>"}.';
+const ADD_DOC = 'Add one product to the cart; the server prices it from the catalog, so send no price. data = {"productId":"<an id from the digest Products line>"}.';
+const CHECKOUT_DOC = 'Ask the shopper to confirm the Walmart checkout hand-off for the current cart. It shows a confirm card; nothing opens until they click it. data = {}.';
+
+/** The page state the digest summarises, read once so the digest itself stays a pure function. */
+function shoppingView() {
+  return {
+    cart: state.cart || {},
+    products: state.products,
+    shipAddress: $('#shipAddress').value.trim(),
+    heading: $('#sectionTitle').textContent,
+    source: state.source
+  };
+}
+
+// digest-helpers:start
+function shoppingDigest(view) {
+  const items = view.cart.items || [];
+  const unpriced = Number(view.cart.unpricedLines) || 0;
+  const lines = [`Cart: ${items.length} line${items.length === 1 ? '' : 's'}, total ${money(view.cart.total || 0)}${unpriced ? ` (${unpriced} without a price)` : ''}`];
+  if (items.length) lines.push('Lines: ' + items.map((i) => `${i.product_id} ${i.title} x${i.quantity} @ ${money(i.unit_price)}`).join('; '));
+  lines.push(`Ship to: ${view.shipAddress || 'not set'}`);
+  lines.push(`Showing: ${view.heading} (${view.products.length} products${view.source === 'demo' ? ', demo catalog' : ''})`);
+  if (view.products.length) lines.push('Products: ' + view.products.map((p) => `${p.productId} ${p.title} ${money(p.price)}`).join('; '));
+  const text = lines.join('\n');
+  return text.length > DIGEST_CAP ? text.slice(0, DIGEST_CAP) + '\n…(truncated)' : text;
+}
+// digest-helpers:end
+
+function publishContext() {
+  if (!window.__bridge) return;
+  const view = shoppingView();
+  try {
+    window.__bridge.emitContext({
+      surface: 'shopping',
+      title: 'Shopping cart',
+      ...(state.listId ? { recordId: String(state.listId) } : {}),
+      digest: shoppingDigest(view),
+      fields: {
+        cartLines: (view.cart.items || []).length,
+        totalCents: Number(view.cart.totalCents) || 0,
+        shipAddress: view.shipAddress.slice(0, 200),
+        query: $('#query').value.trim().slice(0, 200),
+        results: view.products.length,
+        catalog: String(view.source || 'walmart')
+      },
+      can: ['set_field', 'custom', 'propose', 'notify'],
+      customOps: [
+        { name: 'search', description: SEARCH_DOC },
+        { name: 'add_product', description: ADD_DOC },
+        { name: 'checkout', description: CHECKOUT_DOC }
+      ]
+    });
+  } catch (err) {
+    console.warn('[shopping] context publish failed', err && err.message);
+  }
+}
+
+/** The confirm card for the current cart (the server computed the total it quotes). */
+function cartProposal() {
+  const items = (state.cart && state.cart.items) || [];
+  if (!items.length) return null;
+  const units = items.reduce((n, i) => n + (Number(i.quantity) || 1), 0);
+  return { summary: `Open Walmart checkout for ${units} item${units === 1 ? '' : 's'} totalling ${money(state.cart.total || 0)}? You sign in and pay on Walmart; nothing is charged here.` };
+}
+
+/** Show a checkout proposal as the shared client's confirm card; never opens anything itself. */
+function proposeCheckout(proposal) {
+  const summary = String((proposal && proposal.summary) || '').trim();
+  if (!summary) return;
+  if (window.__bridgeProducer) {
+    window.__bridgeProducer.emitOps([{ op: 'propose', actionId: 'checkout', summary, confirmLabel: 'Open Walmart checkout', cancelLabel: 'Not yet' }]);
+    return;
+  }
+  // No bridge module (an old cockpit or a static preview): say it; the explicit button stays the only way out.
+  addMessage('bot', `${summary} Use "Checkout handoff" to continue.`);
+}
+
+/** Remember which action the card on screen proposes (every propose replaces the last card). */
+function trackProposal(evt) {
+  if (evt.origin !== window.location.origin) return;
+  const d = evt.data;
+  if (!d || d.channel !== BRIDGE_CHANNEL || d.v !== 1 || d.app !== SHOP_APP) return;
+  if (d.op === 'propose') {
+    state.proposedAction = String(d.actionId || '');
+    setTimeout(() => $('#bridgeOptions').scrollIntoView({ block: 'nearest' }), 0);
+  } else if (d.op === 'render_options') {
+    state.proposedAction = null;
+  }
+}
+
+/** Capture-phase click on the options host: the shopper's Confirm is the ONLY hand-off trigger. */
+function onProposalClick(event) {
+  const button = event.target && event.target.closest ? event.target.closest('button') : null;
+  if (!button) return;
+  const action = state.proposedAction;
+  if (button.classList.contains('bridge-cancel')) { state.proposedAction = null; return; }
+  if (!button.classList.contains('bridge-confirm')) return;
+  state.proposedAction = null;
+  if (action === 'checkout') checkout();
+}
+
+/** The assistant's custom ops, applied through the same functions the page's own buttons use. */
+function onBridgeCustom(evt) {
+  const detail = evt.detail || {};
+  const data = detail.data || {};
+  if (detail.name === 'request_context') { publishContext(); return; }
+  if (detail.name === 'search') {
+    const query = String(data.query || '').trim().slice(0, 200);
+    if (query) { $('#query').value = query; search(query); }
+    return;
+  }
+  if (detail.name === 'add_product') {
+    const id = String(data.productId || '').trim();
+    const shown = state.products.find((p) => String(p.productId) === id);
+    if (id) addProduct(shown || { productId: id, title: '' });
+    return;
+  }
+  if (detail.name === 'checkout') {
+    const proposal = cartProposal();
+    if (proposal) proposeCheckout(proposal); else toast('Add products first');
   }
 }
 
@@ -968,6 +1301,11 @@ async function boot() {
   $('#chatSend').addEventListener('click', sendChat);
   $('#chatInput').addEventListener('keydown', (event) => { if (event.key === 'Enter') sendChat(); });
   $('#locBtn').addEventListener('click', useLocation);
+  $('#shipAddress').addEventListener('change', publishContext);
+  $('#bridgeOptions').addEventListener('click', onProposalClick, true);
+  window.addEventListener('message', trackProposal);
+  document.addEventListener('surface-bridge:custom', onBridgeCustom);
+  window.addEventListener('bridge-ready', publishContext);
   await Promise.all([loadProfile(), loadCart()]);
   await loadDeals();
   try {
@@ -979,13 +1317,39 @@ async function boot() {
   }
 }
 
-boot();
+// Under an audience view (ADR-164 D6) the kit paints from its own reads; the full concierge starts only when no view
+// renders, and always when the shared kit is absent. Its start reads /cart and the Walmart deals feed (a catalog call),
+// so it must not run behind a view.
+if (!window.AppView || !AppView.active()) boot();
+</script>
+
+<!-- The assistant rail: the shared surface-bridge client renders what the floating assistant sends
+     (set_field / propose / notify / custom) and publishes what this page shows (`context`). The
+     producer in 'self' mode lets the embedded concierge's checkout proposal travel the SAME path,
+     so both assistants drive one confirm card. Degrades silently without the module. -->
+<script type="module">
+  // Under an audience view the assistant rail stays off: the view publishes no context and takes no relayed op.
+  if (!window.AppView || !AppView.active()) {
+  try {
+    const { createSurfaceBridgeClient } = await import('/shared/ui/js/surface-bridge-client.js');
+    const { createSurfaceProducer } = await import('/shared/ui/js/surface-bridge-producer.js');
+    const bridge = createSurfaceBridgeClient({ app: 'purchasing' });
+    bridge.attach();
+    window.__bridge = bridge;
+    window.__bridgeProducer = createSurfaceProducer({ win: window, postTarget: 'self', app: 'purchasing' });
+    window.dispatchEvent(new Event('bridge-ready'));
+  } catch (err) {
+    console.warn('[shopping] assistant rail unavailable', err && err.message);
+  }
+  }
 </script>
 
 <!-- App-owned context integration: drafts only; existing actions still execute explicitly. -->
 <script type="module">
 import { receiveHandoff } from '/cockpit/js/app-handoff.js';
 import { mountConnectedActions } from '/cockpit/js/app-workflows.js';
+// Under an audience view no handoff listener binds and the connected-actions plan is not read.
+if (!window.AppView || !AppView.active()) {
 const clip = value => String(value || '').slice(0,2000);
 const val = id => clip(document.getElementById(id)?.value?.trim());
 const set = (id,value) => { const el=document.getElementById(id); el.value = el.tagName === 'INPUT' ? String(value || '').replace(/\s*\n+\s*/g, ' · ') : value || ''; };
@@ -995,6 +1359,7 @@ const element = document.createElement('section'); element.className='connected-
 element.style.cssText='margin:0 0 12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel,var(--surface));display:flex;gap:8px;align-items:center;flex-wrap:wrap';
 document.querySelector('.results').prepend(element);
 void mountConnectedActions({ app:"purchasing", element, contextForOffer:()=>{ const notes=val('chatInput') || val('query'); return notes ? {title:'Meal planning from my shopping request',notes} : null; } }).then(()=>element.querySelectorAll('button').forEach(button=>button.classList.add('btn')));
+}
 </script>
 </body>
 </html>

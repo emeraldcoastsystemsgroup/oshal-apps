@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The loopback app and the in-memory pool moved to tests/core.fixture.js, shared with the browser suite; the served browser protocol module is evaluated in a sandbox; look-at rehearses without arming and leaves the believed pose alone.
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The packaged routes over real loopback HTTP with express resolved from the framework checkout (OSHAL_CORE_DIR): the surface, assets, capabilities, catalog and templates serve; the caller gate 401s; a rig is created from a template (manifest kind prop, axes, idle power) and a bad rig is refused naming the field; poses and scenarios are set one per call, refused out of limits, on a cycle, and deletion is refused while referenced; REHEARSE answers report + frames + protocol lines and logs a run; PLAY, LOOK-AT and JOG are 409 until armed; ARM is 428 without confirm, 422 on a refused supply, and answers hello + clamps + the neutral frame; PLAY advances the believed pose and logs; LOOK-AT splits eyes and neck; JOG refuses an out-of-limit axis; a rig change disarms; DISARM answers the e-stop line; owner scoping 404s; the command log lists newest first; the Home summary; deletion. The database is a SQL-dispatching in-memory double — the owner RLS boundary itself is proven by the migration's policy text and the live installer, not here.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | The Test Lab catalog holds eleven cases: the audience-view case (the family view of the page, ADR-164 D6) joined the ten this count pinned.
  *
  * FRAMEWORK-COUPLED: needs a core checkout for express. Not part of the store-CI
  * wildcard; run locally: OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/routes.core.test.js
@@ -59,7 +60,7 @@ test('the manifest and the Test Lab catalog load through the framework\'s own lo
   const { loadPackageTestCatalog } = coreRequire(path.join(CORE, 'scripts', 'oshal-test-catalog.js'));
   const loaded = loadPackageTestCatalog(PKG, manifest);
   const cases = loaded.catalog.cases;
-  assert.equal(cases.length, 10);
+  assert.equal(cases.length, 11);
   for (const c of cases) for (const line of c.expected) assert.ok(line.length <= 500, `${c.id}: ${line.slice(0, 40)}`);
   const persona = coreRequire('js-yaml').load(fs.readFileSync(path.join(PKG, manifest.bots[0].persona), 'utf8'));
   assert.equal(persona.agent_id, manifest.bots[0].agentId, 'the persona and the manifest name the same agent');

@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify role-specific permissions and exact HTTP/asset admission through the real core mounter without business persistence.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Seven roles now: generator carries view, read and the new project.generate; admin carries it too; every other role keeps its exact earlier meaning. The six region-edit routes admit exactly the roles their bindings name, before any business database work.
  */
 import { beforeEach, afterEach, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -15,15 +16,15 @@ afterEach(async () => { await fixture?.close(); });
 
 const ROLES: Record<string, string[]> = {
   viewer: ['view'], reader: ['view', 'read'], creator: ['view', 'read', 'create'],
-  editor: ['view', 'read', 'change'], exporter: ['view', 'read', 'export'],
-  admin: ['view', 'read', 'create', 'change', 'delete', 'export'],
+  editor: ['view', 'read', 'change'], exporter: ['view', 'read', 'export'], generator: ['view', 'read', 'generate'],
+  admin: ['view', 'read', 'create', 'change', 'delete', 'export', 'generate'],
 };
+const ACTIONS = ['view', 'read', 'create', 'change', 'delete', 'export', 'generate'];
 
 for (const [role, actions] of Object.entries(ROLES)) it(`reports only the ${role} role's real effective operations`, async () => {
   await fixture.change(role);
   const permissions = await fixture.call('/permissions'); expect(permissions.status).toBe(200);
-  expect((await permissions.json()).permissions).toEqual(Object.fromEntries(
-    ['view', 'read', 'create', 'change', 'delete', 'export'].map(action => [action, actions.includes(action)])));
+  expect((await permissions.json()).permissions).toEqual(Object.fromEntries(ACTIONS.map(action => [action, actions.includes(action)])));
   expect((await fixture.call('/editor')).status).toBe(200);
   const create = await fixture.call('/projects', 'alice', 'POST', {});
   expect(create.status).toBe(actions.includes('create') ? 400 : 403);
@@ -33,7 +34,26 @@ for (const [role, actions] of Object.entries(ROLES)) it(`reports only the ${role
   expect(remove.status).toBe(actions.includes('delete') ? 400 : 403);
   const upload = await fixture.call('/project-assets', 'alice', 'POST', {});
   expect(upload.status).toBe(actions.includes('create') || actions.includes('change') ? 400 : 403);
+  const generate = await fixture.call(`/projects/${RECORD}/region-edits`, 'alice', 'POST', {});
+  expect(generate.status).toBe(actions.includes('generate') ? 400 : 403);
+  const accept = await fixture.call(`/projects/${RECORD}/region-edits/${RECORD}/accept`, 'alice', 'POST', {});
+  expect(accept.status).toBe(actions.includes('change') ? 400 : 403);
+  for (const decision of ['cancel', 'reject']) {
+    const response = await fixture.call(`/projects/${RECORD}/region-edits/${RECORD}/${decision}`, 'alice', 'POST', { unexpected: true });
+    expect(response.status).toBe(actions.includes('generate') ? 400 : 403);
+  }
+  if (!actions.includes('generate')) expect((await fixture.call('/region-edit-provider')).status).toBe(403);
   expect(fixture.pool.calls).toBe(0);
+});
+
+it('reads a region edit only with project read, and reaches storage only after admission', async () => {
+  await fixture.change('viewer');
+  expect((await fixture.call(`/projects/${RECORD}/region-edits/${RECORD}`)).status).toBe(403);
+  expect(fixture.pool.calls).toBe(0);
+  await fixture.change('reader');
+  const read = await fixture.call(`/projects/${RECORD}/region-edits/${RECORD}`);
+  expect(read.status).toBe(503); expect((await read.json()).error).toBe('project_service_unavailable');
+  expect(fixture.pool.calls).toBe(1);
 });
 
 it('keeps authenticated shell/module reads behind named view permission and an exact asset allowlist', async () => {

@@ -13,10 +13,11 @@ SEQ | AUTHOR                                    | DESCRIPTION
     |                                           | ack trims the events, and /health counts them.
 2   | maintainer@emeraldcoastsystemsgroup.com   | The owner rides as the trusted service user-sub header (base64url, unpadded) and /health names it.
 3   | maintainer@emeraldcoastsystemsgroup.com   | The heartbeat pace backs off while refused and returns to nominal on an ack.
+4   | maintainer@emeraldcoastsystemsgroup.com   | ADR-175: heartbeats carry the device credential (Bearer); no credential, no rail.
+5   | maintainer@emeraldcoastsystemsgroup.com   | ADR-175 hardening: commands need the key from the last heartbeat reply; the rail needs no machine secret.
 """
 from __future__ import annotations
 
-import base64
 import json
 import os
 import sys
@@ -37,6 +38,8 @@ from embodied_worker import hello  # noqa: E402
 
 FIXTURE = os.path.join(HERE, "fixtures", "recon-mini.xml")
 SECRET = "t3st-secret"
+TOKEN = "oshal_pat_t3st-device-credential"
+KEY = "k3y-" + "c" * 40
 SETPOINT = {"x": 0.6, "y": 0.6, "z": 2.075, "yaw": 0.0}
 
 
@@ -56,15 +59,14 @@ class FakeController:
             def do_POST(self):  # noqa: N802
                 n = int(self.headers.get("Content-Length") or 0)
                 body = json.loads(self.rfile.read(n) or b"{}")
-                if self.path != HEARTBEAT_PATH or self.headers.get("X-Service-Secret") != SECRET:
-                    code, reply = 401, {"error": "This route requires a valid service secret"}
+                if self.path != HEARTBEAT_PATH or self.headers.get("Authorization") != f"Bearer {TOKEN}" or self.headers.get("X-Service-Secret"):
+                    code, reply = 401, {"error": "This route requires a device-bound node credential"}
                 else:
                     with outer.lock:
-                        body["_ownerHeader"] = self.headers.get("X-Oshal-User-Sub-B64")
                         outer.beats.append(body)
                         for e in body.get("events", []):
                             outer.ack = max(outer.ack, int(e["seq"]))
-                        code, reply = 200, {"ok": True, "nodeId": body.get("nodeId"), "ack": outer.ack}
+                        code, reply = 200, {"ok": True, "nodeId": body.get("nodeId"), "ack": outer.ack, "commandKey": KEY}
                 data = json.dumps(reply).encode("utf-8")
                 self.send_response(code)
                 self.send_header("Content-Type", "application/json")
@@ -85,8 +87,8 @@ class FakeController:
 def rail():
     controller = FakeController()
     sessions = Sessions()
-    env = {"SWARM_SERVICE_SECRET": SECRET, "EMBODIED_NODE_ID": "plant-test", "EMBODIED_NODE_HOST": "127.0.0.1",
-           "EMBODIED_NODE_PORT": "0", "OSHAL_API_URL": controller.url, "EMBODIED_NODE_OWNER_SUB": "owner-1"}
+    env = {"EMBODIED_NODE_ID": "plant-test", "EMBODIED_NODE_HOST": "127.0.0.1",
+           "EMBODIED_NODE_PORT": "0", "OSHAL_API_URL": controller.url, "EMBODIED_NODE_TOKEN": TOKEN}
     node = start_node_rail(sessions, lambda: hello(build_hash()), env)
     assert node is not None
     # the suite drives heartbeats itself: stop the loop and wait for it so no beat races the assertions
@@ -94,13 +96,16 @@ def rail():
     for t in node.threads:
         if t.name == "embodied-node-heartbeat":
             t.join(10)
+    assert node.send_heartbeat(), "the first heartbeat brings the command key"
     yield node, controller, sessions
     node.shutdown()
     controller.close()
 
 
-def post(url: str, body: dict, secret: str | None = SECRET):
+def post(url: str, body: dict, key: str | None = KEY, secret: str | None = None):
     headers = {"Content-Type": "application/json"}
+    if key is not None:
+        headers["X-Node-Command-Key"] = key
     if secret is not None:
         headers["X-Service-Secret"] = secret
     req = urllib.request.Request(url + COMMAND_PATH, data=json.dumps(body).encode("utf-8"), method="POST", headers=headers)
@@ -111,16 +116,39 @@ def post(url: str, body: dict, secret: str | None = SECRET):
         return error.code, json.loads(error.read() or b"{}")
 
 
-def test_the_rail_is_off_without_the_secret():
-    assert start_node_rail(Sessions(), lambda: {}, {"SWARM_SERVICE_SECRET": ""}) is None
+def test_the_rail_needs_no_machine_secret():
+    controller = FakeController()
+    try:
+        env = {"EMBODIED_NODE_PORT": "0", "EMBODIED_NODE_HOST": "127.0.0.1", "OSHAL_API_URL": controller.url, "EMBODIED_NODE_TOKEN": TOKEN}
+        node = start_node_rail(Sessions(), lambda: {}, env)
+        assert node is not None, "the device credential alone starts the rail"
+        node.shutdown()
+    finally:
+        controller.close()
+
+
+def test_the_rail_is_off_without_a_device_credential(tmp_path):
+    env = {"EMBODIED_NODE_PORT": "0", "EMBODIED_NODE_HOST": "127.0.0.1"}
+    assert start_node_rail(Sessions(), lambda: {}, env) is None
+    missing = tmp_path / "absent-credential"
+    assert start_node_rail(Sessions(), lambda: {}, {**env, "EMBODIED_NODE_TOKEN_FILE": str(missing)}) is None
+
+
+def test_the_credential_can_come_from_a_file(tmp_path):
+    from embodied_engine_node import read_device_credential
+    f = tmp_path / "credential"
+    f.write_text(TOKEN + "\n", encoding="utf-8")
+    assert read_device_credential({"EMBODIED_NODE_TOKEN_FILE": str(f)}, "EMBODIED_NODE_TOKEN") == TOKEN
+    assert read_device_credential({"EMBODIED_NODE_TOKEN": "direct", "EMBODIED_NODE_TOKEN_FILE": str(f)}, "EMBODIED_NODE_TOKEN") == "direct"
     with pytest.raises(ValueError):
         start_node_rail(Sessions(), lambda: {}, {"SWARM_SERVICE_SECRET": "x", "EMBODIED_NODE_ID": "../bad", "EMBODIED_NODE_PORT": "0", "EMBODIED_NODE_HOST": "127.0.0.1"})
 
 
-def test_commands_need_the_secret(rail):
+def test_commands_need_the_command_key(rail):
     node, _, _ = rail
-    assert post(node.endpoint_url, {"id": 1, "command": "status", "args": {}}, secret=None)[0] == 401
-    assert post(node.endpoint_url, {"id": 1, "command": "status", "args": {}}, secret="wrong")[0] == 401
+    assert post(node.endpoint_url, {"id": 1, "command": "status", "args": {}}, key=None)[0] == 401
+    assert post(node.endpoint_url, {"id": 1, "command": "status", "args": {}}, key="wrong")[0] == 401
+    assert post(node.endpoint_url, {"id": 1, "command": "status", "args": {}}, key=None, secret=SECRET)[0] == 401, "the machine secret is not a command key"
     code, reply = post(node.endpoint_url, {"id": 1, "command": "status", "args": {}})
     assert code == 200 and reply["ok"] and reply["id"] == 1
     assert reply["result"]["engine"] == "mujoco" and reply["result"]["protocol"] == 1 and reply["result"]["buildHash"] == build_hash()
@@ -159,8 +187,6 @@ def test_heartbeats_reach_the_controller_and_the_ack_trims_the_events(rail):
     assert node.send_heartbeat() and node.heartbeats_acked >= 1
     assert len(controller.beats) == before + 1
     assert controller.beats[-1]["nodeId"] == "plant-test" and controller.beats[-1]["endpointUrl"] == node.endpoint_url
-    encoded = controller.beats[-1]["_ownerHeader"]
-    assert base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)) == b"owner-1", "the owner rides as the trusted service user sub (base64url, unpadded)"
     node.event("load", "w1")
     node.event("drop", "w1")
     assert node.send_heartbeat()
@@ -168,7 +194,7 @@ def test_heartbeats_reach_the_controller_and_the_ack_trims_the_events(rail):
     assert node.send_heartbeat() and controller.beats[-1]["events"] == []
     with urllib.request.urlopen(node.endpoint_url + "/health", timeout=5) as res:
         health = json.loads(res.read())
-    assert health["ok"] and health["nodeId"] == "plant-test" and health["ownerSub"] == "owner-1"
+    assert health["ok"] and health["nodeId"] == "plant-test" and health["credential"] is True and "oshal_pat" not in json.dumps(health)
     assert health["heartbeats"]["acked"] >= 3 and health["heartbeats"]["lastStatus"] == 200 and health["heartbeats"]["rejected"] == 0
 
 

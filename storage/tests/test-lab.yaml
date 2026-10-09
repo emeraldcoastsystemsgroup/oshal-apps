@@ -1,0 +1,38 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries: the company view of the assistant page for the Business shells reads only GET /home-summary, GET /prefs and GET /local/list on open, never POSTs /assistant and never calls a provider, names signed-out, refused, unsaved, empty, partial and failed states for what they are, and leaves the full page's own start ungated only when no audience view renders.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) and family (Home shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the company view reads only GET /home-summary, GET /prefs and GET /local/list; it never POSTs /assistant (the chat turn, which runs a model and acts with the caller's tokens) and never reads /dropbox/folders or /github/repos (live provider calls).
+      - The title names the effective code and files targets; the stats are the two targets with their saved or automatic state, the connected stores among GitHub, Dropbox and Google Drive, and the top-level file count of the oshal-local store; the table lists those files by name with their size, capped at twelve; the stores list marks each store connected or not and which bucket it serves.
+      - Signed out (401), refused (403), nothing saved, an empty store, a partial summary, a failed prefs read, a failed store listing and a failed summary read each read as what they are; only both the summary and the prefs failing raises the kit's failure notice.
+      - Under an audience view the page's own script adds no greeting and fetches nothing; without the audience, and without the kit, it still greets as before.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

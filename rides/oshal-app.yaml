@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — rides ("Get a Ride" Uber Rides Concierge)
 # Carved out of OSHAL core 2026-07-18 (ADR-085 Wave 2 carve #3). The rides-concierge
@@ -35,16 +41,37 @@
 # estimate fell through the surface's `basis === 'geocoded'` check and the distance row was
 # hidden outright, so the store half ships first. Guard: tests/rides-map-surface.test.js
 # ("the distance label says which measurement it is").
+#
+# 2026-09-28 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1 — the family audience view for the Home
+# shell (ADR-164 D6). /api/rides/app?audience=family paints the household's planned rides through the
+# shared kit from GET /history and /home-summary only (no map, map config, address lookup, estimate,
+# concierge, Uber link or write); the map page's boot, the assistant rail and the handoff module start
+# only without a view. Guards: tests/audience-view.test.cjs, tests/audience-view.fixture.cjs.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: rides
 suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }
+  features:
+    - id: ride-chat
+      unit: ride planning chat turn
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: rides-ticket
+      unit: ride request ticket
+      tier: T4
+      generation: none
+      degrade: disable
 displayName: Get a Ride
 description: >-
   AI transportation concierge on a real map — set pickup and destination by pin or
   address, see the measured distance, compare Uber ride types, and hand off a ready
   Uber ride link. Other swarm bots can ask it to plan a trip.
-version: 1.4.0
+version: 1.5.3
 status: active
 
 source:
@@ -83,6 +110,12 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
+
+# Test Lab registration (TLAB-07): every shipped suite with its runner and fixture boundary.
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 
 # Guests never request rides (this app really calls Uber). Request only — grants come
 # from the operator endpoint (D4).
@@ -164,6 +197,17 @@ ui:
       iframeUrl: /api/rides/app?view=history
       section: top
 
+# THE ASSISTANT RAIL (surface-bridge). Without this block the cockpit relay forwards NOTHING for
+# this app (fail-closed). context = the Rides surface publishes the trip, the measured distance,
+# the priced ride options and the selected ride, so the floating assistant answers about the screen
+# the rider is on; set_field = it can fill pickup or destination, and field_change = the rider's
+# own edits of those two fields travel back; custom = its `estimate`, `select_ride` and
+# `request_ride` ops run through the same functions the buttons call; propose/submit = a ride is
+# ALWAYS a confirm card and the rider's answer returns to the assistant (nothing opens until
+# Confirm); notify = it can confirm in the surface.
+surface:
+  ops: [context, set_field, field_change, custom, propose, submit, notify]
+
 routes:
   - module: routes/home-summary.js
     factory: createHomeSummaryRoutes
@@ -244,3 +288,14 @@ summary:
   tilesPointer: /tiles
   metricsPointer: /metrics
   itemsPointer: /items
+
+# Preserve the existing worker UUID and dedicated-node posture in the package contract.
+bots:
+  - agentId: b0090000-0000-0000-0000-000000000001
+    name: rides-concierge
+    persona: personas/rides-concierge.yaml
+    container: rides-bot
+    port: 5000
+    requiresOwnNode: true
+    role: transportation/rides
+    capabilities: ['ride-fare-estimate', 'ride-options-comparison', 'rideshare-trip-planning', 'uber-ride-handoff', 'ride-preference-learning']

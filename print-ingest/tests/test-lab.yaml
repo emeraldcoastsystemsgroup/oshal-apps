@@ -1,0 +1,38 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries (0.3.2): the static kit contract of the page, and the company view's behaviour over the package's real routes (two owner-scoped reads, the stats, the documents table, the failures list, the route's notes, every named failure) plus the gate on the Print Inbox body script. Dependency-free node-test, no framework checkout.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.3.3: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) and family (Home shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the company view makes two reads, GET /api/print-ingest/documents and /home-summary, and the real routes behind them (the whole print-ingest router and the Home summary route) only SELECT the caller's own rows; it never approves, rejects, imports, reads the destinations or the readiness count, and writes nothing.
+      - Fed by the package's real routes, the inbox reads as four stats (awaiting approval, failed or partial, received in 5 days, fully filed), a title ladder, a table of the newest ten with state, origin, characters, the machine's proposal or where each copy went and the receipt time, a failed-or-partly-filed list with the route's reasons and the route's notes; the declared user, client address and document text never reach the view.
+      - A full 200-row list, odd rows, counts the summary could not check, signed out, refused (the catalog-less admin-only admission named), the route's own failure, an unreadable answer and an unreachable server each read as what they are; the one action opens the full Print Inbox in the frame without the audience.
+      - Under the company view the body script binds no approve, reject or tab listener and reads nothing; the full page, and a core without the kit, still run the inbox read and every listener, and the full page keeps its own colour scheme under the theme bootstrap.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

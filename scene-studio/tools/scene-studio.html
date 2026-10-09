@@ -1,0 +1,232 @@
+<!doctype html>
+<!--
+  Scene Studio — Godot games and Blender models, edited by the person and by the swarm through the
+  upstream MCP servers (godot-mcp, the Blender Lab MCP) that run inside this package's engine
+  container. Every change is a revision (undo = restore); previews are rendered by Blender (Cycles,
+  CPU) — a Godot scene goes through glTF — and shown as a still plus an orbit view from the shared
+  OSHAL STL viewer. Behaviour is served by this package's route (/api/scene-studio/assets/…); the
+  theme is inherited from the surrounding cockpit. (.html is exempt from the CHANGE LOG header.)
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scene Studio</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6): the Business and Family shells open this page with ?audience=…; they get the
+     projects on file from the same projects route the studio reads. Any other request runs the studio below. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  function call(path) {
+    return fetch('/api/scene-studio' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.message || j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; });
+    });
+  }
+  function openFull(query) { window.location.assign(window.location.pathname + (query || '')); }
+  function audience() {
+    return call('/projects').then(function (r) {
+      var projects = r.projects || [];
+      var count = function (kind) { return projects.filter(function (p) { return p.kind === kind; }).length; };
+      return {
+        kicker: 'Scene Studio', title: projects.length ? 'Projects on file' : 'No projects yet',
+        lede: projects.length ? projects.length + ' projects · last change ' + A.when(projects[0].updatedAt) : 'Start a Godot game or a Blender model; it appears here.',
+        actions: [{ label: 'Open Scene Studio', primary: true, onClick: function () { openFull(); } }],
+        stats: [
+          { id: 'projects', label: 'Projects', value: projects.length },
+          { id: 'godot', label: 'Godot games', value: count('godot') },
+          { id: 'blender', label: 'Blender models', value: count('blender') }
+        ],
+        sections: [
+          { kind: 'table', id: 'projects', title: 'Projects', wide: true, empty: 'No projects yet.', columns: ['Updated', 'Project', 'Kind', { label: 'Rev', align: 'right' }],
+            rows: projects.slice(0, 12).map(function (p) { return { cells: [A.date(p.updatedAt), p.title, p.kind === 'godot' ? 'Godot game' : 'Blender model', { text: String(p.revision || 0) }], onClick: function () { openFull('?project=' + encodeURIComponent(p.projectId)); } }; }) }
+        ]
+      };
+    });
+  }
+  A.boot({ app: 'scene-studio', escapeLabel: 'Open Scene Studio in the cockpit', audiences: { company: audience, family: audience } });
+})();
+</script>
+<style>
+  :root { --ss-bg: var(--bg, var(--bg-primary, #12151c)); --ss-panel: var(--panel, var(--bg-card, #1b1f29)); --ss-panel2: var(--panel2, var(--bg-tertiary, #232836));
+          --ss-text: var(--text, var(--text-primary, #e6e9ef)); --ss-muted: var(--muted, var(--text-muted, #9aa3b2)); --ss-line: var(--line, var(--border-color, #2f3646));
+          --ss-accent: var(--accent, #4f8cff); --ss-danger: var(--danger, #e5534b); --ss-ok: var(--ok, #3fb950); --ss-warn: var(--warn, #d29922); }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ss-text); background: var(--ss-bg); }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--ss-line); background: var(--ss-panel); }
+  header h1 { font-size: 16px; margin: 0; }
+  .spacer { flex: 1; }
+  .muted { color: var(--ss-muted); }
+  .small { font-size: 12px; }
+  .layout { display: grid; grid-template-columns: 250px 1fr; min-height: calc(100vh - 49px); }
+  aside { border-right: 1px solid var(--ss-line); padding: 12px; background: var(--ss-panel); overflow: auto; }
+  main { padding: 14px 18px 40px; overflow: auto; min-width: 0; }
+  .project-item { display: flex; justify-content: space-between; align-items: center; gap: 6px; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--ss-line); border-radius: 8px; background: var(--ss-panel2); color: var(--ss-text); cursor: pointer; }
+  .project-item.active { border-color: var(--ss-accent); }
+  .project-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--ss-line); color: var(--ss-muted); white-space: nowrap; }
+  .badge.godot { border-color: #478cbf; color: #6fb1e6; }
+  .badge.blender { border-color: #e87d0d; color: #f5a14a; }
+  .badge.ok { border-color: var(--ss-ok); color: var(--ss-ok); }
+  .badge.bad { border-color: var(--ss-danger); color: var(--ss-danger); }
+  .banner { border: 1px solid var(--ss-danger); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; background: var(--ss-panel2); }
+  .banner code { user-select: all; word-break: break-all; }
+  section.step { border: 1px solid var(--ss-line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; background: var(--ss-panel); }
+  section.step h2 { font-size: 14px; margin: 0 0 8px; }
+  section.step h2 small { color: var(--ss-muted); font-weight: normal; margin-left: 8px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
+  button, input, select, textarea { font: inherit; color: var(--ss-text); }
+  button.primary { background: var(--ss-accent); color: #fff; border: 0; border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+  button.primary:disabled, button.ghost:disabled { opacity: .5; cursor: default; }
+  button.ghost { background: transparent; border: 1px solid var(--ss-line); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+  button.link { background: none; border: 0; color: var(--ss-accent); cursor: pointer; padding: 0 4px; }
+  input[type=text], input[type=number], select, textarea { background: var(--ss-panel2); border: 1px solid var(--ss-line); border-radius: 6px; padding: 5px 8px; }
+  textarea { width: 100%; min-height: 220px; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 12px; }
+  textarea.short { min-height: 120px; }
+  pre { white-space: pre-wrap; word-break: break-word; background: var(--ss-panel2); border: 1px solid var(--ss-line); border-radius: 8px; padding: 8px; margin: 6px 0; max-height: 320px; overflow: auto; font-size: 12px; }
+  .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .preview-grid img { width: 100%; border-radius: 8px; border: 1px solid var(--ss-line); background: var(--ss-panel2); }
+  canvas#viewer { width: 100%; aspect-ratio: 16 / 9; border-radius: 8px; border: 1px solid var(--ss-line); color: var(--ss-accent); background: var(--ss-panel2); touch-action: none; }
+  ul.files, ul.revisions { list-style: none; padding: 0; margin: 0; max-height: 260px; overflow: auto; }
+  ul.files li, ul.revisions li { display: flex; gap: 8px; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--ss-line); }
+  ul.files li .path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+  ul.files li.active .path { color: var(--ss-accent); }
+  #status { min-height: 18px; }
+  #status.bad { color: var(--ss-danger); }
+  #status.ok { color: var(--ss-ok); }
+  .new-form { border: 1px solid var(--ss-accent); }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--ss-line); max-height: 220px; } .preview-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Scene Studio</h1>
+  <span class="muted small">Godot games · Blender models · driven by you and the swarm through their MCP servers</span>
+  <span class="spacer"></span>
+  <span id="engine-pill" class="badge" title="">engine…</span>
+  <button id="new-project" class="primary">New project</button>
+</header>
+<div class="layout">
+  <aside>
+    <div id="project-list"></div>
+  </aside>
+  <main>
+    <div id="engine-banner" class="banner" hidden>
+      <strong>The Scene Studio engine container is not answering.</strong>
+      <div id="engine-reason" class="small"></div>
+      <div class="small muted">Install or rebuild it from the host: <code id="engine-hint"></code></div>
+    </div>
+    <div id="status" class="small"></div>
+    <section id="new-form" class="step new-form" hidden>
+      <h2>New project</h2>
+      <div class="row">
+        <label><input type="radio" name="kind" value="godot" checked /> Godot game or 3-D scene</label>
+        <label><input type="radio" name="kind" value="blender" /> Blender model</label>
+      </div>
+      <div class="row">
+        <input id="new-title" type="text" placeholder="Name" maxlength="120" />
+        <select id="new-template"></select>
+        <button id="create-project" class="primary">Create</button>
+        <button id="cancel-new" class="ghost">Cancel</button>
+      </div>
+    </section>
+    <div id="empty-panel">
+      <p>Create a <strong>Godot</strong> project for a game or a 3-D scene, or a <strong>Blender</strong> project for a model. Then ask the
+        <strong>Scene Studio director</strong> in the chat to build it — for example "a small island with three palm trees and a red boat".</p>
+      <p class="muted small">Every change is a revision you can undo. Previews are rendered by Blender; a Godot scene is exported to glTF first.
+        Code you or the director write runs in the engine's sandbox, which has no network access.</p>
+    </div>
+    <div id="project-panel" hidden>
+      <div class="row">
+        <h2 id="project-heading" style="margin:0"></h2>
+        <span id="project-kind" class="badge"></span>
+        <span id="project-rev" class="badge"></span>
+        <span class="spacer"></span>
+        <button id="rename-project" class="ghost">Rename</button>
+        <button id="delete-project" class="ghost">Delete</button>
+      </div>
+      <section class="step">
+        <h2>Preview <small>rendered by Blender (Cycles) · drag the 3-D view to orbit</small></h2>
+        <div class="row">
+          <button id="render-preview" class="primary">Render preview</button>
+          <label class="small">quality <select id="preview-samples"><option value="16">draft</option><option value="32" selected>normal</option><option value="96">high</option></select></label>
+          <span id="preview-info" class="small muted"></span>
+        </div>
+        <div class="preview-grid">
+          <img id="preview-img" alt="Rendered preview" hidden />
+          <canvas id="viewer" hidden></canvas>
+        </div>
+      </section>
+      <section id="run-section" class="step" hidden>
+        <h2>Run <small>headless Godot, a few seconds — prints and errors</small></h2>
+        <div class="row">
+          <button id="run-project" class="primary">Run</button>
+          <label class="small">seconds <input id="run-seconds" type="number" min="1" max="30" value="5" /></label>
+          <span id="run-info" class="small muted"></span>
+        </div>
+        <pre id="run-output" hidden></pre>
+      </section>
+      <section class="step">
+        <h2>Files <small id="files-note"></small></h2>
+        <ul id="file-list" class="files"></ul>
+        <div class="row">
+          <input id="file-path" type="text" placeholder="path, e.g. player.gd" style="flex:1;min-width:160px" />
+          <button id="save-file" class="primary">Save file</button>
+          <button id="delete-file" class="ghost">Delete file</button>
+          <a id="download-file" class="small" href="#" hidden>download</a>
+        </div>
+        <textarea id="file-text" spellcheck="false" placeholder="Pick a file, or type a new path and its text."></textarea>
+        <div class="row">
+          <label class="small">Upload an asset (image, model, sound) <input id="upload-file" type="file" /></label>
+        </div>
+      </section>
+      <section id="godot-tools" class="step" hidden>
+        <h2>Godot MCP tool <small>call one godot-mcp tool directly</small></h2>
+        <div class="row"><select id="godot-tool"></select><button id="run-godot-tool" class="primary">Call</button></div>
+        <textarea id="godot-args" class="short" spellcheck="false">{"scenePath": "main.tscn", "parentNodePath": "root", "nodeType": "OmniLight3D", "nodeName": "Lamp"}</textarea>
+        <pre id="godot-result" hidden></pre>
+      </section>
+      <section id="blender-tools" class="step" hidden>
+        <h2>Blender Python <small>runs in Blender through the Blender Lab MCP</small></h2>
+        <textarea id="blender-code" class="short" spellcheck="false">import bpy
+bpy.ops.mesh.primitive_monkey_add(location=(0, 0, 1.2))
+result = {"objects": sorted(o.name for o in bpy.data.objects)}</textarea>
+        <div class="row">
+          <label class="small"><input id="blender-save" type="checkbox" checked /> keep the changes (new revision)</label>
+          <button id="run-blender" class="primary">Run</button>
+          <button id="blender-summary" class="ghost">File summary</button>
+        </div>
+        <pre id="blender-result" hidden></pre>
+      </section>
+      <section id="import-section" class="step" hidden>
+        <h2>Bring in a Blender model <small>exported to glTF, imported by Godot</small></h2>
+        <div class="row">
+          <select id="import-from"></select>
+          <input id="import-name" type="text" placeholder="model name, e.g. boat" maxlength="64" />
+          <label class="small"><input id="import-instance" type="checkbox" checked /> add it to the main scene</label>
+          <button id="import-model" class="primary">Import</button>
+        </div>
+      </section>
+      <section class="step">
+        <h2>Export</h2>
+        <div class="row">
+          <select id="export-format"></select>
+          <button id="export-project" class="primary">Export</button>
+          <a id="export-link" class="small" href="#" hidden></a>
+        </div>
+      </section>
+      <section class="step">
+        <h2>History <small>restore puts an earlier revision back as a new one — nothing is lost</small></h2>
+        <ul id="revision-list" class="revisions"></ul>
+      </section>
+    </div>
+  </main>
+</div>
+<script src="/shared/ui/js/stl-viewer.js"></script>
+<script src="/api/scene-studio/assets/scene-studio.js"></script>
+</body>
+</html>

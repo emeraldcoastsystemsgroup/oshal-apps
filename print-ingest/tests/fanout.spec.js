@@ -84,6 +84,12 @@ async function run() {
     assert.strictEqual(payload.metadata.originating_computer, 'PARENTPC');
     assert.strictEqual(payload.collection, 'agent-knowledge-maintenance');
     assert.strictEqual(payload.content, DOC.text);
+    assert.strictEqual(payload.private, false, 'bot routing preserves requested nonprivate visibility');
+    assert.strictEqual(payload.metadata.visibility, 'shared');
+    assert.strictEqual(payload.metadata.botId, 'maintenance');
+    const privatePayload=buildIngestPayload(planFanout(['private'],CATALOG)[0],DOC);
+    assert.strictEqual(privatePayload.private,true);
+    assert.strictEqual(privatePayload.metadata.visibility,'private');
   });
 
   // --- partial failure is a real state ------------------------------------

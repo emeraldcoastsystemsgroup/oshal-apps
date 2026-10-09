@@ -18,6 +18,15 @@
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 1.8.1: the five tables this package owns now FORCE row level security. ENABLE alone exempts the table owner, and the api both owns them and reads them, so the exact-owner policy had never once filtered a row. Migration 003 repairs an installed database; 001 and 002 carry the same statements so a fresh install comes up forced.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 1.8.1: the exact-owner policy on all five tables gains a second arm on the PLATFORM identity (oshal.current_issuer / oshal.current_sub) alongside this package's own create.owner_* stamp. Forcing the tables makes the policy run for the role core reads them through, and core reaches them only through the catalog-driven /api/me export and delete, which stamp the platform settings and never create.owner_*. Without the second arm a person's data export would omit their Create projects and "delete all my data" would remove nothing, both reporting success. Migration 004 repairs an installed database; 001 and 002 carry the same shape for a fresh one. No operator arm.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 1.8.2: explicitly bind the cockpit right rail to the stable framework general-bot without turning any optional member studio into a required dependency.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 1.8.3: simple image filters (a named look plus saturation, grayscale, sepia and blur) on image layers. No route, permission, migration or provider change, so the authorization catalog is unchanged.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | 1.8.4: region selection on an image layer (lasso, box, whole image) in source pixels, re-checked before use, and a bounded region summary in the read-only editor context. Served through the existing editor-assets binding; no route, permission or catalog change.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0: selected-region regeneration. uses: media-generation (the storyboard image provider and its canonical cost capture); migration 005 adds the private, forced create_region_edits table; six routes behind the new project.generate permission and generator role. The catalog change needs the reviewed AUTH-07 catalog migration before activation.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 1.9.1: the Change a region panel in the image editor: what is sent and what it costs before sending, cancel while generating, a side-by-side compare with explicit accept (one undoable step on the revision the person holds) and reject. Browser-only; the routes, permissions and catalog are those of 1.9.0.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: an Edit video entry (CREATE-EDIT-05d) - a create-video-editor rail tile, a New screen card and a Home quick start that open Video Studio's own manual timeline editor (/api/video/editor). Create adds no route, permission, migration or dependency; the editor and its access belong to the video package.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 1.9.3: the family audience view and its company alias on the New surface (ADR-164 D6): Jarvis, Studio, Orbit and Commons open /api/create/new with ?audience= and the shared kit paints the account's own image projects from GET /home-summary and what Create can open; the page's own start is gated, reads and catalog unchanged.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4: advertise cost-consent v1 and enforce optional per-request cost-class caps on the post-queue provider; the editor captures the displayed class before save. Legacy omitted caps retain their semantics; no permission or catalog binding change.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | 1.9.5: accept the operator-only antigravity-cli image rail (operator decision 2026-10-02; core ADR-130 amendment: the render bot's own harness picks the image rail). The provider must report itself available for the caller before generation, and a caller the kernel has no provider for gets region_edit_provider_unavailable (provider report: configured false), never another provider. codex-cli stays refused; no permission, catalog or authorization.yaml change.
+# 25 | maintainer@emeraldcoastsystemsgroup.com | 1.9.6: Brand Graphics joins the studios (operator decision 2026-10-06): a create-brand-graphics rail tile, a Home studio card, a Brand intro clip quick start and a New screen card, all opening the brand-graphics package's own review page (/api/brand-graphics/review). brand-graphics is an optional app like every other studio; Create adds no route, permission, migration or catalog binding.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — create ("Create")
@@ -25,13 +34,14 @@
 # The Canva-shaped front door for everything you make with oshal: one rail, one
 # skin, one home page ("What will you create today?") over the studios that are
 # already installed — AI Office (deck / document / workbook), Portrait Studio,
-# Video Studio, LoRA Studio, Vids Studio, the Creative Studio story pipeline and
-# 3D Scan-to-Print.
+# Video Studio, LoRA Studio, Vids Studio, the Creative Studio story pipeline,
+# 3D Scan-to-Print and Brand Graphics.
 #
 # Create owns manual layered-image projects and their private immutable revisions, and
 # each person's brand kit (colors, fonts, logo and voice) that the other studios read.
 # The portable browser renderer is reusable; member studios retain their existing
-# generation pipelines and domain data. Manual editing makes no provider calls.
+# generation pipelines and domain data. Manual editing makes no provider calls; only
+# region regeneration (project.generate) calls the media-generation kernel skill.
 # The package skin is optional; all surfaces follow the portal theme chooser.
 #
 # Framework: OSHAL (docs/adr/085-remote-app-packages-and-registries.md)
@@ -39,17 +49,28 @@
 
 name: create
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: region-regenerate
+      unit: region regeneration
+      tier: T0
+      generation: hosted
+      degrade: disable
 displayName: Create
 description: >-
   One studio for everything you make: decks, documents and workbooks from AI
-  Office, portraits, short videos, story episodes, LoRA characters and 3D scans —
+  Office, portraits, short videos, story episodes, LoRA characters, 3D scans and
+  brand intro clips —
   a single home page that shows what you were working on and one tap to pick up
   where you left off, in every studio you already have.
-version: 1.8.2
+version: 1.9.6
 testing:
   version: 1
   catalog: tests/test-lab.yaml
-uses: [test-catalog, application-authorization, authenticated-artifacts, app-dependencies]
+uses: [test-catalog, application-authorization, authenticated-artifacts, app-dependencies, media-generation]
 # Context refresh uses the existing request_context operation; the editor
 # advertises no mutation capabilities or custom editing operations.
 surface:
@@ -101,6 +122,7 @@ dependencies:
       - vids
       - creative-studio
       - scan-to-print
+      - brand-graphics
     tools: []
     connectors: []
 
@@ -135,6 +157,7 @@ migrations:
   - migrations/002-create-brand-kits.sql
   - migrations/003-force-row-level-security.sql
   - migrations/004-owner-policy-standard-identity-arm.sql
+  - migrations/005-create-region-edits.sql
 
 summary:
   path: /api/create/home-summary
@@ -198,6 +221,12 @@ ui:
       iframeUrl: /api/video/ui
       section: top
       group: Studios
+    - toolName: create-video-editor
+      label: Video editor
+      icon: codicon codicon-edit
+      iframeUrl: /api/video/editor
+      section: top
+      group: Studios
     - toolName: create-lora
       label: LoRA
       icon: codicon codicon-circuit-board
@@ -208,6 +237,12 @@ ui:
       label: 3D Scan-to-Print
       icon: codicon codicon-package
       iframeUrl: /api/scan-to-print/app
+      section: top
+      group: Studios
+    - toolName: create-brand-graphics
+      label: Brand Graphics
+      icon: codicon codicon-symbol-color
+      iframeUrl: /api/brand-graphics/review
       section: top
       group: Studios
     - toolName: create-vids

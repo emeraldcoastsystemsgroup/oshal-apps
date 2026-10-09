@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | ADR-135 D14 — the recommendation builder, as PURE functions so the decision logic is testable without a database, a stack or a model. Deliberately deterministic in v1: every proposed destination carries a reason a person can evaluate ("equipment IDs and service intervals"), never an opaque score, because the form exists so a human can disagree with it. Ownership is never inferred here — a rule's suggested user and a sidecar's requestingUser are HINTS surfaced for display, and the caller decides owner_sub elsewhere (D8). Admin rules pre-tick, they do not approve, and the swarm-wide destination is filtered out entirely for a non-admin approver rather than offered and failed at write time.
  *
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Render only current native declared destinations and exact audiences; remove child operator environment authority.
  * @module print-classify
  */
 
@@ -19,7 +20,7 @@ export interface Destination {
   botId?: string;
   /** Keywords that make a document relevant to this destination (bot destinations). */
   topics?: string[];
-  /** Shown at the point of choice. A bot corpus has no access control — say so. */
+  /** Shown at the point of choice. Access stays bound to current named tenant readers. */
   readableBy: string;
 }
 
@@ -83,76 +84,24 @@ export interface Recommendation {
 const MAX_TITLE = 120;
 /** Below this, a keyword hit is coincidence rather than subject matter. */
 const STRONG_TOPIC_HITS = 2;
-const SAFE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
-
-/**
- * @description The destinations this deployment offers. The two shared levels are
- * fixed; bot destinations are CONFIGURATION, so adding a bot never needs a release:
- * PRINT_INGEST_BOT_DESTINATIONS holds `id|Label|collection|topic,topic` entries
- * separated by `;`. A malformed entry is dropped rather than half-registered — a
- * destination with no collection would fail at write time, after a person believed
- * they had filed the document.
- * @param env - Environment to read (injectable for tests).
- * @returns The destination catalog.
- */
-export function destinationCatalog(env: NodeJS.ProcessEnv = process.env): Destination[] {
-  const catalog: Destination[] = [
-    {
-      id: 'private',
-      label: 'Private to me',
-      kind: 'private',
-      collection: 'my-knowledge',
-      readableBy: 'only you',
-    },
-    {
-      id: 'swarm',
-      label: 'Swarm knowledge',
-      kind: 'swarm',
-      collection: 'swarm-knowledge',
-      readableBy: 'everyone signed in to this swarm',
-    },
-  ];
-  for (const entry of String(env.PRINT_INGEST_BOT_DESTINATIONS || '').split(';')) {
-    const [id, label, collection, topics] = entry.split('|').map((part) => String(part || '').trim());
-    if (!SAFE_ID.test(id || '') || !label || !collection) continue;
-    if (catalog.some((existing) => existing.id === id)) continue;
-    catalog.push({
-      id,
-      label,
-      kind: 'bot',
-      collection,
-      botId: id,
-      topics: (topics || '').split(',').map((t) => t.trim()).filter(Boolean),
-      // Stated at the point of choice: a bot corpus is routing, not privacy.
-      readableBy: 'everyone signed in — a bot corpus is routing, not privacy',
-    });
-  }
-  return catalog;
-}
-
-/**
- * @description Whether an identity is an operator, read from the SAME allowlist the
- * kernel uses (`OSHAL_OPERATOR_SUBS` / `OSHAL_OPERATOR_EMAILS`). Found by live test:
- * an OIDC `roles` claim is the wrong signal — a personal-access-token session
- * carries no roles, so a genuine operator was silently denied the swarm
- * destination. Subs compare exactly (an OIDC subject is case-sensitive); emails
- * compare case-insensitively, matching how the allowlist is written.
- * @param sub - The caller's subject, if any.
- * @param email - The caller's email, if any.
- * @param env - Environment to read (injectable for tests).
- * @returns True when the identity is on the operator allowlist.
- */
-export function isOperatorIdentity(
-  sub: string | null | undefined,
-  email: string | null | undefined,
-  env: NodeJS.ProcessEnv = process.env,
-): boolean {
-  const list = (raw: string | undefined) =>
-    String(raw || '').split(',').map((entry) => entry.trim()).filter(Boolean);
-  if (sub && list(env.OSHAL_OPERATOR_SUBS).includes(String(sub))) return true;
-  const normalized = String(email || '').trim().toLowerCase();
-  if (!normalized) return false;
-  return list(env.OSHAL_OPERATOR_EMAILS).some((entry) => entry.toLowerCase() === normalized);
+/** Native declarations and current named grants are the only destination catalog. */
+export function destinationCatalog(value: unknown): Destination[] {
+  if (!Array.isArray(value) || value.length > 32) throw new Error('Native RAG destinations unavailable');
+  const seen = new Set<string>();
+  return value.map((raw) => {
+    if (!raw || typeof raw !== 'object') throw new Error('Invalid native RAG destination');
+    const entry = raw as Record<string, unknown>;
+    const id = String(entry.id || ''), collection = String(entry.collection || ''), label = String(entry.label || '');
+    const kind = entry.kind;
+    if (!id || id.length > 160 || seen.has(id) || !label || label.length > 160
+      || !/^[a-zA-Z0-9_.-]{1,160}$/.test(collection)
+      || !['private', 'swarm', 'bot'].includes(String(kind))) throw new Error('Invalid native RAG destination');
+    seen.add(id);
+    const botId = kind === 'bot' ? String(entry.botId || '') : undefined;
+    if (kind === 'bot' && !/^[0-9a-f-]{36}$/.test(botId || '')) throw new Error('Invalid native RAG bot audience');
+    return { id, label, kind: kind as Destination['kind'], collection, botId,
+      readableBy: kind === 'private' ? 'only you' : 'current named readers in your tenant — a bot corpus is routing, not privacy' };
+  });
 }
 
 /**
@@ -298,7 +247,7 @@ export function buildRecommendation(input: RecommendationInput): Recommendation 
       confidence: byRule ? 'high' : 'low',
       reason: byRule
         ? 'an administrator rule files documents from this source here'
-        : 'everyone in this swarm would be able to retrieve it — tick only if that is intended',
+        : 'current named readers in your tenant would be able to retrieve it — tick only if that is intended',
       readableBy: destination.readableBy,
     } as Proposal;
   });

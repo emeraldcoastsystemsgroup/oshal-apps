@@ -27,6 +27,8 @@
  * 12 | maintainer@emeraldcoastsystemsgroup.com   | The printed arm (ADR-152 D5 task 3): /build/arm, its document and parts, /physics/arm/mjcf and /physics/arm/check — the check runs in the container without blocking the api.
  * 13 | maintainer@emeraldcoastsystemsgroup.com   | B23: fly a scanned room — `POST /world/scenes/import-artifact {ref}` is the ADR-139 `accepts` destination for `application/vnd.oshal.embodied-scene+json`. It redeems the handle through the shared kernel relay as this caller, refuses anything but that MIME (415), reads the `{scene, stats, scanId, title}` envelope against the engine's bounds and `validateScene` (a 4xx naming the rule broken — nothing is registered on a refusal), and registers the scene per owner under `scan:<scanId>`. `POST /world/reset {scenario}` takes an owner's imported id and `/capabilities.scenarios` lists them after the built-ins; the discovery code is unchanged, because it never reads the scene.
  * 14 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 S1 "the boat falls": `GET /physics/media` (the three medium records, the force models' declared requirements and validity envelopes, the named refusals), `GET /physics/hull?medium=` (the explorer hull as one solid dropped in a chosen medium: the analytic fall the plant must reproduce, the MJCF it loads, and the flotation question refused by name in the same answer) and `GET /physics/hull/mjcf?medium=`. A medium this lab does not implement is 400 `unknown_medium` and is never substituted; a refusal is 422 carrying its own name (`model_not_valid_in_medium`, `medium_property_unavailable`, `medium_outside_validity`).
+ * 15 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 D5: every run result carries its medium id and engine fingerprints, or it is not displayed. `GET /physics/hull` answers as `oshal.run-result/1` with `engine` — the installed package version read from the manifest, the compiled engine tree's build hash, which plant answered (analytic) and the MuJoCo tree the scene targets by its hash — beside the medium the run used. A package whose manifest version cannot be read answers 503 `run_unfingerprinted` rather than producing a run nothing may display. `GET /physics/media` publishes the same fingerprints so the tile can show which engine is answering before a run.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com  | ADR-175 hardening: a world flown on a rail node no longer hands the node SWARM_SERVICE_SECRET (the command key comes from the fleet record), and /physics/status describes the device-credential rail and the allowed endpoint hosts.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -114,11 +116,20 @@ function createEmbodiedRoutes(ctx, opts = {}) {
     /** B23: the scenes this process's owners have imported from outside, beside their sessions. */
     const imported = new imported_scenes_1.ImportedSceneStore();
     const fleet = opts.fleet ?? (0, node_fleet_1.sharedNodeFleet)();
-    const serviceSecret = opts.serviceSecret ?? (() => (process.env.SWARM_SERVICE_SECRET ?? '').trim());
     const router = (0, express_1.Router)();
     // ── The physics engine (ADR-152): one synchronous bridge per process, opened on first use ──────
     const engineDir = node_path_1.default.join(ctx.appPackageDir ?? process.cwd(), 'engine');
     const expectedBuildHash = (0, engine_1.engineBuildHash)(engineDir);
+    // ── ADR-160 D5: every run result carries its medium id and engine fingerprints, or it is not displayed ──
+    const packageVersion = (0, engine_1.readPackageVersion)(ctx.appPackageDir ?? process.cwd());
+    const routesBuildHash = (0, engine_1.routesEngineBuildHash)();
+    if (!packageVersion) {
+        logger.error({ appPackageDir: ctx.appPackageDir ?? null }, 'ADR-160 D5: the package manifest version is unreadable, so no run result can be fingerprinted — runs will be refused (503 run_unfingerprinted), never displayed unlabelled');
+    }
+    /** @description The engine answering this process's runs, or null when it cannot name itself. */
+    const engineFingerprints = () => (packageVersion
+        ? { package: 'embodied', packageVersion, routesBuildHash, plant: { kind: 'analytic', mujocoEngineTreeBuildHash: expectedBuildHash } }
+        : null);
     const engineAddr = opts.engineAddr ?? process.env.EMBODIED_ENGINE_ADDR ?? engine_1.DEFAULT_ENGINE_ADDR;
     let bridge = null;
     const getBridge = () => {
@@ -145,7 +156,7 @@ function createEmbodiedRoutes(ctx, opts = {}) {
         const solids = probe.sensingSolids();
         const mjcf = (0, engine_1.droneMjcf)(fit, solids, probe.scene.droneHome);
         if (node)
-            return rail_node_1.RailDroneNode.load(fleet.get(node, now(), sub ?? null), mjcf, seed, controller, { secret: serviceSecret(), expectedBuildHash, timeoutMs: 30000 });
+            return rail_node_1.RailDroneNode.load(fleet.get(node, now(), sub ?? null), mjcf, seed, controller, { expectedBuildHash, timeoutMs: 30000 });
         return opts.plantFactory ? opts.plantFactory(mjcf, seed, solids, probe.scene.droneHome, controller) : engine_1.RemotePlant.load(getBridge(), mjcf, seed, controller);
     };
     /**
@@ -530,7 +541,7 @@ function createEmbodiedRoutes(ctx, opts = {}) {
             const f = physicsFailure(error);
             engine = { connected: false, code: f.body.code, reason: f.body.reason };
         }
-        res.json({ backends: BACKENDS, engine: { ...engine, addr: engineAddr, expectedBuildHash, installHint: engine_1.DEFAULT_INSTALL_HINT }, nodes: fleet.list(now(), expectedBuildHash, sub), rail: { serviceSecretConfigured: Boolean(serviceSecret()), heartbeat: 'POST /api/embodied/nodes/heartbeat (X-Service-Secret)', command: 'POST <endpointUrl>/api/drone-node/command (X-Service-Secret)' } });
+        res.json({ backends: BACKENDS, engine: { ...engine, addr: engineAddr, expectedBuildHash, installHint: engine_1.DEFAULT_INSTALL_HINT }, nodes: fleet.list(now(), expectedBuildHash, sub), rail: { heartbeat: 'POST /api/embodied/nodes/heartbeat (device credential, ADR-175)', command: 'POST <endpointUrl>/api/drone-node/command (x-node-command-key from the heartbeat reply)', endpointHosts: fleet.endpointHosts } });
     });
     // ── ADR-160 S1, the medium as a parameter: choose a medium, drop the explorer hull ────────────────
     /** @description Resolve `?medium=` or answer 400 naming the media this lab implements — a medium is never silently substituted. */
@@ -555,6 +566,7 @@ function createEmbodiedRoutes(ctx, opts = {}) {
             return;
         res.json({
             schema: engine_1.MEDIUM_PROPERTIES_SCHEMA,
+            engine: engineFingerprints(),
             media: (0, engine_1.allMedia)().map(engine_1.mediumView),
             forceModels: [engine_1.RIGID_BODY_PLANT, engine_1.HULL_FLOTATION].map((m) => ({ id: m.id, label: m.label, requires: m.requires, validIn: m.validIn, envelopeWhy: m.envelopeWhy })),
             refusals: {
@@ -570,9 +582,14 @@ function createEmbodiedRoutes(ctx, opts = {}) {
         const m = chosenMedium(req, res);
         if (!m)
             return;
+        const engine = engineFingerprints();
+        if (!engine) {
+            res.status(503).json({ error: 'run_unfingerprinted', message: 'this package cannot read its own manifest version, so a run result would carry no engine fingerprint; it is not produced rather than displayed unlabelled (ADR-160 D5)' });
+            return;
+        }
         const dropHeightM = Number.isFinite(Number(req.query.dropHeightM)) && req.query.dropHeightM !== undefined ? Number(req.query.dropHeightM) : undefined;
         try {
-            res.json({ ...(0, engine_1.dropExplorerHull)(m, dropHeightM === undefined ? {} : { dropHeightM }), provenance: engine_1.EXPLORER_HULL_PROVENANCE, simulated: true });
+            res.json({ ...(0, engine_1.fingerprintRun)((0, engine_1.dropExplorerHull)(m, dropHeightM === undefined ? {} : { dropHeightM }), engine), provenance: engine_1.EXPLORER_HULL_PROVENANCE, simulated: true });
         }
         catch (error) {
             if (sendRefusal(res, error)) {

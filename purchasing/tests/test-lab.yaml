@@ -1,0 +1,181 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped Shopping suite (TLAB-07 "adopt existing suites" plus the commerce-surface suites): the readiness smoke, the assistant-rail and cart-total unit suites, the compiled-route money and hand-off boundary, the carved Walmart catalog policy spec under Vitest, and the 390 px Chromium commerce smoke with its real prerequisites.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register the audience view contract (ADR-164 D6): the dashboard's family view for the Home shell over the shared kit, its gated start and its reads kept to this package's own routes.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | The audience-view case also covers the concierge chat page, Shopping's first surface, whose company (Studio, Orbit, Commons) and family (Jarvis) views run over the package's real list and home-summary handlers, and its three gated start paths; the case now declares the in-memory route harness it loads as its disposable fixture.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | GET /cart is read-only under the native admission rule: the route and Chromium cases now expect a fresh shopper's cart read to create nothing and the first add to create the list through POST /lists.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed purchasing package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: commerce-bridge
+    name: Shopping assistant rail contract
+    purpose: Prove the manifest declares its surface-bridge ops from the closed vocabulary, the page loads the shared client and producer, advertises exactly the custom ops it applies, opens Walmart only from the explicit checkout, sends no price on a direct add, and keeps its context digest under the contract cap.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/shopping-commerce-bridge.test.js
+    expected:
+      - surface.ops lists context, set_field, field_change, custom, propose, submit and notify, all from the bridge vocabulary.
+      - The only window.open is inside checkout(); the chat reply turns a proposal into a propose card.
+      - A 40-product, 60-line digest stays at or under 4000 characters.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: cart-totals
+    name: Integer-cent cart totals
+    purpose: Known-value checks on the compiled cart-totals module that every Shopping total goes through.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/shopping-cart-totals.test.js
+    expected:
+      - 2.78 is 278 cents, 0.10 + 0.20 is exactly 30 cents, an unpriced line is counted not zero-priced, and cents format without floating point.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: routes-money-handoff
+    name: Server-priced lines and the confirmation-gated checkout
+    purpose: Drive the compiled Shopping routes with an in-memory pool and a recording Walmart provider through pricing, totals, ownership, the chat checkout proposal and the confirmed hand-off.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/shopping-routes.test.js
+    expected:
+      - A line is priced from the catalog by exact productId; a browser-sent price, brand or image is ignored and an unconfirmed id is 422 with nothing stored.
+      - Another shopper's list is 403 before any provider call and cannot be checked out; an anonymous caller is 401 before any query.
+      - A chat checkout returns a proposal with the integer-cent total and neither builds the deep link nor writes shop_purchase_history; POST /checkout builds it once and records the exact total.
+      - Under the native read-only admission a fresh shopper's GET /cart answers 200 with listId null and creates nothing, every GET route answers without attempting a SQL write, and the list POST /lists creates is the one the next GET /cart reads.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/shopping-routes-harness.js
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: walmart-catalog-policy
+    name: Walmart catalog action policy
+    purpose: The carved policy spec over the TypeScript route source - bounded provider diagnostics and the rule that only an unqualified live Walmart catalog may add to the cart or start checkout from chat.
+    level: unit
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/walmart-catalog-policy.spec.ts
+    expected:
+      - Provider diagnostics are re-bounded; demo or failed catalogs clear model-requested add and checkout actions.
+    prerequisites:
+      - runner:vitest
+      - harness:oshal-core-root
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: surface-mobile-commerce
+    name: Shopping at phone width in Chromium
+    purpose: Drive the actual Shopping surface at 390 x 844 inside a parent frame over the compiled router and the real core bridge client - browse, search and scroll, two adds and their exact total, a chat checkout that waits for Confirm, the floating assistant's relayed ops, and the context envelopes the parent receives.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/surface.core.spec.mjs
+    expected:
+      - No horizontal overflow; a search fills a grid the page scrolls to the end of.
+      - Two adds show $4.90 from the server and no request body carries a price.
+      - A chat checkout renders a confirm card with no hand-off POST and no window.open; Confirm fires exactly one POST /checkout and opens the Walmart link once; Cancel on a relayed proposal hands off nothing.
+      - The parent frame receives context envelopes with the cart total and a submit for the confirm; the page raises no errors.
+      - Under the native admission rule the first add creates the default list through exactly one POST /lists before its item POST, and no GET in the session attempts a SQL write.
+    prerequisites:
+      - runner:playwright
+      - harness:oshal-core-root
+      - browser:chromium
+      - core:dependencies
+      - core:surface-bridge
+      - core:shared-theme-assets
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/surface.core.fixture.mjs
+        - tests/shopping-routes-harness.js
+      cleanup: Close the owned Chromium process and the loopback HTTP server; carts, lists and the recorded hand-off stay in the disposable in-memory pool, with no database, provider or model.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify both pages provide their audience views through the shared kit: the dashboard's family (Home
+      shell) view, and the concierge chat page (the first surface the shells frame) with its company (Business
+      shells) and family (Jarvis) views. Kit loaded after the theme bootstrap, boot with this application's own
+      name and exactly its audiences, every full-page start gated on the kit's decision, head blocks parse and
+      read only this package's own routes; the chat views run over the package's real list and summary handlers.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once on each page.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On the chat page both views read only /lists, the active list's items and /home-summary, and the routes run only SELECTs; never /cart, /deals, the concierge or a write.
+      - The company view shows the cart newest first with unit and line prices, a total equal to the routes' cart-totals module, and the lists with the cart's list marked; the family view uses the dashboard's words.
+      - No list, an empty list, a partial or failed summary, the real 401, a 403 and the real 500 are each named, never a database message.
+      - Under either chat view the concierge start reads nothing, the assistant rail is not attached and no handoff or connected-actions mount runs; without a view every start step runs.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/shopping-routes-harness.js
+    limits:
+      timeoutMs: 15000
+    installation: never

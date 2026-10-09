@@ -44,6 +44,27 @@
 # 36 | maintainer@emeraldcoastsystemsgroup.com     | Refuse a package that declares no connector allow-list. `dependencies.connectors` doubles as the app's RUNTIME allow-list, and for it absent is not empty: the kernel forwards the key to the cockpit, which reads an absent one as UNFILTERED - it pins the platform Connectors tile and offers the WHOLE provider catalog inside that app (RibbonNav.js connectorsAllowed, cockpit-view-controller.js renderConnectorDiscoverView). Three packages were shipping exactly that. catalog-parity cannot catch it, because marketplace.json's dependency block is GENERATED from the manifests - a key that leaves a manifest leaves the mirror with it and the parity check stays green - so the check is a gate of its own, with a mutation test whose regression case is the DISAPPEARANCE: a package that declared an allow-list and stops.
 # 37 | maintainer@emeraldcoastsystemsgroup.com     | Add the cross-package dependency gate to catalog-parity. Only 12 of 61 packages declared an app prerequisite and nothing enforced declaring: marketplace.json's dependency block is GENERATED from the manifest, so a package that declares nothing produces a mirror that says nothing and gen-catalog-dependencies.mjs --check reports "current". It runs here because catalog-parity is a needs: gate for the package jobs, and because the check is dependency-free (bare checkout, no npm install).
 # 38 | maintainer@emeraldcoastsystemsgroup.com     | Make cockpit concierge coverage a manifest contract. Whole-tree structural discovery grades every non-empty ui.static, ui.dynamic and ADR-141 toolbar surface; comments, blank values and nested lookalikes do not count, and there is no exception list. The 13 uncovered packages now declare an explicit right-rail owner, while mutation fixtures prove every supported surface and concierge rail shape.
+# 39 | maintainer@emeraldcoastsystemsgroup.com | Run the Futures Research package contract against the same framework dependency checkout as Trading.
+# 40 | maintainer@emeraldcoastsystemsgroup.com | Run the purchasing (Shopping) package suites. The package had one spec, carved out of core in July, which ran in no gate; its money path (a cart total the browser could set) and its hand-off path (a chat turn that opened checkout by itself) had no guard at all. The new suites pin server-priced lines, integer-cent totals and the confirmation-gated checkout against the COMPILED route module, plus the assistant-rail contract over the served surface. GLOB: tests/*-*.test.js keeps the framework-coupled surface.core.spec.mjs and the Vitest walmart-catalog-policy.spec.ts out of this bare checkout; both run in the framework-coupled gate.
+# 41 | maintainer@emeraldcoastsystemsgroup.com | Run the eats package suites - the package's first. Eats hands an order off to Uber Eats, and before these suites nothing guarded either dangerous power: POST /cart/items stored whatever price the browser sent, and a chat turn built the hand-off and wrote eats_orders by itself. The guards drive the COMPILED route module with an in-memory pool and a recording provider (menu-priced lines, integer-cent totals, the order as a proposal until the diner confirms) plus the assistant-rail contract over the served surface. GLOB: tests/*-*.test.js keeps the framework-coupled surface.core.spec.mjs out of this bare checkout.
+# 42 | maintainer@emeraldcoastsystemsgroup.com | Run the cross-package medium-property drift guard (ADR-160 S5a). Three labs answer "what is seawater" in three languages - ocean-lab's TypeScript constants (declared twice), aero-lab's Python atmosphere and embodied's committed medium row - and D3 forbids a runtime import between them, so nothing but a read-only text comparison keeps them one answer. scripts/check-medium-properties.mjs reads the row as JSON and the foreign constants as text, imports nothing across packages, fails closed on a constant it cannot find, and is mutation-proved red per constant by its sibling suite. scripts/store-ci-local.sh mirrors the job like every other.
+# 43 | maintainer@emeraldcoastsystemsgroup.com | Provision the Career loader's database drivers (pg + better-sqlite3, exact versions) for the new cutover suites. The convergence, reverse-sync and drill contracts run scripts/migrate-sqlite-to-postgres.js for real against the job's disposable PostgreSQL service, and that loader needs both drivers; they install into their own prefix and reach the suites as CAREER_LOADER_NODE_PATH. Glob unchanged (tests/*.test.mjs already discovers the new suites).
+# 44 | maintainer@emeraldcoastsystemsgroup.com | Give the sports-edge job a framework checkout. The package's ESPN fantasy client moved into the fantasy-leagues kernel skill (ADR-146 D2), and its four fantasy suites still drive that real client - now loaded from the framework's source by tests/fantasy-leagues-fixture.js - so the job checks the public framework out and points OSHAL_FRAMEWORK at it, the same shape as the Futures Research job. Without it those suites fail loudly (the fixture refuses rather than skips). The command and its glob are unchanged.
+# 45 | maintainer@emeraldcoastsystemsgroup.com | ADR-160 S2/S5: two jobs. `adr160-contract` runs scripts/check-adr160-contract.mjs, the cross-lab contract guard - the vehicle record's column set and D5 run core, the stage contract (STAGES, the Stage type, the fabricable sentence, the vector fingerprint), the run-result schema, every copy of the medium rows against embodied's committed row, every force-model envelope file, and one test case per named refusal per lab - read as DATA and TEXT with targets DISCOVERED, never listed, and its mutation suite. `ocean-lab` runs the package's first gate: the three plain-node engine suites against the COMPILED modules (the wave-propulsion model and medium contract, the explorer record's kind, stage and fingerprints, and the study-reproduction regression). The framework-coupled suites (routes, owner RLS on a real PostgreSQL, the browser proof) are registered in ocean-lab/tests/test-lab.yaml with their prerequisites and run locally. scripts/store-ci-local.sh mirrors both like every other.
+# 46 | maintainer@emeraldcoastsystemsgroup.com | Judge every package's Test Lab catalog with the framework's OWN loader: job `test-catalogs` checks the (public) framework out, installs its locked dependencies exactly as the trading and sports-edge jobs do, and runs scripts/check-test-catalogs.mjs, which calls scripts/oshal-test-catalog.js from that checkout over every package - the function the installed-app loader calls, so a catalog this job passes is one the kernel loads. The kernel refuses a WHOLE package for one bad field: embodied 0.17.0 was unmounted on 2026-09-28 by `Application embodied testing.cases[19].expected[7]: must be non-empty text of at most 500 characters`, after circuit-lab 0.5.0 (568 characters) and a career-hunter catalog (1,052 characters) hit the same cap. Nothing here judged catalog content before: the one store caller of that loader (scripts/security/run-framework-coupled-tests.mjs) runs only in the workflow_dispatch security workflow and only for the packages that carry a framework-coupled suite. The mutation suite runs beside it. scripts/store-ci-local.sh mirrors the job like every other, so the pre-push hook runs it.
+# 47 | maintainer@emeraldcoastsystemsgroup.com | The fantasy half of sports-edge moved to its own package (ADR-146 D1, operator decisions 2026-09-27), so its suites moved to a new `fantasy-football` job that keeps the framework checkout they need for the fantasy-leagues skill, and the sports-edge job is back to a bare, dependency-free checkout (its remaining suites import nothing from the framework). The same job runs the code-free intelligent-sports group guard, which reads both member manifests with the framework's js-yaml. GLOB for fantasy-football is tests/*-*.test.js so the Docker-backed isolation.core.test.js stays out of the bare job.
+# 48 | maintainer@emeraldcoastsystemsgroup.com | Judge every package's `scope:` with the framework's OWN app-scope contract: job `app-scopes` checks the (public) framework out exactly as `test-catalogs` does and runs scripts/check-app-scopes.mjs, which calls scripts/oshal-app-scope.js from that checkout over every package - the function `oshal-app validate` and the installed-app loader call. dev-workspace-index 0.2.0 declared `scope: deployment`, passed every job here, and was refused by the kernel database's swarm_applications CHECK mid-install on 2026-09-28. The mutation suite runs beside it; scripts/store-ci-local.sh mirrors the job like every other.
+# 49 | maintainer@emeraldcoastsystemsgroup.com | Rating labels (core ADR-170 D10): catalog-parity runs `node scripts/ai-usage-ledger.mjs --check --allow-unrated` (AI-USAGE-LEDGER.md and each package README's generated section must match every `rating:` block) and its mutation suite. --allow-unrated only lists unrated packages while the rollout finishes.
+# 50 | maintainer@emeraldcoastsystemsgroup.com | Run the world package's operations-route suite (World 1.4.0 Sources & schedules): it loads the compiled route with stubbed kernel modules, like the home-summary suite beside it.
+# 51 | maintainer@emeraldcoastsystemsgroup.com | Run the world package's audience-view suite too: it holds the runtime "no reads under an audience view" assertion, and as a .cjs suite the world job's *.test.js glob never picked it up.
+# 52 | maintainer@emeraldcoastsystemsgroup.com | Run all seven owned experience contracts and their audit/parser regressions through the existing local and manual workflow gates.
+# 53 | maintainer@emeraldcoastsystemsgroup.com | Run the scene-studio package suites (0.1.0, Godot + Blender through their MCP servers): the file and tool contracts against the engine's Python, the engine transport, the per-job seccomp sandbox and the audience view.
+
+# 54 | maintainer@emeraldcoastsystemsgroup.com | Refuse duplicate application bot owners and missing executable imports using the framework dependency contract, with mutation coverage.
+# 55 | maintainer@emeraldcoastsystemsgroup.com | Job `public-snapshot` runs scripts/build-store-public.test.mjs: the real publish script over HEAD with docker withheld, which must clear every gate before gitleaks and keep every package. The nightly public store cut had refused since 2026-10-06 (a vendor-prefixed test fixture at gate A, then carved commercial identifiers in the experience packages at gate B) with nothing upstream able to see it. Node and bash only; in a published cut, which carries no publish script, the same file pins that no publish toolchain or coordination thread rides along.
+# 56 | maintainer@emeraldcoastsystemsgroup.com | Job `public-snapshot` now runs gate C as well whenever the runner has a docker engine (ubuntu-latest does): the guard requires the complete build, gitleaks included, to succeed. The first complete cut was refused by gitleaks on three career-hunter claim-token fixtures that a docker-withheld run could not see. Without an engine the gates before gitleaks still run and a named gate C case is skipped, which the local gate grades PARTIAL.
+
+# 57 | maintainer@emeraldcoastsystemsgroup.com     | Provision the explicit framework and Chromium used by the real Presentations renderer/browser contracts; their package glob already includes these dependency-bearing tests.
 
 name: store-ci
 
@@ -99,6 +120,8 @@ jobs:
       - run: node --test scripts/operations-home.test.cjs
       - run: node --test scripts/media-home.test.cjs
       - run: node --test world/tests/home-summary.test.cjs
+      - run: node --test world/tests/world-operations.test.cjs
+      - run: node --test world/tests/audience-view.test.cjs
       - run: node --test vids/tests/integration-surface.test.js
 
   test-discovery:
@@ -143,6 +166,13 @@ jobs:
         run: node --test scripts/check-concierge-coverage.test.mjs
       - name: Every cross-package edge is declared
         run: node --test scripts/app-dependency-declarations.test.mjs
+      # Core ADR-170 D10: every package's rating label (container memory low/high, each model
+      # feature's unit and tier) is the source of AI-USAGE-LEDGER.md and each README's generated
+      # section. A stale mirror or malformed block fails; all 67 packages are now rated.
+      - name: Rating labels, the ledger, and README sections agree
+        run: node scripts/ai-usage-ledger.mjs --check
+      - name: Mutation-test the rating ledger gate
+        run: node --test scripts/ai-usage-ledger.test.mjs
 
   service-activations:
     name: every scheduled service declares the principal it runs as
@@ -197,6 +227,115 @@ jobs:
       - name: Mutation-test the forced row-security gate
         run: node --test scripts/check-forced-rls.test.mjs
 
+  medium-properties:
+    name: every lab's copy of a medium property agrees with the committed row
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # ADR-160 D3 forbids a runtime import between packages, so embodied's committed medium row,
+      # ocean-lab's two SEAWATER_DENSITY_KGM3 declarations and its kinematic viscosity, and
+      # aero-lab's ISA constants are compared as DATA and TEXT here. A constant the guard cannot
+      # find is a failure, not a skip: a value nobody compared is a drift nobody caught.
+      - name: Refuse a medium property that disagrees between labs
+        run: node scripts/check-medium-properties.mjs
+      - name: Mutation-test the medium-property drift guard
+        run: node --test scripts/check-medium-properties.test.mjs
+
+  adr160-contract:
+    name: every lab's vehicle record, stage, medium shape and refusals agree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # ADR-160 D3: labs share a CONTRACT, not a runtime, and a cross-package read-only test fails
+      # when it drifts. The guard discovers every vehicle-record lab from its migrations, every
+      # medium row copy and envelope file, and every stage-contract export, and compares them as
+      # data and text - no package is imported, so check-store-separation is untouched. Fewer than
+      # two record labs is a failure, not a skip.
+      - name: Refuse a vehicle record, stage, medium shape or refusal case that drifts between labs
+        run: node scripts/check-adr160-contract.mjs
+      - name: Mutation-test the ADR-160 contract guard
+        run: node --test scripts/check-adr160-contract.test.mjs
+
+  test-catalogs:
+    name: every package's Test Lab catalog loads through the framework's own loader
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      # The rule is the framework's, so the framework is checked out and its own loader is called
+      # (scripts/oshal-test-catalog.js with the js-yaml its lockfile pins). The framework is PUBLIC,
+      # so no token is involved.
+      - name: Check out the framework whose catalog loader the installed app runs
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: emeraldcoastsystemsgroup/oshal
+          ref: main
+          path: framework
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: framework/package-lock.json
+      - name: Provide the framework checkout's locked dependencies
+        run: npm ci --legacy-peer-deps --no-audit --no-fund --prefix framework
+      # The kernel refuses a WHOLE package for one bad catalog field (embodied 0.17.0 on 2026-09-28:
+      # an expected line of 575 characters against a cap of 500). Structural discovery, not a list:
+      # every directory with an oshal-app.yaml, and a catalog the manifest does not declare is still
+      # judged. Every failing case is named with its app, case ID and field.
+      - name: Refuse a package test catalog the framework's loader would refuse
+        env:
+          OSHAL_FRAMEWORK: framework
+        run: node scripts/check-test-catalogs.mjs
+      - name: Mutation-test the test-catalog gate
+        env:
+          OSHAL_FRAMEWORK: framework
+        run: node --test scripts/check-test-catalogs.test.mjs
+
+  app-scopes:
+    name: every package's scope is one the framework's own contract accepts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      # The vocabulary is the framework's (the swarm_applications CHECK), so the framework is checked
+      # out and its own contract is called (scripts/oshal-app-scope.js, parsed with the js-yaml its
+      # lockfile pins). The framework is PUBLIC, so no token is involved.
+      - name: Check out the framework whose app-scope contract the installed app runs
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: emeraldcoastsystemsgroup/oshal
+          ref: main
+          path: framework
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: framework/package-lock.json
+      - name: Provide the framework checkout's locked dependencies
+        run: npm ci --legacy-peer-deps --no-audit --no-fund --prefix framework
+      # dev-workspace-index 0.2.0 (`scope: deployment`) passed every job here and was refused by the
+      # kernel database mid-install on 2026-09-28. Structural discovery, not a list.
+      - name: Refuse a package scope the framework's contract would refuse
+        env:
+          OSHAL_FRAMEWORK: framework
+        run: node scripts/check-app-scopes.mjs
+      - name: Mutation-test the app-scope gate
+        env:
+          OSHAL_FRAMEWORK: framework
+        run: node --test scripts/check-app-scopes.test.mjs
+      - name: Validate application bot owners and dependency imports
+        env:
+          OSHAL_FRAMEWORK: framework
+        run: node scripts/check-bot-dependencies.mjs
+      - name: Mutation-test bot ownership and imported worker declarations
+        env:
+          OSHAL_FRAMEWORK: framework
+        run: node --test scripts/check-bot-dependencies.test.mjs
+
   attribution:
     name: no model attribution
     runs-on: ubuntu-latest
@@ -207,6 +346,23 @@ jobs:
           node-version: '22'
       - name: Refuse model attribution in tracked files
         run: node --test scripts/check-no-model-attribution.test.mjs
+
+  public-snapshot:
+    name: the public store cut clears its publish gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # The nightly publish (scripts/publish-store.sh) is the only thing that ever ran these gates,
+      # so a fixture or manifest that tripped one was found at 01:00 as a stale public store. This
+      # runs the unmodified publish script over HEAD. With a docker engine (this runner has one) the
+      # whole cut must succeed, gitleaks included; without one every gate before gitleaks must
+      # print clean and the gate C case is reported skipped. Either way the cut must carry every
+      # package HEAD carries, and nothing is pushed.
+      - name: Cut the public snapshot through every publish gate
+        run: node --test scripts/build-store-public.test.mjs
 
   store-ci-local:
     name: the local gate's own exit-code contract
@@ -289,6 +445,45 @@ jobs:
       - name: Run dnd suites
         working-directory: dnd
         run: node --test "tests/*.test.js"
+
+  eats:
+    name: eats package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # Eats hands an order off to Uber Eats, so its two dangerous powers are a wrong total and a
+      # hand-off nobody asked for. These guards drive the COMPILED route module with an in-memory
+      # pool and a recording provider: a dish is priced from the restaurant's menu by exact id (a
+      # browser-sent price is ignored, an unlisted dish is refused), totals are integer cents, and
+      # a chat order is only a proposal until the diner's confirm calls POST /order. The surface
+      # guard proves the page speaks the shared bridge and opens Uber Eats from one place.
+      - name: Run eats suites
+        working-directory: eats
+        run: node --test "tests/*-*.test.js"
+
+  dev-workspace-index:
+    name: dev-workspace-index package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # The package's one dangerous power is a corpus read by a bot that answers other people, so
+      # the guards that matter are the ones that keep secrets and identifiers OUT of it: the declared
+      # include/exclude manifest, per-rule secret and identifier refusal, the post-build rescan that
+      # exits non-zero on a poisoned chunk, fail-closed local patterns, the named local-notes root,
+      # server-held dev mode and the cited package tool. GLOB: tests/*-*.test.js keeps the
+      # framework-coupled jarvis.core.test.js and refusal.core.test.js (real core seam, OSHAL_CORE_DIR)
+      # out of this bare checkout; they run in the framework-coupled gate.
+      - name: Run dev-workspace-index suites
+        working-directory: dev-workspace-index
+        run: node --test "tests/*-*.test.js"
 
   video:
     name: video package suites
@@ -395,15 +590,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Check out the framework renderer and shared browser assets
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: emeraldcoastsystemsgroup/oshal
+          ref: a21c4ac6fe210fde153fb6bf18d6c3aa5cfb572f
+          path: framework
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: framework/package-lock.json
+      - name: Provide the framework checkout's locked dependencies
+        run: npm ci --legacy-peer-deps --no-audit --no-fund --prefix framework
+      - name: Provide the renderer contract's browser
+        run: node framework/node_modules/playwright/cli.js install --with-deps chromium
       # The AI Office surface is one served HTML file — no compiler ever parses its inline
       # scripts, and the guided front door (make → look → start, plus talk/upload/one-line
-      # draft) is the operator-facing feature. The .mjs destination suite invokes the compiled
-      # route and proves the resolved save target before render. Plain node, no install.
+      # draft) is the operator-facing feature. The guide and delivery contracts load the actual
+      # framework renderer source; the browser contract walks the shipped page on loopback.
       - name: Run presentations suites
         working-directory: presentations
+        env:
+          OSHAL_FRAMEWORK: ${{ github.workspace }}/framework
         run: node --test "tests/*.test.*"
 
   create:
@@ -517,6 +726,10 @@ jobs:
       # transpiles the package's own src-routes rather than trusting a build.
       - name: Provide a TypeScript compiler
         run: npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/tsroot" typescript@5.9.3
+      # The storage-cutover contracts (convergence, reverse sync, drill) run the real
+      # SQLite -> PostgreSQL loader, which requires both database drivers.
+      - name: Provide the Career loader's database drivers
+        run: npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/career-loader" pg@8.20.0 better-sqlite3@12.9.0
       - name: Run career-hunter suites
         working-directory: career-hunter
         # Step-level on purpose: the job context (job.services.*.ports) does not exist at
@@ -525,8 +738,28 @@ jobs:
         # branch because an unparseable file has no readable triggers.
         env:
           CAREER_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:career-contract-ci@127.0.0.1:${{ job.services.career_postgres.ports[5432] }}/postgres
+          CAREER_LOADER_NODE_PATH: ${{ runner.temp }}/career-loader/node_modules
           OSHAL_ROOT: ${{ runner.temp }}/tsroot
         run: node --test "tests/*.test.mjs"
+
+  purchasing:
+    name: purchasing package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # Shopping hands a cart off to Walmart, so its two dangerous powers are a wrong total and a
+      # hand-off nobody asked for. These guards drive the COMPILED route module with an in-memory
+      # pool and a recording provider: a line is priced from the catalog by exact productId (a
+      # browser-sent price is ignored, an unconfirmed id is refused), totals are integer cents, and
+      # a chat checkout is only a proposal until the shopper's confirm calls POST /checkout. The
+      # surface guard proves the page speaks the shared bridge and opens Walmart from one place.
+      - name: Run purchasing suites
+        working-directory: purchasing
+        run: node --test "tests/*-*.test.js"
 
   rides:
     name: rides package suites
@@ -642,12 +875,59 @@ jobs:
       # that clears only one of its two bars. Plain node, no install, against the COMPILED modules
       # the framework mounts.
       #
-      # GLOB: tests/*.test.js is correct HERE (all five suites are .test.js). Check this per
-      # package - the same glob matches ZERO files in a .cjs or .mjs package and node --test would
-      # exit 0 having run nothing.
+      # GLOB: tests/*.test.js is correct HERE (every suite is .test.js; sports-coach-fixture.js is a
+      # fixture, not a suite). Check this per package - the same glob matches ZERO files in a .cjs or
+      # .mjs package and node --test would exit 0 having run nothing.
       - name: Run sports-edge suites
         working-directory: sports-edge
         run: node --test "tests/*.test.js"
+
+  fantasy-football:
+    name: fantasy-football package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      # The route and scoring suites drive the ESPN client, which is the fantasy-leagues kernel skill
+      # (ADR-146 D2) rather than package code. tests/fantasy-leagues-fixture.js compiles it from the
+      # framework's source with the framework's own TypeScript, so this job needs a checkout of the
+      # (public) framework, exactly as the Futures Research job does. No token is involved.
+      - name: Check out the framework the fantasy suites load the ESPN client from
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: emeraldcoastsystemsgroup/oshal
+          ref: main
+          path: framework
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: framework/package-lock.json
+      - name: Provide the framework checkout's locked dependencies
+        run: npm ci --legacy-peer-deps --no-audit --no-fund --prefix framework
+      # The package manages ONE person's fantasy team, so the two ways it can hurt someone are a
+      # confidently wrong lineup and a team another person can see. The guards are pinned to both:
+      # the weekly optimiser equals exhaustive search on 3,000 seeded rosters, an underdog is handed
+      # the volatile player and a favourite the steady one (a matched pair), every table the
+      # migrations create is forced with an exact-owner policy and no operator arm, every store
+      # statement names its owner, and a household-shared ESPN connection is never spent.
+      #
+      # GLOB: tests/*-*.test.js runs every hyphenated plain-node suite and deliberately NOT
+      # tests/isolation.core.test.js, which starts a disposable PostgreSQL through Docker and a
+      # Vitest run from the framework checkout; it is registered in tests/test-lab.yaml and run
+      # locally (BACKLOG C).
+      - name: Run fantasy-football suites
+        working-directory: fantasy-football
+        env:
+          OSHAL_FRAMEWORK: ../framework
+        run: node --test "tests/*-*.test.js"
+      # The Intelligent Sports group owns no code; its one guard reads both member manifests with
+      # the framework's js-yaml, so it rides the same framework checkout.
+      - name: Run the intelligent-sports group guard
+        working-directory: intelligent-sports
+        env:
+          OSHAL_CORE_ROOT: ../framework
+        run: node --test tests/toolbar.test.cjs
 
   calendar:
     name: calendar package suites
@@ -729,6 +1009,26 @@ jobs:
         working-directory: embodied
         run: node --test "tests/engine-*.test.js"
 
+  ocean-lab:
+    name: ocean-lab package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # The wave-propulsion model, the medium contract, the explorer record's kind, stage and run
+      # fingerprints, and the regression that reproduces the design study's published figures from
+      # the committed seed are pure JS against the COMPILED engine (the logger is stubbed through the
+      # module loader), so they run under plain node with no install - every engine-* suite. The
+      # framework-coupled suites (the record routes over loopback, owner RLS on a real PostgreSQL,
+      # the Explorer tile in a browser, the older vitest engine specs) are registered in
+      # tests/test-lab.yaml with their prerequisites and run locally, not here.
+      - name: Run ocean-lab engine suites
+        working-directory: ocean-lab
+        run: node --test "tests/engine-*.test.js"
+
   cad-studio:
     name: cad-studio package suites
     needs: [test-discovery, catalog-parity]
@@ -745,6 +1045,25 @@ jobs:
       # registered in tests/test-lab.yaml with their prerequisites and run locally, not here.
       - name: Run cad-studio contract and transport suites
         working-directory: cad-studio
+        run: node --test "tests/*-*.test.js"
+
+  scene-studio:
+    name: scene-studio package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # The file and tool contracts (checked against the engine's Python with the runner's
+      # python3), the engine transport against a fake bridge, the engine sandbox through the real
+      # seccomp launcher (Linux; the runner's own syscall table) and the audience view are plain
+      # node with no framework import — every hyphenated suite. The framework-coupled route suite
+      # (routes.core), the disposable-PostgreSQL store suite (store.pg) and the engine's own
+      # self-test are registered in tests/test-lab.yaml with their prerequisites and run locally.
+      - name: Run scene-studio contract, transport and sandbox suites
+        working-directory: scene-studio
         run: node --test "tests/*-*.test.js"
 
   circuit-lab:
@@ -783,6 +1102,20 @@ jobs:
       - name: Run animatronics engine, protocol and surface suites
         working-directory: animatronics
         run: node --test "tests/*-*.test.js"
+
+  calling-assistant:
+    name: calling assistant policy and carrier contract
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # Real PostgreSQL, browser and speech rounds have explicit Test Lab prerequisites.
+      - name: Run calling policy, refusal, TwiML and signature contract
+        working-directory: calling-assistant
+        run: node --test "tests/policy.test.cjs"
 
   trading:
     name: trading package specs, against a framework checkout
@@ -823,3 +1156,41 @@ jobs:
         env:
           OSHAL_FRAMEWORK: framework
         run: node scripts/run-trading-specs.mjs
+      - name: Run Futures Research workflow and compiled readiness contract
+        working-directory: futures-research
+        env:
+          OSHAL_FRAMEWORK: ../framework
+        run: node --test "tests/*.test.cjs"
+
+  experience-packages:
+    name: seven experience contracts and reproducible audit guards
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Run Home experience contracts
+        working-directory: home-experience
+        run: node --test "tests/*.test.cjs"
+      - name: Run Business experience contracts
+        working-directory: business-experience
+        run: node --test "tests/*.test.cjs"
+      - name: Run Classroom experience contracts
+        working-directory: classroom-experience
+        run: node --test "tests/*.test.cjs"
+      - name: Run Studio experience contracts
+        working-directory: studio-experience
+        run: node --test "tests/*.test.cjs"
+      - name: Run Jarvis experience contracts
+        working-directory: jarvis-experience
+        run: node --test "tests/*.test.cjs"
+      - name: Run Orbit experience contracts
+        working-directory: orbit-experience
+        run: node --test "tests/*.test.cjs"
+      - name: Run Commons experience contracts
+        working-directory: commons-experience
+        run: node --test "tests/*.test.cjs"
+      - name: Refuse incomplete package audit evidence and malformed route declarations
+        run: node --test scripts/security/run-package-audit.test.mjs scripts/security/security-ci-contract.test.mjs

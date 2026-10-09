@@ -1,0 +1,30 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Own the established skin palette while respecting saved appearance.
+ */
+body[data-skin="company"], [data-layout][data-skin="company"], .experience[data-skin="company"], [data-skin="company"],
+body[data-skin="professional"], [data-layout][data-skin="professional"], .experience[data-skin="professional"], [data-skin="professional"],
+body[data-theme="company"], [data-theme="company"], body[data-theme="professional"], [data-theme="professional"] {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-2: #eaf0f4;
+  --chrome: #ffffff;
+  --ink: #1e293b;
+  --muted: #64748b;
+  --line: #d5e0e8;
+  --accent: #1f6b75;
+  --on-accent: #ffffff;
+  --soft: #eaf0f4;
+  --paper: #ffffff;
+  --on: #ffffff;
+  --feature: #173b4a;
+  --teal: #1f6b75;
+  --gold: #d4ac73;
+  --radius-custom: 12px;
+  --radius: 12px;
+  --theme-brand: "Company Swarm";
+  color-scheme: light;
+}

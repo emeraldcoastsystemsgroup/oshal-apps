@@ -1,0 +1,58 @@
+# OSHAL Home Workspace — an ADR-141 group of six required, existing applications.
+# Every tile borrows a member's declared surface; this package owns no route, bot or business logic.
+name: workspace
+kind: group
+suite: ai-home
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features: []   # no model in the loop (T0)
+displayName: Home Workspace
+description: >-
+  One home ribbon for Smart Home, Switchboard, Social, Intelligent Career,
+  Storage and Video Studio. Each destination remains owned by its member app.
+version: 1.0.0
+status: active
+scope: public
+chatBot: home-bot # Metadata-only concierge borrowed from the required Smart Home member.
+theme: ocean
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: workspace
+  ref: main
+dependencies:
+  required:
+    apps: [home, social, career-hunter, storage, switchboard, video]
+    connectors: []
+  optional:
+    apps: []
+    # Only connectors declared by the six members; absence would expose the whole catalog.
+    connectors: [smartthings, google-home, linkedin, twitter, meta-business, facebook, google, anthropic, firecrawl, twilio, dropbox, github, google-drive, outlook, slack]
+
+toolbar:
+  - { app: home,          surface: home-dashboard }
+  - { app: switchboard,   surface: switchboard-today,   group: My Day }
+  - { app: switchboard,   surface: switchboard-inbox,   group: My Day }
+  - { app: social,        surface: social-workspace,    group: Community }
+  - { app: social,        surface: social-signals,      group: Community }
+  - { app: career-hunter, surface: career-board,        group: Career }
+  - { app: career-hunter, surface: career-strengthen,   group: Career }
+  - { app: storage,       surface: storage-files,       group: Files }
+  - { app: video,         surface: video-studio,        group: Create }
+  - { app: home,          surface: home-accounts,       section: bottom }
+  - { app: social,        surface: social-accounts,     section: bottom }
+  - { app: career-hunter, surface: career-resume-studio, section: bottom }
+  - { app: storage,       surface: storage-settings,   section: bottom }
+
+# These are optional readiness hints, not activation gates or copied state.
+setup:
+  - { label: Add your resume,            app: career-hunter, readiness: resume,   fix: career-resume-studio }
+  - { label: Connect your social account, app: social,        readiness: facebook, fix: social-accounts }
+  - { label: Choose social signals,       app: social,        readiness: signals,  fix: social-signals }
+
+ribbon:
+  defaultView: home-dashboard
+  hideChatPanel: true
+  hideFrameworkItems: [chat, calendar, addressbook, dashboard, logs, operations]

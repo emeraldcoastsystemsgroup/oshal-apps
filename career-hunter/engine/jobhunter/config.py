@@ -3,6 +3,9 @@
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Fail closed when JOBHUNTER_STORE names an unsupported backend instead of silently writing SQLite.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Career worker rail: read the runner-minted rail entries (URL, run token, service secret, run id, client timeout) once and remove them from the process environment, so no browser or subprocess the engine starts inherits them. In multi-user mode the model-provider keys are dropped the same way — the engine's model calls go only to the dedicated Career bot through the rail.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Raise the rail client timeout clamp to 9030 s: the runner now hands the engine the rail's queue ceiling plus its per-call deadline (the deadline no longer covers time spent waiting for a Career bot slot), and the old 1900 s clamp would cut that off before the rail answered.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | The rail entry is a per-run callback grant (CAREER_RAIL_GRANT, `<run id>.<secret>`) the engine signs with, not a bearer token beside the fleet service secret (1.25.1). The retired 1.24.0 names are still removed from the environment on import, so nothing the engine starts can inherit a stale value, but they are never read.
 
 """Central configuration for the job-hunter pipeline."""
 from __future__ import annotations
@@ -89,6 +92,37 @@ OAUTH_BETA_HEADER = "oauth-2025-04-20"
 ANTHROPIC_MODEL = os.environ.get("JOBHUNTER_ANTHROPIC_MODEL", "claude-sonnet-4-6")
 ANTHROPIC_SCORE_MODEL = os.environ.get("JOBHUNTER_SCORE_MODEL", "claude-haiku-4-5-20251001")
 OPENAI_MODEL = os.environ.get("JOBHUNTER_OPENAI_MODEL", "gpt-4o-mini")
+
+
+# ── Career worker rail (multi-user / OSHAL mode) ─────────────────────────────
+# The package runner registers every engine child as a run and hands it these entries. They are
+# read ONCE here and popped from os.environ, so Playwright/Chromium and any subprocess the engine
+# starts never inherit the run token or the service secret. The URL is the controller's own
+# loopback listener; enrich.complete refuses any other host.
+def _take_env(name: str) -> str:
+    return (os.environ.pop(name, None) or "").strip()
+
+
+RAIL_URL = _take_env("CAREER_RAIL_URL")
+RAIL_GRANT = _take_env("CAREER_RAIL_GRANT")
+RAIL_RUN_ID = _take_env("CAREER_RAIL_RUN_ID")
+# The 1.24.0 bearer token and fleet secret: removed so no subprocess inherits a stale copy, never used.
+for _retired_rail_name in ("CAREER_RAIL_TOKEN", "CAREER_RAIL_SERVICE_SECRET"):
+    os.environ.pop(_retired_rail_name, None)
+try:
+    # The runner sets the rail's queue ceiling plus its per-call deadline plus 30 s; the upper clamp
+    # is the largest value the package limits allow (7200 s queue + 1800 s deadline + 30 s).
+    RAIL_TIMEOUT_S = max(5.0, min(9030.0, float(_take_env("CAREER_RAIL_TIMEOUT_S") or "330")))
+except ValueError:
+    RAIL_TIMEOUT_S = 330.0
+
+if MULTIUSER:
+    # Multi-user mode has exactly one model path: the rail. A provider key that reached this
+    # process anyway is discarded and removed from the environment, never used as a fallback.
+    for _provider_key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+        os.environ.pop(_provider_key, None)
+    ANTHROPIC_API_KEY = None
+    OPENAI_API_KEY = None
 
 
 def claude_bin():

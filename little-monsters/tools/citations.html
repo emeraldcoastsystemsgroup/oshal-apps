@@ -3,109 +3,123 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Little Monsters - My Citations</title>
-<script>
-(function(){function a(n){if(!n)return;document.documentElement.setAttribute('data-theme',n);var h='/cockpit/css/themes/'+n+'.css',l=document.querySelector('link[data-lm-theme-link]');if(l){if(l.getAttribute('href')!==h)l.setAttribute('href',h);return;}l=document.createElement('link');l.rel='stylesheet';l.href=h;l.setAttribute('data-lm-theme-link','1');document.head.appendChild(l);}function i(){try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(e){}try{var s=localStorage.getItem('cockpit-theme');if(s)return s;}catch(e){}return 'little-monsters';}a(i());try{if(window.parent&&window.parent!==window){var ph=window.parent.document.documentElement;new MutationObserver(function(m){for(var k=0;k<m.length;k++)if(m[k].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)a(t);}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});}}catch(e){}})();
-</script>
+<title>Little Monsters — My Citations</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  SEQ | AUTHOR                                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com   | Citation builder: MLA and APA entries from author, title, source, year and URL; a Works Cited list kept in browser storage with copy and remove
+  2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass link and literal pink/dark palette; hero, two-column layout (builder and Works Cited), system fields and buttons, list items with a remove button, an empty state, LM.toast for save/copy/remove notices, the list rendered alphabetized as its copy already promised, and a plain line saying citations live in this browser only
+  ---------------------------------------------------------------------------
+-->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
 <link rel="stylesheet" href="/api/education/education.css">
 <style>
-  body{margin:0;color:var(--text-primary,#fdeaf6);font-family:system-ui,'Inter',sans-serif;}
-  .wrap{padding:22px clamp(14px,4vw,40px) 60px;max-width:720px;}
-  .head{display:flex;align-items:center;gap:12px;}
-  .head img{width:48px;height:48px;border-radius:12px;border:3px solid var(--accent-primary,#ec4faa);background:var(--bg-card);}
-  h1{margin:0;font-size:clamp(20px,3vw,28px);}
-  .sub{color:var(--text-muted);font-size:13px;margin:4px 0 18px;}
-  .card{border:1px solid var(--border-color);border-radius:16px;background:var(--bg-card);padding:16px;margin-bottom:16px;}
-  label{display:block;font-size:12px;color:var(--text-muted);margin:8px 0 4px;}
-  input,select{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid var(--border-color);
-    background:var(--bg-secondary);color:inherit;font-size:14px;}
-  .row{display:flex;gap:10px;flex-wrap:wrap;} .row>div{flex:1 1 160px;}
-  .btn{margin-top:12px;background:var(--accent-primary,#ec4faa);color:#fff;border:none;border-radius:12px;
-    padding:11px 16px;font-weight:800;cursor:pointer;}
-  .out{font-family:Georgia,serif;font-size:14px;line-height:1.6;padding:12px;border-radius:10px;background:var(--bg-secondary);
-    border:1px solid var(--border-color);margin-top:10px;word-break:break-word;}
-  .saved li{font-family:Georgia,serif;font-size:13px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border-color);}
-  .small{font-size:12px;color:var(--text-muted);}
-  a.cm{color:var(--accent-primary,#ec4faa);}
+  .cite { font-family: var(--lm-font-display); font-size: 15px; line-height: 1.55; overflow-wrap: anywhere; }
+  .cite .lm-pill { font-family: var(--lm-font-body); vertical-align: middle; }
+  .lm-item .cite { flex: 1; min-width: 0; }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
-<div class="wrap">
-  <div class="head"><img src="/api/education/mascot.png" alt=""><div><h1>My Citations</h1></div></div>
-  <p class="sub">Build clean MLA/APA citations, keep your bibliography in one place, or jump to <a class="cm" href="https://www.citationmachine.net/" target="_blank" rel="noopener">Citation Machine</a> for tricky sources.</p>
-
-  <div class="card">
-    <label>📄 Your paper (optional — keeps these sources together)</label>
-    <input type="file" id="paper" accept=".doc,.docx,.pdf,.txt" onchange="setPaper(event)">
-    <div class="small" id="paperName" style="margin-top:6px;"></div>
-  </div>
-
-  <div class="card">
-    <h2 style="margin:0 0 8px;font-size:15px;">➕ Add a source you used</h2>
-    <div class="row">
-      <div><label>Style</label><select id="style"><option>MLA</option><option>APA</option></select></div>
-      <div><label>Author (Last, First)</label><input id="author" placeholder="Smith, Jane"></div>
+<main class="lm-page">
+  <header class="lm-hero">
+    <div>
+      <div class="lm-eyebrow">Writing</div>
+      <h1 class="lm-display">My Citations</h1>
+      <p class="lm-lead">Build clean MLA and APA citations and keep your Works Cited in one place. For tricky sources, <a href="https://www.citationmachine.net/" target="_blank" rel="noopener">Citation Machine ↗</a> opens in a new tab.</p>
     </div>
-    <label>Title</label><input id="title" placeholder="The Great Gatsby">
-    <div class="row">
-      <div><label>Source / Publisher</label><input id="source" placeholder="Scribner"></div>
-      <div><label>Year</label><input id="year" placeholder="2024"></div>
-    </div>
-    <label>URL (optional)</label><input id="url" placeholder="https://…">
-    <button class="btn" onclick="gen()">Generate &amp; save</button>
-    <div class="out" id="out" style="display:none"></div>
-  </div>
+    <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
+  </header>
 
-  <div class="card">
-    <h2 style="margin:0 0 8px;font-size:15px;">📚 Works Cited</h2>
-    <ul class="saved" id="saved"></ul>
-    <p class="small" id="empty">Nothing yet — add the sources you used above and they'll line up here, alphabetized.</p>
-    <button class="btn" id="copyAll" style="display:none;" onclick="copyAll()">Copy Works Cited</button>
+  <div class="lm-columns">
+    <div class="lm-stack">
+      <section class="lm-card" aria-labelledby="addTitle">
+        <div class="lm-section-head"><h2 id="addTitle">➕ Add a source you used</h2></div>
+        <div class="lm-grid is-tight" style="--min:180px">
+          <div class="lm-field"><label for="style">Style</label><select id="style" class="lm-input"><option>MLA</option><option>APA</option></select></div>
+          <div class="lm-field"><label for="author">Author (Last, First)</label><input id="author" class="lm-input" placeholder="Smith, Jane" autocomplete="off"></div>
+        </div>
+        <div class="lm-field"><label for="title">Title</label><input id="title" class="lm-input" placeholder="The Great Gatsby" autocomplete="off"></div>
+        <div class="lm-grid is-tight" style="--min:180px">
+          <div class="lm-field"><label for="source">Source / Publisher</label><input id="source" class="lm-input" placeholder="Scribner" autocomplete="off"></div>
+          <div class="lm-field"><label for="year">Year</label><input id="year" class="lm-input" inputmode="numeric" placeholder="2024" autocomplete="off"></div>
+        </div>
+        <div class="lm-field"><label for="url">URL (optional)</label><input id="url" class="lm-input" type="url" placeholder="https://…" autocomplete="off"></div>
+        <div class="lm-row is-wrap"><button type="button" class="lm-btn lm-btn-primary" onclick="gen()">Generate &amp; save</button></div>
+        <div class="lm-callout cite lm-mt-md" id="out" style="display:none" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="lm-card" aria-labelledby="paperTitle">
+        <div class="lm-field" style="margin:0">
+          <label for="paper" id="paperTitle">📄 Your paper (optional)</label>
+          <input type="file" id="paper" accept=".doc,.docx,.pdf,.txt" onchange="setPaper(event)">
+          <p class="lm-help">Only the file name is read, so you remember which paper these sources belong to. The file stays on your computer.</p>
+          <p class="lm-status" id="paperName" role="status"></p>
+        </div>
+      </section>
+    </div>
+
+    <section class="lm-card" aria-labelledby="citedTitle">
+      <div class="lm-section-head"><h2 id="citedTitle">📚 Works Cited</h2><span class="lm-subtle lm-small" id="citedCount"></span></div>
+      <p class="lm-help lm-mb-md">Saved in this browser only — not in your account or your classes. Copy the list into your paper when you are done.</p>
+      <ul class="lm-list lm-mb-md" id="saved"></ul>
+      <div class="lm-empty" id="empty"><div class="lm-empty-icon">📖</div><strong>Nothing cited yet.</strong>Add the sources you used and they line up here, alphabetized.</div>
+      <button type="button" class="lm-btn lm-btn-soft" id="copyAll" style="display:none" onclick="copyAll()">Copy Works Cited</button>
+    </section>
   </div>
-</div>
+</main>
+
+<script src="/api/education/mascot.js?v=4"></script>
 <script>
-var KEY='lm-citations';
-function setPaper(e){ var f=e.target.files&&e.target.files[0]; document.getElementById('paperName').textContent = f ? ('Citing sources for: '+f.name) : ''; }
-function copyAll(){
-  var list=load().map(function(c){ return c.html.replace(/<[^>]+>/g,''); }).sort();
-  var text=list.join('\n');
-  try{ navigator.clipboard.writeText(text); }catch(e){}
-  var b=document.getElementById('copyAll'); var o=b.textContent; b.textContent='Copied!'; setTimeout(function(){ b.textContent=o; },1200);
+var KEY = 'lm-citations', esc = window.LM.esc;
+function setPaper(e) { var f = e.target.files && e.target.files[0]; document.getElementById('paperName').textContent = f ? ('Citing sources for: ' + f.name) : ''; }
+function plain(html) { var d = document.createElement('div'); d.innerHTML = html; return d.textContent || ''; }
+/** Works Cited is alphabetized; each entry keeps its index in storage so remove targets the right one. */
+function sorted(list) {
+  return list.map(function (c, i) { return { c: c, i: i }; })
+    .sort(function (a, b) { return plain(a.c.html).localeCompare(plain(b.c.html), undefined, { sensitivity: 'base' }); });
 }
-function load(){ try{ return JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(e){ return []; } }
-function save(list){ try{ localStorage.setItem(KEY, JSON.stringify(list)); }catch(e){} }
-function esc(s){ var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
-function build(style,a,t,s,y,u){
-  a=a.trim(); t=t.trim(); s=s.trim(); y=y.trim(); u=u.trim();
-  var out='';
-  if(style==='APA'){
+function copyAll() {
+  var text = sorted(load()).map(function (e) { return plain(e.c.html); }).join('\n');
+  var blocked = function () { window.LM.toast('Copy is blocked here — select the list and copy it by hand.'); };
+  try { navigator.clipboard.writeText(text).then(function () { window.LM.toast('Works Cited copied — paste it into your paper.'); }, blocked); }
+  catch (e) { blocked(); }
+}
+function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
+function save(list) { try { localStorage.setItem(KEY, JSON.stringify(list)); } catch (e) { window.LM.toast('This browser would not keep the citation. It is still shown above.'); } }
+function val(id) { return document.getElementById(id).value; }
+function build(style, a, t, s, y, u) {
+  a = a.trim(); t = t.trim(); s = s.trim(); y = y.trim(); u = u.trim();
+  var out = '';
+  if (style === 'APA') {
     // Author, A. (Year). Title. Source. URL
-    out = (a?esc(a)+' ':'') + (y?'('+esc(y)+'). ':'') + (t?'<i>'+esc(t)+'</i>. ':'') + (s?esc(s)+'. ':'') + (u?esc(u):'');
+    out = (a ? esc(a) + ' ' : '') + (y ? '(' + esc(y) + '). ' : '') + (t ? '<i>' + esc(t) + '</i>. ' : '') + (s ? esc(s) + '. ' : '') + (u ? esc(u) : '');
   } else {
     // MLA: Author. Title. Source, Year. URL.
-    out = (a?esc(a)+'. ':'') + (t?'<i>'+esc(t)+'</i>. ':'') + (s?esc(s)+', ':'') + (y?esc(y)+'. ':'') + (u?esc(u)+'.':'');
+    out = (a ? esc(a) + '. ' : '') + (t ? '<i>' + esc(t) + '</i>. ' : '') + (s ? esc(s) + ', ' : '') + (y ? esc(y) + '. ' : '') + (u ? esc(u) + '.' : '');
   }
   return out.trim();
 }
-function gen(){
-  var style=document.getElementById('style').value;
-  var c=build(style,
-    document.getElementById('author').value, document.getElementById('title').value,
-    document.getElementById('source').value, document.getElementById('year').value,
-    document.getElementById('url').value);
-  if(!c){ return; }
-  var o=document.getElementById('out'); o.style.display='block'; o.innerHTML=c+' <span class="small">('+style+')</span>';
-  var list=load(); list.unshift({html:c,style:style}); save(list); render();
+function gen() {
+  var style = val('style');
+  var c = build(style, val('author'), val('title'), val('source'), val('year'), val('url'));
+  if (!c) { window.LM.toast('Add at least an author or a title first.'); document.getElementById('author').focus(); return; }
+  var o = document.getElementById('out'); o.style.display = 'block'; o.innerHTML = c + ' <span class="lm-pill is-neutral">' + esc(style) + '</span>';
+  var list = load(); list.unshift({ html: c, style: style }); save(list); render();
+  window.LM.toast('Added to your Works Cited.');
 }
-function render(){
-  var list=load(), ul=document.getElementById('saved'); ul.innerHTML='';
-  document.getElementById('empty').style.display = list.length? 'none':'block';
-  var cab=document.getElementById('copyAll'); if(cab) cab.style.display = list.length? 'inline-block':'none';
-  list.forEach(function(c,idx){
-    var li=document.createElement('li'); li.innerHTML=c.html+' <span class="small">('+c.style+')</span> '+
-      '<a href="#" data-i="'+idx+'" class="small" style="color:var(--status-error,#ff6b8b)">remove</a>';
-    li.querySelector('a').onclick=function(e){ e.preventDefault(); var l=load(); l.splice(idx,1); save(l); render(); };
+function render() {
+  var list = load(), ul = document.getElementById('saved'); ul.innerHTML = '';
+  document.getElementById('empty').style.display = list.length ? 'none' : '';
+  document.getElementById('copyAll').style.display = list.length ? '' : 'none';
+  document.getElementById('citedCount').textContent = list.length ? list.length + (list.length === 1 ? ' source' : ' sources') : '';
+  sorted(list).forEach(function (e) {
+    var li = document.createElement('li'); li.className = 'lm-item';
+    li.innerHTML = '<div class="cite">' + e.c.html + ' <span class="lm-pill is-neutral">' + esc(e.c.style) + '</span></div>'
+      + '<button type="button" class="lm-btn lm-btn-quiet" data-i="' + e.i + '" aria-label="Remove this source">Remove</button>';
+    li.querySelector('button').onclick = function () { var l = load(); l.splice(e.i, 1); save(l); render(); window.LM.toast('Removed from your Works Cited.'); };
     ul.appendChild(li);
   });
 }

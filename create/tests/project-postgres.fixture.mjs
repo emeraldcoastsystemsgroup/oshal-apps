@@ -6,6 +6,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Apply the brand kit migration (twice, for idempotency) and clear its table between cases.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Apply the migrations AS the application role, so the fixture reproduces the installed condition instead of a friendlier one. On the installed database the api OWNS these tables and is the role that reads them, and PostgreSQL exempts a table owner from its own row security unless the table is FORCEd - measured live 2026-09-21, the exact-owner policy was installed and never filtered a row. This fixture migrated as the superuser, so the app role was never the owner, RLS applied to it whatever the tables said, and the suites above could not have seen the defect. Running the migrations under SET ROLE on one dedicated client (never the shared admin pool, whose connections are reused) makes the app role the owner and puts that boundary back.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Apply migration 004 as well, so every suite on this fixture reads the policy shape that actually installs: the exact-owner rule with both identity arms. A fixture that stops one migration short of the declared set proves a schema nobody runs.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Apply migration 005 (region edits) with the rest of the declared set and clear its table between cases.
  */
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -82,12 +83,12 @@ export async function startPostgres(registerCleanup, options = {}) {
   await admin.query("CREATE ROLE create_fixture_app LOGIN PASSWORD 'isolated-app-only' NOSUPERUSER NOBYPASSRLS");
   await admin.query('GRANT USAGE,CREATE ON SCHEMA public TO create_fixture_app');
   await applyMigrations(admin, ['migrations/001-create-projects.sql', 'migrations/002-create-brand-kits.sql',
-    'migrations/003-force-row-level-security.sql', 'migrations/004-owner-policy-standard-identity-arm.sql']);
+    'migrations/003-force-row-level-security.sql', 'migrations/004-owner-policy-standard-identity-arm.sql', 'migrations/005-create-region-edits.sql']);
   await admin.query('GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO create_fixture_app');
   pool = new Pool({ ...common, max: options.poolMax ?? common.max, user: 'create_fixture_app', password: 'isolated-app-only' });
   return { admin, pool, evidence };
 }
 
 export async function resetPostgres(admin) {
-  await admin.query('TRUNCATE create_brand_kits,create_project_revision_assets,create_project_revisions,create_projects,create_project_assets');
+  await admin.query('TRUNCATE create_region_edits,create_brand_kits,create_project_revision_assets,create_project_revisions,create_projects,create_project_assets');
 }

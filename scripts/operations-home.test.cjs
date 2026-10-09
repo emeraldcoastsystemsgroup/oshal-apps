@@ -1,4 +1,7 @@
-﻿/** Compiled creative summaries: authenticated saved evidence and bounded draft actions. */
+﻿/** Compiled creative summaries: authenticated saved evidence and bounded draft actions.
+ * CHANGE LOG
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify awaited SAT registries and honest durable-versus-process provenance without exposing telemetry.
+ */
 const fs=require('fs'),path=require('path'),test=require('node:test'),assert=require('node:assert/strict');
 const apps=['camera','drone','spaces'];
 function route(app,query){let handler;const module={exports:{}};new Function('require','module','exports',fs.readFileSync(path.join(__dirname,'..',app,'routes/home-summary.js'),'utf8'))(name=>{assert.equal(name,'express');return {Router:()=>({get:(_,fn)=>handler=fn})};},module,module.exports);module.exports.createHomeSummaryRoutes({pool:{query}});return async(oidc={user:{sub:'alice'},isAuthenticated:()=>true})=>{const res={statusCode:200,headers:{},setHeader(k,v){this.headers[k]=v;},status(s){this.statusCode=s;return this;},json(body){this.body=body;}};await handler({oidc,query:{user_sub:'bob'}},res);return res;};}
@@ -21,7 +24,13 @@ test('Sat summary labels the shared simulator snapshot and omits telemetry paylo
  const {satHomeSummary}=require('../sat-ops/routes/home-summary');
  const result=satHomeSummary([{satId:'sim-1',engine:'rk4',online:false,lastSeenMs:1000,telemetry:{private:'do not share'}}],[]);
  assert.deepEqual(result.metrics.map(m=>m.value),['1','0','1','0']);assert.match(result.items[0].detail,/SIMULATION/);assert.ok(!JSON.stringify(result).includes('do not share'));
- const code=fs.readFileSync(path.join(__dirname,'../sat-ops/src-routes/sat-routes.ts'),'utf8');assert.match(code,/satHomeSummary\(fleet.list\(\),catalog.list\(\)\)/);
+ assert.match(result.items.at(-1).text,/Shared process-local simulation registry; resets with the API process/);
+ const durable=satHomeSummary([{satId:'sim-1',engine:'rk4',online:false,lastSeenMs:1000,telemetry:{private:'do not share'}}],[],1000,'native-scoped-durable');
+ assert.deepEqual(durable.metrics.map(m=>m.value),['1','0','1','0']);assert.match(durable.items[0].detail,/SIMULATION/);
+ assert.match(durable.items.at(-1).text,/Caller-scoped durable simulation registry; survives API restart/);
+ assert.ok(!JSON.stringify(durable).includes('do not share'));
+ const code=fs.readFileSync(path.join(__dirname,'../sat-ops/src-routes/sat-routes.ts'),'utf8');
+ assert.match(code,/satHomeSummary\(await fleet.list\(\),await catalog.list\(\),Date.now\(\),\s*\(fleet as SatFleet & \{registryKind\?:string\}\)\.registryKind\)/);
 });
 test('Cloud uses canonical access filtering and exposes only GCP posture',async()=>{
  let handler,reads=0;const module={exports:{}};

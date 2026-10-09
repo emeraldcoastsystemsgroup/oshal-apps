@@ -3,6 +3,11 @@
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register all shipped package tests with explicit runner and fixture boundaries; retain readiness smoke identity.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.4: register the audience view contract of the World Intelligence page (ADR-164 D6): the company view for the Business shell reads only the subjects, the coverage summary and one pull ledger, and names each partial, empty, refused, disabled and failed state.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.5: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: register surface-ratings, the dashboard's sentiment cards over oshal's own observed outlet ratings (counts, dates, insufficient data, the method note, the notice when a server reports none).
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: register the operator Sources & schedules route (world-operations) and page (ops-surface) suites.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: retain the compiled operator-route case and add its native collector admission, input and partial-result contracts.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -33,6 +38,29 @@ cases:
         - tests/surface-parse.test.js
     expected:
       - Both classic scripts parse and retain their load entrypoint and failure handler.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: surface-ratings
+    name: World observed outlet ratings on the dashboard
+    purpose: Run the dashboard script in a vm context and render synthetic sentiment answers read through oshal's own observed outlet ratings.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-ratings.test.js
+    expected:
+      - A rated source shows its lean, bucket, reliability, compared subject-days, subjects and date range.
+      - A source below the minimums and a never-compared source show insufficient data and no number.
+      - The method note states the window, the minimums and the rated and insufficient counts from the answer itself, and no seeded axis remains.
+      - A server that reports no ratings gets a notice instead of numbers, source names are escaped, and the source and compiled copies render the same cards.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -75,6 +103,83 @@ cases:
     expected:
       - Anonymous and unavailable reads are distinct from zero results.
       - Current topic evidence is deduplicated and safe links produce review context only.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) and family (Home shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - The compiled routes/world-app-html.js serves the source template byte for byte, and the block holds no backtick or dollar-brace.
+      - On open the company view reads only /entities (60), /home-summary and /pulls for the most covered subject over 30 days; never sentiment, the graph, a metric or a write.
+      - The stats name what they count, quiet and never-seen subjects are marked, headlines open their source in a new tab with the route's own sampling note, and the next recorded event and the pull-rate show as recorded.
+      - A partial, missing or refused coverage summary, a failed pull ledger, a disabled service and a failed subject read each read as what they are.
+      - Under an audience view the dashboard binds no window control and reads nothing.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: world-operations
+    name: World Sources, schedules and collector route
+    purpose: Call the compiled operator route with the kernel modules stubbed; no store, feed or provider is reached.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/world-operations.test.cjs
+    expected:
+      - The manifest mounts the route with auth operator, and ping answers only on a core that carries World source control.
+      - The sources read returns the core description and answers 503 when World is not configured.
+      - A switch refuses a non-boolean and an unknown source before touching the store, and records the caller subject.
+      - Five explicit collector requests check current native writer admission and preserve actual partial results.
+      - Missing callers, unknown collectors and invalid envelopes refuse before execution.
+      - Missing native execution and provider failures remain failures without leaking provider payloads or secrets.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: ops-surface
+    name: World Sources and schedules page
+    purpose: Parse the operator page in both copies and run its script in a vm context over synthetic schedule and source answers.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/ops-surface.test.js
+    expected:
+      - The page script parses as a classic script and carries no backtick or dollar-brace.
+      - Every schedule and source renders with names and URLs escaped, and a cadence that differs names the manifest default.
+      - Each control sends its documented PATCH, and a non-operator is told the page is operator-only.
     prerequisites:
       - runner:node-test
     sideEffects: none

@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Regression guard for the .ply import lane taking the box down. The PACKAGED, COMPILED router runs over REAL loopback HTTP beside a real /health route, with express + multer resolved from a framework checkout (OSHAL_CORE_DIR); the .ply gate and the conversion engine are the framework's REAL modules (import-limits.ts and ImportReconstructionProvider, loaded through the checkout's tsx), so the limit the 413 names and the worker thread the conversion runs in are both real. The fixtures are generated here — a point cloud either side of the gate — and the multipart body is written to the socket in chunks, so an oversized part is refused WHILE IT STREAMS: the assertion is that the bytes received at refusal are a fraction of the file and no source survives on disk. The scan store is doubled because the database is not the boundary that failed; the event loop and the upload stream are, and both are real here. Before the fix an oversized .ply was accepted (201) and converted on this thread, and /health went unanswered for the whole conversion. Named *.core.test.js so the bare-checkout store CI glob (tests/spaces-*.test.js) does not run it without a framework checkout; run locally: OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/ply-import-off-loop.core.test.js
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | ADR-169 L7: the route now imports the location kernel skill and the capture-session id shape. Neither is on this suite's path (its uploads name no capture session), so the location seam refuses any call and the id shape is the kernel's.
  */
 'use strict';
 
@@ -161,7 +162,9 @@ const ALIAS_STUBS = {
     sanitizeCaptureTelemetry: (x) => x,
     captureTelemetryPath: (sub, scanId) => path.join(scratchRoot, sub, scanId, 'telemetry.json'),
     CAPTURE_TELEMETRY_MAX_BYTES: 1024,
+    CAPTURE_SESSION_ID_RE: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
   },
+  '@/features/location': { anchorMap: async () => { throw new Error('not used in this suite'); } },
   '@/features/drone': { SimDroneProvider: class {}, validateMission: () => [] },
   '@/app/routes/cli-token-routes': { insertCliToken: async () => { throw new Error('not used in this suite'); } },
 };

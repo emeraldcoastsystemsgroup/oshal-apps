@@ -298,16 +298,21 @@ The drone's TRUTH can come from a physics engine instead of the odometry model; 
 The plant speaks the rail a real drone node speaks; the sim cannot tell them apart.
 
 - **The rail.** A node joins by heartbeat — `POST /api/embodied/nodes/heartbeat` every two seconds
-  under the swarm service secret (`X-Service-Secret`), the mount declared `auth: service` so the
-  mounter admits a node identity and never a browser (the drone and camera packages' posture) — with
+  with its device credential (`Authorization: Bearer`, minted once by `POST /api/join/enroll` for this
+  node id), the mount declared `auth: node` (core ADR-175) so only that credential is admitted, never a
+  browser or the swarm secret, and the heartbeat must name the credential's own node id — with
   its id, kind (`plant`: a simulator that accepts `load`; `drone`: one body), the endpoint the api
   dials back, the bridge hello (protocol, engine, version, build hash), the sessions it holds, its
   latest telemetry and the events since the api's ack. The api commands it at
-  `POST <endpoint>/api/drone-node/command` under the same secret with `{id, command, args}` envelopes
+  `POST <endpoint>/api/drone-node/command` with the node's command key (`x-node-command-key`, minted per
+  fleet record and returned only in that node's heartbeat reply; never the swarm secret, redirects refused)
+  with `{id, command, args}` envelopes
   answered `{id, ok, result | error, reason}` — the core drone node's command channel, carrying the
   bridge's ops (`load`, `step`, `sense`, `clone`, `drop`, `status`, `reports`).
 - **The fleet** (`node/node-fleet`): nodes minted on first heartbeat, refreshed after, events merged
-  by seq; ids, endpoints, sizes and telemetry bounded fail-closed; liveness is staleness — no
+  by seq; ids, endpoints, sizes and telemetry bounded fail-closed; an endpoint must sit on an allowed host
+  (`EMBODIED_NODE_ENDPOINT_HOSTS`, default the engine's compose aliases); one owner holds at most 8
+  records and a full fleet evicts only a node silent for 10 minutes; liveness is staleness — no
   heartbeat for 15 s and the node is offline and the fleet refuses to hand it out (`get` throws
   `NodeOffline`, a 404 for a node never seen, a 503 for one gone quiet). A plant node whose build hash
   is not this package's engine tree is flagged `stale`. One fleet per process, shared by the mount and
@@ -315,24 +320,22 @@ The plant speaks the rail a real drone node speaks; the sim cannot tell them apa
 - **`RailDroneNode`** (`node/rail-node`): the `DroneNode` a node on the rail is, beside `RemotePlant`
   (the container we dial): the same `SyncBridge` over an `http` transport (the worker thread POSTs
   each request as an envelope), the hello the node heartbeat in checked exactly as a dialled one
-  (protocol; the build hash for a plant node), the secret required (`SWARM_SERVICE_SECRET`, or the
-  rail cannot be used), one bridge per world closed on drop. `clone()` is a session on the node — or
+  (protocol; the build hash for a plant node), the node's command key from its fleet record, one bridge
+  per world closed on drop. `clone()` is a session on the node — or
   `null` when the node answers `cannot_clone` (one body): `WorldSim.clone()` then copies the world
   without a plant and the rehearsal runs on the kinematic twin from the plant's last reported truth,
   the flight itself on the node. `load` is what a plant accepts and a body refuses (`cannot_load`).
-- **The container as a node** (`embodied_engine_node.py`): with `SWARM_SERVICE_SECRET` in its
-  environment (passed by `install-engine.sh` from the api container's own, never written to a file)
-  the bridge process also serves the command endpoint on 7414 and heartbeats into the api
-  (`OSHAL_API_URL`, default the stack alias) as `embodied-plant`; without the secret only the
-  JSON-lines bridge serves and the log says so. Both fronts share one `Sessions` under one lock.
-- **A node belongs to one person** (ADR-114): `EMBODIED_NODE_OWNER_SUB` rides on every heartbeat as
-  the trusted service user sub (`X-Oshal-User-Sub-B64`, base64url) — the platform's way for a machine
-  to say whom it acts for; the mounter resolves it and the fleet records it on first contact. A
-  heartbeat for that node from another owner is refused, an owned node is unknown to anyone else, an
-  unowned one (a loopback development case) is visible to all. On a box whose app gate requires a
-  person's identity for every package call, the core gate today refuses even the owned heartbeat
-  (it admits only sessions and controller-minted workload delegations) — BACKLOG B20 records the
-  evidence and the core decision it needs.
+- **The container as a node** (`embodied_engine_node.py`): with a device credential in its
+  environment (`EMBODIED_NODE_TOKEN`, which `install-engine.sh` reads from `EMBODIED_NODE_TOKEN_FILE` or
+  carries over from the running container, never printed) the bridge process also serves the command
+  endpoint on 7414, accepts only the command key from its last heartbeat reply, and heartbeats into the
+  api (`OSHAL_API_URL`, default the stack alias) as `embodied-plant`; without a credential only the
+  JSON-lines bridge serves and the log says how to enroll. The engine holds no swarm secret. Both fronts share one `Sessions` under one lock.
+- **A node belongs to one person** (ADR-114): the owner is the account that enrolled the node's
+  credential (core ADR-175 restores that verified principal, and the application authorization guard
+  checks the owner's current rights on every heartbeat); the fleet records it on first contact. A
+  heartbeat for that node from another owner is refused, an owned node is unknown to anyone else, and
+  `GET /api/embodied/nodes` lists only the caller's own nodes.
 - **The routes:** `POST /world/reset {backend:'node', node}` gives the owner's world the node (the
   fleet refuses an offline one before any command); `GET /physics/status` lists the fleet; the tile
   offers every online node as a truth model. After the world has the node, every step is an envelope

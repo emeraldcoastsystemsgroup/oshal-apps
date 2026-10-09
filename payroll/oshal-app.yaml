@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped test suite with explicit sealed-runner prerequisites; preserve readiness smoke (2.3.1).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Declare the stable framework general-bot as Payroll's right-rail concierge (2.3.2); all payroll calculations and mutations remain deterministic.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Serialise the lazy schema bootstrap under a package-owned advisory lock so concurrent first requests on a fresh database no longer race on CREATE TABLE (2.3.5).
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — payroll ("Payroll")
@@ -31,6 +32,11 @@
 
 name: payroll
 suite: ai-finance   # ADR-097: primary catalog shelf — the app serves the business owner-operator
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features: []   # no model in the loop (T0)
 displayName: Payroll
 description: >-
   Run payroll for your team, ADP-style. Earnings CODES (regular, overtime, double
@@ -47,7 +53,7 @@ description: >-
   dollar, and every tax constant cites the primary IRS/SSA document it was
   verified against. oshal computes and produces; your bank and the agencies
   execute. It transmits nothing.
-version: 2.3.2
+version: 2.3.6
 status: active
 
 theme: ocean

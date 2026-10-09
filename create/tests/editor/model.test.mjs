@@ -4,10 +4,11 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify editable project round trips, immutable operations, resource refusals and bounded undo history.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Cover the four image filters: bounded values, neutral values omitted, Create v1 round trips in both asset modes, refusal on other layer kinds, and named looks that replace rather than stack.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createProject, applyOperation, validateProject, serializeProject, parseProject, LIMITS } from '../../tools/editor/model.mjs';
+import { createProject, applyOperation, validateProject, serializeProject, parseProject, LIMITS, IMAGE_FILTERS, IMAGE_FILTER_LOOKS } from '../../tools/editor/model.mjs';
 import { createHistory } from '../../tools/editor/history.mjs';
 import { hitTest, worldToLayer } from '../../tools/editor/hit-test.mjs';
 
@@ -151,4 +152,46 @@ test('freehand selection measures actual segment distance and honors a bounded t
     points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] });
   assert.equal(hitTest(project, { x: 50, y: 50 }).id, 'stroke'); assert.equal(hitTest(project, { x: 10, y: 90 }), null);
   assert.equal(hitTest(project, { x: 50, y: 55 }), null); assert.equal(hitTest(project, { x: 50, y: 55 }, { tolerance: 3 }).id, 'stroke');
+});
+
+test('image filters round trip in Create v1 JSON and neutral values keep the unfiltered document shape', () => {
+  const plain = layersProject(), before = serializeProject(plain, { assetMode: 'reference' });
+  const neutral = applyOperation(plain, { type: 'update', id: 'photo-layer', patch: { saturation: 100, grayscale: 0, sepia: 0, blur: 0 } });
+  assert.equal(serializeProject(neutral, { assetMode: 'reference' }), before);
+  assert.deepEqual(Object.keys(neutral.layers[0]).filter(key => Object.hasOwn(IMAGE_FILTERS, key)), []);
+  const filtered = applyOperation(plain, { type: 'update', id: 'photo-layer', patch: { saturation: 40, grayscale: 25, sepia: 60, blur: 3.5 } });
+  for (const mode of ['reference', 'portable']) {
+    const loaded = parseProject(serializeProject(filtered, { assetMode: mode }), { assetMode: mode });
+    assert.deepEqual(loaded, filtered); assert.equal(loaded.layers[0].blur, 3.5); assert.equal(loaded.layers[0].sepia, 60);
+  }
+  assert.equal(plain.layers[0].sepia, undefined);
+  const cleared = applyOperation(filtered, { type: 'update', id: 'photo-layer', patch: { grayscale: 0 } });
+  assert.equal(cleared.layers[0].grayscale, undefined); assert.equal(cleared.layers[0].saturation, 40);
+});
+
+test('filter values outside their bounds, of the wrong type, or on non-image layers are refused', () => {
+  const project = layersProject(), before = serializeProject(project);
+  for (const [name, bounds] of Object.entries(IMAGE_FILTERS)) {
+    for (const value of [bounds.min - 1, bounds.max + 0.5, NaN, Infinity, String(bounds.max), null, true]) {
+      assert.throws(() => applyOperation(project, { type: 'update', id: 'photo-layer', patch: { [name]: value } }), new RegExp(`Image ${name}`));
+    }
+    assert.throws(() => applyOperation(project, { type: 'update', id: 'rect', patch: { [name]: bounds.max } }), /unsupported fields/);
+  }
+  assert.throws(() => applyOperation(project, { type: 'update', id: 'photo-layer', patch: { hueRotate: 90 } }), /unsupported fields/);
+  assert.equal(serializeProject(project), before);
+});
+
+test('every named filter look is a valid edit that sets all four filters, so a new look replaces the last', () => {
+  const project = layersProject();
+  assert.deepEqual(Object.keys(IMAGE_FILTER_LOOKS), ['none', 'mono', 'vintage', 'vivid', 'muted', 'soft']);
+  for (const look of Object.values(IMAGE_FILTER_LOOKS)) {
+    assert.deepEqual(Object.keys(look.patch).sort(), Object.keys(IMAGE_FILTERS).sort()); assert.ok(look.label.length > 0);
+    assert.doesNotThrow(() => applyOperation(project, { type: 'update', id: 'photo-layer', patch: look.patch }));
+  }
+  const vintage = applyOperation(project, { type: 'update', id: 'photo-layer', patch: IMAGE_FILTER_LOOKS.vintage.patch });
+  const mono = applyOperation(vintage, { type: 'update', id: 'photo-layer', patch: IMAGE_FILTER_LOOKS.mono.patch });
+  assert.equal(mono.layers[0].grayscale, 100); assert.equal(mono.layers[0].sepia, undefined); assert.equal(mono.layers[0].saturation, undefined);
+  const none = applyOperation(mono, { type: 'update', id: 'photo-layer', patch: IMAGE_FILTER_LOOKS.none.patch });
+  assert.equal(serializeProject(none), serializeProject(project));
+  assert.throws(() => { IMAGE_FILTER_LOOKS.mono.patch.grayscale = 0; }); assert.throws(() => { IMAGE_FILTERS.blur.max = 1000; });
 });

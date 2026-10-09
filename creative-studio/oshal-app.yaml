@@ -1,3 +1,6 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Import the shared rendering worker from its single owner, vids, instead of overwriting bot ownership.
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — creative-studio ("Creative Studio")
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -22,6 +25,16 @@
 
 name: creative-studio
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: story-video
+      unit: story video
+      tier: T2
+      generation: hosted
+      degrade: disable
 displayName: Creative Studio
 status: active
 description: >-
@@ -32,7 +45,7 @@ description: >-
 scope: public
 ticketType: creative-story
 theme: amber
-version: 1.2.1
+version: 1.2.4
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -90,6 +103,9 @@ dependencies:
     # creates (vids/migrations/059-vids-platform.sql:10), and the primary tile below IS the vids
     # job-queue surface.
     apps: [vids]
+    bots:
+      - app: vids
+        name: vids-operator
     tools: []
     connectors: []
   optional:
@@ -101,21 +117,7 @@ dependencies:
     connectors: []
 
 # ─────────────────────────────────────────────────────────────────────────────
-# BOTS — reuses the already-registered SHARED vids-operator worker (registered in
-# BOTH swarm-bot-registry blocks, kernel-resident). The persona here is a package
-# COPY for the registrar; the worker keeps using /app/ai-lab (core).
-# ─────────────────────────────────────────────────────────────────────────────
-bots:
-  - agentId: b00e0000-0000-0000-0000-000000000001
-    name: vids-operator
-    persona: personas/vids-operator.yaml
-    role: media/video
-    capabilities:
-      - veo-prompt-craft
-      - vids-generate
-      - vids-operate
-      - shot-planning
-
+# Vids owns the worker identity, imported through the required bot binding above.
 tools:
   # Produce the NEXT unproduced story from the rotating library (the cycler entry).
   - name: creative_produce_next

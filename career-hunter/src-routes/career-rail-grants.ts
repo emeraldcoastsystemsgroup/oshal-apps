@@ -1,0 +1,106 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | The package half of the kernel's signed-package-callbacks contract for the Career worker rail (1.25.1). Under ADR-149 enforce the kernel refused every engine-child completion with authorization_identity_required before routes/career-worker-rail.js ran, because a service-secret caller has no verified identity; the manifest's callbackVerifier now runs first, reads the exact body the signature covers, verifies the per-run grant the runner minted (lib/career-engine-runs.js: owner, timestamp, HMAC over method, path and body hash, single-use nonce, live run with a recorded owner issuer) and returns only that run's recorded (subject, issuer) for the kernel to refresh and authorize. The admitted run is remembered for this request object only, and the handler reads it rather than verifying a second time, which would also spend the nonce twice.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Drop the exported CAREER_RAIL_MOUNT constant: nothing read it (the verifier compares the request target against CAREER_RAIL_TARGET, which the run registry owns), and an unused export of the mount path invites a second copy of a value the manifest already declares.
+ */
+/**
+ * Career worker rail grants — verification glue between the kernel's callback rail and the
+ * package's in-process run registry.
+ *
+ * The engine child is a child of THIS controller process and calls back over its own loopback
+ * listener, so the run registry (and with it every grant) lives in memory: a run cannot outlive
+ * the process that spawned it, and a restarted controller admits nothing minted before it.
+ *
+ * @module career-rail-grants
+ */
+import { raw, type Request, type RequestHandler, type Response } from 'express';
+import { createChildLogger } from '@/shared/logger';
+import type { AppContext } from '@/app/composition/app-context';
+import type { PackageCallbackVerifier } from '@/shared/package-callbacks';
+
+/** One registered engine run, as the registry records it (the fields the rail reads). */
+export interface EngineRunRecord {
+  runId: string;
+  owner: string;
+  ownerIssuer: string | null;
+  verb: string;
+  cancelled: boolean;
+  abort: AbortController;
+}
+
+type RailVerification = { ok: true; run: EngineRunRecord } | { ok: false; error: string };
+
+const engineRuns = require('../lib/career-engine-runs') as {
+  RAIL_CONTENT_TYPE: string;
+  RAIL_PATH: string;
+  railLimits: () => { maxBodyBytes: number };
+  verifyRailRequest: (request: { method: string; target: string; headers: unknown; body: Buffer }) => RailVerification;
+};
+
+const logger = createChildLogger({ module: 'career-rail-grants' });
+
+/** The one request the rail serves, as the controller receives it (mount plus route path). */
+export const CAREER_RAIL_TARGET: string = engineRuns.RAIL_PATH;
+
+/** Runs the verifier admitted, keyed by the request object; nothing a client sends can attach one. */
+const admitted = new WeakMap<Request, EngineRunRecord>();
+
+/** Read the request body with one raw parser, resolving false when the parser refuses it. */
+function readBody(reader: RequestHandler, req: Request): Promise<boolean> {
+  return new Promise((resolve) => {
+    reader(req, {} as Response, (err?: unknown) => {
+      if (err) logger.warn({ err, path: req.path }, 'career rail request body refused');
+      resolve(!err);
+    });
+  });
+}
+
+/**
+ * @description Verify one rail request: only POST /complete under the rail's own content type
+ * and byte ceiling (the signature covers the exact body bytes, so this reads them), then the
+ * per-run grant. The admitted run is remembered for this request object.
+ * @param req - The request, before the mount prefix is stripped.
+ * @returns The admitted run, or the refusal reason (logged; the kernel answers every refusal alike).
+ */
+export async function verifyCareerRailRequest(req: Request): Promise<RailVerification> {
+  const target = String(req.originalUrl || req.url).split('?', 1)[0];
+  if (req.method !== 'POST' || target !== CAREER_RAIL_TARGET) {
+    logger.warn({ method: req.method, path: target }, 'career rail request refused: unknown route');
+    return { ok: false, error: 'rail_route_unknown' };
+  }
+  const reader = raw({ type: engineRuns.RAIL_CONTENT_TYPE, limit: engineRuns.railLimits().maxBodyBytes });
+  if (!(await readBody(reader, req)) || !Buffer.isBuffer(req.body)) return { ok: false, error: 'rail_body_refused' };
+  const result = engineRuns.verifyRailRequest({ method: req.method, target, headers: req.headers, body: req.body });
+  if (result.ok) admitted.set(req, result.run);
+  else logger.warn({ error: result.error, path: target }, 'career rail request refused');
+  return result;
+}
+
+/**
+ * @description The manifest's `callbackVerifier` for the rail mount (kernel skill
+ * `signed-package-callbacks`). It returns only the verified run's recorded owner subject and
+ * issuer, never anything the request asserts, so the kernel refreshes that owner and checks the
+ * catalog permission bound to POST /complete before the handler runs as that owner. Any refusal
+ * returns null.
+ * @param _ctx - Package app context (the registry is process-wide; nothing is read from it).
+ * @returns The request verifier the route mounter calls.
+ */
+export function createCareerRailCallbackVerifier(_ctx: AppContext): PackageCallbackVerifier {
+  return async (req: Request) => {
+    const verdict = await verifyCareerRailRequest(req);
+    if (!verdict.ok || !verdict.run.ownerIssuer) return null;
+    return { sub: verdict.run.owner, issuer: verdict.run.ownerIssuer };
+  };
+}
+
+/**
+ * @description The run the verifier admitted for this request.
+ * @param req - A rail request.
+ * @returns The admitted run, or null when none was.
+ */
+export function admittedRunOf(req: Request): EngineRunRecord | null {
+  return admitted.get(req) ?? null;
+}

@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — movies ("Movies & TV")
 # Carved out of OSHAL core 2026-07-18 (ADR-085 Wave 2 carve #1).
@@ -21,12 +27,30 @@
 
 name: movies
 suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }
+  features:
+    - id: movie-chat
+      unit: concierge chat turn
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: movies-ticket
+      unit: movie or TV request ticket
+      tier: T4
+      generation: none
+      degrade: disable
 displayName: Movies & TV
 description: >-
   AI movies & TV concierge — search films and shows, see where they're streaming,
   watch trailers, get recommendations, build a watchlist, and find showtimes. Other
   swarm bots can ask it what to watch or where to watch it.
-version: 1.1.0
+version: 1.1.4
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: active
 
 source:
@@ -66,6 +90,7 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
 
 # Guests never reach the concierge (was hardcoded Tier C in core's
 # guest-capability matrix; the literal left with this carve). Request only —
@@ -174,3 +199,14 @@ integrations:
         - title
         - notes
         - sourceUrl
+
+# Preserve the existing worker UUID and dedicated-node posture in the package contract.
+bots:
+  - agentId: b00b0000-0000-0000-0000-000000000001
+    name: movies-concierge
+    persona: personas/movies-concierge.yaml
+    container: movies-bot
+    port: 5000
+    requiresOwnNode: true
+    role: media/film-tv
+    capabilities: ['movie-tv-discovery', 'title-search', 'where-to-watch-streaming', 'watchlist-curation', 'movie-taste-learning', 'showtimes-handoff']

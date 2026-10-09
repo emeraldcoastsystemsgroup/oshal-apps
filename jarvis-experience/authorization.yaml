@@ -1,0 +1,74 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Host roles open this experience only; owning member policies and records retain authority.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Authorize exact read-only readiness roots using existing app.open.
+version: 1
+resources:
+  application:
+    scopes:
+      - own
+permissions:
+  app.open:
+    resource: application
+    effect: read
+    minimumTier: viewer
+roles:
+  member:
+    tier: viewer
+    grants:
+      - permission: app.open
+        scope: own
+bindings:
+  http:
+    - id: entry-0-get
+      method: GET
+      path: /app
+      allOf:
+        - app.open
+    - id: entry-0-head
+      method: HEAD
+      path: /app
+      allOf:
+        - app.open
+    - id: entry-1-get
+      method: GET
+      path: /assets/config.js
+      allOf:
+        - app.open
+    - id: entry-1-head
+      method: HEAD
+      path: /assets/config.js
+      allOf:
+        - app.open
+    - id: entry-2-get
+      method: GET
+      path: /assets/styles.css
+      allOf:
+        - app.open
+    - id: entry-2-head
+      method: HEAD
+      path: /assets/styles.css
+      allOf:
+        - app.open
+    - id: entry-3-get
+      method: GET
+      path: /assets/full-swarm.css
+      allOf:
+        - app.open
+    - id: entry-3-head
+      method: HEAD
+      path: /assets/full-swarm.css
+      allOf:
+        - app.open
+    - id: readiness
+      method: GET
+      path: /
+      allOf:
+      - app.open
+    - id: readiness-head
+      method: HEAD
+      path: /
+      allOf:
+      - app.open

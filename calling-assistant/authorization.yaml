@@ -1,0 +1,39 @@
+# CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the native protected audio worker under the existing caller execute permission.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Bind declared readiness to the caller's existing read permission.
+version: 1
+resources:
+  calling: { scopes: [own] }
+permissions:
+  app.open: { resource: calling, effect: read, minimumTier: viewer }
+  calling.read: { resource: calling, effect: read, minimumTier: viewer }
+  calling.configure: { resource: calling, effect: write, minimumTier: editor }
+  calling.execute: { resource: calling, effect: execute, minimumTier: editor }
+roles:
+  caller:
+    tier: editor
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: calling.read, scope: own }
+      - { permission: calling.configure, scope: own }
+      - { permission: calling.execute, scope: own }
+bindings:
+  http:
+    - { id: app, method: GET, path: /app, allOf: [app.open] }
+    - { id: client, method: GET, path: /client.js, allOf: [app.open] }
+    - { id: readiness, method: GET, path: /_smoke, allOf: [calling.read] }
+    - { id: config-read, method: GET, path: /config, allOf: [calling.read] }
+    - { id: config-write, method: PUT, path: /config, allOf: [calling.configure] }
+    - { id: numbers, method: GET, path: /numbers, allOf: [calling.read] }
+    - { id: tasks, method: GET, path: /tasks, allOf: [calling.read] }
+    - { id: report, method: GET, path: /tasks/:id, allOf: [calling.read] }
+    - { id: start, method: POST, path: /tasks, allOf: [calling.execute] }
+    - { id: cancel, method: POST, path: /tasks/:id/cancel, allOf: [calling.execute] }
+    - { id: audio-test, method: POST, path: /audio-test, allOf: [calling.execute] }
+    - { id: callback, method: POST, path: /run/:id/:action/:turn, allOf: [calling.execute] }
+    - { id: native-audio-work, method: POST, path: /work/:id/:turn, allOf: [calling.execute] }
+  tools:
+    - { id: calling_task, allOf: [calling.execute] }
+  bots:
+    - { id: ca116e18-e9b7-4d4d-a1fc-136a8403c0dc, allOf: [calling.execute] }
+  jobs:
+    - { id: calling-assistant, allOf: [calling.execute] }

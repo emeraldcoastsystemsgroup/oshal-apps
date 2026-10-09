@@ -6,6 +6,138 @@
 <title>OSHAL Camera Ops</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the household's cameras (online,
+     recording or offline, battery, mode), the photos and videos they reported since Camera Ops last started, and the
+     latest recorded commands, from the SAME /api/camera routes the full page reads, painted by the shared kit in the
+     family grammar. On open it reads only /fleet, /captures for each online camera and /home-summary: no camera
+     command, no concierge turn, no live preview, no laptop camera, no thumbnail from a camera, no connected-actions
+     offer, no write. Acting on a camera stays in the full page; the one action escapes to Camera Ops in the cockpit.
+     Any other request runs the full Camera Ops page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<style>
+  /* This page's body is a fixed-height console that never scrolls; under an audience view it scrolls like a document so the kit's root is never clipped. */
+  html[data-audience] body { height: auto; overflow: auto; }
+</style>
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=camera', MAX_CAMERAS = 6, MAX_CAPTURES = 12;
+  // What each logged command asked for, in plain words; the badge says whether the camera accepted it.
+  var OPS = { record: 'Start recording', stop: 'Stop recording', photo: 'Take a photo', setMode: 'Change the capture mode', loadPreset: 'Load a preset',
+    setSetting: 'Change a setting', startPreview: 'Start the live preview', stopPreview: 'Stop the live preview', keepAlive: 'Keep the camera link open',
+    connect: 'Connect the camera', disconnect: 'Disconnect the camera', deleteAll: 'Erase all media' };
+  var STATUS = { connected: ['Ready', 'ok'], recording: ['Recording', 'info'], busy: ['Busy', 'warn'], disconnected: ['Link closed', null] };
+  function call(path) {
+    return fetch('/api/camera' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; });
+    });
+  }
+  function refused(e) { return !!e && (e.status === 401 || e.status === 403); }
+  // The photos and videos and the command log may fail on their own: the cameras still show and the missing part is named.
+  function soft(path) { return call(path).catch(function (e) { if (refused(e)) throw e; return null; }); }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function length(s) { s = Math.max(0, Math.round(Number(s) || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+  function isOn(f) { return !!f.online; }
+  function isRecording(f) { return !!f.online && !!f.telemetry && f.telemetry.recording === true; }
+  function battery(t) { var n = Number(t.batteryPct); return t.batteryPct === null || t.batteryPct === undefined || !isFinite(n) ? null : 'battery ' + Math.round(n) + '%'; }
+  function modeText(t) { return { video: 'Video mode', photo: 'Photo mode', timelapse: 'Timelapse mode' }[t.mode] || null; }
+  function badge(f) { return !f.online ? ['Offline', 'warn'] : !f.telemetry ? ['No reading', 'warn'] : STATUS[f.telemetry.status] || ['Online', null]; }
+  function cameraMeta(f) {
+    var t = f.telemetry || {};
+    if (!f.online) return f.lastSeenMs ? 'last seen ' + A.when(Number(f.lastSeenMs)) : 'not seen yet';
+    return [battery(t), isRecording(f) ? 'recording ' + length(t.recordElapsedS) : null].filter(Boolean).join(' · ') || null;
+  }
+  function cameraTile(f) {
+    var t = f.telemetry || {}, b = badge(f);
+    var what = f.kind === 'sim' ? 'Practice camera (simulated)' : (t.model || 'Camera');
+    return { icon: f.kind === 'sim' ? '🧪' : '🎥', title: String(f.cameraId), text: [what, modeText(t)].filter(Boolean).join(' · '), meta: cameraMeta(f), badge: b[0], tone: b[1] };
+  }
+  // A thumbnail can point at the camera node itself, so the view shows no image: the kind, length, file name and camera.
+  function captureItem(c) {
+    var video = c.kind === 'video', dur = video && c.durationS !== null && c.durationS !== undefined ? ' · ' + length(c.durationS) : '';
+    return { icon: video ? '🎞️' : '📷', title: (video ? 'Video' : 'Photo') + dur, text: 'On ' + c.cameraId + ' · ' + String(c.path || 'no file name'), meta: A.when(Number(c.ts)) };
+  }
+  // A command item as routes/home-summary.js writes it: text 'Camera <id>', detail '<op> / <ok|rejected> / <ISO time>'.
+  function commandItem(item) {
+    var parts = String(item.detail).split(' / '), rejected = parts[1] === 'rejected';
+    return { icon: '🎛️', title: OPS[parts[0]] || parts[0], text: item.text, meta: A.when(parts[2]), badge: rejected ? 'Refused' : 'Accepted', tone: rejected ? 'warn' : null };
+  }
+  function commands(sum) { return ((sum && sum.items) || []).filter(function (i) { return String(i.detail || '').split(' / ').length === 3; }).map(commandItem); }
+  function metric(sum, id) { var m = ((sum && sum.metrics) || []).filter(function (x) { return x.id === id; })[0]; return m && m.value !== 'Unavailable' ? m.value : null; }
+  function readCaptures(fleet) {
+    return Promise.all(fleet.filter(isOn).slice(0, MAX_CAMERAS).map(function (f) {
+      return soft('/captures?cameraId=' + encodeURIComponent(f.cameraId) + '&since=0').then(function (j) {
+        return { id: f.cameraId, rows: j ? (Array.isArray(j.captures) ? j.captures : []).map(function (c) { return Object.assign({}, c, { cameraId: f.cameraId }); }) : null };
+      });
+    })).then(function (all) {
+      var list = [].concat.apply([], all.map(function (a) { return a.rows || []; })).sort(function (a, b) { return (Number(b.ts) || 0) - (Number(a.ts) || 0); });
+      return { list: list, missed: all.filter(function (a) { return !a.rows; }).map(function (a) { return a.id; }) };
+    });
+  }
+  function stats(fleet, caps, sum) {
+    var on = fleet.filter(isOn).length, day = metric(sum, 'commands-24h');
+    return [
+      { id: 'online', label: 'Cameras online', value: on, hint: fleet.length > on ? plural(fleet.length - on, 'camera', 'cameras') + ' offline' : null },
+      { id: 'recording', label: 'Recording now', value: fleet.filter(isRecording).length },
+      { id: 'captures', label: 'Photos and videos', value: caps.list.length, hint: caps.missed.length ? 'Some could not be read' : 'Since Camera Ops started' },
+      { id: 'commands', label: 'Commands, last 24 h', value: day === null ? '—' : day, hint: day === null ? 'Could not check' : null, tone: day === null ? 'warn' : null }
+    ];
+  }
+  function title(fleet) {
+    var on = fleet.filter(isOn).length, rec = fleet.filter(isRecording).length;
+    if (!fleet.length) return 'No cameras yet';
+    if (rec) return plural(rec, 'camera', 'cameras') + ' recording';
+    return on ? plural(on, 'camera', 'cameras') + ' online' : 'No camera online right now';
+  }
+  function lede(fleet, caps) {
+    var rec = fleet.filter(isRecording)[0], newest = caps.list[0];
+    if (!fleet.length) return 'Cameras show up here once Camera Ops can reach them. Open Camera Ops to connect one.';
+    if (!fleet.some(isOn)) return 'A camera shows as online again once its camera node reports in.';
+    if (rec) return rec.cameraId + ' has been recording for ' + length(rec.telemetry.recordElapsedS) + '.';
+    if (newest) return 'Newest: a ' + (newest.kind === 'video' ? 'video' : 'photo') + ' on ' + newest.cameraId + ', ' + A.when(Number(newest.ts)) + '.';
+    return caps.missed.length ? 'Photos and videos could not be read just now.' : 'Nothing has been captured since Camera Ops last started.';
+  }
+  function capturesSection(fleet, caps) {
+    var on = fleet.filter(isOn).length, note = ['What the cameras reported since Camera Ops last started. The files stay on the camera.'];
+    if (on > MAX_CAMERAS) note.push('Shown for the first ' + MAX_CAMERAS + ' online cameras.');
+    if (caps.missed.length) note.push('Photos and videos from ' + caps.missed.join(', ') + ' could not be read just now.');
+    var empty = !on ? 'No camera is online, so there are no photos or videos to show.' : caps.missed.length ? 'Photos and videos could not be read just now.' : 'Nothing captured since Camera Ops last started.';
+    return { kind: 'list', id: 'captures', title: 'Latest photos and videos', empty: empty, items: caps.list.slice(0, MAX_CAPTURES).map(captureItem), note: on ? note.join(' ') : null };
+  }
+  function commandsSection(sum) {
+    var items = commands(sum);
+    var empty = !sum ? 'Recent commands could not be read just now.' : sum.partial ? 'Some saved commands could not be checked.' : 'No commands recorded yet.';
+    var note = items.length ? 'Accepted means the camera took the command; it does not prove a photo or video was made.' + (sum.partial ? ' Some saved commands could not be checked.' : '') : null;
+    return { kind: 'list', id: 'commands', title: 'Recent commands', empty: empty, items: items, note: note };
+  }
+  function model(fleet, caps, sum) {
+    return {
+      kicker: 'Our cameras', title: title(fleet), lede: lede(fleet, caps),
+      actions: [{ label: 'Open Camera Ops', primary: true, onClick: function () { A.open(FULL); } }],
+      stats: stats(fleet, caps, sum),
+      sections: [
+        { kind: 'tiles', id: 'cameras', title: 'Cameras', empty: 'No cameras yet.', items: fleet.map(cameraTile),
+          note: fleet.some(function (f) { return f.kind === 'sim'; }) ? 'A practice camera is simulated: it shows how Camera Ops works, and nothing it captures is real.' : null },
+        capturesSection(fleet, caps),
+        commandsSection(sum)
+      ]
+    };
+  }
+  function family() {
+    return Promise.all([call('/fleet'), soft('/home-summary')]).then(function (r) {
+      var fleet = Array.isArray(r[0].fleet) ? r[0].fleet : [];
+      return readCaptures(fleet).then(function (caps) { return model(fleet, caps, r[1]); });
+    }).catch(function (e) {
+      if (!refused(e)) throw e && e.status >= 500 ? new Error('Camera Ops could not read the cameras (HTTP ' + e.status + ').') : e;
+      return { kicker: 'Our cameras', title: e.status === 401 ? 'Sign in to see the cameras' : 'This account cannot open Camera Ops',
+        lede: e.status === 401 ? 'Camera Ops needs a signed-in session, and this session is not signed in.' : 'The Camera Ops routes refused this account (HTTP 403).' };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'camera', escapeLabel: 'Open Camera Ops in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <style>
   /* Surface-owned aliases consume the control-plane theme tokens read-only.
@@ -1059,7 +1191,7 @@ function wire() {
   });
 }
 function tick() { pollFleet(); pollState(); pollCaptures(); pollEvents(); }
-(async function boot() {
+async function boot() {
   wire();
   if (haveMedia()) {
     try { await refreshLocalDevices(); } catch (e) { /* labels appear after the first permission grant */ }
@@ -1072,7 +1204,10 @@ function tick() { pollFleet(); pollState(); pollCaptures(); pollEvents(); }
   pollEvents();
   setInterval(tick, 1500);
   setInterval(tickTimer, 250);
-})();
+}
+// The full page only: under an audience view the shared kit paints instead (see the head script), so no control is
+// wired, no laptop camera is enumerated and nothing is polled.
+if (!window.AppView || !AppView.active()) boot();
 </script>
 
 <details id="evidenceReview" style="position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px));max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box;box-shadow:0 8px 30px #0005">
@@ -1083,6 +1218,8 @@ function tick() { pollFleet(); pollState(); pollCaptures(); pollEvents(); }
  <div id="evidenceActions"></div>
 </details>
 <script>
+// The full page only: under an audience view no connected-actions offer is fetched and no saved-evidence read is wired.
+if (!window.AppView || !AppView.active()) {
 (async()=>{
 const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');
 const panel=document.getElementById('evidenceReview'),pick=document.getElementById('evidenceChoice'),notes=document.getElementById('evidenceNotes'),state=document.getElementById('evidenceState');let records=[],loaded=false;
@@ -1091,6 +1228,7 @@ pick.addEventListener('change',()=>{notes.value=records[pick.selectedIndex]?.act
 panel.addEventListener('toggle',async()=>{if(!panel.open||loaded)return;try{const response=await fetch("/api/camera/home-summary",{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error();const body=await response.json();records=(body.items||[]).filter(i=>i.actions?.some(a=>a.integration==='prepare-document'));pick.replaceChildren(...records.map(i=>{const option=document.createElement('option');option.textContent=i.text;return option;}));pick.dispatchEvent(new Event('change'));state.textContent=body.partial?'Some evidence is unavailable. Review the saved details.':records.length?'Edit the brief before opening Office.':'No recorded evidence yet. You can write a review brief.';loaded=true;}catch{state.textContent='Saved evidence is unavailable. You can write a review brief.';}});
 if(panel.open)panel.dispatchEvent(new Event('toggle'));
 })().catch(()=>{document.getElementById('evidenceState').textContent='Connected actions are unavailable.';});
+}
 </script>
 
 </body>

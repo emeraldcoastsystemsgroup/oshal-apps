@@ -29,6 +29,10 @@ SEQ                 | AUTHOR                      | DESCRIPTION
   |                                           | slope is hard-bounded by the inviscid VLM value,
   |                                           | and every binding clamp is reported on WingPolar
   |                                           | via `slope_flags` instead of being swallowed.
+4 | maintainer@emeraldcoastsystemsgroup.com   | NoValidPointError declares its structured
+  |                                           | validity code (aero_no_valid_point) on the
+  |                                           | class, so a refusal read by aerosim.validity
+  |                                           | is typed at its source. No numbers change.
 
 aerosim.aeropolar -- geometry -> lift.
 
@@ -368,6 +372,9 @@ class NoValidPointError(ValueError):
         band, confidence, drag-floor or stall gate. Callers (the optimizer) MUST treat
         this as "this design cannot be evaluated", never as "this design scores zero".
     """
+
+    #: aerosim.validity code this refusal carries (read by validity.reason_of).
+    VALIDITY_CODE = "aero_no_valid_point"
 
 
 # -----------------------------------------------------------------------------

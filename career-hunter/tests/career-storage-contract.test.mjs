@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                    | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Require exact engine pins, fail-closed store selection, and one shared real-backend Career contract in SQLite and disposable PostgreSQL.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The PostgreSQL half now queues behind the other Career contracts for the shared server's contract lock (tests/helpers/career_pg.py), so its child gets the same 600 s budget as they do instead of 120 s.
  */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -24,7 +25,7 @@ function runContract(backend) {
   const result = spawnSync('python', args, {
     cwd: packageRoot,
     encoding: 'utf8',
-    timeout: 120_000,
+    timeout: backend === 'postgres' ? 600_000 : 120_000,
     env: { ...process.env, PYTHONPATH: engineRoot },
   });
   assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);

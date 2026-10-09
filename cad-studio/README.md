@@ -1,5 +1,9 @@
 # CAD Studio
 
+0.2.4 makes the engine build on arm64 as well as x86_64: CadQuery 2.5.2 needed cadquery-ocp 7.7.x, which publishes no linux/aarch64 wheel, so the engine container could not be built on an arm64 box (a DGX Spark). The pins move to CadQuery 2.8.0 on cadquery-ocp 7.9.3.1.1 (OCCT 7.9), which publish both. The worker suite (`engine/tests/test_cad_worker.py`, 28 cases) passes on the new kernel, and the STEP header pin already matched any translator version. CadQuery 2.8 also brings VTK and trame, so the image is about 2.1 GB. The engine build hash changes: re-run `engine/install-engine.sh` after updating.
+
+0.2.3 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 A real CAD kernel — Open CASCADE Technology (OCCT) through CadQuery — that the swarm can **drive**.
 A part is a **base** plus an **ordered feature list**; every change replays the list on the kernel
 and re-exports **STEP** (real CAD geometry), **STL** (for printing), four **hidden-line drawing
@@ -77,8 +81,10 @@ one persistent TCP connection to the bridge (`cad-studio-engine:7412`, override 
 timeout kills the worker by closing the socket, and the first line is a hello with the engine
 build hash the api checks against this package's `engine/` tree.
 
-Licences PyPI publishes for the pins: CadQuery Apache-2.0, cadquery-ocp (OCCT) LGPL-2.1, casadi
-LGPL-3.0, numpy BSD, ezdxf MIT, nlopt LGPL, the rest MIT / BSD.
+Licences PyPI publishes for the pins: CadQuery Apache-2.0, cadquery-ocp Apache-2.0 (the OCCT kernel it
+bundles is LGPL-2.1), casadi LGPL-3.0, numpy BSD, ezdxf MIT, nlopt MIT, VTK BSD, trame Apache-2.0, numba
+BSD, llvmlite BSD-2-Clause / Apache-2.0 with the LLVM exception, matplotlib PSF, pillow MIT-CMU, aiohttp
+Apache-2.0 / MIT, the rest MIT / BSD / Apache-2.0.
 
 ## Layout
 
@@ -150,3 +156,16 @@ Load-bearing specs:
   retired revision; late feature submission retains newer manual form input.
 - `engine/tests/test_cad_worker.py` — the real kernel: every base and feature to analytic
   volumes, refused features skipped with reasons, STEP byte-stable, mesh sewing round-trip.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **800 / 3200 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| cad-designer-chat | designer chat turn | T4 | none | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

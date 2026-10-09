@@ -31,6 +31,16 @@
 
 name: cloud
 suite: ai-engineering   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }
+  features:
+    - id: cloud-op
+      unit: cloud operation ticket
+      tier: T4
+      generation: none
+      degrade: disable
 displayName: Cloud
 description: >-
   Inspect and operate your Google Cloud by chat. Connect GCP at /utilities; the

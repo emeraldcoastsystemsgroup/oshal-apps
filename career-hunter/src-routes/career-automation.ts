@@ -6,13 +6,14 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add explicit, default-deny per-user automation settings and trusted cron reads.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Use the dependency-leaf caller identity helper so route modules do not import the main registrar.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Document the exported automation-settings contract used by routes and scheduled work.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Record the opting-in owner's verified issuer (migration 107) so the nightly chain can mint that owner's callback grants: the kernel's signed-package-callbacks rail refreshes and authorizes an exact (subject, issuer) principal before an engine completion runs, and the cron has no request to read one from. The issuer comes from the kernel's request identity for the saving request, never from the body; an opt-in saved before 1.25.1 has none and the cron reports it as not ready until the owner saves the settings again.
  *
  * @module career-automation
  */
 import { type Router, type Request, type Response } from 'express';
 import type { AppContext } from '@/app/composition/app-context';
 import { createChildLogger } from '@/shared/logger';
-import { runWithSystemIdentity } from '@/shared/services/database/request-identity';
+import { getRequestIdentity, runWithSystemIdentity } from '@/shared/services/database/request-identity';
 import { callerSub } from './career-user-store';
 
 // Pure default-deny gate, shared with the node:test guard (compiled file lives in
@@ -25,10 +26,23 @@ const gate = require('../lib/automation-gate') as {
 
 const logger = createChildLogger({ module: 'career-automation' });
 
-/** @description A user's automation opt-in state; absent rows default both capabilities off. */
+/**
+ * @description A user's automation opt-in state; absent rows default both capabilities off.
+ * `ownerIssuer` is the verified issuer of the owner who saved the opt-in (null before 1.25.1).
+ */
 export interface AutomationSettings {
   autoGenerate: boolean;
   autoSubmit: boolean;
+  ownerIssuer: string | null;
+}
+
+/** Longest issuer the kernel's callback principal contract accepts. */
+const MAX_ISSUER_LENGTH = 2048;
+
+/** The saving request's verified issuer, as the kernel established it; never a request field. */
+function callerIssuer(): string | null {
+  const issuer = getRequestIdentity()?.principalIssuer;
+  return typeof issuer === 'string' && issuer.length > 0 && issuer.length <= MAX_ISSUER_LENGTH ? issuer : null;
 }
 
 /**
@@ -40,9 +54,14 @@ export interface AutomationSettings {
  */
 export async function readAutomationSettings(ctx: AppContext, userSub: string): Promise<AutomationSettings> {
   const r = await ctx.pool.query(
-    `SELECT auto_generate, auto_submit FROM career_automation_settings WHERE user_sub=$1`, [userSub]);
+    `SELECT auto_generate, auto_submit, owner_issuer FROM career_automation_settings WHERE user_sub=$1`, [userSub]);
   const row: unknown = r.rows[0];
-  return { autoGenerate: gate.autoGenerateAllowed(row), autoSubmit: gate.autoSubmitAllowed(row) };
+  const issuer = (row as { owner_issuer?: unknown } | undefined)?.owner_issuer;
+  return {
+    autoGenerate: gate.autoGenerateAllowed(row),
+    autoSubmit: gate.autoSubmitAllowed(row),
+    ownerIssuer: typeof issuer === 'string' && issuer.length > 0 ? issuer : null,
+  };
 }
 
 /**
@@ -80,12 +99,15 @@ export function registerCareerAutomationRoutes(router: Router, ctx: AppContext):
     // Explicit true or nothing — a missing/garbage field always lands false.
     const autoGenerate = req.body?.autoGenerate === true;
     const autoSubmit = req.body?.autoSubmit === true;
+    // The issuer the nightly chain will mint this owner's callback grants for: the kernel's
+    // verified identity for THIS request. A save with no verified issuer records none.
+    const ownerIssuer = callerIssuer();
     await ctx.pool.query(
-      `INSERT INTO career_automation_settings (user_sub, auto_generate, auto_submit)
-       VALUES ($1,$2,$3)
-       ON CONFLICT (user_sub) DO UPDATE SET auto_generate=$2, auto_submit=$3, updated_at=NOW()`,
-      [userSub, autoGenerate, autoSubmit]);
-    logger.info({ userSub, autoGenerate, autoSubmit }, 'career automation settings saved');
-    res.json({ ok: true, autoGenerate, autoSubmit });
+      `INSERT INTO career_automation_settings (user_sub, auto_generate, auto_submit, owner_issuer)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (user_sub) DO UPDATE SET auto_generate=$2, auto_submit=$3, owner_issuer=$4, updated_at=NOW()`,
+      [userSub, autoGenerate, autoSubmit, ownerIssuer]);
+    logger.info({ userSub, autoGenerate, autoSubmit, issuerRecorded: ownerIssuer !== null }, 'career automation settings saved');
+    res.json({ ok: true, autoGenerate, autoSubmit, issuerRecorded: ownerIssuer !== null });
   });
 }

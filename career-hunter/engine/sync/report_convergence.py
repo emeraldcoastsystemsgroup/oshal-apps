@@ -5,6 +5,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Produce bounded-memory counts, SHA-256 datasets, and product-query convergence evidence for SQLite and PostgreSQL.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Bound server-side cursor names independently of untrusted subject identifiers.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Name every failing dataset: the report carries a `failures` list (corpus.<dataset>, users.<sub>.<dataset>, users.<sub>.keyQueries.<query>) and a non-converged run prints it on stderr, so a stopped promotion says WHICH comparison stopped it instead of leaving the operator to diff two digests. The SQLite key queries read `postings`, a TEMP view only the engine creates on its own connections, so against a real store the reporter died with "no such table: postings" before comparing anything (found by the new real-boundary convergence contract); they now write that view's join out.
 
 """Read-only Career SQLite/PostgreSQL convergence report.
 
@@ -20,6 +21,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import sys
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
@@ -222,13 +224,36 @@ APPLICATION_WHERE = """(
 )"""
 
 
+def _sqlite_key_queries(source, cutoff: str) -> tuple[list, int, list]:
+    """The SQLite half of key_queries: top active board, fresh high-fit count, applied ids."""
+    # The engine's `postings` is a TEMP view it creates on each of its own connections; this
+    # reporter's connection has none, so the joins below are that view's join written out.
+    source_top = [dict(row) for row in source.execute(
+        "SELECT pc.ats_job_id,pc.title,COALESCE(us.ai_fit_score,us.fit_score,-1) AS score,"
+        "COALESCE(us.status,'new') AS status FROM corpus.postings_corpus pc "
+        "LEFT JOIN user_signals us ON us.posting_id=pc.id "
+        "WHERE pc.active=1 ORDER BY score DESC,pc.id LIMIT 10"
+    ).fetchall()]
+    source_fresh = int(source.execute(
+        "SELECT COUNT(*) FROM corpus.postings_corpus pc "
+        "LEFT JOIN user_signals us ON us.posting_id=pc.id "
+        "WHERE pc.active=1 AND COALESCE(pc.target_role,0)=1 "
+        "AND COALESCE(us.ai_fit_score,us.fit_score,-1)>=70 "
+        "AND COALESCE(pc.posted_date,date(pc.first_seen_at))>=?",
+        (cutoff,),
+    ).fetchone()[0])
+    source_applied = [int(row[0]) for row in source.execute(
+        "SELECT us.posting_id FROM user_signals us "
+        "JOIN corpus.postings_corpus pc ON pc.id=us.posting_id "
+        "WHERE us.status='applied' ORDER BY us.posting_id"
+    ).fetchall()]
+    return source_top, source_fresh, source_applied
+
+
 def key_queries(source, target, user_sub: str) -> dict:
     """Compare the board/application queries operators use to judge cutover health."""
     cutoff = (datetime.now(timezone.utc).date() - timedelta(days=14)).isoformat()
-    source_top = [dict(row) for row in source.execute(
-        "SELECT ats_job_id,title,COALESCE(ai_fit_score,fit_score,-1) AS score,status "
-        "FROM postings WHERE active=1 ORDER BY score DESC,id LIMIT 10"
-    ).fetchall()]
+    source_top, source_fresh, source_applied = _sqlite_key_queries(source, cutoff)
     with target.cursor() as cur:
         cur.execute(
             "SELECT p.ats_job_id,p.title,COALESCE(s.ai_fit_score,s.fit_score,-1) AS score,"
@@ -253,15 +278,6 @@ def key_queries(source, target, user_sub: str) -> dict:
             (user_sub,),
         )
         target_applied = [int(row[0]) for row in cur.fetchall()]
-    source_fresh = int(source.execute(
-        "SELECT COUNT(*) FROM postings WHERE active=1 AND COALESCE(target_role,0)=1 "
-        "AND COALESCE(ai_fit_score,fit_score,-1)>=70 "
-        "AND COALESCE(posted_date,date(first_seen_at))>=?",
-        (cutoff,),
-    ).fetchone()[0])
-    source_applied = [int(row[0]) for row in source.execute(
-        "SELECT id FROM postings WHERE status='applied' ORDER BY id"
-    ).fetchall()]
     checks = {
         "topActive": {"sqlite": source_top, "postgres": target_top,
                       "match": source_top == target_top},
@@ -337,6 +353,24 @@ def all_match(value) -> bool:
     return True
 
 
+def failed_datasets(report: dict) -> list[str]:
+    """Name every comparison that did not match, in report order.
+
+    Names are ``corpus.<dataset>``, ``users.<sub>.<dataset>`` and
+    ``users.<sub>.keyQueries.<query>`` - the exact paths inside the JSON report.
+    """
+    failures = [f"corpus.{name}" for name, entry in report["corpus"].items()
+                if not entry.get("match")]
+    for user_sub, datasets in report["users"].items():
+        for name, entry in datasets.items():
+            if name == "keyQueries":
+                failures.extend(f"users.{user_sub}.keyQueries.{query}"
+                                for query, check in entry.items() if not check.get("match"))
+            elif not entry.get("match"):
+                failures.append(f"users.{user_sub}.{name}")
+    return failures
+
+
 def build_report(root: Path, database_url: str, only_user: str | None) -> dict:
     import psycopg2
 
@@ -364,6 +398,7 @@ def build_report(root: Path, database_url: str, only_user: str | None) -> dict:
             finally:
                 source.close()
         report["converged"] = all_match(report)
+        report["failures"] = failed_datasets(report)
         target.rollback()
         return report
     finally:
@@ -386,6 +421,8 @@ def main() -> None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(payload + "\n", encoding="utf-8")
     print("CAREER_CONVERGENCE_REPORT=" + payload)
+    if not report["converged"]:
+        print("CAREER_CONVERGENCE_FAILED=" + ",".join(report["failures"]), file=sys.stderr)
     if args.require_convergence and not report["converged"]:
         raise SystemExit(2)
 

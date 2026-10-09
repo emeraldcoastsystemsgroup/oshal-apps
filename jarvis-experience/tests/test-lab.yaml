@@ -1,0 +1,101 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register readiness and isolated source checks; deployed acceptance remains separate.
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed Jarvis package readiness
+    purpose: Read installed package identity without grants, business records or provider access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - Installed package identity is jarvis-experience at its declared version.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: package-contract
+    name: Jarvis entry and explicit role contract
+    purpose: Verify package-owned entry/configuration/skin and the complete component bundle and ordinary authoring role unions without deployment data.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/package-contract.test.cjs
+    expected:
+      - Jarvis owns one configuration and uses existing shared rendering and transport.
+      - The single reviewed member template includes all 39 product components and exact ordinary role unions.
+      - Host roles grant no business or tenant relationship.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-source
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 128
+    installation: never
+  - id: runtime-source-package
+    name: Runtime source package acceptance
+    purpose: Exercise this exact package on isolated core source and loopback APIs; does not claim deployed acceptance.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/runtime-proof.test.ts
+    expected:
+      - One assignment grants every declared component role to a fresh synthetic user and excludes management roles.
+      - Public catalogs are real; record adapters, private catalogs and identity/storage are synthetic disposable fixtures.
+      - Owned entry, foreign record refusal, unassigned refusal, expiry and revoke retain their current boundaries.
+      - Fixture servers and browser contexts close; no deployment data or grants are used.
+    prerequisites:
+      - runner:tsx
+      - fixture:core-source
+      - fixture:loopback-http
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/support/runtime-proof.ts
+      cleanup: Close owned loopback/browser resources and remove only the generated package fixture directory.
+    limits:
+      timeoutMs: 90000
+      maxMemoryMb: 512
+    installation: never
+  - id: browser-source-package
+    name: Browser source package acceptance
+    purpose: Exercise this exact package on isolated core source and loopback APIs; does not claim deployed acceptance.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/browser-proof.test.ts
+    expected:
+      - Desktop and phone layouts, keyboard access and existing member journeys remain usable.
+      - Fixture servers and browser contexts close; no deployment data or grants are used.
+    prerequisites:
+      - runner:tsx
+      - fixture:core-source
+      - fixture:loopback-http
+      - runner:playwright
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/support/browser-proof.ts
+      cleanup: Close owned loopback/browser resources and remove only the generated package fixture directory.
+    limits:
+      timeoutMs: 90000
+      maxMemoryMb: 512
+    installation: never

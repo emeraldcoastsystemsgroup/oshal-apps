@@ -34,6 +34,7 @@
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — the eleven owner-scoped tables, the append-only assumption ledger with its live-row partial unique index, immutable model snapshots and versioned documents, and the frozen VENTURE_TABLES list the RLS bootstrap and the schema guard both read.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Add the owner-bound immutable FX table, foreign-quote integrity triggers, and constrained scenario micro-price migration to runtime bootstrap.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Add owner-bound default-deny rebaseline policies, immutable scheduled authorization, slot idempotency, and monotonic integer micro-USD run-cost evidence.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Run the bootstrap under a package-owned advisory lock (VENTURE_SCHEMA_LOCK_KEY). Every api boot starts it twice in one tick (createVentureRoutes and createVentureRebaselineRoutes), and the two runs went side by side. Each SCHEMA_SQL block is one implicit transaction, so on an installed database the pair deadlocked (40P01): one run holds the SHARE lock that CREATE INDEX IF NOT EXISTS takes on venture_fx_assumptions and waits for the pg_proc row of venture_validate_fx_owner, which the other run has just replaced and which then needs ACCESS EXCLUSIVE on that table for DROP TRIGGER. That is the boot ERROR "venture rebaseline schema bootstrap failed ... deadlock detected" seen from 2026-09-28 to 2026-10-02. On a first install the same pair raced CREATE TABLE IF NOT EXISTS (23505 on pg_type). With lockKey the kernel applies the statements in one transaction behind pg_advisory_xact_lock, so the runs (and any other process bootstrapping the same database) go one at a time. tests/venture-schema-postgres.test.mjs reproduces both on 1.5.0 against a disposable PostgreSQL.
  *
  * @module venture-schema
  */
@@ -670,13 +671,28 @@ export const SCHEMA_SQL: readonly string[] = Object.freeze([
 ]);
 
 /**
+ * Advisory-lock key for this package's schema bootstrap, owned by this package.
+ *
+ * The kernel reserves its own keys in SCHEMA_LOCK_KEYS (the 4711xxxx block), so a
+ * package key stays outside that block and a new kernel key can never collide with
+ * it; payroll holds 47120123. The value must stay stable across releases: two
+ * installs of different versions on one database have to serialise on the SAME key.
+ */
+export const VENTURE_SCHEMA_LOCK_KEY = 47129001;
+
+/**
  * @description Create (or, in hosted validate-only mode, verify) this package's
  *   schema together with the owner-or-operator RLS policy on every table.
  *
- * Called once at route-factory time rather than per request. RLS is derived from
- * `VENTURE_TABLES` rather than hand-listed, so the protected set can never drift
- * from the owned set — the failure mode that leaves one table world-readable is
- * structurally unavailable.
+ * Called at route-factory time rather than per request, by BOTH routers that one
+ * api boot builds in the same tick (the console and the rebaseline tick). Two
+ * unserialised runs deadlock in PostgreSQL (40P01 on a pg_proc row) and race
+ * CREATE TABLE IF NOT EXISTS on a first install, so the statements run in one
+ * transaction behind VENTURE_SCHEMA_LOCK_KEY and the second run waits for the first.
+ *
+ * RLS is derived from `VENTURE_TABLES` rather than hand-listed, so the protected
+ * set can never drift from the owned set — the failure mode that leaves one table
+ * world-readable is structurally unavailable.
  *
  * @param pool - The framework's shared Postgres pool.
  * @returns Nothing. Throws only when hosted-mode validation finds the schema
@@ -691,6 +707,7 @@ export async function ensureVentureSchema(pool: Pool): Promise<void> {
   await runRuntimeSchemaBootstrap({
     pool,
     moduleName: 'venture-plan routes',
+    lockKey: VENTURE_SCHEMA_LOCK_KEY,
     statements,
     requirements: VENTURE_TABLES.map((table) => ({ table, columns: ['owner_sub'] })),
   });

@@ -51,6 +51,17 @@ files, failed assertions and successful runs are separate outcomes.
 See [the authoring contract](BUILDING-EXTENSIONS.md#registering-package-tests-with-the-ai-test-lab)
 and the [core execution guide](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/testing/package-test-execution.md).
 
+### Audience views (browser)
+
+Packages that render a Home (`family`) or Business (`company`) audience view through the core kit
+(`/shared/ui/js/app-view.js`) ship `tests/audience-view.test.cjs` (static contract, a catalog case) and
+`tests/audience-view.fixture.cjs` (the page, its declared URL, synthetic read-only answers for its own routes,
+what each audience must show). `node scripts/audience-views.browser.cjs [package]` discovers every fixture and
+drives the real page with the real kit in headless Chromium: the audience paints from the kit, the full UI is
+hidden, the escape points at the cockpit, nothing is written, and the full page is untouched without an audience.
+It needs a core checkout with express + playwright + js-yaml (`OSHAL_FRAMEWORK`, `OSHAL_ROOT` or `../oshal`);
+`SHOTS=<dir>` also saves a screenshot per view. Never list pages in the script: add a fixture to the package.
+
 ## Source acceptance
 
 The actual core catalog and disposable Docker runner passed all 45 supported

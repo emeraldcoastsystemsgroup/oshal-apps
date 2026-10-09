@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise actual policy and package routes using isolated owner-qualified records and provider doubles.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Include the real outer manifest route mounter so obsolete legacy access declarations cannot hide named-role regressions.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Model the kernel's operator-only CLI image rails (1.15.4, core ADR-130 amendment 2026-10-02): `operators` makes the provider double refuse everyone else the way resolveStoryboardImageProvider does for a CLI rail that is not available to the caller (it throws "not configured ... Refusing to fall back"), `available` decides what the resolved provider reports per caller and per call, and `resolvedFor` records every resolve so a spec can prove no second provider was tried. All default to the previous behaviour.
  */
 import express, { type Request } from 'express';
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
@@ -23,10 +24,17 @@ import type { AppContext } from '@/app/composition/app-context';
 import { runWithApplicationAuthorizationActor } from '@/shared/application-authorization-context';
 import { getRequestIdentity } from '@/shared/services/database/request-identity';
 
-const providerState = vi.hoisted(() => ({ calls: 0, provider: 'codex', wait: undefined as undefined | Promise<void> }));
+const providerState = vi.hoisted(() => ({ calls: 0, provider: 'codex', wait: undefined as undefined | Promise<void>,
+  operators: undefined as undefined | string[], available: undefined as undefined | ((sub: string) => boolean), resolvedFor: [] as string[] }));
 vi.mock('@/features/video-generation', () => ({
-  resolveStoryboardImageProvider: async () => ({ id: providerState.provider, costClass: 'free', available: async () => true,
-    generateWithMeta: async () => { providerState.calls++; await providerState.wait; return { image: Buffer.from('fixture-image'), costUsd: null, model: 'fixture' }; } }),
+  resolveStoryboardImageProvider: async ({ userSub = '' }: { userSub?: string } = {}) => {
+    providerState.resolvedFor.push(userSub);
+    if (providerState.operators && !providerState.operators.includes(userSub)) {
+      throw new Error(`storyboard image provider '${providerState.provider}' is not configured — demo-mode CLI rendering needs an operator caller. Refusing to fall back to a paid provider you did not ask for.`);
+    }
+    return { id: providerState.provider, costClass: 'free', available: async () => providerState.available?.(userSub) ?? true,
+      generateWithMeta: async () => { providerState.calls++; await providerState.wait; return { image: Buffer.from('fixture-image'), costUsd: null, model: 'fixture' }; } };
+  },
   recordStoryboardImageCost: async () => undefined,
 }));
 export const media = providerState;
@@ -113,7 +121,7 @@ async function serverFor(runtime: ApplicationAuthorizationRuntime, ctx: AppConte
  * @returns Fixture principal, role-change, route and cleanup operations.
  */
 export async function createPortraitFixture() {
-  media.calls = 0; media.provider = 'codex'; media.wait = undefined;
+  media.calls = 0; media.provider = 'codex'; media.wait = undefined; media.operators = undefined; media.available = undefined; media.resolvedFor = [];
   vi.stubEnv('APP_PACKAGE_DYNAMIC_ROUTES', '1'); vi.stubEnv('OSHAL_APP_ACCESS_MODE', 'enforce');
   const root = mkdtempSync(join(tmpdir(), 'portrait-permissions-')); vi.stubEnv('CLINE_WORKSPACE_ROOT', root);
   const actors = principals(), rows = records(root), pool = database(rows), store = new MemoryAuthorizationStore();

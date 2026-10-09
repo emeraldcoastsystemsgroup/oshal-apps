@@ -11,447 +11,363 @@
   ---------------------------------------------------------------------------
   2026-04-19     | roger.murphy@emeraldcoastsystemsgroup.com    | Initial creation — class-centric view
   2026-04-22     | roger.murphy@agenticfederal.us   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
+  2026-09-26     | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: the shared theme bootstrap (classroom default), package stylesheet and page frame replace the parent-frame theme reader, the glass sheet and the web font; hero, tabs, lists, cards, forms and callouts come from the system and every colour is a token. Role truth: the Manage tab, recording, roster and share approvals show only to an admin or the teacher who teaches the class (what the routes accept); everyone else gets a calm read-only note on the new Info tab; the stale not-yet-available sharing copy is gone because sharing, approve and deny are live. Host messages go through window.LM (openClass, classesChanged); toasts replace alerts for notices, confirms stay for deletes; tab and detail-tab selection use data attributes instead of label text.
   ---------------------------------------------------------------------------
 -->
-<script>
-// Sync iframe theme to parent cockpit's data-theme. Storage events don't fire
-// in the writing window, so a MutationObserver on the parent <html> is the
-// reliable path for live same-tab updates when the operator cycles themes.
-(function(){
-  function applyTheme(n){
-    if(!n)return;
-    document.documentElement.setAttribute('data-theme',n);
-    var href='/cockpit/css/themes/'+n+'.css';
-    var link=document.querySelector('link[data-lm-theme-link="1"]');
-    if(link){if(link.getAttribute('href')!==href)link.setAttribute('href',href);return;}
-    link=document.createElement('link');link.rel='stylesheet';link.href=href;
-    link.setAttribute('data-lm-theme-link','1');document.head.appendChild(link);
-  }
-  function initial(){
-    try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(_e){}
-    try{var s=window.localStorage.getItem('cockpit-theme');if(s)return s;}catch(_e){}
-    return 'midnight';
-  }
-  applyTheme(initial());
-  try{if(window.parent&&window.parent!==window){
-    var ph=window.parent.document.documentElement;
-    new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){if(ms[i].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)applyTheme(t);}}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});
-  }}catch(_e){}
-})();
-</script>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
 <link rel="stylesheet" href="/api/education/education.css">
 <script src="/api/artifacts/send-to.js" defer></script>
 <style>
-  /* Uses education.css for all base variables and reset.
-     Only page-specific overrides below. */
-  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
-
-  /* ── Header ── */
-  .class-header {
-    padding: 20px 24px; background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color);
-  }
-  .class-header h1 { font-size: 20px; font-weight: 700; }
-  .class-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; display: flex; gap: 16px; }
-
-  /* ── Tabs ── */
-  .tabs {
-    display: flex; gap: 0; background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color); padding: 0 24px;
-    overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .tabs::-webkit-scrollbar { display: none; } /* tabs scroll horizontally on mobile */
-  .tab {
-    padding: 12px 18px; font-size: 13px; font-weight: 500; cursor: pointer;
-    color: var(--text-muted); border-bottom: 2px solid transparent;
-    transition: color 0.2s, border-color 0.2s; white-space: nowrap; flex-shrink: 0;
-  }
-  .tab:hover { color: var(--text-primary); }
-  .tab.active { color: var(--accent-primary); border-color: var(--accent-primary); }
-  .tab .badge {
-    display: inline-block; min-width: 18px; height: 18px; line-height: 18px;
-    text-align: center; border-radius: 9px; font-size: 10px; font-weight: 700;
-    background: rgba(139,92,246,0.2); color: var(--accent-primary); margin-left: 6px;
-  }
-
-  /* ── Content ── */
-  .content { padding: 20px 24px; }
+  .class-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+  .class-meta span:empty { display: none; }
+  .class-meta span:not(:empty) ~ span:not(:empty)::before { content: "·"; margin-right: 10px; color: var(--lm-muted); }
+  .info-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: -8px 0 18px; }
+  .info-bar .lm-pill:empty { display: none; }
+  .lm-tabs { margin-bottom: 18px; }
+  .lm-tabs .lm-tab { min-height: var(--lm-touch); }
+  .lm-tab-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; margin-left: 4px; border-radius: 10px; font-size: 11px; background: var(--lm-accent-soft); color: var(--lm-accent); }
+  .lm-tab.active .lm-tab-count { background: var(--lm-accent); color: var(--lm-on-accent); }
+  .lm-tab-count:empty { display: none; }
   .tab-panel { display: none; }
-  .tab-panel.active { display: block; }
-
-  /* ── Lecture List ── */
-  .lecture-card {
-    background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius);
-    padding: 16px 20px; margin-bottom: 10px; cursor: pointer;
-    transition: background 0.2s, border-color 0.2s;
-  }
-  .lecture-card:hover { background: var(--bg-card-hover); border-color: rgba(139,92,246,0.2); }
-  .lecture-date { font-size: 12px; color: var(--accent-primary); font-weight: 600; }
-  .lecture-title { font-size: 14px; font-weight: 500; margin-top: 4px; }
-  .lecture-status { font-size: 11px; margin-top: 6px; display: flex; gap: 12px; color: var(--text-muted); }
-  .lecture-status .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 4px; }
-  .dot-complete { background: var(--status-success); }
-  .dot-processing { background: var(--yellow); }
-  .dot-pending { background: var(--text-muted); }
-
-  /* ── Lecture Detail ── */
-  .lecture-detail { display: none; }
-  .lecture-detail.active { display: block; }
-  .detail-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
-  .detail-tab {
-    padding: 6px 14px; border-radius: 8px; font-size: 12px; cursor: pointer;
-    background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-muted);
-  }
-  .detail-tab.active { color: var(--text-primary); border-color: var(--accent-primary); background: rgba(139,92,246,0.1); }
-  .detail-content {
-    background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius);
-    padding: 20px; max-height: 500px; overflow-y: auto;
-    font-size: 13px; line-height: 1.7; white-space: pre-wrap;
-  }
-
-  /* ── Assignment List ── */
-  .assignment-item {
-    display: flex; align-items: center; gap: 14px; padding: 12px 16px;
-    background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px;
-    margin-bottom: 8px;
-  }
-  .assign-date { min-width: 56px; text-align: center; }
-  .assign-date .day { font-size: 18px; font-weight: 700; display: block; color: var(--accent-primary); }
-  .assign-date .month { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
-  .assign-title { font-size: 14px; font-weight: 500; }
-  .assign-type { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-  .assign-type .tag {
-    display: inline-block; padding: 2px 8px; border-radius: 4px;
-    background: rgba(139,92,246,0.1); color: var(--accent-primary); font-size: 10px;
-  }
-
-  /* ── Flashcard Grid ── */
-  .fc-sets { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-  .fc-set-card {
-    background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius);
-    padding: 18px; cursor: pointer; transition: border-color 0.2s, transform 0.15s;
-  }
-  .fc-set-card:hover { border-color: rgba(6,182,212,0.3); transform: translateY(-2px); }
-  .fc-set-title { font-size: 14px; font-weight: 600; }
-  .fc-set-meta { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
-
-  /* ── Record Button ── */
-  .record-float {
-    position: fixed; bottom: 24px; right: 24px; z-index: 100;
-    width: 56px; height: 56px; border-radius: 50%; border: none;
-    background: var(--status-error); color: #fff; font-size: 24px; cursor: pointer;
-    box-shadow: 0 4px 16px rgba(239,68,68,0.4); transition: transform 0.15s;
-  }
-  .record-float:hover { transform: scale(1.1); }
-
-  /* ── Empty ── */
-  .empty { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
-  .section-title { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
-  .back-btn { font-size: 12px; color: var(--accent-primary); cursor: pointer; margin-bottom: 12px; display: inline-block; }
-  .back-btn:hover { text-decoration: underline; }
-
-  /* ── Manage panel ── */
-  .manage-card { background: var(--bg-card, #1a2238); border: 1px solid var(--border-color, #2a3350); border-radius: var(--radius, 14px); padding: 18px 20px; margin-bottom: 16px; }
-  .manage-h { font-size: 15px; font-weight: 700; margin: 0 0 4px; color: var(--text-primary, #e8ecf5); }
-  .manage-sub { font-size: 12.5px; color: var(--text-muted, #9aa4bf); margin: 0 0 14px; line-height: 1.45; }
-  .manage-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; color: var(--text-muted, #9aa4bf); margin-bottom: 12px; flex: 1; }
-  .manage-field input, .manage-field textarea { font: inherit; font-weight: 400; font-size: 14px; color: var(--text-primary, #e8ecf5); background: var(--bg-secondary, #141a2e); border: 1px solid var(--border-color, #2a3350); border-radius: var(--radius-sm, 8px); padding: 9px 11px; outline: none; }
-  .manage-field input:focus, .manage-field textarea:focus { border-color: var(--accent-primary, #8b5cf6); }
-  .manage-row { display: flex; gap: 12px; flex-wrap: wrap; }
-  .manage-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .manage-status { font-size: 12.5px; color: var(--text-muted, #9aa4bf); }
-  .btn-primary { font: inherit; font-weight: 700; font-size: 13.5px; color: #fff; background: var(--accent-primary, #8b5cf6); border: none; border-radius: var(--radius-sm, 8px); padding: 9px 18px; cursor: pointer; }
-  .btn-primary:hover { filter: brightness(1.08); }
-  .btn-ghost { font: inherit; font-weight: 600; font-size: 13px; color: var(--text-primary, #e8ecf5); background: transparent; border: 1px solid var(--border-color, #2a3350); border-radius: var(--radius-sm, 8px); padding: 8px 16px; cursor: pointer; }
-  .btn-ghost:hover { background: var(--bg-secondary, #141a2e); }
-  .btn-danger { font: inherit; font-weight: 700; font-size: 13px; color: #fff; background: var(--status-error, #ef4444); border: none; border-radius: var(--radius-sm, 8px); padding: 9px 16px; cursor: pointer; }
-  .btn-danger:hover { filter: brightness(1.08); }
-  .manage-danger { border-color: var(--status-error, #ef4444); }
-  .manage-roster { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
-  .roster-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; background: var(--bg-secondary, #141a2e); border-radius: var(--radius-sm, 8px); font-size: 13px; }
-  .roster-row .roster-x { cursor: pointer; color: var(--status-error, #ef4444); font-weight: 700; padding: 0 4px; }
-
-  /* ── Materials ── */
-  .mat-uploadbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; background: var(--bg-card, #1a2238); border: 1px dashed var(--border-color, #2a3350); border-radius: var(--radius, 14px); padding: 16px 18px; margin-bottom: 14px; }
-  .mat-uploadtitle { font-size: 14px; font-weight: 700; color: var(--text-primary, #e8ecf5); }
-  .mat-uploadsub { font-size: 12px; color: var(--text-muted, #9aa4bf); margin-top: 2px; max-width: 460px; }
-  .mat-uploadbtns { display: flex; gap: 8px; flex-wrap: wrap; }
-  .mat-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; background: var(--bg-secondary, #141a2e); border: 1px solid var(--border-color, #2a3350); border-radius: 12px; margin-bottom: 8px; }
-  .mat-icon { flex: 0 0 auto; font-size: 20px; }
-  .mat-info { flex: 1; min-width: 0; }
-  .mat-name { font-size: 13.5px; font-weight: 600; color: var(--text-primary, #e8ecf5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .mat-meta { font-size: 11px; color: var(--text-muted, #9aa4bf); margin-top: 2px; }
-  .mat-open { flex: 0 0 auto; font-size: 12.5px; font-weight: 600; color: var(--accent-primary, #8b5cf6); text-decoration: none; border: 1px solid var(--border-color, #2a3350); border-radius: 8px; padding: 6px 12px; }
-  .mat-act { flex: 0 0 auto; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text-primary, #e8ecf5); background: transparent; border: 1px solid var(--border-color, #2a3350); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
-  .mat-act:hover { background: var(--bg-card, #1a2238); }
-  .mat-tag { flex: 0 0 auto; font-size: 11.5px; color: var(--text-muted, #9aa4bf); padding: 6px 4px; }
-  .mat-x { flex: 0 0 auto; font-size: 16px; line-height: 1; color: var(--status-error, #ef4444); background: transparent; border: none; cursor: pointer; padding: 4px 8px; }
-  /* On wider screens the camera button is a nicety; keep it but it shines on mobile. */
-  @media (max-width: 600px) { .mat-uploadbar { flex-direction: column; align-items: stretch; } .mat-uploadbtns { width: 100%; } .mat-uploadbtns button { flex: 1; } }
-
-  /* ── Presentations surface (in the Lectures tab) ── */
-  .gen-banner { background: var(--bg-card, #1a2238); border: 1px solid var(--border-color, #2a3350); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; font-size: 12.5px; color: var(--text-muted, #9aa4bf); line-height: 1.5; }
-  .lec-pres { margin-top: 10px; font: inherit; font-size: 12.5px; font-weight: 700; color: #fff; background: var(--accent-primary, #8b5cf6); border: none; border-radius: 8px; padding: 7px 14px; cursor: pointer; }
-  .lec-pres:hover { filter: brightness(1.08); }
-
-  /* ── Mobile ── */
+  .tab-panel.is-active { display: block; animation: lm-fade-in 0.25s ease both; }
+  .detail-content { white-space: pre-wrap; line-height: 1.7; font-size: 14.5px; max-height: 60vh; overflow: auto; }
+  .tutor-frame { width: 100%; height: calc(100vh - 140px); min-height: 480px; border: 0; border-radius: var(--lm-radius-lg); background: var(--lm-card); }
+  .mat-uploadbar { border-style: dashed; border-color: var(--lm-line-strong); }
+  .lm-item-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+  .lm-item-actions .lm-btn { padding: 8px 14px; font-size: 14px; }
+  .lm-item[role="button"]:focus-visible { border-color: var(--lm-accent); }
+  .lm-date.is-urgent { color: var(--lm-danger); }
+  .lm-date.is-soon { color: var(--lm-warning); }
+  .danger-zone { border-color: color-mix(in srgb, var(--lm-danger) 35%, var(--lm-line)); }
+  .info-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px 20px; margin-top: 16px; }
+  .info-list dt { font-size: 11.5px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--lm-muted); }
+  .info-list dd { font-weight: 600; margin-top: 2px; overflow-wrap: anywhere; }
   @media (max-width: 640px) {
-    .class-header { padding: 14px 16px; }
-    .class-header h1 { font-size: 18px; }
-    .class-meta { gap: 10px; flex-wrap: wrap; }
-    .tabs { padding: 0 12px; }
-    .tab { padding: 11px 13px; font-size: 12.5px; }
-    .content { padding: 14px 14px 80px; }
-    .manage-row { flex-direction: column; gap: 0; }
-    .mat-row, .catalog-row, .roster-row { flex-wrap: wrap; }
-    /* assignment rows: allow buttons to wrap below the title on narrow screens */
-    .assignment-item { flex-wrap: wrap; }
-    /* detail lecture header: stack the tab row and read-aloud button vertically */
-    .detail-tabs { flex-wrap: wrap; }
-    /* class info bar: tighten horizontal padding */
-    #classInfoBar { padding: 8px 16px; }
-    /* manage students: let the email input fill the row then the button wraps below */
-    #mStudentEmail { width: 100%; min-width: 0; }
-    /* manage actions: ensure buttons are comfortable tap targets */
-    .manage-actions { flex-wrap: wrap; }
-    .btn-primary, .btn-ghost, .btn-danger { padding: 10px 16px; }
+    .lm-item { flex-wrap: wrap; }
+    .lm-item-actions { flex-basis: 100%; margin-left: 0; }
+    .tutor-frame { height: calc(100vh - 100px); }
   }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
-
-<!-- ── Class Header ── -->
-<div class="class-header">
-  <div>
-    <h1 id="className">Loading...</h1>
-    <div class="class-meta">
-      <span id="classTeacher"></span>
-      <span id="classGrade"></span>
-      <span id="classSubject"></span>
+<main class="lm-page is-wide">
+  <header class="lm-hero">
+    <div>
+      <div class="lm-eyebrow" id="classEyebrow">Class</div>
+      <h1 class="lm-display" id="className">Loading…</h1>
+      <p class="lm-lead class-meta"><span id="classTeacher"></span><span id="classGrade"></span><span id="classSubject"></span></p>
+      <div class="lm-hero-actions">
+        <button type="button" class="lm-btn lm-btn-primary" data-act="tab" data-tab="flashcards">★ Study</button>
+        <button type="button" class="lm-btn lm-btn-ghost" data-act="tab" data-tab="tutor">💬 Ask the tutor</button>
+        <button type="button" class="lm-btn lm-btn-soft lm-hide" id="recordBtn" onclick="openRecorder()">● Record a lecture</button>
+      </div>
     </div>
+    <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
+  </header>
+
+  <div class="info-bar" id="classInfoBar">
+    <span class="lm-pill is-neutral" id="infoSchedule"></span>
+    <span class="lm-pill is-neutral" id="infoRoom"></span>
+    <a class="lm-pill is-info lm-hide" id="infoWebsite" href="#" target="_blank" rel="noopener">Class website ↗</a>
   </div>
-  <div class="class-actions" style="display:flex;gap:8px;margin-top:8px;">
-    <button class="lm-btn lm-btn-primary" onclick="showTab('flashcards')" style="font-size:12px;padding:6px 14px;">&#9733; Study</button>
-    <button class="lm-btn lm-btn-ghost" onclick="showTab('tutor')" style="font-size:12px;padding:6px 14px;">&#128172; Tutor</button>
-  </div>
-</div>
+  <div id="classNotice" class="lm-callout is-warning lm-hide lm-mb-md" role="status"></div>
+  <div id="reminderBanner" class="lm-callout is-warning lm-hide lm-mb-md" role="status"></div>
+  <div id="pageState" class="lm-empty lm-hide"></div>
 
-<!-- ── Class Info Bar ── -->
-<div id="classInfoBar" style="padding:8px 24px;background:var(--bg-card);border-bottom:1px solid var(--border-color);display:flex;gap:20px;font-size:11px;color:var(--text-muted);flex-wrap:wrap;">
-  <span id="infoSchedule"></span>
-  <span id="infoRoom"></span>
-  <a id="infoWebsite" href="#" target="_blank" style="color:var(--status-active);text-decoration:none;display:none;">Class Website</a>
-</div>
+  <div id="classBody">
+    <div class="lm-tabs" role="tablist" aria-label="Class sections" id="classTabs">
+      <button type="button" class="lm-tab active" role="tab" aria-selected="true" data-act="tab" data-tab="lectures">Lectures <span class="lm-tab-count" id="lectureCount"></span></button>
+      <button type="button" class="lm-tab" role="tab" aria-selected="false" data-act="tab" data-tab="assignments">Assignments <span class="lm-tab-count" id="assignCount"></span></button>
+      <button type="button" class="lm-tab" role="tab" aria-selected="false" data-act="tab" data-tab="flashcards">Flashcards <span class="lm-tab-count" id="fcCount"></span></button>
+      <button type="button" class="lm-tab" role="tab" aria-selected="false" data-act="tab" data-tab="calendar">Calendar <span class="lm-tab-count" id="calCount"></span></button>
+      <button type="button" class="lm-tab" role="tab" aria-selected="false" data-act="tab" data-tab="materials">Materials <span class="lm-tab-count" id="matCount"></span></button>
+      <button type="button" class="lm-tab" role="tab" aria-selected="false" data-act="tab" data-tab="tutor">Ask the tutor</button>
+      <button type="button" class="lm-tab" role="tab" aria-selected="false" data-act="tab" data-tab="info">Info</button>
+      <button type="button" class="lm-tab lm-hide" role="tab" aria-selected="false" data-act="tab" data-tab="manage" id="manageTab">⚙ Manage</button>
+    </div>
 
-<!-- ── Upcoming Reminders Banner ── -->
-<div id="reminderBanner" style="display:none;padding:10px 24px;background:rgba(251,191,36,0.08);border-bottom:1px solid rgba(251,191,36,0.15);font-size:12px;color:#fbbf24;"></div>
-
-<!-- ── Tabs ── -->
-<div class="tabs">
-  <div class="tab active" onclick="showTab('lectures')">Lectures <span class="badge" id="lectureCount">0</span></div>
-  <div class="tab" onclick="showTab('assignments')">Assignments <span class="badge" id="assignCount">0</span></div>
-  <div class="tab" onclick="showTab('flashcards')">Flashcards <span class="badge" id="fcCount">0</span></div>
-  <div class="tab" onclick="showTab('calendar')">Calendar <span class="badge" id="calCount">0</span></div>
-  <div class="tab" onclick="showTab('materials')">Tools <span class="badge" id="matCount">0</span></div>
-  <div class="tab" onclick="showTab('tutor')">Ask Tutor</div>
-  <div class="tab" id="manageTab" onclick="showTab('manage')" style="display:none;">&#9881; Manage</div>
-</div>
-
-<!-- ── Tab Panels ── -->
-<div class="content">
-  <!-- Lectures -->
-  <div class="tab-panel active" id="panel-lectures">
-    <div id="lectureList"><div class="empty">No lectures yet! Tap the red button below to record your first one. &#127908;</div></div>
-    <div class="lecture-detail" id="lectureDetail">
-      <div class="back-btn" onclick="closeLectureDetail()">&larr; Back to lectures</div>
-      <h3 id="detailTitle" style="margin-bottom: 12px;"></h3>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-        <div class="detail-tabs" style="flex:1;margin-bottom:0;">
-          <div class="detail-tab active" onclick="showDetailTab('transcript')">Transcript</div>
-          <div class="detail-tab" onclick="showDetailTab('notes')">Study Notes</div>
+    <!-- Lectures -->
+    <section class="tab-panel is-active" id="panel-lectures" role="tabpanel">
+      <div id="lectureList"><div class="lm-loading">Loading lectures…</div></div>
+      <div class="lm-hide" id="lectureDetail">
+        <button type="button" class="lm-btn lm-btn-quiet" onclick="closeLectureDetail()">← Back to lectures</button>
+        <div class="lm-section-head lm-mt-md">
+          <h2 class="lm-display" id="detailTitle"></h2>
+          <div class="lm-row is-wrap">
+            <div class="lm-tabs" role="tablist" aria-label="Lecture content" style="margin:0">
+              <button type="button" class="lm-tab active" role="tab" aria-selected="true" data-act="dtab" data-dtab="transcript">Transcript</button>
+              <button type="button" class="lm-tab" role="tab" aria-selected="false" data-act="dtab" data-dtab="notes">Study notes</button>
+            </div>
+            <button type="button" class="lm-btn lm-btn-ghost" onclick="speakDetail()">🔊 Read aloud</button>
+          </div>
         </div>
-        <button class="lm-read-btn" onclick="speakDetail()">&#128264; Read aloud</button>
+        <div class="lm-card detail-content" id="detailContent">Loading…</div>
       </div>
-      <div class="detail-content" id="detailContent">Loading...</div>
-    </div>
+    </section>
+
+    <!-- Assignments -->
+    <section class="tab-panel" id="panel-assignments" role="tabpanel">
+      <div id="assignmentList"><div class="lm-loading">Loading assignments…</div></div>
+    </section>
+
+    <!-- Flashcards -->
+    <section class="tab-panel" id="panel-flashcards" role="tabpanel">
+      <div class="lm-grid" id="flashcardSets" style="--min:220px"><div class="lm-loading">Loading flashcard sets…</div></div>
+    </section>
+
+    <!-- Calendar -->
+    <section class="tab-panel" id="panel-calendar" role="tabpanel">
+      <div id="calendarList"><div class="lm-loading">Loading events…</div></div>
+    </section>
+
+    <!-- Materials (any enrolled member can upload; private by default) -->
+    <section class="tab-panel" id="panel-materials" role="tabpanel">
+      <div class="lm-card mat-uploadbar">
+        <div class="lm-row is-between is-wrap" style="align-items:flex-start">
+          <div style="flex:1;min-width:240px">
+            <h3>My documents <span class="lm-pill is-neutral">private to you</span></h3>
+            <p class="lm-card-meta">Upload a textbook, handout or assignment — any file. On a phone, snap a photo and we read the text so the tutor can use it.</p>
+            <label class="lm-check lm-mt-md"><input type="checkbox" id="matShare"> <span id="matShareLabel">Also share with the class (asks the teacher to approve)</span></label>
+          </div>
+          <div class="lm-row is-wrap">
+            <input id="matFile" type="file" class="lm-hide" onchange="uploadDoc(this,'document')">
+            <input id="matPhoto" type="file" accept="image/*" capture="environment" class="lm-hide" onchange="uploadDoc(this,'handout')">
+            <button type="button" class="lm-btn lm-btn-primary" onclick="document.getElementById('matFile').click()">📎 Upload a file</button>
+            <button type="button" class="lm-btn lm-btn-ghost" onclick="document.getElementById('matPhoto').click()">📷 Take a photo</button>
+          </div>
+        </div>
+      </div>
+      <div id="matStatus" class="lm-status lm-mt-md" role="status"></div>
+      <div id="materialsList" class="lm-mt-md"><div class="lm-loading">Loading your documents…</div></div>
+
+      <div id="shareRequestsWrap" class="lm-section lm-mt-md lm-hide">
+        <div class="lm-section-head"><h2>Pending share requests</h2><span class="lm-subtle lm-small">Students asked to share these with the class. Approve to let everyone use them.</span></div>
+        <div id="shareRequestsList"></div>
+      </div>
+
+      <div class="lm-section lm-mt-md">
+        <div class="lm-section-head"><h2>Shared with the class</h2><span class="lm-subtle lm-small">Everyone in the class can open these.</span></div>
+        <div id="sharedMaterialsList"><div class="lm-loading">Loading…</div></div>
+      </div>
+    </section>
+
+    <!-- Tutor (embedded) -->
+    <section class="tab-panel" id="panel-tutor" role="tabpanel">
+      <iframe id="tutorFrame" class="tutor-frame" src="" title="Class tutor"></iframe>
+    </section>
+
+    <!-- Info -->
+    <section class="tab-panel" id="panel-info" role="tabpanel">
+      <div class="lm-stack">
+        <div class="lm-card">
+          <div class="lm-card-kicker">About this class</div>
+          <p id="classDescription" class="lm-muted">—</p>
+          <dl class="info-list">
+            <div><dt>Teacher</dt><dd id="infoTeacherName">—</dd></div>
+            <div><dt>Subject</dt><dd id="infoSubject">—</dd></div>
+            <div><dt>Grade</dt><dd id="infoGrade">—</dd></div>
+            <div><dt>Schedule</dt><dd id="infoScheduleFull">—</dd></div>
+            <div><dt>Room</dt><dd id="infoRoomFull">—</dd></div>
+            <div><dt>Website</dt><dd id="infoWebsiteFull">—</dd></div>
+            <div><dt>Class bank</dt><dd id="infoPublished">—</dd></div>
+          </dl>
+        </div>
+        <div class="lm-callout lm-hide" id="roleNote"></div>
+      </div>
+    </section>
+
+    <!-- Manage (an admin, or the teacher who teaches this class) -->
+    <section class="tab-panel" id="panel-manage" role="tabpanel">
+      <div class="lm-stack">
+        <div class="lm-card">
+          <h3>Class settings</h3>
+          <p class="lm-card-meta lm-mb-md">Edit anything here and save — changes show up for every enrolled student.</p>
+          <div class="lm-field"><label for="mName">Class name</label><input id="mName" type="text" placeholder="e.g. Algebra I"></div>
+          <div class="lm-grid" style="--min:220px">
+            <div class="lm-field"><label for="mTeacher">Teacher</label><input id="mTeacher" type="text" placeholder="e.g. Ms. Rivera"></div>
+            <div class="lm-field"><label for="mSubject">Subject</label><input id="mSubject" type="text" placeholder="e.g. Math"></div>
+            <div class="lm-field"><label for="mGrade">Grade level</label><input id="mGrade" type="text" placeholder="e.g. 9th"></div>
+            <div class="lm-field"><label for="mRoom">Room</label><input id="mRoom" type="text" placeholder="e.g. 214"></div>
+            <div class="lm-field"><label for="mSchedule">Schedule</label><input id="mSchedule" type="text" placeholder="e.g. MWF 10:00"></div>
+            <div class="lm-field"><label for="mWebsite">Class website</label><input id="mWebsite" type="url" placeholder="https://…"></div>
+          </div>
+          <div class="lm-field"><label for="mDescription">Notes / description</label><textarea id="mDescription" rows="2" placeholder="Anything students should know"></textarea></div>
+          <div class="lm-row is-wrap"><button type="button" class="lm-btn lm-btn-primary" onclick="saveSettings()">Save changes</button><span id="mSaveStatus" class="lm-status" role="status"></span></div>
+        </div>
+
+        <div class="lm-card">
+          <h3>Textbook &amp; materials</h3>
+          <p class="lm-card-meta">Upload documents on the <strong>Materials</strong> tab. Your uploads can be shared with the whole class right away; students’ share requests wait there for you to approve or deny.</p>
+        </div>
+
+        <div class="lm-card">
+          <h3>Students</h3>
+          <p class="lm-card-meta lm-mb-md">Add a student by email. They see the class as soon as they sign in.</p>
+          <div class="lm-row is-wrap">
+            <input id="mStudentEmail" class="lm-input" type="email" placeholder="student@school.org" aria-label="Student email" style="flex:1;min-width:200px">
+            <button type="button" class="lm-btn lm-btn-ghost" onclick="addStudent()">Add student</button>
+          </div>
+          <ul id="mStudentList" class="lm-list lm-mt-md"><li class="lm-loading">Loading roster…</li></ul>
+        </div>
+
+        <div class="lm-card">
+          <h3>Class bank</h3>
+          <p class="lm-card-meta lm-mb-md">Publishing puts this class in your school’s <strong>Class Bank</strong> so any student can find and join it. Unpublished classes are private to you and the people you’ve added. <span id="mPublishState"></span></p>
+          <button type="button" class="lm-btn lm-btn-ghost" id="mPublishBtn" onclick="togglePublish()">Publish to class bank</button>
+        </div>
+
+        <div class="lm-card danger-zone">
+          <h3>Hide or delete</h3>
+          <p class="lm-card-meta lm-mb-md"><strong>Archive</strong> hides the class but keeps every lecture, note and flashcard — bring it back any time. <strong>Delete</strong> removes it permanently.</p>
+          <div class="lm-row is-wrap">
+            <button type="button" class="lm-btn lm-btn-ghost" id="mArchiveBtn" onclick="toggleArchive()">Archive class</button>
+            <button type="button" class="lm-btn lm-btn-danger" onclick="deleteClass()">Delete permanently</button>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
-
-  <!-- Assignments -->
-  <div class="tab-panel" id="panel-assignments">
-    <div id="assignmentList"><div class="empty">No assignments yet.</div></div>
-  </div>
-
-  <!-- Flashcards -->
-  <div class="tab-panel" id="panel-flashcards">
-    <div class="fc-sets" id="flashcardSets"><div class="empty">No flashcards yet! Record a lecture and they will be created for you automatically. &#9733;</div></div>
-  </div>
-
-  <!-- Calendar -->
-  <div class="tab-panel" id="panel-calendar">
-    <div id="calendarList"><div class="empty">No upcoming events.</div></div>
-  </div>
-
-  <!-- Materials (any enrolled member can upload; private by default) -->
-  <div class="tab-panel" id="panel-materials">
-    <div class="mat-uploadbar">
-      <div>
-        <div class="mat-uploadtitle">My documents <span style="font-weight:600;font-size:11px;color:var(--text-muted);">· private to you</span></div>
-        <div class="mat-uploadsub">Saved just for you. Upload a textbook, handout, or assignment — any file. On a phone, snap a photo and we'll read the text so the tutor can use it.</div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);margin-top:8px;cursor:pointer;">
-          <input type="checkbox" id="matShare"> <span id="matShareLabel">Also share with the class (asks the teacher to approve)</span>
-        </label>
-      </div>
-      <div class="mat-uploadbtns">
-        <input id="matFile" type="file" style="display:none;" onchange="uploadDoc(this,'document')">
-        <input id="matPhoto" type="file" accept="image/*" capture="environment" style="display:none;" onchange="uploadDoc(this,'handout')">
-        <button class="btn-primary" onclick="document.getElementById('matFile').click()">&#128206; Upload a file</button>
-        <button class="btn-ghost mat-photobtn" onclick="document.getElementById('matPhoto').click()">&#128247; Take a photo</button>
-      </div>
-    </div>
-    <div id="matStatus" class="manage-status" style="margin:8px 0;"></div>
-    <div id="materialsList"><div class="empty">No documents yet. Upload your textbook or snap a photo of today's handout. &#128206;</div></div>
-
-    <div id="shareRequestsWrap" style="display:none;margin-top:18px;">
-      <h3 class="manage-h">Pending share requests</h3>
-      <p class="manage-sub">Students asked to share these with the class. Approve to let everyone use them.</p>
-      <div id="shareRequestsList"></div>
-    </div>
-
-    <h3 class="manage-h" style="margin-top:18px;">Shared with the class</h3>
-    <p class="manage-sub">Documents your teacher has shared — everyone in the class can open these.</p>
-    <div id="sharedMaterialsList"><div class="empty">Nothing shared with the class yet.</div></div>
-  </div>
-
-  <!-- Tutor (embedded) -->
-  <div class="tab-panel" id="panel-tutor">
-    <iframe id="tutorFrame" src="" style="width:100%;height:calc(100vh - 160px);border:none;border-radius:var(--radius);"></iframe>
-  </div>
-
-  <!-- Manage (owner only) -->
-  <div class="tab-panel" id="panel-manage">
-    <div class="manage-card">
-      <h3 class="manage-h">Class settings</h3>
-      <p class="manage-sub">Edit anything here and hit Save — changes show up for every enrolled student.</p>
-      <label class="manage-field">Class name<input id="mName" type="text" placeholder="e.g. Algebra I"></label>
-      <div class="manage-row">
-        <label class="manage-field">Teacher<input id="mTeacher" type="text" placeholder="e.g. Ms. Rivera"></label>
-        <label class="manage-field">Subject<input id="mSubject" type="text" placeholder="e.g. Math"></label>
-      </div>
-      <div class="manage-row">
-        <label class="manage-field">Grade level<input id="mGrade" type="text" placeholder="e.g. 9th"></label>
-        <label class="manage-field">Room<input id="mRoom" type="text" placeholder="e.g. 214"></label>
-      </div>
-      <div class="manage-row">
-        <label class="manage-field">Schedule<input id="mSchedule" type="text" placeholder="e.g. MWF 10:00"></label>
-        <label class="manage-field">Class website<input id="mWebsite" type="text" placeholder="https://..."></label>
-      </div>
-      <label class="manage-field">Notes / description<textarea id="mDescription" rows="2" placeholder="Anything students should know"></textarea></label>
-      <div class="manage-actions">
-        <button class="btn-primary" onclick="saveSettings()">Save changes</button>
-        <span id="mSaveStatus" class="manage-status"></span>
-      </div>
-    </div>
-
-    <div class="manage-card">
-      <h3 class="manage-h">Textbook &amp; tools</h3>
-      <p class="manage-sub">Upload documents on the <strong>Tools</strong> tab. For now every upload is private to whoever added it — class-wide sharing is coming soon.</p>
-    </div>
-
-    <div class="manage-card">
-      <h3 class="manage-h">Students</h3>
-      <p class="manage-sub">Share this class by adding a student's email. They'll see it as soon as they sign in.</p>
-      <div class="manage-actions">
-        <input id="mStudentEmail" type="email" placeholder="student@school.org" style="flex:1;min-width:180px;">
-        <button class="btn-ghost" onclick="addStudent()">Add student</button>
-      </div>
-      <div id="mStudentList" class="manage-roster"><div class="empty">No one enrolled yet.</div></div>
-    </div>
-
-    <div class="manage-card">
-      <h3 class="manage-h">Class bank</h3>
-      <p class="manage-sub">Publishing puts this class in your school's <strong>Class Bank</strong> so any student can find it and join. Unpublished classes are private to you and the people you've added. <span id="mPublishState"></span></p>
-      <div class="manage-actions">
-        <button class="btn-ghost" id="mPublishBtn" onclick="togglePublish()">Publish to class bank</button>
-      </div>
-    </div>
-
-    <div class="manage-card manage-danger">
-      <h3 class="manage-h">Hide or delete</h3>
-      <p class="manage-sub"><strong>Archive</strong> hides the class but keeps every lecture, note and flashcard — you can bring it back any time. <strong>Delete</strong> removes it permanently.</p>
-      <div class="manage-actions">
-        <button class="btn-ghost" id="mArchiveBtn" onclick="toggleArchive()">Archive class</button>
-        <button class="btn-danger" onclick="deleteClass()">Delete permanently</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ── Record FAB ── -->
-<button class="record-float" onclick="openRecorder()" title="Record a lecture">&#9679;</button>
+</main>
 
 <div id="mascot-container"></div>
-<script src="/api/education/mascot.js?v=3"></script>
+<script src="/api/education/mascot.js?v=4"></script>
 <script src="/api/education/lm-voice.js"></script>
 <script>
 /**
- * Class View — single class page with lectures, assignments, flashcards, tutor.
+ * Class View — one class: lectures, assignments, flashcards, calendar, materials, tutor, info and,
+ * for the teacher who teaches it (or an admin), the manage panel.
  */
+var LM = window.LM;
+var esc = LM.esc;
 var classId = new URLSearchParams(window.location.search).get('classId');
-var classData = null;
-var currentLecture = null;
+var classData = null, classInfo = null, currentLecture = null, ME = null;
+var CAN_MANAGE = false;      // an admin, or the teacher who teaches this class — what the class, roster, lecture and approval routes accept
+var IS_TEACHER_HERE = false; // the same gate, kept under the name the materials controls use
+
+/** Parse a date; a date without a clock time is a local calendar day, not a UTC instant. */
+function localDate(s) {
+  s = String(s || '');
+  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00(?:\.000)?Z)?$/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  return new Date(s);
+}
+function dateChip(s, extraCls) {
+  var d = localDate(s);
+  if (isNaN(d)) return '<div class="lm-date' + (extraCls || '') + '"><b>—</b></div>';
+  return '<div class="lm-date' + (extraCls || '') + '"><b>' + d.getDate() + '</b>' + d.toLocaleDateString('en-US', { month: 'short' }) + '</div>';
+}
+function sayBtn(text) { return '<button type="button" class="lm-btn lm-btn-ghost lm-btn-icon" data-act="say" data-say="' + esc(text) + '" aria-label="Read aloud">🔊</button>'; }
+
+// One delegated handler for everything rendered from data: ids travel in attributes, never in code strings.
+document.addEventListener('click', function (e) {
+  var t = e.target.closest && e.target.closest('[data-act]');
+  if (!t) return;
+  var act = t.getAttribute('data-act'), id = t.getAttribute('data-id');
+  if (act === 'say') speak(t.getAttribute('data-say'));
+  else if (act === 'tab') showTab(t.getAttribute('data-tab'));
+  else if (act === 'dtab') showDetailTab(t.getAttribute('data-dtab'));
+  else if (act === 'lecture') openLecture(id);
+  else if (act === 'pres') openPresentation(id);
+  else if (act === 'breakdown') breakDown(t.getAttribute('data-title'));
+  else if (act === 'set') studySet(id);
+  else if (act === 'share') requestOrShare(id);
+  else if (act === 'del') deleteDoc(id);
+  else if (act === 'approve') approveShare(id);
+  else if (act === 'deny') denyShare(id);
+  else if (act === 'remove') removeStudent(id);
+});
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  var t = e.target;
+  if (t && t.getAttribute && t.getAttribute('role') === 'button' && t.tagName !== 'BUTTON') { e.preventDefault(); t.click(); }
+});
 
 async function init() {
-  if (typeof LMMascot !== 'undefined') {
-    new LMMascot(document.getElementById('mascot-container'));
-  }
-
+  if (typeof LMMascot !== 'undefined') new LMMascot(document.getElementById('mascot-container'));
   if (!classId) {
     document.getElementById('className').textContent = 'No class selected';
+    document.getElementById('classBody').classList.add('lm-hide');
+    var st = document.getElementById('pageState');
+    st.classList.remove('lm-hide');
+    st.innerHTML = '<div class="lm-empty-icon">📚</div><strong>Pick a class to open it here.</strong>Your classes live on your dashboard and on My Day.<br><button type="button" class="lm-btn lm-btn-primary" onclick="LM.navigate(\'dashboard\')">Open my dashboard</button>';
     return;
   }
-
-  // Load class info
-  try {
-    var resp = await fetch('/api/education/classes');
-    if (resp.ok) {
-      var data = await resp.json();
-      classData = (data.classes || []).find(function(c) { return c.class_id === classId; });
-      if (classData) {
-        document.getElementById('className').textContent = classData.name;
-        document.getElementById('classTeacher').textContent = classData.teacher_name || '';
-        document.getElementById('classGrade').textContent = classData.grade_level || '';
-        document.getElementById('classSubject').textContent = classData.subject || '';
-        document.title = 'LM — ' + classData.name;
-      }
-    }
-  } catch (e) { console.warn('Failed to load class info:', e); }
-
-  // Set tutor iframe with classId
-  document.getElementById('tutorFrame').src = '/api/education/tutor?classId=' + classId;
-
-  // Load all data
-  await Promise.all([loadLectures(), loadAssignments(), loadFlashcardSets(), loadCalendarEvents(), loadClassInfo(), loadMaterials(), loadMe()]);
+  var results = await Promise.all([loadClass(), LM.me()]);
+  applyRole(results[1]);
+  document.getElementById('tutorFrame').src = '/api/education/tutor?classId=' + encodeURIComponent(classId);
+  await Promise.all([loadLectures(), loadAssignments(), loadFlashcardSets(), loadCalendarEvents(), loadClassInfo(), loadMaterials()]);
+  if (CAN_MANAGE) { populateManage(); loadStudents(); }
 }
 
-/** Load the class's documents (any enrolled member can see + add them). */
-var IS_TEACHER_HERE = false; // caller is the class teacher/admin (can share + approve)
+async function loadClass() {
+  try {
+    var resp = await fetch('/api/education/classes');
+    if (resp.ok) { var data = await resp.json(); classData = (data.classes || []).find(function (c) { return c.class_id === classId; }) || null; }
+  } catch (e) { classData = null; }
+  if (classData) { renderHeader(); return; }
+  document.getElementById('className').textContent = 'This class';
+  var notice = document.getElementById('classNotice');
+  notice.classList.remove('lm-hide');
+  notice.textContent = 'This class is not in your class list. If you were just added, sign in again or ask your teacher.';
+}
 
+function renderHeader() {
+  document.getElementById('className').textContent = classData.name || 'Class';
+  document.getElementById('classTeacher').textContent = classData.teacher_name || '';
+  document.getElementById('classGrade').textContent = classData.grade_level || '';
+  document.getElementById('classSubject').textContent = classData.subject || '';
+  document.getElementById('classEyebrow').textContent = classData.status === 'archived' ? 'Archived class' : 'Class';
+  document.title = 'Little Monsters — ' + (classData.name || 'Class');
+  renderInfoTab();
+}
+
+/** The Info tab reads from the class list row and the /info metadata; anything unknown stays "—". */
+function renderInfoTab() {
+  var c = classData || classInfo || {};
+  var meta = (classInfo && classInfo.metadata) || c.metadata || {};
+  function set(id, v) { document.getElementById(id).textContent = v ? String(v) : '—'; }
+  document.getElementById('classDescription').textContent = c.description || 'No description yet.';
+  set('infoTeacherName', c.teacher_name); set('infoSubject', c.subject); set('infoGrade', c.grade_level);
+  set('infoScheduleFull', meta.schedule); set('infoRoomFull', meta.room);
+  var web = document.getElementById('infoWebsiteFull');
+  if (meta.website) web.innerHTML = '<a href="' + esc(meta.website) + '" target="_blank" rel="noopener">' + esc(meta.website) + '</a>'; else web.textContent = '—';
+  set('infoPublished', typeof c.published === 'boolean' ? (c.published ? 'Published — students can find and join it' : 'Private to the people who were added') : null);
+}
+
+/** Role truth: management, recording and approvals belong to an admin or the teacher who teaches this class. */
+function applyRole(me) {
+  ME = me || null;
+  var staff = !!(ME && (ME.role === 'teacher' || ME.role === 'admin'));
+  CAN_MANAGE = staff && (ME.role === 'admin' || !!(classData && classData.teacher_student_id === ME.studentId));
+  IS_TEACHER_HERE = CAN_MANAGE;
+  document.getElementById('recordBtn').classList.toggle('lm-hide', !CAN_MANAGE);
+  document.getElementById('manageTab').classList.toggle('lm-hide', !CAN_MANAGE);
+  document.getElementById('matShareLabel').textContent = CAN_MANAGE ? 'Also share with the whole class' : 'Also share with the class (asks the teacher to approve)';
+  var note = document.getElementById('roleNote');
+  note.classList.toggle('lm-hide', CAN_MANAGE);
+  if (CAN_MANAGE) return;
+  var teacher = classData && classData.teacher_name ? classData.teacher_name : 'its teacher';
+  note.textContent = staff
+    ? 'This class is taught by ' + teacher + '. Its settings, roster and lectures are managed by that teacher; you can still study, use the tutor and read what is shared.'
+    : 'You are here as a student. Lectures, shared materials and flashcard sets come from your teacher; class settings, the roster and recording are managed by teachers.';
+}
+
+// ── Materials ───────────────────────────────────────────────────────────────
 async function loadMaterials() {
   try {
-    var resp = await fetch('/api/education/classes/' + classId + '/materials');
-    renderMaterials(resp.ok ? ((await resp.json()).materials || []) : []);
-  } catch (e) { renderMaterials([]); }
+    var resp = await fetch('/api/education/classes/' + encodeURIComponent(classId) + '/materials');
+    renderMaterials(resp.ok ? ((await resp.json()).materials || []) : null);
+  } catch (e) { renderMaterials(null); }
   loadSharedMaterials();
   if (IS_TEACHER_HERE) loadShareRequests();
 }
 
 function matIcon(mime, kind) {
-  if (mime && mime.indexOf('image/') === 0) return '🖼️';      // framed picture
-  if (mime === 'application/pdf') return '📕';                       // book
-  if (kind === 'textbook' || kind === 'syllabus') return '📚';       // books
-  return '📄';                                                       // page
+  if (mime && mime.indexOf('image/') === 0) return '🖼️';
+  if (mime === 'application/pdf') return '📕';
+  if (kind === 'textbook' || kind === 'syllabus') return '📚';
+  return '📄';
 }
 
 // ADR-139 standard tag: a class material is a sendable artifact — the shared component
@@ -460,98 +376,106 @@ function matOpen(m) {
   var id = typeof m === 'object' ? m.material_id : m;
   var attrs = '';
   if (typeof m === 'object') {
-    attrs = ' data-artifact-source="/api/education/materials/' + id + '/file"' +
-      ' data-artifact-type="' + (m.mime_type || 'application/octet-stream').replace(/"/g, '') + '"' +
-      ' data-artifact-name="' + String(m.title || m.original_name || 'material').replace(/"/g, '&quot;') + '"';
+    attrs = ' data-artifact-source="/api/education/materials/' + esc(id) + '/file"' +
+      ' data-artifact-type="' + esc(m.mime_type || 'application/octet-stream') + '"' +
+      ' data-artifact-name="' + esc(m.title || m.original_name || 'material') + '"';
   }
-  return '<a class="mat-open" href="/api/education/materials/' + id + '/file" target="_blank" rel="noopener"' + attrs + '>Open</a>';
+  return '<a class="lm-btn lm-btn-ghost" href="/api/education/materials/' + esc(id) + '/file" target="_blank" rel="noopener"' + attrs + '>Open</a>';
+}
+
+function matRow(m, metaText, actions) {
+  return '<li class="lm-item"><span class="lm-avatar" aria-hidden="true">' + matIcon(m.mime_type, m.kind) + '</span>' +
+    '<div class="lm-item-body"><strong>' + esc(m.title || m.original_name) + '</strong><small>' + metaText + '</small></div>' +
+    '<div class="lm-item-actions">' + matOpen(m) + actions + '</div></li>';
 }
 
 function renderMaterials(materials) {
   var badge = document.getElementById('matCount');
-  if (badge) badge.textContent = materials.length;
   var container = document.getElementById('materialsList');
+  if (materials === null) { badge.textContent = ''; container.innerHTML = '<div class="lm-empty"><strong>Your documents could not be loaded right now.</strong>Nothing is assumed in their place; try again in a moment.</div>'; return; }
+  badge.textContent = String(materials.length);
   if (!materials.length) {
-    container.innerHTML = '<div class="empty">No documents yet. Upload your textbook or snap a photo of today\'s handout. &#128206;</div>';
+    container.innerHTML = '<div class="lm-empty"><div class="lm-empty-icon">📎</div><strong>No documents yet.</strong>Upload your textbook or snap a photo of today’s handout and the tutor can use it.</div>';
     return;
   }
-  container.innerHTML = materials.map(function(m) {
+  container.innerHTML = '<ul class="lm-list">' + materials.map(function (m) {
     var when = m.created_at ? new Date(m.created_at).toLocaleDateString() : '';
-    var kb = m.size_bytes ? Math.max(1, Math.round(m.size_bytes / 1024)) + ' KB' : '';
+    var kb = m.size_bytes ? Math.max(1, Math.round(Number(m.size_bytes) / 1024)) + ' KB' : '';
     var shareCtrl;
-    if (m.share_status === 'approved') shareCtrl = '<span class="mat-tag">Shared ✓</span>';
-    else if (m.share_status === 'requested') shareCtrl = '<span class="mat-tag">Pending</span>';
-    else shareCtrl = '<button class="mat-act" onclick="requestOrShare(\'' + m.material_id + '\')">' + (IS_TEACHER_HERE ? 'Share' : 'Request share') + '</button>';
-    return '<div class="mat-row">' +
-      '<div class="mat-icon">' + matIcon(m.mime_type, m.kind) + '</div>' +
-      '<div class="mat-info">' +
-        '<div class="mat-name">' + esc(m.title || m.original_name) + '</div>' +
-        '<div class="mat-meta">' + esc(m.kind || 'document') + (kb ? ' • ' + kb : '') + ' • ' + when + '</div>' +
-      '</div>' + matOpen(m) + shareCtrl +
-      '<button class="mat-x" title="Delete" onclick="deleteDoc(\'' + m.material_id + '\')">×</button>' +
-    '</div>';
-  }).join('');
+    if (m.share_status === 'approved') shareCtrl = '<span class="lm-pill is-success">Shared ✓</span>';
+    else if (m.share_status === 'requested') shareCtrl = '<span class="lm-pill is-warning">Pending approval</span>';
+    else shareCtrl = '<button type="button" class="lm-btn lm-btn-soft" data-act="share" data-id="' + esc(m.material_id) + '">' + (IS_TEACHER_HERE ? 'Share with class' : 'Request share') + '</button>';
+    var del = '<button type="button" class="lm-btn lm-btn-quiet lm-btn-icon" data-act="del" data-id="' + esc(m.material_id) + '" aria-label="Delete ' + esc(m.title || m.original_name) + '">×</button>';
+    return matRow(m, esc([m.kind || 'document', kb, when].filter(Boolean).join(' · ')), shareCtrl + del);
+  }).join('') + '</ul>';
 }
 
 async function loadSharedMaterials() {
   var container = document.getElementById('sharedMaterialsList');
   try {
-    var data = await (await fetch('/api/education/classes/' + classId + '/shared-materials')).json();
-    var rows = data.materials || [];
-    if (!rows.length) { container.innerHTML = '<div class="empty">Nothing shared with the class yet.</div>'; return; }
-    container.innerHTML = rows.map(function(m) {
-      var by = m.shared_by_name ? ' • ' + esc(m.shared_by_name) : '';
-      return '<div class="mat-row"><div class="mat-icon">' + matIcon(m.mime_type, m.kind) + '</div>' +
-        '<div class="mat-info"><div class="mat-name">' + esc(m.title || m.original_name) + '</div>' +
-        '<div class="mat-meta">shared' + by + '</div></div>' + matOpen(m) + '</div>';
-    }).join('');
-  } catch (e) { container.innerHTML = '<div class="empty">Could not load shared documents.</div>'; }
+    var resp = await fetch('/api/education/classes/' + encodeURIComponent(classId) + '/shared-materials');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var rows = (await resp.json()).materials || [];
+    if (!rows.length) { container.innerHTML = '<div class="lm-empty is-compact"><strong>Nothing shared with the class yet.</strong>Shared documents appear here for everyone.</div>'; return; }
+    container.innerHTML = '<ul class="lm-list">' + rows.map(function (m) {
+      var when = m.created_at ? new Date(m.created_at).toLocaleDateString() : '';
+      return matRow(m, esc(['Shared' + (m.shared_by_name ? ' by ' + m.shared_by_name : ''), when].filter(Boolean).join(' · ')), '');
+    }).join('') + '</ul>';
+  } catch (e) { container.innerHTML = '<div class="lm-empty is-compact">Shared documents could not be loaded right now.</div>'; }
 }
 
 async function loadShareRequests() {
   var wrap = document.getElementById('shareRequestsWrap');
   var list = document.getElementById('shareRequestsList');
   try {
-    var data = await (await fetch('/api/education/classes/' + classId + '/share-requests')).json();
-    var rows = data.requests || [];
-    if (!rows.length) { wrap.style.display = 'none'; return; }
-    wrap.style.display = 'block';
-    list.innerHTML = rows.map(function(m) {
-      var by = m.requested_by_name ? ' • ' + esc(m.requested_by_name) : '';
-      return '<div class="mat-row"><div class="mat-icon">' + matIcon('', m.kind) + '</div>' +
-        '<div class="mat-info"><div class="mat-name">' + esc(m.title || m.original_name) + '</div>' +
-        '<div class="mat-meta">requested' + by + '</div></div>' + matOpen(m) +
-        '<button class="mat-act" onclick="approveShare(\'' + m.material_id + '\')">Approve</button>' +
-        '<button class="mat-x" title="Deny" onclick="denyShare(\'' + m.material_id + '\')">×</button></div>';
-    }).join('');
-  } catch (e) { wrap.style.display = 'none'; }
+    var resp = await fetch('/api/education/classes/' + encodeURIComponent(classId) + '/share-requests');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var rows = (await resp.json()).requests || [];
+    if (!rows.length) { wrap.classList.add('lm-hide'); return; }
+    wrap.classList.remove('lm-hide');
+    list.innerHTML = '<ul class="lm-list">' + rows.map(function (m) {
+      return matRow(m, esc('Requested' + (m.requested_by_name ? ' by ' + m.requested_by_name : '')),
+        '<button type="button" class="lm-btn lm-btn-primary" data-act="approve" data-id="' + esc(m.material_id) + '">Approve</button>' +
+        '<button type="button" class="lm-btn lm-btn-ghost" data-act="deny" data-id="' + esc(m.material_id) + '">Deny</button>');
+    }).join('') + '</ul>';
+  } catch (e) { wrap.classList.add('lm-hide'); }
 }
 
-/** Share (teacher) or request-to-share (student) a private document. */
+/** Share (the class's teacher) or request-to-share (everyone else) a private document. */
 async function requestOrShare(id) {
   try {
-    var resp = await fetch('/api/education/materials/' + id + '/share-request', { method: 'POST' });
-    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'failed');
+    var resp = await fetch('/api/education/materials/' + encodeURIComponent(id) + '/share-request', { method: 'POST' });
+    if (!resp.ok) throw new Error((await resp.json().catch(function () { return {}; })).error || 'HTTP ' + resp.status);
+    LM.toast(IS_TEACHER_HERE ? 'Shared with the class.' : 'Share request sent to your teacher.');
     loadMaterials();
-  } catch (e) { alert('Could not share: ' + e.message); }
+  } catch (e) { LM.toast('Could not share: ' + e.message); }
 }
 
 async function deleteDoc(id) {
   if (!confirm('Delete this document? This removes it for good.')) return;
   try {
-    var resp = await fetch('/api/education/materials/' + id, { method: 'DELETE' });
-    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'failed');
+    var resp = await fetch('/api/education/materials/' + encodeURIComponent(id), { method: 'DELETE' });
+    if (!resp.ok) throw new Error((await resp.json().catch(function () { return {}; })).error || 'HTTP ' + resp.status);
+    LM.toast('Document deleted.');
     loadMaterials();
-  } catch (e) { alert('Could not delete: ' + e.message); }
+  } catch (e) { LM.toast('Could not delete: ' + e.message); }
 }
 
 async function approveShare(id) {
-  try { await fetch('/api/education/materials/' + id + '/approve', { method: 'POST' }); loadMaterials(); }
-  catch (e) { alert('Could not approve: ' + e.message); }
+  try {
+    var resp = await fetch('/api/education/materials/' + encodeURIComponent(id) + '/approve', { method: 'POST' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    LM.toast('Shared with the class.');
+    loadMaterials();
+  } catch (e) { LM.toast('Could not approve: ' + e.message); }
 }
 async function denyShare(id) {
-  try { await fetch('/api/education/materials/' + id + '/deny', { method: 'POST' }); loadMaterials(); }
-  catch (e) { alert('Could not deny: ' + e.message); }
+  try {
+    var resp = await fetch('/api/education/materials/' + encodeURIComponent(id) + '/deny', { method: 'POST' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    LM.toast('Request denied; the document stays private to its owner.');
+    loadMaterials();
+  } catch (e) { LM.toast('Could not deny: ' + e.message); }
 }
 
 /** Upload a document (or phone photo) to this class, then refresh the list. */
@@ -559,6 +483,7 @@ async function uploadDoc(input, kind) {
   if (!input.files || !input.files[0]) return;
   var file = input.files[0];
   var status = document.getElementById('matStatus');
+  status.className = 'lm-status lm-mt-md';
   status.textContent = 'Uploading ' + file.name + '…';
   var fd = new FormData();
   fd.append('file', file);
@@ -569,34 +494,19 @@ async function uploadDoc(input, kind) {
   if (share && share.checked) fd.append('share', 'true');
   try {
     var resp = await fetch('/api/education/materials', { method: 'POST', body: fd });
-    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'upload failed');
+    if (!resp.ok) throw new Error((await resp.json().catch(function () { return {}; })).error || 'upload failed');
     var out = await resp.json();
     var shareMsg = out.shareStatus === 'approved' ? ' — shared with the class.'
       : out.shareStatus === 'requested' ? ' — share request sent to your teacher.'
       : (out.grounded ? ' — the tutor can now use it.' : '');
+    status.classList.add('is-success');
     status.textContent = file.name + ' added ✓' + shareMsg;
     loadMaterials();
-  } catch (e) { status.textContent = 'Upload failed: ' + e.message; }
+  } catch (e) { status.classList.add('is-error'); status.textContent = 'Upload failed: ' + e.message; }
   input.value = '';
 }
 
-/** Resolve identity: reveal the owner-only Manage tab + teacher share controls. */
-async function loadMe() {
-  try {
-    var me = await (await fetch('/api/education/me')).json();
-    var isOwner = classData && (me.role === 'admin' || classData.teacher_student_id === me.studentId);
-    if (isOwner) {
-      IS_TEACHER_HERE = true;
-      document.getElementById('manageTab').style.display = '';
-      var lbl = document.getElementById('matShareLabel');
-      if (lbl) lbl.textContent = 'Also share with the whole class';
-      populateManage();
-      loadStudents();
-      loadMaterials(); // re-render so teacher share/approve controls appear
-    }
-  } catch (e) { /* not owner / not signed in — leave Manage hidden */ }
-}
-
+// ── Manage ──────────────────────────────────────────────────────────────────
 /** Fill the settings form from the already-loaded classData + /info metadata. */
 function populateManage() {
   if (!classData) return;
@@ -616,30 +526,28 @@ function populateManage() {
 /** Reflect published state on the Class Bank control. */
 function renderPublishState() {
   var published = classData && classData.published;
-  var btn = document.getElementById('mPublishBtn');
-  var state = document.getElementById('mPublishState');
-  if (btn) btn.textContent = published ? 'Remove from class bank' : 'Publish to class bank';
-  if (state) state.textContent = published ? 'Currently published — students can find and join it.' : 'Currently private.';
+  document.getElementById('mPublishBtn').textContent = published ? 'Remove from class bank' : 'Publish to class bank';
+  document.getElementById('mPublishState').textContent = published ? 'Currently published — students can find and join it.' : 'Currently private.';
 }
 
-/** Publish/unpublish this class to the school-wide bank (teacher only; a
- *  non-teacher owner gets a clear message). */
+/** Publish/unpublish this class to the school-wide bank (teachers and admins; the route refuses everyone else). */
 async function togglePublish() {
   var next = !(classData && classData.published);
   try {
-    var resp = await fetch('/api/education/classes/' + classId, {
+    var resp = await fetch('/api/education/classes/' + encodeURIComponent(classId), {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ published: next })
     });
-    if (resp.status === 403) { alert('Only teachers can publish a class to the school bank.'); return; }
-    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'failed');
+    if (resp.status === 403) { LM.toast('Only teachers can publish a class to the school bank.'); return; }
+    if (!resp.ok) throw new Error((await resp.json().catch(function () { return {}; })).error || 'HTTP ' + resp.status);
     classData.published = next;
-    renderPublishState();
-    alert(next ? 'Published — students can now find this class in the Class Bank.' : 'Removed from the Class Bank — this class is private again.');
-  } catch (e) { alert('Could not change publish state: ' + e.message); }
+    renderPublishState(); renderInfoTab();
+    LM.toast(next ? 'Published — students can now find this class in the Class Bank.' : 'Removed from the Class Bank — this class is private again.');
+  } catch (e) { LM.toast('Could not change publish state: ' + e.message); }
 }
 
 async function saveSettings() {
   var status = document.getElementById('mSaveStatus');
+  status.className = 'lm-status';
   status.textContent = 'Saving…';
   var body = {
     name: document.getElementById('mName').value.trim(),
@@ -652,112 +560,125 @@ async function saveSettings() {
     description: document.getElementById('mDescription').value.trim()
   };
   try {
-    var resp = await fetch('/api/education/classes/' + classId, {
+    var resp = await fetch('/api/education/classes/' + encodeURIComponent(classId), {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     });
-    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'save failed');
+    if (!resp.ok) throw new Error((await resp.json().catch(function () { return {}; })).error || 'save failed');
+    status.classList.add('is-success');
     status.textContent = 'Saved ✓';
-    // Reflect changes in the header without a full reload
+    // Reflect changes in the header and info without a full reload
     classData.name = body.name; classData.teacher_name = body.teacherName;
     classData.subject = body.subject; classData.grade_level = body.gradeLevel;
     classData.description = body.description;
     classData.metadata = Object.assign({}, classData.metadata, { room: body.room, schedule: body.schedule, website: body.website });
-    document.getElementById('className').textContent = body.name;
-    document.getElementById('classTeacher').textContent = body.teacherName;
-    document.getElementById('classGrade').textContent = body.gradeLevel;
-    document.getElementById('classSubject').textContent = body.subject;
-    setTimeout(function(){ status.textContent = ''; }, 2500);
-  } catch (e) { status.textContent = 'Could not save: ' + e.message; }
+    classInfo = Object.assign({}, classInfo || {}, { metadata: classData.metadata });
+    renderHeader(); renderInfoBar(classData.metadata);
+    LM.classesChanged();
+    setTimeout(function () { status.textContent = ''; }, 2500);
+  } catch (e) { status.classList.add('is-error'); status.textContent = 'Could not save: ' + e.message; }
 }
 
 async function loadStudents() {
+  var list = document.getElementById('mStudentList');
   try {
-    var data = await (await fetch('/api/education/classes/' + classId + '/students')).json();
-    var list = document.getElementById('mStudentList');
-    var rows = data.students || [];
-    if (!rows.length) { list.innerHTML = '<div class="empty">No one enrolled yet.</div>'; return; }
-    list.innerHTML = rows.map(function(s) {
-      return '<div class="roster-row"><span>' + esc(s.name || s.email) + ' <span style="color:var(--text-muted);font-size:11px;">' + esc(s.email || '') + '</span></span>' +
-        '<span class="roster-x" title="Remove" onclick="removeStudent(\'' + s.student_id + '\')">×</span></div>';
+    var resp = await fetch('/api/education/classes/' + encodeURIComponent(classId) + '/students');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var rows = (await resp.json()).students || [];
+    if (!rows.length) { list.innerHTML = '<li class="lm-empty is-compact"><strong>No one enrolled yet.</strong>Add a student by email above.</li>'; return; }
+    list.innerHTML = rows.map(function (s) {
+      var label = s.name || s.email || 'Student';
+      var initials = String(label).split(/\s+/).map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase();
+      return '<li class="lm-item"><span class="lm-avatar" aria-hidden="true">' + esc(initials) + '</span>' +
+        '<div class="lm-item-body"><strong>' + esc(label) + '</strong><small>' + esc(s.email || '') + '</small></div>' +
+        '<button type="button" class="lm-btn lm-btn-quiet lm-btn-icon" data-act="remove" data-id="' + esc(s.student_id) + '" aria-label="Remove ' + esc(label) + '">×</button></li>';
     }).join('');
-  } catch (e) { /* silent */ }
+  } catch (e) { list.innerHTML = '<li class="lm-empty is-compact">The roster could not be loaded (' + esc(e.message) + ').</li>'; }
 }
 
 async function addStudent() {
   var email = document.getElementById('mStudentEmail').value.trim();
   if (!email) return;
   try {
-    var resp = await fetch('/api/education/classes/' + classId + '/students', {
+    var resp = await fetch('/api/education/classes/' + encodeURIComponent(classId) + '/students', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email })
     });
-    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'failed');
+    if (!resp.ok) throw new Error((await resp.json().catch(function () { return {}; })).error || 'HTTP ' + resp.status);
     document.getElementById('mStudentEmail').value = '';
+    LM.toast(email + ' added to the class.');
     loadStudents();
-  } catch (e) { alert('Could not add student: ' + e.message); }
+  } catch (e) { LM.toast('Could not add student: ' + e.message); }
 }
 
 async function removeStudent(studentId) {
   if (!confirm('Remove this student from the class? Their own notes stay private to them.')) return;
   try {
-    await fetch('/api/education/classes/' + classId + '/students/' + studentId, { method: 'DELETE' });
+    var resp = await fetch('/api/education/classes/' + encodeURIComponent(classId) + '/students/' + encodeURIComponent(studentId), { method: 'DELETE' });
+    if (!resp.ok) throw new Error((await resp.json().catch(function () { return {}; })).error || 'HTTP ' + resp.status);
+    LM.toast('Student removed.');
     loadStudents();
-  } catch (e) { alert('Could not remove student: ' + e.message); }
+  } catch (e) { LM.toast('Could not remove student: ' + e.message); }
 }
 
 async function toggleArchive() {
   var archiving = classData.status !== 'archived';
   var next = archiving ? 'archived' : 'active';
   try {
-    var resp = await fetch('/api/education/classes/' + classId, {
+    var resp = await fetch('/api/education/classes/' + encodeURIComponent(classId), {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next })
     });
-    if (!resp.ok) throw new Error('failed');
+    if (!resp.ok) throw new Error((await resp.json().catch(function () { return {}; })).error || 'HTTP ' + resp.status);
     classData.status = next;
     document.getElementById('mArchiveBtn').textContent = archiving ? 'Unarchive (show again)' : 'Archive class';
-    alert(archiving ? 'Class archived — hidden from the class list, but all history is kept.' : 'Class is active again.');
-  } catch (e) { alert('Could not change visibility: ' + e.message); }
+    renderHeader();
+    LM.classesChanged();
+    LM.toast(archiving ? 'Class archived — hidden from the class list, but all history is kept.' : 'Class is active again.');
+  } catch (e) { LM.toast('Could not change visibility: ' + e.message); }
 }
 
 async function deleteClass() {
   if (!confirm('Delete "' + (classData.name || 'this class') + '" permanently? This removes the class and its shared materials for everyone. This cannot be undone.\n\nTip: choose Archive instead if you only want to hide it.')) return;
   try {
-    var resp = await fetch('/api/education/classes/' + classId, { method: 'DELETE' });
-    if (!resp.ok) throw new Error((await resp.json().catch(function(){return{};})).error || 'failed');
+    var resp = await fetch('/api/education/classes/' + encodeURIComponent(classId), { method: 'DELETE' });
+    if (!resp.ok) throw new Error((await resp.json().catch(function () { return {}; })).error || 'HTTP ' + resp.status);
+    LM.classesChanged();
     window.location.href = '/api/education/dashboard';
-  } catch (e) { alert('Could not delete class: ' + e.message); }
+  } catch (e) { LM.toast('Could not delete class: ' + e.message); }
 }
 
+// ── Lectures ────────────────────────────────────────────────────────────────
 async function loadLectures() {
   try {
-    var resp = await fetch('/api/education/lectures?classId=' + classId);
-    if (!resp.ok) { renderLectures([]); return; }
-    var data = await resp.json();
-    renderLectures(data.lectures || []);
-  } catch (e) { renderLectures([]); }
+    var resp = await fetch('/api/education/lectures?classId=' + encodeURIComponent(classId));
+    renderLectures(resp.ok ? ((await resp.json()).lectures || []) : null);
+  } catch (e) { renderLectures(null); }
 }
 
 function renderLectures(lectures) {
-  document.getElementById('lectureCount').textContent = lectures.length;
   var container = document.getElementById('lectureList');
+  var badge = document.getElementById('lectureCount');
+  if (lectures === null) { badge.textContent = ''; container.innerHTML = '<div class="lm-empty"><strong>Lectures could not be loaded right now.</strong>Nothing is assumed in their place; try again in a moment.</div>'; return; }
+  badge.textContent = String(lectures.length);
   if (lectures.length === 0) {
-    container.innerHTML = '<div class="empty">No lectures or presentations yet!<br>Tap the red &#9679; button below to record a lecture — you\'ll get a replay <b>presentation</b>, flashcards &amp; notes automatically. &#127908;</div>';
+    container.innerHTML = CAN_MANAGE
+      ? '<div class="lm-empty"><div class="lm-empty-icon">🎤</div><strong>No lectures yet.</strong>Record one and a replay presentation, study notes and flashcards are made from it.<br><button type="button" class="lm-btn lm-btn-primary" onclick="openRecorder()">Record a lecture</button></div>'
+      : '<div class="lm-empty"><div class="lm-empty-icon">🎧</div><strong>No lectures yet.</strong>When your teacher records a lecture, its replay, transcript and study notes appear here.</div>';
     return;
   }
-  var withDeck = lectures.filter(function(l){ return l.slides_path; }).length;
-  var banner = '<div class="gen-banner">&#127908; Record a lecture (red &#9679; button) and a replay <b>presentation</b> is generated automatically.' +
-    (withDeck ? ' Tap <b>&#9654; Presentation</b> on any lecture below to play it.' : '') + '</div>';
-  container.innerHTML = banner + lectures.map(function(l) {
-    var date = new Date(l.lecture_date);
-    var dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    var dotClass = l.status === 'complete' ? 'dot-complete' : l.status === 'processing' ? 'dot-processing' : 'dot-pending';
-    var presBtn = l.slides_path ? '<button class="lec-pres" onclick="event.stopPropagation(); openPresentation(\'' + l.lecture_id + '\')">&#9654; Presentation</button>' : '';
-    return '<div class="lecture-card" onclick="openLecture(\'' + l.lecture_id + '\')">' +
-      '<div class="lecture-date">' + dateStr + '</div>' +
-      '<div class="lecture-title">Lecture — ' + (l.lecture_date || 'Unknown date') + '</div>' +
-      '<div class="lecture-status"><span><span class="dot ' + dotClass + '"></span>' + l.status + '</span>' +
-      (l.duration_seconds ? '<span>' + Math.floor(l.duration_seconds / 60) + ' min</span>' : '') +
-      '</div>' + presBtn + '</div>';
-  }).join('');
+  var withDeck = lectures.filter(function (l) { return l.slides_path; }).length;
+  var banner = CAN_MANAGE
+    ? '<div class="lm-callout lm-mb-md">🎤 Record a lecture and a replay <strong>presentation</strong> is generated automatically.' + (withDeck ? ' Tap <strong>▶ Presentation</strong> on a lecture to play it.' : '') + '</div>'
+    : (withDeck ? '<div class="lm-callout lm-mb-md">Tap <strong>▶ Presentation</strong> on a lecture to play its replay.</div>' : '');
+  container.innerHTML = banner + '<ul class="lm-list">' + lectures.map(function (l) {
+    var d = localDate(l.lecture_date);
+    var when = isNaN(d) ? (l.lecture_date || 'Unknown date') : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    var pill = l.status === 'complete' ? '<span class="lm-pill is-success">Ready</span>'
+      : l.status === 'processing' ? '<span class="lm-pill is-warning">Processing</span>'
+      : '<span class="lm-pill is-neutral">' + esc(l.status || 'Pending') + '</span>';
+    var pres = l.slides_path ? '<button type="button" class="lm-btn lm-btn-soft" data-act="pres" data-id="' + esc(l.lecture_id) + '">▶ Presentation</button>' : '';
+    return '<li class="lm-item is-clickable" role="button" tabindex="0" data-act="lecture" data-id="' + esc(l.lecture_id) + '">' + dateChip(l.lecture_date) +
+      '<div class="lm-item-body"><strong>Lecture — ' + esc(when) + '</strong><small>' + (l.duration_seconds ? Math.floor(l.duration_seconds / 60) + ' min' : 'Tap to read the transcript and notes') + '</small></div>' +
+      '<div class="lm-item-actions">' + pill + pres + '</div></li>';
+  }).join('') + '</ul>';
 }
 
 /** Open a lecture's generated presentation (replay deck) in a new tab. */
@@ -766,178 +687,157 @@ function openPresentation(lectureId) {
 }
 
 async function openLecture(lectureId) {
-  document.getElementById('lectureList').style.display = 'none';
-  var detail = document.getElementById('lectureDetail');
-  detail.classList.add('active');
-  document.getElementById('detailContent').textContent = 'Loading...';
-
+  document.getElementById('lectureList').classList.add('lm-hide');
+  document.getElementById('lectureDetail').classList.remove('lm-hide');
+  document.getElementById('detailContent').textContent = 'Loading…';
   try {
-    var resp = await fetch('/api/education/lectures/' + lectureId);
-    if (!resp.ok) throw new Error('Failed to load');
+    var resp = await fetch('/api/education/lectures/' + encodeURIComponent(lectureId));
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
     currentLecture = await resp.json();
-    document.getElementById('detailTitle').textContent = 'Lecture — ' + (currentLecture.lecture_date || '');
+    var d = localDate(currentLecture.lecture_date);
+    document.getElementById('detailTitle').textContent = 'Lecture — ' + (isNaN(d) ? (currentLecture.lecture_date || '') : d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }));
     showDetailTab('transcript');
   } catch (e) {
-    document.getElementById('detailContent').textContent = 'Failed to load lecture: ' + e.message;
+    document.getElementById('detailContent').textContent = 'This lecture could not be loaded (' + e.message + ').';
   }
 }
 
 function closeLectureDetail() {
-  document.getElementById('lectureDetail').classList.remove('active');
-  document.getElementById('lectureList').style.display = '';
+  document.getElementById('lectureDetail').classList.add('lm-hide');
+  document.getElementById('lectureList').classList.remove('lm-hide');
   currentLecture = null;
 }
 
 function showDetailTab(tab) {
-  document.querySelectorAll('.detail-tab').forEach(function(t) {
-    t.classList.toggle('active', t.textContent.toLowerCase().includes(tab));
-  });
+  document.querySelectorAll('[data-dtab]').forEach(function (t) { var on = t.getAttribute('data-dtab') === tab; t.classList.toggle('active', on); t.setAttribute('aria-selected', on ? 'true' : 'false'); });
   var content = document.getElementById('detailContent');
-  if (!currentLecture) { content.textContent = 'No data'; return; }
-  switch (tab) {
-    case 'transcript': content.textContent = currentLecture.transcript || 'Transcript not available yet. Processing may still be in progress.'; break;
-    case 'notes': content.textContent = currentLecture.notes || 'Notes not generated yet.'; break;
-  }
+  if (!currentLecture) { content.textContent = 'Nothing to show yet.'; return; }
+  if (tab === 'notes') content.textContent = currentLecture.notes || 'Study notes are not ready yet.';
+  else content.textContent = currentLecture.transcript || 'The transcript is not ready yet. Processing may still be in progress.';
 }
 
+// ── Assignments ─────────────────────────────────────────────────────────────
 async function loadAssignments() {
   try {
-    var resp = await fetch('/api/education/assignments?classId=' + classId);
-    if (!resp.ok) { renderAssignments([]); return; }
-    var data = await resp.json();
-    renderAssignments(data.assignments || []);
-  } catch (e) { renderAssignments([]); }
+    var resp = await fetch('/api/education/assignments?classId=' + encodeURIComponent(classId));
+    renderAssignments(resp.ok ? ((await resp.json()).assignments || []) : null);
+  } catch (e) { renderAssignments(null); }
 }
 
 function renderAssignments(assignments) {
-  document.getElementById('assignCount').textContent = assignments.length;
   var container = document.getElementById('assignmentList');
+  var badge = document.getElementById('assignCount');
+  if (assignments === null) { badge.textContent = ''; container.innerHTML = '<div class="lm-empty"><strong>Assignments could not be loaded right now.</strong>Nothing is assumed in their place; try again in a moment.</div>'; return; }
+  badge.textContent = String(assignments.length);
   if (assignments.length === 0) {
-    container.innerHTML = '<div class="empty">No assignments yet.</div>';
+    container.innerHTML = '<div class="lm-empty"><div class="lm-empty-icon">🌤️</div><strong>No assignments yet.</strong>Enjoy the breathing room — anything your teacher adds shows up here.</div>';
     return;
   }
-  container.innerHTML = assignments.map(function(a) {
-    var dateHtml = '';
-    if (a.due_date) {
-      var d = new Date(a.due_date);
-      dateHtml = '<div class="assign-date"><span class="day">' + d.getDate() + '</span><span class="month">' +
-        d.toLocaleString('en-US', { month: 'short' }) + '</span></div>';
-    }
-    return '<div class="assignment-item">' + dateHtml +
-      '<div style="flex:1"><div class="assign-title">' + esc(a.title) + '</div>' +
-      '<div class="assign-type"><span class="tag">' + (a.assignment_type || 'homework') + '</span>' +
-      (a.description ? ' ' + esc(a.description.substring(0, 80)) : '') + '</div></div>' +
-      '<button class="lm-read-btn" onclick="event.stopPropagation();breakDown(\'' + escAttr(a.title) + '\')">Break it down</button>' +
-      '<button class="lm-read-btn" onclick="speak(\'' + escAttr(a.title + '. ' + (a.description || '')) + '\')">&#128264;</button></div>';
-  }).join('');
+  container.innerHTML = '<ul class="lm-list">' + assignments.map(function (a) {
+    var desc = a.description ? esc(a.description.substring(0, 80)) : '';
+    return '<li class="lm-item">' + (a.due_date ? dateChip(a.due_date) : '') +
+      '<div class="lm-item-body"><strong>' + esc(a.title) + '</strong><small><span class="lm-pill is-neutral">' + esc(a.assignment_type || 'homework') + '</span>' + (desc ? ' ' + desc : '') + '</small></div>' +
+      '<div class="lm-item-actions"><button type="button" class="lm-btn lm-btn-soft" data-act="breakdown" data-title="' + esc(a.title) + '">Break it down</button>' + sayBtn(a.title + '. ' + (a.description || '')) + '</div></li>';
+  }).join('') + '</ul>';
 }
 
+// ── Flashcards ──────────────────────────────────────────────────────────────
 async function loadFlashcardSets() {
   try {
-    var resp = await fetch('/api/education/flashcards/sets?classId=' + classId);
-    if (!resp.ok) { renderFcSets([]); return; }
-    var data = await resp.json();
-    renderFcSets(data.sets || []);
-  } catch (e) { renderFcSets([]); }
+    var resp = await fetch('/api/education/flashcards/sets?classId=' + encodeURIComponent(classId));
+    renderFcSets(resp.ok ? ((await resp.json()).sets || []) : null);
+  } catch (e) { renderFcSets(null); }
 }
 
 function renderFcSets(sets) {
-  document.getElementById('fcCount').textContent = sets.length;
   var container = document.getElementById('flashcardSets');
+  var badge = document.getElementById('fcCount');
+  if (sets === null) { badge.textContent = ''; container.innerHTML = '<div class="lm-empty"><strong>Flashcard sets could not be loaded right now.</strong>Nothing is assumed in their place; try again in a moment.</div>'; return; }
+  badge.textContent = String(sets.length);
   if (sets.length === 0) {
-    container.innerHTML = '<div class="empty">No flashcards yet! Record a lecture and they will be created for you automatically. &#9733;</div>';
+    container.innerHTML = CAN_MANAGE
+      ? '<div class="lm-empty"><div class="lm-empty-icon">★</div><strong>No flashcard sets yet.</strong>Sets are generated from the lectures you record for this class.<br><button type="button" class="lm-btn lm-btn-primary" onclick="openRecorder()">Record a lecture</button></div>'
+      : '<div class="lm-empty"><div class="lm-empty-icon">★</div><strong>No flashcard sets yet.</strong>They appear here once your teacher’s lectures have been processed.</div>';
     return;
   }
-  container.innerHTML = sets.map(function(s) {
-    return '<div class="fc-set-card" onclick="studySet(\'' + s.set_id + '\')">' +
-      '<div class="fc-set-title">' + esc(s.title) + '</div>' +
-      '<div class="fc-set-meta">' + (s.card_count || 0) + ' cards' +
-      (s.topic ? ' &middot; ' + esc(s.topic) : '') + '</div></div>';
+  container.innerHTML = sets.map(function (s) {
+    var meta = [typeof s.card_count === 'number' || (s.card_count && !isNaN(Number(s.card_count))) ? Number(s.card_count) + ' cards' : '', s.topic || ''].filter(Boolean).join(' · ');
+    return '<button type="button" class="lm-card is-clickable lm-card-stripe" data-act="set" data-id="' + esc(s.set_id) + '">' +
+      '<h3>' + esc(s.title) + '</h3>' + (meta ? '<div class="lm-card-meta">' + esc(meta) + '</div>' : '') + '</button>';
   }).join('');
 }
 
 function studySet(setId) {
-  // Open flashcard study in the same iframe area
-  window.location.href = '/api/education/flashcards?setId=' + setId + '&classId=' + classId;
+  window.location.href = '/api/education/flashcards?setId=' + encodeURIComponent(setId) + '&classId=' + encodeURIComponent(classId);
 }
 
 function openRecorder() {
-  window.location.href = '/api/education/recorder?classId=' + classId;
+  window.location.href = '/api/education/recorder?classId=' + encodeURIComponent(classId);
 }
 
+// ── Calendar ────────────────────────────────────────────────────────────────
 async function loadCalendarEvents() {
+  var container = document.getElementById('calendarList');
+  var badge = document.getElementById('calCount');
   try {
-    var resp = await fetch('/api/education/calendar?classId=' + classId);
-    if (!resp.ok) return;
-    var data = await resp.json();
-    var events = data.events || [];
-    document.getElementById('calCount').textContent = events.length;
-
-    var container = document.getElementById('calendarList');
+    var resp = await fetch('/api/education/calendar?classId=' + encodeURIComponent(classId));
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var events = (await resp.json()).events || [];
+    badge.textContent = String(events.length);
     if (events.length === 0) {
-      container.innerHTML = '<div class="empty">No upcoming events.</div>';
+      container.innerHTML = '<div class="lm-empty"><div class="lm-empty-icon">🗓️</div><strong>No upcoming events.</strong>Due dates and class events for this class appear here.</div>';
       return;
     }
-
-    container.innerHTML = events.map(function(e) {
-      var urgencyColor = e.urgency === 'Due Today' ? '#f87171' : e.urgency === 'Due Tomorrow' ? '#fbbf24' : 'var(--accent-primary)';
-      return '<div class="assignment-item">' +
-        '<div class="assign-date"><span class="day" style="color:' + urgencyColor + '">' + new Date(e.event_date).getDate() + '</span>' +
-        '<span class="month">' + new Date(e.event_date).toLocaleString('en-US', {month:'short'}) + '</span></div>' +
-        '<div><div class="assign-title">' + esc(e.title) + '</div>' +
-        '<div class="assign-type"><span class="tag">' + e.event_type + '</span> ' +
-        '<span style="color:' + urgencyColor + ';font-weight:600;">' + (e.urgency || '') + '</span></div></div></div>';
-    }).join('');
-
-    // Show reminder banner for Due Today / Due Tomorrow items
-    var urgent = events.filter(function(e) { return e.urgency === 'Due Today' || e.urgency === 'Due Tomorrow'; });
+    container.innerHTML = '<ul class="lm-list">' + events.map(function (e) {
+      var tone = e.urgency === 'Due Today' ? 'is-danger' : e.urgency === 'Due Tomorrow' ? 'is-warning' : 'is-info';
+      var dateCls = tone === 'is-danger' ? ' is-urgent' : tone === 'is-warning' ? ' is-soon' : '';
+      return '<li class="lm-item">' + dateChip(e.event_date, dateCls) +
+        '<div class="lm-item-body"><strong>' + esc(e.title) + '</strong><small><span class="lm-pill is-neutral">' + esc(e.event_type || 'event') + '</span></small></div>' +
+        (e.urgency ? '<span class="lm-pill ' + tone + '">' + esc(e.urgency) + '</span>' : '') + '</li>';
+    }).join('') + '</ul>';
+    var urgent = events.filter(function (e) { return e.urgency === 'Due Today' || e.urgency === 'Due Tomorrow'; });
     if (urgent.length > 0) {
       var banner = document.getElementById('reminderBanner');
-      banner.style.display = 'block';
-      banner.innerHTML = urgent.map(function(e) {
-        return '<strong>' + e.urgency + ':</strong> ' + esc(e.title);
-      }).join(' &nbsp;|&nbsp; ');
+      banner.classList.remove('lm-hide');
+      banner.innerHTML = urgent.map(function (e) { return '<strong>' + esc(e.urgency) + ':</strong> ' + esc(e.title); }).join(' &nbsp;·&nbsp; ');
     }
-  } catch (e) { /* silent */ }
+  } catch (e) {
+    badge.textContent = '';
+    container.innerHTML = '<div class="lm-empty"><strong>Events could not be loaded right now.</strong>Nothing is assumed in their place; try again in a moment.</div>';
+  }
 }
 
+// ── Class info (schedule, room, website) ────────────────────────────────────
 async function loadClassInfo() {
   try {
-    var resp = await fetch('/api/education/classes/' + classId + '/info');
-    if (!resp.ok) return;
-    var info = await resp.json();
-    var meta = info.metadata || {};
-
-    if (meta.schedule) document.getElementById('infoSchedule').textContent = meta.schedule;
-    if (meta.room) document.getElementById('infoRoom').textContent = meta.room;
-    if (meta.website) {
-      var link = document.getElementById('infoWebsite');
-      link.href = meta.website;
-      link.style.display = 'inline';
-    }
-
-    // Hide info bar if nothing to show
-    if (!meta.schedule && !meta.room && !meta.website) {
-      document.getElementById('classInfoBar').style.display = 'none';
-    }
-  } catch (e) { /* silent */ }
+    var resp = await fetch('/api/education/classes/' + encodeURIComponent(classId) + '/info');
+    if (!resp.ok) { renderInfoBar({}); return; }
+    classInfo = await resp.json();
+    renderInfoBar(classInfo.metadata || {});
+    renderInfoTab();
+  } catch (e) { renderInfoBar({}); }
 }
 
+function renderInfoBar(meta) {
+  document.getElementById('infoSchedule').textContent = meta.schedule ? '🕘 ' + meta.schedule : '';
+  document.getElementById('infoRoom').textContent = meta.room ? 'Room ' + meta.room : '';
+  var link = document.getElementById('infoWebsite');
+  if (meta.website) { link.href = meta.website; link.classList.remove('lm-hide'); } else link.classList.add('lm-hide');
+  document.getElementById('classInfoBar').classList.toggle('lm-hide', !meta.schedule && !meta.room && !meta.website);
+}
+
+// ── Tabs, tutor hand-off, voice ─────────────────────────────────────────────
 function showTab(tabName) {
-  document.querySelectorAll('.tab').forEach(function(t) { t.classList.toggle('active', t.textContent.toLowerCase().includes(tabName)); });
-  document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.toggle('active', p.id === 'panel-' + tabName); });
-  // Hide record FAB on tutor tab (it blocks the chat input)
-  var fab = document.querySelector('.record-float');
-  if (fab) fab.style.display = tabName === 'tutor' ? 'none' : '';
+  document.querySelectorAll('#classTabs .lm-tab').forEach(function (t) { var on = t.getAttribute('data-tab') === tabName; t.classList.toggle('active', on); t.setAttribute('aria-selected', on ? 'true' : 'false'); });
+  document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.toggle('is-active', p.id === 'panel-' + tabName); });
 }
 
 function breakDown(assignmentTitle) {
-  // Switch to tutor tab and pre-fill a "break this down" request
+  // Switch to the tutor and pre-fill a "break this down" request
   showTab('tutor');
   var frame = document.getElementById('tutorFrame');
   if (frame && frame.contentWindow) {
-    // Wait for iframe to load, then send the message
-    setTimeout(function() {
+    setTimeout(function () {
       try {
         var input = frame.contentDocument.getElementById('input');
         if (input) {
@@ -946,8 +846,8 @@ function breakDown(assignmentTitle) {
           if (sendBtn) sendBtn.click();
         }
       } catch (e) {
-        // Cross-origin — fall back to URL param
-        frame.src = '/api/education/tutor?classId=' + classId + '&prefill=' + encodeURIComponent('Help me break down this assignment into smaller steps: ' + assignmentTitle);
+        // Cross-origin — fall back to the URL param the tutor honours
+        frame.src = '/api/education/tutor?classId=' + encodeURIComponent(classId) + '&prefill=' + encodeURIComponent('Help me break down this assignment into smaller steps: ' + assignmentTitle);
       }
     }, 1000);
   }
@@ -965,11 +865,8 @@ function speak(text) {
 
 function speakDetail() {
   var content = document.getElementById('detailContent').textContent || '';
-  // TTS has limits — read first 2000 chars
-  speak(content.substring(0, 2000));
+  speak(content.substring(0, 2000)); // TTS has limits — read the first 2000 chars
 }
-function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
-function escAttr(s) { return (s || '').replace(/'/g, "\\'").replace(/\n/g, ' ').substring(0, 300); }
 
 init();
 </script>

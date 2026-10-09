@@ -16,6 +16,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Return to manual dispatch before this ever ran. Entry 1 shipped pull_request + push:main + a weekly cron across CodeQL, inventories, source-parity, dependency-audit, secret-scan and several disposable-PostgreSQL suites. This repository is PRIVATE, so every one of those minutes is billed — scripts/publish-store.sh says so in its own header, which is why the nightly publish runs on the operator's box instead of an Actions cron. The same revert landed in the core repo the same day (oshal #142). The gates are KEPT and unchanged; workflow_dispatch stays for a deliberate cloud run. Operator decision 2026-08-06.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | The framework-coupled step now also runs every package's node:test core suite (<package>/tests/*.core.test.js), discovered by glob. They were excluded from the bare-checkout store CI and run by no gate at all. This workflow stays workflow_dispatch: the operator's standing decision (2026-09-14) is no paid CI — this is the manual gate.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | The framework-coupled step also runs every package's .core.spec.mjs browser spec; the Chromium it needs is already installed above for the Vids proof.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Check out full history in the inventories job (backlog #33): the audit validator now compares each passed record's package tree at HEAD with the tree at its sourceSha, and a depth-1 checkout does not hold the audited commit.
 # =============================================================================
 
 name: Security
@@ -107,6 +108,10 @@ jobs:
     steps:
       - name: Check out candidate
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # A passed audit record is current only while HEAD holds the audited package tree;
+          # the validator needs the audited commit itself to compare against.
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0

@@ -3,6 +3,7 @@
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise one real ATS/storage/nightly contract against SQLite and a disposable FORCE-RLS PostgreSQL database.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Take the disposable database and the loopback ATS from the shared tests/helpers modules (career_pg.py, career_fixture.py) and apply the cutover migration set, so every engine write in this contract also passes through the 106 outbox capture triggers as the NOBYPASSRLS owner role.
 
 """Backend-neutral Career storage contract used by the Node release gate.
 
@@ -17,118 +18,18 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 import tempfile
-import threading
 import uuid
-from contextlib import contextmanager
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
-from urllib.parse import parse_qs, quote, urlencode, urlsplit, urlunsplit
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
-MIGRATIONS = [
-    "031-career-hunter.sql",
-    "095-career-corpus.sql",
-    "096-career-corpus-complete.sql",
-    "097-career-postings-view.sql",
-    "100-career-application-provenance.sql",
-    "101-career-apply-claim-lease.sql",
-    "102-career-apply-run-binding.sql",
-    "103-career-interview-source-identity.sql",
-]
+sys.path.insert(0, str(PACKAGE_ROOT / "tests" / "helpers"))
 
-
-class _AtsHandler(BaseHTTPRequestHandler):
-    """Serve the mutable deterministic HTML feed owned by the surrounding test server."""
-
-    def do_GET(self):  # noqa: N802 - BaseHTTPRequestHandler names this hook
-        query = parse_qs(urlsplit(self.path).query)
-        page = int((query.get("page") or ["1"])[0])
-        jobs = self.server.fixture_jobs if page == 1 else []
-        cards = "".join(
-            f'<article><a href="/jobs/{job["id"]}">{job["title"]}</a>'
-            f'<span>{job["location"]}</span></article>'
-            for job in jobs
-        )
-        body = f"<!doctype html><html><body>{cards}</body></html>".encode()
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, _format, *_args):
-        return
-
-
-@contextmanager
-def deterministic_ats():
-    """Yield a loopback ATS URL plus a mutable job-list setter."""
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _AtsHandler)
-    server.fixture_jobs = []
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield f"http://127.0.0.1:{server.server_port}/careers", server
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
-
-
-def _app_database_url(admin_url: str, database: str, role: str, password: str) -> str:
-    parsed = urlsplit(admin_url)
-    host = parsed.hostname or "127.0.0.1"
-    port = f":{parsed.port}" if parsed.port else ""
-    netloc = f"{quote(role)}:{quote(password)}@{host}{port}"
-    return urlunsplit((parsed.scheme, netloc, f"/{database}", parsed.query, ""))
-
-
-@contextmanager
-def disposable_postgres(admin_url: str):
-    """Create an isolated non-superuser database, apply migrations, then remove both."""
-    import psycopg2
-    from psycopg2 import sql
-
-    suffix = uuid.uuid4().hex[:12]
-    database = f"career_contract_{suffix}"
-    role = f"career_contract_role_{suffix}"
-    password = uuid.uuid4().hex
-    admin = psycopg2.connect(admin_url)
-    admin.autocommit = True
-    try:
-        with admin.cursor() as cur:
-            cur.execute(
-                sql.SQL("CREATE ROLE {} LOGIN PASSWORD %s NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS")
-                .format(sql.Identifier(role)),
-                (password,),
-            )
-            cur.execute(
-                sql.SQL("CREATE DATABASE {} OWNER {}")
-                .format(sql.Identifier(database), sql.Identifier(role))
-            )
-        app_url = _app_database_url(admin_url, database, role, password)
-        app = psycopg2.connect(app_url)
-        try:
-            with app.cursor() as cur:
-                for name in MIGRATIONS:
-                    cur.execute((PACKAGE_ROOT / "migrations" / name).read_text(encoding="utf-8"))
-            app.commit()
-        finally:
-            app.close()
-        yield app_url
-    finally:
-        with admin.cursor() as cur:
-            cur.execute(
-                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-                "WHERE datname=%s AND pid <> pg_backend_pid()",
-                (database,),
-            )
-            cur.execute(sql.SQL("DROP DATABASE IF EXISTS {}").format(sql.Identifier(database)))
-            cur.execute(sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier(role)))
-        admin.close()
+from career_fixture import deterministic_ats  # noqa: E402
+from career_pg import CUTOVER_MIGRATIONS, disposable_postgres  # noqa: E402
 
 
 def _read_application(db, conn, posting_id: int) -> dict:
@@ -299,7 +200,7 @@ def run_sqlite() -> dict:
 
 def run_postgres(admin_url: str) -> dict:
     with tempfile.TemporaryDirectory(prefix="career-contract-postgres-") as root:
-        with disposable_postgres(admin_url) as app_url:
+        with disposable_postgres(admin_url, CUTOVER_MIGRATIONS) as app_url:
             os.environ.update({
                 "JOBHUNTER_STORE": "postgres",
                 "DATABASE_URL": app_url,

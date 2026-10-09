@@ -1,0 +1,29 @@
+# Scan to Print slicer engine -- its OWN compose project (never the core stack's: a core deploy's
+# --remove-orphans would sweep it), joined to the stack network under the alias the api's
+# client dials. No host port: only containers on the stack network can reach the bridge.
+name: oshal-scan-to-print-engine
+services:
+  scan-to-print-engine:
+    image: oshal-scan-to-print-engine:local
+    container_name: oshal-scan-to-print-engine
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=1g,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: ${SCAN_TO_PRINT_ENGINE_MEM_LIMIT:-3g}
+    labels:
+      oshal.app: scan-to-print
+    networks:
+      oshal:
+        aliases:
+          - scan-to-print-engine
+networks:
+  oshal:
+    external: true
+    name: ${OSHAL_NETWORK:-oshal-local_oshal}

@@ -82,6 +82,66 @@ verified cleanup. Both new browser recipes pass 28 checks in one host batch;
 their installed browser prerequisites remain pending. The [editor contract](EDITOR.md)
 and README distinguish those results and preserve the earlier failed batch.
 
+## Image filters checkpoint (1.8.3)
+
+Image layers gain the simple filters CREATE-EDIT-03 names: a named look (None, Black
+and white, Vintage, Vivid, Muted, Soft focus) and bounded saturation, grayscale,
+sepia and blur sliders. They are editable layer properties, undoable, saved with the
+project and round-tripped in Create v1 JSON; exported PNG pixels equal the canvas
+preview. No route, permission, migration or provider call is added, so the
+authorization catalog is unchanged. [Filter contract](EDITOR.md#image-filters-183).
+Local proof is the registered `editor-model`, `editor-renderer` and
+`editor-workspace` recipes; installed acceptance for 1.8.3 is not recorded yet.
+This completes the basic manual image operations CREATE-EDIT-03 lists; its Jarvis
+selection and AI-lineage requirements continue in CREATE-EDIT-04.
+
+## Region selection checkpoint (1.8.4)
+
+CREATE-EDIT-04's first slice: a person selects part of an image layer with a lasso,
+a box or the whole visible image. The region is stored in the source image's pixels,
+so zoom, crop, rotation and resize cannot move it onto other pixels (shared
+interaction requirement 1), and it is re-checked before use: deleted, hidden,
+locked, replaced or re-cropped targets and ambiguous stacked images are refused with
+a reason. Jarvis sees a bounded, read-only region summary. No route, permission or
+catalog change. [Region contract](EDITOR.md#region-selection-184). Local proof: the
+registered `editor-region-select` and `editor-region-select-browser` recipes, both
+passed through the core `test:package` host. Candidate child revisions, the
+generation route and compare/accept/reject follow in 04b and 04c.
+
+## Region edit panel checkpoint (1.9.1)
+
+CREATE-EDIT-04's editor half: the Change a region panel shows which region, layer and
+saved revision will be sent and what the configured image service costs, saves pending
+edits first, follows the request with cancel, and offers a side-by-side compare with
+explicit accept (one undoable step on the revision the person holds) and reject. The
+registered `region-edit-browser` recipe drives the real editor in Chromium through the
+real compiled routes over a disposable PostgreSQL with the named fixture provider: two
+complete generate, manual edit, regenerate, edit cycles keep every manual change and
+the title as editable text; a delayed candidate is refused after a newer manual save
+locked its target and after another tab saved; reject, cancel and failure leave the
+project unchanged. [Editor workflow](EDITOR.md#changing-a-region-in-the-editor-191).
+This completes CREATE-EDIT-04's local acceptance for image regions. Still open: brush
+selection, installing 1.9.x (reviewed catalog migration), installed acceptance from
+the Create entry, and one real accounted region edit to establish live provider
+fidelity (a real provider charge).
+
+## Region regeneration checkpoint (1.9.0)
+
+CREATE-EDIT-04's generation and lineage half: a region edit request names its exact
+source revision, target layer and validated region; the media-generation kernel skill
+answers the region crop; sharp composites the answer only inside the region, so every
+outside pixel is byte-identical; the result is a candidate that becomes one child
+revision only when accepted on the revision the person holds. Late, stale and locked
+targets are refused; cancel, failure and timeout keep the last accepted revision.
+`project.generate` and the `generator` role make generation separately authorized, and
+spend is recorded in the canonical ledger. [Region regeneration](EDITOR.md#region-regeneration-190).
+Local proof: `region-edit-composite`, `region-edit-api` (named fixture provider) and
+`region-edit-postgres` (disposable PostgreSQL, two owners, forced policy), plus the
+extended `editor-owner-rls` and `editor-authorization` recipes. Installing needs the
+reviewed catalog migration. Still open for CREATE-EDIT-04: the compare/accept/reject
+panel in the editor, a two-cycle real-browser proof, installed acceptance and one real
+accounted region edit to establish live provider fidelity.
+
 ## Product outcome
 
 The 2026-09-13 UTC engineering request adds a parallel **editable CAD** track.
@@ -147,8 +207,8 @@ The brand kit's first slice is released at store `df09dd73` and documented in
    Video 1.5.0 are staged and inert.
 3. The next slices are CREATE-EDIT-11 through CREATE-EDIT-15 below. CREATE-EDIT-11 (several kits)
    changes the stored shape, so it comes before CREATE-EDIT-12 and CREATE-EDIT-13 if several are taken.
-4. Drawing a deck, document or workbook in the brand's exact colors and faces is a core change,
-   specified in the core backlog on 2026-09-14 and not started; it needs the operator's approval.
+4. Drawing a deck, document or workbook in the brand's exact colors and faces was approved as a core
+   change on 2026-09-22 and is built: the core deck engine's `brandTheme` and AI Office 2.13.0.
 
 ## Phased backlog
 
@@ -238,3 +298,21 @@ remain pending. Do not create catalog entries pointing to nonexistent suites.
 Release a phase only after a person can complete its example workflow from the
 installed Create entry and reopen the result. Update the owning package's
 version, inline documentation, README, backlog and recorded acceptance together.
+
+## CREATE-EDIT-05 progress (manual video timeline, Video-owned)
+
+Delivered in the video package, following `video/EDITOR-PLAN.md` steps 2 and 3.
+
+| Release | What it added |
+|---|---|
+| Video 1.6.2 | The timeline model and compiler |
+| Video 1.7.0 | Persistence, owned media and the named catalog |
+| Video 1.8.0 | Export jobs with real FFmpeg decode |
+| Video 1.9.0 | The editor screen |
+
+Create 1.9.2 adds the **Edit video** rail tile, New card and Home quick start, which open that
+editor. Create adds no route, permission or migration. Still open:
+
+- Installation with the reviewed AUTH-07 catalog migration for Video's first named catalog.
+- A signed-in installed run of the registered cases.
+- AI assistance over a selected clip (plan step 5).

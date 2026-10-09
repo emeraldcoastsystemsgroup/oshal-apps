@@ -16,6 +16,17 @@
  *                     |                             | reason — which carries the exact install command
  *                     |                             | — instead of a hardcoded venv instruction that
  *                     |                             | was wrong on every deployed (Alpine) box.
+ * 2026-09-27 05:00:00 | maintainer@emeraldcoastsystemsgroup.com | ADR-160 S4: the Floater as a RECORD
+ *                     |                             | on the right rail — seeded from the committed
+ *                     |                             | reference design on a click, its stage read
+ *                     |                             | from the route on every load (never stored),
+ *                     |                             | what blocks the next stage, the RED mass
+ *                     |                             | budget, the open limits, and every evaluation
+ *                     |                             | with its medium and engine fingerprints. A row
+ *                     |                             | the route withheld for lacking them is shown as
+ *                     |                             | withheld, never as a result; the sentence that
+ *                     |                             | `fabricable` is not a safety claim is rendered
+ *                     |                             | from the route's own text.
  */
 /* Served by the package route as /api/aero-lab/app.js next to /app (the HTML).
    All data flows from the routes in BUILD_CONTRACT §2a; the only client-side
@@ -861,6 +872,90 @@
       (lastCmd ? '\nnumbers on screen: live engine "' + lastCmd + '" run' : '\nno engine numbers on screen yet');
   }
 
+  /* ── the Floater as a record (ADR-160 S4) ─────────────────────────────── */
+
+  /**
+   * @description Render one vehicle record: the stage badge and ladder, why it is
+   * there and what blocks the next stage, the mass budget, the open limits, and the
+   * evaluations with their medium and engine fingerprints. Every sentence comes from
+   * the route; nothing about the stage or the budget is typed here.
+   * @param {object} v - One entry of GET /vehicles (vehicle + stage), or GET /vehicles/:id.
+   * @returns {string} HTML.
+   */
+  function vehicleHtml(v) {
+    const st = v.stage;
+    const ladder = (v.stages || ['concept', 'sized', 'parts-complete', 'fabricable', 'built'])
+      .map((name) => (st.reached && st.reached.includes(name) ? '<b>' + esc(name) + '</b>' : esc(name))).join(' → ');
+    const blocked = (st.blockedBy || []).map((b) => '<li>' + esc(b) + '</li>').join('');
+    const evals = (v.evaluations || []).map((e) => {
+      const fp = e.engineFingerprints || {};
+      const budget = e.result && e.result.budget;
+      const hash = fp.engineBuildHash ? String(fp.engineBuildHash).slice(0, 12) : '—';
+      return '<tr><td>' + esc(e.sequence) + '</td><td>' + esc(e.mediumId) + '</td>'
+        + '<td>' + esc(fp.package || '?') + ' ' + esc(fp.packageVersion || '?') + ' · ' + esc(hash) + '<br><span class="note">' + esc(fp.generator || '') + '</span></td>'
+        + '<td>' + (budget ? '<span class="budget-' + esc(budget.status) + '">' + esc(budget.status) + ' ' + (budget.deltaG > 0 ? '+' : '') + esc(fmt(budget.deltaG, 1)) + ' g</span>' : '—') + '</td></tr>';
+    }).join('');
+    const withheld = (v.withheld || []).map((w) => '<div class="withheld">evaluation ' + esc(w.sequence) + ' withheld: no ' + esc((w.missing || []).join(', ')) + ' — ' + esc(w.because) + '</div>').join('');
+    const limits = (st.openLimits || []).map((l) => '<li>' + (l.blocking ? '<b>blocks built</b> · ' : '') + esc(l.sentence) + '</li>').join('');
+    const budget = (v.evaluations || []).map((e) => e.result && e.result.budget).filter(Boolean)[0];
+    return '<div><b>' + esc(v.vehicle.name) + '</b> <span class="note">' + esc(v.vehicle.kind) + '</span> <span class="stage">' + esc(st.stage) + '</span></div>'
+      + '<div class="ladder">' + ladder + '</div>'
+      + '<div class="note">' + esc(st.because || '') + '</div>'
+      + (st.next ? '<div class="note" style="margin-top:4px">Next: <b>' + esc(st.next) + '</b> — blocked by</div><ul>' + blocked + '</ul>' : '')
+      + (budget ? '<div style="margin-top:6px">Mass budget: <span class="budget-' + esc(budget.status) + '">' + esc(budget.status.toUpperCase()) + '</span> — real parts ' + esc(fmt(budget.asBuiltG, 1)) + ' g against the ' + esc(fmt(budget.certifiedG, 1)) + ' g ledger (' + (budget.deltaG > 0 ? '+' : '') + esc(fmt(budget.deltaG, 1)) + ' g)</div>' : '')
+      + '<div class="fabricable">' + esc(st.fabricable || v.fabricable || '') + '</div>'
+      + '<div class="note" style="margin-top:6px">Open limits: ' + esc((st.openLimits || []).length) + '</div><ul>' + limits + '</ul>'
+      + '<table><thead><tr><th>#</th><th>medium</th><th>engine</th><th>budget</th></tr></thead><tbody>' + evals + '</tbody></table>'
+      + withheld;
+  }
+
+  /**
+   * @description The one parameterised vehicle path the surface builds (pinned by the contract spec
+   * to the router's /:id read).
+   * @param {string} id - The vehicle id.
+   * @returns {string} The path under /api/aero-lab.
+   */
+  function vehiclePath(id) { return '/vehicles/' + encodeURIComponent(id); }
+
+  /**
+   * @description Seed the Floater from the committed reference design (vehicle + evaluation 1),
+   * then re-read the record so what is shown is what the route computed on read.
+   * @returns {Promise<void>} Resolves when the card is repainted.
+   */
+  async function seedFloater() {
+    const card = $('vehicleCard');
+    card.innerHTML = '<div class="note">Seeding the Floater from reference-design/…</div>';
+    try {
+      await api('POST', '/vehicles/floater/seed');
+      await loadVehicle();
+    } catch (err) {
+      card.innerHTML = '<div class="note" style="color:var(--bad)">' + esc(errText(err)) + '</div>';
+    }
+  }
+
+  /**
+   * @description Load the caller's vehicles. With none, offer the seed; with one, read it in
+   * full (stage, evaluations, withheld rows) and render it.
+   * @returns {Promise<void>} Resolves when the card is painted.
+   */
+  async function loadVehicle() {
+    const card = $('vehicleCard');
+    try {
+      const list = await api('GET', '/vehicles');
+      if (!list.vehicles || list.vehicles.length === 0) {
+        card.innerHTML = '<div class="note">No vehicle record yet. The reference design is a folder of one export run; as a record it gets a stage, a budget check and evaluations that name their engine.</div>'
+          + '<button id="btnSeedFloater" class="primary" style="margin-top:6px">Seed the Floater from the reference design</button>'
+          + '<div class="fabricable">' + esc(list.fabricable || '') + '</div>';
+        $('btnSeedFloater').addEventListener('click', seedFloater);
+        return;
+      }
+      const full = await api('GET', vehiclePath(list.vehicles[0].vehicle.vehicleId));
+      card.innerHTML = vehicleHtml({ ...full, stages: list.stages, fabricable: list.fabricable });
+    } catch (err) {
+      card.innerHTML = '<div class="note" style="color:var(--bad)">' + esc(errText(err)) + '</div>';
+    }
+  }
+
   /* ── chat (Draft with AI) ─────────────────────────────────────────────── */
 
   /**
@@ -957,6 +1052,7 @@
     window.addEventListener('resize', (() => { let t; return () => { clearTimeout(t); t = setTimeout(repaintCharts, 200); }; })());
     renderFingerprint(null);
     loadCaps();
+    loadVehicle();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

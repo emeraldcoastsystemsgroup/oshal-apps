@@ -9,6 +9,109 @@
      matters — without it the surface would have no colours at all. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The all-inclusive Business shells open this first surface with ?audience=company:
+     where the signed-in person's code and files save, which stores are connected and what sits at the top of the
+     oshal-local store, read from the SAME /api/storage routes this package already answers (GET /home-summary,
+     GET /prefs and GET /local/list: owner-scoped SELECTs and one directory listing), painted by the shared kit in the
+     company grammar. It never POSTs /assistant (a chat turn runs a model and acts with the caller's tokens) and never
+     reads /dropbox/folders or /github/repos (live calls to the providers). Any other request runs the full Storage
+     Assistant page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var SHOWN = 12;
+  // Display names for the providers the routes answer with; anything else (Automatic, Unavailable) is shown as sent.
+  var NAMES = { github: 'GitHub', dropbox: 'Dropbox', 'google-drive': 'Google Drive', 'oshal-local': 'oshal local' };
+  // The stores this package lists as optional connectors, keyed as oshal_connections names them (Google Drive connects as google).
+  var STORES = [{ conn: 'github', provider: 'github' }, { conn: 'dropbox', provider: 'dropbox' }, { conn: 'google', provider: 'google-drive' }];
+  function call(path) {
+    return fetch('/api/storage' + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j || {} }; });
+    });
+  }
+  function refused(res) { return res.status === 401 || res.status === 403; }
+  function openFull() { window.location.assign(window.location.pathname); }
+  function storeName(provider) { return NAMES[provider] || String(provider || 'Automatic'); }
+  function size(bytes) {
+    var n = Number(bytes); if (!isFinite(n) || n < 0) return '—';
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return Math.round(n / 1024) + ' KB';
+    if (n < 1073741824) return (n / 1048576).toFixed(1).replace(/\.0$/, '') + ' MB';
+    return (n / 1073741824).toFixed(1).replace(/\.0$/, '') + ' GB';
+  }
+  // What the home summary says was explicitly saved: the two target metrics (a provider, Automatic or Unavailable),
+  // the saved-at time from the preferences item's detail ('Saved <iso>') and the route's closing honesty note.
+  function savedState(sum) {
+    var metrics = sum.ok ? sum.body.metrics || [] : [], items = sum.ok ? sum.body.items || [] : [];
+    var metric = function (id) { var m = metrics.filter(function (x) { return x.id === id; })[0]; return m ? String(m.value) : null; };
+    var pref = items.filter(function (i) { return /^Saved /.test(String(i.detail || '')); })[0];
+    var at = pref ? /^Saved (\S+)$/.exec(String(pref.detail)) : null;
+    return { code: metric('code-target'), files: metric('files-target'), savedAt: at ? at[1] : null, saved: !!pref, partial: !!(sum.ok && sum.body.partial), note: items.length ? String(items[items.length - 1].text || '') : '' };
+  }
+  function targetStat(id, label, target, saved, prefs) {
+    var known = saved !== null && saved !== 'Unavailable', isSaved = known && saved !== 'Automatic';
+    var detail = target ? (target.repo || (target.folder && target.folder !== '/' ? target.folder : '')) : '';
+    return { id: id, label: label, value: target ? storeName(target.provider) : known ? storeName(saved) : 'Unavailable',
+      hint: target ? [isSaved ? 'Saved' : known ? 'Automatic' : 'Saved state unavailable', detail].filter(Boolean).join(' · ') : 'Effective target could not be read (HTTP ' + prefs.status + ')',
+      tone: !target || !known ? 'warn' : null };
+  }
+  function usedFor(provider, code, files) {
+    var buckets = [code && code.provider === provider ? 'code' : '', files && files.provider === provider ? 'files' : ''].filter(Boolean);
+    return buckets.length ? 'Target for ' + buckets.join(' and ') : 'Not a target';
+  }
+  function storesSection(prefs, code, files) {
+    var connected = prefs.ok ? prefs.body.connected || [] : [];
+    var items = prefs.ok ? STORES.map(function (s) { var on = connected.indexOf(s.conn) >= 0; return { title: storeName(s.provider), text: usedFor(s.provider, code, files), badge: on ? 'Connected' : 'Not connected', tone: on ? 'ok' : null }; })
+      .concat([{ title: storeName('oshal-local'), text: usedFor('oshal-local', code, files), badge: 'Built in' }]) : [];
+    return { kind: 'list', id: 'stores', title: 'Stores', items: items,
+      note: 'Connected means an authorized connection is on file in Identity. It is not proof the provider is reachable, exported to or has free space.',
+      empty: refused(prefs) ? 'Sign in to see connected stores.' : 'Connected stores could not be read (HTTP ' + prefs.status + ').' };
+  }
+  function filesSection(local) {
+    var files = local.ok ? (local.body.files || []).slice() : [];
+    files.sort(function (a, b) { return String(a.name).toLowerCase() < String(b.name).toLowerCase() ? -1 : 1; });
+    return { kind: 'table', id: 'local-files', title: 'oshal local store', columns: ['File', { label: 'Size', align: 'right' }],
+      note: 'Files at the top of your oshal local store, as the assistant lists them; bot subfolders are not listed here. Browse, download and share through Files.' + (files.length > SHOWN ? ' The first ' + SHOWN + ' of ' + files.length + '.' : ''),
+      empty: local.ok ? 'No files in the oshal local store yet.' : refused(local) ? 'Sign in to see the store.' : 'The store could not be listed (HTTP ' + local.status + ').',
+      rows: files.slice(0, SHOWN).map(function (f) { return [String(f.name || ''), { text: size(f.size) }]; }) };
+  }
+  // A partial summary means its one source failed, so whether anything is saved is unknown: never say "no target saved" then.
+  function lede(sum, s) {
+    var head = !sum.ok ? 'Saved preferences could not be checked (HTTP ' + sum.status + ').' : s.partial ? 'Some saved sources cannot be checked.'
+      : s.saved ? 'Targets saved ' + (s.savedAt ? A.when(s.savedAt) : 'earlier') + '.' : 'No target saved yet: these are the automatic choices from what is connected.';
+    return s.note ? head + ' ' + s.note : head;
+  }
+  function company() {
+    return Promise.all([call('/home-summary'), call('/prefs'), call('/local/list')]).then(function (r) {
+      var sum = r[0], prefs = r[1], local = r[2];
+      if (refused(sum) || refused(prefs)) { var status = refused(sum) ? sum.status : prefs.status;
+        return { kicker: 'Productivity · Storage', title: status === 401 ? 'Sign in to see your storage' : 'This account cannot open Storage',
+          lede: status === 401 ? 'This view shows where the signed-in person’s work saves, and this session is not signed in.' : 'The Storage routes refused this account (HTTP 403).' }; }
+      if (!sum.ok && !prefs.ok) throw new Error((sum.body && sum.body.error) || 'Storage could not read the saved targets (HTTP ' + sum.status + ').');
+      var s = savedState(sum), p = prefs.ok ? prefs.body.prefs || {} : {}, code = p.code || null, files = p.files || null;
+      var connected = prefs.ok ? (prefs.body.connected || []).filter(function (c) { return STORES.some(function (x) { return x.conn === c; }); }) : null;
+      var list = local.ok ? local.body.files || [] : null, total = (list || []).reduce(function (acc, f) { return acc + (Number(f.size) || 0); }, 0);
+      return {
+        kicker: 'Productivity · Storage',
+        title: 'Code → ' + storeName(code ? code.provider : s.code) + ' · Files → ' + storeName(files ? files.provider : s.files),
+        lede: lede(sum, s),
+        actions: [{ label: 'Open the assistant', primary: true, onClick: openFull }, { label: 'Storage settings', href: '/api/storage' }],
+        stats: [
+          targetStat('code', 'Code target', code, s.code, prefs), targetStat('files', 'Files target', files, s.files, prefs),
+          { id: 'connected', label: 'Connected stores', value: connected ? connected.length : 'Unavailable', tone: !connected || !connected.length ? 'warn' : null,
+            hint: !connected ? 'Could not be read (HTTP ' + prefs.status + ')' : connected.length ? connected.map(function (c) { return storeName(STORES.filter(function (x) { return x.conn === c; })[0].provider); }).join(', ') : 'Connect GitHub, Dropbox or Google Drive in Identity' },
+          { id: 'local', label: 'Files in oshal local', value: list ? list.length : 'Unavailable', tone: list ? null : 'warn', hint: list ? (list.length ? size(total) + ' in all' : 'Nothing stored locally yet') : 'Could not be listed (HTTP ' + local.status + ')' }
+        ],
+        sections: [filesSection(local), storesSection(prefs, code, files)]
+      };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'storage', escapeLabel: 'Open Storage in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
   /* Short alias names kept, but DERIVED from the framework theme instead of literal hex, so all
      eleven themes work — not just the dark palette these hex values used to match. Semantic status
@@ -78,7 +181,9 @@ async function send(){
   } catch(e){ thinking.textContent = 'Error: '+e.message; }
   $('sendBtn').disabled=false; $('input').focus();
 }
-add('bot', "Hi — I'm your storage assistant. Try “make me a GitHub repo called oshal-demo”, “save my files to Dropbox”, or “where do my files save?”");
+// The full page only: under an audience view the shared kit paints instead (see the head script), so the greeting,
+// the page's one start step, is not added; the chips and the send bar stay hidden with the rest of the full UI.
+if (!window.AppView || !AppView.active()) add('bot', "Hi — I'm your storage assistant. Try “make me a GitHub repo called oshal-demo”, “save my files to Dropbox”, or “where do my files save?”");
 </script>
 </body>
 </html>

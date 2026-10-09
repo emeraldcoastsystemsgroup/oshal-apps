@@ -11,9 +11,11 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | The pool double answers `connect()` as well as `query()`. Every one of the nine cases below had been red since the kernel moved its lazy trading bootstraps onto the advisory-locked path (ensurePinnedLotsSchema -> runRuntimeSchemaBootstrap -> applyLockedSchema), which checks out a dedicated client: the double answered only `query`, so `pinnedQtyBySymbol` threw `pool.connect is not a function`, ledgerGovernance caught it and answered `{}`, and every assertion read the fallback instead of the thing it was written to assert. Nothing here asserts less than before - the double now satisfies the collaborator contract the kernel actually has. No gate ran this file, which is why the drift was invisible.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Two ways the readout still lied, both driven through the REAL pinned-lot subtraction rather than described: the pool answers protected-lot rows, ledgerGovernance runs the kernel's own subtraction over them, and the answer that comes out is handed to the surface module in a vm - so these cases fail if either half is reverted. (1) A partially pinned symbol: the row prints the venue's 400 while the engine's sentence is about the 250 the autopilot can act on, and nothing reconciled them; the payload now carries both quantities and the explanation opens by saying which is which. (2) A symbol pinned in FULL is dropped by that subtraction before anything governs it, so it read NOT KNOWN - a position deliberately protected, shown as unexamined. It is asserted to read as protected lots, and, in the same render, a genuinely unanswered symbol is asserted to STILL read not known: this separates two things that shared a bucket, it does not empty the bucket.
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial. Since #486/#497 the engine emits NO order for a holding its own filled orders cannot account for, and none for a TRADING_CORE_SYMBOLS ring-fence - and the surface said nothing about either, so a position with no stop, no exit and no trim looked exactly like one under full management. Three boundaries are driven for real rather than described: (1) ledgerGovernance itself - the kernel's replay SQL over a pool that answers real order rows, the real pinned-lot subtraction and the real ring-fence parse - against the live book's own USO shape (0 buys / 4 sells, and USO:0); (2) exitRuleRows, the exported route builder, proving a withheld holding is marked inactive with NO wouldFireNow, because a stop price printed for a stop that will never fire is the silence the mark exists to break; (3) the two UI modules executed in a vm, proving a managed row is unbadged, a withheld one carries its reason IN THE OPEN and not only in a hover title, and - the case this repo keeps failing - that a missing answer reads NOT KNOWN instead of managed. The compiled twin is asserted to carry the same wiring, so a forgotten route rebuild cannot ship a surface whose server never answers.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The idle-cash yield sleeve (ADR-052 addendum P6, trading 1.33.0). GET /ledger's badge and GET /exposure's Exits card now answer through bookGovernance, which hands the kernel's armedYieldSleeve to its governance. Driven through ledgerGovernance and exitRuleRows over the kernel's real resolver, ring-fence parse and cost attachment: unarmed the fund reads as before; armed for the book's kind it reads 'yield sleeve' with no exits and orders still applying, neighbours unchanged; a paper arm does not reach the live book, a strategy knob arms an unarmed book and its explicit 0 disarms an env-armed one (the pool double now answers the applied override when given one); an unaccounted fund reads unaccounted; the Exits card's stop that fires unarmed goes inactive with no would-fire reason; a kernel without armedYieldSleeve keeps the old answer; both reads hand the book's override and kind to bookGovernance, pinned in the source and in the compiled twin.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | The armed sleeve's fund on the POSITIONS TABLE, which no case rendered: the cases stopped at the answer, so the table could paint it wrongly and stay green. Four cases feed the real ledgerGovernance answer (TRADING_YIELD_SLEEVE armed for the book's kind) to the shipped shared-positions.js through renderTable: unarmed the fund's row carries no badge; armed, the badge reads 'yield sleeve' in the settings style the Exits card uses and never the not-known one; the server's sentence is printed outside any title attribute, in the fund's own block, and the fund is not counted under 'the engine will not trade' nor told it still counts toward exposure; an unaccounted neighbour still sits under that headline, counted alone, with the fund's block after it. Entry 4 now sits at the bottom of this block, where new entries go.
  */
 
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 import * as vm from 'vm';
@@ -22,7 +24,7 @@ import { RISK_POLICIES } from '@/features/trading';
 import { positionGovernanceBySymbol } from '@/app/trading-position-governance';
 import { coreConfig } from '@/app/trading-dispatch-core';
 import { exitRuleRows } from '../src-routes/trading-routes-book-read-builders';
-import { ledgerGovernance } from '../src-routes/trading-routes-order-flow-builders';
+import { bookGovernance, ledgerGovernance } from '../src-routes/trading-routes-order-flow-builders';
 
 const src = (f: string): string => readFileSync(path.resolve(__dirname, '..', f), 'utf8');
 const SHARED = src('tools/ui/shared-positions.js');
@@ -44,6 +46,7 @@ const pos = (symbol: string, qty: number, avg = 10): Position => ({
  */
 function poolWith(
   fills: Record<string, Array<{ side: string; qty: number; px: number }>>, fail = false, pins: Record<string, number> = {},
+  override: Record<string, unknown> | null = null,
 ) {
   const query = async (text: string, params?: unknown[]) => {
     if (fail) throw new Error('pool down');
@@ -59,6 +62,7 @@ function poolWith(
         })));
       return { rows };
     }
+    if (/FROM trading_config_overrides/i.test(text)) return { rows: override ? [override] : [] };
     return { rows: [] };
   };
   // `connect()` is part of the contract, not a convenience. The kernel's lazy bootstrap
@@ -327,5 +331,151 @@ describe('the protected-lot overlay: the row, the answer, and the same screen', 
     expect(html).toContain('>not known<');
     expect(html).toContain('is NOT KNOWN');
     expect(html).toContain('1 position is held entirely in protected lots.');
+  });
+});
+
+/**
+ * ADR-052 addendum P6. On a book where the idle-cash yield sleeve is armed, the dispatch treats its
+ * fund as parked cash: no stop, take-profit, trailing exit or trim ever fires on it. GET /ledger's
+ * badge and GET /exposure's Exits card both answer through bookGovernance, which hands the kernel's
+ * armedYieldSleeve to its governance - so these cases drive that function, ledgerGovernance and
+ * exitRuleRows over the kernel's REAL resolver, ring-fence parse and cost attachment.
+ */
+describe('an armed yield sleeve\'s fund reads exempt on the ledger badge and the Exits card', () => {
+  const ENV = ['TRADING_YIELD_SLEEVE', 'TRADING_YIELD_SLEEVE_FLOAT_PCT', 'TRADING_YIELD_SLEEVE_SYMBOL', 'TRADING_CORE_SYMBOLS'];
+  const saved = new Map<string, string | undefined>();
+  beforeEach(() => { for (const k of ENV) { saved.set(k, process.env[k]); delete process.env[k]; } });
+  afterEach(() => { for (const [k, v] of saved) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } });
+
+  const fills = { SGOV: [{ side: 'buy', qty: 150, px: 100 }], ANET: [{ side: 'buy', qty: 20, px: 100 }] };
+  const book = () => [pos('SGOV', 150, 100), pos('ANET', 20, 100)];
+  const override = (yieldSleeveFloatPct: number) => ({
+    id: 'ov', book_id: 'b-live', strategy_name: 'sleeve twin', config: { yieldSleeveFloatPct }, apply_pct: 100, active: true, note: '', created_at: '',
+  });
+
+  it('unarmed, the fund is an ordinary managed holding - the answer is unchanged', async () => {
+    const g = await ledgerGovernance(ctxWith(poolWith(fills)), 'u1', BOOK, book());
+    expect(g.SGOV).toMatchObject({ exitsApply: true, ordersApply: true, reasons: [] });
+  });
+
+  it('armed for the book\'s kind, the fund reads "yield sleeve": no exits, still traded by the sleeve, neighbours unchanged', async () => {
+    process.env.TRADING_YIELD_SLEEVE = 'live';
+    const g = await ledgerGovernance(ctxWith(poolWith(fills)), 'u1', BOOK, book());
+    expect(g.SGOV.reasons.map((r) => [r.kind, r.label])).toEqual([['yield-sleeve', 'yield sleeve']]);
+    expect(g.SGOV).toMatchObject({ exitsApply: false, ordersApply: true, heldQty: 150, governedQty: 150 });
+    expect(g.SGOV.reasons[0].detail).toContain('working float 5% of equity');
+    expect(g.ANET).toMatchObject({ exitsApply: true, ordersApply: true, reasons: [] });
+  });
+
+  it('a paper arm does not reach the live book, and a strategy knob decides over the env either way', async () => {
+    process.env.TRADING_YIELD_SLEEVE = 'paper';
+    expect((await ledgerGovernance(ctxWith(poolWith(fills)), 'u1', BOOK, book())).SGOV.reasons).toEqual([]);
+    const armedByKnob = await ledgerGovernance(ctxWith(poolWith(fills, false, {}, override(8))), 'u1', BOOK, book());
+    expect(armedByKnob.SGOV.reasons[0].detail).toContain('working float 8% of equity');
+    process.env.TRADING_YIELD_SLEEVE = 'live';
+    const offByKnob = await ledgerGovernance(ctxWith(poolWith(fills, false, {}, override(0))), 'u1', BOOK, book());
+    expect(offByKnob.SGOV.reasons, 'an explicit 0 disarms an env-armed book').toEqual([]);
+  });
+
+  it('a fund the engine cannot account for reads unaccounted, not sleeve - the dispatch disarms it for that holding', async () => {
+    process.env.TRADING_YIELD_SLEEVE = 'live';
+    const g = await ledgerGovernance(ctxWith(poolWith({ ANET: fills.ANET })), 'u1', BOOK, book());
+    expect(g.SGOV.reasons.map((r) => r.kind)).toEqual(['unaccounted']);
+    expect(g.SGOV.ordersApply).toBe(false);
+  });
+
+  it('the Exits card: the fund past its stop would fire unarmed; armed, its rules are inactive with no would-fire reason', () => {
+    const sinking: Position = { symbol: 'SGOV', qty: 150, avgEntryPrice: 120, currentPrice: 100, marketValue: 15000, unrealizedPl: -3000, engineAvgCost: 120 };
+    const rows = () => exitRuleRows([sinking], RISK_POLICIES.active, new Map(), 4000000, new Set(), true, new Map([['SGOV', 120]]),
+      bookGovernance([sinking], null, 'live'));
+    const [before] = rows();
+    expect(before.ruleActive).toBe(true);
+    expect(before.wouldFireNow, 'the control: the same position unarmed trips the stop').not.toBeNull();
+    process.env.TRADING_YIELD_SLEEVE = 'live';
+    const [after] = rows();
+    expect(after.ruleActive).toBe(false);
+    expect(after.wouldFireNow).toBeNull();
+    expect(after.governance?.reasons.map((r) => r.kind)).toEqual(['yield-sleeve']);
+  });
+
+  /**
+   * The positions table, fed the answer /ledger gives it: the REAL ledgerGovernance result for this
+   * book with the sleeve armed for its kind, rendered by the shipped shared-positions.js.
+   */
+  const SLEEVE_BADGE = /<span class="pill ([^"]*)"[^>]*>yield sleeve<\/span>/g;
+  const HEADLINE = 'position the engine will not trade';
+  const SLEEVE_BLOCK = '1 position is held as the fund of an armed yield sleeve.';
+  const held = () => [row('SGOV', 150), row('ANET', 20)];
+  const armedAnswer = (orders: Parameters<typeof poolWith>[0] = fills) => {
+    process.env.TRADING_YIELD_SLEEVE = 'live';
+    return ledgerGovernance(ctxWith(poolWith(orders)), 'u1', BOOK, book());
+  };
+  const outsideTitles = (html: string) => html.replace(/title="[^"]*"/g, '');
+
+  it('the positions table, unarmed: the fund\'s row carries no badge and nothing is said under the table', async () => {
+    const html = renderTable(held(), await ledgerGovernance(ctxWith(poolWith(fills)), 'u1', BOOK, book()));
+    expect(html).toContain('<strong>SGOV</strong>');
+    expect(html).not.toContain('yield sleeve');
+    expect(html).not.toContain(HEADLINE);
+  });
+
+  it('the positions table, armed: the badge reads "yield sleeve" in the settings style, never the NOT KNOWN one', async () => {
+    const html = renderTable(held(), await armedAnswer());
+    const styles = [...html.matchAll(SLEEVE_BADGE)].map((m) => m[1]);
+    expect(styles, 'one on the row and one in the block under the table, the same style as the Exits card').toEqual(['fenced', 'fenced']);
+    expect(html).toContain('>yield sleeve<');
+    expect(html).not.toContain('pill unknown');
+    expect(html).not.toContain('>not known<');
+  });
+
+  it('the positions table, armed: the server\'s sentence is in the open, in the fund\'s own block, not under the will-not-trade headline', async () => {
+    const answer = await armedAnswer();
+    const html = renderTable(held(), answer);
+    const open = outsideTitles(html);
+    expect(open, 'the whole sentence, as the server wrote it').toContain(answer.SGOV.reasons[0].detail);
+    expect(open).toContain('the sleeve itself trades it');
+    expect(html).toContain(SLEEVE_BLOCK);
+    expect(html, 'the sleeve trades the fund, so it is not a holding the engine will not trade').not.toContain(HEADLINE);
+    expect(html, 'the engine counts the fund as parked cash').not.toContain('still counts toward exposure and drawdown');
+    expect(html).not.toContain('only the orders are withheld');
+  });
+
+  it('the positions table, armed: an unaccounted neighbour still sits under that headline, counted alone', async () => {
+    const answer = await armedAnswer({ SGOV: fills.SGOV });
+    expect(answer.ANET.reasons.map((r) => r.kind), 'the control: the neighbour really is unaccounted').toEqual(['unaccounted']);
+    expect(answer.SGOV.reasons.map((r) => r.kind)).toEqual(['yield-sleeve']);
+    const html = renderTable(held(), answer);
+    expect(html).toContain('1 position the engine will not trade.');
+    expect(html).not.toContain('2 positions the engine will not trade.');
+    expect(html).toContain('pill unmanaged');
+    const notice = html.slice(html.indexOf('1 position the engine will not trade.'));
+    const block = notice.indexOf(SLEEVE_BLOCK);
+    expect(block, 'the fund keeps its own block beside the finding').toBeGreaterThan(-1);
+    expect(notice.slice(0, block), 'the neighbour is the one under the headline').toContain('<strong>ANET</strong>');
+    expect(notice.slice(0, block)).not.toContain('<strong>SGOV</strong>');
+    expect(notice.slice(block)).toContain('<strong>SGOV</strong>');
+    expect([...html.matchAll(SLEEVE_BADGE)].map((m) => m[1])).toEqual(['fenced', 'fenced']);
+  });
+
+  it('a kernel without armedYieldSleeve keeps the old answer instead of failing the payload', async () => {
+    process.env.TRADING_YIELD_SLEEVE = 'live';
+    vi.resetModules();
+    vi.doMock('@/app/trading-position-governance', async (importOriginal) => ({ ...(await importOriginal<object>()), armedYieldSleeve: undefined }));
+    try {
+      const older = await import('../src-routes/trading-routes-order-flow-builders');
+      const g = older.bookGovernance([{ ...pos('SGOV', 150, 100), engineAvgCost: 100 }], null, 'live');
+      expect(g.SGOV).toMatchObject({ exitsApply: true, ordersApply: true, reasons: [] });
+    } finally {
+      vi.doUnmock('@/app/trading-position-governance');
+      vi.resetModules();
+    }
+  });
+
+  it('both reads hand the book\'s override and kind to bookGovernance, in source and in the compiled twin, so a stale rebuild cannot ship', () => {
+    expect(src('src-routes/trading-routes-order-flow-builders.ts')).toContain('const answered = bookGovernance(costed, override, book.kind);');
+    expect(src('src-routes/trading-routes-book-read-builders.ts')).toContain('bookGovernance(costed, override as Parameters<typeof coreConfig>[0], book.kind)');
+    expect(LEDGER_TWIN).toContain('armedYieldSleeve');
+    expect(LEDGER_TWIN).toMatch(/const answered = bookGovernance\(costed, override, book\.kind\);/);
+    expect(src('routes/trading-routes-book-read-builders.js')).toMatch(/\(0, trading_routes_order_flow_builders_1\.bookGovernance\)\(costed, override, book\.kind\)/);
   });
 });

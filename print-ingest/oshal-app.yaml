@@ -1,3 +1,8 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Declare explicit Print roles and optional existing Jarvis bot authority without inferring kernel operator admission.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — Print Ingest
 #
@@ -13,12 +18,22 @@
 
 name: print-ingest
 suite: ai-knowledge   # ADR-097: primary catalog shelf
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: print-queue-classify
+      unit: printed document
+      tier: T1
+      generation: none
+      degrade: template
 displayName: Print Ingest
 description: >-
   Print a document to the swarm and decide where it belongs. Everything lands in
   one inbox with a recommended filing — a bot's corpus, the swarm's shared
   knowledge, or private to you — and nothing is written until you approve it.
-version: 0.3.1
+version: 0.3.6
 
 # ADR-139 wave 1 — "Send to…" destination: any document becomes a print-inbox intake
 # (extracted to text on the kernel rail, then the normal dedupe/rules/approval queue).
@@ -34,6 +49,9 @@ artifacts:
         - application/msword
       mode: post
       endpoint: /api/print-ingest/documents/import-artifact
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 # ADR-135 D11 + the standing automation directive: a fresh install does nothing
 # until an operator explicitly activates it.
 status: inactive
@@ -62,7 +80,10 @@ smoke:
 #   @/features/rag → rag (the corpus this app files into)
 uses:
   - rag
+  - application-authorization
+  - experience-roles
   - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
+  - test-catalog
 
 # ── ADR-141 per-user readiness (asked by the Intelligent Career group's setup page) ──
 #   subscription — at least one printed document has reached this caller's inbox, which
@@ -79,15 +100,63 @@ dependencies:
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [jarvis]
+    bots:
+      - app: jarvis
+        name: oshal-assistant
     tools: []
     connectors: []
 
-# Lifecycle ownership only (NOT access control — ADR-135 amendment A). Declares
-# the namespace an optional package-owned destination would use, so an operator's
-# `?dropData=true` uninstall can reclaim it. Documents filed to the three shared
-# levels live in collections this app does not own and cannot reclaim, which is
-# why the fan-out set is recorded per document instead.
+# Legacy lifecycle hint grants no access. Native bindings below own only the exact
+# package-qualified rows and preserve original caller/tenant provenance.
+# Declaring publisher/reader roles never assigns them; swarm writes additionally
+# require verified native operator admission.
+authorization:
+  version: 1
+  catalog: authorization.yaml
+  roleTemplates:
+  - id: printer
+    version: 1
+    label: Print operator
+    members:
+    - app: print-ingest
+      role: printer
+  - id: publisher
+    version: 1
+    label: Print publisher
+    members:
+    - app: print-ingest
+      role: publisher
+    - app: jarvis
+      role: chat-user
+  - id: administrator
+    version: 1
+    label: Print administrator
+    members:
+    - app: print-ingest
+      role: administrator
+    - app: jarvis
+      role: chat-user
+ragBindings:
+- alias: my-knowledge
+  owner: print-ingest
+  collection: my-knowledge
+  scope: own
+  resource: rag.private
+- alias: swarm-knowledge
+  owner: print-ingest
+  collection: swarm-knowledge
+  scope: tenant
+  resource: rag.shared
+- alias: assistant-knowledge
+  owner: print-ingest
+  collection: assistant-knowledge
+  scope: tenant
+  resource: rag.bot
+  bot:
+    app: jarvis
+    name: oshal-assistant
+
 ragCollections:
   - print-drop-*
 

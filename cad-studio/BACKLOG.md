@@ -172,3 +172,18 @@ prerequisite in place of `harness:core-test-fixtures`, and one Lab run of it pas
 real run of a few seconds, not a sub-second decline under load.
 
 When it can run: the runner image's Chromium requests `/favicon.ico` and logs a 404 as a console error, so the fixture server must answer it (204), as animatronics' and circuit-lab's fixtures do - otherwise every "no page errors" assertion fails in the sandbox and passes on a host browser.
+
+## The assistant cannot call its route-backed tools yet (2026-10-06)
+
+Since core #1101 and #1103 (2026-10-06), `cad-studio-designer` answers the deployment operator's chat on the
+operator's own Antigravity login, from the shared concierge node. One chat turn as the operator on 2026-10-06 confirmed it.
+Its 10 tools are route-backed (`executorType: api`): `cad-capabilities`, `cad-list-models`, `cad-get-model`, `cad-create-model`, `cad-add-feature`, `cad-update-feature`, `cad-remove-feature`, `cad-move-feature`, `cad-restore-revision`, `cad-rebuild`.
+Core documents that a route-backed tool answers 401 when a bot calls it (core
+`docs/security/remote-application-execution.md`, "Limits"), and Scene Studio's director hit exactly
+that before 0.2.0. No tool call from this package's assistant has been run yet.
+
+- **Done when:** every tool the assistant is meant to call is a package tool
+  (`executor: { executorType: builtin, builtinKey: package }`) bound in an ADR-149 authorization
+  catalog (this package has none yet, so that means writing `authorization.yaml`), the bot is bound in `bindings.bots` (core `docs/apps/package-tools.md`), and one live chat
+  turn as the operator runs a tool and its result is checked against the app's own state. Scene
+  Studio 0.2.0 is the worked example.

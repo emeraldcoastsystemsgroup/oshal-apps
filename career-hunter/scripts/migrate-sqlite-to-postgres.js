@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Preserve durable Apply run correlation while refusing to migrate live one-time claim tokens from an offline SQLite snapshot.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Make every corpus and per-user dataset converge on replay, including stable interview source ids; retain loud natural-key conflicts.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Refuse source postings without required titles instead of manufacturing an apparently valid corpus row.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Mark the loader's operator session as a SQLite replay so migration 106's reverse-sync capture triggers skip rows that came FROM SQLite: projecting them back is a no-op, and a full corpus replay would otherwise copy every posting into the outbox.
  */
 
 // Moves the career-hunter store from SQLite to Postgres.
@@ -190,6 +191,11 @@ async function main() {
   // impersonating each sub. This is the one context where crossing the RLS boundary is
   // correct -- and it is exactly why the isolation test afterwards must run as a plain user.
   await pg.query(`SELECT set_config('oshal.is_operator','on',false)`);
+  // Rows this loader writes came FROM SQLite, so the reverse-sync outbox (migration 106) must not
+  // record them: projecting them back would be a no-op, and a 1.4M-posting replay would copy the
+  // whole corpus into the change log. The capture trigger honours this marker only together with
+  // the operator setting above, so an owner session cannot use it to hide a real write.
+  await pg.query(`SELECT set_config('oshal.career_change_origin','sqlite-replay',false)`);
 
   const users = ONLY_USER ? [ONLY_USER] : listUsers();
   log(`users: ${users.length}${ONLY_USER ? ` (restricted to ${ONLY_USER})` : ''}`);

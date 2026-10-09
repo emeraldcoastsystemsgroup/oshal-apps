@@ -6,6 +6,15 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Await durable GPU task enqueue before returning task identity or reporting box availability.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Make character/model/score access owner-bound at both route and FORCE-RLS layers, narrow box callbacks to a separate exact owner identity, and give each caller an isolated starter character.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep system seed creation in install migrations only so lazy runtime schema validation cannot attempt a cross-owner insert after FORCE RLS is active.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Host each scorecard cell's validation thumbnail in owner-scoped controller storage, tell the scorecard read which cells have one, serve them only to the owner, and lose access when a run expires or is deleted. The box previously reported a bare ComfyUI filename per cell, which no browser can fetch, so no scorecard cell could display an image at all.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Classify late thumbnail callbacks to a deleted model as a missing run; the database foreign key enforces the race boundary.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Carry character identity into dispatch and add owner-scoped creation while preserving gallery lifetime boundaries.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Resolve immutable worker callbacks under the exact owner and validate persisted model filenames without changing public character names.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Delegate bounded character creation to an owner-serialized transaction and stop reporting a stored configuration as ready for GPU training.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Move the ADR-139 dataset destination (receipt/staging schema, GET /dataset, POST /dataset/import, the worker download route and the dataset callback) into lora-dataset-ingest.ts. Import now redeems the handle as the signed-in caller and stages the checked bytes, replacing the service-rail metadata lookup core refuses; this file keeps only the wiring.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Replace the fleet service secret on worker callbacks with per-dispatch callback grants: every train, validate, improve and overnight dispatch mints a grant bound to its owner, character, ticket and callback kinds (lora-callback-grants.ts), and the grant tables join the lazy schema. The callback mount moves to lora-ingest-routes.ts (this file had reached 801 code lines). The scheduled overnight dedupe now reads the character's NEWEST overnight ticket: the ticket service's active-by-metadata lookup returns the OLDEST non-cancelled ticket, so once one night had completed, a repeated tick while that character's next loop was still running found the completed ticket and dispatched a second concurrent loop.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Register the ADR-149 resource adapter the new authorization catalog names, and give every callback grant its owner's verified issuer, which the kernel's signed-package-callbacks rail needs to refresh and authorize the owner a worker callback runs as. Console dispatches take the issuer from the kernel's actor; enabling autonomous mode records the enabling owner's issuer (migration 106) so the nightly schedule can mint that character's grants, and a character enabled before 1.7.0 is skipped as not ready until its owner re-enables it.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | GET /characters is a pure read. It inserted the caller's starter character first, and the native host admits a GET read-only and refuses any SQL write, so the studio's first read answered 502 'SQL mutation requires original writer admission' for every account and listed nothing. The starter is now provisioned only by POST /characters/starter (lora.configure), which the studio offers when an account has no characters; it stays idempotent and owner-bound, and answers the same list GET /characters does.
  */
 
 /**
@@ -31,11 +40,29 @@ import { Router, type Request, type Response } from 'express';
 import * as path from 'path';
 import { createChildLogger } from '@/shared/logger';
 import { runRuntimeSchemaBootstrap } from '@/shared/services/database';
-import { getCaller, getTrustedServiceUserSub, hasValidServiceSecret } from '@/shared/middleware/authz';
-import { requireTrustedServiceUserIdentity } from '@/shared/middleware/trusted-service-user-identity';
-import { summarizeScore, computeWeakCells, type ScoreCell } from './scorecard';
-import { dispatchBoxCommand, buildTrainCommand, buildValidateCommand, buildImproveCommand, buildOvernightCommand } from './lora-train-dispatch';
+import { getCaller, getTrustedServiceUserSub } from '@/shared/middleware/authz';
+import { buildTrainCommand, buildValidateCommand, buildImproveCommand, buildOvernightCommand,
+  characterConfigFromRow, type LoraCharacterConfig, type LoraCharacterRow } from './lora-train-dispatch';
+import { DATASET_REQUIREMENTS, createLoraDatasetRoutes, datasetSchemaStatements } from './lora-dataset-ingest';
+import {
+  CELL_IMAGE_REQUIREMENT,
+  cellImageSchemaStatements,
+  deleteRunCellImages,
+  hostedCellIndexes,
+  parseCellIndex,
+  readCellImage,
+} from './lora-cell-images';
+import {
+  CALLBACK_GRANT_REQUIREMENTS,
+  CALLBACK_GRANT_TTL_HOURS,
+  callbackGrantSchemaStatements,
+  callbackIdentitySchemaStatements,
+  dispatchWithCallbackGrant,
+} from './lora-callback-grants';
+import { isValidIssuer, registerLoraAuthorization, verifiedIssuer } from './lora-authorization';
 import type { AppContext } from '@/app/composition/app-context';
+import { createLoraCharacter } from './lora-character-create';
+import { runWithSystemIdentity } from '@/shared/services/database/request-identity';
 
 const logger = createChildLogger({ module: 'bot-lora-routes' });
 
@@ -110,6 +137,10 @@ export async function ensureLoraSchema(pool: AppContext['pool']): Promise<void> 
         UNIQUE (character_id, version)
       )`,
       'ALTER TABLE oshal_lora_characters ADD COLUMN IF NOT EXISTS owner_sub TEXT',
+      // The box scripts hold no character constants, so the character's whole identity lives here.
+      'ALTER TABLE oshal_lora_characters ADD COLUMN IF NOT EXISTS negative_prompt TEXT',
+      'ALTER TABLE oshal_lora_characters ADD COLUMN IF NOT EXISTS identity_structure TEXT',
+      'ALTER TABLE oshal_lora_characters ADD COLUMN IF NOT EXISTS identity_violation TEXT',
       "UPDATE oshal_lora_characters SET owner_sub = 'system:legacy:lora' WHERE owner_sub IS NULL OR btrim(owner_sub) = ''",
       'ALTER TABLE oshal_lora_characters ALTER COLUMN owner_sub SET NOT NULL',
       'ALTER TABLE oshal_lora_characters DROP CONSTRAINT IF EXISTS oshal_lora_characters_subject_key',
@@ -149,13 +180,46 @@ export async function ensureLoraSchema(pool: AppContext['pool']): Promise<void> 
                              WHERE c.id = oshal_lora_scores.character_id
                                AND (c.owner_sub = current_setting('oshal.current_sub', true)
                                     OR current_setting('oshal.is_operator', true) = 'on')))`,
+      ...cellImageSchemaStatements(),
+      ...datasetSchemaStatements(),
+      ...callbackGrantSchemaStatements(),
+      ...callbackIdentitySchemaStatements(),
     ],
     requirements: [
-      { table: 'oshal_lora_characters', columns: ['id', 'subject', 'display_name', 'trigger_word', 'hero_image', 'base_model', 'ident_prompt', 'autonomous', 'max_hours', 'plateau_epsilon', 'active_version', 'owner_sub', 'created_at'] },
+      { table: 'oshal_lora_characters', columns: ['id', 'subject', 'display_name', 'trigger_word', 'hero_image', 'base_model', 'ident_prompt', 'negative_prompt', 'identity_structure', 'identity_violation', 'autonomous', 'autonomous_issuer', 'max_hours', 'plateau_epsilon', 'active_version', 'owner_sub', 'created_at'] },
       { table: 'oshal_lora_models', columns: ['id', 'character_id', 'version', 'status', 'lora_path', 'base_model', 'dataset_count', 'network_dim', 'epochs', 'steps', 'final_loss', 'duration_sec', 'parent_version', 'ticket_id', 'metrics', 'created_at'] },
       { table: 'oshal_lora_scores', columns: ['id', 'character_id', 'version', 'overall', 'identity_mean', 'quality_mean', 'min_cell', 'cells', 'weak_cells', 'gallery_url', 'created_at'] },
+      CELL_IMAGE_REQUIREMENT,
+      ...DATASET_REQUIREMENTS,
+      ...CALLBACK_GRANT_REQUIREMENTS,
     ],
   });
+}
+
+/** Every column a box command is built from — the box scripts have no character constants left. */
+const CHARACTER_IDENTITY_COLUMNS =
+  'id, subject, trigger_word, hero_image, ident_prompt, negative_prompt, identity_structure, identity_violation, base_model';
+
+/**
+ * @description Load one owner's character with the whole identity the box needs. Every dispatch
+ * route goes through this, so a box command can never be built from a partial row.
+ * @param ctx - App context.
+ * @param subject - The character subject.
+ * @param ownerSub - The authenticated caller.
+ * @returns The row id plus its box configuration, or null when the caller owns no such character.
+ */
+async function loadCharacter(
+  ctx: AppContext,
+  subject: string,
+  ownerSub: string,
+): Promise<{ id: string; config: LoraCharacterConfig; row: Record<string, unknown> } | null> {
+  const row = (await ctx.pool.query(
+    `SELECT ${CHARACTER_IDENTITY_COLUMNS}, autonomous, max_hours, plateau_epsilon
+       FROM oshal_lora_characters WHERE subject = $1 AND owner_sub = $2`,
+    [subject, ownerSub],
+  )).rows[0] as (LoraCharacterRow & { id: string }) | undefined;
+  if (!row) return null;
+  return { id: row.id, config: characterConfigFromRow(row), row: row as unknown as Record<string, unknown> };
 }
 
 /** Resolve a character row id from its subject slug. */
@@ -169,18 +233,173 @@ async function characterId(ctx: AppContext, subject: string, ownerSub: string): 
   return r?.id ?? null;
 }
 
-/** Give each authenticated caller an independent copy of the starter character configuration. */
+/** Select only an existing trained model belonging to the already owner-resolved character. */
+async function existingModelName(ctx: AppContext, config: LoraCharacterConfig, version: number): Promise<string | null> {
+  const result = await ctx.pool.query(
+    `SELECT lora_path FROM oshal_lora_models WHERE character_id = $1 AND version = $2
+       AND status IN ('trained', 'scored')`, [config.id, version],
+  );
+  if (!result.rows.length) return null;
+  const stored = result.rows[0].lora_path;
+  // Old imported versions may have no path. Keep their historical basename; new worker results
+  // record the immutable basename in lora_path. Never expose the worker directory to the browser.
+  return stored ? String(stored).replace(/\\/g, '/').split('/').pop()! : `${config.subject}_v${version}.safetensors`;
+}
+
+type OvernightStartResult =
+  | { state: 'started'; subject: string; ticketId: string; taskId?: string }
+  | { state: 'already-running' | 'not-ready' | 'disabled' | 'failed'; subject: string; detail: string };
+
+/**
+ * The owner a loop's callback grant is minted for. A console run is the verified caller, whose issuer
+ * the grant takes from the kernel's actor. A scheduled run has no caller, so it uses the issuer
+ * recorded when the owner enabled autonomous mode; without one the character is not ready.
+ */
+function overnightOwner(
+  settings: { owner_sub?: string; autonomous_issuer?: string | null }, source: 'console' | 'nightly-schedule',
+): { ownerSub: string; ownerIssuer?: string } | { state: 'not-ready' | 'failed'; detail: string } {
+  const ownerSub = String(settings.owner_sub || '').trim();
+  if (!ownerSub) return { state: 'failed', detail: 'character owner is missing' };
+  if (source === 'console') return { ownerSub };
+  if (!isValidIssuer(settings.autonomous_issuer)) return { state: 'not-ready', detail: 'autonomous mode must be re-enabled by its owner' };
+  return { ownerSub, ownerIssuer: settings.autonomous_issuer };
+}
+
+/** Start one owner-bound overnight loop from the same durable inputs as the manual console action. */
+async function startOvernightLoop(
+  ctx: AppContext,
+  char: { id: string; config: LoraCharacterConfig; row: Record<string, unknown> },
+  source: 'console' | 'nightly-schedule',
+  scheduledAtIso: string,
+  dedupeActive: boolean,
+): Promise<OvernightStartResult> {
+  const subject = char.config.subject;
+  const settings = char.row as { autonomous?: boolean; max_hours?: number; plateau_epsilon?: number; owner_sub?: string; autonomous_issuer?: string | null };
+  if (!settings.autonomous) return { state: 'disabled', subject, detail: 'autonomous mode is not enabled' };
+  const maxHours = Number(settings.max_hours) || 9;
+  const plateau = Number(settings.plateau_epsilon) || 0.005;
+
+  if (dedupeActive) {
+    // NEWEST, not "active": the active lookup returns the oldest non-cancelled ticket, which is a
+    // completed earlier night once one exists, so a still-running loop would never be found.
+    const active = await ctx.ticketService.findLatestTicketByMetadataKey('loraOvernightCharacterId', char.id);
+    if (active && !['complete', 'cancelled'].includes(active.status)) {
+      const ageHours = Math.max(0, (Date.now() - new Date(active.createdAt).getTime()) / 3_600_000);
+      if (ageHours < maxHours + 2) return { state: 'already-running', subject, detail: `active ticket ${active.ticketId}` };
+    }
+  }
+
+  const startVersion = Number((await ctx.pool.query(
+    `SELECT max(version) AS v FROM oshal_lora_models WHERE character_id = $1 AND status IN ('trained', 'scored')`, [char.id],
+  )).rows[0]?.v);
+  if (!Number.isInteger(startVersion)) return { state: 'not-ready', subject, detail: 'no trained/scored starting model' };
+  const modelName = await existingModelName(ctx, char.config, startVersion);
+  if (!modelName) return { state: 'not-ready', subject, detail: `starting model v${startVersion} has no usable artifact` };
+  const owner = overnightOwner(settings, source);
+  if ('state' in owner) return { ...owner, subject };
+  const { ownerSub, ownerIssuer } = owner;
+
+  const ticket = await ctx.ticketService.createTicket({
+    title: `Overnight improve ${subject} (from v${startVersion})`,
+    ticketType: 'lora-train',
+    description: `${source === 'nightly-schedule' ? 'Scheduled' : 'Console'} autonomous improve loop for "${subject}" from v${startVersion} up to ${maxHours}h, plateau ${plateau}. Parks a review at the end.`,
+    status: 'approved', priority: 'none', labels: ['lora', 'overnight', subject], workspaceId: null,
+    assignedAgentId: LORA_DIRECTOR_AGENT_ID, parentTicketId: null, externalProvider: null,
+    externalId: null, externalUrl: null, ownerSub,
+    metadata: {
+      app: 'lora', character: subject, characterId: char.id, action: 'improve-overnight',
+      loraOvernightCharacterId: char.id, source, scheduledAt: scheduledAtIso, startVersion,
+    },
+  });
+  const command = buildOvernightCommand(char.config, startVersion, maxHours, plateau, ownerSub, modelName, ticket.ticketId);
+  // The grant outlives the loop's own budget by the one-shot queue grace, then expires on its own.
+  const dispatched = await dispatchWithCallbackGrant(ctx, { characterId: char.id, ownerSub, ownerIssuer, ticketId: ticket.ticketId,
+    dispatchKind: 'overnight', ttlHours: maxHours + CALLBACK_GRANT_TTL_HOURS }, command);
+  if (!dispatched.ok) {
+    try { await ctx.ticketService.updateStatus(ticket.ticketId, 'cancelled'); } catch { /* preserve the dispatch failure response */ }
+    return { state: 'failed', subject, detail: dispatched.error || 'GPU edge worker rejected the task' };
+  }
+  return { state: 'started', subject, ticketId: ticket.ticketId, taskId: dispatched.taskId };
+}
+
+/** Deterministic framework schedule handler for owner-enabled autonomous characters. */
+export async function runLoraOvernightSchedule(
+  ctx: AppContext,
+  input: { scheduleId: string; scheduledAtIso: string; body: Readonly<Record<string, unknown>> },
+): Promise<{ summary: string }> {
+  const results = await runWithSystemIdentity(async () => {
+    const rows = (await ctx.pool.query(
+      `SELECT ${CHARACTER_IDENTITY_COLUMNS}, autonomous, autonomous_issuer, max_hours, plateau_epsilon, owner_sub
+         FROM oshal_lora_characters
+        WHERE autonomous IS TRUE AND owner_sub IS NOT NULL
+        ORDER BY owner_sub, subject`,
+    )).rows as Array<LoraCharacterRow & { autonomous: boolean; autonomous_issuer: string | null; max_hours: number; plateau_epsilon: number; owner_sub: string }>;
+    const settled: OvernightStartResult[] = [];
+    for (const row of rows) {
+      settled.push(await startOvernightLoop(ctx, {
+        id: row.id, config: characterConfigFromRow(row), row: row as unknown as Record<string, unknown>,
+      }, 'nightly-schedule', input.scheduledAtIso, true));
+    }
+    return settled;
+  });
+  const started = results.filter((r) => r.state === 'started').length;
+  const skipped = results.length - started;
+  logger.info({ scheduleId: input.scheduleId, started, skipped }, 'lora autonomous overnight schedule completed');
+  return { summary: `LoRA overnight schedule: ${started} started, ${skipped} skipped or not ready.` };
+}
+
+/** Service-authenticated mount owned by the manifest declaration; work is invoked by the named export. */
+export function createLoraScheduleRoutes(_ctx: AppContext): Router {
+  const router = Router();
+  router.post('/', (_req: Request, res: Response) => res.status(404).json({ error: 'scheduler_only' }));
+  return router;
+}
+
+/**
+ * @description Give the caller their own copy of the starter character configuration. Idempotent and
+ * owner-bound (ON CONFLICT on owner and subject). Called only from POST /characters/starter: a write
+ * the caller asked for, never a side effect of reading the list.
+ * @param ctx - The app context whose pool runs as the caller.
+ * @param ownerSub - The authenticated owner who receives the copy.
+ */
 async function ensureOwnerStarterCharacter(ctx: AppContext, ownerSub: string): Promise<void> {
   await ctx.pool.query(
     `INSERT INTO oshal_lora_characters
-       (subject, display_name, trigger_word, hero_image, base_model, ident_prompt, owner_sub)
+       (subject, display_name, trigger_word, hero_image, base_model, ident_prompt,
+        negative_prompt, identity_structure, identity_violation, owner_sub)
      VALUES ('oshbrainrot', 'Cyclops (oshbrainrot)', 'oshbrainrot', 'hero_brainrot_00002_.png',
        'v1-5-pruned-emaonly-fp16.safetensors',
        'a one-eyed leathery orange-red screaming cyclops creature, big single eye, wide toothy mouth, stubby clawed legs, long thin arms, glossy 3d render, italian brainrot meme style',
+       'blurry, low quality, deformed, extra eyes, two eyes, text, watermark, multiple characters, jpeg artifacts, lowres',
+       'a one-eyed cyclops creature with a single big eye',
+       'a creature with two eyes',
        $1)
      ON CONFLICT (owner_sub, subject) DO NOTHING`,
     [ownerSub],
   );
+}
+
+/**
+ * @description The caller's characters, oldest first, each with its latest version, version count
+ * and latest overall score. Read only.
+ * @param ctx - The app context whose pool runs as the caller.
+ * @param ownerSub - The authenticated owner.
+ * @returns The character rows GET /characters and POST /characters/starter answer with.
+ */
+async function listOwnerCharacters(ctx: AppContext, ownerSub: string): Promise<Array<Record<string, unknown>>> {
+  return (await ctx.pool.query(
+    `SELECT c.subject, c.display_name, c.trigger_word, c.hero_image, c.base_model, c.ident_prompt,
+            'lora-' || replace(c.id::text, '-', '') AS storage_key,
+            c.negative_prompt, c.identity_structure, c.identity_violation,
+            c.autonomous, c.max_hours, c.plateau_epsilon, c.active_version, c.created_at,
+            (SELECT max(version) FROM oshal_lora_models m WHERE m.character_id = c.id) AS latest_version,
+            (SELECT count(*) FROM oshal_lora_models m WHERE m.character_id = c.id) AS version_count,
+            (SELECT s.overall FROM oshal_lora_scores s WHERE s.character_id = c.id ORDER BY s.version DESC LIMIT 1) AS latest_score
+     FROM oshal_lora_characters c
+     WHERE c.owner_sub = $1
+     ORDER BY c.created_at ASC`,
+    [ownerSub],
+  )).rows as Array<Record<string, unknown>>;
 }
 
 /**
@@ -193,6 +412,7 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
   if (ctx.appPackageDir) packageDir = ctx.appPackageDir;
   const surfaceDir = packageDir ? path.join(packageDir, 'tools') : path.resolve(process.cwd(), 'tools');
   const router = Router();
+  registerLoraAuthorization(ctx);
   void ensureLoraSchema(ctx.pool).catch((err) => logger.warn({ err: err?.message }, 'lora schema ensure failed'));
 
   /** GET /ui — the LoRA Studio surface (served from this package's tools/). */
@@ -202,29 +422,59 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
     });
   });
 
-  /** GET /characters — every character with its latest version + latest overall score. */
+  /**
+   * GET /characters — every one of the caller's characters with its latest version + latest overall
+   * score. A pure read: the native host admits a GET read-only, so this never creates the starter
+   * character (POST /characters/starter does, on request).
+   */
   router.get('/characters', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
-      await ensureOwnerStarterCharacter(ctx, sub);
-      const rows = (await ctx.pool.query(
-        `SELECT c.subject, c.display_name, c.trigger_word, c.hero_image, c.base_model, c.ident_prompt,
-                c.autonomous, c.max_hours, c.plateau_epsilon, c.active_version, c.created_at,
-                (SELECT max(version) FROM oshal_lora_models m WHERE m.character_id = c.id) AS latest_version,
-                (SELECT count(*) FROM oshal_lora_models m WHERE m.character_id = c.id) AS version_count,
-                (SELECT s.overall FROM oshal_lora_scores s WHERE s.character_id = c.id ORDER BY s.version DESC LIMIT 1) AS latest_score
-         FROM oshal_lora_characters c
-         WHERE c.owner_sub = $1
-         ORDER BY c.created_at ASC`,
-        [sub],
-      )).rows as Array<Record<string, unknown>>;
-      res.json({ characters: rows });
+      res.json({ characters: await listOwnerCharacters(ctx, sub) });
     } catch (err) {
       logger.error({ err }, 'list characters failed');
       res.status(502).json({ error: (err as Error).message });
     }
   });
+
+  /**
+   * POST /characters/starter — give the caller their own copy of the starter character, then answer
+   * the list exactly as GET /characters does. The studio offers it when an account has no characters;
+   * repeating it changes nothing. Requires lora.configure, like every other character write.
+   */
+  router.post('/characters/starter', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    try {
+      await ensureOwnerStarterCharacter(ctx, sub);
+      res.json({ characters: await listOwnerCharacters(ctx, sub) });
+    } catch (err) {
+      logger.error({ err }, 'add starter character failed');
+      res.status(502).json({ error: 'starter_character_failed', message: 'The starter character could not be saved. Refresh the list before retrying.' });
+    }
+  });
+
+  /**
+   * POST /characters — create one of the caller's own characters. The box scripts take their whole
+   * identity from this row, so a character is a row, never a source edit. A new character may not
+   * reuse another character's hero image or identity sentence: those two ARE the identity, and a
+   * reused one trains and scores the new character as the old one.
+   */
+  router.post('/characters', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    try {
+      const outcome = await createLoraCharacter(ctx, sub, req.body);
+      res.status(outcome.status).json(outcome.body);
+    } catch (err) {
+      logger.error({ err }, 'create character failed');
+      res.status(502).json({ error: 'character_creation_failed', message: 'Character could not be saved. Refresh the list before retrying.' });
+    }
+  });
+
+  // ADR-139 dataset destination: GET /dataset and POST /dataset/import (lora-dataset-ingest.ts).
+  router.use(createLoraDatasetRoutes(ctx, { callerSub, loadCharacter, directorAgentId: LORA_DIRECTOR_AGENT_ID }));
 
   /** GET /models?subject= — the version timeline (each version joined with its score). */
   router.get('/models', async (req: Request, res: Response) => {
@@ -265,30 +515,101 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
          FROM oshal_lora_scores WHERE character_id = $1 AND version = $2`, [id, version],
       )).rows[0] as Record<string, unknown> | undefined;
       if (!row) { res.status(404).json({ error: 'no scorecard for that version' }); return; }
-      res.json({ subject, scorecard: row });
+      // Which cells the studio may render, decided HERE from live storage rather than from a string
+      // the GPU box put in the cell. The box reports a filename on its own disk; that is not a URL,
+      // and trusting one would also hand a callback the ability to choose an image source.
+      const hostedCells = await hostedCellIndexes(ctx.pool, id, version);
+      res.json({ subject, scorecard: row, hostedCells });
     } catch (err) {
       logger.error({ err }, 'get scorecard failed');
       res.status(502).json({ error: (err as Error).message });
     }
   });
 
-  /** POST /characters/:subject/autonomous — toggle the opt-in improve-overnight mode (controller-only). */
+  /** GET /cell-image?subject=&version=&cell= — one hosted validation thumbnail, owner only. */
+  router.get('/cell-image', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    const subject = String(req.query.subject || '').trim();
+    const version = Number(req.query.version);
+    const cellIndex = parseCellIndex(req.query.cell);
+    if (!subject || !Number.isInteger(version) || cellIndex === null) {
+      res.status(400).json({ error: 'subject + version + cell required' });
+      return;
+    }
+    try {
+      // The owner predicate is the same one every other read uses: a character another user owns
+      // never resolves here, so its thumbnails are unreachable before any image query runs.
+      const id = await characterId(ctx, subject, sub);
+      if (!id) { res.status(404).json({ error: 'character not found' }); return; }
+      const image = await readCellImage(ctx.pool, id, version, cellIndex);
+      if (!image) { res.status(404).json({ error: 'no image for that cell' }); return; }
+      res.setHeader('Content-Type', image.contentType);
+      res.setHeader('Content-Length', String(image.bytes.length));
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+      res.setHeader('Content-Disposition', 'inline');
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.end(image.bytes);
+    } catch (err) {
+      logger.error({ err }, 'get cell image failed');
+      res.status(502).json({ error: (err as Error).message });
+    }
+  });
+
+  /** DELETE /models/:subject/:version — delete one run: its thumbnails, its score, its model row. */
+  router.delete('/models/:subject/:version', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    const subject = String(req.params.subject || '').trim();
+    const version = Number(req.params.version);
+    if (!subject || !Number.isInteger(version)) { res.status(400).json({ error: 'subject + version required' }); return; }
+    try {
+      const id = await characterId(ctx, subject, sub);
+      if (!id) { res.status(404).json({ error: 'character not found' }); return; }
+      // Thumbnails go first: if the run row disappeared but its bytes stayed, a deleted run would
+      // still be readable, which is exactly the access this route exists to end.
+      const removedImages = await deleteRunCellImages(ctx.pool, id, version);
+      await ctx.pool.query('DELETE FROM oshal_lora_scores WHERE character_id = $1 AND version = $2', [id, version]);
+      const removed = await ctx.pool.query(
+        'DELETE FROM oshal_lora_models WHERE character_id = $1 AND version = $2', [id, version],
+      );
+      await ctx.pool.query(
+        'UPDATE oshal_lora_characters SET active_version = NULL WHERE id = $1 AND owner_sub = $2 AND active_version = $3',
+        [id, sub, version],
+      );
+      logger.info({ subject, version, removedImages }, 'lora run deleted');
+      res.json({ ok: true, subject, version, removedImages, removedVersions: Number(removed.rowCount ?? 0) });
+    } catch (err) {
+      logger.error({ err }, 'delete run failed');
+      res.status(502).json({ error: (err as Error).message });
+    }
+  });
+
+  /**
+   * POST /characters/:subject/autonomous — toggle the opt-in improve-overnight mode (controller-only).
+   * Enabling records the owner's verified issuer: the nightly schedule mints this character's worker
+   * callback grants for exactly that identity. Disabling clears it.
+   */
   router.post('/characters/:subject/autonomous', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     const subject = String(req.params.subject || '').trim();
     const body = req.body as { enabled?: boolean; maxHours?: number; plateauEpsilon?: number };
+    const enabled = typeof body.enabled === 'boolean' ? body.enabled : null;
+    const issuer = enabled === true ? verifiedIssuer(ctx, sub) : null;
+    if (enabled === true && !issuer) { res.status(401).json({ error: 'verified_owner_required' }); return; }
     try {
       const r = await ctx.pool.query(
         `UPDATE oshal_lora_characters
          SET autonomous = COALESCE($2, autonomous),
+             autonomous_issuer = CASE WHEN $2::boolean IS NULL THEN autonomous_issuer ELSE $6 END,
              max_hours = COALESCE($3, max_hours),
              plateau_epsilon = COALESCE($4, plateau_epsilon)
          WHERE subject = $1 AND owner_sub = $5
          RETURNING autonomous, max_hours, plateau_epsilon`,
-        [subject, typeof body.enabled === 'boolean' ? body.enabled : null,
-          Number.isFinite(body.maxHours) ? body.maxHours : null,
-          Number.isFinite(body.plateauEpsilon) ? body.plateauEpsilon : null, sub],
+        [subject, enabled, Number.isFinite(body.maxHours) ? body.maxHours : null,
+          Number.isFinite(body.plateauEpsilon) ? body.plateauEpsilon : null, sub, issuer],
       );
       if (!r.rowCount) { res.status(404).json({ error: 'character not found' }); return; }
       res.json({ ok: true, ...r.rows[0] });
@@ -327,10 +648,7 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     const subject = String((req.body as { subject?: string }).subject || '').trim();
     try {
-      const char = (await ctx.pool.query(
-        'SELECT id FROM oshal_lora_characters WHERE subject = $1 AND owner_sub = $2',
-        [subject, sub],
-      )).rows[0] as { id: string } | undefined;
+      const char = await loadCharacter(ctx, subject, sub);
       if (!char) { res.status(404).json({ error: 'character not found' }); return; }
       const version = Number((await ctx.pool.query(
         'SELECT COALESCE(max(version), 0) + 1 AS v FROM oshal_lora_models WHERE character_id = $1', [char.id],
@@ -357,7 +675,8 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
          ON CONFLICT (character_id, version) DO UPDATE SET status = 'training', ticket_id = EXCLUDED.ticket_id`,
         [char.id, version, ticket.ticketId],
       );
-      const d = await dispatchBoxCommand(buildTrainCommand(subject, version, null, sub), ticket.ticketId);
+      const d = await dispatchWithCallbackGrant(ctx, { characterId: char.id, ownerSub: sub, ticketId: ticket.ticketId,
+        dispatchKind: 'train' }, buildTrainCommand(char.config, version, null, sub));
       if (!d.ok) {
         await ctx.pool.query(`UPDATE oshal_lora_models SET status = 'failed' WHERE character_id = $1 AND version = $2`, [char.id, version]);
         res.status(503).json({ ok: false, status: 'box_required', version, ticketId: ticket.ticketId, message: d.error });
@@ -378,15 +697,15 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
     const subject = String((req.body as { subject?: string; version?: number }).subject || '').trim();
     const asked = Number((req.body as { version?: number }).version);
     try {
-      const char = (await ctx.pool.query(
-        'SELECT id FROM oshal_lora_characters WHERE subject = $1 AND owner_sub = $2',
-        [subject, sub],
-      )).rows[0] as { id: string } | undefined;
+      const char = await loadCharacter(ctx, subject, sub);
       if (!char) { res.status(404).json({ error: 'character not found' }); return; }
       const version = Number.isInteger(asked) ? asked : Number((await ctx.pool.query(
         `SELECT max(version) AS v FROM oshal_lora_models WHERE character_id = $1 AND status IN ('trained', 'scored')`, [char.id],
       )).rows[0]?.v);
       if (!Number.isInteger(version)) { res.status(400).json({ error: 'no trained version to validate yet' }); return; }
+      const modelName = await existingModelName(ctx, char.config, version);
+      if (!modelName) { res.status(404).json({ error: 'trained model not found' }); return; }
+      const command = buildValidateCommand(char.config, version, sub, modelName);
       const ticket = await ctx.ticketService.createTicket({
         title: `Validate ${subject} LoRA v${version}`,
         ticketType: 'lora-train',
@@ -403,7 +722,8 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
         ownerSub: sub,
         metadata: { app: 'lora', character: subject, version, action: 'validate' },
       });
-      const d = await dispatchBoxCommand(buildValidateCommand(subject, version, sub), ticket.ticketId);
+      const d = await dispatchWithCallbackGrant(ctx, { characterId: char.id, ownerSub: sub, ticketId: ticket.ticketId,
+        dispatchKind: 'validate' }, command);
       if (!d.ok) { res.status(503).json({ ok: false, status: 'box_required', version, ticketId: ticket.ticketId, message: d.error }); return; }
       res.json({ ok: true, version, ticketId: ticket.ticketId, clientId: d.clientId, taskId: d.taskId,
         message: `Validation of v${version} dispatched — the scorecard appears here when it finishes.` });
@@ -419,10 +739,7 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     const subject = String((req.body as { subject?: string }).subject || '').trim();
     try {
-      const char = (await ctx.pool.query(
-        'SELECT id FROM oshal_lora_characters WHERE subject = $1 AND owner_sub = $2',
-        [subject, sub],
-      )).rows[0] as { id: string } | undefined;
+      const char = await loadCharacter(ctx, subject, sub);
       if (!char) { res.status(404).json({ error: 'character not found' }); return; }
       // The most-recently scored version is the parent we improve from.
       const parentRow = (await ctx.pool.query(
@@ -458,10 +775,8 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
          ON CONFLICT (character_id, version) DO UPDATE SET status = 'training', parent_version = EXCLUDED.parent_version, ticket_id = EXCLUDED.ticket_id`,
         [char.id, version, parentVersion, ticket.ticketId],
       );
-      const d = await dispatchBoxCommand(
-        buildImproveCommand(subject, version, parentVersion, weakValues, sub),
-        ticket.ticketId,
-      );
+      const d = await dispatchWithCallbackGrant(ctx, { characterId: char.id, ownerSub: sub, ticketId: ticket.ticketId,
+        dispatchKind: 'improve' }, buildImproveCommand(char.config, version, parentVersion, weakValues, sub));
       if (!d.ok) {
         await ctx.pool.query(`UPDATE oshal_lora_models SET status = 'failed' WHERE character_id = $1 AND version = $2`, [char.id, version]);
         res.status(503).json({ ok: false, status: 'box_required', version, ticketId: ticket.ticketId, message: d.error });
@@ -481,45 +796,19 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     const subject = String((req.body as { subject?: string }).subject || '').trim();
     try {
-      const char = (await ctx.pool.query(
-        `SELECT id, autonomous, max_hours, plateau_epsilon
-           FROM oshal_lora_characters
-          WHERE subject = $1 AND owner_sub = $2`, [subject, sub],
-      )).rows[0] as { id: string; autonomous: boolean; max_hours: number; plateau_epsilon: number } | undefined;
+      const char = await loadCharacter(ctx, subject, sub);
       if (!char) { res.status(404).json({ error: 'character not found' }); return; }
-      if (!char.autonomous) { res.status(400).json({ error: 'enable Improve overnight for this character first' }); return; }
-      const startVersion = Number((await ctx.pool.query(
-        `SELECT max(version) AS v FROM oshal_lora_models WHERE character_id = $1 AND status IN ('trained', 'scored')`, [char.id],
-      )).rows[0]?.v);
-      if (!Number.isInteger(startVersion)) { res.status(400).json({ error: 'train + validate a first version before running overnight' }); return; }
-      const ticket = await ctx.ticketService.createTicket({
-        title: `Overnight improve ${subject} (from v${startVersion})`,
-        ticketType: 'lora-train',
-        description: `Autonomous improve loop for "${subject}" from v${startVersion} up to ${char.max_hours}h, plateau ${char.plateau_epsilon}. Parks a review at the end.`,
-        status: 'approved',
-        priority: 'none',
-        labels: ['lora', 'overnight', subject],
-        workspaceId: null,
-        assignedAgentId: LORA_DIRECTOR_AGENT_ID,
-        parentTicketId: null,
-        externalProvider: null,
-        externalId: null,
-        externalUrl: null,
-        ownerSub: sub,
-        metadata: { app: 'lora', character: subject, action: 'improve-overnight', startVersion },
-      });
-      const d = await dispatchBoxCommand(
-        buildOvernightCommand(
-          subject,
-          startVersion,
-          Number(char.max_hours) || 9,
-          Number(char.plateau_epsilon) || 0.005,
-          sub,
-        ),
-        ticket.ticketId);
-      if (!d.ok) { res.status(503).json({ ok: false, status: 'box_required', ticketId: ticket.ticketId, message: d.error }); return; }
-      res.json({ ok: true, startVersion, ticketId: ticket.ticketId, clientId: d.clientId, taskId: d.taskId,
-        message: `Overnight improve started from v${startVersion}. It runs until it plateaus or ${char.max_hours}h, then parks a morning review.` });
+      const result = await startOvernightLoop(ctx, {
+        ...char,
+        row: { ...char.row, owner_sub: sub },
+      }, 'console', new Date().toISOString(), false);
+      if (result.state === 'disabled') { res.status(400).json({ error: 'enable Improve overnight for this character first' }); return; }
+      if (result.state === 'not-ready') { res.status(400).json({ error: 'train + validate a first version before running overnight' }); return; }
+      if (result.state === 'failed') { res.status(503).json({ ok: false, status: 'box_required', message: result.detail }); return; }
+      if (result.state !== 'started') { res.status(409).json({ error: 'overnight loop already running' }); return; }
+      const settings = char.row as { max_hours: number };
+      res.json({ ok: true, ticketId: result.ticketId, taskId: result.taskId,
+        message: `Overnight improve started. It runs until it plateaus or ${Number(settings.max_hours) || 9}h, then parks a morning review.` });
     } catch (err) {
       logger.error({ err }, 'overnight dispatch failed');
       res.status(502).json({ error: (err as Error).message });
@@ -527,151 +816,6 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
   });
 
   return router;
-}
-
-/**
- * @description Creates the PUBLIC LoRA ingest mount. GET is a health-only probe. POST accepts a
- * GPU-box callback only when the shared service secret and a separately encoded exact owner are
- * both valid, then narrows database work to that non-operator owner. The package manifest mounts
- * this at /api/lora/ingest using the loader-sanctioned split-mountPath shape, so the internal paths
- * here are '/': the external URL the box calls stays /api/lora/ingest, unchanged from core.
- * @param ctx - app context (pool)
- */
-export function createLoraIngestRoutes(ctx: AppContext): Router {
-  const router = Router();
-
-  /**
-   * GET / — public health-only reachability probe. The write endpoint is intentionally OUTSIDE the
-   * OIDC wall but independently requires a service secret and exact owner. This responder makes
-   * mount reachability verifiable: a probe gets a clear 200 here instead of falling through to the
-   * downstream `/api` catch-all, whose `requiresAuth` would otherwise answer with an OIDC `loginPath`
-   * 401 and make the public route look gated. The real write path is POST / below.
-   */
-  router.get('/', (_req: Request, res: Response) => {
-    res.json({ ok: true, route: 'lora-ingest', method: 'POST', auth: 'service-secret+owner' });
-  });
-
-  /** POST / — box reports a training result (kind:'training') or a scorecard (kind:'score'). */
-  router.post('/', requireTrustedServiceUserIdentity, async (req: Request, res: Response) => {
-    if (!hasValidServiceSecret(req)) { res.status(401).json({ error: 'service_secret_required' }); return; }
-    const sub = callerSub(req);
-    if (!sub) { res.status(403).json({ error: 'trusted_service_user_sub_required' }); return; }
-    const b = (req.body || {}) as Record<string, unknown>;
-    const subject = String(b.character || b.subject || '').trim();
-    const version = Number(b.version);
-    const kind = String(b.kind || '').trim();
-
-    try {
-      const id = await characterId(ctx, subject, sub);
-      if (!subject || !id) { res.status(404).json({ error: 'character not found' }); return; }
-
-      // Autonomous overnight loop finished — park a human "morning review" gate (never auto-promote).
-      if (kind === 'review') {
-        const bestVersion = Number(b.best_version);
-        const summary = String(b.summary || 'Overnight improve finished.');
-        const ticket = await ctx.ticketService.createTicket({
-          title: `Review ${subject} overnight result — best v${Number.isInteger(bestVersion) ? bestVersion : '?'}`,
-          ticketType: 'lora-train',
-          description: `${summary} Open the LoRA Studio to compare versions and keep-best.`,
-          status: 'approval_required',
-          priority: 'none',
-          labels: ['lora', 'review', subject],
-          workspaceId: null,
-          assignedAgentId: LORA_DIRECTOR_AGENT_ID,
-          parentTicketId: null,
-          externalProvider: null,
-          externalId: null,
-          externalUrl: null,
-          ownerSub: sub,
-          metadata: { app: 'lora', character: subject, action: 'review', bestVersion, overall: Number(b.overall) || null },
-        });
-        logger.info({ subject, bestVersion }, 'lora overnight review ticket parked');
-        res.json({ ok: true, kind, subject, ticketId: ticket.ticketId });
-        return;
-      }
-
-      if (!Number.isInteger(version) || !['training', 'score'].includes(kind)) {
-        res.status(400).json({ error: 'character, integer version, and kind (training|score|review) required' });
-        return;
-      }
-
-      if (kind === 'training') {
-        const status = ['queued', 'training', 'trained', 'scored', 'failed'].includes(String(b.status)) ? String(b.status) : 'trained';
-        await ctx.pool.query(
-          `INSERT INTO oshal_lora_models
-             (character_id, version, status, lora_path, base_model, dataset_count, network_dim, epochs, steps, final_loss, duration_sec, parent_version, ticket_id, metrics)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-           ON CONFLICT (character_id, version) DO UPDATE SET
-             status = EXCLUDED.status,
-             lora_path = COALESCE(EXCLUDED.lora_path, oshal_lora_models.lora_path),
-             base_model = COALESCE(EXCLUDED.base_model, oshal_lora_models.base_model),
-             dataset_count = COALESCE(EXCLUDED.dataset_count, oshal_lora_models.dataset_count),
-             network_dim = COALESCE(EXCLUDED.network_dim, oshal_lora_models.network_dim),
-             epochs = COALESCE(EXCLUDED.epochs, oshal_lora_models.epochs),
-             steps = COALESCE(EXCLUDED.steps, oshal_lora_models.steps),
-             final_loss = COALESCE(EXCLUDED.final_loss, oshal_lora_models.final_loss),
-             duration_sec = COALESCE(EXCLUDED.duration_sec, oshal_lora_models.duration_sec),
-             parent_version = COALESCE(EXCLUDED.parent_version, oshal_lora_models.parent_version),
-             ticket_id = COALESCE(EXCLUDED.ticket_id, oshal_lora_models.ticket_id),
-             metrics = COALESCE(EXCLUDED.metrics, oshal_lora_models.metrics)`,
-          [id, version, status, str(b.lora_path), str(b.base_model), int(b.dataset_count), int(b.network_dim),
-            int(b.epochs), int(b.steps), num(b.final_loss), int(b.duration_sec), int(b.parent_version),
-            str(b.ticket_id), b.metrics != null ? JSON.stringify(b.metrics) : null],
-        );
-        logger.info({ subject, version, status }, 'lora training ingest');
-        res.json({ ok: true, kind, subject, version, status });
-        return;
-      }
-
-      // kind === 'score' — recompute the rollup/weak-cells from cells if the box didn't send them.
-      const cells = Array.isArray(b.cells) ? (b.cells as ScoreCell[]) : [];
-      const summary = cells.length ? summarizeScore(cells) : null;
-      const overall = num(b.overall) ?? summary?.overall ?? null;
-      const identityMean = num(b.identity_mean) ?? summary?.identityMean ?? null;
-      const qualityMean = num(b.quality_mean) ?? summary?.qualityMean ?? null;
-      const minCell = num(b.min_cell) ?? summary?.minCell ?? null;
-      const weakCells = Array.isArray(b.weak_cells) ? b.weak_cells : cells.length ? computeWeakCells(cells) : [];
-      await ctx.pool.query(
-        `INSERT INTO oshal_lora_scores
-           (character_id, version, overall, identity_mean, quality_mean, min_cell, cells, weak_cells, gallery_url)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-         ON CONFLICT (character_id, version) DO UPDATE SET
-           overall = EXCLUDED.overall, identity_mean = EXCLUDED.identity_mean,
-           quality_mean = EXCLUDED.quality_mean, min_cell = EXCLUDED.min_cell,
-           cells = EXCLUDED.cells, weak_cells = EXCLUDED.weak_cells,
-           gallery_url = COALESCE(EXCLUDED.gallery_url, oshal_lora_scores.gallery_url)`,
-        [id, version, overall, identityMean, qualityMean, minCell,
-          JSON.stringify(cells), JSON.stringify(weakCells), str(b.gallery_url)],
-      );
-      await ctx.pool.query(
-        `UPDATE oshal_lora_models SET status = 'scored' WHERE character_id = $1 AND version = $2 AND status <> 'failed'`,
-        [id, version],
-      );
-      logger.info({ subject, version, overall }, 'lora score ingest');
-      res.json({ ok: true, kind, subject, version, overall });
-    } catch (err) {
-      logger.error({ err }, 'lora ingest failed');
-      res.status(502).json({ error: (err as Error).message });
-    }
-  });
-
-  return router;
-}
-
-/** Coerce a JSON field to a trimmed string or null. */
-function str(v: unknown): string | null {
-  const s = v == null ? '' : String(v).trim();
-  return s ? s : null;
-}
-/** Coerce to a finite integer or null. */
-function int(v: unknown): number | null {
-  const n = Number(v);
-  return Number.isFinite(n) ? Math.trunc(n) : null;
-}
-/** Coerce to a finite number or null. */
-function num(v: unknown): number | null {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
 }
 
 export { LORA_DIRECTOR_AGENT_ID };

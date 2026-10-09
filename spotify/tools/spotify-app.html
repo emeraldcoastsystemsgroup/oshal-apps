@@ -1,20 +1,107 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>OSHAL Spotify</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: what is playing, the
+     playlists and the saved music taste, from the SAME /api/spotify routes the full page reads, painted by the shared
+     kit in the family grammar. On open it reads /config and /profile; only when the connection answers 'ok' does it
+     read /now-playing and /playlists (no top tracks, search, conversation or concierge, and no write). Not connected,
+     the Development Mode allowlist, a Spotify error, a refusal and a failed read each read as what they are. Spotify
+     links open in a new tab. Any other request runs the full Spotify page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<style>
+  /* This page's body is a flex column; under an audience view it lays out as a block so the kit's root keeps its full width. */
+  html[data-audience] body { display: block; }
+</style>
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var SPOTIFY = /^https:\/\/open\.spotify\.com\//, NONE = '—';
+  function call(path) {
+    return fetch('/api/spotify' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; });
+    });
+  }
+  function refused(e) { return !!e && (e.status === 401 || e.status === 403); }
+  // A read that may fail on its own answers null, which the view names; a refusal still refuses the whole view.
+  function soft(e) { if (refused(e)) throw e; return null; }
+  function link(url) { return SPOTIFY.test(String(url || '')) ? url : null; }
+  function taste(profile) {
+    var p = profile || {}, genres = p.favorite_genres || [], artists = p.favorite_artists || [];
+    return { kind: 'list', id: 'taste', title: 'Saved music taste', empty: profile ? 'No saved music taste yet. Tell the Music concierge what you like.' : 'Saved music taste could not be read just now.',
+      items: [genres.length ? { icon: '🎼', title: 'Genres', text: genres.slice(0, 12).join(', ') } : null, artists.length ? { icon: '🎤', title: 'Artists', text: artists.slice(0, 12).join(', ') } : null].filter(Boolean) };
+  }
+  function counts(profile, playlists, playing) {
+    var p = profile || {};
+    return [
+      { id: 'playlists', label: 'Playlists', value: playlists ? playlists.length : NONE },
+      { id: 'playing', label: 'Right now', value: playing },
+      { id: 'genres', label: 'Saved genres', value: profile ? (p.favorite_genres || []).length : NONE },
+      { id: 'artists', label: 'Saved artists', value: profile ? (p.favorite_artists || []).length : NONE }
+    ];
+  }
+  function playlistTile(p) {
+    var href = link(p.url);
+    return { icon: '🎧', title: p.name || 'Untitled playlist', text: (Number(p.trackCount) || 0) + ' tracks', meta: p.owner || null, href: href, target: href ? '_blank' : null };
+  }
+  function ready(cfg, profile, now, lists) {
+    var np = now ? now.nowPlaying : null, track = np && np.track, playlists = lists ? lists.playlists || [] : null, me = cfg.me || {}, open = track ? link(track.url) : null;
+    return {
+      kicker: 'Music',
+      title: !now ? 'Spotify is connected' : track ? (np.isPlaying ? 'Now playing: ' : 'Paused: ') + track.title : 'Nothing playing right now',
+      lede: !now ? 'What is playing could not be read just now.' : track ? [track.artist, track.album].filter(Boolean).join(' · ') : me.displayName ? 'Spotify account: ' + me.displayName : 'Spotify is connected.',
+      actions: open ? [{ label: 'Open in Spotify', href: open, target: '_blank', primary: true }] : [],
+      stats: counts(profile, playlists, !now ? NONE : track ? (np.isPlaying ? 'Playing' : 'Paused') : 'Nothing'),
+      sections: [
+        { kind: 'tiles', id: 'playlists', title: 'Playlists', note: playlists && playlists.length ? 'Tap a playlist to open it in Spotify.' : null,
+          empty: playlists ? 'No playlists yet. Build one in Music.' : 'Playlists could not be read just now.', items: (playlists || []).slice(0, 8).map(playlistTile) },
+        taste(profile)
+      ]
+    };
+  }
+  var GATES = {
+    not_connected: { title: 'Connect Spotify to see what is playing', lede: 'Music shows what is playing and your playlists once Spotify is connected. Saved music taste is below.',
+      action: { label: 'Connect Spotify', primary: true, onClick: function () { A.open('/api/connect/spotify/start'); } } },
+    needs_allowlist: { title: 'Spotify needs this account added', lede: 'Spotify is connected, but its app is in Development Mode and blocks every request until the account you signed in with is on its User Management allowlist.',
+      action: { label: 'Open the Spotify dashboard', href: 'https://developer.spotify.com/dashboard', target: '_blank', primary: true } },
+    error: { title: 'Spotify could not be reached', lede: 'Spotify answered the connection check with an error, so what is playing and the playlists are not shown.' }
+  };
+  function gated(status, profile, ctx) {
+    var g = GATES[status], action = g.action || { label: 'Try again', primary: true, onClick: function () { ctx.refresh(); } };
+    return { kicker: 'Music', title: g.title, lede: g.lede, actions: [action], stats: counts(profile, null, NONE), sections: [taste(profile)] };
+  }
+  function family(ctx) {
+    return Promise.all([call('/config'), call('/profile').catch(soft)]).then(function (r) {
+      var cfg = r[0] || {}, profile = r[1] && r[1].profile ? r[1].profile : null, status = cfg.status || (cfg.connected ? 'ok' : 'not_connected');
+      // Live Spotify reads only once the connection answers 'ok': in the other states they fail (HTTP 500) or answer empty.
+      if (status !== 'ok') return gated(GATES[status] ? status : 'error', profile, ctx);
+      return Promise.all([call('/now-playing').catch(soft), call('/playlists').catch(soft)]).then(function (live) { return ready(cfg, profile, live[0], live[1]); });
+    }).catch(function (e) {
+      if (!refused(e)) throw e && e.status >= 500 ? new Error('Music could not check the Spotify connection (HTTP ' + e.status + ').') : e;
+      return { kicker: 'Music', title: e.status === 401 ? 'Sign in to see your music' : 'This account cannot open Spotify',
+        lede: e.status === 401 ? 'Music shows the Spotify connection of whoever is signed in, and this session is not signed in.' : 'The Spotify routes refused this account (HTTP 403).' };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'spotify', escapeLabel: 'Open Spotify in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
 <style>
   /* Local var names are BRIDGED to the cockpit's themed design-system variables by the
      script below, so this surface follows the operator's selected swarm theme (midnight,
      daylight, ocean, …). Values here are only dark-midnight fallbacks before the bridge
      resolves / when opened standalone. Do NOT hardcode brand colors over the theme. */
   :root{
-    --bg:#181a20; --bg2:rgba(24,26,32,.92); --card:rgba(24,26,32,.92); --card-hover:rgba(36,38,48,.98);
-    --border:#23262f; --border2:#353945;
-    --text:#f4f4f6; --muted:#b1b5c3; --dim:#6e7380;
-    --accent:#5e8fff; --accent2:#3b6eea; --accent-glow:rgba(94,143,255,.25);
-    --warn:#ff9f0a; --blur:20px;
+    --bg:var(--bg-primary,#181a20); --bg2:var(--glass-bg-heavy,rgba(24,26,32,.92)); --card:var(--bg-card,rgba(24,26,32,.92)); --card-hover:var(--bg-card-hover,rgba(36,38,48,.98));
+    --border:var(--border-color,#23262f); --border2:var(--border-color-hover,#353945);
+    --text:var(--text-primary,#f4f4f6); --muted:var(--text-secondary,#b1b5c3); --dim:var(--text-muted,#6e7380);
+    --accent:var(--accent-primary,#5e8fff); --accent2:var(--accent-primary-hover,#3b6eea); --accent-glow:var(--accent-glow,rgba(94,143,255,.25));
+    --warn:var(--status-warning,#ff9f0a); --blur:20px;
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow-x:hidden}
@@ -402,17 +489,21 @@ async function boot(){
     convId=cv.conversationId;if(convId)localStorage.setItem('oshalSpotifyConv',convId);$('#msgs').innerHTML='';
     cv.messages.forEach(m=>pushMsg(m.role==='user'?'me':'bot',m.content));}}catch(e){}
 }
-boot();
+// The full page only: under an audience view the shared kit paints instead (see the head script).
+if (!window.AppView || !AppView.active()) boot();
 </script>
 
 <script type="module">
 import {receiveHandoff} from '/cockpit/js/app-handoff.js';
 import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
+// The full page only: under an audience view no handoff listener is added and no connected-actions offer is fetched.
+if (!window.AppView || !AppView.active()) {
 const panel=document.getElementById('planningPanel'),draft=document.getElementById('planningDraft');
 receiveHandoff({"app":"spotify","action":"plan-music","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]},context=>{draft.value=[context.title,context.notes,context.sourceUrl?'Source: '+context.sourceUrl:''].filter(Boolean).join('\n\n');panel.hidden=false;draft.focus();});
 document.getElementById('usePlanningDraft').onclick=()=>{if(document.getElementById('appWrap').style.display==='none'){document.getElementById('planningStatus').textContent='Your draft is ready. Complete the connection below, refresh its status, then use this draft.';return;}const input=document.getElementById('chatq');input.value=draft.value.replace(/\s+/g,' ').trim();input.focus();input.scrollIntoView({block:'center'});document.getElementById('planningStatus').textContent='Draft copied to the concierge. Review it and choose Send when ready.';};
 const element=document.querySelector('.connected-app-actions');
 void mountConnectedActions({app:"spotify",element,contextForOffer:()=>{const notes=(panel.hidden?'':draft.value.trim())||document.getElementById('chatq').value.trim()||document.getElementById('q').value.trim();return notes?{title:"Plan around my music request",notes:notes.slice(0,2000)}:null;}}).then(()=>element.querySelectorAll('button').forEach(b=>b.classList.add('btn')));
+}
 </script>
 </body>
 </html>

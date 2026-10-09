@@ -1,7 +1,68 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register all shipped suites, the new structural-role boundary and existing readiness smoke; legacy fixture gaps remain explicit.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register tutor-shared-renderer: the Tutor proved as the app consumer of core's shared response renderer in Chromium over a loopback fixture (the framework-coupled gate discovers tests/tutor-renderer.core.spec.mjs by name). The live-port education-e2e case stays as the legacy full-stack variant.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register lm-artifact-import-behavior: the compiled class-material receiver driven over loopback HTTP (approved/requested outcomes, share-requests listing, and write-free refusals), and name the class-material hand-off in the structural-roles expectations now that the catalog binds it.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register the enterprise-authorization pilot suites: directory-group grants and the delegated-AI execution guard (authorization-groups-delegation), record rights on a disposable PostgreSQL 16 through the compiled routes (authorization-record-rights-postgres) and the permission-aware pages in Chromium (authorization-permission-ui). All are isolated fixture evidence with installation: never; none is live acceptance.
 version: 1
 cases:
+  - id: lm-artifact-import
+    name: Little Monsters class-material artifact receiver
+    purpose: Pin the owner-bound Send to… class picker and its authenticated material-import endpoint across source and compiled package artifacts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-artifact-import.test.cjs
+    expected:
+      - >-
+        The class-material destination remains declared for images and PDFs, redeems through the shared
+        owner-bound relay, and reuses the teacher-approved/requested lifecycle.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The guard reads package files only and creates no persistent application data.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: lm-artifact-import-behavior
+    name: Little Monsters class-material import outcomes
+    purpose: >-
+      Drive the compiled POST /import-artifact receiver over loopback HTTP and prove who may file a Send to…
+      document into which class, with which share state, and that every refusal writes nothing.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-artifact-import-behavior.test.cjs
+    expected:
+      - >-
+        A class teacher's PDF becomes an approved, stored and grounded material listed in the class's shared
+        materials; an enrolled student's image becomes a requested material listed only in the class
+        teacher's share requests.
+      - >-
+        A student outside the chosen class is refused with 403 before the handle is redeemed; foreign, expired
+        and oversize handles pass the relay's 404 or 413 through; bytes that are neither PDF nor image are
+        refused with 415 whatever type they claim; a missing subject is 401 and a malformed class id is 400.
+        None of these writes a row or a file.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Each case runs in its own directory under a temporary root the suite removes; the database, artifact
+        relay, text extraction and RAG are in-memory doubles, so no provider, live database or vector store
+        is touched.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
   - id: lm-authz
     name: Little Monsters authz
     purpose: Run the shipped dependency-free lm-authz suite over package sources and compiled route artifacts.
@@ -253,6 +314,9 @@ cases:
         Deny, revocation, unknown routes, missing identity relationships and cross-issuer matches remain
         refused.
       - Every shipped HTTP route, HEAD request, game file, bot and test suite has an explicit catalog binding.
+      - >-
+        The class-material hand-off (POST /import-artifact and its artifact action) needs material create and
+        share, admits a student and a teacher, and refuses unassigned, share-denied and revoked actors.
     prerequisites:
       - runner:node-test
       - core:dependencies
@@ -271,6 +335,132 @@ cases:
     limits:
       timeoutMs: 60000
       maxMemoryMb: 512
+    installation: never
+  - id: authorization-groups-delegation
+    name: Directory-group grants and delegated AI through the real guards
+    purpose: >-
+      Prove group-derived and direct school roles differ through core's real policy, HTTP guard and controller execution
+      guard (BotNodeClient and the inline orchestrator) for the tutor and study bots, with explicit deny and revocation.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/authorization/group-delegation.test.cjs
+    expected:
+      - >-
+        A verified directory group mapped to the non-sensitive student role grants study and tutor functions; a direct
+        teacher grant adds teaching functions the group member does not get, over the same HTTP routes.
+      - >-
+        A group-mapped deny wins over a direct grant and follows membership; clearing it restores exactly that
+        permission; a whole-app group deny refuses everything.
+      - >-
+        Stale, overage (incomplete), foreign-tenant, future-dated and missing directory evidence refuse with
+        authorization_directory_unavailable instead of guessing; unmapping a group revokes it.
+      - Sensitive teacher and admin group mappings require an approval verifier and are refused without one.
+      - >-
+        The tutor and quiz bots are admitted for a granted learner and refused before any endpoint for an unassigned
+        actor, a mismatched subject, an explicit tutor deny, and a direct or group grant revoked between queue and
+        execution.
+    prerequisites:
+      - runner:node-test
+      - core:dependencies
+      - harness:oshal-core-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/authorization/fixture.cjs
+        - src-routes/education-authorization.ts
+        - authorization.yaml
+      cleanup: >-
+        Close the owned loopback HTTP server, reset core's execution-policy port and discard the in-memory policy,
+        roster and endpoint recorders; no provider, bot node, live database or account writes.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: authorization-record-rights-postgres
+    name: School record rights on disposable PostgreSQL through the compiled routes
+    purpose: >-
+      Mount the compiled manifest entrypoint behind core's real HTTP guard over a private PostgreSQL 16 with every
+      package migration applied as a NOSUPERUSER NOBYPASSRLS runtime role, and prove who reads and writes which records.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/authorization/record-rights-postgres.test.cjs
+    expected:
+      - >-
+        A teacher's class list, analytics and roster contain only their own class; another teacher's class and the
+        other school answer 403; a tenant admin reads their own school only.
+      - >-
+        A learner reads only their own dashboard and enrolled classes; another learner's dashboard is a
+        non-revealing 404; a teacher sees only their class slice of a learner, and aggregates exclude other classes.
+      - Roster writes succeed only into the teacher's own class and a refused write leaves no row.
+      - Unassigned, denied and revoked actors are refused by the guard before any package handler SQL.
+    prerequisites:
+      - runner:node-test
+      - core:dependencies
+      - harness:oshal-core-root
+      - harness:core-test-fixtures
+      - engine-container:disposable-postgres
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/authorization/school-postgres.fixture.cjs
+        - tests/authorization/fixture.cjs
+        - routes/education-routes.js
+        - authorization.yaml
+      cleanup: >-
+        Close the loopback server and remove the uniquely named PostgreSQL container with its anonymous volumes;
+        the machine-wide fixture slot is released. No deployment database is read or written.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+    installation: never
+  - id: authorization-permission-ui
+    name: Permission-aware Little Monsters pages in Chromium
+    purpose: >-
+      Drive the actual dashboard, teacher and Tutor pages in disposable Chromium contexts over the two-school
+      PostgreSQL fixture and core's real guard, one synthetic person per context.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/authorization/permission-ui-browser.test.cjs
+    expected:
+      - A learner's dashboard paints only their own quiz average and enrolled classes and no teaching overview.
+      - >-
+        A learner requesting the teacher view receives a 403 with no page or roster data; an unassigned person
+        receives core's role-guidance page instead of the dashboard.
+      - The teacher view lists only the teacher's own class tile, roster and class average.
+      - An explicit tutor deny refuses the Tutor turn from the real page and the page says it could not connect.
+      - Revoking a teacher mid-session refuses the next analytics request and the next navigation.
+    prerequisites:
+      - runner:node-test
+      - core:dependencies
+      - harness:oshal-core-root
+      - harness:core-test-fixtures
+      - engine-container:disposable-postgres
+      - browser:chromium
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/authorization/school-postgres.fixture.cjs
+        - tools/student-dashboard.html
+        - tools/teacher-analytics.html
+        - tools/tutor-chat.html
+      cleanup: >-
+        Close every browser context and Chromium, the loopback server, and remove the PostgreSQL container with its
+        anonymous volumes; requests off the fixture origin are aborted.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
     installation: never
   - id: legacy-unit-fixtures
     name: Legacy education unit fixtures
@@ -341,6 +531,43 @@ cases:
       timeoutMs: 300000
       maxMemoryMb: 1024
     installation: never
+  - id: tutor-shared-renderer
+    name: Tutor renders core's shared untrusted reply safely in Chromium
+    purpose: >-
+      Prove the Tutor is a conforming app consumer of core's shared response renderer - the actual
+      tools/tutor-chat.html over a loopback fixture, the renderer bundled from the framework source,
+      and a scripted tutor endpoint answering with the renderer's own SHARED_UNTRUSTED_RESPONSE vector.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/tutor-renderer.core.spec.mjs
+    expected:
+      - >-
+        The reply renders to the vector's expected block sequence - the one Jarvis and the swarm-bot chat
+        bubble produce in core - with the hostile gallery and download as escaped fallbacks and no link,
+        image, form, input, script, frame or button in the rendered region.
+      - >-
+        The grounding badge and read-aloud control stay on the message, exactly one tutor turn is posted,
+        and nothing is requested off the fixture origin (never the hostile host).
+      - Without the renderer bundle the reply stays readable escaped text with nothing live.
+    prerequisites:
+      - runner:playwright
+      - harness:oshal-core-root
+      - browser:chromium
+      - core:dependencies
+      - core:shared-theme-assets
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Close the owned Chromium process and the loopback HTTP server. The tutor endpoint is scripted in
+        memory; there is no database, provider, model or external traffic.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
   - id: package-readiness
     name: Little Monsters package readiness
     purpose: Retain the existing metadata-only service-authenticated readiness probe.
@@ -360,3 +587,105 @@ cases:
       timeoutMs: 10000
       maxMemoryMb: 128
     installation: safe-smoke
+  - id: lm-frame
+    name: Little Monsters page frame
+    purpose: Hold the shared page frame to its host-aware contract so every surface navigates the same way inside the cockpit, inside the classroom experience and on its own.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-frame.test.cjs
+    expected:
+      - >-
+        Navigation entries come only from the caller's admitted ribbon profile with class tools excluded and
+        teacher-only views hidden from learners; a hosted page relays navigation to its host through the
+        cockpit's message shapes and never navigates itself; level progress follows the package XP rule.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Pure functions and a window double; no application data is read or written.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: lm-surface-conventions
+    name: Little Monsters surface presentation contract
+    purpose: Keep every surface and mini-game on the one presentation contract so the operator's chosen skin reaches each page in every host and the app keeps one look.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-surface-conventions.test.cjs
+    expected:
+      - >-
+        Every tools/**.html loads the shared theme bootstrap with the classroom skin as its standalone default,
+        the package design system and page frame, declares a phone viewport, and carries no per-page cockpit
+        theme link, parent-frame theme reader, external font host or pinned skin; the design system aliases
+        framework tokens only.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Reads package files only.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: lm-tool-keys
+    name: Little Monsters tool visibility answer
+    purpose: >-
+      Keep the per-caller tool visibility honest: static surface names come from the manifest itself, learners are
+      not offered teacher-only surfaces, and the manifest rule points at the already-bound visibility route.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-tool-keys.test.cjs
+    expected:
+      - >-
+        readStaticToolNames equals the manifest's ui.static tool names; visibleStaticToolNames drops lm-teacher and
+        lm-recorder for a student and keeps everything for a teacher or admin; the manifest rule points at
+        /api/education/class-tool-keys (bound) with pattern lm-*; the rewards migration is listed.
+    prerequisites:
+      - runner:node-test
+      - harness:oshal-core-root
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Reads package files and the compiled route module only.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+
+  - id: native-learner-reads
+    name: Native learner and reward reads
+    purpose: Verify compiled learner GET handlers preserve migrated identity and inventory without incidental writes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/native-learner-reads.test.cjs
+    expected:
+      - Verified issuer and subject select existing learners; unmapped callers are refused.
+      - Reward inventory, equipment and XP are read without INSERT or UPDATE.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: In-memory SQL boundary fixture only, with no persistent data.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never

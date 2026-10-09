@@ -1,3 +1,10 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Release 1.3.4: GET /cart is a pure read (a diner with no cart gets the empty cart with null ids); the first add creates the cart. The native host refuses SQL writes on a GET.
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — eats ("Eats" Uber Eats Concierge)
 # Carved out of OSHAL core 2026-07-18 (ADR-085 Wave 2 carve #4). The eats-concierge
@@ -17,12 +24,27 @@
 
 name: eats
 suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }
+  features:
+    - id: eats-concierge-chat
+      unit: concierge chat turn
+      tier: T2
+      generation: none
+      degrade: template
+    - id: eats-order-ticket
+      unit: food order ticket
+      tier: T4
+      generation: none
+      degrade: disable
 displayName: Eats
 description: >-
   AI food-delivery concierge — search Uber Eats restaurants, browse menus, build
   an order, and hand off a ready Uber Eats checkout. Other swarm bots can ask it
   to order food.
-version: 1.2.0
+version: 1.3.4
 status: active
 
 source:
@@ -62,6 +84,12 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
+
+# Test Lab registration (TLAB-07): the package's first suites, each with its runner and fixture boundary.
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 
 # Guests never build orders (this app hands off to Uber Eats checkout). Request only —
 # grants come from the operator endpoint (D4).
@@ -118,14 +146,13 @@ tools:
       type: object
       properties:
         storeId: { type: string }
-        storeName: { type: string }
         productId: { type: string }
-        title: { type: string }
-        price: { type: number }
         quantity: { type: number }
-      required: [title]
+      required: [storeId, productId]
     usageInstructions: >-
-      Call only after the diner selects or approves an item. Keep one restaurant per order.
+      Call with {storeId, productId} from browse-menu only after the diner selects or approves an
+      item. The server prices the line from the restaurant's menu (a price is never sent) and
+      refuses a dish the menu does not list. Keep one restaurant per order.
     routingTags: [food, cart, delivery]
     skills: [food-order-building]
     tags: [eats, route-backed]
@@ -181,6 +208,17 @@ ui:
       icon: codicon codicon-list-unordered
       iframeUrl: /api/eats/app?view=cart
       section: top
+
+# THE ASSISTANT RAIL (surface-bridge). Without this block the cockpit relay forwards NOTHING for
+# this app (fail-closed). context = the Eats surface publishes the restaurants or menu on screen
+# and the order with its server-computed total, so the floating assistant answers about the screen
+# the diner is on; set_field = it can fill the delivery address or the search box, and
+# field_change = the diner's own edits of those two fields travel back; custom = its `search`,
+# `open_menu`, `add_item` and `place_order` ops run through the same functions the buttons call;
+# propose/submit = an order is ALWAYS a confirm card and the diner's answer returns to the
+# assistant (nothing opens until Confirm); notify = it can confirm in the surface.
+surface:
+  ops: [context, set_field, field_change, custom, propose, submit, notify]
 
 # ROUTES — app-owned API + surface, gated to this app's activation.
 routes:
@@ -276,3 +314,14 @@ summary:
   tilesPointer: /tiles
   metricsPointer: /metrics
   itemsPointer: /items
+
+# Preserve the existing worker UUID and dedicated-node posture in the package contract.
+bots:
+  - agentId: b0080000-0000-0000-0000-000000000001
+    name: eats-concierge
+    persona: personas/eats-concierge.yaml
+    container: eats-bot
+    port: 5000
+    requiresOwnNode: true
+    role: commerce/food-delivery
+    capabilities: ['restaurant-search', 'menu-browse', 'food-order-building', 'uber-eats-checkout-handoff', 'dietary-filtering', 'cuisine-preferences']

@@ -48,7 +48,7 @@ without waiting on each other.
 ### The engine being packaged
 
 The authoritative tree is the snapshot **vendored in this package** at `engine/`
-(`engine/aerosim/`, fingerprint `603cf4c5e8d9e4c9`). An upstream working checkout is
+(`engine/aerosim/`, fingerprint `7cb4ddce5d711136`). An upstream working checkout is
 reachable only by setting `AERO_LAB_ENGINE_DIR` at it deliberately:
 
 ```

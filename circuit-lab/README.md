@@ -1,5 +1,7 @@
 # Circuit Lab
 
+0.8.7 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 A local circuit **and mechanism** lab the swarm can **drive**. A circuit is parts and wires on a
 schematic canvas; a real SPICE solver (ngspice) runs the transient every time it changes. DC
 motors and gear trains are part of the **same solve**: a motor's shaft is a rotational node, gears
@@ -65,8 +67,10 @@ slips at its grip) and a crank-slider make the mechanics non-rigid in the same s
 Uno's sketch is compiled and run in avr8js and its output pins drive the circuit. `catalog/drivers.json` holds ready nameplates with
 a source line per number — and where another package already owns a real part, the row READS it
 instead of describing it again (the SG90 is animatronics', identity, mass, price and all; this lab
-adds only the operating point it solves at and the reflected rotor inertia). Without that package
-the one row is withheld naming its owner, and the rest of the catalog is unaffected. The full
+adds only the operating point it solves at and the reflected rotor inertia; the two brushless drone
+motors are embodied's, identity, mass, price and KV, and this lab adds its electrical model and
+operating point). Without the owning package its rows are withheld naming the owner, and the rest
+of the catalog is unaffected. The full
 contract, the models and the gear-train reflection are in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -97,10 +101,10 @@ known numbers. Re-run it whenever the page reports the engine is out of date.
 | `engine/tests/test_circuit_worker.py` | the worker on the real ngspice: LED, RC, a switch mid-run, a geared motor, a stalled motor, PWM through a MOSFET, the eight 0.2.0 parts, a servo to its angle at its rated speed, a stepper one step per pulse holding a weight at the textbook load angle and slipping above pull-out, a motor lifting a weight, the mechanism solver's refusals, the protocol; the solver knobs written into the deck and never retried over, a hard-switched inductor refused at the defaults and solved with gear | `python -m unittest discover -s tests` inside the engine image |
 | `tests/surface-editing.core.spec.mjs` | the actual page in headless Chromium over the compiled routes: an example opens, a part dragged from the palette lands where dropped and is solved, pin-to-pin wiring, delete, undo / redo, values on the canvas, restore, the inspector, a marquee group move, a wire re-route, click-a-wire-to-plot, bends placed / dragged / removed, a group turn and its refusal, a part turned on the breadboard with its short named and a jumper's length in mm, the solver knobs | `OSHAL_CORE_DIR=<core checkout> node --test tests/surface-editing.core.spec.mjs` |
 | `tests/gear-profile.test.js` | the involute outline and the body handed to CAD Studio, validated against CAD Studio's own contract | plain node — store-ci |
-| `tests/driver-catalog.test.js` | every catalog row validates against the contract, and the rows that load are the ones the environment implies — a shared row whose owner package is not installed is withheld naming the owner; embodied's motors agree on name, mass and price (read-only cross-package) | plain node — store-ci |
+| `tests/driver-catalog.test.js` | every catalog row validates against the contract, and the rows that load are the ones the environment implies — a shared row whose owner package is not installed is withheld naming the owner; embodied's motors are read from embodied's own rows and agree with its compiled parts model on name, mass, price and KV (read-only cross-package) | plain node — store-ci |
 | `tests/board-model.test.js` | the breadboard model: footprints (turned ones too), refusals, the automatic layout implies the schematic's nets on every example and the wires rebuilt from a board imply them again, moves / jumpers / reconciliation, shorted parts, jumper spans on the BB830 geometry | plain node — store-ci |
 | `tests/surface-bridge.test.js` | the assistant rail: the manifest's surface ops and delegate mode, the page's context op and `circuit_action` vocabulary under the contract's caps, the digest cap on a 200-part circuit | plain node — store-ci |
-| `tests/shared-parts.test.js` | a row that names another package as a part's owner READS it: against the real tree this lab's SG90 equals animatronics' own row (read back through animatronics' loader), against a fixture packages root the answer moves with the owner's numbers, an absent or unanswerable owner withholds that row naming the owner, and restating an owned field or leaving the owner's voltage window is refused with the field named. It also copies this package ALONE into an empty directory and runs its own catalog suite there, because a single-package install is how store packages install and must not read as a red package | plain node — store-ci |
+| `tests/shared-parts.test.js` | a row that names another package as a part's owner READS it: against the real tree this lab's SG90 equals animatronics' own row (read back through animatronics' loader), against a fixture packages root the answer moves with the owner's numbers (the SG90's and the embodied motors'), an absent or unanswerable owner withholds that row naming the owner, and restating an owned field or leaving the owner's voltage window is refused with the field named. It also copies this package ALONE into an empty directory and runs its own catalog suite there, because a single-package install is how store packages install and must not read as a red package | plain node — store-ci |
 
 All eleven are registered in `tests/test-lab.yaml` with their real prerequisites. The 0.6.0 verification
 state — which suites have run where, and how to finish the real-solver run and the install — is in
@@ -128,3 +132,16 @@ rather than measured). A deck the solver refuses at the defaults is retried once
 tolerances and the report says so; a person who sets the solver's knobs gets exactly those. Each gap is a [BACKLOG](BACKLOG.md) item with done-when criteria; the external
 tools on the operator's list each have a dated evaluation under
 [docs/evaluations/](docs/evaluations/README.md).
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **288 / 1152 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| circuit-engineer-chat | engineer chat turn | T4 | none | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

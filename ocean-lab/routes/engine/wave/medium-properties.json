@@ -1,0 +1,106 @@
+{
+    "schema": "oshal.medium-properties/1",
+    "adr": "ADR-160 D7 — a medium is a named record, and a force model declares what it needs",
+    "what": "OCEAN-LAB'S COPY of the committed medium rows. ADR-160 D3 forbids a runtime import between packages, so this lab carries the rows as data and implements the media it can answer for. A lab may differ only in what it can ANSWER (the implementation block), never in what a medium's properties ARE: the `properties` of every row here must equal embodied's committed row (embodied/src-routes/engine/medium/medium-properties.json), and scripts/check-adr160-contract.mjs fails when they, the row keys or the implementation keys drift.",
+    "notWhat": "Not a second answer to what seawater is. The property values are embodied's row, pinned by the contract check; the only thing this file adds is ocean-lab's implementation of seawater: a free surface at the datum and the sea-state heave field the wave-propulsion model takes.",
+    "units": {
+        "gravityMps2": "m/s^2, a vector in the plant's world frame (x, y, z), z up",
+        "densityKgM3": "kg/m^3",
+        "dynamicViscosityPaS": "Pa*s — dynamic, because that is what an atmosphere model produces (mu_Pas). Kinematic viscosity is mu/rho and is DERIVED, never stored here (D7)",
+        "speedOfSoundMs": "m/s, null when the medium cannot answer — never defaulted",
+        "temperatureK": "K, null when the medium cannot answer — never defaulted",
+        "heightM": "metres above the medium's own datum, positive up. The validity coordinate."
+    },
+    "earthSurfaceGravityMps2": 9.81,
+    "earthSurfaceGravitySource": "embodied's committed row (earthSurfaceGravityMps2), carried verbatim and pinned by the contract check.",
+    "media": {
+        "vacuum": {
+            "id": "vacuum",
+            "label": "Vacuum (Earth surface gravity)",
+            "summary": "No fluid at all. Nothing in this lab produces a force in it, and the wave-propulsion model declines it by its envelope.",
+            "properties": {
+                "gravityMps2": [0, 0, -9.81],
+                "densityKgM3": 0,
+                "dynamicViscosityPaS": 0,
+                "speedOfSoundMs": null,
+                "temperatureK": null
+            },
+            "implementation": {
+                "resolution": "constant",
+                "field": null,
+                "freeSurface": null,
+                "validity": {
+                    "coordinate": "heightM",
+                    "minM": -1000,
+                    "maxM": 1000,
+                    "why": "The same band embodied's row declares: gravity is the only property this medium has, and it holds to 3.1e-4 relative over +/-1000 m of the datum."
+                }
+            },
+            "provenance": {
+                "densityKgM3": "Zero by definition — embodied's row.",
+                "dynamicViscosityPaS": "Zero by definition — embodied's row. Kinematic viscosity mu/rho is 0/0 and is UNAVAILABLE, never zero.",
+                "gravityMps2": "earthSurfaceGravityMps2 above."
+            }
+        },
+        "air": {
+            "id": "air",
+            "label": "Air (ISA sea level)",
+            "summary": "Standard-atmosphere air at the sea-level station, as embodied's row carries it. It has no free surface, so nothing in this lab can heave against it.",
+            "properties": {
+                "gravityMps2": [0, 0, -9.81],
+                "densityKgM3": 1.225,
+                "dynamicViscosityPaS": 1.78938e-5,
+                "speedOfSoundMs": 340.2941,
+                "temperatureK": 288.15
+            },
+            "implementation": {
+                "resolution": "constant-at-reference-station",
+                "referenceHeightM": 0,
+                "field": { "model": "still", "velocityMs": [0, 0, 0], "why": "This lab models no wind. A still field is an answer by name, not a silent zero." },
+                "freeSurface": null,
+                "validity": {
+                    "coordinate": "heightM",
+                    "minM": -100,
+                    "maxM": 100,
+                    "why": "The band embodied's row chose for a constant sea-level station: within about 1 % over the surface layer, refused outside rather than extrapolated. aero-lab's atmosphere resolves the column."
+                }
+            },
+            "provenance": {
+                "densityKgM3": "embodied's row (aero-lab atmosphere.py ISA sea-level 1.2250).",
+                "dynamicViscosityPaS": "embodied's row (Sutherland at 288.15 K from aero-lab's constants).",
+                "speedOfSoundMs": "embodied's row (sqrt(gamma R T0) from aero-lab's constants).",
+                "temperatureK": "embodied's row (aero-lab _T0_K).",
+                "gravityMps2": "earthSurfaceGravityMps2 above."
+            }
+        },
+        "seawater": {
+            "id": "seawater",
+            "label": "Seawater (coastal, free surface)",
+            "summary": "Constant-density coastal seawater with a free surface at the datum and a sea-state heave field. This is the medium the explorer's wave-propulsion model runs in; embodied's row carries the same properties and neither of these two fields.",
+            "properties": {
+                "gravityMps2": [0, 0, -9.81],
+                "densityKgM3": 1025,
+                "dynamicViscosityPaS": 0.00107625,
+                "speedOfSoundMs": null,
+                "temperatureK": null
+            },
+            "implementation": {
+                "resolution": "constant",
+                "field": { "model": "sea-state", "velocityMs": null, "why": "The surface heaves at w(t) = (H/2)(2*pi/T)cos(2*pi*t/T) for the sea state a site names (the report's WAVE INPUT). The heights, periods and occurrences are the SITE's, carried on the design vector, not this row's; no current field is modelled here." },
+                "freeSurface": { "kind": "plane", "heightM": 0, "why": "The float follows a free surface at the datum; the sub runs submerged below it on its tether. This plane is what the wave-propulsion model asks for, and it is what air and vacuum do not have." },
+                "validity": {
+                    "coordinate": "heightM",
+                    "minM": -1000,
+                    "maxM": 0,
+                    "why": "From the free surface down: the float sits at the datum and the sub at the tether's depth. Above the surface this row has no answer; 1000 m is the same floor embodied's row chose for a constant-density column with no pressure law."
+                }
+            },
+            "provenance": {
+                "densityKgM3": "embodied's row, which is ocean-lab's own SEAWATER_DENSITY_KGM3 (marine/services/power-budget.ts and rotor-design/services/rotor-presets.ts, pinned by scripts/check-medium-properties.mjs). The explorer study's 24.1 L giving 24.7 kg of buoyancy is 0.0241 m^3 * 1025 kg/m^3.",
+                "dynamicViscosityPaS": "embodied's row: 1025 kg/m^3 * 1.05e-6 m^2/s (ocean-lab SEAWATER_KINEMATIC_VISCOSITY_M2S, rotor-design/services/section-polar.ts).",
+                "speedOfSoundMs": "null — not carried, never defaulted.",
+                "temperatureK": "null — not carried, never defaulted."
+            }
+        }
+    }
+}

@@ -1,10 +1,34 @@
 <!-- CHANGE LOG
 1 | maintainer@emeraldcoastsystemsgroup.com | Separate the proposed manual video editor from existing generation and record isolated FFmpeg feasibility and delivery gates.
+2 | maintainer@emeraldcoastsystemsgroup.com | Record delivery progress: the step 2 pure half (timeline contract, operations, history and compiler) shipped in Video 1.6.2 with the proposed first-slice bounds adopted as validated limits.
+3 | maintainer@emeraldcoastsystemsgroup.com | Record delivery progress: step 2's owned media, persistence and the named catalog shipped in Video 1.7.0.
+4 | maintainer@emeraldcoastsystemsgroup.com | Record delivery progress: export jobs with real FFmpeg decode, cancellation and cleanup shipped in Video 1.8.0.
+5 | maintainer@emeraldcoastsystemsgroup.com | Record delivery progress: the step 3 editor screen and Create's Edit video entry shipped in Video 1.9.0 and Create 1.9.2; step 4 (install) and step 5 (AI assistance) remain.
 -->
 # Manual Video Editor plan
 
 **Status: design and isolated engine feasibility only. No manual video editor is
-installed or implemented by this document.** The intended experience is simple
+installed or implemented by this document.**
+
+**Delivery progress:** Video 1.6.2 ships the step 2 pure half. It adds the shared timeline
+document contract, immutable operations and bounded history under `tools/editor/`, and the
+timeline-to-FFmpeg compiler `src-routes/video-edit-compiler.ts`. These enforce the
+first-slice bounds proposed below as validation limits (see the [README](README.md#manual-timeline-editor-in-progress-create-edit-05)).
+Video 1.7.0 adds the rest of step 2:
+- owned media inspected with the runtime's real ffprobe;
+- migration 068, with forced two-arm owner row security;
+- the `/api/video/editor` routes;
+- the first named catalog, which binds every existing endpoint.
+
+The catalog change needs the reviewed AUTH-07 catalog migration on installations with existing
+Video grants. Video 1.8.0 adds export and preview jobs, following the admission, cancellation,
+epoch and compare-and-set decisions below. Their real FFmpeg output is decoded in the package's
+tests. Video 1.9.0 adds the step 3 editor screen, and Create 1.9.2 opens it from an Edit video
+entry. Its real-Chromium proof covers the whole path, every palette and a phone-width layout.
+
+Step 4 is not done. That means installing the reviewed slice, running the AUTH-07 catalog
+migration and running the registered cases on an installed box. Step 5, AI assistance, has not
+started. The intended experience is simple
 direct editing with preserved revisions, followed by optional AI assistance that
 understands the selected clip and time range. Full Canva or desktop-editor parity
 is not the acceptance criterion for the first delivery.

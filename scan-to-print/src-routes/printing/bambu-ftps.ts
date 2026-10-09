@@ -1,0 +1,248 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial creation — upload one file to a Bambu Lab printer's
+ *                     |                             | storage over IMPLICIT FTPS (TLS from the first byte, port 990,
+ *                     |                             | user `bblp` + the LAN access code) with node:tls only. The
+ *                     |                             | control connection refuses, before USER/PASS, any peer that is
+ *                     |                             | not the printer pinned at registration (certificate fingerprint
+ *                     |                             | and serial). The transfer follows the server's own order: the
+ *                     |                             | passive data socket is opened (plain TCP), STOR is sent, and
+ *                     |                             | only after the server's 150 is TLS started on that socket,
+ *                     |                             | resuming the control session (the printer's vsftpd requires it)
+ *                     |                             | and checked against the pin before a byte is sent. A refused
+ *                     |                             | STOR (553 = no USB stick / SD card) closes the data socket at
+ *                     |                             | once, so nothing waits on a connection the server never accepts;
+ *                     |                             | every step has a timeout. The PASV address the server names is
+ *                     |                             | ignored in favour of the host already dialled.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The control and data connections offer TLS 1.2 at most, like the
+ *                     |                             | broker (BAMBU_MAX_TLS), so every connection to the printer offers
+ *                     |                             | only the version all of its servers answer. Nothing changes on the
+ *                     |                             | wire: the file server speaks only TLS 1.2 (measured on a P2S at
+ *                     |                             | 01.01.02.00; P2S units on 01.02.00.00 were reported to refuse a
+ *                     |                             | TLS 1.3 hello at once and settle on 1.2).
+ */
+
+import net from 'node:net';
+import tls from 'node:tls';
+import { BAMBU_MAX_TLS, type TlsConnect, printerPinMismatch } from './bambu-mqtt';
+
+/** @description Test seam: opens the plain TCP data socket. */
+export type TcpConnect = (host: string, port: number) => net.Socket;
+
+/** @description Where and how to upload. */
+export interface FtpsTarget {
+  /** Printer host. */
+  host: string;
+  /** Printer serial; the certificate CN must match it. */
+  serial: string;
+  /** Certificate fingerprint pinned at registration. */
+  certSha256: string;
+  /** LAN access code. */
+  accessCode: string;
+  /** Control port (990). */
+  port?: number;
+  /** TLS socket factory; defaults to `tls.connect`. */
+  connect?: TlsConnect;
+  /** TCP socket factory for the data channel; defaults to `net.connect`. */
+  connectTcp?: TcpConnect;
+  /** Per-reply timeout. */
+  replyTimeoutMs?: number;
+  /** Ceiling for the transfer itself. */
+  transferTimeoutMs?: number;
+}
+
+/** @description The upload outcome. */
+export interface FtpsUploadResult {
+  /** True when the server confirmed the transfer and the stored size matches. */
+  ok: boolean;
+  /** Bytes the server reports for the stored file (SIZE), when known. */
+  storedBytes: number | null;
+  /** What happened, in words a person can act on. */
+  message: string;
+}
+
+/** @description An FTP reply: three-digit code + text. */
+interface Reply { code: number; text: string }
+
+/** @description Reads complete (possibly multi-line) FTP replies off a socket. */
+class ReplyReader {
+  private buffer = '';
+  private readonly queue: Reply[] = [];
+  private waiter: { resolve: (r: Reply) => void; reject: (e: Error) => void } | null = null;
+  private failure: Error | null = null;
+
+  constructor(socket: tls.TLSSocket) {
+    socket.setEncoding('utf8');
+    socket.on('data', (chunk: string) => this.push(chunk));
+    socket.on('error', (error) => this.fail(error));
+    socket.on('close', () => this.fail(new Error('the printer file server closed the connection')));
+  }
+
+  private fail(error: Error): void {
+    if (!this.failure) this.failure = error;
+    if (this.waiter) { const w = this.waiter; this.waiter = null; w.reject(this.failure); }
+  }
+
+  private push(chunk: string): void {
+    this.buffer += chunk;
+    for (;;) {
+      const m = /^(\d{3})(?: [^\n]*\r?\n|-[\s\S]*?\r?\n\1 [^\n]*\r?\n)/.exec(this.buffer);
+      if (!m) return;
+      this.buffer = this.buffer.slice(m[0].length);
+      const reply = { code: Number(m[1]), text: m[0].trim() };
+      if (this.waiter) { const w = this.waiter; this.waiter = null; w.resolve(reply); } else this.queue.push(reply);
+    }
+  }
+
+  /** @description The next reply, or a rejection after `timeoutMs` or when the connection fails. */
+  next(timeoutMs: number): Promise<Reply> {
+    const queued = this.queue.shift();
+    if (queued) return Promise.resolve(queued);
+    if (this.failure) return Promise.reject(this.failure);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { this.waiter = null; reject(new Error(`printer file server did not answer within ${Math.round(timeoutMs / 1000)} s`)); }, timeoutMs);
+      this.waiter = { resolve: (r) => { clearTimeout(timer); resolve(r); }, reject: (e) => { clearTimeout(timer); reject(e); } };
+    });
+  }
+}
+
+/** @description A thrown reply the caller turns into a person-readable message. */
+class ReplyError extends Error {
+  constructor(readonly reply: Reply, readonly step: string) { super(`${step}: ${reply.text}`); }
+}
+
+/** @description Open the TLS control connection and refuse anything but the pinned printer. */
+function openControl(target: FtpsTarget, timeoutMs: number): Promise<{ socket: tls.TLSSocket; reader: ReplyReader; session: () => Buffer | undefined }> {
+  const connect = target.connect ?? tls.connect;
+  return new Promise((resolve, reject) => {
+    const socket = connect({ host: target.host, port: target.port ?? 990, rejectUnauthorized: false, maxVersion: BAMBU_MAX_TLS });
+    let latest: Buffer | undefined;
+    const timer = setTimeout(() => { socket.destroy(); reject(new Error(`the printer file server at ${target.host} did not answer within ${Math.round(timeoutMs / 1000)} s`)); }, timeoutMs);
+    socket.on('session', (s: Buffer) => { latest = s; });
+    socket.on('error', (error) => { clearTimeout(timer); socket.destroy(); reject(new Error(`printer file server connection failed: ${error.message}`)); });
+    socket.once('secureConnect', () => {
+      clearTimeout(timer);
+      const mismatch = printerPinMismatch(socket, target.host, target.serial, target.certSha256);
+      if (mismatch) { socket.destroy(); reject(new Error(mismatch)); return; }
+      resolve({ socket, reader: new ReplyReader(socket), session: () => latest ?? socket.getSession() });
+    });
+  });
+}
+
+/** @description Send one command and require a reply code. */
+async function command(socket: tls.TLSSocket, reader: ReplyReader, line: string, expect: number[], step: string, timeoutMs: number): Promise<Reply> {
+  socket.write(line + '\r\n');
+  const reply = await reader.next(timeoutMs);
+  if (!expect.includes(reply.code)) throw new ReplyError(reply, step);
+  return reply;
+}
+
+/**
+ * @description The data port from a 227 reply.
+ * @param text - The PASV reply.
+ * @returns The port.
+ * @throws Error when the reply carries no address tuple.
+ */
+export function pasvPort(text: string): number {
+  const m = /\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)/.exec(text);
+  if (!m) throw new Error(`unreadable passive-mode reply: ${text}`);
+  return Number(m[5]) * 256 + Number(m[6]);
+}
+
+/** @description Open the plain TCP data socket; resolves once connected. */
+function openTcp(target: FtpsTarget, port: number, timeoutMs: number): Promise<net.Socket> {
+  const connect = target.connectTcp ?? ((host: string, p: number) => net.connect({ host, port: p }));
+  return new Promise((resolve, reject) => {
+    const socket = connect(target.host, port);
+    const timer = setTimeout(() => { socket.destroy(); reject(new Error('the printer did not accept the data connection')); }, timeoutMs);
+    socket.on('error', (error) => { clearTimeout(timer); socket.destroy(); reject(new Error(`printer data connection failed: ${error.message}`)); });
+    socket.once('connect', () => { clearTimeout(timer); resolve(socket); });
+  });
+}
+
+/** @description Start TLS on the accepted data socket (resuming the control session), verify, send, finish. */
+function sendOverTls(target: FtpsTarget, tcp: net.Socket, session: Buffer | undefined, bytes: Uint8Array, timeoutMs: number): Promise<void> {
+  const connect = target.connect ?? tls.connect;
+  return new Promise((resolve, reject) => {
+    // `host` must be the one the control connection used: without it Node names the TLS server
+    // 'localhost', the session no longer matches, and the printer refuses the non-resumed channel.
+    const data = connect({ socket: tcp, host: target.host, rejectUnauthorized: false, session, maxVersion: BAMBU_MAX_TLS });
+    const timer = setTimeout(() => { data.destroy(); reject(new Error(`the upload did not finish within ${Math.round(timeoutMs / 1000)} s`)); }, timeoutMs);
+    const fail = (error: Error) => { clearTimeout(timer); data.destroy(); reject(error); };
+    data.on('error', (error) => fail(new Error(`printer data connection failed: ${error.message}`)));
+    data.once('secureConnect', () => {
+      if (!data.isSessionReused() && printerPinMismatch(data, target.host, target.serial, target.certSha256)) { fail(new Error('the data connection did not reach the printer this upload started with')); return; }
+      data.end(Buffer.from(bytes), () => { clearTimeout(timer); resolve(); });
+    });
+  });
+}
+
+/** @description Map a refused step to what the person should do. */
+function explain(error: unknown): string {
+  if (error instanceof ReplyError) {
+    if (error.reply.code === 530) return 'the printer refused the LAN access code';
+    if (error.reply.code === 553 || error.reply.code === 452) return 'the printer has nowhere to store the file — insert a USB stick (or SD card) in the printer, or free space on it';
+    return `the printer file server refused ${error.step} (${error.reply.text})`;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** @description Log in and switch the control channel to private binary transfers; returns the data port. */
+async function prepare(socket: tls.TLSSocket, reader: ReplyReader, target: FtpsTarget, wait: number): Promise<number> {
+  if ((await reader.next(wait)).code !== 220) throw new Error('printer file server sent no greeting');
+  await command(socket, reader, 'USER bblp', [331, 230], 'USER', wait);
+  await command(socket, reader, `PASS ${target.accessCode}`, [230], 'PASS', wait);
+  await command(socket, reader, 'PBSZ 0', [200], 'PBSZ', wait);
+  await command(socket, reader, 'PROT P', [200], 'PROT', wait);
+  await command(socket, reader, 'TYPE I', [200], 'TYPE', wait);
+  return pasvPort((await command(socket, reader, 'PASV', [227], 'PASV', wait)).text);
+}
+
+/** @description STOR over an opened data socket, then confirm with 226 and SIZE. */
+async function transfer(control: Awaited<ReturnType<typeof openControl>>, target: FtpsTarget, port: number, fileName: string, bytes: Uint8Array, wait: number): Promise<number> {
+  const { socket, reader } = control;
+  const transferMs = target.transferTimeoutMs ?? Math.max(120_000, Math.ceil(bytes.byteLength / 50_000) * 1000);
+  const tcp = await openTcp(target, port, wait);
+  try {
+    socket.write(`STOR ${fileName}\r\n`);
+    const opened = await reader.next(wait);
+    if (![125, 150].includes(opened.code)) throw new ReplyError(opened, 'STOR');
+    await sendOverTls(target, tcp, control.session(), bytes, transferMs);
+    // The data socket stays open until the server confirms it read everything (226): closing it
+    // earlier, with the server's close_notify unread, could reset the connection and lose the tail.
+    const done = await reader.next(transferMs);
+    if (done.code !== 226) throw new ReplyError(done, 'STOR');
+  } finally {
+    tcp.destroy();
+  }
+  const size = await command(socket, reader, `SIZE ${fileName}`, [213], 'SIZE', wait);
+  return Number(size.text.split(/\s+/)[1]);
+}
+
+/**
+ * @description Upload one file to the root of the printer's storage and confirm its stored size.
+ * @param target - Printer host, serial, pinned certificate and access code.
+ * @param fileName - Name to store (a bare file name; no path).
+ * @param bytes - File contents.
+ * @returns The outcome; never throws.
+ */
+export async function ftpsUpload(target: FtpsTarget, fileName: string, bytes: Uint8Array): Promise<FtpsUploadResult> {
+  if (!/^[A-Za-z0-9._-]{1,128}$/.test(fileName)) return { ok: false, storedBytes: null, message: `refusing to store an unsafe file name: ${fileName}` };
+  const wait = target.replyTimeoutMs ?? 15_000;
+  let control: Awaited<ReturnType<typeof openControl>> | null = null;
+  try {
+    control = await openControl(target, wait);
+    const port = await prepare(control.socket, control.reader, target, wait);
+    const storedBytes = await transfer(control, target, port, fileName, bytes, wait);
+    control.socket.write('QUIT\r\n');
+    const ok = storedBytes === bytes.byteLength;
+    return { ok, storedBytes, message: ok ? 'stored on the printer' : `the printer stored ${storedBytes} of ${bytes.byteLength} bytes` };
+  } catch (error) {
+    return { ok: false, storedBytes: null, message: explain(error) };
+  } finally {
+    control?.socket.destroy();
+  }
+}

@@ -28,6 +28,13 @@ DATE/TIME           | AUTHOR                      | DESCRIPTION
                     |                             | carried that path answered from an
                     |                             | uncertified engine. Order is now
                     |                             | AERO_LAB_ENGINE_DIR, else this directory.
+2026-09-27 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | 'certify' command: the four
+                    |                             | reference presets on the REAL chain
+                    |                             | through certify_reference.py (loaded by
+                    |                             | explicit path like the exporter), each
+                    |                             | pass or fail with structured reasons.
+                    |                             | Additive only: evaluate/screen/export/
+                    |                             | mission keep the ideal default.
 
 aero-lab engine service -- the BUILD_CONTRACT section-5 worker.
 
@@ -128,6 +135,25 @@ def _import_export_module():
     spec = importlib.util.spec_from_file_location("export_build_files", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+    return mod
+
+
+def _import_local(name: str):
+    """@description Load <name>.py from THIS directory by explicit path, like
+        the exporter (never via sys.path).
+    @param name Module file stem.
+    @returns The module.
+    @raises Exception when the file is missing/broken (feature-detected)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        name, os.path.join(_OWN_DIR, f"{name}.py"))
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod  # dataclasses resolve their module through sys.modules
+    try:
+        spec.loader.exec_module(mod)
+    except BaseException:
+        sys.modules.pop(name, None)
+        raise
     return mod
 
 G0 = 9.80665
@@ -269,6 +295,11 @@ def _load_engine() -> dict:
     except Exception as exc:  # noqa: BLE001 - feature-detected like the rest
         _M["export_build_files"] = None
         errors["export_build_files"] = f"{type(exc).__name__}: {str(exc)[:200]}"
+    try:
+        _M["certify_reference"] = _import_local("certify_reference")
+    except Exception as exc:  # noqa: BLE001 - feature-detected like the rest
+        _M["certify_reference"] = None
+        errors["certify_reference"] = f"{type(exc).__name__}: {str(exc)[:200]}"
     _M["errors"] = errors
     _M["loaded"] = True
     _log(f"engine load: {time.perf_counter() - t0:.1f} s from {ENGINE_DIR}; "
@@ -291,6 +322,8 @@ def _caps() -> dict:
         "export": bool(evaluate_ok and m["aerosandbox"] and m["export_build_files"]),
         "hybrid": bool(evaluate_ok and m["buoyancy"] and m["hybrid_common"]
                        and m["hybrid_piecewise"]),
+        "certify": bool(evaluate_ok and m["validate_screen"] and m["buoyancy"]
+                        and m["hybrid_common"] and m["certify_reference"]),
         "modules": {
             "electrical": bool(m["electrical"]),
             "prop": bool(m["prop"]),
@@ -815,6 +848,28 @@ def cmd_mission(args: dict) -> dict:
     }
 
 
+def cmd_certify(args: dict) -> dict:
+    """@description Certify the reference presets on the REAL chain
+        (certify_reference.py): each pass or fail with structured reasons
+        from the closed aerosim.validity set, stamped with this engine's
+        fingerprint. Does not change the evaluate default.
+    @param args {keys?: preset keys (default all four)}.
+    @returns The certification report."""
+    m = _require("certify")
+    keys = args.get("keys")
+    if keys is not None and (not isinstance(keys, list)
+                             or not all(isinstance(k, str) for k in keys)):
+        raise WorkerError("invalid_design", "keys must be a list of preset keys")
+    cert = m["certify_reference"]
+    hooks = cert.ServiceHooks(
+        modules=m, validate_vector=_validate_vector, to_design=_to_design,
+        attach_buoyancy=_attach_buoyancy, fingerprint=_fingerprint())
+    try:
+        return cert.certify(hooks, keys)
+    except ValueError as exc:  # an unknown preset key is a caller error
+        raise WorkerError("invalid_design", str(exc)) from exc
+
+
 COMMANDS = {
     "capabilities": cmd_capabilities,
     "polar": cmd_polar,
@@ -822,6 +877,7 @@ COMMANDS = {
     "screen": cmd_screen,
     "export": cmd_export,
     "mission": cmd_mission,
+    "certify": cmd_certify,
 }
 
 

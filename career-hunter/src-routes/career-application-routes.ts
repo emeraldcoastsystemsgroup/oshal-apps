@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Preserve the two-argument ticket transition contract when no metadata was supplied.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Make manual application assertions upgrade unverified history while preserving stronger worker or confirmation-backed provenance.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Persist the authenticated manual completion in the authoritative Apply V2 ledger before updating its Career projections.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Export the deterministic ticket key and the one-application creator (1.27.0) so the Test Lab application seam (career-test-lab-applications.ts) plants its marked application through the same ticket and row writes the queue uses, never a copy of them. createApplication takes an optional Test Lab tag that it records as the ticket's `test_lab_tag` metadata, the only mark the seam's removal accepts; an unscored posting's ticket says so instead of printing a missing fit. The enqueue path passes no tag and is unchanged.
  */
 
 /**
@@ -34,11 +35,12 @@ function provenanceRankSql(value: string): string {
     `WHEN 'manual-mark' THEN 2 WHEN 'unverified' THEN 1 ELSE 0 END)`;
 }
 
-interface EnqueueRow {
+/** One posting an application is created for: the corpus facts its ticket and row carry. */
+export interface EnqueueRow {
   id: number;
   title: string;
   company: string;
-  fit: number;
+  fit: number | null;
   salary_max: number | null;
   url: string;
 }
@@ -69,25 +71,45 @@ async function applicationExists(ctx: AppContext, userSub: string, postingId: nu
   return !!result.rowCount;
 }
 
-/** Build a bounded external key so concurrent replicas ask TicketService for the same ticket. */
-function applicationTicketKey(userSub: string, postingId: number): string {
+/** The ticket provider every Career application ticket is keyed under. */
+export const APPLICATION_TICKET_PROVIDER = 'career-hunter';
+
+/**
+ * @description Build a bounded external key so concurrent replicas ask TicketService for the same
+ * ticket; the owner is hashed so the subject never appears in the key.
+ * @param userSub - Owner of the application.
+ * @param postingId - The corpus posting.
+ * @returns The ticket's external id under {@link APPLICATION_TICKET_PROVIDER}.
+ */
+export function applicationTicketKey(userSub: string, postingId: number): string {
   const owner = createHash('sha256').update(userSub, 'utf8').digest('hex');
   return `${TENANT}:${owner}:${postingId}`;
 }
 
-/** Create or reuse one deterministic ticket, then report whether this call inserted the join row. */
-async function createApplication(ctx: AppContext, userSub: string, row: EnqueueRow): Promise<boolean> {
+/**
+ * @description Create or reuse one deterministic ticket, then report whether this call inserted the
+ * join row. A Test Lab tag, when given, is recorded as the ticket's `test_lab_tag` metadata.
+ * @param ctx - Kernel context for the ticket and application writes.
+ * @param userSub - Owner of the application.
+ * @param row - The posting the application is for.
+ * @param testLabTag - The acceptance run's tag, only from the Test Lab seam.
+ * @returns Whether this call inserted the application row.
+ */
+export async function createApplication(
+  ctx: AppContext, userSub: string, row: EnqueueRow, testLabTag?: string,
+): Promise<boolean> {
+  const fit = row.fit === null ? 'not yet scored' : `AI fit ${row.fit}`;
   const ticket = await ctx.ticketService.createTicket({
     title: `Apply: ${row.title} — ${row.company}`,
     ticketType: 'career-application',
-    description: `Draft a tailored resume + cover letter for posting ${row.id} (${row.title} at ${row.company}, AI fit ${row.fit}). Awaiting operator approval (standard or OSHAL variant).`,
+    description: `Draft a tailored resume + cover letter for posting ${row.id} (${row.title} at ${row.company}, ${fit}). Awaiting operator approval (standard or OSHAL variant).`,
     status: 'approval_required',
     priority: 'none',
     labels: [],
     workspaceId: null,
     assignedAgentId: null,
     parentTicketId: null,
-    externalProvider: 'career-hunter',
+    externalProvider: APPLICATION_TICKET_PROVIDER,
     externalId: applicationTicketKey(userSub, row.id),
     externalUrl: null,
     metadata: {
@@ -96,6 +118,7 @@ async function createApplication(ctx: AppContext, userSub: string, row: EnqueueR
       title: row.title,
       tenant: TENANT,
       url: row.url,
+      ...(testLabTag ? { test_lab_tag: testLabTag } : {}),
     },
     ownerSub: userSub,
   });

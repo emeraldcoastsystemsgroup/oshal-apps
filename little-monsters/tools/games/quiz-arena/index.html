@@ -4,29 +4,41 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>Quiz Arena</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  SEQ | AUTHOR                                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com   | Quiz Arena mini-game: boss battles answered with the learner's own flashcards (practice fallback), levels and health bars, lm-game score and lm-exit messages to the arcade
+  2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default) and package stylesheet replace the hard-coded dark palette, radial background and glass; health bars, question card, choices and the game-over dialog use tokens with semantic success/danger colours; the arcade-only "I'm done" control hides when the game is opened on its own
+  ---------------------------------------------------------------------------
+-->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
+<link rel="stylesheet" href="/api/education/education.css">
 <style>
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  body{margin:0;min-height:100vh;background:radial-gradient(800px 400px at 50% 0,#3a1840,#120a26) fixed,#120a26;color:#fdeaf6;
-    font-family:system-ui,'Inter',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:14px;}
-  h1{margin:0;font-size:20px;font-weight:800;}
-  .arena{display:flex;justify-content:space-between;width:min(92vw,460px);align-items:flex-end;}
-  .fighter{text-align:center;width:46%;}
-  .fighter .m{font-size:54px;}
-  .hpwrap{height:12px;border-radius:8px;background:#241640;overflow:hidden;margin-top:4px;}
-  .hpwrap i{display:block;height:100%;transition:width .3s;}
-  .me i{background:#46d39a;} .boss i{background:#ff6b8b;}
-  .nm{font-size:12px;font-weight:700;margin-top:4px;}
-  .q{width:min(92vw,460px);background:#241640;border:1px solid rgba(236,79,170,.25);border-radius:16px;text-align:center;padding:16px;font-size:17px;font-weight:700;min-height:70px;display:flex;align-items:center;justify-content:center;}
-  .opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:min(92vw,460px);}
-  .opt{padding:13px;border-radius:12px;border:1px solid #3a2566;background:#1c1338;color:#fff;font-weight:600;font-size:14px;cursor:pointer;}
-  .opt:hover{border-color:#ec4faa;}.opt.right{background:#46d39a;color:#08210f;}.opt.wrong{background:#ff6b8b;}
-  .small{font-size:12px;color:#b98cc8;}
-  .over{position:fixed;inset:0;background:rgba(10,6,24,.88);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;}
-  .over.on{display:flex;}.over h2{font-size:28px;margin:0;}
-  .btn{background:#ec4faa;color:#fff;border:none;border-radius:12px;padding:12px 24px;font-weight:800;font-size:16px;cursor:pointer;}
-  .shake{animation:shake .3s;}@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+  * { -webkit-tap-highlight-color: transparent; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 14px; }
+  h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.2px; }
+  .arena { display: flex; justify-content: space-between; align-items: flex-end; width: min(92vw, 460px); }
+  .fighter { text-align: center; width: 46%; }
+  .fighter .m { font-size: 54px; line-height: 1.2; }
+  .hpwrap { height: 12px; border-radius: 8px; background: var(--lm-accent-soft); overflow: hidden; margin-top: 4px; }
+  .hpwrap i { display: block; height: 100%; transition: width .3s; }
+  .me i { background: var(--lm-success); } .boss i { background: var(--lm-danger); }
+  .nm { font-size: 12px; font-weight: 700; margin-top: 4px; color: var(--lm-ink-2); }
+  .q { width: min(92vw, 460px); min-height: 70px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 16px;
+    font-size: 17px; font-weight: 700; overflow-wrap: anywhere; background: var(--lm-card); border: 1px solid var(--lm-line); border-radius: var(--lm-radius-lg); box-shadow: var(--lm-shadow-soft); }
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: min(92vw, 460px); }
+  .opt { min-height: var(--lm-touch); padding: 12px; border-radius: var(--lm-radius-md); border: 1px solid var(--lm-line-strong); background: var(--lm-card); color: var(--lm-ink);
+    font-size: 14px; font-weight: 600; cursor: pointer; overflow-wrap: anywhere; }
+  .opt:hover { border-color: var(--lm-accent-line); background: var(--lm-accent-wash); }
+  .opt.right { background: var(--lm-success); border-color: var(--lm-success); color: #fff; }
+  .opt.wrong { background: var(--lm-danger); border-color: var(--lm-danger); color: #fff; }
+  .shake { animation: shake .3s; } @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+  .over-score { margin: 8px auto 16px; }
+  .over-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
   <h1>⚔️ Quiz Arena</h1>
@@ -36,13 +48,22 @@
   </div>
   <div class="q" id="q">Loading…</div>
   <div class="opts" id="opts"></div>
-  <div class="small" id="src"></div>
-  <div class="over" id="over"><h2 id="overTitle"></h2><div id="overScore"></div><button class="btn" onclick="start()">Fight again</button>
-    <button class="btn" style="background:transparent;border:1px solid #5b8def;color:#cfe0ff;margin-left:8px;" onclick="if(window.parent!==window)window.parent.postMessage({type:'lm-exit'},'*')">I'm done</button></div>
+  <p class="lm-help" id="src"></p>
+  <div class="lm-modal" id="over" role="dialog" aria-modal="true" aria-labelledby="overTitle">
+    <div class="lm-modal-card lm-text-center">
+      <h2 class="lm-display" id="overTitle"></h2>
+      <p class="lm-lead over-score" id="overScore"></p>
+      <div class="over-actions">
+        <button type="button" class="lm-btn lm-btn-primary" onclick="start()">Fight again</button>
+        <button type="button" class="lm-btn lm-btn-ghost" id="doneBtn" onclick="if(window.parent!==window)window.parent.postMessage({type:'lm-exit'},'*')">I'm done</button>
+      </div>
+    </div>
+  </div>
 <script>
 var pool=[],meHp,bossHp,bossMax,level,score,cur,busy,bosses=['👾','👹','🤖','🐙','🦖'];
 var FALLBACK=[{q:'8 × 7 = ?',a:'56'},{q:'Opposite of "hot"?',a:'Cold'},{q:'Water freezes at __ °C',a:'0'},{q:'Plural of "mouse"?',a:'Mice'},
   {q:'A triangle has __ sides',a:'3'},{q:'Sun rises in the…',a:'East'},{q:'5² = ?',a:'25'},{q:'Gas we breathe in?',a:'Oxygen'},{q:'Past tense of "go"?',a:'Went'},{q:'Half of 50?',a:'25'}];
+if(window.parent===window) document.getElementById('doneBtn').classList.add('hide');
 async function loadPool(){
   try{ var sr=await fetch('/api/education/flashcards/sets'); if(sr.ok){ var sets=(await sr.json()).sets||[];
     for(var i=0;i<Math.min(sets.length,5);i++){ var cr=await fetch('/api/education/flashcards/sets/'+sets[i].set_id+'/cards');
@@ -51,7 +72,7 @@ async function loadPool(){
   else document.getElementById('src').textContent='Questions from your flashcards 🎯';
   start();
 }
-function start(){ meHp=100; level=1; score=0; document.getElementById('over').classList.remove('on'); newBoss(); next(); }
+function start(){ meHp=100; level=1; score=0; document.getElementById('over').classList.remove('is-open'); newBoss(); next(); }
 function newBoss(){ bossMax=60+level*20; bossHp=bossMax; document.getElementById('bossM').textContent=bosses[(level-1)%bosses.length];
   document.getElementById('bossNm').textContent='Brain Goblin · Lv '+level; drawHp(); }
 function drawHp(){ document.getElementById('meHp').style.width=Math.max(0,meHp)+'%'; document.getElementById('bossHp').style.width=Math.max(0,bossHp/bossMax*100)+'%'; }
@@ -60,7 +81,7 @@ function next(){ busy=false; cur=pool[Math.random()*pool.length|0]; document.get
   for(var k=0;k<3&&others.length;k++){var j=Math.random()*others.length|0;opts.push(others[j].a);others.splice(j,1);}
   for(var s=opts.length-1;s>0;s--){var t=Math.random()*(s+1)|0,tmp=opts[s];opts[s]=opts[t];opts[t]=tmp;}
   var box=document.getElementById('opts'); box.innerHTML='';
-  opts.forEach(function(o){var b=document.createElement('button');b.className='opt';b.textContent=o;b.onclick=function(){answer(b,o);};box.appendChild(b);});
+  opts.forEach(function(o){var b=document.createElement('button');b.type='button';b.className='opt';b.textContent=o;b.onclick=function(){answer(b,o);};box.appendChild(b);});
 }
 function answer(btn,val){
   if(busy)return; busy=true;
@@ -77,7 +98,7 @@ function answer(btn,val){
 function end(win){
   document.getElementById('overTitle').textContent = win?'Victory! 🏆':'Defeated 💥';
   document.getElementById('overScore').textContent='Reached Level '+level+' · Score '+score;
-  document.getElementById('over').classList.add('on');
+  document.getElementById('over').classList.add('is-open');
   try{ if(window.parent!==window) window.parent.postMessage({type:'lm-game',game:'quiz-arena',score:score},'*'); }catch(e){}
 }
 loadPool();

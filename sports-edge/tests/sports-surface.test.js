@@ -15,6 +15,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — inline-script parse guard, the surface-to-router endpoint contract, the tab set, and the presence of the credential warning the fantasy tab must show before anyone pastes an account cookie.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The fantasy half moved to the fantasy-football package (ADR-146 D1): the endpoint contract reads sports-routes.js alone, and the three fantasy-copy guards (credential warning, no credential payload, league scoring) moved with the page to fantasy-football/tests/fantasy-surface.test.js. In their place: the Fantasy tab names the new app, links to it, and calls no retired /fantasy route.
  */
 
 const test = require('node:test');
@@ -24,8 +25,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const HTML = fs.readFileSync(path.join(__dirname, '..', 'tools', 'sports-edge.html'), 'utf8');
-const ROUTES = fs.readFileSync(path.join(__dirname, '..', 'routes', 'sports-routes.js'), 'utf8')
-  + fs.readFileSync(path.join(__dirname, '..', 'routes', 'sports-fantasy-routes.js'), 'utf8');
+const ROUTES = fs.readFileSync(path.join(__dirname, '..', 'routes', 'sports-routes.js'), 'utf8');
 
 /** Every inline (non-src) script in the page, concatenated. */
 function inlineScript() {
@@ -73,21 +73,12 @@ test('EVERY ENDPOINT THE PAGE CALLS IS ONE THE ROUTER REGISTERS', () => {
   }
 });
 
-test('the fantasy tab WARNS about the credential before anyone pastes an account cookie', () => {
-  // This is the one piece of surface copy that is not decoration: ESPN publishes no OAuth, so the
-  // thing being pasted is an account session cookie. Losing this text would quietly turn an
-  // informed decision back into an uninformed one.
-  assert.match(HTML, /account session cookies/i);
-  assert.match(HTML, /no OAuth for fantasy/i);
-  assert.match(HTML, /sign out of ESPN everywhere/i);
-});
-
-test('the surface never asks for a credential itself — pasting happens on the connectors page', () => {
-  const src = inlineScript();
-  assert.equal(/espn_s2['"]?\s*:/.test(src), false, 'the page must not build a credential payload');
-  assert.equal(src.includes('/api/connect/'), false, 'and must not post one either');
-});
-
-test('it states that points come from the league\'s own scoring, not a built-in table', () => {
-  assert.match(HTML, /your own league rules|league's own scoring/i);
+test('THE FANTASY TAB SAYS WHERE FANTASY WENT — and calls no fantasy route', () => {
+  // ADR-146 D1: the fantasy half is its own app now. A tab that silently vanished would read as the
+  // feature being deleted; a tab that still called /fantasy/* would render a 410 as an error.
+  assert.match(HTML, /Fantasy moved to its own app/);
+  assert.match(HTML, /href="\/cockpit\/\?app=fantasy-football"/);
+  assert.match(HTML, /yours alone/);
+  assert.equal(/API \+ '\/fantasy/.test(inlineScript()), false, 'the page must not call a retired fantasy route');
+  assert.equal(inlineScript().includes('/api/connect/'), false, 'and never posts a credential');
 });

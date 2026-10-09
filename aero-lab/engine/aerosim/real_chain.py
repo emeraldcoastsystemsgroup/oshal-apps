@@ -13,6 +13,13 @@ SEQ                 | AUTHOR                      | DESCRIPTION
   |                                           | positive whole cell counts before conversion;
   |                                           | fractional/NaN/infinite values can no longer
   |                                           | truncate or leak int-conversion exceptions.
+3 | maintainer@emeraldcoastsystemsgroup.com   | Refusals are typed at the raise: the
+  |                                           | claim-band refusal is PackClaimBandError
+  |                                           | (still a ValueError) carrying a structured
+  |                                           | pack_claim_outside_catalogue_band reason with
+  |                                           | claim, catalogue value, ratio and band; the
+  |                                           | knob/chemistry/topology refusals carry
+  |                                           | real_chain_config_refused naming the knob.
 
 This module is intentionally an assembly seam. Component equations remain in
 their cited owners; the builder chooses compatible catalogued parts, derives
@@ -35,6 +42,7 @@ from .electrical import (
     harness_copper_mass_kg,
 )
 from .prop import EscParams, MOTOR_CATALOGUE, PROP_CATALOGUE, PropGeometry
+from .validity import attach as _attach_reason
 from .vehicle.bemt_thruster import BEMTThruster
 from .vehicle.electrochem import CELL_SPECS, PackThermalSpec
 from .vehicle.energy import BatteryElement, PackHeaterLoad, PayloadLoad
@@ -76,6 +84,13 @@ REAL_CHAIN_HONESTY: dict[str, str] = {
 }
 
 
+class PackClaimBandError(ValueError):
+    """@description The design's pack-level Wh/kg claim disagrees with the
+        selected catalogued cell at the packaging floor by more than
+        REAL_PACK_CLAIM_BAND. A ValueError, so every existing handler still
+        catches it; .validity_reason carries the numbers."""
+
+
 @dataclass(frozen=True)
 class SolarChainAssembly:
     """@description One non-duplicated real electrical-chain assembly."""
@@ -115,11 +130,13 @@ def _pack_topology(
         try:
             numeric = float(value)
         except (TypeError, ValueError) as exc:
-            raise ValueError(f"{name} must be a finite positive whole count") from exc
+            raise _attach_reason(
+                ValueError(f"{name} must be a finite positive whole count"),
+                "real_chain_config_refused", knob=name) from exc
         if not math.isfinite(numeric) or numeric < 1.0 or not numeric.is_integer():
-            raise ValueError(
+            raise _attach_reason(ValueError(
                 f"{name} must be a finite positive whole count, got {value!r}"
-            )
+            ), "real_chain_config_refused", knob=name)
         return int(numeric)
 
     ns = REAL_PACK_NS if n_series is None else whole_count(
@@ -217,19 +234,19 @@ def build_real_solar_chain(
         disagrees with the selected catalogued cell/packaging combination.
     """
     if thruster_figure_of_merit is not None:
-        raise ValueError(
+        raise _attach_reason(ValueError(
             "the real chain has no figure_of_merit knob; BEMT blade geometry owns "
             "shaft power. Use chain='ideal' to exercise the actuator-disk parameter."
-        )
+        ), "real_chain_config_refused", knob="thruster_figure_of_merit")
     chemistry = (
         _select_chemistry(pack_claim_Wh_per_kg)
         if pack_chemistry is None else str(pack_chemistry)
     )
     if chemistry not in CELL_SPECS:
-        raise ValueError(
+        raise _attach_reason(ValueError(
             f"unknown real pack chemistry {chemistry!r}; choose one of "
             f"{sorted(CELL_SPECS)}"
-        )
+        ), "real_chain_config_refused", knob="pack_chemistry")
     ns, np_strings, capacity_Wh, pack_mass_kg = _pack_topology(
         design.battery_mass_kg,
         chemistry,
@@ -239,13 +256,16 @@ def build_real_solar_chain(
     pack_specific_Wh_kg = capacity_Wh / pack_mass_kg
     claim_ratio = float(pack_claim_Wh_per_kg) / pack_specific_Wh_kg
     if abs(claim_ratio - 1.0) > REAL_PACK_CLAIM_BAND:
-        raise ValueError(
+        raise _attach_reason(PackClaimBandError(
             f"{design.name}: design pack claim {pack_claim_Wh_per_kg:.1f} Wh/kg "
             f"does not match {CELL_SPECS[chemistry].name} at the "
             f"{REAL_PACK_MASS_FACTOR:.3f}x packaging floor "
             f"({pack_specific_Wh_kg:.1f} Wh/kg; ratio {claim_ratio:.3f}, "
             f"allowed +/-{REAL_PACK_CLAIM_BAND:.0%})"
-        )
+        ), "pack_claim_outside_catalogue_band", chemistry=chemistry,
+            claim_Wh_per_kg=pack_claim_Wh_per_kg,
+            catalogue_Wh_per_kg=pack_specific_Wh_kg, ratio=claim_ratio,
+            band=REAL_PACK_CLAIM_BAND)
 
     scale = max(pack_mass_kg / REAL_PACK_MASS_A_KG, 1.0e-6) ** (2.0 / 3.0)
     thermal = PackThermalSpec(
@@ -364,6 +384,7 @@ def build_real_solar_chain(
 
 
 __all__ = [
+    "PackClaimBandError",
     "REAL_CHAIN_HONESTY",
     "SolarChainAssembly",
     "build_real_solar_chain",

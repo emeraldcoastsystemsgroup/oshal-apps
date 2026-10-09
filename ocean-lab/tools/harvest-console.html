@@ -18,6 +18,130 @@
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shells open this page with ?audience=company: the signed-in account's saved
+     Explorer vehicles (each stage computed from its design vector on the read, never stored) and the illustrative site
+     catalogue the console sizes against, painted by the shared kit in the company grammar. On open it makes two plain
+     reads, GET /api/ocean-lab/vehicles (owner-scoped SELECTs) and GET /api/ocean-lab/harvest/sites (a fixed catalogue).
+     It runs no simulation (neither the in-browser model nor the server's), never solves, evaluates, seeds or deletes,
+     and mounts no connected actions. Any other request runs the full Harvest Siting Console below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var BASE = '/api/ocean-lab';
+  var KICKER = 'Engineering · Ocean Lab';
+  var ROWS = 8;
+  // routes/vehicle-store.js lists the owner's newest 50 vehicles and no more.
+  var LIST_CAP = 50;
+  var LEDE = 'Saved Explorer vehicles for the signed-in account. The Harvest Console and Blade Studio compute on demand and store nothing, so this view runs no simulation; every site and soil below is an illustrative parameter set, not survey data.';
+  var EMPTY_LEDE = 'The Explorer record holds no vehicle for this account yet; seed one in the full application. The Harvest Console and Blade Studio compute on demand and store nothing, so this view runs no simulation.';
+  // One plain GET under the caller's session; the answer keeps its status and whether it was JSON at all.
+  function read(path) {
+    return fetch(BASE + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().then(function (j) { var obj = !!j && typeof j === 'object'; return { ok: r.ok, status: r.status, json: obj, body: obj ? j : {} }; },
+        function () { return { ok: r.ok, status: r.status, json: false, body: {} }; });
+    });
+  }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function finite(v) { return typeof v === 'number' && isFinite(v); }
+  // GET /harvest/sites: marine [{ name, constituents: [{ name }], residualMs }] and ground [{ name, meanTempC, annualAmplitudeC, diurnalAmplitudeC }].
+  function named(list) { return (Array.isArray(list) ? list : []).filter(function (s) { return s && typeof s.name === 'string' && s.name; }); }
+  function marineItem(s) {
+    var names = (Array.isArray(s.constituents) ? s.constituents : []).map(function (c) { return c && c.name; }).filter(function (n) { return typeof n === 'string' && n; });
+    var residual = finite(s.residualMs) && s.residualMs ? ' · residual ' + s.residualMs + ' m/s' : '';
+    return { title: s.name, text: 'Tidal current · ' + (names.length ? names.join(' + ') : 'no constituents listed') + residual, badge: 'Illustrative' };
+  }
+  function groundItem(s) {
+    var parts = ['Soil thermal'];
+    if (finite(s.meanTempC)) parts.push('mean ' + s.meanTempC + ' °C');
+    if (finite(s.annualAmplitudeC)) parts.push('annual ±' + s.annualAmplitudeC + ' °C');
+    if (finite(s.diurnalAmplitudeC)) parts.push('diurnal ±' + s.diurnalAmplitudeC + ' °C');
+    return { title: s.name, text: parts.join(' · '), badge: 'Illustrative' };
+  }
+  function siteItems(res) {
+    if (!res || !res.ok || !res.json) return null;
+    return named(res.body.marine).map(marineItem).concat(named(res.body.ground).map(groundItem));
+  }
+  function siteStat(items) {
+    return { id: 'sites', label: 'Illustrative sites and soils', value: items ? items.length : null, tone: items ? null : 'warn', hint: items ? 'Parameter sets, not survey data' : 'Could not check' };
+  }
+  function sitesSection(items, res) {
+    var note = res && res.json && typeof res.body.note === 'string' && res.body.note ? res.body.note : 'Plausible parameter sets over real models, not survey data.';
+    return { kind: 'list', id: 'sites', title: 'Site catalogue the console sizes against', note: note, items: items || [],
+      empty: items ? 'The route publishes no site parameter set.' : 'The site catalogue could not be read right now.' };
+  }
+  // GET /vehicles: { vehicles: [{ vehicle: { name, updatedAt }, stage: { stage, sizedBy, openLimits: [{ blocking }] } }], fabricable }.
+  function stageName(v) { return v && v.stage && typeof v.stage.stage === 'string' ? v.stage.stage : ''; }
+  function limitsText(stage) {
+    var open = Array.isArray(stage.openLimits) ? stage.openLimits : null;
+    if (!open) return '—';
+    var blocking = open.filter(function (l) { return l && l.blocking === true; }).length;
+    return open.length + (blocking ? ' (' + blocking + ' blocking)' : '');
+  }
+  function row(v) {
+    var info = (v && v.vehicle) || {}, stage = (v && v.stage) || {}, name = stageName(v);
+    return [info.name || 'Unnamed vehicle', { text: name || 'unknown', tone: name === 'sized' ? 'ok' : null },
+      finite(stage.sizedBy) ? 'Run ' + stage.sizedBy : 'Not evaluated at this vector', limitsText(stage), A.when(info.updatedAt)];
+  }
+  function vehiclesSection(vehicles, fabricable) {
+    var more = vehicles.length > ROWS ? ' Showing the newest ' + ROWS + ' of ' + vehicles.length + '.' : '';
+    return { kind: 'table', id: 'vehicles', title: 'Saved vehicles', columns: ['Vehicle', 'Stage', 'Sized by', 'Open limits', 'Updated'],
+      note: 'Newest first. Each stage is computed from the design vector on this read; a changed vector drops it to concept until it is evaluated again.' + more + (fabricable ? ' ' + fabricable : ''),
+      empty: 'No saved vehicle yet. Seed the Explorer in the full application to start its record.', rows: vehicles.slice(0, ROWS).map(row) };
+  }
+  function vehicleStats(count, sized, concept, full) {
+    var among = full ? 'Among the newest ' + LIST_CAP : null;
+    return [
+      { id: 'vehicles', label: 'Saved vehicles', value: full ? LIST_CAP + '+' : count, hint: full ? 'The route lists the newest ' + LIST_CAP : null },
+      { id: 'sized', label: 'Sized at the current vector', value: sized, tone: sized ? 'ok' : null, hint: among },
+      { id: 'concept', label: 'At concept', value: concept, hint: among || (concept ? 'Not evaluated at the current vector' : null) }
+    ];
+  }
+  function title(count, sized, full) {
+    if (!count) return 'No saved vehicle yet';
+    return (full ? 'At least ' + count + ' saved vehicles' : plural(count, 'saved vehicle', 'saved vehicles')) + ' · ' + (sized ? sized + ' sized' : 'none sized yet');
+  }
+  function paint(res, siteRes) {
+    var vehicles = res.body.vehicles, sites = siteItems(siteRes), full = vehicles.length >= LIST_CAP;
+    var sized = vehicles.filter(function (v) { return stageName(v) === 'sized'; }).length;
+    var concept = vehicles.filter(function (v) { return stageName(v) === 'concept'; }).length;
+    return { kicker: KICKER, title: title(vehicles.length, sized, full), lede: vehicles.length ? LEDE : EMPTY_LEDE,
+      stats: vehicleStats(vehicles.length, sized, concept, full).concat([siteStat(sites)]),
+      sections: [vehiclesSection(vehicles, typeof res.body.fabricable === 'string' ? res.body.fabricable : ''), sitesSection(sites, siteRes)] };
+  }
+  function refusal(status) {
+    return status === 401
+      ? { kicker: KICKER, title: 'Sign in to see saved vehicles', lede: 'This view shows the saved Explorer vehicles of whoever is signed in, and this session is not signed in.' }
+      : { kicker: KICKER, title: 'This account cannot open Ocean Lab', lede: 'The Ocean Lab routes refused this account (HTTP 403).' };
+  }
+  // The route answers 503 record_store_unavailable when the package was mounted without a database pool.
+  function noStore(siteRes) {
+    var sites = siteItems(siteRes);
+    return { kicker: KICKER, title: 'Saved vehicles are not available on this deployment', stats: [siteStat(sites)], sections: [sitesSection(sites, siteRes)],
+      lede: 'Ocean Lab is mounted here without its record store, so no saved vehicle can be read. The Harvest Console and Blade Studio still compute in the full application.' };
+  }
+  function failure(res) {
+    if (!res.json) return new Error('The saved vehicles could not be read (HTTP ' + res.status + ', not a JSON answer).');
+    var b = res.body;
+    if (typeof b.message === 'string' && b.message) return new Error(b.message);
+    return new Error('The saved vehicles could not be read' + (typeof b.error === 'string' && b.error ? ': ' + b.error : '') + ' (HTTP ' + res.status + ').');
+  }
+  function company() {
+    var sites = read('/harvest/sites').catch(function () { return null; });
+    return Promise.all([read('/vehicles'), sites]).then(function (r) {
+      var res = r[0];
+      if (res.status === 401 || res.status === 403) return refusal(res.status);
+      if (res.status === 503 && res.body.error === 'record_store_unavailable') return noStore(r[1]);
+      if (!res.ok) throw failure(res);
+      if (!res.json || !Array.isArray(res.body.vehicles)) throw new Error('The saved vehicles answer could not be read.');
+      return paint(res, r[1]);
+    }, function () { throw new Error('The Ocean Lab server could not be reached.'); });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'ocean-lab', escapeLabel: 'Open Ocean Lab in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
   :root {
     --bg: var(--bg-primary);
@@ -416,8 +540,10 @@
    * of src/api, and it does not own its own route — so it tries the known shapes in order rather
    * than hard-coding one. A 200 that returns HTML (an auth redirect, say) fails to define the global
    * instead of firing onerror, which is why the onload branch re-checks before giving up.
+   * The full page only: under an audience view (ADR-164 D6) the shared kit paints instead (see the head block), so the
+   * engine script is never loaded, no model runs and neither the site catalogue nor the server cross-check is read by it.
    */
-  (function () {
+  if (!window.AppView || !AppView.active()) (function () {
     var candidates = [
       'harvest-console.js',
       'assets/harvest-console.js',
@@ -452,7 +578,8 @@
  <div id="labActions"></div><p id="labReviewState" role="status"></p>
 </details>
 <script>
-(async()=>{const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');const notes=document.getElementById('labNotes');
+// The full page only: under an audience view no connected-actions plan is fetched and no capture handler is bound.
+if (!window.AppView || !AppView.active()) (async()=>{const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');const notes=document.getElementById('labNotes');
 document.getElementById('captureLabEvidence').addEventListener('click',()=>{notes.value=('SIMULATION REVIEW. Illustrative inputs; no field measurements or hardware validation. Snapshot '+new Date().toISOString()+'\n'+["verdict-word","verdict-note","kpi-margin","kpi-minstore","kpi-minsoc","kpi-harvest","kpi-gap","provenance"].map(id=>id+': '+(document.getElementById(id)?.textContent.trim()||'Not available')).join('\n')+'\nReview assumptions, source revision and convergence before drawing conclusions. Visible results can belong to a previous input configuration; check the run status.').slice(0,2000);});
 await mountConnectedActions({element:document.getElementById('labActions'),app:"ocean-lab",contextForOffer:()=>({title:"ocean-lab simulation review",notes:notes.value})});
 })().catch(()=>{document.getElementById('labReviewState').textContent='Connected actions are unavailable.';});

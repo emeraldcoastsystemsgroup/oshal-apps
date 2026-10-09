@@ -31,8 +31,19 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | ADR-156 D6 fold-in: the `prop` kind moved to embodied's KIND_VOCABULARY. This package binds to that row instead of declaring its own, /capabilities names embodied as the vocabulary owner, and the seam test now proves agreement (embodied ACCEPTS a real rig's manifest) instead of refusal.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.2.1: the binding became a real READ. Entry 2 kept the row as a frozen copy a test held equal to embodied's, which is still two declarations of one vocabulary; engine/kind.ts now resolves embodied's compiled capability-manifest module beside this package and reads KIND_VOCABULARY.prop and CONFIRM_EXEMPT_ACTS out of it. Without embodied there is no vocabulary and no capability manifest (GET /rigs/:id/manifest answers 503 naming the owner), never a locally invented row.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.2.1: declare embodied under dependencies.optional.apps. Entry 3 made this the first store package to READ a sibling package at run time while the manifest still declared no app dependency at all, so an installer offering Animatronics never offered the package it degrades without and nothing recorded the edge. `optional` is the tier for exactly this - offered at install, never blocking - and the catalog mirror is generated from this block.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 0.2.2: the family audience view for the Jarvis Home shell (ADR-164 D6). The first surface, /api/animatronics/app, opened with ?audience=family paints the caller's saved props through the shared kit from GET /rigs alone (props, shows, poses, the armed state, the last saved rehearsal) and never rehearses, arms, plays, looks, jogs, disarms, opens a controller link or writes; the full page's start runs only without the view. No route, schema or manifest key changes beyond the version; the Test Lab catalog gains the audience-view case.
 name: animatronics
 suite: ai-creative   # ADR-097: primary catalog shelf — exactly one (the prop is the creative deliverable; Pumpkin sits here too)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: motion-director-chat
+      unit: director chat turn
+      tier: T4
+      generation: none
+      degrade: disable
 displayName: Animatronics
 description: >-
   The motion layer for a Halloween prop or any servo animatronic. Describe the rig — servos with
@@ -42,7 +53,7 @@ description: >-
   streams the exact controller lines from the page over Web Serial to an ESP32 or Arduino driving
   a PCA9685. Look-at splits a bearing between eyes and neck. Arm with a confirm, e-stop always.
   The director in the chat rail edits and rehearses the same libraries; it cannot arm or play.
-version: 0.2.1
+version: 0.2.3
 status: active
 scope: person
 

@@ -12,6 +12,13 @@
  *                     |                             | explicit-write-confirmation helper, the app context's pool)
  *                     |                             | rather than widening to `any` — a stub that lies passes here
  *                     |                             | and fails the store's canonical whole-program compile.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Declare the trusted-service identity middleware the print
+ *                     |                             | service router mounts first (the vids idiom), with the real
+ *                     |                             | export's Express middleware signature.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | 0.7.0: the app context's package-tool port (`tools.register`)
+ *                     |                             | and ADR-149 authorization port (`registerResource`,
+ *                     |                             | `currentActor`), as scene-studio declares them, for the print
+ *                     |                             | tools and the catalog's resource adapter.
  */
 
 declare module '@/shared/logger' {
@@ -40,6 +47,13 @@ declare module '@/app/composition/app-context' {
   export interface AppContext {
     pool: QueryablePool;
     appPackageDir?: string;
+    /** Core PackageToolContext: present only while a package that declares package tools activates. */
+    tools?: { register(name: string, handler: (input: unknown) => Promise<unknown>): void };
+    /** Core PackageAuthorizationContext: the package's bound authorization port (ADR-149). */
+    authorization?: {
+      registerResource(resource: string, adapter: { authorize(input: { actor: { isActive: boolean } }): Promise<boolean> }): void;
+      currentActor(): { sub: string; issuer: string; isActive: boolean } | undefined;
+    };
     [key: string]: unknown;
   }
 }
@@ -58,4 +72,14 @@ declare module '@/shared/security/explicit-write-confirmation' {
   export function hasExplicitWriteConfirmation(body: unknown): boolean;
   /** @description The standard 428 payload for an unconfirmed outward write. */
   export function confirmationRequiredPayload(guard: string, action: string): Record<string, unknown>;
+}
+
+declare module '@/shared/middleware/trusted-service-user-identity' {
+  import type { NextFunction, Request, Response } from 'express';
+  /**
+   * @description Narrow a valid service-secret request to its trusted user-sub header (non-operator
+   * database identity) before owner-scoped work; an OIDC request passes untouched, and a service
+   * request without a user binding is refused 403.
+   */
+  export function requireTrustedServiceUserIdentity(req: Request, res: Response, next: NextFunction): void;
 }

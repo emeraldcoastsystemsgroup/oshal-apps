@@ -7,6 +7,13 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Review round. The UI half stops being a text pin and RUNS: tools/ui/view-account.js is a classic script, so it loads whole into a node:vm context with the app.js globals stubbed, and the card builders are called for real. That closes two holes. (a) The stale-paint contract is now proven by behaviour on BOTH paths - the painter is driven with stale() true after the await and asserted to have painted nothing - where the previous body-extraction pin was vacuous on a CRLF file (indexOf('\\n}\\n') = -1 widened the 'body' to the rest of the file, so deleting the success-path bail kept every assertion green). (b) Each of the six degradable sections is asserted, one at a time, to be REPEATED by a card instead of painted as fact; a failed protected-lot read must additionally withhold the whole rules table, because its fallback is a no-op subtraction and the engine's own answer to that read failing is to skip the fire.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Review round 2, and the item's OTHER half. (a) The autopilot's universe default is proven at the boundary the claim is about - the REAL express router is driven with a capturing ScheduleService, so the assertion is on the taskData actually handed to createSchedule (no `universe` key unless the operator pinned one; a pinned list carried verbatim; an over-ceiling list refused 400 with NOTHING scheduled), plus the engine-source pin that dispatch, research and assess each fall through to DEFAULT_UNIVERSE when the key is absent - which is the only reason omitting it is safe. (b) The cap-TRIM base is pinned to the engine's own (capped equity -> rebalanceTrims), separately from the per-sector denominator (sizeEntry's equity-or-cash), with a real-engine case proving the two bases are not interchangeable. (c) exits.rules is asserted to come back NULL, not a computed list, when the protected-lot read failed - the payload now enforces what only the card enforced before. (d) The service-secret/auth posture is refuted rather than left silent: /exposure is asserted byte-parallel to the /account and /positions reads beside it and to define no caller resolution of its own.
  *
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Verify console quality settings survive form restoration and owner-scoped scheduling.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Verify explicit review opt-in round-trips through the actual console and schedule route.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Load the decomposed Futures lifecycle and forward settings in actual form round-trip guards.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Round-trip explicit source alerts through the real form and operator-owned schedule route.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Execute the shipped Strategies → Tuning renderer and prove its Futures controls wire to the owner-scoped save route.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Follow the engine's computeExits call after core #869 (ADR-052 addendum) added its trailing `parity` argument. The pinned base is unchanged: the trim base is still the capped account.equity.
+ *
  * Run from the package root with the framework checkout on the vitest alias path:
  *   OSHAL_FRAMEWORK=<oshal checkout> TRADING_MAX_NOTIONAL_USD=50000 TRADING_MAX_QTY=100000 \
  *     node <oshal checkout>/node_modules/vitest/vitest.mjs run --root . --no-file-parallelism
@@ -24,6 +31,8 @@ import { IN_FLIGHT_STATUSES } from '@/app/trading-dispatch-rail';
 import { autopilotTaskType, setTradingScheduleService } from '@/app/trading-schedule-dispatch';
 import type { ScheduleService } from '@/features/scheduling';
 import { createTradingAutopilotRoutes } from '../src-routes/trading-autopilot-routes';
+import { registerAppBots, unregisterAppBots, type SwarmBotDefinition } from '@/app/extensions/swarm/swarm-bot-registry';
+import { WorkflowPipelineRegistry } from '@/features/swarm-orchestration/services/workflow-pipeline-registry';
 import {
   exposureMix, exitRuleRows, workingVenueOrders, EXPOSURE_SECTOR_SOURCE, EXPOSURE_KIND_SOURCE,
 } from '../src-routes/trading-routes-book-read-builders';
@@ -306,7 +315,7 @@ describe('GET /exposure - the route contract', () => {
     // sector base for trims would invent a divergence on a zero-equity book. Read from the engine:
     expect(fw('src/app/trading-schedule-dispatch.ts')).toContain('capAccount(accountRaw');
     expect(fw('src/app/trading-schedule-dispatch.ts'))
-      .toContain('computeExits(ctx, sub, book, positions, policy, account.equity, extHours)');
+      .toContain('computeExits(ctx, sub, book, positions, policy, account.equity, extHours, parity)');
     expect(fw('src/app/trading-dispatch-exits-entries.ts')).toContain('rebalanceTrims(positions, equity, policy)');
     expect(ROUTE).toContain('exitRuleRows(visible, policy, peaks, capped.equity,');
     // and the two bases are not interchangeable: the REAL rebalanceTrims answers differently on each
@@ -623,7 +632,7 @@ const AUTO_SUB = 'k-surface-expansion-spec-sub';
 interface CreatedLeg { taskType: string; schedule: string; ownerSub: string; taskData: Record<string, unknown> }
 
 /** A ScheduleService that records every leg instead of persisting one. */
-function captureScheduler(created: CreatedLeg[], existing: unknown[] = []): ScheduleService {
+function captureScheduler(created: CreatedLeg[], existing: unknown[] = [], deleted: string[] = []): ScheduleService {
   return {
     createSchedule: async (a: CreatedLeg) => {
       created.push(a);
@@ -633,12 +642,12 @@ function captureScheduler(created: CreatedLeg[], existing: unknown[] = []): Sche
       };
     },
     listSchedules: async () => existing,
-    deleteSchedule: async () => true,
+    deleteSchedule: async (id: string) => { deleted.push(id); return true; },
   } as unknown as ScheduleService;
 }
 
 /** One request through the REAL router (express matches the path and runs the real handler). */
-async function callAutopilot(method: 'GET' | 'POST', body: Record<string, unknown> = {}): Promise<{ status: number; body: Record<string, unknown> }> {
+async function callAutopilot(method: 'GET' | 'POST' | 'DELETE', body: Record<string, unknown> = {}, url = '/'): Promise<{ status: number; body: Record<string, unknown> }> {
   const router = createTradingAutopilotRoutes();
   let status = 200;
   let out: Record<string, unknown> = {};
@@ -647,7 +656,7 @@ async function callAutopilot(method: 'GET' | 'POST', body: Record<string, unknow
     res.status = (code: number) => { status = code; return res; };
     res.json = (payloadOut: Record<string, unknown>) => { out = payloadOut; resolve(); return res; };
     const req = {
-      method, url: '/', originalUrl: '/', baseUrl: '', path: '/', body, query: {}, headers: {},
+      method, url, originalUrl: url, baseUrl: '', path: url, body, query: {}, headers: {},
       get: () => undefined, oidc: { user: { sub: AUTO_SUB } },
     };
     (router as unknown as (q: unknown, r: unknown, n: (e?: unknown) => void) => void)(
@@ -665,9 +674,12 @@ const autopilotRow = (taskData: Record<string, unknown>): Record<string, unknown
 
 describe('arming the advisor tracks the engine\'s universe instead of freezing a copy of it', () => {
   const envBefore = process.env.TRADING_UNIVERSE_MAX_PIN;
+  const operatorBefore = process.env.OSHAL_OPERATOR_SUBS;
   afterEach(() => {
     if (envBefore === undefined) delete process.env.TRADING_UNIVERSE_MAX_PIN;
     else process.env.TRADING_UNIVERSE_MAX_PIN = envBefore;
+    if (operatorBefore === undefined) delete process.env.OSHAL_OPERATOR_SUBS;
+    else process.env.OSHAL_OPERATOR_SUBS = operatorBefore;
     setTradingScheduleService(null as unknown as ScheduleService);
   });
 
@@ -749,5 +761,148 @@ describe('arming the advisor tracks the engine\'s universe instead of freezing a
     expect(pinnedStatus.body.universeSource).toBe('pinned');
     expect(pinnedStatus.body.universeCount).toBe(1);
     expect(pinnedStatus.body.defaultUniverseCount).toBe(DEFAULT_UNIVERSE.length);
+  });
+
+  it('stopping the stock advisor never deletes the separate Futures research schedule', async () => {
+    const deleted: string[] = [];
+    const stock = autopilotRow({ userSub: AUTO_SUB, mode: 'paper' });
+    const futures = { ...stock, id: 'sched-futures', taskType: `trading-futures-research:${AUTO_SUB}` };
+    setTradingScheduleService(captureScheduler([], [stock, futures], deleted));
+    const result = await callAutopilot('DELETE');
+    expect(result.status).toBe(200);
+    expect(deleted).toEqual(['sched-existing']);
+  });
+
+  it('Futures configuration is operator-only and stores an owner-scoped UTC paper schedule', async () => {
+    const created: CreatedLeg[] = [];
+    setTradingScheduleService(captureScheduler(created));
+    delete process.env.OSHAL_OPERATOR_SUBS;
+    const request = { roots: ['ES'], source: 'kibot-file', dataDir: '/app/data/kibot', sourceAlerts: true, quality: { maxSourceLagDays: 3, minOosTradesPerWindow: 12 } };
+    expect((await callAutopilot('POST', request, '/futures')).status).toBe(403);
+    expect(created).toHaveLength(0);
+    process.env.OSHAL_OPERATOR_SUBS = AUTO_SUB;
+    const accepted = await callAutopilot('POST', request, '/futures');
+    expect(accepted.status).toBe(201);
+    expect(created).toHaveLength(1);
+    expect(created[0].taskType).toBe(`trading-futures-research:${AUTO_SUB}`);
+    expect(created[0].ownerSub).toBe(AUTO_SUB);
+    expect(created[0].taskData.mode).toBe('paper');
+    expect((created[0].taskData.futures as Record<string, unknown>).quality).toEqual(request.quality);
+    expect((created[0].taskData.futures as Record<string, unknown>).sourceAlerts).toBe(true);
+    expect((await callAutopilot('POST', { ...request, sourceAlerts: 'true' }, '/futures')).status).toBe(400);
+    expect(created).toHaveLength(1);
+    expect((created[0] as CreatedLeg & { timezone?: string }).timezone).toBe('Etc/UTC');
+    const captured = await callAutopilot('POST', { roots: ['ES', 'CL'], source: 'schwab-capture',
+      timeframe: '1Hour', ltfTimeframe: '1Day', start: '2026-05-01T00:00:00Z',
+      split: { inSampleMonths: 1, oosMonths: 1, stepMonths: 1 } }, '/futures');
+    expect(captured.status).toBe(201);
+    expect((created[1].taskData.futures as Record<string, unknown>).source).toBe('schwab-capture');
+    expect((created[1].taskData.futures as Record<string, unknown>).dataDir).toBe('');
+    expect((await callAutopilot('POST', { roots: ['ES'], source: 'schwab-capture', timeframe: '5Min',
+      start: '2026-05-01T00:00:00Z', split: { inSampleMonths: 1, oosMonths: 1, stepMonths: 1 } }, '/futures')).status).toBe(400);
+    expect(created).toHaveLength(2);
+    const mount = src('oshal-app.yaml').split('  - module: routes/trading-autopilot-routes.js')[1]?.split('  - module:')[0];
+    expect(mount).toContain('requiresContext: true');
+  });
+
+  it('the actual Tuning form round-trips the Futures study controls without mock-market evidence', () => {
+    const fields: Record<string, { value: string; disabled?: boolean; textContent?: string }> = {};
+    const context = vm.createContext({ $: (id: string) => (fields[id] ||= { value: '' }) });
+    vm.runInContext(src('tools/ui/view-strategies.js'), context);
+    vm.runInContext(src('tools/ui/view-futures-loop.js'), context);
+    vm.runInContext(src('tools/ui/view-futures-predictions.js'), context);
+    const fill = context.fillFuturesForm as (value: Record<string, unknown>) => void;
+    const read = context.futuresForm as () => Record<string, unknown>;
+    fill({ roots: ['ES', 'CL'], nightlyCron: '0 3 * * *', timeframe: '1Hour', ltfTimeframe: '1Day', source: 'kibot-file', dataDir: '/app/data/kibot', adjust: 'panama', minVolume: 10, start: '2022-01-01T00:00:00Z', endMode: 'fixed', end: '2025-12-31T23:59:59Z', split: { inSampleMonths: 24, oosMonths: 6, stepMonths: 6 }, stageGrids: { Entry: { 'entry.ensembleEntryThresholdPct': [62, 70] } } });
+    const value = read();
+    expect(value.roots).toEqual(['ES', 'CL']);
+    expect(value.nightlyCron).toBe('0 3 * * *');
+    expect(value.nightlyReview).toBe(false);
+    expect(value.sourceAlerts).toBe(false);
+    expect(value.dataDir).toBe('/app/data/kibot');
+    expect(value.minVolume).toBe(10);
+    expect(value.quality).toEqual({ maxSourceLagDays: 7, minOosTradesPerWindow: 10 });
+    expect(value.endMode).toBe('fixed');
+    expect(value.stageGrids).toEqual({ Entry: { 'entry.ensembleEntryThresholdPct': [62, 70] } });
+    fill({ roots: ['ES'], endMode: 'latest', end: '2025-12-31T23:59:59Z' });
+    expect(read().endMode).toBe('latest');
+    expect(fields.futEnd.disabled).toBe(true);
+    fill({ roots: ['ES'], nightlyReview: true, sourceAlerts: true, quality: { maxSourceLagDays: 90, minOosTradesPerWindow: 25 } });
+    expect(read().nightlyReview).toBe(true);
+    expect(read().sourceAlerts).toBe(true);
+    fill({ roots: ['ES'], sourceAlerts: false, quality: { maxSourceLagDays: 90, minOosTradesPerWindow: 25 } });
+    expect(read().sourceAlerts).toBe(false);
+    expect(read().quality).toEqual({ maxSourceLagDays: 90, minOosTradesPerWindow: 25 });
+    fill({ roots: ['ES', 'CL'], source: 'schwab-capture', dataDir: '/stale/kibot' });
+    expect(read().source).toBe('schwab-capture');
+    expect(read().dataDir).toBe('');
+    expect(fields.futDir.disabled).toBe(true);
+    expect(fields.futSourceNote.textContent).toContain('roll without overlapping contracts stop the study');
+    fill({ roots: ['ES'], source: 'kibot-file', dataDir: '/app/data/kibot' });
+    expect(fields.futDir.disabled).toBe(false);
+    expect(src('tools/ui/view-strategies.js')).not.toContain('<option value="mock">');
+    expect(src('tools/ui/view-futures-loop.js')).toContain('unchanged OOS evidence');
+    expect(src('tools/ui/view-futures-loop.js')).toContain('latestCompleteOosEnd: m.latestCompleteOosEnd');
+  });
+  it('executes the shipped Tuning renderer with every Futures control and wires Save to the owner route', async () => {
+    const fields: Record<string, { value: string; innerHTML: string; disabled?: boolean; checked?: boolean; onclick?: () => unknown; onchange?: () => unknown }> = {};
+    const calls: Array<{ path: string; options?: Record<string, unknown> }> = [];
+    const context = vm.createContext({
+      $: (id: string) => (fields[id] ||= { value: '', innerHTML: '', checked: false }),
+      esc: (value: unknown) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;'),
+      MODE: 'paper', DISP: 'paper', RENDER_TOKEN: 1,
+      tabGen: () => '1', stale: () => false, tabStale: () => false,
+      jbody: (method: string, body: unknown) => ({ method, body: JSON.stringify(body) }),
+      loadTuneRecs: async () => undefined, loadTuneParams: async () => undefined,
+      loadFuturesResearch: async () => undefined, loadFuturesPredictions: async () => undefined,
+      loadFuturesArchiveImports: async () => undefined,
+      refreshTuning: async () => undefined,
+      wireFuturesReviews: () => undefined,
+      fmtDate: (value: unknown) => String(value ?? ''), money: () => '$0',
+      api: async (path: string, options?: Record<string, unknown>) => { calls.push({ path, options }); return { enabled: true }; },
+    });
+    vm.runInContext(src('tools/ui/view-strategies.js'), context);
+    vm.runInContext(src('tools/ui/view-futures-loop.js'), context);
+    vm.runInContext(src('tools/ui/view-futures-predictions.js'), context);
+    vm.runInContext(src('tools/ui/view-futures-archive.js'), context);
+    vm.runInContext('refreshTuning = async () => undefined;', context);
+    (context.loadTuning as () => void)();
+    const html = fields.tabbody.innerHTML;
+    for (const id of [
+      'futRoots', 'futCron', 'futTf', 'futLtf', 'futSource', 'futSourceNote', 'futDir', 'futStart', 'futEndMode', 'futEnd',
+      'futIs', 'futOos', 'futStep', 'futVolume', 'futMaxLag', 'futMinTrades', 'futAdjust', 'futGrids',
+      'futNightlyReview', 'futSourceAlerts', 'futPredEnabled', 'futPredContracts', 'futPredZone',
+      'futPredHorizon', 'futPredAge', 'futPredTolerance', 'futPredHistory', 'futSave', 'futRun',
+      'futPause', 'futResume', 'futStop', 'futArchiveZone', 'futArchivePreview', 'futArchiveRefresh',
+      'futArchiveConfirmation',
+    ]) expect(html, `Tuning renderer omitted #${id}`).toContain(`id="${id}"`);
+    expect(html).toContain('UTC');
+    expect(html).toContain('Queue research-bot review after new evidence');
+    expect(html).toContain('Forward research calls');
+    expect(html).toContain('<option value="schwab-capture">Schwab private captured bars</option>');
+    expect(html).toContain('Import Futures archives into the shared bar store');
+    expect(fields.futEnd.disabled).toBe(true);
+    expect(typeof fields.futSave.onclick).toBe('function');
+    await fields.futSave.onclick!();
+    expect(calls).toHaveLength(2);
+    expect(calls[0].path).toBe('/autopilot/futures');
+    expect(calls[0].options).toMatchObject({ method: 'POST' });
+    expect(calls[1].path).toBe('/autopilot/futures');
+  });
+  it('requires a registered companion before persisting review opt-in, and allows turning it back off', async () => {
+    const registry = WorkflowPipelineRegistry.getInstance(), created: CreatedLeg[] = [];
+    setTradingScheduleService(captureScheduler(created));
+    process.env.OSHAL_OPERATOR_SUBS = AUTO_SUB;
+    const request = { roots: ['ES'], source: 'kibot-file', dataDir: '/fixture/archive', nightlyReview: true };
+    expect((await callAutopilot('POST', request, '/futures')).status).toBe(400);
+    expect(created).toHaveLength(0);
+    try {
+      registry.registerFromApp('futures-research', { ticketType: 'futures-research', pipeline: 'manifest-worker', workerBot: 'futures-research-worker', autoStart: true });
+      registerAppBots('futures-research', [{ agentId: '7c51c6e6-cc8a-4de9-8695-40584737789d', name: 'futures-research-worker', container: 'futures-research-worker' } as SwarmBotDefinition]);
+      expect((await callAutopilot('POST', request, '/futures')).status).toBe(201);
+      expect((created[0].taskData.futures as Record<string, unknown>).nightlyReview).toBe(true);
+    } finally { registry.unregisterApp('futures-research'); unregisterAppBots('futures-research'); }
+    expect((await callAutopilot('POST', { ...request, nightlyReview: false }, '/futures')).status).toBe(201);
+    expect((created[1].taskData.futures as Record<string, unknown>).nightlyReview).toBe(false);
   });
 });

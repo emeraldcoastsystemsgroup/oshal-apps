@@ -12,7 +12,7 @@ surface"** carve — only the surface layer ships here:
 - **In this package:** the app manifest, the `/api/presentations/sections` route
   (studio surface, theme/layout catalog, "My decks" list, deck-builder guide chat,
   pptx/docx/xlsx generation, Office import, owner-scoped delete, approval-gated
-  email-it), the studio surface (`tools/presentations.html`), and a package copy of
+  email-it and explicit-confirmation Slack file delivery), the studio surface (`tools/presentations.html`), and a package copy of
   the deck-builder persona for the registrar.
 - **Stays in the OSHAL kernel:** the deck-generation ENGINE
   (`@/features/presentation-generation` — renderers, themes, layouts, office-import;
@@ -57,6 +57,29 @@ Artifacts land beneath the deck-builder bot's `oshal/{bot-id}` subfolder on the 
 `tests/presentations-destination.test.mjs` exercises the compiled route through its framework
 seams and pins the surface-to-endpoint contract, including provider-list parity.
 
+## Your brand (2.13.0)
+
+When the signed-in person has a brand kit in Create, the studio reads it in their own session
+(`GET /api/create/brand-kit`; without Create access or a kit nothing below happens). It badges
+the built-in look nearest the kit as **Closest to your brand**, then asks
+`POST /api/presentations/sections/brand-look` for the exact look. The body is
+`{ base, colors, fonts }`: the nearest look's id, the kit's five role colors and its heading and
+body faces. The kernel's `brandTheme` builds the look from that body: the kit's colors and faces on
+the base look's layout, cover and decoration, with the id `brand:<base>`.
+
+**Your brand** then leads both look galleries. It is picked only when nothing else chose a look (a
+deep link, a starter, a click or a reopened file). Generate, Email and Slack send the kit as
+`brand` in place of a theme id. The server rebuilds and validates the kit on every render, so the
+.pptx, .docx and .xlsx come out in the kit's exact colors and faces. The response and the
+caller's `oshal_presentations` record name the look `brand:<base>`, so a file's record says it was
+drawn in a brand look and on which layout. Reopening a saved brand file picks today's brand look.
+
+An invalid kit is a `400` with `error: invalid_brand_look` and the engine's reason. The check runs
+before any outline draft, render, save, record or send. If the brand look cannot be built or
+reached, the nearest built-in look stays picked. This needs a framework whose deck engine has
+`brandTheme` (core ADR-103 addendum). On an older framework `POST /brand-look` fails, and the
+studio keeps the nearest built-in look as in 2.12.
+
 ## Install
 
 ```bash
@@ -67,7 +90,7 @@ No migrations — `oshal_presentations` is lazy DDL carried by the packaged rout
 (CREATE + owner RLS at the chokepoint). The table stays in place across
 install/toggle; uninstall never touches data.
 
-## Test Lab catalog (2.11.2)
+## Test Lab catalog (2.12.5)
 
 [tests/test-lab.yaml](tests/test-lab.yaml) registers every shipped test and preserves the existing `package-readiness` smoke ID. Registration does not execute tests. An authorized operator can run the supported Node suites from the AI Test Lab against a sealed package snapshot; versioned results record the source revision and sandbox cleanup.
 
@@ -76,5 +99,38 @@ install/toggle; uninstall never touches data.
 | `tests/presentations-surface-parse.test.js` | unit | Isolated Node runner; synthetic data only |
 | `tests/presentations-starters.test.js` | unit | Isolated Node runner; synthetic data only |
 | `tests/presentations-destination.test.mjs` | unit | Isolated Node runner; synthetic data only |
+| `tests/presentations-guide.test.mjs` | unit | Isolated Node runner; bounded Guide actions only |
+| `tests/presentations-guide-artifact.test.mjs` | integration | Disposable local store; real kernel PPTX renderer; no provider or recipient |
+| `tests/presentations-guide-browser.test.mjs` | browser | Disposable Chromium; shipped AI Office DOM, same-origin Guide/Generate and owner-scoped local receipt; no external traffic |
+| `tests/presentations-slack-delivery.test.mjs` | integration | Rendered Office artifact handed to an injected owner Slack token; confirmation refusal and no real network |
+| `tests/presentations-brand.test.js` | unit | The surface's own brand code in a script context: nearest look, the exact brand look, what renders send, reopening |
+| `tests/brand-look-render.core.spec.mjs` | integration | Compiled route with the framework's own deck engine (`OSHAL_CORE_ROOT`); brand colors and faces read back from each generated file; refusals before any draft, save or send |
 
-These tests do not contact accounts, providers or live business records. Surface syntax and stubbed-handler assertions do not claim browser or connector acceptance. Package readiness remains a separate metadata-only probe.
+The Guide-to-artifact acceptance tests prove the signed-in Guide response, editor bridge vocabulary, real PPTX structure, owner-scoped local receipt, and absence of email/delete side effects. The Guide requests direct, non-agentic reasoning because the bot proposes bounded JSON editor actions; the browser applies only validated actions and never gives the bot an editor tool or external send permission. A protected remote turn also requires the controller's configured provider authority stamp. The browser case walks the shipped AI Office HTML from its Guide entry path through the visible editor and Generate control over same-origin loopback HTTP, while rejecting external traffic. The Slack case proves the explicit-confirmation and owner-token handoff with an injected upload seam. These are disposable local proofs: they do not contact accounts, providers, mailboxes or live business records, so they do not claim live connector delivery or external-recipient acceptance. Teams, Twilio and expiry/recipient proof remain open. Package readiness remains a separate metadata-only probe.
+
+## Installed Guide acceptance (2026-09-26)
+
+Core `07b1100f` and Presentations 2.12.5 were installed on the local stack; the
+package manifest remained active and the loader reported `presentations` loaded.
+In a signed-in owner session, the Guide accepted a fictional three-slide
+“Greenhouse Demo Proof” request and replied with a validated editor receipt:
+`set the title · wrote 3 slides`. The title and three-slide outline appeared in
+the live editor. Generate then reported the Midnight-theme `.pptx` saved to
+**OSHAL local**, and `My files` listed `Greenhouse Demo Proof.pptx` for Sep 26.
+No email, Slack, external save target, or share action was invoked. This is
+live Guide → editor → owner-local artifact proof, not live external-delivery
+proof or an assertion that unrelated Jarvis/ticket probes passed.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **128 / 512 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| ai-outline-draft | deck, document or sheet outline | T2 | none | template | not yet measured | none recorded |
+| deck-guide | guide chat turn | T2 | none | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

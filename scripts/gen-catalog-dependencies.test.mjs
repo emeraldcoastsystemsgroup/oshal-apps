@@ -1,10 +1,11 @@
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                                     | DESCRIPTION
+ * SEQ                 | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-09-16 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Mutation-proof the catalog dependency mirror: a tier the catalog flattens, an optional app it drops, a connector allow-list it invents where the manifest declares none, and an unreadable block that must be reported rather than mirrored as "no dependencies". The real-repository case is the one that matters most - the drift this closes was invisible for the whole tiered migration precisely because no check ever read the 61 manifests against the catalog.
- * 2026-09-16 12:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Pin the flat compatibility keys the mirror must keep emitting. Mirroring the tiers alone dropped `dependencies.apps`/`dependencies.tools`/`dependencies.connectors` from all 61 entries, which is what every consumer written before the tiers reads - the product-site generator builds each package page from `connectors` and `apps`, and a package suite asserts an empty `apps` array rather than an absent key. The consumer-read case reads a generated entry exactly the way that generator does, and the repository case asserts the flat keys ARE the contract reductions (required apps, required tools, both-tier connector allow-list) and that the store still yields a non-empty set of each.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Mutation-proof the catalog dependency mirror: a tier the catalog flattens, an optional app it drops, a connector allow-list it invents where the manifest declares none, and an unreadable block that must be reported rather than mirrored as "no dependencies". The real-repository case is the one that matters most - the drift this closes was invisible for the whole tiered migration precisely because no check ever read the 61 manifests against the catalog.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Pin the flat compatibility keys the mirror must keep emitting. Mirroring the tiers alone dropped `dependencies.apps`/`dependencies.tools`/`dependencies.connectors` from all 61 entries, which is what every consumer written before the tiers reads - the product-site generator builds each package page from `connectors` and `apps`, and a package suite asserts an empty `apps` array rather than an absent key. The consumer-read case reads a generated entry exactly the way that generator does, and the repository case asserts the flat keys ARE the contract reductions (required apps, required tools, both-tier connector allow-list) and that the store still yields a non-empty set of each.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Prove bot imports survive catalog generation and refuse missing owners, malformed bindings and tier conflicts.
  */
 
 import test from 'node:test';
@@ -162,10 +163,59 @@ test('an unreadable dependency block is reported, never mirrored as "no dependen
 });
 
 test('an unknown key inside the dependencies block fails closed', () => {
-  const manifest = TIERED_MANIFEST.replace('    tools: []\n    connectors: [tmdb]', '    bots: []\n    connectors: [tmdb]');
+  const manifest = TIERED_MANIFEST.replace('    tools: []\n    connectors: [tmdb]', '    workers: []\n    connectors: [tmdb]');
   const { dependencies, problems } = readManifestDependencies(manifest, 'example/oshal-app.yaml');
   assert.equal(dependencies, null);
-  assert.match(problems.join('\n'), /unknown dependency key "bots"/);
+  assert.match(problems.join('\n'), /unknown dependency key "workers"/);
+});
+
+for (const declaration of [
+  '    bots: [{app: vids, name: vids-operator}]',
+  '    bots:\n      - {app: vids, name: vids-operator}',
+  '    bots:\n      - app: vids\n        name: vids-operator',
+]) {
+  test(`bot owner bindings survive the catalog mirror: ${declaration.split('\n')[0]}`, () => {
+    const manifest = TIERED_MANIFEST.replace('    tools: []', declaration);
+    const { dependencies, problems } = readManifestDependencies(manifest);
+    assert.deepEqual(problems, []);
+    assert.deepEqual(dependencies.bots, [{ app: 'vids', name: 'vids-operator' }]);
+    assert.deepEqual(dependencies.required.bots, dependencies.bots);
+    assert.deepEqual(dependencies.apps, ['vids']);
+  });
+}
+
+test('optional bot imports retain their tier without requiring their owner', () => {
+  const manifest = TIERED_MANIFEST.replace('    apps: [vids]', '    apps: [vids]\n    bots: [{app: vids, name: vids-operator}]')
+    .replace('      - lora', '      - lora\n    bots:\n      - app: portrait-studio\n        name: photographer\n      - app: vids\n        name: reviewer');
+  const { dependencies, problems } = readManifestDependencies(manifest);
+  assert.deepEqual(problems, []);
+  assert.deepEqual(dependencies.optional.bots, [{ app: 'portrait-studio', name: 'photographer' }, { app: 'vids', name: 'reviewer' }]);
+  assert.deepEqual(dependencies.bots, [{ app: 'vids', name: 'vids-operator' }]);
+  assert.deepEqual(dependencies.apps, ['vids']);
+});
+
+for (const [name, declaration] of [
+  ['unknown owner', '    bots: [{app: ghost, name: worker}]'],
+  ['optional owner of required bot', '    bots: [{app: lora, name: worker}]'],
+  ['missing name', '    bots: [{app: vids}]'],
+  ['extra authority', '    bots: [{app: vids, name: worker, role: admin}]'],
+  ['duplicate property', '    bots: [{app: vids, name: worker, app: lora}]'],
+  ['duplicate binding', '    bots: [{app: vids, name: worker}, {name: worker, app: vids}]'],
+  ['invalid identifier', '    bots: [{app: vids, name: ../worker}]'],
+  ['scalar alias', '    bots: [vids-operator]'],
+  ['wrong nesting', '    bots:\n      - app: vids\n      name: worker'],
+  ['unbound continuation', '    bots: []\n        name: worker'],
+]) {
+  test(`bot imports fail closed on ${name}`, () => {
+    const { dependencies, problems } = readManifestDependencies(TIERED_MANIFEST.replace('    tools: []', declaration));
+    assert.equal(dependencies, null);
+    assert.ok(problems.length > 0, 'malformed bot imports cannot disappear from a generated catalog');
+  });
+}
+
+test('a bot cannot be declared in both dependency tiers', () => {
+  const manifest = TIERED_MANIFEST.replaceAll('    tools: []', '    bots: [{app: vids, name: worker}]');
+  assert.match(readManifestDependencies(manifest).problems.join('\n'), /both required and optional/);
 });
 
 test('the generator rewrites a drifted catalog into the one the gate accepts', (t) => {

@@ -11,6 +11,8 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: the formation as a Drone Ops fleet-mission draft (B6 first half) — the draft's shape, holds and refusals in plain node, and the draft through the drone package's REAL fleet-mission gate from a framework checkout.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: lattices (B9) get their own suite — the tiling at the design hop, feeders, the refusals, the assignment rule's reach from every point of the area, the tip's sweep with every metric, a loss routed around, and the feeder loss the lattice cannot close; the route suite runs a lattice end to end.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Rename the drifted framework-checkout prerequisites to the Test Lab's own vocabulary so these cases can run: node-test cases declare fixture:core-checkout (the sealed Node profile runs on the oshal image, where /app is the checkout); browser cases declare harness:oshal-core-root and core:dependencies, as create does. A case that imports core's tests/fixtures, which the image does not ship, also declares harness:core-test-fixtures and stays pending with that exact reason instead of an unknown name.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: the company audience view (ADR-164 D6) joins the catalog as `audience-view` — the static kit contract plus the view as behaviour over the real GET /plans mount (one read, one owner-scoped SELECT, stats, title ladder, table, needs-a-look list, every refusal and failure state) and the gated start path of the surface script.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -335,4 +337,33 @@ cases:
     limits:
       timeoutMs: 120000
       maxMemoryMb: 1024
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) and family (Home shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the company view makes one read, GET /api/drone-relay/plans, which the real mount answers with one SELECT of the caller's own chains; it never sizes, previews, saves, changes or deletes a chain, never runs a scenario, traces an envelope or drafts a formation, and commands no vehicle.
+      - Fed chains the real engine sized and simulated through the real route, the view reads four stats (chains, feasible as sized, held or restored, lost the tip), a title naming the worst state, the newest eight chains with shape, radio, relays, hop, margin, last run and change time, and a needs-a-look list worst first; a row opens only the route's own design write-up, in a new tab.
+      - No chain yet, more than eight chains, odd rows, signed out (the route's own 401), refused, a server failure, an unreadable answer and an unreachable server each read as what they are.
+      - Under the company view the surface script reads nothing and binds no control; without it, or without the kit, boot reads the catalog and the chains and binds every control, and removing the gate turns the test red.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

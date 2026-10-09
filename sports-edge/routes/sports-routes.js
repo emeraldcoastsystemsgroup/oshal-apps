@@ -23,6 +23,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Mount the line-capture reads: GET /lines/status (how long we have been watching, which cannot be improved retroactively) and GET /lines/:eventId (the observation series plus its movement summary).
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Mount the fantasy routes (/fantasy/*): ESPN Fantasy league link, the lineup advisor, and its graded record.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | GET /games returns upstreamOk, so an unreachable schedule service is never rendered as "your team is not playing" — an empty list is only an answer when the read actually succeeded.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | The fantasy routes moved to the fantasy-football package (ADR-146 D1, operator decisions 2026-09-27): /fantasy/* now answers 410 Gone with the new app's address (sports-fantasy-moved.ts) instead of mounting the league link, lineup advisor and ledger here.
  *
  * @module sports-routes
  */
@@ -71,7 +72,7 @@ const sports_ledger_1 = require("./sports-ledger");
 const sports_store_1 = require("./sports-store");
 const sports_espn_1 = require("./sports-espn");
 const sports_refresh_1 = require("./sports-refresh");
-const sports_fantasy_routes_1 = require("./sports-fantasy-routes");
+const sports_fantasy_moved_1 = require("./sports-fantasy-moved");
 const sports_line_history_1 = require("./sports-line-history");
 const sports_line_store_1 = require("./sports-line-store");
 const log = (0, logger_1.createChildLogger)({ module: 'sports-routes' });
@@ -131,10 +132,9 @@ function createSportsEdgeRoutes(ctx) {
     registerGameRoutes(router, pool);
     registerRecordRoutes(router, pool);
     registerSettingsRoutes(router, pool);
-    // The fantasy half. Its reads need the caller's ESPN cookies, resolved per request from the
-    // connector broker; the public projection feed it leans on needs no credential at all.
     registerLineRoutes(router, pool);
-    (0, sports_fantasy_routes_1.registerFantasyRoutes)(router, pool);
+    // The fantasy half moved to the fantasy-football package (ADR-146 D1); its old routes say so.
+    (0, sports_fantasy_moved_1.registerFantasyMoved)(router);
     return router;
 }
 /**

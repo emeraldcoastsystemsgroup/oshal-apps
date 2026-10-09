@@ -2,7 +2,10 @@
 # -----------------------------------------------------------------------------
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
-# 1 | maintainer@emeraldcoastsystemsgroup.com | Register the package's shipped suites: the existing metadata-only readiness smoke, and the framework-coupled LinkedIn publish-rail guard that proves the audit row commits before the provider call and that no-connection and approval-denial refuse without publishing.
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register the package's shipped suites: the existing metadata-only readiness smoke, the owner-bound LinkedIn queue intake guard, and the framework-coupled LinkedIn publish-rail guard.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | The queue intake case also pins the manifest contract the kernel queue binding admits (linkedin-content-post, pipeline manifest-worker, workerBot social-writer).
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: register the audience view contract of the Composer (ADR-164 D6): the company view for the Business shell reads only database-backed routes on open, never the live profiles, and names each empty, refused and failed state. The linkedin-content-queue case now declares installation: never: a package node-test case cannot run during installation, and the core catalog loader (scripts/oshal-test-catalog.js loadPackageTestCatalog) refused the whole catalog for that one field ("cases[2].installation: local/core suites cannot execute during installation").
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -53,4 +56,54 @@ cases:
     limits:
       timeoutMs: 60000
       maxMemoryMb: 512
+    installation: never
+  - id: linkedin-content-queue
+    name: LinkedIn content queue intake
+    purpose: Prove the package creates owner-bound linkedin-content-post tickets, preserves bounded citation provenance, lists only the caller's queue, denies unauthenticated intake, and registers the workflow shape the kernel queue binding admits.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/linkedin-content-queue.core.test.js
+    expected:
+      - Queue intake uses the caller's OIDC subject and never accepts a caller-supplied owner.
+      - Source citations are deduplicated and carried into the ticket metadata for the kernel binding.
+      - Unauthenticated intake is denied before ticket creation.
+      - The shipped manifest registers linkedin-content-post with pipeline manifest-worker and workerBot social-writer, and intake files tickets of exactly that type with no provider or target override.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) and family (Home shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the company view reads only /readiness, /signals (7 days), /home-summary and /linkedin-content-queue; never /profiles, a draft, an organize, a queue write or a post.
+      - The stats and notifications say what they count, the queue reads newest first with each ticket state named, and setup offers Connect only where something is missing.
+      - A queue answered without JSON, a failed summary or setup read, a refusal and a failure each read as what they are.
+      - Under an audience view the Composer fetches no profiles, adds no handoff listener, appends no section and fetches no connected-actions offer.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

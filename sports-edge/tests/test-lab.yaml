@@ -3,6 +3,8 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register the fantasy transport suite: the compiled lineup route driven with a throwing fetch, so an unreachable ESPN can never again be reported as a missing connection.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Register the scoring-history suite: the matched underdog/favourite pair each with a history-withheld companion, plus the feed extraction and the store statements' scope.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Say that the scoring-history suite now drives the registered lineup route itself. The earlier expectations were all one level below the defect, so a catalog reader could not tell that reverting the route wiring left them green.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | The four fantasy suites drive the fantasy-leagues kernel skill (ADR-146 D2) loaded from the framework source, so they declare fixture:core-checkout and the loader fixture. Register the skill-boundary suite: the private client is gone, no module names the fantasy host or builds the cookie header, and the manifest declares the skill.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 0.11.0: the five fantasy cases moved with their suites to fantasy-football/tests/test-lab.yaml (ADR-146 D1); register sports-fantasy-moved, which proves the old routes answer 410 with the new address and that no fantasy engine module or declaration remains here.
 version: 1
 cases:
   - id: package-readiness
@@ -192,89 +194,22 @@ cases:
       timeoutMs: 30000
       maxMemoryMb: 256
     installation: never
-  - id: sports-fantasy
-    name: Fantasy scoring
-    purpose: Apply synthetic league rules, roster availability and fixture-only credential transport.
-    level: unit
-    runner:
-      kind: node-test
-      scope: package
-      files:
-        - tests/sports-fantasy.test.js
-    expected:
-      - Each league scores its own raw projection rows.
-      - Unavailable players are excluded and private cookie data stays in the transport.
-    prerequisites:
-      - runner:node-test
-    sideEffects: none
-    isolation:
-      mode: disposable
-    limits:
-      timeoutMs: 30000
-      maxMemoryMb: 256
-    installation: never
-  - id: sports-fantasy-winprob
-    name: Fantasy matchup optimization
-    purpose: Optimize synthetic lineups against the actual fixture opponent.
-    level: unit
-    runner:
-      kind: node-test
-      scope: package
-      files:
-        - tests/sports-fantasy-winprob.test.js
-    expected:
-      - Lineups maximize matchup win probability with legal positions.
-      - Opponent identity and scoring distributions remain consistent.
-    prerequisites:
-      - runner:node-test
-    sideEffects: none
-    isolation:
-      mode: disposable
-    limits:
-      timeoutMs: 30000
-      maxMemoryMb: 256
-    installation: never
-  - id: sports-fantasy-transport
-    name: Fantasy read-failure reporting
+  - id: sports-fantasy-moved
+    name: Fantasy moved to its own app
     purpose: >-
-      Drive the compiled lineup route with a synthetic transport that throws, proving an unreachable
-      ESPN is reported as a transport fault while a refusal keeps its credential message.
+      Drive the compiled retirement route and read the package's own sources and manifest to prove the
+      fantasy half left for the fantasy-football package and its old routes say so.
     level: unit
     runner:
       kind: node-test
       scope: package
       files:
-        - tests/sports-fantasy-transport.test.js
+        - tests/sports-fantasy-moved.test.js
     expected:
-      - A read that never reaches ESPN is answered as a transport fault, with or without a stored credential.
-      - A refusal still names the credential or the league.
-      - A failed schedule read and a bye render different surface copy.
-    prerequisites:
-      - runner:node-test
-    sideEffects: none
-    isolation:
-      mode: disposable
-    limits:
-      timeoutMs: 30000
-      maxMemoryMb: 256
-    installation: never
-  - id: sports-fantasy-history
-    name: Fantasy scoring history
-    purpose: Accumulate completed weeks from the player feed and feed them to the spread model.
-    level: unit
-    runner:
-      kind: node-test
-      scope: package
-      files:
-        - tests/sports-fantasy-history.test.js
-    expected:
-      - Completed weeks are kept per player; projections, season totals and prior seasons are not.
-      - Weekly points are computed from the league's own scoring rules.
-      - An underdog moves to the volatile player and a favourite to the steady one.
-      - Withholding the history returns the highest-projected lineup unchanged.
-      - The history read is scoped to one season, the weeks already played, and the roster.
-      - The registered GET /fantasy/lineup handler itself stores the completed weeks and reads them back.
-      - That same route serves the volatile player to an underdog, and the highest-projected lineup when nothing was played.
+      - Every method under /fantasy answers 410 with the fantasy-football address.
+      - No fantasy engine module remains here, as source or as compiled route.
+      - The router mounts the retirement route and not the engine.
+      - The manifest no longer declares the fantasy-leagues skill or the espn-fantasy connector.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -295,7 +230,7 @@ cases:
         - tests/sports-surface.test.js
     expected:
       - Classic scripts parse and page endpoints exist.
-      - The surface preserves its credential warning and never collects ESPN cookies.
+      - The Fantasy tab names the new app, links to it and calls no retired fantasy route.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -304,4 +239,29 @@ cases:
     limits:
       timeoutMs: 30000
       maxMemoryMb: 256
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) and family (Home shell) audience view through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

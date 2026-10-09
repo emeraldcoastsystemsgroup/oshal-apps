@@ -2,6 +2,7 @@
  * CHANGE LOG
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise actual HTTP identity, validation and permission boundaries with a strict non-writing database double.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The permissions report now carries the separately named generate action; deny it with the other write actions here.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,13 +21,13 @@ test('missing and inactive verified actors cannot use request identity claims or
 });
 
 test('every named write and export permission is enforced before work', async t => {
-  const pool = emptyPool(), api = await startApi(t, pool, { denied: ['project.create', 'project.change', 'project.delete', 'project.export'] });
+  const pool = emptyPool(), api = await startApi(t, pool, { denied: ['project.create', 'project.change', 'project.delete', 'project.export', 'project.generate'] });
   for (const [path, method, body] of [['/projects', 'POST', input()], [`/projects/${ID}/revisions`, 'POST', { ...input(), baseRevision: 1 }],
     [`/projects/${ID}`, 'DELETE', { baseRevision: 1 }], [`/projects/${ID}/export`, 'GET', undefined], ['/project-assets', 'POST', await imageBody()]]) {
     assert.equal((await api.call(path, method, body)).status, 403);
   }
   assert.equal(pool.queries.length, 0); assert.deepEqual(await readdir(api.dataRoot), []);
-  assert.deepEqual((await api.call('/permissions')).body.permissions, { view: true, read: true, create: false, change: false, delete: false, export: false });
+  assert.deepEqual((await api.call('/permissions')).body.permissions, { view: true, read: true, create: false, change: false, delete: false, export: false, generate: false });
 });
 
 test('collections and Home summary query only the verified issuer and subject', async t => {

@@ -3,6 +3,10 @@
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: Outlook / Microsoft 365 mail leg. Inbox, message, My Day digest, bot summary, drafted reply and the confirm-gated send take ?provider=google|outlook and read only the caller's own connection; the description names both mailboxes. Registers the Outlook adapter unit case and the cross-user denial case.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: Yahoo Mail leg through core's fixed read-only IMAP seam (AppContext imapMail; needs the matching core). List, digest and bot summary read Yahoo; message, draft and send answer 400 for Yahoo. Declares the optional yahoo connector.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: My Day provides the company audience view for the Business shell (ADR-164 D6): the member's own inbox and today from GET /digest and the saved digest from /summary/cached, painted by the shared kit; the bot summary runs only on a click. No route, schema or connector change.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Retain the communications bot as the single application-owned identity with its dedicated-node execution posture.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — email-summarizer (Intelligent Communication, ADR-037)
@@ -35,14 +39,36 @@
 
 name: email-summarizer
 suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }
+  features:
+    - id: day-summary
+      unit: day summary
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: reply-draft
+      unit: reply draft
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: comms-ticket
+      unit: communications ticket
+      tier: T3
+      generation: none
+      degrade: disable
 displayName: Intelligent Communication
 description: >-
-  Your inbox, calendar, and day in one surface. Reads the signed-in user's
-  connected Gmail + Calendar (read-only scopes), builds a prioritized "My Day"
-  digest, and drafts replies with the communications bot — sending is a single
-  explicit-confirm gated action ("email me a copy"). The bot does the reasoning
-  on its own harness/model with cost captured per user.
-version: 1.2.1
+  Your inbox, calendar, and day in one surface. Reads the signed-in user's own
+  connected Gmail + Google Calendar, Outlook / Microsoft 365 mail + calendar, or
+  Yahoo Mail inbox (read-only), builds a prioritized "My Day" digest, and drafts
+  replies with the
+  communications bot — sending is a single explicit-confirm gated action ("email
+  me a copy"). The bot does the reasoning on its own harness/model with cost
+  captured per user.
+version: 1.4.3
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -78,7 +104,7 @@ dependencies:
   optional:
     apps: []
     tools: []
-    connectors: [google, outlook, twilio, facebook]
+    connectors: [google, outlook, yahoo, twilio, facebook]
 
 # Per-app skin (approved palette) — gray so the comms workspace reads distinct.
 theme: gray
@@ -124,6 +150,9 @@ skillProfiles:
 bots:
   - agentId: b0000000-0000-0000-0000-000000000001
     name: communications-bot
+    container: email-bot
+    port: 5000
+    requiresOwnNode: true
     persona: personas/email-summarizer.yaml
     role: comms/email-calendar-social
     capabilities:

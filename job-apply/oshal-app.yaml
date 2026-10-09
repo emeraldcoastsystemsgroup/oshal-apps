@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Import career-hunter from its single owning application, career-hunter, instead of relying on global aliases or duplicate bot ownership.
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — job-apply (Job Apply submission workflow)
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface"
@@ -25,11 +31,24 @@
 
 name: job-apply
 suite: ai-knowledge   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }
+  features:
+    - id: job-application-ticket
+      unit: job application submission
+      tier: T4
+      generation: none
+      degrade: disable
 displayName: Job Apply
 description: >-
   Submit an approved, packet-ready job application by driving the operator's real browser on a
   desktop worker node. Push a ticket, it queues, the worker submits it, the ticket passes or fails.
-version: 1.1.0
+version: 1.1.4
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: active
 
 source:
@@ -82,6 +101,9 @@ smoke:
 dependencies:
   required:
     apps: [career-hunter]
+    bots:
+      - app: career-hunter
+        name: career-hunter
     tools: []
     connectors: []
   optional:
@@ -95,6 +117,7 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
 
 # ─────────────────────────────────────────────────────────────────────────────
 # WORKFLOW — the queue. `pipeline` is any non-'swarm' label with a workerBot →

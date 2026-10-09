@@ -23,14 +23,32 @@
 
 name: travel
 suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }
+  features:
+    - id: travel-concierge-chat
+      unit: concierge chat turn
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: travel-ticket
+      unit: travel request ticket
+      tier: T4
+      generation: none
+      degrade: disable
 displayName: Travel
 description: >-
   AI travel concierge (ADR-059) — search real flights (Duffel), see an honest price read from
   the swarm's shared price history, watch routes for a fare drop, and book via a deep-link
   handoff. Hotels and cars are deep-link handoffs today. Other swarm bots can ask it to plan a
   trip or check a fare on a traveller's behalf.
-version: 1.2.1
+version: 1.2.4
 
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: active
 
 # Guest tier REQUEST (ADR-085 D4): travel was core Tier-A (deep-link handoff, does not
@@ -74,6 +92,7 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
 
 bots:
   - agentId: b00c0000-0000-0000-0000-000000000001

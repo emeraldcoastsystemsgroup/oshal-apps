@@ -7,6 +7,8 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Optionally enter the actual core request-identity context and model strict database refusal when an upload loses or changes that context.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Resolve the framework checkout from OSHAL_CORE_ROOT first (what the Test Lab sandbox sets, /app) and OSHAL_CORE_DIR second, and fail loud when neither is set. The old default C:/Projects/oshal existed on one Windows box only and turned a missing variable into a confusing module error.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Redirect a bare require to the framework checkout only when the package itself asks for it. Requires made inside node_modules resolve normally again: redirecting them to core's root broke in the Test Lab sandbox, where the image's pruned node_modules keeps semver only nested under sharp (Cannot find module 'semver'); a developer checkout hoists it, which is why no local run saw it.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The print service: mount createScanToPrintServiceRoutes at /api/scan-to-print/service the way the manifest mounter does for `service-or-oidc` (a request carrying the fixture's service secret gets oshalCallerSub from X-Oshal-User-Sub and no session; anything else needs the session), stub requireTrustedServiceUserIdentity with the real contract (session passes, a secret without a user is 403, a secret with one narrows the identity to that user, non-operator), model the printer-settings UPDATE and the JSON slice_profile column, and accept slicer/printer socket seams.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: `options.ctx` adds the kernel's activation ports (`tools`, `authorization`) to the person's route factory context, so tools.core can capture the package tools and the resource adapter that factory registers; fakePool is exported for kernel.core, which activates the package through the real core runtime over this same SQL-dispatching store.
  */
 'use strict';
 const assert = require('node:assert/strict');
@@ -22,9 +24,24 @@ const coreRequire = Module.createRequire(path.join(CORE, 'package.json'));
 const cols = (list) => list.split(',').map((c) => c.trim());
 const pick = (row, names) => structuredClone(Object.fromEntries(names.map((n) => [n, row[n] ?? null])));
 
+const SERVICE_SECRET = 'fixture-service-secret';
+const serviceIdentity = { control: null };
+
+/** The real requireTrustedServiceUserIdentity contract, against the fixture's identity control. */
+function trustedServiceIdentity(req, res, next) {
+  if (req.oidc && req.oidc.user && req.oidc.user.sub) return next();
+  if (req.headers['x-service-secret'] !== SERVICE_SECRET) return next();
+  const sub = req.headers['x-oshal-user-sub'];
+  if (!sub) { res.status(403).json({ error: 'trusted_service_user_sub_required' }); return undefined; }
+  const control = serviceIdentity.control;
+  if (control && control.identityModule) return control.identityModule.runWithRequestIdentity({ sub, principalIssuer: control.issuer, isOperator: false }, next);
+  return next();
+}
+
 function frameworkStubs() {
   const logger = { debug() {}, info() {}, warn() {}, error() {} };
   return {
+    '@/shared/middleware/trusted-service-user-identity': { requireTrustedServiceUserIdentity: trustedServiceIdentity },
     '@/shared/logger': { createChildLogger: () => logger },
     '@/features/personal-data': {
       isEncrypted: (v) => typeof v === 'string' && v.startsWith('enc:v1:'),
@@ -52,19 +69,21 @@ function loadRoutes() {
     }
     return original.call(this, request, parent, isMain);
   };
-  return { factory: require(path.join(PKG, 'routes/scan-to-print-routes.js')).createScanToPrintRoutes,
+  const routes = require(path.join(PKG, 'routes/scan-to-print-routes.js'));
+  return { factory: routes.createScanToPrintRoutes, serviceFactory: routes.createScanToPrintServiceRoutes,
     restore: () => { Module._load = original; } };
 }
 
 function insert(tables, table, sql, values, returning) {
   const row = { created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
   cols(/\(([^)]+)\)\s+VALUES/.exec(sql)[1]).forEach((name, i) => {
-    row[name] = ['silhouette', 'remote_response'].includes(name) && typeof values[i] === 'string' ? JSON.parse(values[i]) : values[i];
+    row[name] = ['silhouette', 'remote_response', 'slice_profile'].includes(name) && typeof values[i] === 'string' ? JSON.parse(values[i]) : values[i];
   });
   const id = { scan_print_job: 'job_id', scan_print_image: 'image_id', scan_print_printer: 'printer_id', scan_print_submission: 'submission_id' }[table];
   if (!row[id]) row[id] = randomUUID();
   if (table === 'scan_print_job') Object.assign(row, { state: 'capturing', known_dimensions: [], settings: {}, report: null, failure_reason: null });
   if (table === 'scan_print_image') row.view = null;
+  if (table === 'scan_print_printer' && row.auto_start === undefined) row.auto_start = false;
   tables[table].push(row);
   return { rows: [pick(row, cols(returning))], rowCount: 1 };
 }
@@ -104,6 +123,9 @@ function query(tables, sql, p) {
   if (/^UPDATE scan_print_image SET view = NULL/.test(sql)) hit.forEach((r) => { r.view = null; });
   else if (/^UPDATE scan_print_image SET view = \$4/.test(sql)) hit.forEach((r) => { r.view = p[3]; });
   else if (/^UPDATE scan_print_job/.test(sql)) hit.forEach((r) => updateJob(r, p));
+  else if (/^UPDATE scan_print_printer SET auto_start = COALESCE\(\$3, auto_start\), slice_profile = COALESCE\(\$4::jsonb, slice_profile\)/.test(sql)) {
+    hit.forEach((r) => { if (p[2] !== null) r.auto_start = p[2]; if (p[3] !== null) r.slice_profile = JSON.parse(p[3]); r.updated_at = new Date().toISOString(); });
+  }
   else throw new Error(`fixture cannot run: ${sql.slice(0, 80)}`);
   return { rows: returning ? hit.map((r) => pick(r, cols(returning[1]))) : [], rowCount: hit.length };
 }
@@ -169,13 +191,29 @@ async function startFixture(options = {}) {
   app.use('/shared/ui/js', express.static(path.join(CORE, 'src/shared/ui/js')));
   app.use('/cockpit', express.static(path.join(CORE, 'src/pages/cockpit')));
   app.get('/shared/ui-debug.js', (_req, res) => res.sendFile(path.join(CORE, 'src/pages/shared/ui-debug.js')));
-  app.use((req, _res, next) => { if (control.sub) req.oidc = { user: { sub: control.sub }, isAuthenticated: () => true }; enterIdentity(control, next); });
-  app.use('/api/scan-to-print', loaded.factory({ pool, appPackageDir: PKG }, { dataRoot: tmp, env, fetchImpl, execFile }));
+  const seams = { slicerConnect: options.slicerConnect, bambuIo: options.bambuIo };
+  serviceIdentity.control = control;
+  app.use((req, _res, next) => {
+    if (req.headers['x-service-secret']) return next();
+    if (control.sub) req.oidc = { user: { sub: control.sub }, isAuthenticated: () => true };
+    enterIdentity(control, next);
+  });
+  // The manifest mounter for `service-or-oidc`: a valid secret passes and carries the trusted user as
+  // oshalCallerSub (no session); otherwise the session is required.
+  app.use('/api/scan-to-print/service', (req, res, next) => {
+    if (req.headers['x-service-secret'] === SERVICE_SECRET) { if (req.headers['x-oshal-user-sub']) req.oshalCallerSub = req.headers['x-oshal-user-sub']; return next(); }
+    if (req.headers['x-service-secret']) { res.status(401).json({ error: 'unauthenticated' }); return undefined; }
+    if (!req.oidc) { res.status(401).json({ error: 'unauthenticated' }); return undefined; }
+    return next();
+  }, loaded.serviceFactory({ pool, appPackageDir: PKG }, { dataRoot: tmp, env, fetchImpl, execFile, ...seams }));
+  app.use('/api/scan-to-print', (req, res, next) => { if (!req.oidc) { res.status(401).json({ error: 'unauthenticated' }); return undefined; } return next(); },
+    loaded.factory({ pool, appPackageDir: PKG, ...(options.ctx || {}) }, { dataRoot: tmp, env, fetchImpl, execFile, ...seams }));
   let server;
   await new Promise((resolve) => { server = app.listen(0, '127.0.0.1', resolve); });
   const origin = `http://127.0.0.1:${server.address().port}`, base = origin + '/api/scan-to-print';
-  return { base, origin, tmp, pool, control, env, fetchCalls, execCalls, coreRequire,
+  return { base, origin, tmp, pool, control, env, fetchCalls, execCalls, coreRequire, serviceSecret: SERVICE_SECRET,
     call: (route, init) => call(base, route, init),
+    service: (route, init = {}, sub = control.sub) => call(base + '/service', route, { ...init, headers: { ...(init.headers || {}), 'X-Service-Secret': SERVICE_SECRET, ...(sub ? { 'X-Oshal-User-Sub': sub } : {}) } }),
     uploadPhotos: (id, files) => uploadPhotos(base, id, files),
     async close() { server.closeAllConnections(); await new Promise((r) => server.close(r)); fs.rmSync(tmp, { recursive: true, force: true }); loaded.restore(); },
   };
@@ -202,4 +240,4 @@ async function readyJob(f, title = 'Synthetic box') {
   return { id, images: up.body.images, report: result.body.report };
 }
 
-module.exports = { startFixture, json, photo, readyJob, coreRequire };
+module.exports = { startFixture, json, photo, readyJob, coreRequire, fakePool };

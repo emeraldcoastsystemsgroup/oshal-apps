@@ -4,42 +4,62 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>Milkshake Maker</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  SEQ | AUTHOR                                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com   | Milkshake Maker mini-game: a growing recipe to watch and repeat on four ingredient pads, lm-game score and lm-exit messages to the arcade
+  2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default) and package stylesheet replace the hard-coded dark palette and glass; chip, status, start button and the game-over dialog use tokens while the ingredient pads keep their colours, with a token-coloured glow that reads on light skins; the arcade-only "I'm done" control hides when the game is opened on its own
+  ---------------------------------------------------------------------------
+-->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
+<link rel="stylesheet" href="/api/education/education.css">
 <style>
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  body{margin:0;min-height:100vh;background:#120a26;color:#fdeaf6;font-family:system-ui,'Inter',sans-serif;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:14px;}
-  h1{margin:0;font-size:20px;font-weight:800;}
-  .hud{font-weight:800;font-size:15px;}
-  .status{font-size:14px;color:#b98cc8;min-height:20px;font-weight:700;}
-  .pad{display:grid;grid-template-columns:1fr 1fr;gap:14px;width:min(86vw,320px);}
-  .ing{aspect-ratio:1;border:none;border-radius:20px;font-size:46px;cursor:pointer;opacity:.82;transition:transform .1s,opacity .1s,box-shadow .1s;}
-  .ing:active,.ing.lit{opacity:1;transform:scale(1.05);box-shadow:0 0 26px -4px #fff;}
-  .ing[data-i="0"]{background:#ec4faa;} .ing[data-i="1"]{background:#f6c945;} .ing[data-i="2"]{background:#7a4a2a;} .ing[data-i="3"]{background:#5b8def;}
-  .btn{background:#ec4faa;color:#fff;border:none;border-radius:12px;padding:12px 26px;font-weight:800;font-size:16px;cursor:pointer;}
-  .over{position:fixed;inset:0;background:rgba(10,6,24,.88);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;}
-  .over.on{display:flex;}.over h2{font-size:26px;margin:0;}
+  * { -webkit-tap-highlight-color: transparent; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 14px; }
+  h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.2px; }
+  .hud b { font-variant-numeric: tabular-nums; }
+  .status { min-height: 24px; font-size: 15px; font-weight: 700; color: var(--lm-ink-2); text-align: center; }
+  .pad { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; width: min(86vw, 320px); }
+  /* The four ingredient pads are the game pieces and keep their own colours. */
+  .ing { aspect-ratio: 1; border: 0; border-radius: 20px; font-size: 46px; cursor: pointer; opacity: .85; touch-action: manipulation;
+    transition: transform .1s, opacity .1s, box-shadow .1s; }
+  .ing:active, .ing.lit { opacity: 1; transform: scale(1.05); box-shadow: 0 0 0 5px var(--lm-accent-line), 0 10px 24px color-mix(in srgb, var(--lm-ink) 22%, transparent); }
+  .ing[data-i="0"] { background: #ec4faa; } .ing[data-i="1"] { background: #f6c945; } .ing[data-i="2"] { background: #7a4a2a; } .ing[data-i="3"] { background: #5b8def; }
+  .over-score { margin: 8px auto 16px; }
+  .over-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
   <h1>🥤 Milkshake Maker</h1>
-  <div class="hud">Recipe length <span id="score">0</span></div>
+  <div class="hud"><span class="lm-pill is-neutral">Recipe length <b id="score">0</b></span></div>
   <div class="status" id="status">Watch the recipe…</div>
   <div class="pad" id="pad">
-    <button class="ing" data-i="0">🍓</button>
-    <button class="ing" data-i="1">🍌</button>
-    <button class="ing" data-i="2">🍫</button>
-    <button class="ing" data-i="3">🥛</button>
+    <button type="button" class="ing" data-i="0" aria-label="Strawberry">🍓</button>
+    <button type="button" class="ing" data-i="1" aria-label="Banana">🍌</button>
+    <button type="button" class="ing" data-i="2" aria-label="Chocolate">🍫</button>
+    <button type="button" class="ing" data-i="3" aria-label="Milk">🥛</button>
   </div>
-  <button class="btn" id="startBtn" onclick="start()">Start</button>
-  <div class="over" id="over"><h2 id="overTitle">Oops!</h2><div id="overScore"></div><button class="btn" onclick="start()">Try again</button>
-    <button class="btn" style="background:transparent;border:1px solid #5b8def;color:#cfe0ff;margin-left:8px;" onclick="if(window.parent!==window)window.parent.postMessage({type:'lm-exit'},'*')">I'm done</button></div>
+  <button type="button" class="lm-btn lm-btn-primary lm-btn-lg" id="startBtn" onclick="start()">Start</button>
+  <div class="lm-modal" id="over" role="dialog" aria-modal="true" aria-labelledby="overTitle">
+    <div class="lm-modal-card lm-text-center">
+      <h2 class="lm-display" id="overTitle">Oops!</h2>
+      <p class="lm-lead over-score" id="overScore"></p>
+      <div class="over-actions">
+        <button type="button" class="lm-btn lm-btn-primary" onclick="start()">Try again</button>
+        <button type="button" class="lm-btn lm-btn-ghost" id="doneBtn" onclick="if(window.parent!==window)window.parent.postMessage({type:'lm-exit'},'*')">I'm done</button>
+      </div>
+    </div>
+  </div>
 <script>
 var seq=[], step=0, playing=false, accepting=false;
 var btns=[].slice.call(document.querySelectorAll('.ing'));
 btns.forEach(function(b){ b.addEventListener('pointerdown',function(){ tap(+b.getAttribute('data-i')); }); });
+if(window.parent===window) document.getElementById('doneBtn').classList.add('hide');
 function light(i){ return new Promise(function(res){ btns[i].classList.add('lit'); setTimeout(function(){ btns[i].classList.remove('lit'); setTimeout(res,140); },360); }); }
-function start(){ seq=[]; step=0; playing=true; document.getElementById('over').classList.remove('on'); document.getElementById('startBtn').style.display='none'; nextRound(); }
+function start(){ seq=[]; step=0; playing=true; document.getElementById('over').classList.remove('is-open'); document.getElementById('startBtn').classList.add('hide'); nextRound(); }
 async function nextRound(){
   accepting=false; seq.push(Math.random()*4|0); step=0;
   document.getElementById('score').textContent=seq.length;
@@ -59,7 +79,7 @@ function tap(i){
 function end(){ playing=false; accepting=false;
   var sc=Math.max(0,seq.length-1);
   document.getElementById('overScore').textContent='You made a '+sc+'-scoop shake!';
-  document.getElementById('over').classList.add('on');
+  document.getElementById('over').classList.add('is-open');
   try{ if(window.parent!==window) window.parent.postMessage({type:'lm-game',game:'milkshake',score:sc*10},'*'); }catch(e){}
 }
 </script>

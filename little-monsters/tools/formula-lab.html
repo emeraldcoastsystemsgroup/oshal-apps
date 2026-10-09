@@ -3,45 +3,55 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Little Monsters - Formula Lab</title>
-<script>
-(function(){function a(n){if(!n)return;document.documentElement.setAttribute('data-theme',n);var h='/cockpit/css/themes/'+n+'.css',l=document.querySelector('link[data-lm-theme-link]');if(l){if(l.getAttribute('href')!==h)l.setAttribute('href',h);return;}l=document.createElement('link');l.rel='stylesheet';l.href=h;l.setAttribute('data-lm-theme-link','1');document.head.appendChild(l);}function i(){try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(e){}try{var s=localStorage.getItem('cockpit-theme');if(s)return s;}catch(e){}return 'little-monsters';}a(i());try{if(window.parent&&window.parent!==window){var ph=window.parent.document.documentElement;new MutationObserver(function(m){for(var k=0;k<m.length;k++)if(m[k].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)a(t);}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});}}catch(e){}})();
-</script>
+<title>Little Monsters — Formula Lab</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  SEQ | AUTHOR                                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com   | Formula reference: Physics 1 and Chemistry formulas with search, a worked example per card and a deep link that prefills the tutor
+  2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass link and literal pink/dark palette; hero, search field, per-subject sections with generated counts, expandable cards (keyboard and aria-expanded), an empty state for a search with no match, copy that presents the sheet as a fixed reference rather than personal data
+  ---------------------------------------------------------------------------
+-->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
 <link rel="stylesheet" href="/api/education/education.css">
 <style>
-  body{margin:0;color:var(--text-primary,#fdeaf6);font-family:system-ui,'Inter',sans-serif;}
-  .wrap{padding:22px clamp(14px,4vw,40px) 60px;}
-  .head{display:flex;align-items:center;gap:12px;}
-  .head img{width:48px;height:48px;border-radius:12px;border:3px solid var(--accent-primary,#ec4faa);background:var(--bg-card);}
-  h1{margin:0;font-size:clamp(20px,3vw,28px);}
-  .sub{color:var(--text-muted);font-size:13px;margin:4px 0 18px;}
-  input.search{width:100%;max-width:420px;padding:11px 14px;border-radius:12px;border:1px solid var(--border-color);
-    background:var(--bg-card);color:inherit;font-size:14px;margin-bottom:18px;}
-  .subj{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--accent-primary,#ec4faa);margin:18px 0 8px;}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
-  .f{border:1px solid var(--border-color);border-radius:14px;background:var(--bg-card);padding:14px;cursor:pointer;transition:.15s;}
-  .f:hover{border-color:var(--accent-primary,#ec4faa);}
-  .f .n{font-weight:700;font-size:14px;}
-  .f .eq{font-family:'Cambria Math',Georgia,serif;font-size:18px;margin:6px 0;color:var(--accent-primary,#ec4faa);}
-  .f .d{font-size:12px;color:var(--text-muted);line-height:1.4;}
-  .f .ex{display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border-color);font-size:13px;line-height:1.5;}
-  .f.open .ex{display:block;}
-  .f .ex b{color:var(--accent-primary,#ec4faa);}
-  .f .taptip{font-size:11px;color:var(--text-muted);margin-top:8px;opacity:.8;}
-  .f.open .taptip{display:none;}
-  .f .ex .deck{display:inline-block;margin-top:8px;font-size:12px;color:var(--status-active,#5b8def);text-decoration:none;font-weight:700;}
+  .search-field { max-width: 560px; margin-bottom: 18px; }
+  .f .eq { font-family: "Cambria Math", var(--lm-font-display); font-size: 21px; margin: 6px 0 2px; color: var(--lm-accent); overflow-wrap: anywhere; }
+  .f .ex { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--lm-line-strong); font-size: 14px; line-height: 1.55; color: var(--lm-ink-2); }
+  .f.open .ex { display: block; }
+  .f .ex b { color: var(--lm-accent); }
+  .f .ex .deck { margin-top: 10px; }
+  .f .taptip { margin-top: 10px; }
+  .f.open .taptip { display: none; }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
-<div class="wrap">
-  <div class="head"><img src="/api/education/mascot.png" alt=""><div><h1>Formula Lab</h1></div></div>
-  <p class="sub">Your digital cheat-sheet — Physics 1 &amp; Chemistry, always one tap away.</p>
-  <input class="search" id="search" placeholder="Search formulas (e.g. velocity, moles, force)…" oninput="filt()">
+<main class="lm-page">
+  <header class="lm-hero">
+    <div>
+      <div class="lm-eyebrow">Reference sheet</div>
+      <h1 class="lm-display">Formula Lab</h1>
+      <p class="lm-lead">Your digital cheat-sheet — Physics 1 &amp; Chemistry, always one tap away. Tap a formula to see it worked through step by step.</p>
+    </div>
+    <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
+  </header>
+
+  <div class="lm-field search-field">
+    <label for="search">Find a formula</label>
+    <input class="lm-input" type="search" id="search" placeholder="Search formulas (e.g. velocity, moles, force)…" oninput="filt()" autocomplete="off">
+    <p class="lm-help" id="searchHelp"></p>
+  </div>
+
   <div id="out"></div>
-</div>
+</main>
+
+<script src="/api/education/mascot.js?v=4"></script>
 <script>
-// Each formula carries a worked example (ex). Click a card to see it solved step by step.
+var esc = window.LM.esc;
+var DEFAULT_HELP = 'One reference sheet for everyone — it is not personal, and nothing you type here is saved.';
+// Each formula carries a worked example (ex). Tap a card to see it solved step by step.
 var DATA = {
   'Physics 1': [
     {n:'Average velocity', eq:'v = Δx / Δt', d:'displacement over time', ex:'A runner covers <b>100 m</b> in <b>20 s</b>.<br>v = 100 / 20 = <b>5 m/s</b>.'},
@@ -70,26 +80,38 @@ var DATA = {
     {n:'Avogadro', eq:'1 mol = 6.022×10²³', d:'particles per mole', ex:'<b>2 mol</b> of atoms.<br>2·6.022×10²³ = <b>1.2×10²⁴ atoms</b>.'},
   ],
 };
-function render(filter){
-  var out=document.getElementById('out'); out.innerHTML=''; var f=(filter||'').toLowerCase();
-  Object.keys(DATA).forEach(function(subj){
-    var items=DATA[subj].filter(function(x){ return !f || (x.n+' '+x.eq+' '+x.d).toLowerCase().indexOf(f)>=0; });
-    if(!items.length) return;
-    var h=document.createElement('div'); h.className='subj'; h.textContent=subj; out.appendChild(h);
-    var g=document.createElement('div'); g.className='grid';
-    items.forEach(function(x){
-      var c=document.createElement('div'); c.className='f';
-      var deck='<a class="deck" href="/api/education/tutor?prefill='+encodeURIComponent('Give me a quick overview of '+x.n+' ('+x.eq+') with one more worked example.')+'">🎓 Ask the tutor for an overview →</a>';
-      c.innerHTML='<div class="n">'+x.n+'</div><div class="eq">'+x.eq+'</div><div class="d">'+x.d+'</div>'
-        +'<div class="ex"><b>Example.</b> '+x.ex+'<br>'+deck+'</div>'
-        +'<div class="taptip">Tap for a worked example ›</div>';
-      c.onclick=function(e){ if(e.target.classList&&e.target.classList.contains('deck'))return; c.classList.toggle('open'); };
-      g.appendChild(c);
-    });
-    out.appendChild(g);
-  });
+function countAll() { return Object.keys(DATA).reduce(function (n, k) { return n + DATA[k].length; }, 0); }
+function card(x) {
+  var c = document.createElement('div'); c.className = 'lm-card is-clickable f'; c.setAttribute('role', 'button'); c.tabIndex = 0; c.setAttribute('aria-expanded', 'false');
+  var deck = '<a class="lm-btn lm-btn-soft deck" href="/api/education/tutor?prefill=' + encodeURIComponent('Give me a quick overview of ' + x.n + ' (' + x.eq + ') with one more worked example.') + '">🎓 Ask the tutor for an overview →</a>';
+  c.innerHTML = '<h3 class="n">' + esc(x.n) + '</h3><div class="eq">' + esc(x.eq) + '</div><div class="lm-card-meta">' + esc(x.d) + '</div>'
+    + '<div class="ex"><b>Example.</b> ' + x.ex + '<br>' + deck + '</div>'
+    + '<div class="taptip lm-small lm-muted">Tap for a worked example ›</div>';
+  function toggle() { var open = c.classList.toggle('open'); c.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+  c.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('a')) return; toggle(); });
+  c.addEventListener('keydown', function (e) { if (e.target !== c) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+  return c;
 }
-function filt(){ render(document.getElementById('search').value); }
+function render(filter) {
+  var out = document.getElementById('out'); out.innerHTML = '';
+  var f = (filter || '').trim().toLowerCase(), shown = 0;
+  Object.keys(DATA).forEach(function (subj) {
+    var items = DATA[subj].filter(function (x) { return !f || (x.n + ' ' + x.eq + ' ' + x.d).toLowerCase().indexOf(f) >= 0; });
+    if (!items.length) return;
+    shown += items.length;
+    var sec = document.createElement('section'); sec.className = 'lm-section';
+    sec.innerHTML = '<div class="lm-section-head"><h2>' + esc(subj) + '</h2><span class="lm-pill is-neutral">' + items.length + (items.length === 1 ? ' formula' : ' formulas') + '</span></div>';
+    var g = document.createElement('div'); g.className = 'lm-grid'; g.style.setProperty('--min', '260px');
+    items.forEach(function (x) { g.appendChild(card(x)); });
+    sec.appendChild(g); out.appendChild(sec);
+  });
+  if (!shown) {
+    out.innerHTML = '<div class="lm-empty"><div class="lm-empty-icon">🔍</div><strong>No formulas match “' + esc(filter.trim()) + '”.</strong>Try a shorter word, like “force” or “mol”.<br><button type="button" class="lm-btn lm-btn-ghost" onclick="clearSearch()">Clear search</button></div>';
+  }
+  document.getElementById('searchHelp').textContent = f ? 'Showing ' + shown + ' of ' + countAll() + ' formulas.' : DEFAULT_HELP;
+}
+function clearSearch() { var s = document.getElementById('search'); s.value = ''; render(''); s.focus(); }
+function filt() { render(document.getElementById('search').value); }
 render('');
 </script>
 </body>

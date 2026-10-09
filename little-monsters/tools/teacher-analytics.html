@@ -3,172 +3,133 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Little Monsters - Teacher Analytics</title>
+<title>Little Monsters — Teacher</title>
 <!--
   CHANGE LOG
   ---------------------------------------------------------------------------
-  DATE           | AUTHOR                    | DESCRIPTION
+  SEQ | AUTHOR                                    | DESCRIPTION
   ---------------------------------------------------------------------------
-  2026-06-13     | roger.murphy@agenticfederal.us   | Teacher analytics dashboard — class overview + per-class roster with each student's quiz average, cards reviewed, XP, last-active. Teacher-gated (students get a friendly 403 state).
+  1   | maintainer@emeraldcoastsystemsgroup.com   | Teacher analytics dashboard: class overview + per-class roster with quiz average, cards reviewed, XP, last active
+  2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader and glass; hero, class cards, stat tiles and table use the system; a refused or failed load now shows its state instead of a blank page
   ---------------------------------------------------------------------------
 -->
-<script>
-// Theme-sync to the parent cockpit (same pattern as the other LM pages).
-(function(){
-  function applyTheme(n){ if(!n)return; document.documentElement.setAttribute('data-theme',n);
-    var href='/cockpit/css/themes/'+n+'.css'; var link=document.querySelector('link[data-lm-theme-link="1"]');
-    if(link){if(link.getAttribute('href')!==href)link.setAttribute('href',href);return;}
-    link=document.createElement('link');link.rel='stylesheet';link.href=href;link.setAttribute('data-lm-theme-link','1');document.head.appendChild(link);}
-  function initial(){ try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(_e){}
-    try{var s=window.localStorage.getItem('cockpit-theme');if(s)return s;}catch(_e){} return 'midnight'; }
-  applyTheme(initial());
-  try{if(window.parent&&window.parent!==window){var ph=window.parent.document.documentElement;
-    new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){if(ms[i].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)applyTheme(t);}}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});}}catch(_e){}
-})();
-</script>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
 <link rel="stylesheet" href="/api/education/education.css">
 <style>
-  body { padding: 24px; }
-  h1 { font-size: 22px; margin-bottom: 2px; }
-  .subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 22px; }
-  .section-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin: 18px 0 10px; }
-
-  .class-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-  .class-tile {
-    background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md);
-    padding: 16px; cursor: pointer; transition: transform 0.18s, border-color 0.18s, box-shadow 0.18s; position: relative; overflow: hidden;
-  }
-  .class-tile::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background: linear-gradient(135deg,#8b5cf6,#06b6d4,#34d399); opacity:0.6; }
-  .class-tile:hover { transform: translateY(-2px); border-color: rgba(139,92,246,0.35); box-shadow: 0 8px 22px rgba(0,0,0,0.3); }
-  .class-tile.active { border-color: var(--accent-primary); }
-  .class-tile .name { font-weight: 700; font-size: 15px; }
-  .class-tile .meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
-  .class-tile .avg { font-size: 22px; font-weight: 800; margin-top: 10px; }
-  .class-tile .avg small { font-size: 11px; font-weight: 600; color: var(--text-muted); }
-
-  .summary-row { display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0; }
-  .summary-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px 18px; min-width: 130px; text-align: center; }
-  .summary-card .v { font-size: 24px; font-weight: 800; }
-  .summary-card .l { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px; }
-
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border-color); }
-  th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 600; }
-  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  tr:hover td { background: rgba(255,255,255,0.02); }
-  .pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px; font-weight: 700; }
-  .pill.good { background: rgba(52,211,153,0.15); color: #34d399; }
-  .pill.mid  { background: rgba(245,200,66,0.15); color: #f5c842; }
-  .pill.low  { background: rgba(239,68,68,0.15); color: #f87171; }
-  .pill.none { background: rgba(255,255,255,0.06); color: var(--text-muted); }
-
-  .state { text-align: center; color: var(--text-muted); padding: 48px 20px; font-size: 15px; }
-  .state.error { color: var(--status-error); }
-  .hide { display: none; }
-
-  @media (max-width: 640px) {
-    body { padding: 14px 12px; }
-    .summary-row { gap: 8px; }
-    .summary-card { min-width: calc(50% - 4px); padding: 12px 10px; flex: 1 1 calc(50% - 4px); }
-    .summary-card .v { font-size: 20px; }
-    table { font-size: 12px; }
-    th, td { padding: 8px 6px; }
-    th { font-size: 10px; }
-    input, select, textarea { font-size: 16px; }
-  }
+  .class-tile .avg { font-size: 26px; font-weight: 800; margin-top: 12px; letter-spacing: -0.5px; }
+  .class-tile .avg small { font-size: 12px; font-weight: 600; color: var(--lm-muted); letter-spacing: 0; }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
-  <h1>👩‍🏫 Teacher Analytics</h1>
-  <p class="subtitle">Class progress at a glance — quiz averages, study activity, and per-student detail.</p>
+<main class="lm-page">
+  <header class="lm-hero">
+    <div>
+      <div class="lm-eyebrow">Teacher view</div>
+      <h1 class="lm-display">A moment for each learner.</h1>
+      <p class="lm-lead">Class progress at a glance: quiz averages, study activity and each student’s detail, for the classes you teach.</p>
+    </div>
+    <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
+  </header>
 
-  <div id="loading" class="state">Loading your classes…</div>
-  <div id="forbidden" class="state hide">
-    🔒 This view is for teachers. If you should have access, ask your admin to add you to <code>LM_TEACHER_EMAILS</code>.
-  </div>
-  <div id="empty" class="state hide">You aren't assigned to teach any classes yet.</div>
+  <div id="loading" class="lm-loading">Loading your classes…</div>
+  <div id="forbidden" class="lm-empty hide"><div class="lm-empty-icon">🔒</div><strong>This view is for teachers.</strong>If you should have access, ask your admin to add you to <code>LM_TEACHER_EMAILS</code>.</div>
+  <div id="error" class="lm-empty hide"><div class="lm-empty-icon">☁️</div><strong>Your classes could not be loaded right now.</strong><span id="errorDetail">Nothing is assumed in their place; try again in a moment.</span></div>
+  <div id="empty" class="lm-empty hide"><div class="lm-empty-icon">🌱</div><strong>No classes to show yet.</strong>Classes you create appear here with their rosters and progress.</div>
 
   <div id="content" class="hide">
-    <div class="section-label">Your classes</div>
-    <div class="class-grid" id="classGrid"></div>
+    <section class="lm-section">
+      <div class="lm-section-head"><h2>Your classes</h2><span class="lm-subtle lm-small" id="classCount"></span></div>
+      <div class="lm-grid" id="classGrid" style="--min:240px"></div>
+    </section>
 
-    <div id="detail" class="hide">
-      <div class="section-label" id="detailTitle">Class</div>
-      <div class="summary-row" id="summaryRow"></div>
-      <table>
-        <thead><tr>
-          <th>Student</th><th class="num">Quiz avg</th><th class="num">Quizzes</th>
-          <th class="num">Cards reviewed</th><th class="num">XP</th><th>Last active</th>
-        </tr></thead>
-        <tbody id="rosterBody"></tbody>
-      </table>
-    </div>
+    <section id="detail" class="lm-section hide">
+      <div class="lm-section-head"><h2 id="detailTitle">Class</h2><span class="lm-pill">Teacher view</span></div>
+      <div class="lm-grid is-tight" id="summaryRow" style="--min:150px"></div>
+      <div class="lm-table-wrap lm-mt-md">
+        <table class="lm-table">
+          <thead><tr>
+            <th>Student</th><th class="num">Quiz avg</th><th class="num">Quizzes</th>
+            <th class="num">Cards reviewed</th><th class="num">XP</th><th>Last active</th>
+          </tr></thead>
+          <tbody id="rosterBody"></tbody>
+        </table>
+      </div>
+      <p class="lm-subtle lm-small lm-mt-md">Only this class’s teacher sees its roster. Students never see this panel.</p>
+    </section>
   </div>
+</main>
 
+<script src="/api/education/mascot.js?v=4"></script>
 <script>
-function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-function avgPill(v, count){
-  if(!count || count===0) return '<span class="pill none">—</span>';
-  var n=Math.round(v), cls = n>=80?'good':n>=60?'mid':'low';
-  return '<span class="pill '+cls+'">'+n+'%</span>';
+var esc = window.LM.esc;
+function show(id) { ['loading', 'forbidden', 'error', 'empty'].forEach(function (k) { document.getElementById(k).classList.toggle('hide', k !== id); }); }
+function avgPill(v, count) {
+  if (!count || count === 0) return '<span class="lm-pill is-neutral">—</span>';
+  var n = Math.round(v), cls = n >= 80 ? 'is-success' : n >= 60 ? 'is-warning' : 'is-danger';
+  return '<span class="lm-pill ' + cls + '">' + n + '%</span>';
 }
 
-async function loadClasses(){
+async function loadClasses() {
   var resp;
   try { resp = await fetch('/api/education/teacher/classes?surface=1'); }
-  catch(e){ return showError(); }
-  if (!resp.ok) return showError();
+  catch (e) { return showError(0); }
+  if (!resp.ok) return showError(resp.status);
   var data = await resp.json();
-  if (data.allowed === false) { document.getElementById('loading').classList.add('hide'); document.getElementById('forbidden').classList.remove('hide'); return; }
+  if (data.allowed === false) { show('forbidden'); return; }
   var classes = data.classes || [];
-  document.getElementById('loading').classList.add('hide');
+  show(null);
   document.getElementById('content').classList.remove('hide');
-  if (classes.length === 0){ document.getElementById('empty').classList.remove('hide'); return; }
+  document.getElementById('classCount').textContent = classes.length + (classes.length === 1 ? ' class' : ' classes');
+  if (classes.length === 0) { show('empty'); return; }
   var grid = document.getElementById('classGrid');
-  grid.innerHTML = classes.map(function(c){
-    return '<div class="class-tile" data-id="'+c.class_id+'" onclick="openClass(\''+c.class_id+'\', this)">' +
-      '<div class="name">'+esc(c.name)+'</div>' +
-      '<div class="meta">'+esc(c.subject||'')+' · '+(c.student_count||0)+' students · '+(c.lecture_count||0)+' lectures</div>' +
-      '<div class="avg">'+(c.class_quiz_average!=null?c.class_quiz_average+'%':'—')+' <small>class quiz avg</small></div>' +
-    '</div>';
+  grid.innerHTML = classes.map(function (c) {
+    return '<button type="button" class="lm-card is-clickable lm-card-stripe class-tile" data-id="' + esc(c.class_id) + '">' +
+      '<h3>' + esc(c.name) + '</h3>' +
+      '<div class="lm-card-meta">' + esc(c.subject || '') + ' · ' + (c.student_count || 0) + ' students · ' + (c.lecture_count || 0) + ' lectures</div>' +
+      (c.class_quiz_average != null ? '<div class="avg">' + c.class_quiz_average + '% <small>class quiz avg</small></div>' : '<div class="lm-mt-md"><span class="lm-pill is-neutral">No quizzes yet</span></div>') +
+    '</button>';
   }).join('');
-  // Auto-open the first class.
+  grid.querySelectorAll('.class-tile').forEach(function (tile) { tile.addEventListener('click', function () { openClass(tile.dataset.id, tile); }); });
   if (classes[0]) openClass(classes[0].class_id, grid.querySelector('.class-tile'));
 }
 
-async function openClass(classId, tile){
-  document.querySelectorAll('.class-tile').forEach(function(t){ t.classList.remove('active'); });
-  if (tile) tile.classList.add('active');
+async function openClass(classId, tile) {
+  document.querySelectorAll('.class-tile').forEach(function (t) { t.classList.remove('is-selected'); });
+  if (tile) tile.classList.add('is-selected');
   var detail = document.getElementById('detail');
   detail.classList.remove('hide');
-  document.getElementById('rosterBody').innerHTML = '<tr><td colspan="6" style="color:var(--text-muted)">Loading…</td></tr>';
-  var resp = await fetch('/api/education/teacher/classes/'+encodeURIComponent(classId)+'/analytics');
-  if (!resp.ok){ document.getElementById('rosterBody').innerHTML = '<tr><td colspan="6" class="state error">Could not load analytics.</td></tr>'; return; }
+  document.getElementById('rosterBody').innerHTML = '<tr><td colspan="6" class="lm-subtle">Loading…</td></tr>';
+  var resp = await fetch('/api/education/teacher/classes/' + encodeURIComponent(classId) + '/analytics');
+  if (!resp.ok) { document.getElementById('rosterBody').innerHTML = '<tr><td colspan="6" class="lm-error">Could not load analytics (HTTP ' + resp.status + ').</td></tr>'; return; }
   var d = await resp.json();
   document.getElementById('detailTitle').textContent = (d.class && d.class.name) || 'Class';
   var s = d.summary || {};
   document.getElementById('summaryRow').innerHTML =
-    card(s.studentCount||0,'Students') +
-    card(s.classQuizAverage!=null? s.classQuizAverage+'%':'—','Class quiz avg') +
-    card(s.studentsWithActivity||0,'Active students') +
-    card(s.totalCardsReviewed||0,'Cards reviewed');
-  var rows = (d.students||[]).map(function(st){
+    stat(s.studentCount || 0, 'Students') +
+    stat(s.classQuizAverage != null ? s.classQuizAverage + '%' : '—', 'Class quiz avg', s.classQuizAverage != null ? 'is-success' : '') +
+    stat(s.studentsWithActivity || 0, 'Active students', 'is-info') +
+    stat(s.totalCardsReviewed || 0, 'Cards reviewed', 'is-accent');
+  var rows = (d.students || []).map(function (st) {
     var last = st.last_active_date ? new Date(st.last_active_date).toLocaleDateString() : '—';
-    return '<tr>'+
-      '<td>'+esc(st.name)+'</td>'+
-      '<td class="num">'+avgPill(st.quiz_average, st.quiz_count)+'</td>'+
-      '<td class="num">'+(st.quiz_count||0)+'</td>'+
-      '<td class="num">'+(st.cards_reviewed||0)+'</td>'+
-      '<td class="num">'+(st.xp||0)+'</td>'+
-      '<td>'+last+'</td>'+
+    return '<tr>' +
+      '<td><strong>' + esc(st.name) + '</strong></td>' +
+      '<td class="num">' + avgPill(st.quiz_average, st.quiz_count) + '</td>' +
+      '<td class="num">' + (st.quiz_count || 0) + '</td>' +
+      '<td class="num">' + (st.cards_reviewed || 0) + '</td>' +
+      '<td class="num">' + (st.xp || 0) + '</td>' +
+      '<td>' + esc(last) + '</td>' +
     '</tr>';
   }).join('');
-  document.getElementById('rosterBody').innerHTML = rows || '<tr><td colspan="6" style="color:var(--text-muted)">No students enrolled yet.</td></tr>';
+  document.getElementById('rosterBody').innerHTML = rows || '<tr><td colspan="6" class="lm-subtle">No students enrolled yet.</td></tr>';
 }
 
-function card(v,l){ return '<div class="summary-card"><div class="v">'+esc(v)+'</div><div class="l">'+esc(l)+'</div></div>'; }
-function showError(){ document.getElementById('loading').classList.add('hide'); var e=document.getElementById('forbidden'); }
+function stat(v, l, tone) { return '<div class="lm-stat ' + (tone || '') + '"><div class="lm-stat-value">' + esc(v) + '</div><div class="lm-stat-label">' + esc(l) + '</div></div>'; }
+function showError(status) {
+  if (status === 401 || status === 403) { show('forbidden'); return; }
+  document.getElementById('errorDetail').textContent = status ? 'The classes route answered HTTP ' + status + '. Nothing is assumed in its place.' : 'The classes route did not answer. Nothing is assumed in its place.';
+  show('error');
+}
 
 loadClasses();
 </script>

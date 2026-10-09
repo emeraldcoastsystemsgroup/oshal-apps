@@ -1,0 +1,104 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register readiness and isolated source checks; deployed acceptance remains separate.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register attention source/asset admission and actual owned browser behavior in the existing executable cases.
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed Home package readiness
+    purpose: Read installed package identity without grants, business records or provider access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - Installed package identity is home-experience at its declared version.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: package-contract
+    name: Home entry and explicit role contract
+    purpose: Verify package-owned entry/configuration/skin and exact supported member selections without deployment
+      data.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/package-contract.test.cjs
+    expected:
+      - Home owns one configuration and uses existing shared rendering and transport.
+      - The owned attention asset loads before the renderer and only composes the exact Home document.
+      - Member roles are explicit and host roles grant no household or school relationship.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 128
+    installation: never
+  - id: runtime-source-package
+    name: Runtime source package acceptance
+    purpose: Exercise this exact package on isolated core source and loopback APIs; does not claim deployed acceptance.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/runtime-proof.test.ts
+    expected:
+      - Owned package entry and existing shared infrastructure preserve current caller boundaries.
+      - The actual attention asset is readable only by an admitted member and closes on revocation.
+      - Fixture servers and browser contexts close; no deployment data or grants are used.
+    prerequisites:
+      - runner:tsx
+      - fixture:core-source
+      - fixture:loopback-http
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/support/runtime-proof.ts
+      cleanup: Close owned loopback/browser resources and remove only the generated package fixture directory.
+    limits:
+      timeoutMs: 90000
+      maxMemoryMb: 512
+    installation: never
+  - id: browser-source-package
+    name: Browser source package acceptance
+    purpose: Exercise this exact package on isolated core source and loopback APIs; does not claim deployed acceptance.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/browser-proof.test.ts
+    expected:
+      - Desktop and phone layouts, keyboard access and existing member journeys remain usable.
+      - Readable attention tickets precede schedule, recent work and applications with deterministic exact owner links.
+      - Loading, empty, malformed and refused ticket reads are truthful; retry preserves drafts and other pages or frames.
+      - Missing or unknown ticket states and unusable owner links cannot become a false all-clear; valid linked attention remains visible.
+      - Fixture servers and browser contexts close; no deployment data or grants are used.
+    prerequisites:
+      - runner:tsx
+      - fixture:core-source
+      - fixture:loopback-http
+      - runner:playwright
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/support/browser-proof.ts
+      cleanup: Close owned loopback/browser resources and remove only the generated package fixture directory.
+    limits:
+      timeoutMs: 90000
+      maxMemoryMb: 512
+    installation: never

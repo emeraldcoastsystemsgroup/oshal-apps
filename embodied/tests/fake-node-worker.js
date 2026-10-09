@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The worker-thread half of the node double: an HTTP node on loopback speaking the rail exactly as the Python node front does — the swarm service secret on /api/drone-node/command, {id, command, args} envelopes over FakePlant sessions, a heartbeat pusher with the same body shape — so the rail client, the fleet and the routes are proven end to end over a real socket. It lives in a worker because the simulation blocks the main thread on each command (Atomics.wait); a node on the same event loop would deadlock, which is exactly why the real node is another process.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | The owner rides as the trusted service user-sub header, exactly as the Python front sends it.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-175: the heartbeat carries the device credential (Authorization: Bearer cfg.credential) exactly as the Python front now sends it; no service secret, no owner header. Commands still need the secret.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | ADR-175 hardening: commands need the COMMAND KEY the api returned in a heartbeat reply (or handed in by a suite via {type: 'command-key'}); the double records whether any request ever carried x-service-secret, so suites can prove the api never sends the machine secret to a node.
  */
 'use strict';
 const http = require('node:http');
@@ -13,14 +15,15 @@ const { parentPort, workerData } = require('node:worker_threads');
 const { FakePlant } = require('./fake-plant');
 
 const E = require(path.join(__dirname, '..', 'routes', 'engine', 'index.js'));
-const cfg = { kind: 'plant', engine: 'fake', version: '0', buildHash: 'fake-build', refuseClone: false, apiUrl: null, heartbeatMs: 200, ownerSub: null, ...workerData };
+const cfg = { kind: 'plant', engine: 'fake', version: '0', buildHash: 'fake-build', refuseClone: false, apiUrl: null, heartbeatMs: 200, credential: null, ...workerData };
 const probe = new E.WorldSim({ sensorSet: E.RECON_MINI });
 const solids = probe.sensingSolids();
 const home = probe.scene.droneHome;
 const sessions = new Map();
 const events = [];
 let seq = 0; let ack = 0; let last = null; let heartbeating = Boolean(cfg.apiUrl); let endpointUrl = '';
-const stats = { commands: 0, heartbeats: 0, acks: 0 };
+const stats = { commands: 0, heartbeats: 0, acks: 0, serviceSecretSeen: false };
+let commandKey = cfg.commandKey ?? null;
 
 const event = (kind, text) => { seq += 1; events.push({ seq, at: new Date(0).toISOString(), kind, text }); if (events.length > 100) events.splice(0, events.length - 100); };
 const get = (id) => { const p = sessions.get(id); if (!p) throw new Error(`no session ${id}: load it first`); return p; };
@@ -59,7 +62,8 @@ const send = (res, code, payload) => { const data = Buffer.from(JSON.stringify(p
 const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/health') { send(res, 200, { ok: true, nodeId: cfg.nodeId, kind: cfg.kind, ...stats }); return; }
   if (req.method !== 'POST' || req.url !== '/api/drone-node/command') { send(res, 404, { error: 'not_found' }); return; }
-  if ((req.headers['x-service-secret'] || '') !== cfg.secret) { send(res, 401, { error: 'service_secret_required', reason: 'a command needs the swarm service secret' }); return; }
+  if (req.headers['x-service-secret'] !== undefined) stats.serviceSecretSeen = true;
+  if (!commandKey || (req.headers['x-node-command-key'] || '') !== commandKey) { send(res, 401, { error: 'command_key_required', reason: "a command needs the key from this node's last heartbeat reply" }); return; }
   const chunks = [];
   req.on('data', (c) => chunks.push(c));
   req.on('end', () => {
@@ -77,11 +81,12 @@ async function heartbeat() {
   stats.heartbeats += 1;
   const body = { nodeId: cfg.nodeId, kind: cfg.kind, endpointUrl, protocol: 1, engine: cfg.engine, version: cfg.version, buildHash: cfg.buildHash, sessions: sessions.size, telemetry: last, events: events.filter((e) => e.seq > ack) };
   try {
-    // The owner rides as the trusted service user-sub header, exactly as the Python front sends it.
-    const owner = cfg.ownerSub ? { 'x-oshal-user-sub-b64': Buffer.from(cfg.ownerSub, 'utf8').toString('base64url') } : {};
-    const res = await fetch(`${cfg.apiUrl}/api/embodied/nodes/heartbeat`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-service-secret': cfg.secret, ...owner }, body: JSON.stringify(body) });
+    // The device credential rides as a bearer token, exactly as the Python front sends it (ADR-175).
+    const auth = cfg.credential ? { authorization: `Bearer ${cfg.credential}` } : {};
+    const res = await fetch(`${cfg.apiUrl}/api/embodied/nodes/heartbeat`, { method: 'POST', headers: { 'content-type': 'application/json', ...auth }, body: JSON.stringify(body) });
     const reply = await res.json().catch(() => ({}));
     if (res.ok && Number.isInteger(reply.ack)) { ack = reply.ack; stats.acks += 1; }
+    if (res.ok && typeof reply.commandKey === 'string') commandKey = reply.commandKey;
     parentPort.postMessage({ type: 'heartbeat', status: res.status, ack });
   } catch (err) { parentPort.postMessage({ type: 'heartbeat', status: 0, error: err.message }); }
 }
@@ -99,4 +104,5 @@ parentPort.on('message', (m) => {
   else if (m === 'heartbeat-now') void heartbeat();
   else if (m === 'stats') parentPort.postMessage({ type: 'stats', ...stats, sessions: sessions.size });
   else if (m === 'close') server.close(() => process.exit(0));
+  else if (m && m.type === 'command-key') { commandKey = m.key; parentPort.postMessage({ type: 'command-key-set' }); }
 });

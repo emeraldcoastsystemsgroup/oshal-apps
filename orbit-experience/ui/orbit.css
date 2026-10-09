@@ -1,0 +1,28 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Own the established skin palette while respecting saved appearance.
+ */
+body[data-skin="orbit"], [data-layout][data-skin="orbit"], .experience[data-skin="orbit"], [data-skin="orbit"], body[data-theme="orbit"], [data-theme="orbit"] {
+  --bg: #f1f5fb;
+  --surface: #ffffff;
+  --surface-2: #edf2fa;
+  --chrome: #f8faff;
+  --ink: #213453;
+  --muted: #6d7f9b;
+  --line: #dce4ef;
+  --accent: #3568d4;
+  --on-accent: #ffffff;
+  --soft: #e7efff;
+  --paper: #ffffff;
+  --on: #ffffff;
+  --feature: #e7efff;
+  --teal: #3568d4;
+  --gold: #e2b765;
+  --radius-custom: 14px;
+  --radius: 14px;
+  --theme-brand: "Orbit";
+  color-scheme: light;
+}

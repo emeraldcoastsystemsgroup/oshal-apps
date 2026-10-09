@@ -23,6 +23,11 @@
   no external assets, series colors by a FIXED strategy->slot map validated for CVD on the light and
   the dark surface, a legend + table twin for every chart, crosshair tooltips. Text never wears a
   series color.
+  2026-09-28 — 1.6.2: a COMPANY audience view (ADR-164 D6). The all-inclusive Business shells open this page with
+  ?audience=company and get the SAVED state of the scan (the top hands and the snapshot age, the paper alert record,
+  the recent alerts) from /scan, /alerts and /home-summary only — never /status, /portfolio or /alerts/pops, which
+  ask Kalshi live. Every start path of the full page (the loads and pollers, the account read, the connected-actions
+  mount) is gated on the kit’s decision; any other request runs the full page unchanged.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -34,6 +39,136 @@
      matters — without it the surface would have no colors at all. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The all-inclusive Business shells (Studio, Orbit, Commons) open this page with
+     ?audience=company: the SAVED state of the scan (the last snapshot's top hands and its age, the paper alert record,
+     the recorded alerts) from this package's own database-backed routes, painted by the shared kit. Nothing live is
+     read on open: /status asks Kalshi for the exchange state, /portfolio asks it with the caller's key and
+     /alerts/pops asks it for candles, so the view never calls them. Any other request runs the full page below. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var KICKER = 'Finance · Kalshi', STRENGTH_TONE = { monster: 'ok', strong: 'ok', playable: 'warn' };
+  function call(path) {
+    return fetch('/api/kalshi' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (j) {
+        if (!r.ok) { var e = new Error(j && j.error ? String(j.error) : ('HTTP ' + r.status)); e.status = r.status; e.fromRoute = !!(j && j.error); throw e; }
+        return j || {};
+      });
+    });
+  }
+  function settle(promise) { return promise.then(function (b) { return { ok: b }; }, function (e) { return { err: e }; }); }
+  function refused(e) { return !!e && (e.status === 401 || e.status === 403); }
+  function openFull() { window.location.assign(window.location.pathname); }
+  function cents(x) { var n = Number(x); return isFinite(n) ? (n * 100).toFixed(1) + '¢' : '—'; }
+  function pctOf(x, d) { var n = Number(x); return isFinite(n) ? (n * 100).toFixed(d) + '%' : '—'; }
+  function usd(v) { var n = Number(v); return isFinite(n) ? (n < 0 ? '−$' : '+$') + Math.abs(n).toFixed(2) : '—'; }
+  function clip(s, n) { s = String(s === null || s === undefined ? '' : s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+  function readFailure(err, what) { return refused(err) ? 'Sign in to see ' + what + '.' : what.charAt(0).toUpperCase() + what.slice(1) + ' could not be read (HTTP ' + (err && err.status || 0) + ').'; }
+  // The scan's state in one line: the snapshot may be missing, the scan may be off, or the evaluator may have folded everything.
+  function headline(p, all) {
+    var s = p.scan || {};
+    if (p.awaitingFirstScan) return s.running ? 'The first scan is running' : s.enabled === false ? 'Background scan is off and no snapshot is saved' : 'Waiting for the first scan';
+    if (!all.length) return 'The last scan folded every market';
+    return plural(all.length, 'playable hand');
+  }
+  function lede(p, all) {
+    var s = p.scan || {}, bits = [];
+    if (!p.awaitingFirstScan) bits.push('Snapshot ' + A.when(p.generatedAt) + (p.evaluable ? ' over ' + A.num(p.evaluable) + ' evaluable markets' : ''));
+    if (s.enabled === false) bits.push('the background scan is off'); else if (s.intervalMinutes) bits.push('scans every ' + s.intervalMinutes + ' min');
+    bits.push(p.mayStake ? 'staking gate open for ' + (p.strategy || 'the strategy') : 'paper only' + (p.gateReason ? ': ' + p.gateReason : ''));
+    return bits.join(' · ') + '.';
+  }
+  function handsStat(p, all) {
+    return { id: 'hands', label: 'Playable hands', value: all.length, hint: p.evaluable ? 'of ' + A.num(p.evaluable) + ' evaluable markets' : null, tone: all.length ? 'ok' : null };
+  }
+  function snapshotStat(p) {
+    var s = p.scan || {}, every = s.intervalMinutes ? 'Scans every ' + s.intervalMinutes + ' min' : null;
+    if (p.awaitingFirstScan) return { id: 'snapshot', label: 'Last scan', value: s.running ? 'Running' : 'None yet', hint: s.enabled === false ? 'Background scan is off' : every, tone: 'warn' };
+    var hint = s.lastError ? 'Last scan failed: ' + clip(s.lastError, 60) : s.enabled === false ? 'Background scan is off' : s.stale ? 'Stale: older than the configured window' : s.running ? 'A scan is running now' : every;
+    return { id: 'snapshot', label: 'Last scan', value: A.when(p.generatedAt), hint: hint, tone: s.lastError ? 'bad' : (s.stale || s.enabled === false) ? 'warn' : 'ok' };
+  }
+  function recordStat(rec, err) {
+    var stat = { id: 'record', label: 'Alert record (paper)', value: '—', hint: null, tone: null };
+    if (err) { stat.hint = refused(err) ? 'Sign in to see it' : 'Could not check'; return stat; }
+    if (!rec || !rec.alerted) { stat.hint = 'No alerts announced yet'; return stat; }
+    var decided = (rec.wins || 0) + (rec.losses || 0);
+    stat.value = (rec.wins || 0) + '–' + (rec.losses || 0);
+    stat.hint = decided ? Math.round(rec.hitRate * 100) + '% hit over ' + plural(rec.settled || decided, 'settled alert') : plural(rec.open || 0, 'open alert') + ', none settled yet';
+    stat.tone = decided ? (rec.pnlTotal > 0 ? 'ok' : rec.pnlTotal < 0 ? 'bad' : null) : null;
+    return stat;
+  }
+  function alertsStat(summary, err) {
+    var metric = function (id) { return ((summary && summary.metrics) || []).filter(function (m) { return m.id === id; })[0]; };
+    var five = metric('recorded-alerts-5d'), delivered = metric('delivered-alerts-5d');
+    var stat = { id: 'alerts5d', label: 'Alerts / 5 days', value: '—', hint: null, tone: null };
+    if (err || !five) { stat.hint = refused(err) ? 'Sign in to see them' : 'Could not check'; return stat; }
+    if (five.value === 'Unavailable') { stat.hint = 'Could not check'; return stat; }
+    stat.value = five.value;
+    stat.hint = [delivered && delivered.value !== 'Unavailable' ? delivered.value + ' delivered' : null, summary.partial ? 'some records could not be checked' : null].filter(Boolean).join(' · ') || null;
+    return stat;
+  }
+  function handRow(h) {
+    var edge = Number(h.edgeNet), closes = h.closeTime ? (new Date(h.closeTime).getTime() <= Date.now() ? 'Closed' : A.when(h.closeTime)) : '—';
+    return [
+      { text: h.strength || '—', tone: STRENGTH_TONE[h.strength] || null },
+      String(h.side || '').toUpperCase(),
+      clip(h.title || h.ticker || 'Market', 90),
+      { text: cents(h.price) },
+      { text: (edge >= 0 ? '+' : '') + cents(edge), tone: edge > 0 ? 'ok' : null },
+      { text: pctOf(h.stakeFraction, 2) },
+      closes,
+      (h.riskFlags || []).join(', ') || '—'
+    ];
+  }
+  function outcome(a) {
+    if (a.settled !== true) return { badge: 'Open', tone: null };
+    if (a.won === true) return { badge: 'Win', tone: 'ok' };
+    if (a.won === false) return { badge: 'Loss', tone: 'bad' };
+    return { badge: 'Settled', tone: null };
+  }
+  function alertItem(a) {
+    var d = a.detail || {}, o = outcome(a), pnl = Number(a.pnl_per_contract);
+    var bits = [a.strength || 'playable', d.side ? String(d.side).toUpperCase() : '', '+' + cents(a.edge_net) + ' net edge when announced'];
+    if (a.settled === true && isFinite(pnl)) bits.push(usd(pnl) + ' per contract');
+    bits.push(a.delivered ? 'delivered' + (a.channel ? ' via ' + a.channel : '') : 'delivery not confirmed');
+    return { title: clip(d.title || a.ticker || 'Alert', 90), text: bits.filter(Boolean).join(' · '), meta: A.when(a.created_at), badge: o.badge, tone: o.tone };
+  }
+  function recordNote(rec) {
+    if (!rec || !rec.alerted) return 'An alert is a research signal the background scan posted to your feed, never an order.';
+    var decided = (rec.wins || 0) + (rec.losses || 0), hit = decided ? Math.round(rec.hitRate * 100) + '%' : '—';
+    var avg = rec.pnlPerContract === null || rec.pnlPerContract === undefined ? '—' : usd(rec.pnlPerContract), total = rec.pnlTotal === null || rec.pnlTotal === undefined ? '—' : usd(rec.pnlTotal);
+    return 'Record: ' + plural(rec.wins || 0, 'win') + ', ' + plural(rec.losses || 0, 'loss') + ' (' + hit + ' hit rate over ' + plural(rec.settled || 0, 'settled alert') + ') · avg ' + avg + ' per contract, ' + total + ' had you bought one contract on each · ' + plural(rec.open || 0, 'alert') + ' still open · ' + plural(rec.alerted, 'alert') + ' announced. Paper: alerts never place orders.';
+  }
+  function model(p, alerts, summary) {
+    var all = p.hands || [], top = all.slice(0, 10), rec = alerts.ok ? alerts.ok.record : null, rows = alerts.ok ? (alerts.ok.alerts || []) : [];
+    return {
+      kicker: KICKER, title: headline(p, all), lede: lede(p, all),
+      actions: [{ label: 'Open the scan', primary: true, onClick: openFull }],
+      stats: [handsStat(p, all), snapshotStat(p), recordStat(rec, alerts.err), alertsStat(summary.ok, summary.err)],
+      sections: [
+        { kind: 'table', id: 'hands', title: 'Top hands', wide: true, columns: ['Strength', 'Side', 'Market', { label: 'Ask', align: 'right' }, { label: 'Net edge', align: 'right' }, { label: 'Stake', align: 'right' }, 'Closes', 'Flags'],
+          rows: top.map(handRow), empty: p.awaitingFirstScan ? 'The background scan has not produced its first snapshot yet.' : 'No playable hands: the evaluator folded every market whose history does not support an edge net of fees.',
+          note: (all.length > top.length ? 'The top 10 of ' + all.length + ' hands, as the scan ranks them. ' : '') + 'A stake is a quarter-Kelly paper size of the bankroll; nothing here places an order.' },
+        { kind: 'list', id: 'alerts', title: 'Recent alerts', items: rows.slice(0, 8).map(alertItem),
+          empty: alerts.err ? readFailure(alerts.err, 'alerts') : 'No alerts announced yet. New playable hands are posted to your Jarvis feed by the background scan.',
+          note: alerts.err ? null : recordNote(rec) }
+      ]
+    };
+  }
+  function company() {
+    return Promise.all([call('/scan'), settle(call('/alerts')), settle(call('/home-summary'))]).then(function (r) { return model(r[0], r[1], r[2]); }).catch(function (e) {
+      if (refused(e)) return { kicker: KICKER, title: e.status === 401 ? 'Sign in to see the Kalshi scan' : 'This account cannot open Kalshi Edge',
+        lede: e.status === 401 ? 'Kalshi Edge shows the scan and the alerts of whoever is signed in, and this session is not signed in.' : 'The Kalshi routes refused this account (HTTP 403).' };
+      throw e && e.status && !e.fromRoute ? new Error('Kalshi Edge could not read the saved scan (HTTP ' + e.status + ').') : e;
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'kalshi', escapeLabel: 'Open Kalshi Prediction Markets in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <!-- Shared framework glass sheet: every standalone surface loads it so cards/rails read as one
      system across apps (asserted by tests/unit/surface-glass-assets.spec.ts). Consumed read-only. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
@@ -932,7 +1067,8 @@
   $('q').addEventListener('input', render);
   $('f-cat').addEventListener('change', render);
   $('f-strength').addEventListener('change', render);
-  loadStatus().then(loadPortfolio);
+  // The account read (status, then portfolio) asks Kalshi live: never under an audience view (ADR-164 D6).
+  if (!window.AppView || !AppView.active()) loadStatus().then(loadPortfolio);
   /* ── Trends: the ledger as a trader watches it. Inline SVG, no external assets. ─────────── */
   // Categorical hues by a FIXED strategy->slot map (never cycled, never generated): an unknown
   // strategy folds into the de-emphasis gray rather than inventing a 5th hue.
@@ -1148,20 +1284,25 @@
   var resizeTimer = null;
   window.addEventListener('resize', function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(function () { if (trendState.data) renderTrends(trendState.data); }, 200); });
 
-  load();
-  loadAlerts();
-  loadSettings();
-  loadTrends();
-  // The snapshot read is now cheap (one row), so poll it every 30s: the freshness line stays
-  // honest, a poller cycle appears on its own, and nothing here ever triggers a scan.
-  setInterval(load, 30000);
-  setInterval(loadAlerts, 120000);
-  setInterval(loadPortfolio, 60000);
+  // The full page’s start. Under an audience view (ADR-164 D6) the kit owns the document and only the view’s own
+  // reads may run, so the loads and the pollers start only when no view renders (and on a core without the kit).
+  if (!window.AppView || !AppView.active()) {
+    load();
+    loadAlerts();
+    loadSettings();
+    loadTrends();
+    // The snapshot read is now cheap (one row), so poll it every 30s: the freshness line stays
+    // honest, a poller cycle appears on its own, and nothing here ever triggers a scan.
+    setInterval(load, 30000);
+    setInterval(loadAlerts, 120000);
+    setInterval(loadPortfolio, 60000);
+  }
 })();
 </script>
 
 <script>
-(async()=>{const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');const element=document.querySelector('.connected-app-actions');await mountConnectedActions({app:'kalshi',element,contextForOffer:()=>window.kalshiReviewContext||null});element.querySelectorAll('button').forEach(button=>button.classList.add('btn'));})();
+// The connected-action offers (Review hand-offs) mount for the full page only: under an audience view the kit owns the document (ADR-164 D6).
+if (!window.AppView || !AppView.active()) (async()=>{const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');const element=document.querySelector('.connected-app-actions');await mountConnectedActions({app:'kalshi',element,contextForOffer:()=>window.kalshiReviewContext||null});element.querySelectorAll('button').forEach(button=>button.classList.add('btn'));})();
 </script>
 </body>
 </html>

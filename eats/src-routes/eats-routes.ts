@@ -30,6 +30,8 @@
  * ---------------------------------------------------------------------------
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove Uber Eats credentials from generic bot dispatch. Catalog/deep-link access resolves a fixed-server-operation credential only inside the deterministic CLI helper; the model receives bounded menu records and never a credential map.
  * 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove the final credential-bearing subprocess. Catalog/menu/handoff calls now use the import-safe core helper with the current request's explicit credential value.
+ * 2026-09-26 | maintainer@emeraldcoastsystemsgroup.com | Commerce surfaces (backlog "Consumer commerce native surfaces"): (1) POST /cart/items no longer trusts the browser's price, title, store name or image — it reads the restaurant's menu (the provider 'menu' operation for storeId) and prices the line from the item whose productId matches exactly (menuItemFor), refusing an item the menu does not list with 422 unknown_item. (2) Every total (/cart, the order record, the chat proposal) is summed in integer cents by ./cart-totals; the cart responses keep items/total and add totalCents + unpricedLines. (3) A chat "checkout" no longer calls buildOrder (which wrote eats_orders) in the same request: it returns a `proposal` the surface shows as a confirm card, and only the diner's confirm calls POST /order. `checkout` stays in the reply (always null) for older surfaces.
+ * 2026-10-08 | maintainer@emeraldcoastsystemsgroup.com | GET /cart is a pure read. loadCart created the diner's cart (INSERT INTO eats_carts) when none existed; the native host admits a GET read-only and refuses any SQL write, so every first visit answered 500 'SQL mutation requires original writer admission'. readCart answers the unchanged shape with cartId, storeId and storeName null and no lines when there is no active cart; POST /cart/items (and the other write routes) still create it through getOrCreateCart.
  *
  * @module eats-routes
  */
@@ -37,6 +39,7 @@
 import { Router, type Request, type Response, type RequestHandler } from 'express';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
+import { cartTotalCents, centsToDollars, formatCents, lineQuantity } from './cart-totals';
 import { createChildLogger } from '@/shared/logger';
 import { buildOwnerRlsPolicyStatements, runRuntimeSchemaBootstrap } from '@/shared/services/database';
 import type { AppContext } from '@/app/composition/app-context';
@@ -166,22 +169,114 @@ export async function ensureEatsSchema(pool: Pool): Promise<void> {
 
 // ── Cart helpers ───────────────────────────────────────────────────────────--
 
-/** Get the diner's one active cart, creating it on first use. */
-async function getOrCreateCart(pool: Pool, sub: string): Promise<any> {
+/**
+ * @description The diner's one active cart, or null when they have none yet. A pure read, so a GET
+ * (which the native host admits read-only) never has to create anything.
+ * @param pool - The package pool.
+ * @param sub - The authenticated diner.
+ * @returns The cart row, or null.
+ */
+async function findActiveCart(pool: Pool, sub: string): Promise<any | null> {
   const found = await pool.query(
     `SELECT * FROM eats_carts WHERE user_sub = $1 AND status = 'active' ORDER BY created_at LIMIT 1`, [sub]);
-  if (found.rows[0]) return found.rows[0];
+  return found.rows[0] || null;
+}
+
+/** Get the diner's one active cart, creating it on first use. Write requests only. */
+async function getOrCreateCart(pool: Pool, sub: string): Promise<any> {
+  const found = await findActiveCart(pool, sub);
+  if (found) return found;
   const created = await pool.query(`INSERT INTO eats_carts (user_sub) VALUES ($1) RETURNING *`, [sub]);
   return created.rows[0];
 }
 
-/** Load the active cart + its pending items + total. */
-async function loadCart(pool: Pool, sub: string): Promise<{ cart: any; items: any[]; total: number }> {
-  const cart = await getOrCreateCart(pool, sub);
+/** The active cart, its pending items and their exact total. */
+interface LoadedCart { cart: any; items: any[]; total: number; totalCents: number; unpricedLines: number }
+
+/** One cart's pending items + the total, summed in integer cents. */
+async function cartLines(pool: Pool, cart: any): Promise<LoadedCart> {
   const items = (await pool.query(
     `SELECT * FROM eats_cart_items WHERE cart_id = $1 AND status = 'pending' ORDER BY created_at`, [cart.cart_id])).rows;
-  const total = items.reduce((s, i) => s + (Number(i.price) || 0) * (i.quantity || 1), 0);
-  return { cart, items, total: Number(total.toFixed(2)) };
+  const { totalCents, unpricedLines } = cartTotalCents(items);
+  return { cart, items, total: centsToDollars(totalCents), totalCents, unpricedLines };
+}
+
+/** Load the active cart + its pending items + the total, creating the cart on first use (writes only). */
+async function loadCart(pool: Pool, sub: string): Promise<LoadedCart> {
+  return cartLines(pool, await getOrCreateCart(pool, sub));
+}
+
+/** The cart fields every cart-returning response carries (items/total unchanged; cents added). */
+function cartBody(loaded: LoadedCart): Record<string, unknown> {
+  return { items: loaded.items, total: loaded.total, totalCents: loaded.totalCents, unpricedLines: loaded.unpricedLines };
+}
+
+/**
+ * @description The GET /cart body, read without writing: the active cart's ids, store and lines, or
+ * the same shape with cartId, storeId and storeName null and no lines when the diner has no cart yet.
+ * The first write (POST /cart/items, the chat turn) creates the cart.
+ * @param pool - The package pool.
+ * @param sub - The authenticated diner.
+ * @returns The cart view.
+ */
+async function readCart(pool: Pool, sub: string): Promise<Record<string, unknown>> {
+  const cart = await findActiveCart(pool, sub);
+  if (!cart) return { cartId: null, storeId: null, storeName: null, items: [], total: 0, totalCents: 0, unpricedLines: 0 };
+  return { cartId: cart.cart_id, storeId: cart.store_id, storeName: cart.store_name, ...cartBody(await cartLines(pool, cart)) };
+}
+
+/** A store id as the provider's menu operation accepts it. */
+const STORE_ID = /^[A-Za-z0-9-]{1,128}$/;
+/** A menu item id (the curated catalog uses short slugs). */
+const ITEM_ID = /^[A-Za-z0-9._-]{1,64}$/;
+
+/**
+ * @description Find ONE menu item by exact id in the named restaurant's menu, for pricing a cart
+ * line on the server. The menu is the provider's deterministic catalog, so the price, title and
+ * store come from it; anything the browser sent is ignored.
+ * @param run - The request-scoped provider call (`uberEatsProviderOperation` bound to the caller).
+ * @param storeId - The restaurant the line is from.
+ * @param productId - The menu item id.
+ * @returns The menu item with its store name, or null when the menu does not list it.
+ */
+export async function menuItemFor(
+  run: (args: string[]) => Promise<any>,
+  storeId: string,
+  productId: string,
+): Promise<any | null> {
+  if (!STORE_ID.test(storeId) || !ITEM_ID.test(productId)) return null;
+  const menu = await run(['menu', storeId]);
+  const item = (menu?.items || []).find((row: any) => String(row?.productId) === productId && String(row?.storeId) === String(menu.storeId));
+  return item ? { ...item, storeName: menu.store || item.brand || null } : null;
+}
+
+/** What a chat "checkout" returns instead of a hand-off: the confirm card the surface shows. */
+export interface OrderProposal {
+  actionId: 'place_order';
+  store: string | null;
+  lines: number;
+  totalCents: number;
+  total: number;
+  unpricedLines: number;
+  summary: string;
+}
+
+/**
+ * @description Describe the order the diner would be handing off to Uber Eats, WITHOUT building
+ * the deep link or recording anything. Only the diner's confirm (POST /order) does that.
+ * @param loaded - The active cart with its pending items and totals.
+ * @returns The proposal, or null for an empty cart or a cart with no restaurant.
+ */
+export function orderProposal(loaded: LoadedCart): OrderProposal | null {
+  if (!loaded.items.length || !loaded.cart?.store_id) return null;
+  const units = loaded.items.reduce((sum, line) => sum + lineQuantity(line.quantity), 0);
+  const store = loaded.cart.store_name || null;
+  const partial = loaded.unpricedLines ? ` (${loaded.unpricedLines} line${loaded.unpricedLines === 1 ? '' : 's'} without a price)` : '';
+  return {
+    actionId: 'place_order', store, lines: loaded.items.length, totalCents: loaded.totalCents,
+    total: loaded.total, unpricedLines: loaded.unpricedLines,
+    summary: `Open Uber Eats for ${units} item${units === 1 ? '' : 's'}${store ? ` from ${store}` : ''} totalling $${formatCents(loaded.totalCents)}${partial}? You confirm the address and pay in Uber Eats; nothing is charged here.`,
+  };
 }
 
 /**
@@ -190,7 +285,7 @@ async function loadCart(pool: Pool, sub: string): Promise<{ cart: any; items: an
  * inserted row + whether a store switch happened.
  */
 async function addToCart(pool: Pool, sub: string, prod: any, qty: number): Promise<{ row: any; storeSwitched: boolean }> {
-  const q = Math.max(1, Math.min(20, qty || 1));
+  const q = lineQuantity(qty);
   let cart = await getOrCreateCart(pool, sub);
   let storeSwitched = false;
   const newStore = String(prod.storeId || '');
@@ -212,16 +307,16 @@ async function addToCart(pool: Pool, sub: string, prod: any, qty: number): Promi
 }
 
 /** Build the Uber Eats order deep link for the active cart's store + record the handoff. */
-async function buildOrder(pool: Pool, sub: string): Promise<{ checkoutUrl: string | null; total: number; store: string | null }> {
-  const { cart, items, total } = await loadCart(pool, sub);
-  if (!items.length || !cart.store_id) return { checkoutUrl: null, total: 0, store: null };
+async function buildOrder(pool: Pool, sub: string): Promise<{ checkoutUrl: string | null; total: number; totalCents: number; store: string | null }> {
+  const { cart, items, total, totalCents } = await loadCart(pool, sub);
+  if (!items.length || !cart.store_id) return { checkoutUrl: null, total: 0, totalCents: 0, store: null };
   const r = await uberEatsProviderOperation(pool, sub, ['order', String(cart.store_id)]);
   const url = r.checkoutUrl || null;
   await pool.query(
     `INSERT INTO eats_orders (user_sub, store_id, store_name, items, total, handoff_url)
      VALUES ($1,$2,$3,$4::jsonb,$5,$6)`,
-    [sub, cart.store_id, cart.store_name, JSON.stringify(items), total.toFixed(2), url]);
-  return { checkoutUrl: url, total, store: cart.store_name };
+    [sub, cart.store_id, cart.store_name, JSON.stringify(items), formatCents(totalCents), url]);
+  return { checkoutUrl: url, total, totalCents, store: cart.store_name };
 }
 
 // ── Concierge brain ────────────────────────────────────────────────────────--
@@ -332,27 +427,30 @@ export function createEatsRoutes(ctx: AppContext): Router {
   }));
 
   // ── Cart ─────────────────────────────────────────────────────────────────--
+  // A read never creates the cart: with none yet, the ids and store are null (see readCart).
   router.get('/cart', diner(async (_req, res, sub) => {
-    const { cart, items, total } = await loadCart(pool, sub);
-    res.json({ cartId: cart.cart_id, storeId: cart.store_id, storeName: cart.store_name, items, total });
+    res.json(await readCart(pool, sub));
   }));
 
+  // The line is priced by the SERVER from the restaurant's menu: the body names storeId and
+  // productId, and price, title, store name and image come from the menu item that matches both.
+  // A client-sent price is ignored and an item the menu does not list is refused.
   router.post('/cart/items', diner(async (req, res, sub) => {
     const b = req.body || {};
-    if (!b.title) { res.status(400).json({ error: 'title is required' }); return; }
-    const { row, storeSwitched } = await addToCart(pool, sub, {
-      storeId: b.storeId, storeName: b.storeName, productId: b.productId || b.itemId,
-      title: b.title, brand: b.brand, price: b.price != null ? Number(b.price) : null,
-      emoji: b.emoji, imageUrl: b.imageUrl,
-    }, Number(b.quantity) || 1);
-    const { items, total } = await loadCart(pool, sub);
-    res.json({ item: row, storeSwitched, items, total });
+    const storeId = String(b.storeId || '').trim();
+    const productId = String(b.productId || b.itemId || '').trim();
+    if (!STORE_ID.test(storeId) || !ITEM_ID.test(productId)) { res.status(400).json({ error: 'storeId and productId are required' }); return; }
+    const item = await menuItemFor((args) => uberEatsProviderOperation(pool, sub, args), storeId, productId);
+    if (!item) { res.status(422).json({ error: 'unknown_item', message: 'That dish is not on the restaurant\'s menu, so it was not added.' }); return; }
+    const { row, storeSwitched } = await addToCart(pool, sub, item, Number(b.quantity) || 1);
+    const loaded = await loadCart(pool, sub);
+    res.json({ item: row, storeSwitched, storeName: loaded.cart.store_name, ...cartBody(loaded) });
   }));
 
   router.delete('/cart/items/:rowId', diner(async (req, res, sub) => {
     await pool.query(`UPDATE eats_cart_items SET status = 'removed' WHERE row_id = $1 AND user_sub = $2`, [req.params.rowId, sub]);
-    const { items, total } = await loadCart(pool, sub);
-    res.json({ ok: true, items, total });
+    const loaded = await loadCart(pool, sub);
+    res.json({ ok: true, storeName: loaded.cart.store_name, ...cartBody(loaded) });
   }));
 
   router.post('/cart/clear', diner(async (_req, res, sub) => {
@@ -366,7 +464,7 @@ export function createEatsRoutes(ctx: AppContext): Router {
   router.post('/order', diner(async (_req, res, sub) => {
     const r = await buildOrder(pool, sub);
     if (!r.checkoutUrl) { res.status(400).json({ error: 'nothing to order (add items first)' }); return; }
-    res.json({ checkoutUrl: r.checkoutUrl, total: r.total, store: r.store,
+    res.json({ checkoutUrl: r.checkoutUrl, total: r.total, totalCents: r.totalCents, store: r.store,
       note: 'Opens at Uber Eats — sign in, confirm your address, and place the order. This is a handoff, not an in-app charge.' });
   }));
 
@@ -448,18 +546,15 @@ export function createEatsRoutes(ctx: AppContext): Router {
       const product = candById.get(request.productId);
       if (!product) continue;
       const { row } = await addToCart(pool, sub, product, request.quantity);
-      added.push({ ...product, rowId: row.row_id, quantity: request.quantity, reason: request.reason });
+      added.push({ ...product, rowId: row.row_id, quantity: lineQuantity(request.quantity), reason: request.reason });
     }
     for (const note of env.remember) await store.saveNote(sub, note);
 
-    let checkout: { checkoutUrl: string; total: number; store: string | null } | null = null;
-    if (env.checkout) {
-      const handoff = await buildOrder(pool, sub);
-      if (handoff.checkoutUrl) {
-        checkout = { checkoutUrl: handoff.checkoutUrl, total: handoff.total, store: handoff.store };
-      }
-    }
     const nextCart = await loadCart(pool, sub);
+    // The concierge may decide the diner wants to order; it may not hand off on its own. A
+    // proposal is returned for the surface's confirm card and NOTHING outward-facing happens
+    // (no deep link, no eats_orders row) until the diner confirms, which calls POST /order.
+    const proposal = env.checkout ? orderProposal(nextCart) : null;
     const shown = env.show.length
       ? env.show.map((id) => candById.get(id)).filter(Boolean)
       : candidates.slice(0, 6);
@@ -473,8 +568,11 @@ export function createEatsRoutes(ctx: AppContext): Router {
       cards: shown,
       added,
       remembered: env.remember,
-      checkout,
-      cart: { cartId: nextCart.cart.cart_id, storeId: nextCart.cart.store_id, storeName: nextCart.cart.store_name, items: nextCart.items, total: nextCart.total },
+      // `checkout` is kept for response-shape compatibility and is always null now: a hand-off is
+      // created only by the diner's confirm (POST /order), never by the chat turn.
+      checkout: null,
+      proposal,
+      cart: { cartId: nextCart.cart.cart_id, storeId: nextCart.cart.store_id, storeName: nextCart.cart.store_name, ...cartBody(nextCart) },
       source: searchRes.source || 'uber',
     });
   }));

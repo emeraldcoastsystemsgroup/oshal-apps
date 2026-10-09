@@ -4,48 +4,64 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>Monster Snake</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  SEQ | AUTHOR                                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com   | Monster Snake mini-game: keyboard, swipe and on-screen pad controls, stored best score, lm-game score and lm-exit messages to the arcade
+  2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default) and package stylesheet replace the hard-coded dark palette, radial background and glass; chips, hint, direction pad, canvas frame and the game-over dialog use tokens while the playfield keeps its own colour; the canvas scales with its aspect ratio so it fits a phone; a best score reads — until one exists; the arcade-only "I'm done" control hides when the game is opened on its own
+  ---------------------------------------------------------------------------
+-->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
+<link rel="stylesheet" href="/api/education/education.css">
 <style>
-  :root{--pink:#ec4faa;--blue:#5b8def;--panel:#241640;}
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  html,body{margin:0;height:100%;}
-  body{background:radial-gradient(900px 500px at 50% -10%,#2a1850,#120a26) fixed,#120a26;color:#fdeaf6;
-    font-family:system-ui,'Inter',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:10px;padding:10px;}
-  h1{margin:0;font-size:20px;font-weight:800;}
-  .hud{display:flex;gap:18px;font-weight:800;font-size:15px;}
-  .hud .blue{color:var(--blue);}
-  canvas{background:var(--panel);border-radius:14px;border:2px solid rgba(236,79,170,.3);touch-action:none;max-width:94vw;max-height:58vh;}
-  .dpad{display:grid;grid-template-columns:repeat(3,54px);grid-template-rows:repeat(3,54px);gap:6px;margin-top:2px;}
-  .dpad button{border:none;border-radius:12px;background:var(--panel);color:#fff;font-size:22px;font-weight:800;cursor:pointer;}
-  .dpad button:active{background:var(--pink);}
-  .dpad .sp{visibility:hidden;}
-  .over{position:fixed;inset:0;background:rgba(10,6,24,.86);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;}
-  .over.on{display:flex;}
-  .over h2{font-size:26px;margin:0;}
-  .btn{background:var(--pink);color:#fff;border:none;border-radius:12px;padding:12px 24px;font-weight:800;font-size:16px;cursor:pointer;}
-  .hint{font-size:12px;color:#b98cc8;}
+  * { -webkit-tap-highlight-color: transparent; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 10px; }
+  h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.2px; }
+  .hud { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .hud b { font-variant-numeric: tabular-nums; }
+  /* The playfield keeps its own dark colour so the pink monster snake and the apple read the same under every skin. */
+  canvas { width: min(94vw, 380px, 56vh); height: auto; border-radius: 14px; border: 2px solid var(--lm-accent-line); background: #241640; touch-action: none; }
+  .dpad { display: grid; grid-template-columns: repeat(3, 54px); grid-template-rows: repeat(3, 54px); gap: 6px; margin-top: 2px; }
+  .dpad button { border: 1px solid var(--lm-line-strong); border-radius: 12px; background: var(--lm-card); color: var(--lm-accent); font-size: 22px; font-weight: 800; cursor: pointer; touch-action: manipulation; }
+  .dpad button:active { background: var(--lm-accent); color: var(--lm-on-accent); }
+  .dpad .sp { visibility: hidden; }
+  .over-score { margin: 8px auto 16px; }
+  .over-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
   <h1>🐍 Monster Snake</h1>
-  <div class="hud"><span>Score <span id="score">0</span></span><span class="blue">Best <span id="best">0</span></span></div>
+  <div class="hud"><span class="lm-pill is-neutral">Score <b id="score">0</b></span><span class="lm-pill is-info">Best <b id="best">—</b></span></div>
   <canvas id="cv" width="380" height="380"></canvas>
-  <div class="dpad">
-    <span class="sp"></span><button onpointerdown="turn(0,-1)">▲</button><span class="sp"></span>
-    <button onpointerdown="turn(-1,0)">◀</button><span class="sp"></span><button onpointerdown="turn(1,0)">▶</button>
-    <span class="sp"></span><button onpointerdown="turn(0,1)">▼</button><span class="sp"></span>
+  <div class="dpad" aria-label="Direction pad">
+    <span class="sp"></span><button type="button" onpointerdown="turn(0,-1)" aria-label="Up">▲</button><span class="sp"></span>
+    <button type="button" onpointerdown="turn(-1,0)" aria-label="Left">◀</button><span class="sp"></span><button type="button" onpointerdown="turn(1,0)" aria-label="Right">▶</button>
+    <span class="sp"></span><button type="button" onpointerdown="turn(0,1)" aria-label="Down">▼</button><span class="sp"></span>
   </div>
-  <div class="hint">Arrow keys · swipe · or tap the pad</div>
-  <div class="over" id="over"><h2>Game Over</h2><div id="overScore"></div><button class="btn" onclick="reset()">Play again</button>
-    <button class="btn" style="background:transparent;border:1px solid #5b8def;color:#cfe0ff;margin-left:8px;" onclick="if(window.parent!==window)window.parent.postMessage({type:'lm-exit'},'*')">I'm done</button></div>
+  <p class="lm-help">Arrow keys · swipe · or tap the pad</p>
+  <div class="lm-modal" id="over" role="dialog" aria-modal="true" aria-labelledby="overTitle">
+    <div class="lm-modal-card lm-text-center">
+      <h2 class="lm-display" id="overTitle">Game over</h2>
+      <p class="lm-lead over-score" id="overScore"></p>
+      <div class="over-actions">
+        <button type="button" class="lm-btn lm-btn-primary" onclick="reset()">Play again</button>
+        <button type="button" class="lm-btn lm-btn-ghost" id="doneBtn" onclick="if(window.parent!==window)window.parent.postMessage({type:'lm-exit'},'*')">I'm done</button>
+      </div>
+    </div>
+  </div>
 <script>
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 var N=19, CELL=cv.width/N;
-var snake,dir,nextDir,food,score,best=+(localStorage.getItem('lm-snake-best')||0),alive,tick,speed;
-document.getElementById('best').textContent=best;
+var storedBest=null; try{ storedBest=localStorage.getItem('lm-snake-best'); }catch(e){}
+var snake,dir,nextDir,food,score,best=+(storedBest||0),alive,tick,speed;
+document.getElementById('best').textContent=storedBest?best:'—';
+if(window.parent===window) document.getElementById('doneBtn').classList.add('hide');
 function reset(){
   snake=[{x:9,y:9},{x:8,y:9},{x:7,y:9}]; dir={x:1,y:0}; nextDir=dir; score=0; alive=true; speed=140;
-  placeFood(); document.getElementById('score').textContent=0; document.getElementById('over').classList.remove('on');
+  placeFood(); document.getElementById('score').textContent=0; document.getElementById('over').classList.remove('is-open');
   if(tick) clearInterval(tick); tick=setInterval(step,speed); draw();
 }
 function placeFood(){ do{ food={x:(Math.random()*N)|0,y:(Math.random()*N)|0}; }while(snake.some(function(s){return s.x===food.x&&s.y===food.y;})); }
@@ -72,9 +88,9 @@ function draw(){
   });
 }
 function die(){ alive=false; clearInterval(tick);
-  if(score>best){ best=score; localStorage.setItem('lm-snake-best',best); document.getElementById('best').textContent=best; }
+  if(score>best){ best=score; try{ localStorage.setItem('lm-snake-best',best); }catch(e){} document.getElementById('best').textContent=best; }
   document.getElementById('overScore').textContent='You scored '+score+' apples!';
-  document.getElementById('over').classList.add('on');
+  document.getElementById('over').classList.add('is-open');
   try{ if(window.parent!==window) window.parent.postMessage({type:'lm-game',game:'snake',score:score},'*'); }catch(e){}
 }
 document.addEventListener('keydown',function(e){

@@ -3,6 +3,11 @@
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.3: declare the world-data kernel compatibility floor for every package route that imports the shared engine.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.4: the World Intelligence page provides the company audience view for the Business shell (ADR-164 D6): a coverage desk painted by the shared kit from /entities, /home-summary and /pulls, with the dashboard's own start gated on the kit. No route, schema or connector change.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: sentiment is read through oshal's own observed outlet ratings (core ADR-061 update 2026-10-01; the seed table and its political/economic/kind axes are retired). The dashboard shows each source's observed lean and reliability with the compared subject-days, subjects and date range behind it, or insufficient data below the stated minimums; the world_sentiment and world_ingest tool texts and the description say so. No route, auth, schema or connector change.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: the operator Sources & schedules page (operator ask 2026-10-02): routes/world-operations.js mounted auth: operator at /api/world/operations, ahead of the public router. It shows the two schedules (changed through core's operator schedule routes) and every place World pulls from, with on/off switches.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: expose explicit bounded native collector requests through the existing operator mount, preserving current writer checks and actual partial outcomes.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — world ("World Intelligence", ADR-061)
@@ -16,12 +21,11 @@
 # Carved out of OSHAL core 2026-07-20 (ADR-085 Wave 3, "skill with a surface" —
 # ADR-093: ONLY the surface carves). What STAYS framework-resident:
 #   - the Layer-B ENGINE (src/features/world-data: the World-Intelligence
-#     Service, contribution schemas, outlet bias/reliability ratings, the
-#     news fetcher/classifier/backtester, feed registries, and the
-#     WORLD_APP_HTML surface module) — it keeps real kernel importers
+#     Service, contribution schemas, outlet identity and the observed outlet
+#     ratings, the news fetcher/classifier/backtester and feed registries) — it keeps real kernel importers
 #     (jarvis-brief-sections, the trading assess/research/schedule dispatchers,
 #     the strategy-lab sim, world-schedule-dispatch), so the packaged route
-#     imports it back via the preserved @/ aliases (D8 verified NOT orphaned);
+#     imports it back via the preserved @/ aliases and declares uses: world-data;
 #   - src/app/world-schedule-dispatch.ts + its schedule-runtime branch — the
 #     DETERMINISTIC world-refresh / ticker-pulse dispatch (the schedules below
 #     only fire through it when this app is installed + the scheduler is on);
@@ -41,18 +45,34 @@
 
 name: world
 suite: ai-knowledge   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: news-classification
+      unit: news item
+      tier: T1
+      generation: none
+      degrade: template
+    - id: world-ticket
+      unit: world intelligence ticket
+      tier: T4
+      generation: none
+      degrade: disable
 displayName: World Intelligence
 description: >-
   Shared world intelligence — multi-source news feeds classified into a bias-aware
-  sentiment graph (political + economic + outlet-kind axes), entity co-mention graph,
-  and historical series. Ask the analyst "what's the press saying about X" and get a
-  structured, bias-contextualized read, not a misleading average.
-version: 1.2.2
+  sentiment graph read through oshal's own observed outlet ratings (each source's lean
+  and reliability against the other sources, with the counts and dates behind it),
+  entity co-mention graph, and historical series. Ask the analyst "what's the press
+  saying about X" and get a structured, bias-contextualized read, not a misleading average.
+version: 1.4.2
 
 testing:
   version: 1
   catalog: tests/test-lab.yaml
-uses: [test-catalog, app-dependencies]
+uses: [test-catalog, app-dependencies, world-data]
 status: active
 
 source:
@@ -148,10 +168,12 @@ tools:
     type: cli
     category: intelligence
     description: >-
-      Bias-aware sentiment for a world subject. Returns the structure a naive average
-      destroys: the POLITICAL axis (byLean left/center/right), the ECONOMIC axis
-      (byEcon pro-labor/neutral/pro-market), by outlet KIND (wire/financial/partisan/
-      tech/...), consensus, and per-outlet values. Input: {entity, days?}.
+      Bias-aware sentiment for a world subject, read through oshal's own observed outlet
+      ratings. Returns the structure a naive average destroys: the lean axis (byLean
+      below/near/above: sources that usually read below, near or above the other sources),
+      balanced, consensus, reliability-weighted, and per-source values each with its rating
+      (lean, reliability, compared subject-days, subjects, date range) or insufficient
+      data, plus the rating method. Input: {entity, days?}.
     executor:
       executorType: cli
       cliCommand: node /app/scripts/oshal-world.js sentiment {input}
@@ -164,8 +186,10 @@ tools:
         days: { type: integer, description: "lookback window (default 90)" }
       required: [entity]
     usageInstructions: >-
-      Call with {entity, days?}. Read political vs econ vs byKind separately — they
-      often disagree (the whole point). Never report `naive` as "the sentiment".
+      Call with {entity, days?}. Read the lean axis and consensus: whether sources that
+      usually read below, near and above the others agree is the signal. Quote a source's
+      rating with its counts and date range; an insufficient source has no rating. A lean
+      is not political left or right. Never report `naive` as "the sentiment".
     routingTags: [world, sentiment, bias, news]
     skills: [world-graph, sentiment, bias-analysis]
     tags: [world-intelligence]
@@ -175,8 +199,8 @@ tools:
     type: cli
     category: intelligence
     description: >-
-      Fetch, classify (Claude via the swarm's creds), bias-rate, and ingest current
-      news for a subject across the registered feeds into the shared graph + series.
+      Fetch, classify, and ingest current news for a subject across the registered feeds
+      into the shared graph + series (sources are rated later, on read, from what is stored).
       Use to create or freshen a subject before reading it. Input: {q, entity, label?,
       sources?, limit?}.
     executor:
@@ -319,8 +343,8 @@ tools:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon icon opens the World Intelligence dashboard
-# (served by the packaged route at /api/world/app; the HTML itself is the kernel
-# slice's WORLD_APP_HTML module, imported via @/features/world-data).
+# (served by the packaged route at /api/world/app; the HTML is bundled with the
+# package surface, while the shared data engine is a declared kernel skill).
 # ─────────────────────────────────────────────────────────────────────────────
 summary:
   path: /api/world/home-summary
@@ -375,6 +399,15 @@ routes:
     factory: createHomeSummaryRoutes
     mountPath: /api/world/home-summary
     auth: oidc
+  # 1.4.0 — the operator Sources & schedules page and its source switches. auth: operator puts
+  # requiresAuth + requiresOperator on the mount, so none of it reaches a non-operator. The kernel's
+  # mounter runs the longest matching mount first, so this path is reached before the public
+  # /api/world router. The schedules on the page are read and changed through core's operator
+  # routes (/api/swarm/apps/world/schedules).
+  - module: routes/world-operations.js
+    factory: createWorldOperationsRoutes
+    mountPath: /api/world/operations
+    auth: operator
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/world/_smoke

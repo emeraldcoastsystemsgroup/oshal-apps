@@ -3,6 +3,11 @@
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped Node test suite with exact files and honest fixture boundaries; retain readiness smoke identity.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register the company audience view contract (ADR-164 D6, 1.4.3): kit placement and boot, the console start and both module scripts gated, the bounded reads and what the view paints, and its named refusals.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Correct the audience-view expectation: the evidence section had been described as repeating the headers while it read confidence words the header never sends; it now counts coverage.bySourceKind, checked against SOURCE_KINDS and the real coverageOf.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.4: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0, the authorization catalog: catalog-bindings (every route bound once under the kernel's segment rule, the tick and bots pinned), kernel-catalog-activation (the real kernel loader, enforce-mode authorization runtime, route mounter, ADR-157 activation and tick runner over the package), rebaseline-live-acceptance-doubles (the live walk against a loopback api and scheduler double) and rebaseline-live-acceptance (the dated live walk itself, run after install as the operator automation identity and a second caller).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: schema-bootstrap-postgres, the two schema bootstraps one api boot starts (console and rebaseline-tick routers) against a uniquely labelled disposable PostgreSQL, round after round from a fresh schema; an external case like the other disposable-PostgreSQL suites in the store.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -487,4 +492,200 @@ cases:
     limits:
       timeoutMs: 60000
       maxMemoryMb: 256
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) and family (Home shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - The console start (which auto-selects the first venture and fires its reads) and both module scripts run only without an audience view; under a view no handoff is received, nothing is mounted and no section is appended to the page.
+      - The company view reads only the venture list, the Home summary and at most eight venture headers (never assumptions, model, documents, inversion or sensitivity), and the portfolio, attention and runs repeat what those headers say.
+      - The evidence section counts each header's coverage.bySourceKind, the key set routes/venture-types.js SOURCE_KINDS defines, and a header built by the package's real coverageOf paints counts that add up to its total (no invented confidence vocabulary, no all-zero bars).
+      - A deleted venture drops out and an unreadable one stays marked; signed out, a failed list, a failed summary and an empty list are each named instead of shown as zero.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: catalog-bindings
+    name: Authorization catalog bound to every route, bot and the scheduled tick
+    purpose: >-
+      Read the routers, the manifest and authorization.yaml on a bare checkout and hold them to each other under the
+      kernel's segment rule (mirrored in tests/helpers/venture-route-bindings.cjs and held to the kernel's own matcher by
+      kernel-catalog-activation), because oshal-app validate reads the catalog alone and cannot see a route it forgot.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-catalog-bindings.test.js
+    expected:
+      - Every literal route in src-routes, under every manifest mount that serves it, matches exactly one http binding, and every binding serves a route.
+      - GET / (console, Home summary and readiness smoke) is bound to app.open alone; the routes that can reach a bot need venture.execute and no other route does; the four downloads need venture.export; no GET needs a write.
+      - The jobs binding is venture-plan-rebaseline-policy-tick needing exactly the schedule's requires (venture.rebaseline), the HTTP tick needs the same, and no role grants it.
+      - The four manifest bots are bound once each to venture.execute under the agent ids the package bills.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/helpers/venture-route-bindings.cjs
+      cleanup: The suite only reads package files; the runner removes its disposable container and staged files.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: kernel-catalog-activation
+    name: The catalog through the kernel's enforce-mode boundary and the scheduled-service activation
+    purpose: >-
+      Activate the real package through the kernel's manifest reader, ADR-149 authorization service and runtime (enforce),
+      route mounter, ADR-157 activation service with its HTTP routes, protected-execution policy and service-route
+      schedule registry, loaded from the framework checkout through its tsx hook. Request identity, the principal
+      directory, the database (a recording pool) and the bot rail (a recorder that crosses the kernel's protected bot
+      gate) are named fixture seams; the policy and activation stores are the kernel's own in-memory stores.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-catalog-kernel.core.spec.mjs
+    expected:
+      - The package activates in enforce mode with its catalog and registers its resource adapter; the real loader accepts the tick's requires against the catalog.
+      - The kernel's own matcher binds every enumerated route to exactly the permission set the bare guard's mirror finds.
+      - A signed-in person with no role is refused every route before package code with no database query; a member is served by the owner-scoped handler.
+      - The HTTP tick refuses a caller without the service secret, the secret alone (no user) and a member holding the whole role.
+      - Before activation the tick skips as not-activated; a non-administrator's system activation is refused and writes nothing; a swarm administrator's is admitted and grants the service principal exactly venture.rebaseline, which admits the jobs operation and nothing else.
+      - The activated tick runs the compiled handler; with the grant gone it is denied and the activation suspended until reactivated; after deactivation it skips again.
+      - Under the system activation the package's owner-pinned analyst call is refused authorization_execution_identity_required and the cost gate skips the next call; the same call as the owner is admitted.
+      - The same package without its catalog is refused 409 authorization_service_catalog_required with nothing written.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/helpers/venture-kernel-harness.cjs
+        - tests/helpers/venture-route-bindings.cjs
+      cleanup: The suite unmounts the package, unregisters the tick, clears the kernel ports it set and closes its loopback server.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: rebaseline-live-acceptance-doubles
+    name: The dated live walk against a loopback api and scheduler double
+    purpose: >-
+      Drive tests/rebaseline-live-acceptance.mjs, unchanged, against a loopback api that keeps the routes' contracts and
+      an hourly scheduler double that keeps the package's run semantics (one run per venture and UTC slot, integer-micro
+      cost with the gate checked before each call), on a fake clock.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/rebaseline-live-acceptance.test.js
+    expected:
+      - With every done-when met the walk passes, records the runs, slots, costs and spend, deletes exactly the five synthetic ventures and reports no token.
+      - When the owner-pinned analyst call is refused (today's kernel under a system activation) the walk fails naming bom=failed (authorization_execution_identity_required), still reports the disabled and dry-run, isolation and activation clauses as holding, and cleans up.
+      - Without --allow-paid, a second caller, an early-enough UTC hour, an active service or the 1.5.0 install, the walk is unavailable and writes nothing; --activate makes a missing activation and a 409 there fails before seeding.
+      - A second run in one slot, a run on the disabled venture, a cross-owner read, a charge to the non-spending owner and cleanup residue each fail by name.
+      - A gate that keeps calling after an overshoot fails costGate, an activation suspended after the ticks fails activation, and a new charge to the non-spending owner fails disabledAndDryRun even while an older charge ages out of a 6-hour window.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/rebaseline-live-acceptance.mjs
+      cleanup: Each walk closes its loopback server; the token-reading case removes its temporary env file.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: rebaseline-live-acceptance
+    name: The scheduled rebaseline on the installed package, dated
+    purpose: >-
+      After venture-plan 1.5.0 is installed, its catalog adopted and the member role granted to both identities, walk
+      the real routes and the real hourly schedule as the operator automation identity (OSHAL_VERIFY_OPERATOR_PAT, a swarm
+      administrator, owner of the opted-in ventures) and a second caller (OSHAL_VERIFY_SECOND_PAT, owner of a disabled and
+      a dry-run venture), tokens read by name and never printed. The walk spans two scheduled ticks (up to about two and a
+      half hours); limits.timeoutMs bounds each request. Run with OSHAL_VERIFY_BASE_URL=http://127.0.0.1:35457 node
+      venture-plan/tests/rebaseline-live-acceptance.mjs --allow-paid [--activate].
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/rebaseline-live-acceptance.mjs
+    expected:
+      - One RESULT line with state pass, a verdict for every clause, the activation in place (made only with --activate), and the two tick instants on one UTC date.
+      - The disabled and dry-run ventures have no run and their owner's measured spend does not rise across the ticks (the second reading covers the 6-hour baseline window plus every started hour since).
+      - The opted-in venture has exactly one scheduled run for its UTC slot after two ticks, its analyst phases done and a positive integer-micro cost within its cap; a venture created after the first tick gets its run at the second.
+      - The 1 micro-USD venture records an overshoot after the first charge and its market and ops calls are skipped.
+      - Neither owner reads the other's ventures or runs; every synthetic venture is deleted and read back as gone, and leftover ventures fail the walk.
+    prerequisites:
+      - runner:node
+      - credential:operator-pat
+      - credential:second-pat
+      - install:venture-plan-1.5.0
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: >-
+        The walk deletes the five tagged ventures it created (each owner its own, DELETE /api/venture/ventures/:id, which
+        removes their policies and runs) and reads each back as 404; anything less fails. It never deactivates the service.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 256
+    installation: never
+  - id: schema-bootstrap-postgres
+    name: Both boot-time schema bootstraps against a disposable PostgreSQL
+    purpose: >-
+      Build the console and rebaseline-tick routers back to back, as the kernel's route mounter does at every api boot, on
+      the api's pool shape (identity wrapper and runtime DDL guard) over a uniquely labelled disposable PostgreSQL, with the
+      framework's real schema bootstrap and schema lock loaded from the core checkout; repeat from a fresh public schema,
+      on installed and on first-install databases. Logger, bot client, inline bot rail and caller-sub reader are inert seams.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/venture-schema-postgres.test.mjs
+    expected:
+      - Every boot on an installed schema finishes both bootstraps with no error logged (no 40P01 deadlock) and the package's scheduled tick handler then runs with evaluated=0.
+      - Every first-install boot finishes both bootstraps with no error logged (no duplicate catalog row) and the scheduled tick handler then runs.
+      - After every boot the catalog holds the 13 tables, each with row security enabled and forced and its owner-or-operator policy, plus the six functions and six triggers the schema declares.
+      - The application role is a plain login role without superuser or BYPASSRLS, and the fixture container is removed only after its label is verified.
+    prerequisites:
+      - runner:node
+      - core:dependencies
+      - harness:oshal-core-root
+      - service:docker
+      - image:postgres-16-alpine-local
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/venture-schema-postgres.fixture.mjs
+        - tests/helpers/venture-schema-boot.cjs
+      cleanup: Remove the uniquely labelled fixture container and its tmpfs storage; never connect to the installed database or a provider.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
     installation: never

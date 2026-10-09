@@ -162,6 +162,7 @@ cases:
       - The actual manifest route mounter admits a named manager without a legacy assignment and refuses unassigned or revoked principals.
       - Two users and a second issuer sharing a subject cannot read or change one another's portraits.
       - Revoked generation cannot publish and unsafe CLI or mailbox transports fail before their effects.
+      - The operator-only antigravity-cli rail serves the operator; anyone else, or a provider not available to the caller, is refused portrait_provider_unavailable before a row with one resolve and no other provider; codex-cli stays refused.
     prerequisites: [runner:vitest, core:application-authorization, input:oshal-core-root]
     sideEffects: fixture-write
     isolation:
@@ -198,8 +199,39 @@ cases:
     expected:
       - Without Create access or a kit the button stays hidden.
       - With a kit it appends the brand's colors in words once, within the notes limit.
+      - Under an audience view the brand kit is never read and the button stays hidden.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: disposable }
     limits: { timeoutMs: 30000, maxMemoryMb: 256 }
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its family (Home shell) and company (Business shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the family view makes two reads, GET /api/portrait-studio/portraits and /catalog; it never probes the image provider, reads permissions, the brand kit or an artifact handle, and never writes.
+      - The saved ready, waiting-or-being-made and did-not-finish counts read as plain stats; a queued portrait is waiting, never called being made; a ready portrait is a tile that opens its picture in a new tab.
+      - On the way, ready to see, at least N when the route's 60-row list is full, no finished portraits and no portraits each read as what they are; style names fall back to the style id and a data key stays a word.
+      - Signed out, refused, a failed read, a non-JSON answer and an unreachable server each read as what they are.
+      - Under the family view neither inline body script starts (no brand-kit read, no studio start); with the kit idle or absent the full studio starts as before, and the two modules loaded by src only define their globals.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

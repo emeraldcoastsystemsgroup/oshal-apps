@@ -13,6 +13,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add system-identity policy evaluation, default dry-run tick semantics, sanitized results, and explicit paid execution dispatch.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Export the bounded deterministic manifest schedule handler and share one awaited schema bootstrap with the service route.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Register the `venture` resource adapter of the 1.5.0 authorization catalog when the tick router is built. One registration covers the whole application, and this small factory is mounted by every activation (a protected package's activation fails if any route factory does), so the console's larger factory stays unchanged. Without the adapter every catalog-bound route, bot call and the tick itself is refused authorization_resource_adapter_unavailable; the kernel authorizes every activated tick as the `jobs` operation venture-plan-rebaseline-policy-tick, which the catalog binds to venture.rebaseline on this resource.
  *
  * @module venture-rebaseline-routes
  */
@@ -27,6 +28,7 @@ const venture_rebaseline_1 = require("./venture-rebaseline");
 const venture_run_1 = require("./venture-run");
 const venture_store_rebaseline_1 = require("./venture-store-rebaseline");
 const venture_schema_1 = require("./venture-schema");
+const venture_authorization_1 = require("./venture-authorization");
 const log = (0, logger_1.createChildLogger)({ module: 'venture-rebaseline-routes' });
 let schemaReady = null;
 const defaultDependencies = {
@@ -96,6 +98,7 @@ async function runScheduledRebaselineTick(ctx, input) {
 /** Build the service-authenticated `/api/venture-rebaseline` router. */
 function createVentureRebaselineRoutes(ctx) {
     const router = (0, express_1.Router)();
+    (0, venture_authorization_1.registerVentureAuthorization)(ctx);
     void ensureRebaselineSchema(ctx).catch((err) => log.error({
         err, stack: err?.stack,
     }, 'venture rebaseline schema bootstrap failed'));

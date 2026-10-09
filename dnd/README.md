@@ -1,5 +1,7 @@
 # Dungeon Master — AI D&D at the table
 
+0.21.6 adds the company audience view beside the family one (ADR-164 D6): Studio, Orbit and Commons (the Business shells) open this package's first surface with `?audience=company`, and the shared kit paints the same account-scoped card in the company grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 Lay the tablet flat on the table, gather your party, and play Dungeons & Dragons
 with an AI Dungeon Master. The DM narrates the story, runs the battle map, voices
 the monsters, and keeps the shared tactical state. On your turn your character
@@ -824,3 +826,79 @@ Tracked so this stays honest about what is and isn't built:
   `node tests/dnd-engine.test.js` and `node tests/dnd-ui-contract.test.js`.
 - Validate before publishing: `node scripts/oshal-app.js validate dnd` (from the
   OSHAL repo).
+
+Dungeon Master 0.21.3 loads the shared theme bootstrap (`/shared/ui/css/surface-themes.css` + `/shared/ui/js/surface-theme.js`) in `tools/review.html` and derives its palette from the framework tokens with the previous colors as fallbacks, so the surface follows the operator's chosen cockpit or experience skin whether embedded or opened standalone. No route, data or permission change.
+
+### 0.21.4 — the family view for the Home shell
+
+The Jarvis Home shell opens Dungeon Master on its first surface, `tools/review.html` at `/api/dnd/review`, with
+`?audience=family`. The page then answers with a household view painted by the shared kit (ADR-164 D6) in the family
+grammar, from reads the package already serves under the caller's session:
+
+- `GET /api/dnd/campaigns` (the table's own My Games library): the saved games, newest played first, each with where
+  it stands in plain words (choosing heroes, following leads, in a battle and its round, battle won, adventure
+  finished, the party fell, archived), how many play, the caller's role (you host, playing a hero, joined) and when it
+  was last played; the stats games in progress, finished or archived, and last played.
+- `GET /api/dnd/characters`: the saved heroes (name, level, ancestry, class) and their count.
+- `GET /api/dnd/home-summary` (this page's own read): where the story left off in the most recently saved games, the
+  latest recorded story beat each game's offers carry.
+
+On open the view makes only those three reads. It never starts a Dungeon Master turn, narration, a dice roll, an
+illustration, a campaign, seat or character change, never shows a join code, never fetches the connected-actions
+offers, and nothing in it links out; its one action and the escape open Dungeon Master in the cockpit. A heroes or
+story read that fails on its own is named as not checked while the games still show; signed out (401), refused (403)
+and a failed games read each read as what they are. Without the parameter the full review page runs unchanged: its
+module script mounts the connected actions, binds Refresh and reads the summary only when no audience view renders.
+
+Tests: `node --test tests/audience-view.test.cjs` (static kit contract plus the view's reads, model, states and the
+module-script gate, against a stub kit and stub fetch) and, from the store root with a core checkout,
+`OSHAL_FRAMEWORK=<core> node scripts/audience-views.browser.cjs dnd` (headless Chromium over the real page and kit).
+The package now declares its test catalog (`testing:` + `uses: [test-catalog]`, `tests/test-lab.yaml`, case
+`audience-view`).
+
+### 0.21.5 — the family view on the table, the games group's first surface
+
+The shells open an application group on its first surface, and the `games` group's first surface is this package's
+table, `ui/table.html` at `/api/dnd/table`; the Jarvis shell opens it with `?audience=family`. The table now answers
+that request with a family view painted by the shared kit (ADR-164 D6) instead of starting the live table, from the
+same three reads the table makes when it opens:
+
+- `GET /api/dnd/campaigns` (My Games): the saved games, newest played first, each with its adventure and chapter as
+  the route resolves them (the adventure title is left out when the game is named after it), where it stands in plain
+  words, how many play, the caller's role and when it was last played; the stats games to pick up and finished or
+  archived, and the lede naming the last game played.
+- `GET /api/dnd/characters`: the saved heroes (name, level, ancestry, class) and their count.
+- `GET /api/dnd/content` (the bundled adventure catalog): the adventures on the shelf with their premise, their
+  investigations and battles and their genre, and how many there are to choose from.
+
+The head block of `ui/table.html` decides the view before the tabletop bundle runs, and the bundle's start paths are
+gated on that decision: `table-screens.js` (the animation loop, the glitch banner, the narrator status and `boot()`,
+which is the table's own content, campaign and character reads and every screen after them), `table-voice.js` (the
+audio-unlock listeners and the legacy voice-key cleanup) and `table-immersive.js` (the full-screen, Dungeon Master
+panel, Escape and quick-question wiring). Under the view no turn, Dungeon Master call, narration, dice roll,
+illustration, campaign, seat or character change runs, no join code is shown and nothing links out; its one action
+and the escape open Dungeon Master in the cockpit. A heroes or shelf read that fails on its own is named as not
+checked while the games still show; signed out (401), refused (403) and a failed games read each read as what they
+are. Any other request, including `?audience=company`, runs the full table unchanged. The review page keeps its own
+family view.
+
+Tests: `node --test tests/audience-view.test.cjs` now also covers the table (the head-block order in the page and in
+the route's script-inlined document, the view over a stub kit and fetch and over the package's real router with a
+recording pool, and the gates run in a VM with and without the view), `tests/dnd-ui-contract.test.js` admits exactly
+the one inline audience-view boot, and `OSHAL_FRAMEWORK=<core> node scripts/audience-views.browser.cjs dnd` proves
+both pages in headless Chromium.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| dm-narration | narration turn | T3 | none | disable | not yet measured | none recorded |
+| story-art-cutaway | scene illustration | T0 | hosted | disable | not yet measured | none recorded |
+| narration-voice | narration read-aloud | T0 | hosted | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

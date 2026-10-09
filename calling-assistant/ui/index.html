@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Calling Assistant</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css"><script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shell opens this page with ?audience=company: the caller's own calling
+     picture (Calling ready / no connection / off, saved runs, last outcome, the newest runs and the two honesty notes)
+     from the one read the home summary already answers, GET /tasks, painted by the shared kit. It never probes
+     /config (that read reaches the speech provider registry). Any other request runs the full Calling Assistant page
+     below unchanged; client.js stays idle while a view is active. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  function call(path) {
+    return fetch('/api/calling-assistant' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(refusal(r.status, j)); e.status = r.status; throw e; } return j; });
+    });
+  }
+  /* A refusal named for what it is: signed out and not permitted are states of the caller, not failures of the page. */
+  function refusal(status, j) {
+    if (status === 401) return 'Sign in to see your calls.';
+    if (status === 403) return 'Your role does not read calling runs.';
+    return j && (j.message || j.error) ? words(j.message || j.error, '') : 'HTTP ' + status;
+  }
+  function openFull() { window.location.assign(window.location.pathname); }
+  /* Saved tokens (carrier_completed, handoff_busy) are shown with their underscores as spaces, as the full page shows them; never reinterpreted. */
+  function words(v, fallback) { return v === null || v === undefined || v === '' ? fallback : String(v).replace(/_/g, ' '); }
+  function tone(t) { return t === 'good' ? 'ok' : t === 'warn' ? 'warn' : t === 'bad' ? 'bad' : null; }
+  /* failed is bad; a run still in flight, or left uncertain (never redialed), wants attention; a completed run is not marked good, because done is not proof of the outcome. */
+  function statusTone(s) { return s === 'failed' ? 'bad' : (s === 'dialing' || s === 'active' || s === 'transferring' || s === 'uncertain') ? 'warn' : null; }
+  function company() {
+    return call('/tasks').then(function (r) {
+      var tiles = Array.isArray(r.tiles) ? r.tiles : [], tasks = Array.isArray(r.tasks) ? r.tasks : [], items = Array.isArray(r.items) ? r.items : [];
+      var tile = function (id) { return tiles.filter(function (t) { return t && t.id === id; })[0]; };
+      var calling = tile('calling'), ready = !!calling && calling.value === 'Ready';
+      var stats = ['calling', 'runs', 'last'].map(tile).filter(Boolean).map(function (t) { return { id: t.id, label: t.label, value: words(t.value, '\u2014'), tone: tone(t.tone) }; });
+      /* items are the newest runs first and then exactly two honesty notes (routes/policy.js summary): the notes close the list. */
+      var notes = items.filter(function (i) { return i && typeof i.text === 'string'; }).slice(-2).map(function (i) { return { title: i.text }; });
+      return {
+        kicker: 'Communications \u00b7 Calls', title: 'Calls',
+        lede: tasks.length + (tasks.length === 1 ? ' saved run' : ' saved runs') + (calling ? ' \u00b7 Calling: ' + calling.value : ''),
+        actions: [{ label: ready ? 'Open Calling' : 'Set up calling', primary: true, onClick: openFull }],
+        stats: stats,
+        sections: [
+          { kind: 'table', id: 'runs', title: 'Recent runs', empty: 'No phone tasks yet.', columns: ['Started', 'Status', 'Outcome'],
+            rows: tasks.slice(0, 8).map(function (t) { return [A.when(t.created_at), { text: words(t.status, 'unknown'), tone: statusTone(t.status) }, words(t.outcome, 'not recorded')]; }) },
+          { kind: 'list', id: 'notes', title: 'What these numbers mean', empty: 'No notes.', items: notes }
+        ]
+      };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'calling-assistant', escapeLabel: 'Open Calling in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
+<style>
+body{font:15px system-ui;margin:0;background:var(--surface-bg,#101722);color:var(--surface-text,#e5edf7)}main{max-width:1040px;margin:auto;padding:28px}h1{margin:0 0 8px}h2{font-size:20px}p{line-height:1.55}section{border:1px solid var(--surface-border,#344156);border-radius:14px;padding:22px;margin:22px 0;background:var(--surface-panel,#172232)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}label{display:grid;gap:7px;font-size:14px}input,select,textarea,button{font:inherit;color:inherit;background:var(--surface-bg,#101722);border:1px solid var(--surface-border,#506078);border-radius:6px;padding:10px}textarea{min-height:80px}button{cursor:pointer;background:#225da0;color:white}button:disabled{opacity:.5;cursor:wait}.wide{grid-column:1/-1}.check{display:flex;align-items:flex-start;gap:10px}.check input{margin-top:4px}a{color:#87c5ff}small,.muted{color:var(--surface-muted,#aebdd1)}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px monospace;max-height:420px;overflow:auto}#message{position:sticky;top:0;padding:12px;background:#233650;border-radius:8px;z-index:2}#message:empty{display:none}.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.task{padding:12px 0;border-bottom:1px solid #344156}.danger{background:#8b3232}@media(max-width:650px){main{padding:16px}.grid{grid-template-columns:1fr}}
+</style></head><body><main>
+<h1>Calling Assistant</h1><p>Set up a phone task once, let the calling service handle the menu, and join when a person answers.</p>
+<div id="message" role="status" aria-live="polite"></div>
+<section><h2>1. Connect and configure</h2><p>Open <a href="/utilities" target="_top">Connections</a> to add Twilio, then select it here. Calling starts disabled. These settings belong to your account; background tasks run for you using the connection you select.</p>
+<form id="settings" class="grid">
+<label>Twilio connection<select id="connectionId"><option value="">Select a connection</option></select></label>
+<label>Sender phone<select id="from"><option value="">Select a sender</option></select><small><button type="button" id="loadNumbers">Load numbers from selected account</button></small></label>
+<label>Your phone for human handoff<input id="transferPhone" placeholder="+ country code and number" autocomplete="tel"></label>
+<label>Public application origin<input id="publicOrigin" type="url" placeholder="https://your-oshal-domain.example"><small>Twilio must reach this HTTPS address without an external login wall.</small></label>
+<label>Speech recognition<select id="sttProvider"></select></label>
+<label>Spoken reply voice<select id="voice"><option value="alice">Alice</option><option value="woman">Woman</option><option value="man">Man</option></select></label>
+<label>Maximum call minutes<input id="maxMinutes" type="number" min="1" max="60"></label>
+<label>Maximum audio turns<input id="maxTurns" type="number" min="1" max="100"></label>
+<label>Listen window (seconds)<input id="chunkSeconds" type="number" min="4" max="25"></label>
+<label>Estimated all-in cents per minute<input id="estimatedCentsPerMinute" type="number" min="1" max="1000"><small>Include both legs and optional speech charges from your account rates.</small></label>
+<label>Maximum estimated cost (cents)<input id="maxCostCents" type="number" min="1" max="50000"><small>Admission estimate, not a Twilio billing cap. Duration limits are enforced.</small></label>
+<label>Allowed destination numbers<textarea id="allowedNumbers" placeholder="One international phone number per line"></textarea></label>
+<label class="wide">Opening disclosure<textarea id="introduction" placeholder="Introduce your automated assistant and the audio processing used for this call."></textarea><small>Audio is recorded in short turns for interpretation and deleted from Twilio after processing. Cleanup failures remain visible in the report.</small></label>
+<label class="check wide"><input id="consent" type="checkbox">I authorize this application's call processing and charges for the selected connection and destinations.</label>
+<label class="check wide"><input id="enabled" type="checkbox">Enable calling for my account</label>
+<div class="row wide"><button type="submit">Save configuration</button><span id="readiness" class="muted"></span></div>
+</form></section>
+<section><h2>2. Check recorded audio</h2><p>Upload a WAV containing a claims menu, hold music, or an agent greeting. This uses the same audio interpreter as a phone task and shows its transcript and decision.</p>
+<form id="audioForm" class="row"><input id="audioFile" type="file" accept="audio/wav,.wav" required aria-label="Audio recording"><button>Interpret audio</button></form><pre id="audioResult"></pre></section>
+<section><h2>3. Run a call</h2><p>The service listens in short turns. Unknown or ambiguous menus wait; an approved reply can speak or send digits. A recognized human greeting rings your handoff phone.</p>
+<form id="taskForm" class="grid">
+<label>Destination<input id="to" required placeholder="An allowed international number"></label>
+<label>Objective<input id="objective" required maxlength="500" placeholder="Reach someone about my existing car claim"></label>
+<label class="wide">Menu keywords<input id="keywords" value="claims, existing claim" required><small>Comma-separated menu choices relevant to this task.</small></label>
+<label class="wide">Approved replies (JSON)<textarea id="responses">[{"prompt":"say claims","say":"claims"}]</textarea><small>Use prompt + say for a spoken reply, or prompt + digits for keypad input. Only enter information you want disclosed on this call.</small></label>
+<label class="check wide"><input id="approveCall" type="checkbox" required>I approve this call to the displayed destination with these replies.</label>
+<div class="row wide"><button id="startCall">Start call</button><small>Each submission receives an idempotency key to prevent a retry from dialing twice.</small></div>
+</form></section>
+<section><div class="row"><h2>Call reports</h2><button id="refresh" type="button">Refresh</button></div><div id="tasks"></div><pre id="report"></pre></section>
+</main><script src="/api/calling-assistant/client.js"></script></body></html>

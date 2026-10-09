@@ -1,0 +1,6 @@
+# The Blender Lab MCP server's own dependencies (its pyproject.toml at tag v1.0.3), installed into the
+# engine image's venv; the server itself is installed from the pinned source with --no-deps.
+# requirements-lock.txt holds the exact versions this engine was validated against.
+docutils
+mcp[cli]>=1.2.0,<2
+pyyaml

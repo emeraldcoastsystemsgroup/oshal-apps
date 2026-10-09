@@ -15,6 +15,8 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com   | The node needs an OWNER (EMBODIED_NODE_OWNER_SUB, the sub of the person it belongs to): without one an api whose app gate requires an identity refuses its heartbeats; say so before building.
 # 4 | maintainer@emeraldcoastsystemsgroup.com   | B6: --with-px4 pulls the official PX4 SITL image, starts it in the same compose project (profile px4) and points the engine at it; the PX4 node then joins the rail as a drone.
 # 5 | maintainer@emeraldcoastsystemsgroup.com   | B6: the vehicle is recreated with the engine (force-recreate covers the px4 profile) so it learns this node as its MAVLink partner; the message says so.
+# 6 | maintainer@emeraldcoastsystemsgroup.com   | ADR-175 (B20 option D): the node rail heartbeats with a DEVICE CREDENTIAL, not the secret plus an owner sub. EMBODIED_NODE_TOKEN (or EMBODIED_NODE_TOKEN_FILE, read here and never printed) is minted once by POST /api/join/enroll {clientId: embodied-plant} while signed in; the owner is whoever enrolled it. The PX4 node is its own device: EMBODIED_PX4_NODE_TOKEN(_FILE). The secret still guards inbound commands.
+# 7 | maintainer@emeraldcoastsystemsgroup.com   | ADR-175 hardening: the engine no longer receives SWARM_SERVICE_SECRET (commands carry a per-node command key). With no credential given, the installer carries EMBODIED_NODE_TOKEN / EMBODIED_PX4_NODE_TOKEN over from the running engine container, so the credential file can be deleted after the first install instead of living on the shared workspace volume.
 #
 # Usage -- from the host of any box running the oshal stack (the package is deployed inside the
 # api container, which has the docker CLI):
@@ -60,15 +62,32 @@ NETWORK=$(detect_network)
 [ -n "$NETWORK" ] || die "could not find the oshal stack network - set OSHAL_NETWORK"
 docker network inspect "$NETWORK" >/dev/null 2>&1 || die "network $NETWORK does not exist"
 
-if [ -n "${SWARM_SERVICE_SECRET:-}" ]; then
-  say "node rail: on - the plant will heartbeat into ${EMBODIED_API_URL:-http://oshal-api:5000}/api/embodied/nodes/heartbeat as ${EMBODIED_NODE_ID:-embodied-plant} and take commands at embodied-engine:7414"
-  if [ -n "${EMBODIED_NODE_OWNER_SUB:-}" ]; then
-    say "node rail: owned by ${EMBODIED_NODE_OWNER_SUB} (its heartbeats carry that identity; only that person's worlds may fly it)"
-  else
-    say "node rail: NO OWNER - set EMBODIED_NODE_OWNER_SUB to the sub of the person this node belongs to (the one who opens the tile); an api whose app gate requires an identity will refuse an unowned node's heartbeats"
+# Device credentials (ADR-175): read from a file when named, never echoed; compose passes them to the container.
+read_credential() { # $1 = variable name; fills it from ${1}_FILE when it is empty
+  eval "cur=\${$1:-}"; eval "file=\${$1_FILE:-}"
+  if [ -z "$cur" ] && [ -n "$file" ]; then
+    [ -r "$file" ] || die "$1_FILE is not readable: $file"
+    cur=$(tr -d ' \r\n' < "$file")
   fi
+  eval "$1=\$cur"; export "$1"
+}
+carry_over() { # $1 = variable name; with none supplied, reuse the running engine's value (never printed)
+  eval "cur=\${$1:-}"
+  if [ -z "$cur" ] && docker inspect "$CONTAINER" >/dev/null 2>&1; then
+    cur=$(docker inspect "$CONTAINER" --format '{{range .Config.Env}}{{println .}}{{end}}' | sed -n "s/^$1=//p" | head -n 1)
+    [ -n "$cur" ] && say "$1: carried over from the running engine container"
+  fi
+  eval "$1=\$cur"; export "$1"
+}
+read_credential EMBODIED_NODE_TOKEN
+read_credential EMBODIED_PX4_NODE_TOKEN
+carry_over EMBODIED_NODE_TOKEN
+carry_over EMBODIED_PX4_NODE_TOKEN
+
+if [ -n "$EMBODIED_NODE_TOKEN" ]; then
+  say "node rail: on - ${EMBODIED_NODE_ID:-embodied-plant} heartbeats into ${EMBODIED_API_URL:-http://oshal-api:5000}/api/embodied/nodes/heartbeat with its device credential (the owner is the account that enrolled it) and takes commands at embodied-engine:7414"
 else
-  say "node rail: OFF - SWARM_SERVICE_SECRET is not set in this shell (run this inside the api container to inherit it); the bridge alone will serve"
+  say "node rail: OFF - no device credential. Enroll the node once while signed in to the cockpit: POST /api/join/enroll {\"clientId\": \"${EMBODIED_NODE_ID:-embodied-plant}\"}, save the returned token to a file only you can read, and re-run with EMBODIED_NODE_TOKEN_FILE=<that file>. The bridge alone serves meanwhile."
 fi
 if [ "$WITH_PX4" = 1 ]; then
   say "PX4 node: on - pulling px4io/px4-sitl (the official Dronecode SITL image, SIH physics) and starting it as embodied-px4 beside the engine (recreated together: the vehicle learns this node as its MAVLink partner on first contact)"
@@ -105,7 +124,7 @@ if ! docker exec "$CONTAINER" python "$BRIDGE" --selftest; then
   docker logs --tail 60 "$CONTAINER" >&2 || true
   die "self-test failed - the engine container is running but not answering correctly"
 fi
-if [ -n "${SWARM_SERVICE_SECRET:-}" ]; then
+if [ -n "$EMBODIED_NODE_TOKEN" ]; then
   i=0
   until docker logs "$CONTAINER" 2>&1 | grep -q "heartbeat acknowledged"; do
     i=$((i + 1))

@@ -1,0 +1,130 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Video's first named catalog (CREATE-EDIT-05b). Every existing studio, series, pump, summary and readiness endpoint keeps a binding, split into view, read, generate (spends provider money) and pump management; the manual editor adds its own view, read, create, change, delete and export over a separate own-scoped resource. Manual editing spends nothing and owning an admin role never reaches another person's media. A legacy @app-admin assignment is NOT translated into any of these permissions: activation needs the reviewed AUTH-07 catalog migration and explicit named grants.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05c: bind the export routes. Requesting an export or preview, cancelling one and downloading one need editor.export (a render spends CPU and a download is an export); reading a job or a project's job list needs editor.read. No new permission or role.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05d: bind the editor screen (GET /editor) and its fixed module allowlist (GET /editor/assets/:asset) to editor.view, like the studio page to studio.view, and deleting one unused upload (DELETE /editor/media/:id) to editor.delete.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: bind the package's bots (video-director, screenplay-writer, vids-operator) to studio.generate. The catalog bound only HTTP routes, so every protected chat turn to those bots was refused authorization_operation_unbound (seen live 2026-10-06 when the operator's turn to screenplay-writer reached core's concierge node). studio.generate is the provider-spending execute permission the producer, showrunner and admin roles already hold; no new permission or role.
+version: 1
+resources:
+  studio:
+    scopes: [own]
+  editor:
+    scopes: [own]
+permissions:
+  studio.view: { resource: studio, effect: read, minimumTier: viewer }
+  studio.read: { resource: studio, effect: read, minimumTier: viewer }
+  studio.generate: { resource: studio, effect: execute, minimumTier: editor }
+  pump.manage: { resource: studio, effect: execute, minimumTier: editor }
+  editor.view: { resource: editor, effect: read, minimumTier: viewer }
+  editor.read: { resource: editor, effect: read, minimumTier: viewer }
+  editor.create: { resource: editor, effect: write, minimumTier: editor }
+  editor.change: { resource: editor, effect: write, minimumTier: editor }
+  editor.delete: { resource: editor, effect: write, minimumTier: editor }
+  editor.export: { resource: editor, effect: export, minimumTier: editor }
+roles:
+  viewer:
+    tier: viewer
+    grants:
+      - { permission: studio.view, scope: own }
+      - { permission: editor.view, scope: own }
+  reader:
+    tier: viewer
+    grants:
+      - { permission: studio.view, scope: own }
+      - { permission: studio.read, scope: own }
+      - { permission: editor.view, scope: own }
+      - { permission: editor.read, scope: own }
+  producer:
+    tier: editor
+    grants:
+      - { permission: studio.view, scope: own }
+      - { permission: studio.read, scope: own }
+      - { permission: studio.generate, scope: own }
+  showrunner:
+    tier: editor
+    grants:
+      - { permission: studio.view, scope: own }
+      - { permission: studio.read, scope: own }
+      - { permission: studio.generate, scope: own }
+      - { permission: pump.manage, scope: own }
+  creator:
+    tier: editor
+    grants:
+      - { permission: editor.view, scope: own }
+      - { permission: editor.read, scope: own }
+      - { permission: editor.create, scope: own }
+  editor:
+    tier: editor
+    grants:
+      - { permission: editor.view, scope: own }
+      - { permission: editor.read, scope: own }
+      - { permission: editor.change, scope: own }
+  exporter:
+    tier: editor
+    grants:
+      - { permission: editor.view, scope: own }
+      - { permission: editor.read, scope: own }
+      - { permission: editor.export, scope: own }
+  admin:
+    tier: admin
+    grants:
+      - { permission: studio.view, scope: own }
+      - { permission: studio.read, scope: own }
+      - { permission: studio.generate, scope: own }
+      - { permission: pump.manage, scope: own }
+      - { permission: editor.view, scope: own }
+      - { permission: editor.read, scope: own }
+      - { permission: editor.create, scope: own }
+      - { permission: editor.change, scope: own }
+      - { permission: editor.delete, scope: own }
+      - { permission: editor.export, scope: own }
+bindings:
+  http:
+    # The readiness smoke (/api/video/_smoke) and the home summary (/api/video/home-summary) are
+    # both their mount's root, so one binding covers both; the summary is a read of saved work.
+    - { id: root, method: GET, path: /, allOf: [studio.view, studio.read] }
+    # The studio (routes/video-routes.js, mounted /api/video).
+    - { id: studio-ui, method: GET, path: /ui, allOf: [studio.view] }
+    - { id: videos, method: GET, path: /list, allOf: [studio.view, studio.read] }
+    - { id: series, method: GET, path: /series, allOf: [studio.view, studio.read] }
+    - { id: storyboard, method: POST, path: /storyboard, allOf: [studio.view, studio.generate] }
+    - { id: generate, method: POST, path: /generate, allOf: [studio.view, studio.generate] }
+    - { id: series-create, method: POST, path: /series, allOf: [studio.view, studio.generate] }
+    - { id: series-approve, method: POST, path: '/series/:seriesId/approve', allOf: [studio.view, studio.generate] }
+    - { id: series-advance, method: POST, path: '/series/:seriesId/advance', allOf: [studio.view, studio.generate] }
+    - { id: series-write, method: POST, path: '/series/:seriesId/write', allOf: [studio.view, studio.generate] }
+    - { id: episode-storyboard, method: POST, path: '/series/:seriesId/episodes/:ordinal/storyboard', allOf: [studio.view, studio.generate] }
+    - { id: episode-render, method: POST, path: '/series/:seriesId/episodes/:ordinal/render', allOf: [studio.view, studio.generate] }
+    # The joke-shorts pump (routes/video-pump-routes.js, mounted /api/video/pump). Enrolling a show
+    # authorizes its render spend, so every pump change is pump.manage.
+    - { id: pump-shows, method: GET, path: /shows, allOf: [studio.view, studio.read] }
+    - { id: pump-status, method: GET, path: /status, allOf: [studio.view, studio.read] }
+    - { id: pump-import, method: POST, path: /shows/import, allOf: [studio.view, pump.manage] }
+    - { id: pump-enroll, method: POST, path: '/shows/:slug/enroll', allOf: [studio.view, pump.manage] }
+    - { id: pump-resume, method: POST, path: '/shows/:slug/resume', allOf: [studio.view, pump.manage] }
+    - { id: pump-run, method: POST, path: /run, allOf: [studio.view, pump.manage] }
+    # The manual editor (routes/video-editor-routes.js, mounted /api/video).
+    - { id: editor-page, method: GET, path: /editor, allOf: [editor.view] }
+    - { id: editor-assets, method: GET, path: '/editor/assets/:asset', allOf: [editor.view] }
+    - { id: editor-capabilities, method: GET, path: /editor/capabilities, allOf: [editor.view] }
+    - { id: editor-permissions, method: GET, path: /editor/permissions, allOf: [editor.view] }
+    # The route also requires create OR change before reading the body and again before publishing.
+    - { id: editor-upload, method: POST, path: /editor/media, allOf: [editor.view] }
+    - { id: editor-media, method: GET, path: '/editor/media/:id', allOf: [editor.view, editor.read] }
+    - { id: editor-media-cleanup, method: POST, path: /editor/media/cleanup, allOf: [editor.view, editor.delete] }
+    - { id: editor-media-delete, method: DELETE, path: '/editor/media/:id', allOf: [editor.view, editor.delete] }
+    - { id: editor-projects, method: GET, path: /editor/projects, allOf: [editor.view, editor.read] }
+    - { id: editor-project-create, method: POST, path: /editor/projects, allOf: [editor.view, editor.create] }
+    - { id: editor-project, method: GET, path: '/editor/projects/:id', allOf: [editor.view, editor.read] }
+    - { id: editor-project-delete, method: DELETE, path: '/editor/projects/:id', allOf: [editor.view, editor.delete] }
+    - { id: editor-revisions, method: GET, path: '/editor/projects/:id/revisions', allOf: [editor.view, editor.read] }
+    - { id: editor-revision-save, method: POST, path: '/editor/projects/:id/revisions', allOf: [editor.view, editor.change] }
+    - { id: editor-revision, method: GET, path: '/editor/projects/:id/revisions/:revision', allOf: [editor.view, editor.read] }
+    - { id: editor-export-create, method: POST, path: '/editor/projects/:id/exports', allOf: [editor.view, editor.read, editor.export] }
+    - { id: editor-exports, method: GET, path: '/editor/projects/:id/exports', allOf: [editor.view, editor.read] }
+    - { id: editor-export, method: GET, path: '/editor/exports/:id', allOf: [editor.view, editor.read] }
+    - { id: editor-export-cancel, method: POST, path: '/editor/exports/:id/cancel', allOf: [editor.view, editor.export] }
+    - { id: editor-export-download, method: GET, path: '/editor/exports/:id/download', allOf: [editor.view, editor.read, editor.export] }
+  bots:
+    - { id: a0000000-0000-0000-0000-000000000048, allOf: [studio.generate] }
+    - { id: a0000000-0000-0000-0000-000000000052, allOf: [studio.generate] }
+    - { id: b00e0000-0000-0000-0000-000000000001, allOf: [studio.generate] }

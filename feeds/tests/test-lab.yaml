@@ -1,0 +1,40 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract and behaviour test (ADR-164 D6) with its runner and isolation boundaries: the dashboard's company view for the Business shell over the shared kit, its gated start and its reads kept to the read-only summary and settings routes.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.3: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) and family (Home shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes; and, over a stub kit and
+      stub fetch, that on open the view reads only /home-summary and /settings (never /messages, /status or /sync),
+      paints the counts, sync age, newest saved entries and notes, names each empty, unavailable, partial, refused
+      and failed state, and that the dashboard's own start does not run under a view.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the company view reads exactly the home summary and the settings; the indexing, token and sync routes are never called.
+      - The no-index, unavailable, partial, 401, 403 and failed-read states are each named; the one action opens Feeds in the cockpit.
+      - The dashboard script reads nothing and sets no live poll under a view, and starts as before without one or without the kit.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

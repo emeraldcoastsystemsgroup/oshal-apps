@@ -25,12 +25,40 @@
 
 name: vids
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: clip-generate
+      unit: Veo clip
+      tier: T2
+      generation: hosted
+      degrade: disable
+    - id: story-produce
+      unit: multi-scene story
+      tier: T2
+      generation: hosted
+      degrade: disable
+    - id: brand-graphic
+      unit: brand graphic
+      tier: T2
+      generation: hosted
+      degrade: disable
+    - id: vids-ticket
+      unit: vids ticket
+      tier: T4
+      generation: hosted
+      degrade: disable
 displayName: Vids Studio
 description: >-
   Turn an idea into generated video. The Veo specialist drives Google Vids by
   clicking — describes the shot, generates the clip, places it on the timeline —
   on a remote operator machine, and learns what works over time.
-version: 1.4.0
+version: 1.5.4
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 status: active
 
 theme: midnight
@@ -70,6 +98,8 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
+  - package-anonymous-routes
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BOTS — reuses the already-registered SHARED vids-operator worker (registered in
@@ -144,18 +174,27 @@ routes:
     auth: service-or-oidc   # what core server.ts mounted (ADR-085 D2)
     requiresAuth: true
     requiresContext: true
-  # Public, read-only finished-vids surface (BACKLOG "per-user PUBLIC publish directory"). Serves
-  # ONLY explicitly-published renders from a per-user (user_sub-keyed) publish dir; nothing about
-  # jobs/prompts/queue is ever public. Mounted under /api/ (NOT /public) because the loader (D2)
-  # requires a public mount at /api/<name>; the router self-guards (slug + file validation,
-  # published-dir only, no listing, fail-closed 404). The publish/unpublish COPY action is deferred
-  # (no render file exists in the controller — the worker renders + publishes externally).
+  # Public, read-only finished-vids surface. Its one route is GET /<token>/video.mp4, where the
+  # token is a random 64-hex value minted per artifact when the owner publishes a finished export.
+  # Attach, publish, revoke (unpublish) and remove are owner-authenticated controls under
+  # /api/vids/jobs/<jobId>/artifact above: publish needs explicit confirmation plus the reviewed
+  # SHA-256 digest, revoke clears the token, and a published export cannot be removed until it is
+  # revoked. The anonymous lookup runs with no owner or operator identity and reads the forced-RLS
+  # vids_artifacts row by that token alone, then serves only its immutable MP4 bytes. There is no
+  # directory, listing, job, prompt or queue data here; a malformed, unknown or revoked token is a
+  # 404 and responses are never cached. Mounted under /api/ (NOT /public) because the loader (D2)
+  # requires a public mount at /api/<name>.
   - module: routes/vids-public-routes.js
     factory: createVidsPublicRoutes
     mountPath: /api/vids-public
     auth: public
     requiresAuth: false
     requiresContext: true
+    anonymousRoutes:
+      - method: GET
+        path: /:token/video.mp4
+      - method: HEAD
+        path: /:token/video.mp4
 
 # Cockpit ribbon tile + embedded surface (the job queue, served by the route above).
 ui:
@@ -172,6 +211,7 @@ ui:
 migrations:
   - migrations/059-vids-platform.sql
   - migrations/100-vids-owner-rls.sql
+  - migrations/101-vids-artifact-publication.sql
 
 # Tickets of type 'vids' route to the operator bot.
 ticketType: vids

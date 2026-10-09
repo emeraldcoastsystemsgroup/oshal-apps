@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.lastEveningCompletedAt = lastEveningCompletedAt;
 exports.runEveningScrapeIndex = runEveningScrapeIndex;
 exports.isEveningChainRunning = isEveningChainRunning;
 exports.startCareerHunterCron = startCareerHunterCron;
@@ -23,6 +24,8 @@ exports.startCareerHunterCron = startCareerHunterCron;
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Use decomposed engine and user-store boundaries and advance state only after successful child completion.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Extract the default-deny automation scan so the evening-chain coordinator remains within the function-size contract.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Complete exported cron status and startup documentation for route consumers.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Mint the nightly model passes' callback grants for the owner's recorded issuer (1.25.1). The keyword score and the title pass launch engine children whose completions the kernel's signed-package-callbacks rail admits only for an exact (subject, issuer) principal; the cron has no request identity, so it passes the issuer the owner's automation opt-in recorded. An opt-in with no recorded issuer (saved before 1.25.1) skips both passes with a log line naming the fix, and the cursor stays where it was; the draft enqueue still runs.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Expose the persisted evening-chain completion timestamp so fresh corpus rows cannot be mistaken for a completed scrape.
  */
 /**
  * Career Hunter cron — a small, gated app-owned timer (Phase 1).
@@ -97,6 +100,15 @@ function readEveningMarkerMs(anyUserSub) {
         return null;
     }
 }
+/**
+ * @description Read the successful evening-chain completion marker independently of progressive corpus writes.
+ * @param anyUserSub a user whose store resolves the shared corpus directory
+ * @returns the persisted completion timestamp, or null when absent or invalid
+ */
+function lastEveningCompletedAt(anyUserSub) {
+    const markerMs = readEveningMarkerMs(anyUserSub);
+    return markerMs === null ? null : new Date(markerMs).toISOString();
+}
 function writeEveningMarker(anyUserSub) {
     try {
         fs_1.default.writeFileSync(eveningMarkerPath(anyUserSub), new Date().toISOString(), 'utf8');
@@ -125,19 +137,27 @@ async function scoreAllUsers(ctx, opts = {}) {
         try {
             // EXPLICIT OPT-IN (2026-07-24): no auto_generate opt-in → no AI score, no title pass,
             // no draft enqueue for this user. Absent settings row = OFF (default-deny).
-            if (!(await (0, career_automation_1.readAutomationSettingsSystem)(ctx, userSub)).autoGenerate) {
+            const settings = await (0, career_automation_1.readAutomationSettingsSystem)(ctx, userSub);
+            if (!settings.autoGenerate) {
                 logger.info({ userSub, catchup: !!opts.catchup }, 'career-hunter cron: user skipped — automation opt-in is OFF');
                 continue;
             }
+            // The model passes launch engine children whose completions the kernel admits only for the
+            // owner's exact (subject, issuer): without the issuer the opt-in recorded, nothing is minted.
+            const ownerIssuer = settings.ownerIssuer;
             let keywordPass = 'ran';
-            if (opts.catchup && !(await (0, career_title_score_1.dueForCronScore)(ctx.pool, userSub))) {
+            if (!ownerIssuer) {
+                keywordPass = 'skipped-no-owner-issuer';
+                logger.warn({ userSub }, 'career-hunter cron: model passes skipped — the automation opt-in predates 1.25.1 and recorded no owner issuer; the owner saves Career Settings automation again');
+            }
+            else if (opts.catchup && !(await (0, career_title_score_1.dueForCronScore)(ctx.pool, userSub))) {
                 keywordPass = 'skipped-cursor';
             }
             else {
                 // Both paths bound to NEW jobs (--first-seen-days); the catch-up also caps with --limit.
                 const scoreResult = await (0, career_engine_dispatch_1.runUserScore)(ctx.pool, userSub, opts.catchup
-                    ? { firstSeenDays: SCORE_FIRST_SEEN_DAYS, limit: CATCHUP_SCORE_LIMIT }
-                    : { firstSeenDays: SCORE_FIRST_SEEN_DAYS });
+                    ? { firstSeenDays: SCORE_FIRST_SEEN_DAYS, limit: CATCHUP_SCORE_LIMIT, ownerIssuer }
+                    : { firstSeenDays: SCORE_FIRST_SEEN_DAYS, ownerIssuer });
                 if (scoreResult.ok)
                     await (0, career_title_score_1.markCronScore)(ctx.pool, userSub);
                 else {
@@ -145,7 +165,7 @@ async function scoreAllUsers(ctx, opts = {}) {
                     logger.error({ userSub }, 'career-hunter cron: keyword score failed; cursor not advanced');
                 }
             }
-            const titlePass = await (0, career_title_score_1.runTitlePassForUser)(ctx, userSub);
+            const titlePass = ownerIssuer ? await (0, career_title_score_1.runTitlePassForUser)(ctx, userSub, { ownerIssuer }) : { ran: false, reason: 'no-owner-issuer' };
             const n = await (0, career_hunter_routes_1.enqueueForUser)(ctx, userSub, 10);
             logger.info({ userSub, keywordPass, titlePass, queued: n, catchup: !!opts.catchup }, 'career-hunter cron: scored + enqueued');
         }

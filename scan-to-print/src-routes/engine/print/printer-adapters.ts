@@ -13,18 +13,38 @@
  *                     |                             | state. The API key rides a header, never a URL, and the base
  *                     |                             | URL is validated against loopback/metadata targets because it
  *                     |                             | is typed by a person and the request leaves the controller.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | A fourth kind, `bambu-lan`: a Bambu Lab printer reached on the
+ *                     |                             | LAN over its own FTPS + MQTT (bambu-lan.ts), not over HTTP, so
+ *                     |                             | it has no entry in the HTTP adapter table — adapterFor refuses
+ *                     |                             | it and the routes dispatch it to bambu-lan.ts. Its host is a
+ *                     |                             | bare LAN address held as `bambu://<host>`; validateBambuHost
+ *                     |                             | applies the same loopback/metadata refusal as the URL check.
+ *                     |                             | `.3mf` is classified so a sliced `.gcode.3mf` is recognised.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | validateBambuHost canonicalises numeric host forms (decimal,
+ *                     |                             | hex, octal IPv4) before refusing loopback/metadata, as the URL
+ *                     |                             | check does, and stores the canonical address.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | HTTP printer requests never follow a redirect (redirect: manual):
+ *                     |                             | the loopback/metadata refusal checks only the registered URL, so a
+ *                     |                             | followed 3xx could carry the key and the job to an internal
+ *                     |                             | service and echo its answer back. A 3xx is a failed host answer.
  */
 
+/** @description The printer hosts reached over HTTP through the adapter table below. */
+export type HttpPrinterKind = 'octoprint' | 'moonraker' | 'prusalink';
+
 /** @description The printer hosts this package can talk to. */
-export type PrinterKind = 'octoprint' | 'moonraker' | 'prusalink';
+export type PrinterKind = HttpPrinterKind | 'bambu-lan';
 
 /** @description Every supported kind. */
-export const PRINTER_KINDS: readonly PrinterKind[] = ['octoprint', 'moonraker', 'prusalink'];
+export const PRINTER_KINDS: readonly PrinterKind[] = ['octoprint', 'moonraker', 'prusalink', 'bambu-lan'];
+
+/** @description The kind served by bambu-lan.ts rather than an HTTP adapter. */
+export const BAMBU_KIND = 'bambu-lan';
 
 /** @description What the adapter needs to reach a printer. */
 export interface PrinterProfile {
   /** Host type. */
-  kind: PrinterKind;
+  kind: HttpPrinterKind;
   /** `http(s)://host[:port]`, no trailing slash. */
   baseUrl: string;
   /** The host's API key, sent as `X-Api-Key`. */
@@ -73,7 +93,7 @@ export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 /** @description One printer host. */
 export interface PrinterAdapter {
   /** Host type. */
-  kind: PrinterKind;
+  kind: HttpPrinterKind;
   /** Lower-case file extensions the host accepts. */
   accepts: readonly string[];
   /** Upload (and optionally start) a file. */
@@ -113,14 +133,47 @@ export function validatePrinterBaseUrl(raw: string): { ok: true; url: string } |
 }
 
 /**
+ * @description Validate a Bambu Lab printer's LAN address: an IPv4 address or a host name, never
+ * loopback, the metadata address, a URL, or anything carrying a port, path or credentials.
+ * @param raw - What the person typed (`192.168.1.20`, `p2s.local`).
+ * @returns The host and its stored form `bambu://<host>`, or the reason it was refused.
+ */
+export function validateBambuHost(raw: string): { ok: true; host: string; baseUrl: string } | { ok: false; reason: string } {
+  const host = String(raw ?? '').trim().replace(/^bambu:\/\//i, '').toLowerCase();
+  if (!host) return { ok: false, reason: 'the printer address is required (its IP, shown on the printer screen under network settings)' };
+  if (!/^(?=.{1,253}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/.test(host)) {
+    return { ok: false, reason: 'enter just the printer address (an IP like 192.168.1.20 or a host name), without http://, a port or a path' };
+  }
+  // Canonicalise exactly as the socket will resolve it (WHATWG reads 2130706433, 0x7f000001 and
+  // 0177.0.0.1 as 127.0.0.1, like libc), then refuse on the canonical form and store that form.
+  let canonical: string;
+  try { canonical = new URL(`http://${host}`).hostname; } catch { return { ok: false, reason: 'enter just the printer address (an IP like 192.168.1.20 or a host name), without http://, a port or a path' }; }
+  if (FORBIDDEN_HOSTS.has(canonical) || canonical.startsWith('127.') || canonical === '0.0.0.0') return { ok: false, reason: 'loopback and metadata addresses are refused' };
+  return { ok: true, host: canonical, baseUrl: `bambu://${canonical}` };
+}
+
+/**
+ * @description The host part of a stored `bambu://<host>` base URL.
+ * @param baseUrl - Stored base URL.
+ * @returns The host.
+ * @throws RangeError when the row is not a Bambu address.
+ */
+export function bambuHostOf(baseUrl: string): string {
+  const checked = validateBambuHost(String(baseUrl).startsWith('bambu://') ? baseUrl : '');
+  if (!checked.ok) throw new RangeError(`not a Bambu printer address: ${baseUrl}`);
+  return checked.host;
+}
+
+/**
  * @description Classify a file by extension the way the hosts do.
  * @param fileName - Name with extension.
- * @returns `stl`, `gcode` or `other`.
+ * @returns `stl`, `gcode`, `3mf` or `other`.
  */
-export function fileKindOf(fileName: string): 'stl' | 'gcode' | 'other' {
+export function fileKindOf(fileName: string): 'stl' | 'gcode' | '3mf' | 'other' {
   const ext = fileName.toLowerCase().replace(/^.*(\.[a-z0-9]+)$/, '$1');
   if (ext === '.stl') return 'stl';
   if (['.gcode', '.gco', '.g', '.bgcode'].includes(ext)) return 'gcode';
+  if (ext === '.3mf') return '3mf';
   return 'other';
 }
 
@@ -129,7 +182,7 @@ async function request(fetchImpl: FetchLike, url: string, init: RequestInit, tim
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetchImpl(url, { ...init, signal: controller.signal });
+    const response = await fetchImpl(url, { ...init, redirect: 'manual', signal: controller.signal });
     const text = await response.text();
     let body: unknown = text;
     try { body = text ? JSON.parse(text) : null; } catch { /* keep text */ }
@@ -231,27 +284,31 @@ const prusalink: PrinterAdapter = {
   },
 };
 
-const ADAPTERS: Record<PrinterKind, PrinterAdapter> = { octoprint, moonraker, prusalink };
+const ADAPTERS: Record<HttpPrinterKind, PrinterAdapter> = { octoprint, moonraker, prusalink };
 
 /**
- * @description Look up the adapter for a host type.
+ * @description Look up the HTTP adapter for a host type.
  * @param kind - Host type.
  * @returns The adapter.
- * @throws RangeError for an unknown kind.
+ * @throws RangeError for an unknown kind, and for `bambu-lan`, which bambu-lan.ts serves.
  */
 export function adapterFor(kind: string): PrinterAdapter {
-  const adapter = ADAPTERS[kind as PrinterKind];
-  if (!adapter) throw new RangeError(`Unknown printer kind "${kind}"; expected one of ${PRINTER_KINDS.join(', ')}`);
+  const adapter = ADAPTERS[kind as HttpPrinterKind];
+  if (!adapter) {
+    if (kind === BAMBU_KIND) throw new RangeError('bambu-lan printers are reached through bambu-lan.ts, not an HTTP adapter');
+    throw new RangeError(`Unknown printer kind "${kind}"; expected one of ${PRINTER_KINDS.join(', ')}`);
+  }
   return adapter;
 }
 
 /**
- * @description Whether a host accepts a file, by extension.
+ * @description Whether a host accepts a file, by extension. A Bambu printer takes only a sliced `.gcode.3mf`.
  * @param kind - Host type.
  * @param fileName - Name with extension.
- * @returns True when the extension is in the adapter's list.
+ * @returns True when the host accepts the file.
  */
 export function hostAccepts(kind: PrinterKind, fileName: string): boolean {
+  if (kind === BAMBU_KIND) return /\.gcode\.3mf$/i.test(fileName);
   const ext = fileName.toLowerCase().replace(/^.*(\.[a-z0-9]+)$/, '$1');
   return adapterFor(kind).accepts.includes(ext);
 }

@@ -9,6 +9,8 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Mark interactive applied changes as manual assertions and expose application provenance without implying worker verification.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Upgrade unverified history to a manual assertion while retaining stronger worker or confirmation evidence on repeated applied marks.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Record every board-side applied assertion as a durable Apply V2 manual_mark before changing the SQLite projection.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | DELETE /jobs/:id/packet (1.26.0): discard the caller's own generated packet through the engine's `packet-remove` in the leased child that owns the store (the packet folder under the caller's applications directory and the caller's own per-posting row, returned to unworked). 404 when the caller has no packet for the posting, 409 once the posting is applied or later (its packet is the application record). Until now a packet could be regenerated but never discarded.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Expose native summary counters from actual applied and interview status buckets.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerCareerBoardRoutes = registerCareerBoardRoutes;
@@ -20,6 +22,7 @@ const career_board_feed_1 = require("./career-board-feed");
 const career_resume_preview_1 = require("./career-resume-preview");
 const career_engine_dispatch_1 = require("./career-engine-dispatch");
 const career_engine_response_1 = require("./career-engine-response");
+const career_targets_1 = require("./career-targets");
 const career_user_store_1 = require("./career-user-store");
 const logger = (0, logger_1.createChildLogger)({ module: 'career-board-routes' });
 const ALLOWED_STATUS = new Set([
@@ -78,7 +81,7 @@ function getJobStats(req, res) {
     }
     const db = (0, career_user_store_1.openUserDb)(userSub);
     if (!db) {
-        res.json({ byStatus: [], total: 0, empty: true });
+        res.json({ byStatus: [], total: 0, applied: 0, interviewing: 0, empty: true });
         return;
     }
     try {
@@ -94,7 +97,9 @@ function getJobStats(req, res) {
         const byStatus = [...buckets]
             .map(([status, n]) => ({ status, n }))
             .sort((left, right) => right.n - left.n);
-        res.json({ byStatus, total });
+        const applied = buckets.get('applied') || 0;
+        const interviewing = buckets.get('interview') || 0;
+        res.json({ byStatus, total, applied, interviewing });
     }
     catch (err) {
         logger.error({ err, userSub }, 'career jobs stats failed');
@@ -374,6 +379,46 @@ async function generatePacket(ctx, req, res) {
         return;
     res.status(202).json({ ok: true, status: 'generating' });
 }
+/** HTTP status for each refusal code the engine's packets.remove returns. */
+const PACKET_REFUSAL_STATUS = { 'not-found': 404, conflict: 409 };
+/**
+ * @description DELETE /jobs/:id/packet — discard the caller's own generated packet for one
+ * posting. The engine child runs under the caller's store lease and reaches only the caller's
+ * applications folder and per-posting row; a posting applied or later keeps its packet.
+ * @param ctx - Kernel context used for brokered engine dispatch.
+ * @param req - Express request.
+ * @param res - Express response.
+ * @returns Nothing.
+ */
+async function removePacket(ctx, req, res) {
+    const userSub = (0, career_user_store_1.callerSub)(req);
+    if (!userSub) {
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+    }
+    const postingId = Number(req.params.id);
+    if (!Number.isSafeInteger(postingId) || postingId <= 0) {
+        res.status(400).json({ error: 'bad id' });
+        return;
+    }
+    const result = await (0, career_engine_dispatch_1.runCareerCliAwait)(ctx.pool, userSub, ['packet-remove'], { CH_JOB: String(postingId) });
+    if (result.limitReason) {
+        (0, career_engine_response_1.rejectEngineStart)(res, { started: false, limitReason: result.limitReason }, 'packet removal');
+        return;
+    }
+    const json = result.ok ? (0, career_targets_1.parseEngineJson)(result.out) : null;
+    if (!json) {
+        logger.error({ userSub, postingId, err: (result.err || '').slice(-200) }, 'career packet removal failed');
+        res.status(502).json({ error: 'the packet could not be removed' });
+        return;
+    }
+    if (json.ok !== true) {
+        res.status(PACKET_REFUSAL_STATUS[String(json.code)] || 400).json({ error: String(json.error || 'refused') });
+        return;
+    }
+    logger.info({ userSub, postingId }, 'career packet removed');
+    res.json(json);
+}
 function setReferral(req, res) {
     const userSub = (0, career_user_store_1.callerSub)(req);
     if (!userSub) {
@@ -423,6 +468,7 @@ function registerCareerBoardRoutes(router, ctx) {
     router.post('/jobs/:id/status', (req, res) => updateJobStatus(ctx, req, res));
     router.get('/jobs/:id', getJob);
     router.post('/jobs/:id/generate', (req, res) => generatePacket(ctx, req, res));
+    router.delete('/jobs/:id/packet', (req, res) => { void removePacket(ctx, req, res); });
     router.post('/company/:id/referral', setReferral);
 }
 /**

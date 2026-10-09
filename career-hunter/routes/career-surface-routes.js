@@ -6,6 +6,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Extract native surfaces, static assets, and the caller-scoped classic board from the composition root.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Retire the unbounded persistent classic-board process and redirect legacy links to the native board.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Serve the native board at the admitted package root as well as its existing named surface.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -58,6 +59,8 @@ function redirectClassicBoard(_req, res) {
  * @returns nothing
  */
 function registerCareerSurfaceRoutes(router) {
+    router.get('/', createCareerToolFileHandler('career-board.html'));
+    router.get('', createCareerToolFileHandler('career-board.html'));
     router.get('/board-native', createCareerToolFileHandler('career-board.html'));
     // Search Jobs — the corpus, not the caller's scored matches. Deliberately a separate
     // screen from the board: it works with no résumé indexed, and has no fit/pipeline concept.

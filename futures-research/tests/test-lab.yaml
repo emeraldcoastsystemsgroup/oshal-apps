@@ -1,0 +1,30 @@
+# CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Register bounded readiness and package contracts without claiming live inference or nightly acceptance.
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Read bounded package identity without processing user studies or contacting providers.
+    level: integration
+    runner: { kind: smoke, smoke: package-readiness }
+    expected: [The installed package identity satisfies the manifest assertion.]
+    prerequisites: []
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: safe-smoke
+  - id: package-contract
+    name: Dedicated workflow and readiness contract
+    purpose: Exercise the compiled readiness route over loopback HTTP and verify the tool-less separate workflow declaration. Core PostgreSQL queue guards run separately in the framework Test Lab.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/package-contract.test.cjs] }
+    expected:
+      - The workflow declares the exact worker and fails closed on older framework versions.
+      - The readiness route reads only bounded package identity and rejects invalid or missing manifests.
+    prerequisites: [runner:node-test, fixture:core-checkout]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/package-contract.test.cjs]
+      cleanup: Temporary manifest directories and loopback servers are removed in finally blocks; no live database or provider is used.
+    limits: { timeoutMs: 30000 }
+    installation: never

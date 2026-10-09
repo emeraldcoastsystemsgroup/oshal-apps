@@ -3,6 +3,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove the exact-owner policy actually filters the role that OWNS these tables, which is the installed condition: the api owns every public table and is the role that reads them, and PostgreSQL exempts a table owner from its own row security unless the table is FORCEd. Measured live 2026-09-21, the four create_project* tables carried a correct policy and returned the row anyway - as the owner, with no identity stamped and again with a wrong one. Every case here runs as the owner in a disposable database, and the last one performs the defect live: NO FORCE, the wrong identity sees the row again, FORCE, and it is gone. A test that only exercises a non-owner role cannot tell the two states apart.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Prove the PLATFORM identity arm, which is what keeps forcing these tables from silently breaking a person's data export and deletion. Core's /api/me export and delete discover every owner_sub-keyed public table from information_schema and run SELECT * FROM "<table>" WHERE "owner_sub"=$1 / DELETE FROM "<table>" WHERE "owner_sub"=$1 (discovered-exporters.ts:176,182) on a connection stamped only with oshal.current_sub / oshal.current_issuer. The cases below reproduce that stamp exactly - session-scoped, with is_operator, then RESET, as guc-pool.ts does - and assert the export reads and the delete removes on all five owned tables, that the package's own create.* path still works on its own, that a second person gets nothing through either stamp, and that an unstamped connection and the empty system stamp get nothing. The policy assertion also refuses an operator arm, because the fix for this blocker must never become a bypass.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Include create_region_edits (migration 005) in every owner-role case: it must be forced, carry both identity arms and no operator arm, be read and deleted by the platform stamp for the same person only, and come first in the children-before-parents delete order.
  */
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,7 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { startPostgres, resetPostgres } from './project-postgres.fixture.mjs';
 
 const TABLES = ['create_projects', 'create_project_revisions', 'create_project_assets',
-  'create_project_revision_assets', 'create_brand_kits'];
+  'create_project_revision_assets', 'create_brand_kits', 'create_region_edits'];
 const OWNER = { issuer: 'https://fixture.invalid/issuer', sub: 'fixture-owner-sub' };
 const STRANGER = { issuer: 'https://fixture.invalid/issuer', sub: 'fixture-stranger-sub' };
 
@@ -121,12 +122,12 @@ test('FORCE is the thing doing the work: NO FORCE hands the row straight back to
 // arm that export returns zero rows and that delete removes nothing, both reporting success.
 // ---------------------------------------------------------------------------------------------
 
-/** The five tables this package owns. Every one carries owner_sub, so every one is discovered. */
+/** The six tables this package owns. Every one carries owner_sub, so every one is discovered. */
 const OWNED = ['create_projects', 'create_project_revisions', 'create_project_assets',
-  'create_project_revision_assets', 'create_brand_kits'];
+  'create_project_revision_assets', 'create_brand_kits', 'create_region_edits'];
 
 /** Children before parents, which is the order discovered-exporters.ts derives from the FK graph. */
-const DELETE_ORDER = ['create_project_revision_assets', 'create_brand_kits',
+const DELETE_ORDER = ['create_region_edits', 'create_project_revision_assets', 'create_brand_kits',
   'create_project_revisions', 'create_projects', 'create_project_assets'];
 
 /** The exporter's own statements, character for character (discovered-exporters.ts:176 and :182). */
@@ -197,6 +198,9 @@ async function seedEveryTable(owner) {
     await client.query(`INSERT INTO create_brand_kits
       (owner_issuer,owner_sub,kit,logo_asset_id) VALUES ($1,$2,'{}'::jsonb,$3)`,
       [owner.issuer, owner.sub, assetId]);
+    await client.query(`INSERT INTO create_region_edits (edit_id,project_id,owner_issuer,owner_sub,source_revision,layer_id,
+      source_asset_id,selection,instruction,status,result_asset_id) VALUES ($1,$2,$3,$4,1,'photo',$5,'{}'::jsonb,'Synthetic instruction','ready',$5)`,
+      [randomUUID(), projectId, owner.issuer, owner.sub, assetId]);
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK'); throw error;
@@ -252,8 +256,9 @@ test('the package\'s own create.* path still works with no platform identity sta
     assets: (await client.query('SELECT asset_id FROM create_project_assets')).rows.length,
     revisionAssets: (await client.query('SELECT asset_id FROM create_project_revision_assets')).rows.length,
     brandKits: (await client.query('SELECT revision FROM create_brand_kits')).rows.length,
+    regionEdits: (await client.query('SELECT edit_id FROM create_region_edits')).rows.length,
   }));
-  assert.deepEqual(mine, { projects: [projectId], revisions: 1, assets: 1, revisionAssets: 1, brandKits: 1 });
+  assert.deepEqual(mine, { projects: [projectId], revisions: 1, assets: 1, revisionAssets: 1, brandKits: 1, regionEdits: 1 });
 });
 
 test('a different person reads and deletes nothing through EITHER stamp', async () => {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Little Monsters - Lecture Recorder</title>
+<title>Little Monsters — Lecture Recorder</title>
 <!--
   CHANGE LOG
   ---------------------------------------------------------------------------
@@ -13,307 +13,176 @@
   2026-04-22     | roger.murphy@agenticfederal.us   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
   2026-06-12     | roger.murphy@agenticfederal.us   | Student-flow rework: record button now drives browser STT directly (auto-restarting captions that survive a full class period) instead of the unconfigured server-audio path; one-tap "Make my study stuff"; results screen with Play Presentation + Study Flashcards deep links, rendered notes, friendly card lists; audio-file upload demoted to a collapsed fallback
   2026-06-12     | roger.murphy@agenticfederal.us   | Recording durability: transcript auto-saves to localStorage (resume banner on reload); MediaRecorder captures real audio in 10s chunks persisted to IndexedDB (crash-safe), saved server-side after generation (POST /lectures/:id/audio) with listen/download links
+  2026-09-26     | maintainer@emeraldcoastsystemsgroup.com     | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, cockpit theme links and glass; hero, step cards, draft callout, tabs, result lists and the upload zone use the system with tokens only. Role truth: lecture writes are teacher/admin only, so a student sees a calm "your teacher records the lecture" state with a dashboard button instead of a record button that the routes would refuse; the false "audio stays on your device" wording is gone (the recording is uploaded to the lecture); exit goes through the page frame
   ---------------------------------------------------------------------------
 -->
-<script>
-// Sync iframe theme to parent cockpit's data-theme. Storage events don't fire
-// in the writing window, so a MutationObserver on the parent <html> is the
-// reliable path for live same-tab updates when the operator cycles themes.
-(function(){
-  function applyTheme(n){
-    if(!n)return;
-    document.documentElement.setAttribute('data-theme',n);
-    var href='/cockpit/css/themes/'+n+'.css';
-    var link=document.querySelector('link[data-lm-theme-link="1"]');
-    if(link){if(link.getAttribute('href')!==href)link.setAttribute('href',href);return;}
-    link=document.createElement('link');link.rel='stylesheet';link.href=href;
-    link.setAttribute('data-lm-theme-link','1');document.head.appendChild(link);
-  }
-  function initial(){
-    try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(_e){}
-    try{var s=window.localStorage.getItem('cockpit-theme');if(s)return s;}catch(_e){}
-    return 'midnight';
-  }
-  applyTheme(initial());
-  try{if(window.parent&&window.parent!==window){
-    var ph=window.parent.document.documentElement;
-    new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){if(ms[i].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)applyTheme(t);}}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});
-  }}catch(_e){}
-})();
-</script>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
 <link rel="stylesheet" href="/api/education/education.css">
 <style>
-  body { padding: var(--space-lg); display: flex; flex-direction: column; align-items: center; }
-
-  .card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 28px; width: 100%; max-width: 620px; text-align: center; }
-  h1 { font-size: 20px; margin-bottom: 6px; }
-  .subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 22px; }
-
-  /* ── Recorder ── */
-  .recorder-ring {
-    width: 110px; height: 110px; border-radius: 50%;
-    border: 3px solid var(--border-color);
-    display: flex; align-items: center; justify-content: center;
-    margin: 0 auto 14px;
+  /* The record ring and its button are the one page-specific control. */
+  .rec-stage { text-align: center; }
+  .rec-ring {
+    width: 116px; height: 116px; border-radius: 50%; margin: 6px auto 12px;
+    border: 3px solid var(--lm-line-strong); display: flex; align-items: center; justify-content: center;
     transition: border-color 0.3s, box-shadow 0.3s;
   }
-  .recorder-ring.recording {
-    border-color: var(--status-error);
-    box-shadow: 0 0 24px rgba(239,68,68,0.3);
-    animation: pulse 1.5s infinite;
-  }
-  .recorder-ring.done {
-    border-color: var(--status-success);
-    box-shadow: 0 0 24px rgba(52,211,153,0.3);
-  }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
-
-  .rec-btn {
-    width: 60px; height: 60px; border-radius: 50%;
-    background: var(--status-error); border: none; cursor: pointer;
-    transition: transform 0.15s, border-radius 0.3s;
-  }
+  .rec-ring.recording { border-color: var(--lm-danger); box-shadow: 0 0 0 10px color-mix(in srgb, var(--lm-danger) 12%, transparent); animation: rec-pulse 1.5s infinite; }
+  .rec-ring.done { border-color: var(--lm-success); box-shadow: 0 0 0 10px color-mix(in srgb, var(--lm-success) 12%, transparent); }
+  @keyframes rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+  .rec-btn { width: 64px; height: 64px; border-radius: 50%; border: 0; cursor: pointer; background: var(--lm-danger); box-shadow: var(--lm-shadow-soft); transition: transform 0.15s, border-radius 0.3s, width 0.3s, height 0.3s; }
   .rec-btn:hover { transform: scale(1.05); }
-  .rec-btn.recording { border-radius: 8px; width: 34px; height: 34px; }
-
-  .timer { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 8px 0 2px; }
-  .status { color: var(--text-muted); font-size: 13px; margin-bottom: 14px; min-height: 20px; }
-  .status.error { color: var(--status-error); }
-  .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--status-error); margin-right: 6px; animation: pulse 1.5s infinite; vertical-align: 1px; }
-
-  /* ── Class Selector ── */
-  .field { margin-bottom: 16px; text-align: left; }
-  .field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
-  .field select {
-    width: 100%; padding: 10px 12px; border-radius: 8px;
-    border: 1px solid var(--border-color); background: rgba(255,255,255,0.04);
-    color: var(--text-primary); font-size: 13px; outline: none;
-  }
-  .field select:focus { border-color: var(--accent-primary); }
-
-  /* ── Transcript ── */
-  .transcript-wrap { text-align: left; margin-top: 6px; }
-  .transcript-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
-  #transcriptBox {
-    width: 100%; background: rgba(255,255,255,0.03); color: var(--text-primary);
-    border: 1px solid var(--border-color); border-radius: 12px; padding: 12px;
-    font-size: 14px; resize: vertical; font-family: inherit; min-height: 110px;
-  }
-  #transcriptBox:focus { border-color: var(--accent-primary); outline: none; }
-
-  .btn-make {
-    margin-top: 14px; width: 100%;
-    background: linear-gradient(135deg, #7c5cff, #5fdcc0); color: #0a0e1a;
-    border: 0; border-radius: 14px; padding: 16px 22px;
-    font-weight: 800; cursor: pointer; font-size: 17px;
-  }
-  .btn-make:hover { filter: brightness(1.08); }
-  .btn-make:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  /* ── Generation progress ── */
-  .gen-steps { text-align: left; margin-top: 14px; font-size: 13px; color: var(--text-muted); }
-  .gen-steps div { padding: 3px 0; opacity: 0.45; transition: opacity 0.3s; }
-  .gen-steps div.active { opacity: 1; color: var(--text-primary); }
-  .gen-steps div.done { opacity: 1; color: var(--status-success); }
-
-  /* ── Results ── */
-  .results { text-align: left; margin-top: 22px; }
-  .ready-banner { text-align: center; font-size: 16px; font-weight: 700; margin-bottom: 14px; }
-  .action-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
-  .action-row a {
-    flex: 1 1 160px; text-align: center; text-decoration: none;
-    padding: 16px 14px; border-radius: 14px; font-weight: 800; font-size: 15px;
-  }
-  .action-primary { background: linear-gradient(135deg, #7c5cff, #5fdcc0); color: #0a0e1a; }
-  .action-secondary { background: none; border: 1px solid var(--border-color); color: var(--text-primary); }
-  .action-row a:hover { filter: brightness(1.08); }
-  .action-row .count { display: block; font-size: 11px; font-weight: 600; opacity: 0.75; margin-top: 3px; }
-
-  .result-tab {
-    display: inline-block; padding: 8px 14px; border-radius: 8px 8px 0 0;
-    font-size: 12px; cursor: pointer; color: var(--text-muted); border: 1px solid transparent;
-    border-bottom: none; margin-right: 2px;
-  }
-  .result-tab.active { color: var(--text-primary); background: var(--bg-card); border-color: var(--border-color); }
-  .result-content {
-    background: var(--bg-card); border: 1px solid var(--border-color);
-    border-radius: 0 var(--radius-md) var(--radius-md) var(--radius-md);
-    padding: 16px; max-height: 380px; overflow-y: auto;
-    font-size: 13px; line-height: 1.6;
-  }
-  .result-content h1, .result-content h2, .result-content h3 { margin: 10px 0 6px; font-size: 15px; }
-  .fc-item { border: 1px solid var(--border-color); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
-  .fc-item .q { font-weight: 700; margin-bottom: 4px; }
-  .fc-item .a { color: var(--text-muted); }
-  .asn-item { display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding: 8px 2px; }
-  .asn-item:last-child { border-bottom: none; }
-  .asn-item .due { color: var(--accent-primary); font-size: 12px; white-space: nowrap; margin-left: 12px; }
-
-  /* ── Draft restore banner ── */
-  .draft-banner {
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    background: rgba(124,92,255,0.12); border: 1px solid rgba(124,92,255,0.4);
-    border-radius: 12px; padding: 10px 14px; margin-bottom: 16px;
-    font-size: 13px; text-align: left;
-  }
-  .draft-banner button {
-    border: none; border-radius: 8px; padding: 6px 14px; font-weight: 700;
-    cursor: pointer; font-size: 12px;
-  }
-  .draft-banner .resume { background: var(--accent-primary); color: #fff; }
-  .draft-banner .discard { background: none; border: 1px solid var(--border-color); color: var(--text-muted); }
-
-  .save-badge { color: var(--status-success); opacity: 0; transition: opacity 0.4s; }
+  .rec-btn.recording { border-radius: 10px; width: 36px; height: 36px; }
+  .rec-timer { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; margin: 4px 0 2px; }
+  .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--lm-danger); margin-right: 6px; animation: rec-pulse 1.5s infinite; vertical-align: 1px; }
+  .transcript-meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--lm-muted); margin-bottom: 6px; }
+  .save-badge { color: var(--lm-success); opacity: 0; transition: opacity 0.4s; }
   .save-badge.show { opacity: 1; }
+  .btn-block { width: 100%; }
 
-  .audio-status { font-size: 12px; color: var(--text-muted); margin-top: 10px; text-align: center; }
-  .audio-status a { color: var(--accent-primary); }
+  /* Generation progress: four calm steps that light up while the one model pass runs. */
+  .gen-steps { display: grid; gap: 4px; margin-top: 14px; font-size: 14px; color: var(--lm-muted); text-align: left; }
+  .gen-steps div { padding: 4px 0; opacity: 0.45; transition: opacity 0.3s; }
+  .gen-steps div.active { opacity: 1; color: var(--lm-ink); }
+  .gen-steps div.done { opacity: 1; color: var(--lm-success); }
 
-  /* ── Fallback upload ── */
-  details.upload-fallback { margin-top: 20px; text-align: left; font-size: 12px; color: var(--text-muted); }
-  details.upload-fallback summary { cursor: pointer; padding: 4px 0; }
+  /* Results */
+  .action-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 12px; }
+  .action-row .lm-btn { flex: 1 1 200px; flex-direction: column; gap: 2px; }
+  .action-row .count { display: block; font-size: 12px; font-weight: 600; opacity: 0.8; }
+  .result-content { margin-top: 12px; max-height: 420px; overflow-y: auto; font-size: 14.5px; line-height: 1.6; }
+  .result-content h2, .result-content h3, .result-content h4 { margin: 12px 0 6px; font-size: 16px; }
+  .result-content ul { margin: 6px 0; padding-left: 20px; }
+  .result-content code { background: var(--lm-input-bg); border-radius: 6px; padding: 1px 5px; }
+  .result-content .lm-item small { white-space: normal; }
+
+  /* Fallback upload */
+  .upload-fallback summary { cursor: pointer; font-weight: 700; color: var(--lm-ink-2); min-height: var(--lm-touch); display: flex; align-items: center; }
   .upload-zone {
-    border: 2px dashed var(--border-color); border-radius: var(--radius-md);
-    padding: 18px; margin-top: 8px; cursor: pointer; text-align: center;
+    border: 2px dashed var(--lm-line-strong); border-radius: var(--lm-radius-md); padding: 22px 16px; margin-top: 8px;
+    cursor: pointer; text-align: center; color: var(--lm-muted); font-size: 14px; background: var(--lm-accent-wash);
     transition: border-color 0.2s, background 0.2s;
-    color: var(--text-muted); font-size: 13px;
   }
-  .upload-zone:hover { border-color: var(--accent-primary); background: rgba(139,92,246,0.04); }
-  .upload-zone.dragover { border-color: var(--status-active); background: rgba(6,182,212,0.06); }
-
-  /* ── Persistent exit bar (fixes the "no way out of the recorder" trap) ── */
-  .recorder-topbar {
-    position: sticky; top: 0; z-index: 50; align-self: stretch;
-    display: flex; align-items: center; gap: 10px; margin: -8px 0 10px;
-    padding: 6px 2px;
-  }
-  .back-btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: var(--bg-card); border: 1px solid var(--border-color);
-    color: var(--text-primary); border-radius: 10px; padding: 8px 14px;
-    font-size: 13px; font-weight: 700; cursor: pointer;
-  }
-  .back-btn:hover { border-color: var(--accent-primary); }
-
-  .hide { display: none; }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--lm-accent); background: var(--lm-accent-soft); color: var(--lm-ink); }
 
   @media (max-width: 640px) {
-    body { padding: var(--space-sm, 12px); }
-    .card { padding: 18px 14px; }
-
-    /* Prevent iOS zoom-on-focus for all inputs */
-    .field select { font-size: 16px; }
-    #transcriptBox { font-size: 16px; }
-
-    /* Stack action buttons vertically so each gets full width */
-    .action-row { flex-direction: column; gap: 8px; }
-    .action-row a { flex: 1 1 auto; width: 100%; box-sizing: border-box; padding: 14px 12px; }
-
-    /* Wrap the result tabs so they don't overflow horizontally */
-    .result-tab { font-size: 11px; padding: 6px 10px; }
-
-    /* Assignment row: allow the title to wrap instead of being crushed */
-    .asn-item { flex-wrap: wrap; gap: 4px; }
-    .asn-item .due { margin-left: 0; white-space: normal; }
-
-    /* Ensure the transcript meta row wraps cleanly */
-    .transcript-meta { flex-wrap: wrap; gap: 4px; }
-
-    /* Make the draft banner buttons easier to tap */
-    .draft-banner button { padding: 8px 16px; font-size: 13px; }
+    .action-row { flex-direction: column; }
+    .action-row .lm-btn { flex-basis: auto; }
   }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
-<script src="/api/artifacts/send-to.js" defer></script>
 </head>
 <body>
-
-<!-- Always-visible exit so the student is never trapped on the recording screen. -->
-<div class="recorder-topbar">
-  <button class="back-btn" id="backBtn" onclick="exitRecorder()" title="Back to My Day">&#8592; Back</button>
-</div>
-
-<div class="card">
-  <h1>🎤 Record your class</h1>
-  <p class="subtitle">Tap record when class starts. When it ends, get a replay presentation, flashcards &amp; notes.</p>
-
-  <!-- Draft restore (shown when an unsaved lecture survives a reload/crash) -->
-  <div class="draft-banner hide" id="draftBanner">
-    <span id="draftInfo">📂 We saved your last lecture.</span>
-    <button class="resume" onclick="resumeDraft()">Resume</button>
-    <button class="discard" onclick="discardDraft()">Discard</button>
-  </div>
-
-  <!-- Step 1: class -->
-  <div class="field">
-    <label>1 · Which class is this?</label>
-    <select id="classSelect">
-      <option value="">Select a class...</option>
-    </select>
-  </div>
-
-  <!-- Step 2: record -->
-  <div class="field" style="text-align:center"><label style="text-align:left">2 · Record the lecture (live captions are written for you)</label></div>
-  <div class="recorder-ring" id="recorderRing">
-    <button class="rec-btn" id="recBtn" onclick="toggleRecording()" title="Record"></button>
-  </div>
-  <div class="timer" id="timer">00:00</div>
-  <div class="status" id="status">Tap the red button to start listening</div>
-
-  <div class="transcript-wrap">
-    <div class="transcript-meta">
-      <span id="liveIndicator"></span>
-      <span><span class="save-badge" id="saveBadge">✓ saved&nbsp;&nbsp;</span><span id="wordCount">0 words</span></span>
-    </div>
-    <textarea id="transcriptBox" rows="5" placeholder="Your lecture appears here while you record — or paste/type it yourself."></textarea>
-  </div>
-
-  <!-- Step 3: make study stuff -->
-  <button class="btn-make" id="genMaterialsBtn" onclick="generateFromTranscript()">✨ Make my study stuff</button>
-  <div class="gen-steps hide" id="genSteps">
-    <div id="gs1">📖 Reading your lecture…</div>
-    <div id="gs2">📝 Writing your notes…</div>
-    <div id="gs3">🃏 Making flashcards…</div>
-    <div id="gs4">🎬 Building your presentation…</div>
-  </div>
-  <div class="status" id="genStatus" style="margin-top:8px"></div>
-
-  <!-- Results -->
-  <div class="results hide" id="results">
-    <div class="ready-banner" id="readyBanner">🎉 Your study stuff is ready!</div>
-    <div class="action-row" id="actionRow"></div>
-    <div class="audio-status" id="audioStatus"></div>
+<main class="lm-page is-narrow">
+  <header class="lm-hero">
     <div>
-      <span class="result-tab active" data-tab="notes" onclick="showTab('notes')">Notes</span>
-      <span class="result-tab" data-tab="flashcards" onclick="showTab('flashcards')">Flashcards</span>
-      <span class="result-tab" data-tab="assignments" onclick="showTab('assignments')">Assignments</span>
-      <span class="result-tab" data-tab="transcript" onclick="showTab('transcript')">Transcript</span>
+      <div class="lm-eyebrow">Lecture recorder</div>
+      <h1 class="lm-display" id="heroTitle">Lecture recorder</h1>
+      <p class="lm-lead" id="heroLead"></p>
+      <div class="lm-hero-actions hide" id="heroActions">
+        <button type="button" class="lm-btn lm-btn-ghost" id="backBtn" onclick="exitRecorder()" title="Back to the dashboard">&#8592; Back</button>
+      </div>
     </div>
-    <div class="result-content" id="resultContent"></div>
+    <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
+  </header>
+
+  <div id="roleCheck" class="lm-loading">Checking who's signed in…</div>
+
+  <!-- Learners: lecture writes are teacher/admin only (the routes refuse them), so say so calmly. -->
+  <div id="studentState" class="lm-empty hide">
+    <div class="lm-empty-icon">🎧</div>
+    <strong>Nothing to record here.</strong>
+    When a replay is ready, you'll find it in your class along with its flashcards and notes.
+    <div><button type="button" class="lm-btn lm-btn-primary" id="studentHome">Go to my dashboard</button></div>
   </div>
 
-  <!-- Fallback: audio file upload (server pipeline) -->
-  <details class="upload-fallback">
-    <summary>Have a recording file instead? Upload it</summary>
-    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
-      Drag &amp; drop an audio file here, or click to choose
+  <div id="recorder" class="lm-stack hide">
+    <!-- Draft restore (shown when an unsaved lecture survives a reload/crash) -->
+    <div class="lm-callout lm-row is-wrap hide" id="draftBanner">
+      <span id="draftInfo" class="lm-spacer">📂 We saved your last lecture.</span>
+      <button type="button" class="lm-btn lm-btn-primary" onclick="resumeDraft()">Resume</button>
+      <button type="button" class="lm-btn lm-btn-ghost" onclick="discardDraft()">Discard</button>
     </div>
-    <input type="file" id="fileInput" accept="audio/*,.mp3,.m4a,.wav,.webm,.ogg,.mp4" class="hide">
-    <div class="status" id="uploadStatus"></div>
-  </details>
-</div>
+
+    <!-- Step 1: class -->
+    <section class="lm-card">
+      <div class="lm-field" style="margin-bottom:0">
+        <label for="classSelect">1 · Which class is this?</label>
+        <select id="classSelect">
+          <option value="">Choose a class…</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Step 2: record -->
+    <section class="lm-card rec-stage">
+      <div class="lm-field" style="margin-bottom:6px;text-align:left"><label>2 · Record the lecture — live captions are written for you</label></div>
+      <div class="rec-ring" id="recorderRing">
+        <button type="button" class="rec-btn" id="recBtn" onclick="toggleRecording()" title="Record" aria-label="Start or stop recording"></button>
+      </div>
+      <div class="rec-timer" id="timer">00:00</div>
+      <div class="lm-status" id="status">Tap the red button to start listening</div>
+
+      <div class="lm-field" style="text-align:left;margin:14px 0 0">
+        <div class="transcript-meta">
+          <span id="liveIndicator"></span>
+          <span><span class="save-badge" id="saveBadge">✓ saved&nbsp;&nbsp;</span><span id="wordCount">0 words</span></span>
+        </div>
+        <textarea id="transcriptBox" rows="5" aria-label="Lecture transcript" placeholder="The lecture appears here while you record — or paste or type it yourself."></textarea>
+      </div>
+
+      <!-- Step 3: make the study materials -->
+      <button type="button" class="lm-btn lm-btn-primary lm-btn-lg btn-block lm-mt-md" id="genMaterialsBtn" onclick="generateFromTranscript()">✨ Make the study materials</button>
+      <div class="gen-steps hide" id="genSteps">
+        <div id="gs1">📖 Reading the lecture…</div>
+        <div id="gs2">📝 Writing the notes…</div>
+        <div id="gs3">🃏 Making flashcards…</div>
+        <div id="gs4">🎬 Building the presentation…</div>
+      </div>
+      <div class="lm-status lm-mt-md" id="genStatus"></div>
+    </section>
+
+    <!-- Results -->
+    <section class="lm-card is-feature hide" id="results">
+      <div class="lm-card-kicker">Ready for the class</div>
+      <h3 id="readyBanner">🎉 The study materials are ready!</h3>
+      <div class="action-row" id="actionRow"></div>
+      <div class="lm-help" id="audioStatus"></div>
+      <div class="lm-tabs lm-mt-md" role="tablist" aria-label="Generated materials">
+        <button type="button" class="lm-tab result-tab active" data-tab="notes" onclick="showTab('notes')">Notes</button>
+        <button type="button" class="lm-tab result-tab" data-tab="flashcards" onclick="showTab('flashcards')">Flashcards</button>
+        <button type="button" class="lm-tab result-tab" data-tab="assignments" onclick="showTab('assignments')">Assignments</button>
+        <button type="button" class="lm-tab result-tab" data-tab="transcript" onclick="showTab('transcript')">Transcript</button>
+      </div>
+      <div class="lm-card is-flat result-content" id="resultContent"></div>
+    </section>
+
+    <!-- Fallback: audio file upload (server pipeline) -->
+    <section class="lm-card is-compact">
+      <details class="upload-fallback">
+        <summary>Have a recording file instead? Upload it</summary>
+        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+          Drag &amp; drop an audio file here, or click to choose
+        </div>
+        <input type="file" id="fileInput" accept="audio/*,.mp3,.m4a,.wav,.webm,.ogg,.mp4" class="hide">
+        <div class="lm-status lm-mt-md" id="uploadStatus"></div>
+      </details>
+    </section>
+  </div>
+</main>
 
 <div id="mascot-container"></div>
 
-<script src="/api/education/mascot.js?v=3"></script>
+<script src="/api/artifacts/send-to.js" defer></script>
+<script src="/api/education/mascot.js?v=4"></script>
 <script>
 /**
- * Lecture Recorder — student flow:
+ * Lecture Recorder — teacher/admin flow:
  *   pick class → record (browser SpeechRecognition writes live captions,
  *   auto-restarting so it survives a whole class period) → one tap turns the
  *   transcript into notes + flashcards + assignments + a replay presentation.
- * No audio leaves the device on this path; the optional file-upload fallback
- * uses the server lecture pipeline instead.
+ * The microphone audio is also captured (MediaRecorder, crash-safe in IndexedDB)
+ * and uploaded to the lecture once the materials exist; the optional file-upload
+ * fallback uses the server lecture pipeline instead.
  */
 
 var isRecording = false;
@@ -321,6 +190,7 @@ var startTime = null;
 var timerInterval = null;
 var resultData = {};
 var genTicker = null;
+var GEN_LABEL = 'Make the study materials';
 
 // ── Durability: nothing from a 30-minute class should be losable. ──
 // Transcript: throttled autosave to localStorage, restored via the draft banner.
@@ -363,7 +233,7 @@ function resumeDraft() {
       document.getElementById('transcriptBox').value = d.t;
       recordedSeconds = d.secs || 0;
       updateWordCount();
-      setStatus('Lecture restored — keep recording or tap "Make my study stuff".');
+      setStatus('Lecture restored — keep recording or tap "' + GEN_LABEL + '".');
     }
   } catch (_e) { /* noop */ }
   document.getElementById('draftBanner').classList.add('hide');
@@ -434,7 +304,6 @@ async function checkOrphanAudio() {
   a.href = URL.createObjectURL(blob);
   a.download = 'lecture-recovered.webm';
   a.textContent = '🎧 Download audio (~' + (mins || 1) + ' min)';
-  a.style.color = 'var(--accent-primary)';
   info.appendChild(document.createTextNode(' '));
   info.appendChild(a);
   banner.classList.remove('hide');
@@ -471,7 +340,7 @@ async function uploadRecording(lectureId) {
   }
   var blob = new Blob(audioChunks, { type: (mediaRecorder && mediaRecorder.mimeType) || 'audio/webm' });
   if (blob.size < 20000) return;
-  el.textContent = '🎧 Saving your recording…';
+  el.textContent = '🎧 Saving the recording…';
   try {
     var fd = new FormData();
     fd.append('audio', blob, 'lecture.webm');
@@ -497,14 +366,14 @@ if (typeof LMMascot !== 'undefined') {
   mascot = new LMMascot(document.getElementById('mascot-container'));
 }
 
-// ── Browser speech-to-text (free, local, no server credentials) ──
+// ── Browser speech-to-text for the live captions (no server credentials involved) ──
 var recognition = null;
 var committed = '';
 
 function startCaptions() {
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
-    setStatus('Live captions need Chrome or Edge — you can still paste your lecture below.', true);
+    setStatus('Live captions need Chrome or Edge — you can still paste the lecture below.', true);
     return false;
   }
   var box = document.getElementById('transcriptBox');
@@ -525,7 +394,7 @@ function startCaptions() {
     scheduleDraftSave();
   };
   // The Web Speech API stops itself after pauses/silence — fatal in a real
-  // class. While the student is still recording, immediately restart.
+  // class. While the recording is still on, immediately restart.
   recognition.onend = function () {
     if (isRecording) {
       try { recognition.start(); } catch (_e) { /* restarting too fast — next onend retries */ }
@@ -551,23 +420,21 @@ function updateWordCount() {
 }
 document.getElementById('transcriptBox').addEventListener('input', function () { updateWordCount(); scheduleDraftSave(); });
 
-/** Toggle recording on/off. */
 /** Leave the recorder safely. If recording, confirm + stop (captions are already
- *  auto-saved to localStorage, so nothing is lost), then return to My Day. This is
- *  the fix for the "Record traps you with no exit" report. */
+ *  auto-saved to localStorage, so nothing is lost), then go back through the page
+ *  frame — the host swaps the view when embedded, the window navigates standalone. */
 function exitRecorder() {
   try {
     if (isRecording) {
       if (!window.confirm('Stop recording and go back? Your captions are saved — you can resume later.')) return;
       toggleRecording(); // existing stop path: stops captions + audio, keeps the transcript
     }
-    if (typeof saveDraft === 'function') saveDraft();
+    saveDraft();
   } catch (_e) { /* leave anyway */ }
-  // Embedded as an iframe surface in the cockpit — navigating this frame to My Day
-  // swaps the recorder out for the student's agenda without a full cockpit reload.
-  window.location.href = '/api/education/my-day';
+  window.LM.navigate('dashboard');
 }
 
+/** Toggle recording on/off. */
 function toggleRecording() {
   if (isRecording) {
     isRecording = false;
@@ -576,11 +443,11 @@ function toggleRecording() {
     stopRecordingUi();
     saveDraft();
     var words = document.getElementById('transcriptBox').value.trim().split(/\s+/).filter(Boolean).length;
-    setStatus(words > 5 ? 'Nice! Now tap "Make my study stuff" below 👇' : 'Stopped. Record again or paste your lecture below.');
+    setStatus(words > 5 ? 'Nice! Now tap "' + GEN_LABEL + '" below 👇' : 'Stopped. Record again or paste the lecture below.');
     if (mascot) mascot.setMood('proud');
   } else {
     if (!document.getElementById('classSelect').value) {
-      setStatus('Pick your class first (step 1) 👆', true);
+      setStatus('Pick the class first (step 1) 👆', true);
       return;
     }
     isRecording = true;
@@ -591,7 +458,7 @@ function toggleRecording() {
     document.getElementById('recBtn').classList.add('recording');
     document.getElementById('recorderRing').classList.add('recording');
     document.getElementById('liveIndicator').innerHTML = '<span class="live-dot"></span>listening…';
-    setStatus('Recording — captions appear below as your teacher talks');
+    setStatus('Recording — live captions appear below as you speak');
     if (mascot) mascot.setMood('hyped');
   }
 }
@@ -617,7 +484,7 @@ function updateTimer() {
 function setStatus(msg, isError) {
   var el = document.getElementById('status');
   el.textContent = msg;
-  el.classList.toggle('error', !!isError);
+  el.classList.toggle('is-error', !!isError);
 }
 
 // ── Generate study materials ──
@@ -637,7 +504,7 @@ async function generateFromTranscript() {
   var genStatus = document.getElementById('genStatus');
   var btn = document.getElementById('genMaterialsBtn');
   if (isRecording) toggleRecording();
-  if (!classId) { genStatus.textContent = 'Pick your class first (step 1) 👆'; return; }
+  if (!classId) { genStatus.textContent = 'Pick the class first (step 1) 👆'; return; }
   if (transcript.length < 20) { genStatus.textContent = 'Record or paste a bit of the lecture first.'; return; }
 
   btn.disabled = true;
@@ -649,7 +516,7 @@ async function generateFromTranscript() {
   // reads as progress instead of a frozen page.
   var step = 1; setGenStep(1);
   genTicker = setInterval(function () { if (step < 4) { step++; setGenStep(step); } }, 6000);
-  if (mascot) mascot.showQuote('Making your study stuff — about half a minute!');
+  if (mascot) mascot.showQuote('Making the study materials — about half a minute!');
 
   try {
     var resp = await fetch('/api/education/process-transcript', {
@@ -702,27 +569,23 @@ function showResults(data, classId) {
       '&classId=' + encodeURIComponent(classId) +
       (data.flashcardSetId ? '&setId=' + encodeURIComponent(data.flashcardSetId) : '');
     row.insertAdjacentHTML('beforeend',
-      '<a class="action-primary" href="' + pUrl + '">🎬 Play presentation<span class="count">' + slides.length + ' slides</span></a>');
+      '<a class="lm-btn lm-btn-primary lm-btn-lg" href="' + pUrl + '">🎬 Play the presentation<span class="count">' + slides.length + ' slides</span></a>');
   }
   if (cards.length > 0) {
     var fUrl = '/api/education/flashcards?setId=' + encodeURIComponent(data.flashcardSetId || '') + '&classId=' + encodeURIComponent(classId);
     row.insertAdjacentHTML('beforeend',
-      '<a class="action-secondary" href="' + fUrl + '">🃏 Study flashcards<span class="count">' + cards.length + ' cards</span></a>');
+      '<a class="lm-btn lm-btn-ghost lm-btn-lg" href="' + fUrl + '">🃏 Open the flashcards<span class="count">' + cards.length + ' cards</span></a>');
   }
 
   document.getElementById('readyBanner').textContent =
-    '🎉 Done! ' + (data.grounded ? 'Grounded in your class. ' : '') +
+    '🎉 Done! ' + (data.grounded ? 'Grounded in the class materials. ' : '') +
     slides.length + ' slides · ' + cards.length + ' cards · ' + assignments.length + ' assignments';
   document.getElementById('results').classList.remove('hide');
   showTab('notes');
   document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function esc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-  });
-}
+var esc = window.LM.esc;
 
 /** Tiny markdown renderer (headings, bold, code, bullets) — input is escaped first. */
 function mdToHtml(md) {
@@ -736,7 +599,7 @@ function mdToHtml(md) {
     var b = ln.match(/^\s*(?:[-•*]|\d+\.)\s+(.*)$/);
     if (h) { closeUl(); out.push('<h' + (h[1].length + 1) + '>' + h[2] + '</h' + (h[1].length + 1) + '>'); }
     else if (b) {
-      if (!inUl) { out.push('<ul style="margin:6px 0;padding-left:20px">'); inUl = true; }
+      if (!inUl) { out.push('<ul>'); inUl = true; }
       out.push('<li>' + b[1] + '</li>');
     } else if (ln.trim() === '') { closeUl(); out.push('<br>'); }
     else { closeUl(); out.push(ln + '<br>'); }
@@ -753,17 +616,21 @@ function showTab(tabName) {
   var content = document.getElementById('resultContent');
   switch (tabName) {
     case 'notes':
-      content.innerHTML = resultData.notes ? mdToHtml(resultData.notes) : 'No notes generated';
+      content.innerHTML = resultData.notes ? mdToHtml(resultData.notes) : '<span class="lm-muted">No notes were generated for this lecture.</span>';
       break;
     case 'flashcards':
-      content.innerHTML = (resultData.flashcards || []).map(function (c) {
-        return '<div class="fc-item"><div class="q">' + esc(c.front) + '</div><div class="a">' + esc(c.back) + '</div></div>';
-      }).join('') || 'No flashcards generated';
+      content.innerHTML = (resultData.flashcards || []).length
+        ? '<ul class="lm-list">' + resultData.flashcards.map(function (c) {
+            return '<li class="lm-item"><div class="lm-item-body"><strong>' + esc(c.front) + '</strong><small>' + esc(c.back) + '</small></div></li>';
+          }).join('') + '</ul>'
+        : '<span class="lm-muted">No flashcards were generated for this lecture.</span>';
       break;
     case 'assignments':
-      content.innerHTML = (resultData.assignments || []).map(function (a) {
-        return '<div class="asn-item"><span>' + esc(a.title) + '</span><span class="due">' + esc(a.due || '') + '</span></div>';
-      }).join('') || 'No assignments mentioned in this lecture 🎉';
+      content.innerHTML = (resultData.assignments || []).length
+        ? '<ul class="lm-list">' + resultData.assignments.map(function (a) {
+            return '<li class="lm-item"><div class="lm-item-body"><strong>' + esc(a.title) + '</strong></div>' + (a.due ? '<span class="lm-pill is-info">' + esc(a.due) + '</span>' : '') + '</li>';
+          }).join('') + '</ul>'
+        : '<span class="lm-muted">No assignments were mentioned in this lecture 🎉</span>';
       break;
     case 'transcript':
       content.innerHTML = '<div style="white-space:pre-wrap">' + esc(resultData.transcript || document.getElementById('transcriptBox').value) + '</div>';
@@ -776,12 +643,12 @@ function showTab(tabName) {
 function setUploadStatus(msg, isError) {
   var el = document.getElementById('uploadStatus');
   el.textContent = msg;
-  el.classList.toggle('error', !!isError);
+  el.classList.toggle('is-error', !!isError);
 }
 
 async function uploadAudioFile(file) {
   var classId = document.getElementById('classSelect').value;
-  if (!classId) { setUploadStatus('Pick your class first (step 1).', true); return; }
+  if (!classId) { setUploadStatus('Pick the class first (step 1).', true); return; }
   setUploadStatus('Uploading and processing…');
   var formData = new FormData();
   formData.append('audio', file, file.name || 'lecture.webm');
@@ -791,7 +658,7 @@ async function uploadAudioFile(file) {
     var resp = await fetch('/api/education/process-lecture', { method: 'POST', body: formData });
     if (!resp.ok) throw new Error('Upload failed: ' + resp.status);
     var data = await resp.json();
-    setUploadStatus('Uploaded! Processing in the background (ticket ' + (data.ticketId || '—') + '). Check your class page in a few minutes.');
+    setUploadStatus('Uploaded! Processing in the background (ticket ' + (data.ticketId || '—') + '). Check the class page in a few minutes.');
   } catch (err) {
     setUploadStatus('Upload failed: ' + err.message, true);
   }
@@ -831,14 +698,36 @@ async function loadClasses() {
   }
 }
 
-// Boot — load classes, then check for anything a crash/reload left behind.
-loadClasses().then(function () {
+/** Learner view: the routes refuse lecture writes for students, so the page says so instead of offering a button that fails. */
+function showStudentState() {
+  document.getElementById('heroTitle').textContent = 'Your teacher records the lecture.';
+  document.getElementById('heroLead').textContent = 'Replays, flashcards and notes appear in your classes when they are ready.';
+  document.getElementById('studentState').classList.remove('hide');
+  document.getElementById('studentHome').addEventListener('click', function () { window.LM.navigate('dashboard'); });
+}
+
+/** Teacher/admin view: the full recorder. */
+function showRecorder() {
+  document.getElementById('heroTitle').textContent = 'Record today’s lesson.';
+  document.getElementById('heroLead').textContent = 'Tap record when class starts. When it ends, one tap turns the live captions into a replay presentation, flashcards and notes for the whole class.';
+  document.getElementById('heroActions').classList.remove('hide');
+  document.getElementById('recorder').classList.remove('hide');
+}
+
+// Boot — who is this? Learners get the calm state; teachers/admins (and an unanswered
+// identity, since the routes are the authority) get the recorder, its classes, and
+// anything a crash/reload left behind.
+(async function boot() {
+  var who = null;
+  try { who = await window.LM.me(); } catch (_e) { who = null; }
+  document.getElementById('roleCheck').classList.add('hide');
+  if (who && who.role === 'student') { showStudentState(); return; }
+  showRecorder();
+  await loadClasses();
   checkDraft();
-  return openIdb();
-}).then(function (db) {
-  idb = db;
+  idb = await openIdb();
   checkOrphanAudio();
-});
+})();
 </script>
 </body>
 </html>

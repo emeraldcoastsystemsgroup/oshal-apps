@@ -9,7 +9,10 @@ re-implements physics.
 
 | path | what |
 |---|---|
-| `service.py` | the JSON-lines stdio worker (BUILD_CONTRACT §5): `capabilities` / `polar` / `evaluate` / `screen` / `export` / `mission` |
+| `service.py` | the JSON-lines stdio worker (BUILD_CONTRACT §5): `capabilities` / `polar` / `evaluate` / `screen` / `export` / `mission` / `certify` |
+| `certify_reference.py`, `reference_presets.json` | the `certify` command: the four shipped presets on the REAL chain, each pass or fail with structured reasons; the presets are parity-tested against `tools/aero-lab.html` |
+| `build_certification.py` | the physical build-certification gate every export writes (`buildCertification`: not certified until pressure / material / purity / mass evidence reconciles) |
+| `sweep_real.py` | the pinned, seeded, fingerprint-stamped, resumable real-chain design sweep (not baked into the image; run on a dev box) |
 | `aero_lab_worker.py` | the frozen spawn target the Node adapter runs; delegates to `service.py` |
 | `export_build_files.py` | FINAL_PRODUCT generation (FP_01..FP_05 pattern) parameterized on the evaluated design — STL / DXF / airfoil.dat / BOM / build sheet; STLs fail closed on degeneracy, edge topology or triangle self-intersection |
 | `aerosim/` | **vendored engine tree** (snapshot of the validated package) |
@@ -87,6 +90,15 @@ degrades to an honest capabilities report; the worker does not crash.
 
 `capabilities` also reports `engineFingerprint` (sha256 over the four stable
 entry-point modules) so any result can be traced to the exact engine build.
+`tests/test_fingerprint_docs.py` holds the documented value in the package docs to
+the computed one.
+
+**Every verdict says why in a closed vocabulary.** `aerosim/validity.py` is the
+closed set of reason codes (build refusals, trim/aero, energy closure, screen
+rules). The integrators publish `detail["closed_reason_codes"]` beside
+`closed_reasons`, the screen publishes `detail["screen_reason_codes"]`, and a
+refusal carries its code from the raise site (`validity.reason_of`); nothing maps
+a message to a code.
 
 **Hybrid designs** (`buoyancy_fraction > 0`) fly the shipped in-sim path: a
 spherical `BuoyancyVolume` sized by the HYBRID_common fixed point, with the

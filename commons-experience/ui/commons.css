@@ -1,0 +1,28 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Own the established skin palette while respecting saved appearance.
+ */
+body[data-skin="commons"], [data-layout][data-skin="commons"], .experience[data-skin="commons"], [data-skin="commons"], body[data-theme="commons"], [data-theme="commons"] {
+  --bg: #f6f4f9;
+  --surface: #ffffff;
+  --surface-2: #f2eef7;
+  --chrome: #ede7f2;
+  --ink: #322d40;
+  --muted: #81748e;
+  --line: #e5deeb;
+  --accent: #725191;
+  --on-accent: #ffffff;
+  --soft: #efe5f8;
+  --paper: #ffffff;
+  --on: #ffffff;
+  --feature: #efe5f8;
+  --teal: #725191;
+  --gold: #d5b583;
+  --radius-custom: 14px;
+  --radius: 14px;
+  --theme-brand: "Commons";
+  color-scheme: light;
+}

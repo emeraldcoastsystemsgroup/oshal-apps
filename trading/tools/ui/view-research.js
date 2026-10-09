@@ -18,12 +18,16 @@
  *                      consumes it (guarded by typeof so a missing module never throws).
  * The watchlist panel (GET/POST/DELETE /watchlist) is defined here and shared with the Accounts landing
  * page (view-accounts.js calls loadWatchlistPanel(hostId, false) — rows there navigate via researchSymbol).
+ * The Congress disclosures panel (GET /reports/congress) sits under the watchlist on the stock tab; its
+ * Add button goes through the same watchlistAdd, so the list is the feed's and the add is the owner's.
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-143 D5: the movers meta line reports WHICH source produced the board and, when it was the vendor's screener, the vendor's OWN last_updated beside oshal's request time - the two are different claims and the surface must not merge them. mvSourceWords names the screener board in plain words instead of falling through to a bare "Source: ..." echo.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Show the watchlist's feed-backed congressional net and disclosure date, while rendering absent or unavailable world data as unavailable rather than a fabricated holding.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Congress disclosures panel on the stock tab (GET /reports/congress): the names the STOCK Act feed reported lately, each with "disclosed <report day>", and an explicit owner "Add to watchlist" that posts the symbol only through the existing POST /watchlist. The disclosure day is now printed as its UTC calendar day in both places (cgDay): the watchlist column passed the midnight-UTC timestamp through toLocaleDateString, which shows the previous day in any timezone west of UTC.
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.3 - this file predates the log and its earlier history is in git. Sub-tab race close-out (ADR-136 D2 tail): loadScoreboard and loadFeed now capture RENDER_TOKEN and tabGen() before their first await and bail after it, matching loadMovers and loadWatchlistPanel; loadAlgos is a plain function because it awaits nothing (its caller ignores the return). No handler attribute existed here and none is introduced - every action stays a delegated data-* listener.
  */
 
@@ -53,7 +57,8 @@ function loadStockTab() {
     '<button class="btn primary" id="rsGo">Research</button>' +
     '<span class="sub">Quote, chart, fundamentals, earnings, news, SEC filings and major events for one stock.</span></div>' +
     '<div id="rsBody"><div class="foot">Enter a ticker to research it.</div></div></div>' +
-    '<div class="panel" id="rsWatch">' + spinner('Loading watchlist…') + '</div>';
+    '<div class="panel" id="rsWatch">' + spinner('Loading watchlist…') + '</div>' +
+    '<div class="panel" id="rsCongress">' + spinner('Loading congressional disclosures…') + '</div>';
   const inp = $('rsSym'), go = $('rsGo');
   if (inp) {
     inp.oninput = () => { inp.value = inp.value.toUpperCase(); };
@@ -67,6 +72,7 @@ function loadStockTab() {
     attachSymbolSearch(inp, (hit) => { const el = $('rsSym'); if (el) el.value = hit.symbol; researchLoad(hit.symbol); });
   }
   loadWatchlistPanel('rsWatch', true);
+  loadCongressPanel('rsCongress');
   if (sym) researchLoad(sym); else if (inp) inp.focus();
 }
 /* GET /research/:symbol → the whole page for one stock. Captures the render token AND the sub-tab
@@ -207,11 +213,16 @@ function wlShellHtml(bodyHtml) {
 }
 function wlRowsHtml(items) {
   if (!items.length) return '<div class="foot" style="margin:0">Nothing on the watchlist yet — add a ticker to follow it here.</div>';
-  return '<div style="overflow-x:auto"><table><thead><tr><th>Symbol</th><th class="num">Last</th><th class="num">Today</th><th class="num">Added</th><th></th></tr></thead><tbody>' + items.map(it => {
+  return '<div style="overflow-x:auto"><table><thead><tr><th>Symbol</th><th class="num">Last</th><th class="num">Today</th><th>Congress</th><th class="num">Added</th><th></th></tr></thead><tbody>' + items.map(it => {
     const q = it.quote || null, ch = q && q.dayChangePct != null ? Number(q.dayChangePct) : null, sym = esc(it.symbol);
+    const c = it.congress || null;
+    const congress = c
+      ? '<span class="pill">' + (c.net == null ? 'feed' : (Number(c.net) >= 0 ? '+' : '') + Number(c.net)) + '</span><div class="foot" style="margin:2px 0 0">disclosed ' + esc(cgDay(c.disclosureDate)) + '</div>'
+      : '<span class="foot" style="margin:0">unavailable</span>';
     return '<tr><td><a href="#" data-wl="research" data-sym="' + sym + '"><strong>' + sym + '</strong></a>' + (it.note ? ' <span class="foot" style="margin:0">' + esc(it.note) + '</span>' : '') + '</td>' +
       '<td class="num">' + (q && q.price != null ? money(q.price) : '—') + '</td>' +
       '<td class="num ' + (ch == null ? '' : (ch >= 0 ? 'ok' : 'err')) + '">' + (ch == null ? '—' : pct(ch)) + '</td>' +
+      '<td>' + congress + '</td>' +
       '<td class="num foot" style="margin:0">' + (it.addedAt ? esc(rsDay(it.addedAt)) : '—') + '</td>' +
       '<td style="text-align:right;white-space:nowrap"><button class="btn ghost sm" data-wl="research" data-sym="' + sym + '">Research</button> ' +
       '<button class="icon-btn" data-wl="remove" data-sym="' + sym + '" title="Remove from watchlist" aria-label="Remove" style="width:28px;min-height:26px;font-size:13px">&times;</button></td></tr>';
@@ -255,6 +266,196 @@ async function watchlistRemove(sym, hostId, inline) {
   catch (e) { const host = $(hostId), m = host && host.querySelector('.wl-msg'); if (m) { m.className = 'sub err'; m.textContent = e.message; } return; }
   loadWatchlistPanel(hostId, inline);
 }
+
+/* ── congressional disclosures — feed-only list (stock tab) ────── */
+/* The report day of a disclosure, as the calendar day the feed gave (midnight UTC), never shifted by the
+   viewer's timezone — the value a human checks against the STOCK Act filing. */
+const cgDay = (iso) => rsDay(String(iso || '').slice(0, 10));
+let CG_VIEW = 'trades';
+let CG_SEARCH = '';
+let CG_CHAMBER = '';
+let CG_PARTY = '';
+let CG_SORT_COL = 'disclosureDate';
+let CG_SORT_DIR = 'desc';
+let CG_DATA = null;
+
+/* GET /reports/congress → the names and granular trades the disclosure feed reported lately. */
+async function loadCongressPanel(hostId) {
+  const token = RENDER_TOKEN, gen = tabGen();
+  const host = $(hostId); if (!host) return;
+  cgWire(host);
+  let j = null, err = null;
+  try { j = await api('/reports/congress?limit=50'); } catch (e) { err = e; }
+  if (stale(token) || tabStale(gen) || !$(hostId)) return;
+  CG_DATA = j;
+  host.innerHTML = cgShellHtml(err ? '<div class="err" style="font-size:13px">' + esc(err.message) + '</div>' : cgRowsHtml(j));
+}
+function cgShellHtml(bodyHtml) {
+  const isOk = CG_DATA && CG_DATA.status === 'ok';
+  const hasTrades = Boolean(CG_DATA && CG_DATA.trades && CG_DATA.trades.length);
+  const toolbar = isOk ? '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 10px">' +
+    (hasTrades ? '<div style="display:inline-flex;gap:4px">' +
+      '<button class="btn ' + (CG_VIEW === 'trades' ? 'primary' : 'ghost') + ' sm" data-cg-mode="trades">By Politician</button>' +
+      '<button class="btn ' + (CG_VIEW === 'summary' ? 'primary' : 'ghost') + ' sm" data-cg-mode="summary">By Stock</button></div>' : '') +
+    '<input id="cgSearch" placeholder="Filter politician, ticker, party..." style="max-width:210px;padding:3px 8px;font-size:12px" value="' + esc(CG_SEARCH || '') + '" />' +
+    '<select id="cgChamber" style="padding:3px 6px;font-size:12px"><option value="">All Chambers</option><option value="House"' + (CG_CHAMBER === 'House' ? ' selected' : '') + '>House</option><option value="Senate"' + (CG_CHAMBER === 'Senate' ? ' selected' : '') + '>Senate</option></select>' +
+    '<select id="cgParty" style="padding:3px 6px;font-size:12px"><option value="">All Parties</option><option value="Democrat"' + (CG_PARTY === 'Democrat' ? ' selected' : '') + '>Democrat</option><option value="Republican"' + (CG_PARTY === 'Republican' ? ' selected' : '') + '>Republican</option></select>' +
+    '</div>' : '';
+
+  return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px"><h2 style="margin:0">Congress disclosures</h2>' +
+    '<span class="sub cg-msg" style="margin-left:auto"></span></div>' + toolbar + '<div id="cgTableWrap">' + bodyHtml + '</div>';
+}
+/* 'ok' is the only status that shows rows; anything else says unavailable and why. */
+function cgRowsHtml(j) {
+  const note = j && j.note ? '<div class="foot" style="margin:8px 0 0">' + esc(j.note) + '</div>' : '';
+  if (!j || j.status !== 'ok') return '<div class="foot" style="margin:0">unavailable' + (j && j.reason ? ' &mdash; ' + esc(j.reason) : '') + '</div>' + note;
+
+  if (CG_VIEW === 'trades' && j.trades && j.trades.length) {
+    let list = j.trades.slice();
+    if (CG_SEARCH) {
+      const q = CG_SEARCH.toLowerCase().trim();
+      list = list.filter((t) =>
+        String(t.representative || '').toLowerCase().includes(q) ||
+        String(t.ticker || '').toLowerCase().includes(q) ||
+        String(t.party || '').toLowerCase().includes(q) ||
+        String(t.assetDescription || '').toLowerCase().includes(q)
+      );
+    }
+    if (CG_CHAMBER) {
+      list = list.filter((t) => String(t.chamber || '').toLowerCase() === CG_CHAMBER.toLowerCase());
+    }
+    if (CG_PARTY) {
+      list = list.filter((t) => String(t.party || '').toLowerCase() === CG_PARTY.toLowerCase());
+    }
+
+    list.sort((a, b) => {
+      let va = a[CG_SORT_COL] ?? '';
+      let vb = b[CG_SORT_COL] ?? '';
+      if (CG_SORT_COL === 'amount') {
+        va = Number(a.amountRangeLow ?? 0);
+        vb = Number(b.amountRangeLow ?? 0);
+      }
+      const cmp = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb));
+      return CG_SORT_DIR === 'asc' ? cmp : -cmp;
+    });
+
+    if (!list.length) return '<div class="foot" style="margin:0">No congressional trades match your filter criteria.</div>' + note;
+
+    const sortMark = (col) => CG_SORT_COL === col ? (CG_SORT_DIR === 'asc' ? ' ▲' : ' ▼') : '';
+    return '<div style="overflow-x:auto"><table><thead><tr>' +
+      '<th data-cg-sort="representative" style="cursor:pointer">Politician' + sortMark('representative') + '</th>' +
+      '<th data-cg-sort="ticker" style="cursor:pointer">Stock' + sortMark('ticker') + '</th>' +
+      '<th data-cg-sort="direction" style="cursor:pointer">Action' + sortMark('direction') + '</th>' +
+      '<th data-cg-sort="amount" class="num" style="cursor:pointer">Amount' + sortMark('amount') + '</th>' +
+      '<th data-cg-sort="disclosureDate" style="cursor:pointer">Dates' + sortMark('disclosureDate') + '</th>' +
+      '<th></th></tr></thead><tbody>' +
+      list.map(cgTradeRowHtml).join('') + '</tbody></table></div>' + note;
+  }
+
+  let rows = j.rows || [];
+  if (CG_SEARCH) {
+    const q = CG_SEARCH.toLowerCase().trim();
+    rows = rows.filter((r) => String(r.symbol || '').toLowerCase().includes(q));
+  }
+  if (!rows.length) return '<div class="foot" style="margin:0">No congressional disclosures from the feed in the last ' + esc(String(j.windowDays || 90)) + ' days.</div>' + note;
+
+  return '<div style="overflow-x:auto"><table><thead><tr><th>Symbol</th><th class="num">Net</th><th class="num">Buys / sells</th><th>Disclosed</th><th></th></tr></thead><tbody>' +
+    rows.map(cgRowHtml).join('') + '</tbody></table></div>' + note;
+}
+function cgRowHtml(r) {
+  const sym = esc(String(r.symbol || '')), net = r.net == null ? null : Number(r.net);
+  const count = (v) => v == null ? '&mdash;' : esc(String(v));
+  return '<tr><td><strong>' + sym + '</strong></td>' +
+    '<td class="num ' + (net == null ? '' : (net >= 0 ? 'ok' : 'err')) + '">' + (net == null ? '&mdash;' : (net > 0 ? '+' : '') + net) + '</td>' +
+    '<td class="num">' + count(r.buys) + ' / ' + count(r.sells) + '</td>' +
+    '<td>disclosed ' + esc(cgDay(r.disclosureDate)) + '</td>' +
+    '<td style="text-align:right;white-space:nowrap"><button class="btn ghost sm" data-cg="research" data-sym="' + sym + '">Research</button> ' +
+    '<button class="btn ghost sm" data-cg="add" data-sym="' + sym + '">Add to watchlist</button></td></tr>';
+}
+function cgTradeRowHtml(t) {
+  const sym = esc(String(t.ticker || '').toUpperCase());
+  const rep = esc(String(t.representative || 'Unknown'));
+  const party = esc(String(t.party || ''));
+  const chamber = esc(String(t.chamber || ''));
+  const state = esc(String(t.state || ''));
+  const isBuy = t.direction === 'buy';
+  const txType = esc(String(t.transactionType || (isBuy ? 'Purchase' : 'Sale')));
+  const amt = esc(String(t.amount || (t.amountRangeLow ? '$' + Number(t.amountRangeLow).toLocaleString() : '—')));
+  const filingBtn = t.ptrLink ? '<a href="' + esc(t.ptrLink) + '" target="_blank" rel="noopener noreferrer" class="btn ghost sm" style="text-decoration:none">Filing</a> ' : '';
+  const partyColor = party.toLowerCase().includes('democrat') ? 'background:rgba(59,130,246,0.15);color:#60a5fa' :
+                     party.toLowerCase().includes('republican') ? 'background:rgba(239,68,68,0.15);color:#f87171' : '';
+
+  return '<tr>' +
+    '<td><strong>' + rep + '</strong>' +
+    (party ? ' <span class="pill" style="font-size:9px;' + partyColor + '">' + party + '</span>' : '') +
+    (chamber ? ' <span class="pill" style="font-size:9px;opacity:0.8">' + chamber + (state ? ' (' + state + ')' : '') + '</span>' : '') + '</td>' +
+    '<td><strong>' + sym + '</strong>' + (t.assetDescription ? '<div class="sub" style="font-size:11px">' + esc(t.assetDescription) + '</div>' : '') + '</td>' +
+    '<td><span class="pill ' + (isBuy ? 'buy' : 'sell') + '" style="font-size:10px">' + txType + '</span></td>' +
+    '<td class="num">' + amt + '</td>' +
+    '<td>disclosed ' + esc(cgDay(t.disclosureDate)) + (t.transactionDate ? '<div class="sub" style="font-size:11px">traded ' + esc(cgDay(t.transactionDate)) + '</div>' : '') + '</td>' +
+    '<td style="text-align:right;white-space:nowrap">' +
+    '<button class="btn ghost sm" data-cg="research" data-sym="' + sym + '">Research</button> ' +
+    filingBtn +
+    '<button class="btn ghost sm" data-cg="add" data-sym="' + sym + '">Add to watchlist</button></td>' +
+    '</tr>';
+}
+function cgRepaint(host) {
+  const wrap = host.querySelector('#cgTableWrap');
+  if (wrap && CG_DATA) wrap.innerHTML = cgRowsHtml(CG_DATA);
+}
+/* Delegated, once per host element (the host outlives every repaint of its rows). */
+function cgWire(host) {
+  if (host.getAttribute('data-cg-wired')) return;
+  host.setAttribute('data-cg-wired', '1');
+  host.addEventListener('input', (e) => {
+    if (e.target && e.target.id === 'cgSearch') {
+      CG_SEARCH = e.target.value;
+      cgRepaint(host);
+    }
+  });
+  host.addEventListener('change', (e) => {
+    if (e.target && e.target.id === 'cgChamber') {
+      CG_CHAMBER = e.target.value;
+      cgRepaint(host);
+    } else if (e.target && e.target.id === 'cgParty') {
+      CG_PARTY = e.target.value;
+      cgRepaint(host);
+    }
+  });
+  host.addEventListener('click', (e) => {
+    const modeBtn = e.target.closest('[data-cg-mode]');
+    if (modeBtn && host.contains(modeBtn)) {
+      e.preventDefault();
+      CG_VIEW = modeBtn.getAttribute('data-cg-mode');
+      host.querySelectorAll('[data-cg-mode]').forEach((b) => {
+        b.className = 'btn ' + (b.getAttribute('data-cg-mode') === CG_VIEW ? 'primary' : 'ghost') + ' sm';
+      });
+      cgRepaint(host);
+      return;
+    }
+    const sortTh = e.target.closest('[data-cg-sort]');
+    if (sortTh && host.contains(sortTh)) {
+      e.preventDefault();
+      const col = sortTh.getAttribute('data-cg-sort');
+      if (CG_SORT_COL === col) {
+        CG_SORT_DIR = CG_SORT_DIR === 'asc' ? 'desc' : 'asc';
+      } else {
+        CG_SORT_COL = col;
+        CG_SORT_DIR = 'desc';
+      }
+      cgRepaint(host);
+      return;
+    }
+    const el = e.target.closest('[data-cg]'); if (!el || !host.contains(el)) return;
+    e.preventDefault();
+    const sym = el.getAttribute('data-sym');
+    if (el.getAttribute('data-cg') === 'add') congressAdd(sym, host.querySelector('.cg-msg'));
+    else wlResearchInline(sym);
+  });
+}
+/* The owner's explicit add: the symbol only, through the existing watchlist POST. The watchlist panel
+   then repaints and shows the same disclosure day in its Congress column, read from the feed again. */
+function congressAdd(sym, msgEl) { return watchlistAdd(sym, msgEl, 'rsWatch', true); }
 
 /* ── recommendations — tab ───────────────────────────────────── */
 function loadReco() {

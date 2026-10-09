@@ -10,6 +10,12 @@ written.
 
 **Start at [index.html](index.html)** — it links everything below.
 
+**This folder is the dated artifact of one run.** Since aero-lab 1.3.0 it is read back as
+**evaluation 1 of the Floater record** (ADR-160 S4, `GET /api/aero-lab/vehicles`): every file here
+hashed, every `verify_*.json` kept, `design_snapshot.json` as the authored design vector, and the
+two ledgers below compared as a budget check that is **red at +274.3 g**. The record is what
+develops from here; this folder is not edited to match a later engine.
+
 ---
 
 ## What the aircraft is
@@ -43,6 +49,13 @@ equinox** — that needs 180.3 Wh and a 128 × 42.7 in hull.
 | [V2_CONFIG.md](V2_CONFIG.md) | The deep technical record — every configuration run, with its numbers |
 | [BUILD_SHEET.md](BUILD_SHEET.md) | How to actually build it |
 | [viewer.html](viewer.html) | Self-contained 3D viewer — the assembled craft, no network needed |
+
+> **Superseded, 2026-09-27.** The report's engine-defect list B1–B4 predates store commit
+> `20168c9` (2026-08-06), which landed the BEMT convergence tolerances (B1), accepted-state buoyant
+> trim and the live Reynolds brackets (B2, B2b) and the stepped pack thermal/heater ledger (B3); the
+> evidence is in [../engine/TEST_STATUS.md](../engine/TEST_STATUS.md). B4's four anchors are one named
+> gate since 1.4.0, `engine/tests/test_verification_anchors.py`, with the mission ledger reconciled
+> on the real chain. The report itself is left as recorded.
 
 ### Build it
 | File | What |

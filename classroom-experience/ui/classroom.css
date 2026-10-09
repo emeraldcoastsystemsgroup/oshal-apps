@@ -1,0 +1,30 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Own the established skin palette while respecting saved appearance.
+ */
+body[data-skin="classroom"], [data-layout][data-skin="classroom"], .experience[data-skin="classroom"], [data-skin="classroom"],
+body[data-skin="playful"], [data-layout][data-skin="playful"], .experience[data-skin="playful"], [data-skin="playful"],
+body[data-theme="playful"], [data-theme="playful"] {
+  --bg: #fbf8f5;
+  --surface: #fffcff;
+  --surface-2: #f4eef9;
+  --chrome: #fffcff;
+  --ink: #342845;
+  --muted: #796694;
+  --line: #ebdff5;
+  --accent: #6c4f97;
+  --on-accent: #ffffff;
+  --soft: #f4eef9;
+  --paper: #fffcff;
+  --on: #ffffff;
+  --feature: #eee0f5;
+  --teal: #6c4f97;
+  --gold: #f2c94c;
+  --radius-custom: 24px;
+  --radius: 24px;
+  --theme-brand: "Classroom";
+  color-scheme: light;
+}

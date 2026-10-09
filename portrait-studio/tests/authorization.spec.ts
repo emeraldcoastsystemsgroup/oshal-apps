@@ -6,12 +6,14 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify explicit CRUD grants, independent ownership, denial and capability boundaries over actual HTTP.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Retain the exact readiness version assertion for the local detector release.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Prove named manager entry through the actual outer mounter without a second subject-only legacy assignment.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.15.4, the operator-only antigravity-cli image rail (the same rule as Create): the operator's provider report is configured and their portrait is generated on it; anyone else is reported not configured and refused 503 portrait_provider_unavailable before a row is queued, with one resolve and no other provider; a provider that is not available to the caller is refused the same way; a queued run whose provider stops serving the caller fails its row without generating; codex-cli is still refused by name. The readiness check now compares with the manifest's own version instead of a literal that pinned the release it shipped in (it still asserted 1.14.1 while the manifest said 1.15.3).
  */
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { createPortraitFixture, IDS, ISSUER, media } from './authorization.fixture';
 import { requirePortraitPermission } from '../src-routes/portrait-authorization';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import yaml from 'js-yaml';
 let fixture: Awaited<ReturnType<typeof createPortraitFixture>>;
 beforeEach(async () => { fixture = await createPortraitFixture(); });
 afterEach(async () => { await fixture?.close(); });
@@ -37,7 +39,8 @@ it('keeps the operator ownership report read-only and outside automatic installa
 it('requires actual user view authority for metadata readiness and refuses a service-only caller', async () => {
   expect((await fixture.call('/_smoke')).status).toBe(403);
   await fixture.change('viewer');
-  expect(await (await fixture.call('/_smoke')).json()).toMatchObject({ status: 'ready', package: 'portrait-studio', version: '1.14.1' });
+  const manifest = yaml.load(readFileSync(resolve(__dirname, '../oshal-app.yaml'), 'utf8')) as { version: string };
+  expect(await (await fixture.call('/_smoke')).json()).toMatchObject({ status: 'ready', package: 'portrait-studio', version: manifest.version });
   expect((await fetch(fixture.base + '/api/portrait-studio/_smoke', { headers: { 'x-service-secret': 'fixture-service-only' } })).status).toBe(401);
   expect(media.calls).toBe(0);
 });
@@ -132,12 +135,40 @@ it('refuses CLI image transport before creating a row or invoking a provider', a
   expect(media.calls).toBe(0);
 });
 
-async function createPortrait() {
-  const catalog = await (await fixture.call('/catalog')).json();
+async function createPortrait(user = 'alice') {
+  const catalog = await (await fixture.call('/catalog', user)).json();
   const body = new FormData(); body.set('photo', new Blob(['fixture-photo'], { type: 'image/png' }), 'photo.png');
   body.set('mode', 'professional'); body.set('style', catalog.presets.professional[0].id);
-  return fetch(fixture.base + '/api/portrait-studio/portraits', { method: 'POST', headers: { 'x-fixture-user': 'alice' }, body });
+  return fetch(fixture.base + '/api/portrait-studio/portraits', { method: 'POST', headers: { 'x-fixture-user': user }, body });
 }
+it('accepts the operator-only antigravity-cli rail for the operator and refuses anyone else as not configured, never a fallback', async () => {
+  await fixture.change('creator'); await fixture.change('creator', 'bob');
+  media.provider = 'antigravity-cli'; media.operators = ['alice'];
+  expect(await (await fixture.call('/provider')).json()).toMatchObject({ configured: true, provider: 'antigravity-cli' });
+  const created = await createPortrait();
+  expect(created.status).toBe(202);
+  await expect.poll(() => fixture.rows.find(row => row.portrait_id === IDS.created)?.status).toBe('done');
+  expect(media.calls).toBe(1);
+  media.resolvedFor = [];
+  expect(await (await fixture.call('/provider', 'bob')).json()).toMatchObject({ configured: false, provider: null, unavailable: 'portrait_provider_unavailable' });
+  const rows = fixture.rows.length, refused = await createPortrait('bob');
+  expect(refused.status).toBe(503);
+  expect(await refused.json()).toEqual({ error: 'portrait_provider_unavailable' });
+  expect(fixture.rows.length).toBe(rows);
+  expect(media.calls).toBe(1);
+  expect(media.resolvedFor).toEqual(['bob', 'bob']);
+});
+it('refuses a provider that is not available to the caller, before a row and again in a queued run, without generating', async () => {
+  await fixture.change('creator'); media.provider = 'antigravity-cli'; media.available = () => false;
+  expect(await (await fixture.call('/provider')).json()).toMatchObject({ configured: false, provider: 'antigravity-cli', unavailable: 'portrait_provider_unavailable' });
+  const refused = await createPortrait();
+  expect(refused.status).toBe(503); expect(await refused.json()).toEqual({ error: 'portrait_provider_unavailable' });
+  expect(fixture.rows.some(row => row.portrait_id === IDS.created)).toBe(false);
+  let answers = 0; media.available = () => answers++ === 0;
+  expect((await createPortrait()).status).toBe(202);
+  await expect.poll(() => fixture.rows.find(row => row.portrait_id === IDS.created)?.status).toBe('failed');
+  expect(media.calls).toBe(0);
+});
 it('creates an issuer-qualified portrait using the authorized platform provider fixture', async () => {
   await fixture.change('creator'); const response = await createPortrait();
   expect(response.status).toBe(202);

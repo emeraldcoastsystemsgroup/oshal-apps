@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — ADR-138 guards for single-stock research, the watchlist and pinned lots: every new handler 401-gates via callerSub, the book is resolved QUERY-FIRST (the 2026-09-03 paper-routing class), the watchlist table carries the owner RLS statements, the research route never throws on a failed section (each section wrapped, reported 'unavailable', an estimate labelled 'cadence-estimate'), the 8-K decoder maps 2.02 → results and drops 9.01 beside other items, the manual route only pins a BUY with exit rules (scheduler checked BEFORE any insert, schedule created exactly like the arm route) and persists extended_hours, release is 428-gated, and the family registers right after the event-plan routes.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D4: the protected-entry pin now passes notBefore (the fire time of a TIMED order) to createPinnedLotIntent — assertion updated to the new call shape.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Nine handlers: GET /reports/congress joins the family (it 401-gates and fails through fail() like the rest). The congressional projection now also requires a recorded observedAt, so a legacy trade-day-keyed row can never be labelled "disclosed"; the fixture carries observedAt and a point without one is dropped.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -15,6 +16,7 @@ import {
 } from '../src-routes/trading-edgar-filings';
 import { computeMovers, isMoverKind, MOVER_KINDS, type MoverKind } from '../src-routes/trading-movers';
 import type { OhlcvBar } from '@/features/trading';
+import { projectCongressSignals } from '../src-routes/trading-research-routes';
 
 const src = (f: string) => readFileSync(path.resolve(__dirname, '..', f), 'utf8');
 
@@ -24,17 +26,18 @@ describe('research / watchlist / lots routes — auth + book scoping (ADR-138)',
   const route = src('src-routes/trading-research-routes.ts');
   const handlers = route.split(/\n  router\.(?=get|post|patch|delete)/).slice(1);
 
-  it('registers exactly the eight handlers', () => {
+  it('registers exactly the nine handlers', () => {
     const heads = handlers.map((h) => h.split('\n')[0]);
     expect(heads.filter((h) => h.startsWith("get('/research/:symbol'"))).toHaveLength(1);
     expect(heads.filter((h) => h.startsWith("get('/symbols/search'"))).toHaveLength(1);
     expect(heads.filter((h) => h.startsWith("get('/reports/movers'"))).toHaveLength(1);
+    expect(heads.filter((h) => h.startsWith("get('/reports/congress'"))).toHaveLength(1);
     expect(heads.filter((h) => h.startsWith("get('/watchlist'"))).toHaveLength(1);
     expect(heads.filter((h) => h.startsWith("post('/watchlist'"))).toHaveLength(1);
     expect(heads.filter((h) => h.startsWith("delete('/watchlist/:symbol'"))).toHaveLength(1);
     expect(heads.filter((h) => h.startsWith("get('/lots'"))).toHaveLength(1);
     expect(heads.filter((h) => h.startsWith("post('/lots/:id/release'"))).toHaveLength(1);
-    expect(handlers).toHaveLength(8);
+    expect(handlers).toHaveLength(9);
   });
 
   it('every handler 401-gates via callerSub before any work', () => {
@@ -68,6 +71,27 @@ describe('research / watchlist / lots routes — auth + book scoping (ADR-138)',
     expect(route).toMatch(/runRuntimeSchemaBootstrap\(\{\s*\n\s*pool, moduleName: 'trading watchlist'/);
     expect(route).toContain('PRIMARY KEY (user_sub, symbol)');
     expect(route).toContain("from '@/shared/services/database'");
+  });
+
+  it('projects only dated Quiver congressional points and never caller-supplied holdings', () => {
+    const seen = '2026-09-25T06:00:00.000Z';
+    const result = projectCongressSignals([
+      { entity: 'world:ticker:nvda', metric: 'congress_buys', ts: '2026-09-24T00:00:00.000Z', value: 3, source: 'quiver-congress', observedAt: seen },
+      { entity: 'world:ticker:nvda', metric: 'congress_net', ts: '2026-09-24T00:00:00.000Z', value: 2, source: 'quiver-congress', observedAt: seen },
+      { entity: 'world:ticker:nvda', metric: 'congress_sells', ts: '2026-09-25T00:00:00.000Z', value: 1, source: 'model', observedAt: seen },
+      { entity: 'world:ticker:amd', metric: 'congress_net', ts: '2026-09-24T00:00:00.000Z', value: 4, source: null, observedAt: seen },
+      // A legacy row: feed-sourced but written before observed_at existed, keyed on the TRADE day.
+      { entity: 'world:ticker:tsla', metric: 'congress_net', ts: '2026-08-01T00:00:00.000Z', value: 5, source: 'quiver-congress', observedAt: null },
+    ]);
+    expect(result.get('NVDA')).toMatchObject({ buys: 3, net: 2, sells: null, disclosureDate: '2026-09-24T00:00:00.000Z', observedAt: seen, source: 'quiver-congress' });
+    expect(result.has('AMD')).toBe(false);
+    expect(result.has('TSLA'), 'a point without a recorded observation is never labelled disclosed').toBe(false);
+    expect(route).toContain('const [quotes, congress] = await Promise.all');
+    expect(route).toContain('createWorldIntelligenceService');
+    expect(route).toContain("const CONGRESS_SOURCE = 'quiver-congress';");
+    expect(route).toContain('point.source !== CONGRESS_SOURCE || !point.observedAt');
+    expect(route).toContain('disclosureDate');
+    expect(route).not.toMatch(/body\.(congress|holdings|political)/i);
   });
 
   it('every research section is wrapped: a failure is logged, reported unavailable, and never thrown', () => {

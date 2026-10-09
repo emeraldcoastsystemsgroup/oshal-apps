@@ -1,6 +1,8 @@
 /**
  * CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove named role decisions through actual catalog, core policy, adapters and HTTP guard without changing a real school record.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Prove the ADR-139 class-material hand-off is bound: every manifest artifact destination has an artifactActions binding, POST /import-artifact and the class-material action require the same create+share permissions, students and teachers are admitted by the real policy and HTTP guard, and an unassigned, share-denied or revoked actor is refused.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Exercise native complete learning composites through actual runtime registration, atomic apply/revoke and missing/denied component refusals.
  */
 'use strict';
 const test = require('node:test');
@@ -45,6 +47,10 @@ test('every shipped HTTP route, static surface and game has one binding includin
 test('all declared bots and tutor handoff bind named permissions; undeclared tools and jobs fail closed', () => {
   assert.deepEqual(catalog.bindings.bots.map(binding => binding.id), manifest.bots.map(bot => bot.agentId));
   assert.deepEqual(resolveOperationPermissions(registration, { kind: 'artifactActions', operation: 'tutor' }), ['app.open', 'tutor.execute']);
+  assert.deepEqual(catalog.bindings.artifactActions.map(binding => binding.id), manifest.artifacts.accepts.map(action => action.id));
+  const fileIntoClass = ['app.open', 'material.create', 'material.share'];
+  assert.deepEqual(resolveOperationPermissions(registration, { kind: 'artifactActions', operation: 'class-material' }), fileIntoClass);
+  assert.deepEqual(resolveOperationPermissions(registration, http('POST', '/import-artifact')), fileIntoClass);
   assert.equal(resolveOperationPermissions(registration, { kind: 'tools', operation: 'enroll-anyone' }), null);
   assert.equal(resolveOperationPermissions(registration, { kind: 'jobs', operation: 'school-sweep' }), null);
 });
@@ -64,6 +70,27 @@ test('student can study, upload and use the tutor without acquiring teaching or 
   assert.deepEqual(effective.roles, ['student']);
   assert.deepEqual(effective.managementRoles, []);
   assert.deepEqual(f.pool.reads, []);
+});
+
+test('class-material hand-off admits a student and a teacher and refuses unassigned, share-denied and revoked actors', async () => {
+  const f = await fixture();
+  const importArtifact = http('POST', '/import-artifact');
+  const action = { kind: 'artifactActions', operation: 'class-material' };
+  const unassigned = await f.authorize('unbound', importArtifact);
+  assert.equal(unassigned.allowed, false);
+  assert.notEqual(unassigned.reason, 'authorization_operation_unbound');
+  await f.change('student', 'student');
+  await f.change('teacher', 'teacher');
+  for (const who of ['student', 'teacher']) {
+    assert.equal((await f.authorize(who, importArtifact)).allowed, true, who);
+    assert.equal((await f.authorize(who, action)).allowed, true, who);
+  }
+  await f.change(undefined, 'student', 'deny', { permission: 'material.share' });
+  assert.equal((await f.authorize('student', importArtifact)).reason, 'authorization_explicit_deny');
+  assert.equal((await f.authorize('student', action)).allowed, false);
+  assert.equal((await f.authorize('student', http('POST', '/materials'))).allowed, true);
+  await f.change('teacher', 'teacher', 'revoke');
+  assert.equal((await f.authorize('teacher', importArtifact)).allowed, false);
 });
 
 test('first-sign-in principal reaches ordinary routes without any structural adoption or enrollment write', async () => {
@@ -147,11 +174,14 @@ test('actual HTTP guard accepts student assets and own activity and blocks staff
     assert.equal((await f.call('/education.css', 'student')).status, 200);
     assert.equal((await f.call('/games/snake/index.html', 'student', 'HEAD')).status, 200);
     assert.equal((await f.call('/quiz-results', 'student', 'POST')).status, 200);
+    assert.equal((await f.call('/import-artifact', 'student', 'POST')).status, 200);
+    assert.equal((await f.call('/import-artifact', 'unbound', 'POST')).status, 403);
     assert.equal((await f.call('/teacher', 'student')).status, 403);
     assert.equal((await f.call('/classes/c/students', 'student', 'POST')).status, 403);
     assert.equal((await f.call('/new-admin-route', 'student')).status, 403);
     await f.change('student', 'student', 'revoke');
     assert.equal((await f.call('/education.css', 'student')).status, 403);
+    assert.equal((await f.call('/import-artifact', 'student', 'POST')).status, 403);
   } finally { await f.close(); }
 });
 
@@ -165,4 +195,71 @@ test('Test Lab catalog resolves every shipped suite and does not run live browse
   assert.ok(registered.has('tests/authorization/catalog.test.cjs'));
   for (const file of fs.readdirSync(path.join(tests, 'unit'))) assert.ok(registered.has(`tests/unit/${file}`), file);
   assert.ok(loaded.catalog.cases.filter(row => row.runner.kind !== 'smoke').every(row => row.installation === 'never'));
+});
+
+/** Real native composite registration with catalog-less component fixtures; no component provider or transport executes. */
+async function learningBundleFixture(omit) {
+  const f = await fixture();
+  for (const app of manifest.dependencies.required.apps) {
+    if (app === omit) continue;
+    await f.policy.registerApp({ app, source: 'synthetic-learning-' + app, version: '1.0.0', catalog: null, mode: 'enforce', requiredApps: [] });
+  }
+  return f;
+}
+
+for (const role of ['student', 'teacher', 'admin']) {
+  test('one native ' + role + ' role provisions all learning components without portal administration', async () => {
+    const f = await learningBundleFixture();
+    const actor = f.people[role];
+    const listed = await f.policy.listCompositeRoles(f.people.operator, { app: manifest.name });
+    assert.equal(listed.experiences.length, 1);
+    assert.deepEqual(listed.experiences[0].optionalApps, []);
+    const template = listed.experiences[0].templates.find(row => row.id === role);
+    assert.deepEqual(template.members, [
+      { app: manifest.name, role }, { app: 'presentations', role: '@app-admin' }, { app: 'circuit-lab', role: '@app-admin' },
+    ]);
+    for (const member of template.members) {
+      assert.equal((await f.policy.authorize(actor, { app: member.app, permission: 'app.open' })).allowed, false, member.app);
+    }
+    const review = await f.policy.previewCompositeRole(f.people.operator, { action: 'assign', app: manifest.name, template: role,
+      targetSub: actor.sub, targetIssuer: actor.issuer, reason: 'Synthetic complete learning role', expectedRevision: (await f.store.read()).revision });
+    assert.equal(review.ready, true); assert.equal(review.members.length, 3); assert.deepEqual(review.optionalApps, []);
+    const receipt = await f.policy.applyCompositeRole(f.people.operator, { previewId: review.previewId, idempotencyKey: require('node:crypto').randomUUID() });
+    for (const member of template.members) {
+      assert.equal((await f.policy.authorize(actor, { app: member.app, permission: 'app.open' })).allowed, true, member.app);
+      const access = await f.policy.effective(actor, { app: member.app });
+      assert.deepEqual(access.roles, [member.role]); assert.deepEqual(access.managementRoles, []);
+    }
+    assert.equal((await f.authorize(role, http('GET', '/teacher'))).allowed, role !== 'student');
+    const revoke = await f.policy.previewCompositeRole(f.people.operator, { action: 'revoke', app: manifest.name, assignmentId: receipt.assignmentId,
+      reason: 'Synthetic learning cleanup', expectedRevision: (await f.store.read()).revision });
+    await f.policy.applyCompositeRole(f.people.operator, { previewId: revoke.previewId, idempotencyKey: require('node:crypto').randomUUID() });
+    for (const member of template.members) {
+      assert.equal((await f.policy.authorize(actor, { app: member.app, permission: 'app.open' })).allowed, false, member.app);
+    }
+    assert.equal((await f.store.read()).assignments.length, 0);
+  });
+}
+
+test('a missing required learning component blocks the whole native role without partial grants', async () => {
+  const f = await learningBundleFixture('circuit-lab');
+  const review = await f.policy.previewCompositeRole(f.people.operator, { action: 'assign', app: manifest.name, template: 'student',
+    targetSub: f.people.student.sub, targetIssuer: f.people.student.issuer, reason: 'Synthetic missing learning component', expectedRevision: (await f.store.read()).revision });
+  assert.equal(review.ready, false); assert.equal(review.previewId, undefined);
+  assert.ok(review.members.some(row => row.app === 'circuit-lab' && row.blocked));
+  assert.equal((await f.store.read()).assignments.length, 0);
+  assert.equal((await f.authorize('student', http('GET', '/dashboard'))).allowed, false);
+});
+
+test('a denied learning component blocks the whole native role and preserves the explicit deny', async () => {
+  const f = await learningBundleFixture();
+  const preview = await f.policy.previewChange(f.people.operator, { app: 'presentations', action: 'deny',
+    targetSub: f.people.student.sub, targetIssuer: f.people.student.issuer, reason: 'Synthetic Office deny', expectedRevision: (await f.store.read()).revision });
+  await f.policy.applyChange(f.people.operator, { previewId: preview.previewId, idempotencyKey: require('node:crypto').randomUUID() });
+  const prior = (await f.store.read()).assignments;
+  const review = await f.policy.previewCompositeRole(f.people.operator, { action: 'assign', app: manifest.name, template: 'student',
+    targetSub: f.people.student.sub, targetIssuer: f.people.student.issuer, reason: 'Synthetic denied learning component', expectedRevision: (await f.store.read()).revision });
+  assert.equal(review.ready, false); assert.equal(review.previewId, undefined);
+  assert.equal(review.members.find(row => row.app === 'presentations').blocked, 'composite_member_denied');
+  assert.deepEqual((await f.store.read()).assignments, prior);
 });

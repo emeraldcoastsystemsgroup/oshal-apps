@@ -15,6 +15,114 @@
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Jarvis Home shell opens this page with ?audience=family: the signed-in account's
+     own saved robot jobs (what each job was, how far it got, whether its dry run passed) and the saved counts, painted
+     by the shared kit in the family grammar from the package's own saved-state routes: GET /tasks (the list the
+     concierge's embodied-tasks tool reads) and GET /home-summary (the cockpit Home tile), both owner-scoped SELECTs.
+     On open it reads nothing else: never the world (GET /state, /world, /world/voxels, /picture and /camera create the
+     owner's simulation, and all but /world/voxels advance it), never the physics engine (/physics/status, /physics/reports), the designs, the
+     scenes or the command log, and it never plans, runs, aborts, stops or resets anything. Any other request runs the
+     full Embodied Swarm page below unchanged: the surface script starts only when no audience view renders. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=embodied', KICKER = 'Robot practice', SHOWN = 6, LISTED = 20;
+  // The three tasks the planner knows (TASKS in routes/embodied-routes.js), in plain words.
+  var KINDS = { explore: { icon: '🧭', text: 'Map the room' }, 'clear-surface': { icon: '🧽', text: 'Clear a surface' }, 'fetch-from-appliance': { icon: '🥛', text: 'Fetch from the fridge' } };
+  var BADGES = { draft: 'Planned', executing: 'Started', done: 'Finished', failed: 'Stopped', aborted: 'Called off' };
+  var TONES = { done: 'ok', failed: 'warn', aborted: 'warn' };
+  var HEADLINES = { done: 'The last robot job finished', failed: 'The last robot job stopped early', aborted: 'The last robot job was called off',
+    executing: 'The last robot job started, with no end saved yet', draft: 'The last robot job is planned, not run yet' };
+  function read(path) {
+    return fetch('/api/embodied' + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }, function () { return { ok: r.ok, status: r.status, body: null }; });
+    });
+  }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function clip(v, cap) { var s = String(v === null || v === undefined ? '' : v).replace(/\s+/g, ' ').trim(); return s.length > cap ? s.slice(0, cap - 1) + '…' : s; }
+  // home-summary sends each count as digits in a string ('0', '12'), or the word 'Unavailable' when that source failed.
+  function count(value) { return typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : null; }
+  function metric(summary, id) {
+    var m = ((summary && (summary.metrics || summary.tiles)) || []).filter(function (x) { return x && x.id === id; })[0];
+    return m ? count(m.value) : null;
+  }
+  function steps(t) { return t.plan && Array.isArray(t.plan.steps) ? t.plan.steps.length : 0; }
+  // current_step is saved when a run ends (the step it stopped on), so "at step N of M" is read only from an ended run.
+  function where(t) { var total = steps(t), n = Number(t.current_step); return total && isFinite(n) && n >= 0 ? ' at step ' + Math.min(n + 1, total) + ' of ' + total : ''; }
+  function why(t) { return t.failure ? ': ' + clip(t.failure, 140) : ''; }
+  // The dry run is the rehearsal the routes save with every drafted plan: the same plan tried on a copy of the simulated world.
+  function planned(t) {
+    var r = t.rehearsal && typeof t.rehearsal === 'object' ? t.rehearsal : null;
+    if (r && r.ok === true) return 'Planned; the dry run went through';
+    if (r && r.ok === false) return 'Planned; the dry run found a problem' + (Array.isArray(r.issues) && r.issues[0] ? ': ' + clip(r.issues[0], 140) : '');
+    return 'Planned; not run yet';
+  }
+  function story(t) {
+    if (t.status === 'done') return steps(t) ? 'Finished all ' + plural(steps(t), 'step', 'steps') : 'Finished';
+    if (t.status === 'failed') return 'Stopped' + where(t) + why(t);
+    if (t.status === 'aborted') return 'Called off' + where(t) + why(t);
+    // 'executing' is written when a person confirms the run and replaced when it ends; the step it is on is not saved.
+    if (t.status === 'executing') return 'Started; no end saved yet';
+    if (t.status === 'draft') return planned(t);
+    return t.status ? 'Status: ' + clip(t.status, 40) : 'No status saved';
+  }
+  function timing(t) {
+    if (t.status === 'done' || t.status === 'failed' || t.status === 'aborted') return 'ended ' + A.when(t.updated_at);
+    return t.status === 'executing' ? 'started ' + A.when(t.updated_at) : 'planned ' + A.when(t.created_at);
+  }
+  function item(t) {
+    var kind = KINDS[t.task];
+    return { icon: kind ? kind.icon : '🤖', title: clip(t.title, 120) || 'Untitled job', text: (kind ? kind.text + ' · ' : '') + story(t), meta: timing(t), badge: BADGES[t.status] || null, tone: TONES[t.status] || null };
+  }
+  function stat(id, label, n, tone, hint) {
+    return { id: id, label: label, value: n === null ? '—' : n, tone: n === null ? null : tone, hint: n === null ? 'Could not check' : hint };
+  }
+  // The counts come from home-summary and cover every saved job; the tiles are the newest 20 that GET /tasks lists.
+  // commands-refused counts every refused row of the command log (plan steps and manual commands, whatever refused
+  // them), so its label names commands and gives no cause.
+  function stats(summary) {
+    var stopped = metric(summary, 'tasks-stopped');
+    return [
+      stat('jobs', 'Robot jobs planned', metric(summary, 'tasks-total'), null, null),
+      stat('done', 'Finished', metric(summary, 'tasks-done'), null, 'In the simulation'),
+      stat('stopped', 'Stopped or called off', stopped, stopped > 0 ? 'warn' : null, null),
+      stat('refused', 'Commands refused, last 7 days', metric(summary, 'commands-refused'), null, null)
+    ];
+  }
+  function headline(rows) { return rows.length ? HEADLINES[rows[0].status] || plural(rows.length, 'saved robot job', 'saved robot jobs') : 'No robot jobs yet'; }
+  function lede(rows) {
+    var first = rows[0];
+    if (first) return 'Latest: ' + (clip(first.title, 120) || 'Untitled job') + ', ' + timing(first) + '. Everything here happened in a simulated room; no real robot moved.';
+    return 'Embodied Swarm practises with a simulated drone and a rolling robot arm in a simulated room. Jobs planned there show up here, and no real robot moves.';
+  }
+  function model(rows, summary) {
+    return { kicker: KICKER, title: headline(rows), lede: lede(rows),
+      actions: [{ label: 'Open Embodied Swarm', primary: true, onClick: function () { A.open(FULL); } }],
+      stats: stats(summary),
+      sections: [
+        { kind: 'tiles', id: 'jobs', title: 'Latest robot jobs', empty: 'No robot jobs yet.', items: rows.slice(0, SHOWN).map(item),
+          note: 'Only this account’s saved jobs show here, and every one ran in a simulation, never on a real arm or drone. Nothing on this page plans, runs or stops a job.' },
+        rows.length > SHOWN ? { kind: 'list', id: 'earlier', title: 'Planned earlier', items: rows.slice(SHOWN, LISTED).map(item) } : null
+      ] };
+  }
+  function family() {
+    // The counts are extra: when home-summary fails, the saved jobs still show and the four counts read Could not check.
+    var summary = read('/home-summary').then(function (res) { return res.ok && res.body ? res.body : null; }, function () { return null; });
+    return Promise.all([read('/tasks'), summary]).then(function (r) {
+      var res = r[0];
+      if (res.status === 401 || res.status === 403) return { kicker: KICKER, title: res.status === 401 ? 'Sign in to see the robot jobs' : 'This account cannot open Embodied Swarm',
+        lede: res.status === 401 ? 'Embodied Swarm shows the saved robot jobs of whoever is signed in, and this session is not signed in.' : 'The Embodied Swarm routes refused this account (HTTP 403).' };
+      if (!res.ok) throw new Error('Embodied Swarm could not read the saved robot jobs (HTTP ' + res.status + ').');
+      if (!Array.isArray(res.body)) throw new Error('Embodied Swarm sent an answer this view could not read.');
+      return model(res.body, r[1]);
+    }, function () { throw new Error('Embodied Swarm could not be reached just now.'); });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'embodied', escapeLabel: 'Open Embodied Swarm in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
 <style>
   :root { --em-bg: var(--bg, var(--bg-primary, #12151c)); --em-panel: var(--panel, var(--bg-card, #1b1f29)); --em-panel2: var(--panel2, var(--bg-tertiary, #232836));
           --em-text: var(--text, var(--text-primary, #e6e9ef)); --em-muted: var(--muted, var(--text-muted, #9aa3b2)); --em-line: var(--line, var(--border-color, #2f3646));

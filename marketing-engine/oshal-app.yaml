@@ -34,6 +34,11 @@
 #     ADR-149 authorization catalog, and the loader refuses a `requires` naming a permission no
 #     catalog defines. The classification widens nothing — per-channel consent still gates every
 #     outward action and the weekly review still opens a backlog ticket a human must approve.
+# 6 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.2, ADR-164 D6: tools/marketing-engine.html
+#     provides the company audience view the Business shell requests with ?audience=company —
+#     campaigns, pending approvals and drafts, setup readiness, the latest scorecard week, channel
+#     consent and recent publish outcomes over the existing GET routes, read-only. No route,
+#     schema or permission change. Guarded by tests/audience-view.test.cjs (test-lab.yaml).
 
 name: marketing-engine
 displayName: Marketing Engine
@@ -42,9 +47,34 @@ description: >-
   intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic
   metrics scorecard, experiment registry, budget proposals a human approves, and weekly review
   tickets worked by inline concierge bots only after human approval.
-version: 0.5.1
+version: 0.5.3
 status: active
 suite: ai-productivity
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: channel-post-draft
+      unit: channel post draft
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: icp-research
+      unit: ideal customer profile refinement
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: launch-kit
+      unit: launch kit
+      tier: T3
+      generation: none
+      degrade: disable
+    - id: weekly-campaign-review
+      unit: weekly review ticket
+      tier: T3
+      generation: none
+      degrade: disable
 theme: midnight
 scope: public
 

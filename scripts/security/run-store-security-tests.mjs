@@ -10,6 +10,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Add the dependency-free D&D owner/RLS contract to the mandatory migration security family.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Add the APP-02 audit profile, catalog binding, staged policy, and real-record mutation suite to the blocking contract family.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Add run-framework-coupled-tests.test.mjs to the SEC-06 contract group and raise its floor to 5. The framework-coupled runner now gates every package's core suite, and a gate whose own test no gate runs is not a gate.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Add run-package-audit.test.mjs (backlog #33: the reproducible package-audit runner and the public-snapshot attestation reset) to the SEC-06 contract group and raise its floor to 6.
  */
 
 import { existsSync, readdirSync } from 'node:fs';
@@ -46,6 +47,7 @@ export function main(root = process.cwd()) {
   const contract = [
     join(resolvedRoot, 'scripts', 'security', 'credential-carrier-source.test.js'),
     join(resolvedRoot, 'scripts', 'security', 'package-audit.test.mjs'),
+    join(resolvedRoot, 'scripts', 'security', 'run-package-audit.test.mjs'),
     join(resolvedRoot, 'scripts', 'security', 'security-ci-contract.test.mjs'),
     join(resolvedRoot, 'scripts', 'security', 'rebuild-store-routes.test.mjs'),
     join(resolvedRoot, 'scripts', 'security', 'run-framework-coupled-tests.test.mjs'),
@@ -53,7 +55,7 @@ export function main(root = process.cwd()) {
   runGroup(resolvedRoot, 'Little Monsters authorization', littleMonsters, 7);
   runGroup(resolvedRoot, 'Career migration/RLS', careerMigrations, 3);
   runGroup(resolvedRoot, 'D&D owner/RLS', dndOwnerRls, 1);
-  runGroup(resolvedRoot, 'SEC-06 workflow contract', contract, 5);
+  runGroup(resolvedRoot, 'SEC-06 workflow contract', contract, 6);
 }
 
 if (resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {

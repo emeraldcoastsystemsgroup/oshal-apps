@@ -12,6 +12,18 @@
  *                     |                             | personal-data vault and the list query never selects the
  *                     |                             | column at all — the plaintext exists in memory for the length
  *                     |                             | of one upload and nowhere else.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Bambu Lab LAN printers for the print service (operator-approved
+ *                     |                             | 2026-10-06): the printer row carries the device serial and model
+ *                     |                             | code read from the printer's certificate, the slice profile the
+ *                     |                             | slicer engine needs, and the owner's per-printer AUTO_START
+ *                     |                             | opt-in (migration 002, default off). updatePrinterSettings
+ *                     |                             | changes only those owner choices; identity and the key are fixed
+ *                     |                             | at registration. A submission may now come from the print
+ *                     |                             | service with a posted file instead of a scan job: job_id is
+ *                     |                             | optional, source_name names the file, requested_by says who.
+ *                     |                             | The printer's certificate fingerprint is pinned at registration
+ *                     |                             | (device_cert_sha256); getPrinterAutoStart re-reads the owner's
+ *                     |                             | choice at the moment a service job would start.
  */
 
 import type { AppContext } from '@/app/composition/app-context';
@@ -52,13 +64,28 @@ export interface PrinterRow {
   label: string;
   kind: string;
   base_url: string;
+  /** Certificate serial (bambu-lan only). */
+  device_serial: string | null;
+  /** Vendor model code from the device CA (bambu-lan only). */
+  device_model: string | null;
+  /** SHA-256 fingerprint of the printer's certificate, pinned at registration (bambu-lan only). */
+  device_cert_sha256: string | null;
+  /** Slicer settings for this printer (bambu-lan: modelId, nozzle, filament, plate). */
+  slice_profile: Record<string, unknown>;
+  /** The owner's opt-in: a job sent through the print service starts without a click. Default false. */
+  auto_start: boolean;
   created_at: string;
 }
 
 /** @description A submission row. */
 export interface SubmissionRow {
   submission_id: string;
-  job_id: string;
+  /** The scan job printed, or null for a file posted to the print service. */
+  job_id: string | null;
+  /** The posted file's name when there is no job. */
+  source_name: string | null;
+  /** `person` (the Print click) or `service` (an agent or app through the print service). */
+  requested_by: string;
   printer_id: string;
   file_name: string;
   file_kind: string;
@@ -71,8 +98,8 @@ export interface SubmissionRow {
 
 const JOB_COLUMNS = 'job_id, owner_sub, title, source_kind, state, known_dimensions, settings, report, failure_reason, created_at, updated_at';
 const IMAGE_COLUMNS = 'image_id, job_id, file_name, view, width, height, silhouette, created_at';
-const PRINTER_COLUMNS = 'printer_id, label, kind, base_url, created_at';
-const SUBMISSION_COLUMNS = 'submission_id, job_id, printer_id, file_name, file_kind, started, state, failure_reason, remote_response, created_at';
+const PRINTER_COLUMNS = 'printer_id, label, kind, base_url, device_serial, device_model, device_cert_sha256, slice_profile, auto_start, created_at';
+const SUBMISSION_COLUMNS = 'submission_id, job_id, source_name, requested_by, printer_id, file_name, file_kind, started, state, failure_reason, remote_response, created_at';
 
 /** @description Jobs newest first, capped so a runaway owner cannot make the list unbounded. */
 export async function listJobs(pool: QueryablePool, sub: string): Promise<JobRow[]> {
@@ -167,15 +194,62 @@ export async function listPrinters(pool: QueryablePool, sub: string): Promise<Pr
   return rows as PrinterRow[];
 }
 
-/** @description Insert a printer; `apiKeyCiphertext` must already be vault-encrypted. */
-export async function insertPrinter(
-  pool: QueryablePool, sub: string, printer: { label: string; kind: string; baseUrl: string; apiKeyCiphertext: string },
-): Promise<PrinterRow> {
+/** @description What registration stores; `apiKeyCiphertext` must already be vault-encrypted. */
+export interface NewPrinter {
+  label: string;
+  kind: string;
+  baseUrl: string;
+  apiKeyCiphertext: string;
+  deviceSerial?: string | null;
+  deviceModel?: string | null;
+  deviceCertSha256?: string | null;
+  sliceProfile?: Record<string, unknown>;
+}
+
+/**
+ * @description Insert a printer. Auto-start is never set here: it is a separate, explicit owner choice.
+ * @param pool - Pool.
+ * @param sub - Owner.
+ * @param printer - What registration validated, with the key already vault-encrypted.
+ * @returns The stored row, without its key.
+ */
+export async function insertPrinter(pool: QueryablePool, sub: string, printer: NewPrinter): Promise<PrinterRow> {
   const { rows } = await pool.query(
-    `INSERT INTO scan_print_printer (owner_sub, label, kind, base_url, api_key_ciphertext) VALUES ($1, $2, $3, $4, $5) RETURNING ${PRINTER_COLUMNS}`,
-    [sub, printer.label, printer.kind, printer.baseUrl, printer.apiKeyCiphertext],
+    `INSERT INTO scan_print_printer (owner_sub, label, kind, base_url, api_key_ciphertext, device_serial, device_model, device_cert_sha256, slice_profile) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING ${PRINTER_COLUMNS}`,
+    [sub, printer.label, printer.kind, printer.baseUrl, printer.apiKeyCiphertext, printer.deviceSerial ?? null, printer.deviceModel ?? null,
+      printer.deviceCertSha256 ?? null, JSON.stringify(printer.sliceProfile ?? {})],
   );
   return rows[0] as PrinterRow;
+}
+
+/**
+ * @description The owner's auto-start choice as it stands now (re-read just before a service job would start).
+ * @param pool - Pool.
+ * @param sub - Owner.
+ * @param printerId - Printer.
+ * @returns True only when the printer still exists and auto-start is on.
+ */
+export async function getPrinterAutoStart(pool: QueryablePool, sub: string, printerId: string): Promise<boolean> {
+  const { rows } = await pool.query('SELECT auto_start FROM scan_print_printer WHERE owner_sub = $1 AND printer_id = $2', [sub, printerId]);
+  return (rows[0] as { auto_start?: boolean } | undefined)?.auto_start === true;
+}
+
+/**
+ * @description Change the owner's choices on a printer. Null leaves a value as it is.
+ * @param pool - Pool.
+ * @param sub - Owner.
+ * @param printerId - Printer.
+ * @param change - New auto-start flag and/or slice profile.
+ * @returns The updated row, or null when the printer is not the caller's.
+ */
+export async function updatePrinterSettings(
+  pool: QueryablePool, sub: string, printerId: string, change: { autoStart: boolean | null; sliceProfile: Record<string, unknown> | null },
+): Promise<PrinterRow | null> {
+  const { rows } = await pool.query(
+    `UPDATE scan_print_printer SET auto_start = COALESCE($3, auto_start), slice_profile = COALESCE($4::jsonb, slice_profile), updated_at = now() WHERE owner_sub = $1 AND printer_id = $2 RETURNING ${PRINTER_COLUMNS}`,
+    [sub, printerId, change.autoStart, change.sliceProfile === null ? null : JSON.stringify(change.sliceProfile)],
+  );
+  return (rows[0] as PrinterRow | undefined) ?? null;
 }
 
 /** @description One printer WITH its ciphertext — only the upload and status paths call this. */
@@ -190,17 +264,45 @@ export async function deletePrinter(pool: QueryablePool, sub: string, printerId:
   return (rowCount ?? 0) > 0;
 }
 
-/** @description Record a print submission attempt. */
-export async function insertSubmission(
-  pool: QueryablePool, sub: string,
-  s: { jobId: string; printerId: string; fileName: string; fileKind: string; started: boolean; state: string; failureReason: string | null; remote: unknown },
-): Promise<SubmissionRow> {
+/** @description What one print attempt records. */
+export interface NewSubmission {
+  jobId: string | null;
+  sourceName?: string | null;
+  requestedBy?: 'person' | 'service';
+  printerId: string;
+  fileName: string;
+  fileKind: string;
+  started: boolean;
+  state: string;
+  failureReason: string | null;
+  remote: unknown;
+}
+
+/**
+ * @description Record a print submission attempt.
+ * @param pool - Pool.
+ * @param sub - Owner.
+ * @param s - The attempt: job or source name, printer, file, outcome, requester.
+ * @returns The stored row.
+ */
+export async function insertSubmission(pool: QueryablePool, sub: string, s: NewSubmission): Promise<SubmissionRow> {
   const { rows } = await pool.query(
-    `INSERT INTO scan_print_submission (owner_sub, job_id, printer_id, file_name, file_kind, started, state, failure_reason, remote_response)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb) RETURNING ${SUBMISSION_COLUMNS}`,
-    [sub, s.jobId, s.printerId, s.fileName, s.fileKind, s.started, s.state, s.failureReason, JSON.stringify(s.remote ?? null)],
+    `INSERT INTO scan_print_submission (owner_sub, job_id, source_name, requested_by, printer_id, file_name, file_kind, started, state, failure_reason, remote_response)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING ${SUBMISSION_COLUMNS}`,
+    [sub, s.jobId, s.sourceName ?? null, s.requestedBy ?? 'person', s.printerId, s.fileName, s.fileKind, s.started, s.state, s.failureReason, JSON.stringify(s.remote ?? null)],
   );
   return rows[0] as SubmissionRow;
+}
+
+/**
+ * @description The caller's latest submissions across all printers, newest first.
+ * @param pool - Pool.
+ * @param sub - Owner.
+ * @returns Up to 50 rows.
+ */
+export async function listRecentSubmissions(pool: QueryablePool, sub: string): Promise<SubmissionRow[]> {
+  const { rows } = await pool.query(`SELECT ${SUBMISSION_COLUMNS} FROM scan_print_submission WHERE owner_sub = $1 ORDER BY created_at DESC LIMIT 50`, [sub]);
+  return rows as SubmissionRow[];
 }
 
 /** @description Submissions of a job, newest first. */

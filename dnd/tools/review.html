@@ -1,12 +1,123 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dungeon Master Review</title><style>
-:root{color-scheme:dark;--accent:#b0b8ff;--ink:#edf0fa;--muted:#a2adc5;--border:#ffffff1c}*{box-sizing:border-box}body{margin:0;background:#10131e;color:var(--ink);font:15px/1.55 system-ui}main{max-width:1180px;margin:auto;padding:40px 24px}header{margin-bottom:30px}h1{font-size:clamp(28px,5vw,44px);letter-spacing:-.035em;margin:8px 0}h2{font-size:19px;margin:0 0 18px}.eyebrow{color:var(--accent);text-transform:uppercase;font-size:11px;letter-spacing:.16em}.hint{color:var(--muted);font-size:13px}#metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}.metric,.panel{border:1px solid var(--border);border-radius:18px;background:linear-gradient(135deg,#202638,#171b28)}.metric{padding:18px}.metric strong{display:block;font-size:27px;font-weight:650}.metric span{color:var(--muted);font-size:12px}.layout{display:grid;grid-template-columns:1.05fr 1fr;gap:22px}.panel{padding:24px;min-width:0}.record{border-bottom:1px solid var(--border);padding:16px 0;overflow-wrap:anywhere}.record:first-child{padding-top:0}.record p{color:var(--muted);margin:5px 0 12px;font-size:13px}label{display:block;color:var(--muted);font-size:12px;margin:15px 0 6px}input,textarea,select{font:inherit;color:var(--ink);background:#0e1320;border:1px solid #ffffff26;border-radius:10px;width:100%;padding:11px;display:block;margin-top:7px}textarea{min-height:190px;resize:vertical}button,a{font:inherit}button{color:var(--ink);background:#ffffff0c;border:1px solid #ffffff25;border-radius:9px;padding:9px 13px;cursor:pointer;margin:5px 6px 5px 0}button:hover{background:#ffffff1c}button:disabled{opacity:.5;cursor:wait}.primary{background:#b7beff;color:#151b34;font-weight:650}a{color:var(--accent)}#status{min-height:24px;color:var(--accent);overflow-wrap:anywhere}.connected-app-actions{display:flex;flex-wrap:wrap;margin-top:16px}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:720px){main{padding:22px 16px}.layout{grid-template-columns:1fr}.panel{padding:18px}}
+<!doctype html><html lang="en" data-theme="midnight"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dungeon Master Review</title><link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the signed-in player's saved
+     games (the table's own My Games library: where each game stands, who plays, when it was last played), where the
+     story left off in the most recently saved games, and the saved heroes, from the SAME /api/dnd reads the table and
+     this review page make, painted by the shared kit in the family grammar. On open it reads only GET /campaigns,
+     /characters and /home-summary, owner-or-member scoped SELECTs under the caller's session: no Dungeon Master turn,
+     no narration, no dice, no illustration, no campaign, seat or character change, no join code shown, no
+     connected-actions offer. Any other request runs the full Dungeon Master Review page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<style>
+  /* This page gives bare buttons a margin; under an audience view the kit's own spacing applies instead. */
+  html[data-audience] .av button { margin: 0; }
+</style>
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var KICKER = 'Game night', FULL = '/cockpit/?app=dnd';
+  // routes/home-summary.js writes a saved game's latest archive entry into its offers' notes between these two phrases.
+  var BEAT = 'Latest recorded story beat: ', BEAT_END = '. Prepare a session recap';
+  function call(path) {
+    return fetch('/api/dnd' + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error((j && j.error) || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j || {}; });
+    });
+  }
+  function refused(e) { return !!e && (e.status === 401 || e.status === 403); }
+  // The heroes and the story are separate reads that may fail on their own: the saved games still show.
+  function soft(path) { return call(path).catch(function (e) { if (refused(e)) throw e; return null; }); }
+  function played(row) { return A.when(row.last_played_at || row.updated_at); }
+  function finished(row) { var mode = String(row.mode || ''); return row.status === 'archived' || mode === 'complete' || mode === 'defeat'; }
+  // The table's own reading of a saved board (ui/table-screens.js campaignPlace), in plain words.
+  function place(row) {
+    var mode = String(row.mode || 'setup'), round = Number(row.round) || 0;
+    if (row.status === 'archived' && mode !== 'complete' && mode !== 'defeat') return 'Archived · the story can be watched again';
+    if (mode === 'setup') return 'Choosing heroes';
+    if (mode === 'exploration') return 'Following leads';
+    if (mode === 'combat') return round ? 'In a battle · round ' + round : 'In a battle';
+    if (mode === 'resolved') return 'Battle won · the next scene is waiting';
+    if (mode === 'complete') return 'Adventure finished';
+    if (mode === 'defeat') return 'The party fell · the story can be watched again';
+    return 'In the adventure';
+  }
+  function players(row) { var n = Number(row.player_count) || 0; return n ? n + (n === 1 ? ' player' : ' players') : null; }
+  function role(row) { return row.is_owner ? 'You host' : row.my_character ? 'Playing ' + row.my_character : 'Joined'; }
+  function game(row) {
+    return { icon: finished(row) ? '📜' : '🐉', title: row.name || 'Untitled campaign', text: [place(row), players(row)].filter(Boolean).join(' · '), meta: 'played ' + played(row), badge: role(row) };
+  }
+  function hero(row) {
+    var sheet = row.sheet || {}, level = Number(row.level) || Number(sheet.level) || 1;
+    return { icon: '🛡️', title: row.name || sheet.name || 'Unnamed hero', text: ['Level ' + level, sheet.race, sheet['class']].filter(Boolean).join(' '), meta: 'saved ' + A.when(row.updated_at) };
+  }
+  function clip(text, cap) { return text.length > cap ? text.slice(0, cap - 1).trim() + '…' : text; }
+  // An item without offers is one of the route's own notes (the member rule, not-checked, no saved work), not a game.
+  function beat(item) {
+    var context = item && item.actions && item.actions[0] && item.actions[0].context, notes = String((context && context.notes) || '');
+    var at = notes.indexOf(BEAT), end = notes.lastIndexOf(BEAT_END), text = at < 0 || end <= at ? '' : notes.slice(at + BEAT.length, end).trim();
+    return text && text !== 'none' ? { icon: '📖', title: item.text || 'Saved game', text: clip(text, 280) } : null;
+  }
+  function beats(summary) { return summary ? (summary.items || []).map(beat).filter(Boolean) : null; }
+  function inProgress(rows) { return rows.filter(function (r) { return !finished(r); }).length; }
+  function stats(rows, heroes) {
+    var playing = inProgress(rows);
+    return [
+      { id: 'playing', label: 'Games in progress', value: playing },
+      { id: 'finished', label: 'Finished or archived', value: rows.length - playing },
+      { id: 'heroes', label: 'Saved heroes', value: heroes ? heroes.length : '—', hint: heroes ? null : 'Could not check' },
+      { id: 'last', label: 'Last played', value: rows[0] ? played(rows[0]) : '—' }
+    ];
+  }
+  function title(rows) {
+    var playing = inProgress(rows);
+    if (playing) return playing + (playing === 1 ? ' game in progress' : ' games in progress');
+    return rows.length ? 'No game in progress' : 'No games yet';
+  }
+  // GET /campaigns orders by last played, newest first.
+  function lede(rows) {
+    var last = rows[0];
+    if (!last) return 'Open Dungeon Master to start a campaign, or to join a friend at their table with the code they share.';
+    return 'Last played: ' + (last.name || 'Untitled campaign') + ', ' + played(last) + '. ' + place(last) + '.';
+  }
+  function sections(rows, heroes, summary) {
+    var story = beats(summary);
+    return [
+      { kind: 'list', id: 'games', title: 'Our games', empty: 'No saved games yet.', items: rows.slice(0, 12).map(game),
+        note: rows.length > 12 ? 'The 12 most recently played of ' + rows.length + ' saved games.' : null },
+      rows.length ? { kind: 'list', id: 'story', title: 'Where the story left off', items: story || [],
+        empty: story ? 'No story has been recorded yet.' : 'Where the story left off could not be read just now.',
+        note: summary && summary.partial ? 'Some saved story could not be checked.' : null } : null,
+      heroes && heroes.length ? { kind: 'tiles', id: 'heroes', title: 'Saved heroes', items: heroes.slice(0, 8).map(hero) } : null
+    ];
+  }
+  function family() {
+    return Promise.all([call('/campaigns'), soft('/characters'), soft('/home-summary')]).then(function (r) {
+      var rows = r[0].campaigns || [], heroes = r[1] ? r[1].characters || [] : null;
+      return { kicker: KICKER, title: title(rows), lede: lede(rows), stats: stats(rows, heroes), sections: sections(rows, heroes, r[2]),
+        actions: [{ label: 'Open the game table', primary: true, onClick: function () { A.open(FULL); } }] };
+    }).catch(function (e) {
+      if (!refused(e)) throw e && e.status >= 500 ? new Error('Dungeon Master could not read the saved games (HTTP ' + e.status + ').') : e;
+      return { kicker: KICKER, title: e.status === 401 ? 'Sign in to see your games' : 'This account cannot open Dungeon Master',
+        lede: e.status === 401 ? 'Dungeon Master shows the games of whoever is signed in, and this session is not signed in.' : 'The Dungeon Master routes refused this account (HTTP 403).' };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'dnd', escapeLabel: 'Open Dungeon Master in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
+<style>
+:root{color-scheme:dark;--accent:var(--accent-primary,#b0b8ff);--ink:var(--text-primary,#edf0fa);--muted:var(--text-muted,#a2adc5);--border:var(--border-color,#ffffff1c)}*{box-sizing:border-box}body{margin:0;background:var(--bg-primary,#10131e);color:var(--ink);font:15px/1.55 system-ui}main{max-width:1180px;margin:auto;padding:40px 24px}header{margin-bottom:30px}h1{font-size:clamp(28px,5vw,44px);letter-spacing:-.035em;margin:8px 0}h2{font-size:19px;margin:0 0 18px}.eyebrow{color:var(--accent);text-transform:uppercase;font-size:11px;letter-spacing:.16em}.hint{color:var(--muted);font-size:13px}#metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}.metric,.panel{border:1px solid var(--border);border-radius:18px;background:var(--bg-card,linear-gradient(135deg,#202638,#171b28))}.metric{padding:18px}.metric strong{display:block;font-size:27px;font-weight:650}.metric span{color:var(--muted);font-size:12px}.layout{display:grid;grid-template-columns:1.05fr 1fr;gap:22px}.panel{padding:24px;min-width:0}.record{border-bottom:1px solid var(--border);padding:16px 0;overflow-wrap:anywhere}.record:first-child{padding-top:0}.record p{color:var(--muted);margin:5px 0 12px;font-size:13px}label{display:block;color:var(--muted);font-size:12px;margin:15px 0 6px}input,textarea,select{font:inherit;color:var(--ink);background:var(--bg-secondary,#0e1320);border:1px solid var(--border-color,#ffffff26);border-radius:10px;width:100%;padding:11px;display:block;margin-top:7px}textarea{min-height:190px;resize:vertical}button,a{font:inherit}button{color:var(--ink);background:var(--glass-bg,#ffffff0c);border:1px solid var(--border-color,#ffffff25);border-radius:9px;padding:9px 13px;cursor:pointer;margin:5px 6px 5px 0}button:hover{background:var(--bg-card-hover,#ffffff1c)}button:disabled{opacity:.5;cursor:wait}.primary{background:var(--accent-primary,#b7beff);color:var(--text-on-accent,#151b34);font-weight:650}a{color:var(--accent)}#status{min-height:24px;color:var(--accent);overflow-wrap:anywhere}.connected-app-actions{display:flex;flex-wrap:wrap;margin-top:16px}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:720px){main{padding:22px 16px}.layout{grid-template-columns:1fr}.panel{padding:18px}}
 </style></head><body><main><header><div class="eyebrow">Learning and recreation</div><h1>Dungeon Master Review</h1><p class="hint">Review recorded work. Shape the next brief. Continue in the app that owns the next step.</p></header><div id="metrics" aria-label="Saved work metrics"></div><div class="layout"><section class="panel"><h2>Recorded work</h2><div id="records">Loading saved evidence…</div><button id="refresh">Refresh evidence</button></section><section class="panel"><h2>Your next brief</h2><label>Title<input id="title" maxlength="120" placeholder="What should happen next?"></label><label>Brief<textarea id="notes" maxlength="2000" placeholder="Select recorded work or write a new brief."></textarea></label><label>Source link<input id="sourceUrl" type="url" maxlength="2000"></label><div class="connected-app-actions"></div><p id="status" role="status" aria-live="polite"></p><p class="hint">Connected actions open editable drafts. Review and approve any publishing or generation in the destination app.</p></section></div></main><script type="module">
 import {receiveHandoff} from '/cockpit/js/app-handoff.js';
 import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
+// The full page only: under an audience view the shared kit paints instead (see the head script), so no connected-actions
+// offer is fetched, no Refresh handler is bound and the summary is not read a second time.
+if (!window.AppView || !AppView.active()) {
 const app="dnd",title=document.querySelector('#title'),notes=document.querySelector('#notes'),sourceUrl=document.querySelector('#sourceUrl'),status=document.querySelector('#status');
 const fill=c=>{title.value=String(c.title||'').slice(0,120);notes.value=String(c.notes||'').slice(0,2000);sourceUrl.value=c.sourceUrl||'';};
 await mountConnectedActions({app,element:document.querySelector('.connected-app-actions'),contextForOffer:()=>notes.value.trim()?{title:title.value.trim(),notes:notes.value.trim(),sourceUrl:sourceUrl.value.trim()}:null});
 async function refresh(){const list=document.querySelector('#records'),metrics=document.querySelector('#metrics');try{const r=await fetch('/api/'+app+'/home-summary',{cache:'no-store'}),data=await r.json();if(!r.ok)throw Error('Saved evidence cannot be checked right now.');list.replaceChildren();metrics.replaceChildren();for(const m of data.metrics||[]){const card=document.createElement('div');card.className='metric';const v=document.createElement('strong'),l=document.createElement('span');v.textContent=m.value;l.textContent=m.label;card.append(v,l);metrics.append(card);}for(const item of data.items||[]){const el=document.createElement('div'),heading=document.createElement('strong'),detail=document.createElement('p');el.className='record';heading.textContent=item.text;detail.textContent=item.detail||'';el.append(heading,detail);const context=item.actions?.[0]?.context;if(context){const b=document.createElement('button');b.textContent='Use this evidence';b.addEventListener('click',()=>{fill(context);status.textContent='Evidence loaded. Edit the brief before continuing.';});el.append(b);}list.append(el);}}catch(e){list.textContent=e.message;metrics.replaceChildren();}}
 document.querySelector('#refresh').addEventListener('click',refresh);
 await refresh();
+}
 </script></body></html>

@@ -14,6 +14,7 @@
  * 2026-07-23 02:35:01 | roger.murphy@emeraldcoastsystemsgroup.com  | Present the configured gravelly Algenib narrator truthfully and eliminate every Kore fallback.
  * 2026-07-23 09:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Persist real table narration switches for action calls, dice math, and NPC turn pace.
  * 2026-07-23 11:21:50 | roger.murphy@emeraldcoastsystemsgroup.com  | Keep DM Settings discoverable while showing an unmistakable active-speaking state.
+ * 2026-09-28 23:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Install the audio-unlock gesture listeners and retire the legacy voice keys only when no audience view renders (ADR-164 D6): under the family view of table.html nothing plays, so a tap on the view never creates or resumes Web Audio and never replays held narration. The full table installs both exactly as before.
  */
 
 'use strict';
@@ -403,7 +404,10 @@ function setVoiceMuted(muted) {
   setNeuralVoiceStatus(_voiceMutedByPlayer ? 'muted' : (activeNarrator ? 'ready' : 'idle'));
 }
 
-retireLegacyVoicePreferences();
-['pointerdown', 'touchstart', 'keydown', 'click'].forEach((eventName) => {
-  window.addEventListener(eventName, unlockAudio, { capture: true, passive: true });
-});
+// Audience view (ADR-164 D6): the family view of table.html plays nothing, so neither step runs under it.
+if (!window.AppView || !AppView.active()) {
+  retireLegacyVoicePreferences();
+  ['pointerdown', 'touchstart', 'keydown', 'click'].forEach((eventName) => {
+    window.addEventListener(eventName, unlockAudio, { capture: true, passive: true });
+  });
+}

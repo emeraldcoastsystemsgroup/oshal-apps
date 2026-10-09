@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Use the narrow SQLite prepare/all/get contract required by the planner so canonical compilation avoids optional library types.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Document the exported query, ranking, filter, and page contracts consumed by route modules and tests.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Carry explicit application provenance and task correlation through every bounded board-feed plan.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Keep bounded pools outermost in SQLite's join order so the foreground 150-row page performs corpus primary-key lookups instead of scanning the corpus.
  */
 /**
  * Career Hunter — board feed query planner
@@ -242,14 +243,17 @@ function runPooled(
   plan: { order: string; poolOrder: string; poolN: number | null; limit: number; offset: number },
 ): Record<string, unknown>[] {
   const bound = plan.poolN === null ? '' : `LIMIT ${plan.poolN}`;
+  // SQLite may reorder ordinary joins to scan the corpus before probing cand. CROSS JOIN
+  // keeps the bounded candidate pool outermost; exhaustive walks retain planner freedom.
+  const join = plan.poolN === null ? 'JOIN' : 'CROSS JOIN';
   const sql = `WITH cand AS (
         SELECT ${CAND_COLS} FROM user_signals s
          WHERE s.ai_fit_score IS NOT NULL AND ${parts.scoredWhere}
          ORDER BY ${plan.poolOrder} ${bound})
       SELECT ${SELECT_COLS}
         FROM cand s
-        JOIN corpus.postings_corpus p ON p.id = s.posting_id
-        JOIN corpus.companies c ON c.id = p.company_id
+        ${join} corpus.postings_corpus p ON p.id = s.posting_id
+        ${join} corpus.companies c ON c.id = p.company_id
        WHERE ${parts.corpWhere}
        ORDER BY ${plan.order}
        LIMIT ? OFFSET ?`;

@@ -61,6 +61,112 @@
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/fonts/codicon.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shell opens this page with ?audience=company: the caller's own saved
+     ventures as a portfolio (stage, target launch, estimate share, posture, publishability), what needs attention,
+     recent analyst runs and where the assumptions behind the numbers came from (source kind), from the list, the per-venture header and the Home
+     summary the full console already reads, painted by the shared kit. Read-only: scoping, runs, recompute and chat
+     stay in the full console. Any other request runs the full Venture Plan below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var OPTS = { credentials: 'same-origin', headers: { Accept: 'application/json' } };
+  // Each venture header runs eight owner-scoped queries, and the list can hold 500: join only the most recent few.
+  var DETAILS = 8;
+  var KIND = { full: 'Full analyst run', bom: 'Bill of materials run', market: 'Market run', ops: 'Operations run', narrate: 'Narration run', rebaseline: 'Rebaseline run' };
+  var RUN = { running: ['in progress', null], done: ['finished', 'ok'], failed: ['failed', 'bad'] };
+  var POSTURE = { actual: ['Actual', 'ok'], quoted: ['Quoted', 'ok'], estimate: ['Estimate', 'warn'] };
+  // The store's own source kinds, the keys of the header's coverage.bySourceKind (coverageOf), strongest first. The
+  // engine's quoted/observed/benchmarked/estimated/guessed words live only in the /model snapshot, never read here.
+  var SOURCES = [['vendor-quote', 'Vendor quote', 'ok'], ['published-source', 'Published source', 'ok'], ['user-entered', 'Entered by hand', null], ['derived', 'Derived from other figures', null], ['model-estimate', 'Model estimate', 'warn']];
+  // A refusal is named for what it is: signed out, or the plans could not be read (with its status).
+  function answer(r) {
+    return r.json().catch(function () { return {}; }).then(function (j) {
+      if (r.ok) return j;
+      var e = new Error(r.status === 401 ? 'Sign in to see your ventures.' : 'Venture Plan could not read your ventures right now (HTTP ' + r.status + ').'); e.status = r.status; throw e;
+    });
+  }
+  function plans(path) { return fetch('/api/venture' + path, OPTS).then(answer); }
+  function summary() { return fetch('/api/venture-plan/home-summary', OPTS).then(answer); }
+  function settle(p) { return p.then(function (v) { return { ok: true, v: v }; }, function (e) { return { ok: false, e: e }; }); }
+  function openFull() { window.location.assign(window.location.pathname); }
+  function cap(s) { s = String(s || ''); return s ? s.charAt(0).toUpperCase() + s.slice(1) : '—'; }
+  function metric(sum, id) { var m = sum && (sum.metrics || []).filter(function (x) { return x.id === id; })[0]; return m && /^\d+$/.test(String(m.value)) ? Number(m.value) : null; }
+  // A header that answers 404 was deleted after the list was read: drop it. Any other failure keeps the row, marked.
+  function joined(head, details) {
+    var out = [];
+    head.forEach(function (v, i) { var d = details[i]; if (!d.ok && d.e.status === 404) return; out.push({ v: v, d: d.ok ? d.v : null }); });
+    return out;
+  }
+  function portfolioRow(x) {
+    var v = x.v, d = x.d, m = d && d.latestModel, cov = d && d.coverage, p = m && POSTURE[m.posture];
+    return { cells: [v.name || 'Untitled venture', cap(v.stage), A.day(v.targetLaunchDate),
+      !d ? { text: 'Could not load', tone: 'bad' } : cov && cov.totalAssumptions ? A.pct(cov.estimatePct, true) : 'No assumptions',
+      !d ? '—' : m ? { text: p ? p[0] : cap(m.posture), tone: p ? p[1] : null } : 'No model yet',
+      m ? (m.canPublish ? { text: 'Publishable', tone: 'ok' } : { text: 'Will not publish', tone: 'bad' }) : '—',
+      m ? A.when(m.computedAt) : '—', A.when(v.updatedAt)], onClick: openFull };
+  }
+  function attentionItem(x) {
+    var v = x.v, d = x.d, m = d && d.latestModel, run = d && d.latestRun, why = [], tone = 'warn', q = (v.openQuestions || []).length;
+    if (!d) { why.push('Its details could not be read right now'); tone = 'bad'; }
+    if (run && run.status === 'failed') { why.push((KIND[run.kind] || cap(run.kind) + ' run') + ' failed' + (run.phase ? ' at ' + run.phase : '')); tone = 'bad'; }
+    if (d && !m) why.push('No computed model yet (recompute is free)');
+    if (m && m.canPublish === false) { why.push('Will not publish: a blocking issue or an unsourced figure'); tone = 'bad'; }
+    if (q) why.push(q + (q === 1 ? ' open question' : ' open questions') + ' from scoping');
+    return why.length ? { title: v.name || 'Untitled venture', text: why.join(' · '), tone: tone, onClick: openFull } : null;
+  }
+  function runItems(loaded) {
+    return loaded.filter(function (x) { return x.d && x.d.latestRun; }).sort(function (a, b) { return String(b.d.latestRun.startedAt).localeCompare(String(a.d.latestRun.startedAt)); }).map(function (x) {
+      var r = x.d.latestRun, s = RUN[r.status] || [r.status, null];
+      return { when: A.when(r.startedAt), title: (KIND[r.kind] || cap(r.kind) + ' run') + ' ' + s[0], tone: s[1],
+        text: (x.v.name || 'Untitled venture') + ' · ' + r.botsCompleted + ' of ' + r.botsRequested + ' bot phases finished' + (r.phase ? ' · phase ' + r.phase : '') + (r.triggerKind === 'scheduled' ? ' · scheduled' : '') };
+    });
+  }
+  // Where the live assumptions under the ventures shown came from: how much of the portfolio rests on a vendor quote or
+  // a published source, and how much on a model estimate still to replace.
+  function evidence(loaded) {
+    var by = {}, total = 0;
+    loaded.forEach(function (x) { var c = x.d && x.d.coverage; if (!c) return; total += Number(c.totalAssumptions) || 0; SOURCES.forEach(function (k) { by[k[0]] = (by[k[0]] || 0) + (Number((c.bySourceKind || {})[k[0]]) || 0); }); });
+    return total ? SOURCES.map(function (k) { return { label: k[1], value: by[k[0]] / total, text: by[k[0]] + ' of ' + total, tone: k[2] }; }) : [];
+  }
+  function stats(ventures, loaded, sum) {
+    var saved = metric(sum, 'saved-ventures'), estimates = metric(sum, 'estimated-assumptions');
+    var publishable = loaded.filter(function (x) { return x.d && x.d.latestModel && x.d.latestModel.canPublish; }).length;
+    var questions = ventures.reduce(function (n, v) { return n + (v.openQuestions || []).length; }, 0);
+    return [
+      { id: 'saved-ventures', label: 'Saved ventures', value: saved === null ? ventures.length : saved },
+      { id: 'model-estimates', label: 'Model estimates', value: estimates, tone: estimates ? 'warn' : null, hint: estimates === null ? 'Summary unavailable' : estimates ? 'to replace with quotes' : null },
+      { id: 'publishable', label: 'Publishable', value: publishable, hint: 'of ' + loaded.length + (ventures.length > loaded.length ? ' shown' : '') },
+      { id: 'runs-running', label: 'Runs in progress', value: loaded.filter(function (x) { return x.d && x.d.latestRun && x.d.latestRun.status === 'running'; }).length },
+      { id: 'open-questions', label: 'Open questions', value: questions, tone: questions ? 'warn' : null }
+    ];
+  }
+  function model(ventures, loaded, sum) {
+    var s = stats(ventures, loaded, sum), estimates = s[1].value;
+    return { kicker: 'Venture Plan', title: ventures.length ? 'Portfolio' : 'No saved ventures yet',
+      lede: ventures.length ? s[0].value + ' saved ventures' + (estimates === null ? '' : ' · ' + estimates + ' model estimates to replace with quotes') : 'Describe an idea in Venture Plan: the strategist scopes it, and the engine computes every number from registered assumptions.',
+      actions: [{ label: ventures.length ? 'Open Venture Plan' : 'Describe an idea', primary: true, onClick: openFull }], stats: s,
+      sections: [
+        { kind: 'table', id: 'portfolio', title: 'Portfolio', empty: 'No saved ventures yet.', note: ventures.length > DETAILS ? 'The ' + DETAILS + ' most recently updated of ' + ventures.length + ' ventures; the rest are in Venture Plan.' : null,
+          columns: ['Venture', 'Stage', 'Target launch', { label: 'Estimate share', align: 'right' }, 'Posture', 'Publishing', 'Model computed', 'Updated'], rows: loaded.map(portfolioRow) },
+        { kind: 'list', id: 'attention', title: 'Needs attention', empty: 'Nothing needs attention in the ventures shown.', items: loaded.map(attentionItem).filter(Boolean) },
+        { kind: 'timeline', id: 'runs', title: 'Recent analyst runs', empty: 'No analyst runs yet.', items: runItems(loaded) },
+        { kind: 'progress', id: 'evidence', title: 'Evidence behind the numbers', empty: 'No assumptions registered yet.', note: loaded.length ? 'Live assumptions across the ' + loaded.length + ' ventures shown, by where each one came from.' : null, items: evidence(loaded) }
+      ] };
+  }
+  function company() {
+    return Promise.all([plans('/ventures'), settle(summary())]).then(function (r) {
+      var ventures = r[0].ventures || [], head = ventures.slice(0, DETAILS);
+      return Promise.all(head.map(function (v) { return settle(plans('/ventures/' + encodeURIComponent(v.id))); })).then(function (details) {
+        return model(ventures, joined(head, details), r[1].ok ? r[1].v : null);
+      });
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'venture-plan', escapeLabel: 'Open Venture Plan in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
   :root {
     --vp-bg:      var(--bg-primary, #12171b);
@@ -2004,11 +2110,18 @@
     rz = setTimeout(function () { drawCharts(); }, 160);
   });
 
-  loadVentures();
+  // The full console only: under an audience view the shared kit paints instead (see the head script), so the
+  // first venture is not auto-selected and its reads (header, assumptions, model, documents, inversion, sensitivity)
+  // never run.
+  if (!window.AppView || !AppView.active()) loadVentures();
 })();
 </script>
+<!-- Both modules below run their bodies on the full console only: under an audience view no handoff is received,
+     nothing is mounted and no section is appended to <body>. The imports stay static (both modules only define
+     functions): the shell posts a handoff on the frame's load event, which does not wait for a dynamic import. -->
 <script type="module">
 import { receiveHandoff } from '/cockpit/js/app-handoff.js';
+if (!window.AppView || !AppView.active()) {
 receiveHandoff({ app: 'venture-plan', action: 'research-idea', contextType: 'research-brief', version: 1, fields: ['title', 'notes', 'sourceUrl'] }, context => {
   // Stage text only. The existing Scope it button remains the explicit creation/research step.
   document.getElementById('newCard').hidden = false;
@@ -2016,12 +2129,14 @@ receiveHandoff({ app: 'venture-plan', action: 'research-idea', contextType: 'res
   document.getElementById('n_idea').value = [context.title, context.notes, context.sourceUrl ? 'Source: ' + context.sourceUrl : '', 'Explore whether this suggests a viable business opportunity; treat the source as evidence to verify.'].filter(Boolean).join('\n\n');
   document.getElementById('n_idea').focus();
 });
+}
 </script>
 
 <!-- App-owned context integration: drafts only; existing actions still execute explicitly. -->
 <script type="module">
 import { receiveHandoff } from '/cockpit/js/app-handoff.js';
 import { mountConnectedActions } from '/cockpit/js/app-workflows.js';
+if (!window.AppView || !AppView.active()) {
 const clip = value => String(value || '').slice(0,2000);
 const val = id => clip(document.getElementById(id)?.value?.trim());
 const set = (id,value) => { const el=document.getElementById(id); el.value = el.tagName === 'INPUT' ? String(value || '').replace(/\s*\n+\s*/g, ' · ') : value || ''; };
@@ -2030,6 +2145,7 @@ const brief = context => [context.title,context.notes,context.sourceUrl ? 'Sourc
 const element = document.createElement('section'); element.className='connected-app-actions'; element.setAttribute('aria-label','Connected application actions'); element.style.cssText='margin:16px auto;padding:16px;max-width:1200px;border:1px solid currentColor;border-radius:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap';
 document.body.append(element);
 void mountConnectedActions({ app:"venture-plan", element, contextForOffer:()=>{ const title=clip(document.getElementById('vName').textContent), notes=clip(document.getElementById('vIdea').textContent); if (!document.getElementById('emptyCard').hidden) return null; return title && notes ? {title,notes} : null; } });
+}
 </script>
 </body>
 </html>

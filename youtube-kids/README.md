@@ -81,3 +81,17 @@ work belongs here, not as application literals or dispatch cases in the kernel:
 Set a nonblank `SESSION_SECRET` before uploading. A raw Takeout export encrypted under the retired
 public fallback cannot be authenticated with a newly provisioned secret; upload the original
 `watch-history.json` again. The app recomputes the aggregate and replaces the unreadable raw blob.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| kid-lens-brief | parent brief | T3 | none | disable | not yet measured | none recorded |
+| youtube-kids-brief-ticket | brief ticket | T3 | none | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

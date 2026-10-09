@@ -53,6 +53,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.1 — this file predates the log and its earlier history is in git. ADR-136 D4 follow-up (the minute-precision kernel): the WHEN block drops the retired five-minute grid (the time input is step=60 min=07:00 max=19:59, the kernel's own cron-derived window), tktWhenError() echoes the venue pre/post-market rule and NAMES which of its three conditions is still unmet, and the TIF select + the extended-hours box repaint the validity line through tktLiveUpdate so it cannot read “Ready to review” after the change that made the chosen minute unacceptable.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-134 D8 gap 2: the ticket says where the settled/unsettled split came from. Alpaca exposes no settled figure, so a cash-type Alpaca book's split is derived from this book's own oshal order ledger — and the surface rendered it as “Settled to spend” with nothing to distinguish it from a figure the broker itself reported, which is a derived number read as an authoritative one. tktLedgerOnly()/tktSourceNote() read the kernel view's own `source` field (never a broker name — any venue that reports no settled figure lands here), the step 1/2 context line carries the sentence, and the order summary labels the row “Settled cash (from oshal history)”. A 'venue' source renders byte-identically to before.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-143 D9 client wiring, kept to three hooks so the stream logic stays in quote-stream.js: the step-1 quote block takes its feed pill and as-of wording from qsPillHtml/qsAsOfText (the pill was a hard-coded feed label shown whenever a print had EVER arrived, with no freshness check) and the price carries data-stream-symbol so the stale sweep can grey it; tktLookup calls qsSync so a symbol changed inside the ticket streams instead of polling forever; closeTicket calls qsSync after clearing TKT (it called qsClose, which also stopped the positions table streaming).
  */
 
 /* Plain-word price rules → the order types the venue already runs. `tif` is the rule's default. */
@@ -392,16 +393,17 @@ function openTicket(prefillSymbol) {
     return;
   }
   tktRender();
+  if (typeof qsSync === 'function') qsSync();
   tktLoadFunds();                                  // fill "Available to spend" — best-effort, updates in place
   if (TKT.symbol) tktLookup();
   tktStartTick();                                  // poll the last trade every 5s while the ticket is open
 }
-function closeTicket() { tktClearTick(); tktDetachSearch(); const host = $('ticketHost'); if (host) host.innerHTML = ''; TKT = null; }
+function closeTicket() { tktClearTick(); tktDetachSearch(); const host = $('ticketHost'); if (host) host.innerHTML = ''; TKT = null; if (typeof qsSync === 'function') qsSync(); }
 /* The last-trade poll (point 3): a 5s interval that quietly re-fetches /quote while a symbol is set.
    Stored on TKT.tick and cleared by closeTicket and the next openTicket — an interval is never leaked. */
 function tktClearTick() { if (TKT && TKT.tick) { clearInterval(TKT.tick); TKT.tick = null; } }
 function tktStartTick() { tktClearTick(); if (TKT) TKT.tick = setInterval(tktTick, 5000); }
-function tktTick() { if (TKT && !TKT.busy && TKT.symbol && TKT.quote) tktRefreshQuote(); }
+function tktTick() { if (TKT && !TKT.busy && TKT.symbol && TKT.quote && !(typeof qsIsStreaming === 'function' && qsIsStreaming(TKT.symbol))) tktRefreshQuote(); }
 /* One quiet quote refresh: keep the last good quote on failure, and PATCH the price/funds/validation
    nodes rather than re-rendering the step (a full re-render would blow away in-progress typing/focus). */
 async function tktRefreshQuote() {
@@ -410,7 +412,7 @@ async function tktRefreshQuote() {
   let q = null;
   try { q = await api('/quote?symbol=' + encodeURIComponent(sym)); } catch (e) { return; }
   if (TKT !== t || t.symbol !== sym || !q || q.price == null) return;
-  t.quote = q; t.quoteAt = Date.now(); t.quoteErr = '';
+  t.quote = q; t.quoteAt = Date.now(); t.quoteErr = ''; if (t.quote) t.quote.live = false;
   tktApplyQuote();
 }
 /* Patch every live-price/funds surface in place. Safe to call on any step — it updates only what exists. */
@@ -521,15 +523,16 @@ function tktStep1Html() {
     '<div style="display:flex;gap:8px;margin-top:12px"><button class="btn buy" id="tktNext1"' + (TKT.quote ? '' : ' disabled') + '>Next &rarr;</button></div>';
 }
 /* Step 1's live block: the last trade big (point 3), its as-of time, a Refresh button, and the funds/
-   held context (point 2). Honest labelling — 'Last trade' + as-of, since it is a 5s poll, not a stream. */
+   held context (point 2). Honest labelling — 'Last trade' + as-of from the 5s poll; while the ADR-143
+   stream has a FRESH print, quote-stream.js supplies the feed pill and the as-of wording instead. */
 function tktQuoteHtml() {
   if (TKT.busy) return spinner('Looking up ' + TKT.symbol + '…');
   if (TKT.quoteErr) return '<div class="err" style="font-size:13px">' + esc(TKT.quoteErr) + '</div>';
   const q = TKT.quote;
   if (!q) return '<div class="foot">Enter a ticker and look it up. The chart and signal model open below while you size the order.</div>';
-  return '<div class="foot" style="margin:0 0 2px">Last trade &middot; ' + esc(q.symbol) + '</div>' +
-    '<div class="det-price">' + tktPx(q.price) + '</div>' +
-    '<div class="foot" style="margin:2px 0 0">as of ' + esc(tktAsOf()) + ' &middot; <a href="#" id="tktRefresh">Refresh</a></div>';
+  return '<div class="foot" style="margin:0 0 2px">Last trade &middot; ' + esc(q.symbol) + (typeof qsPillHtml === 'function' ? qsPillHtml(q.symbol) : '') + '</div>' +
+    '<div class="det-price" data-stream-symbol="' + esc(q.symbol) + '">' + tktPx(q.price) + '</div>' +
+    '<div class="foot" style="margin:2px 0 0">' + esc((typeof qsAsOfText === 'function' && qsAsOfText(q.symbol)) || ('as of ' + tktAsOf())) + ' &middot; <a href="#" id="tktRefresh">Refresh</a></div>';
 }
 /* Wire the Refresh link — called after any (re)render of the #tktQuote block. */
 function tktWireQuoteBlock() { tktOn('tktRefresh', 'onclick', (e) => { if (e && e.preventDefault) e.preventDefault(); tktRefreshQuote(); }); }
@@ -566,13 +569,14 @@ async function tktLookup() {
   const inp = $('tktSym'), sym = String(inp ? inp.value : t.symbol).trim().toUpperCase();
   t.symbol = sym; t.quote = null; t.quoteErr = '';
   if (!/^[A-Z.\-]{1,10}$/.test(sym)) { t.quoteErr = 'Enter a ticker symbol (letters, up to 10).'; tktRenderStep(); return; }
+  if (typeof qsSync === 'function') qsSync();        // ADR-143 D9: the stream follows the symbol the ticket now shows
   t.busy = true; tktRenderStep();
   let q = null, err = '';
   try { q = await api('/quote?symbol=' + encodeURIComponent(sym)); } catch (e) { err = e.message || 'Quote failed.'; }
   if (TKT !== t) return;
   t.busy = false;
   if (t.symbol === sym) {
-    t.quote = q; t.quoteErr = err; if (q) t.quoteAt = Date.now();
+    t.quote = q; t.quoteErr = err; if (q) { t.quoteAt = Date.now(); t.quote.live = false; }
     if (q) { try { focus(q.symbol); } catch (e) { /* research pane is optional; the ticket stands alone */ } }
   }
   tktRenderStep(); tktRenderSummary();

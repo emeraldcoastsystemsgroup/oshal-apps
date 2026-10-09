@@ -1,0 +1,179 @@
+<!doctype html>
+<!--
+  Explorer — the 300 mm wave explorer as a RECORD (ADR-160 S2): its design vector, the stage computed on
+  every read with the sentence that `fabricable` is not a safety claim, the five-row sea-state table and
+  the year it adds up to, the open "What is not true" limits, and every run recorded against it; and
+  (ADR-160 S3) the parts model: every watertight part with its program and "Open in CAD Studio", the
+  bought rows with what nobody published shown as not published, the displacement budget that gates
+  parts-complete, and the generated design document. The numbers come from the package's routes
+  (/api/ocean-lab/vehicles); this page computes nothing itself, so it cannot disagree with the record. Consumes the framework theme tokens READ-ONLY. (.html is exempt
+  from the CHANGE LOG header and the file-size rules.)
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Explorer</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  :root {
+    --bg: var(--bg-primary, #0b1220);
+    --panel: var(--bg-card, #111a2c);
+    --panel2: var(--bg-tertiary, #16223a);
+    --line: var(--border-color, #2a3a58);
+    --text: var(--text-primary, #e8eefc);
+    --dim: var(--text-secondary, #b4c0da);
+    --muted: var(--text-muted, #8492b0);
+    --accent: var(--accent-primary, #7c7cff);
+    --ok: var(--status-success, #34d399);
+    --warn: var(--status-warning, #fbbf24);
+    --danger: var(--status-error, #f87171);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .page { max-width: 1280px; margin: 0 auto; padding: 20px 18px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  p.lede { color: var(--dim); margin: 0 0 14px; max-width: 900px; }
+  section.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin: 0 0 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .stage { display: inline-block; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; border-radius: 6px; padding: 4px 10px; border: 1px solid var(--accent); color: var(--accent); }
+  .ladder { list-style: none; display: flex; gap: 6px; padding: 0; margin: 10px 0; flex-wrap: wrap; }
+  .ladder li { font-size: 11.5px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); }
+  .ladder li.reached { border-color: var(--ok); color: var(--ok); }
+  .fabricable { border-left: 3px solid var(--warn); padding: 6px 10px; color: var(--dim); background: var(--panel2); border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; }
+  td.num, th.num { text-align: right; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: flex-end; }
+  .ctl { display: flex; flex-direction: column; gap: 4px; }
+  .ctl label { font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 700; letter-spacing: .05em; }
+  input[type="number"] { width: 120px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font: inherit; }
+  .btn { border: 1px solid var(--line); background: var(--panel2); color: var(--text); border-radius: 8px; padding: 7px 12px; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn:hover { border-color: var(--accent); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .figures { display: flex; flex-wrap: wrap; gap: 18px 28px; margin-top: 10px; }
+  .figure .v { font-size: 22px; font-weight: 600; }
+  .figure .k { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: .05em; }
+  .refusal { color: var(--danger); font-weight: 600; }
+  .note { color: var(--muted); font-size: 12.5px; }
+  .tag { font-size: 10.5px; border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; color: var(--muted); white-space: nowrap; }
+  .tag.blocking { border-color: var(--danger); color: var(--danger); }
+  .tag.published { border-color: var(--ok); color: var(--ok); }
+  .tag.reconstructed, .tag.assumed { border-color: var(--warn); color: var(--warn); }
+  ul.limits { margin: 0; padding-left: 18px; }
+  ul.limits li { margin: 0 0 6px; }
+  #status { min-height: 1.4em; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>Explorer</h1>
+    <p class="lede">The 300 mm wave explorer from the design study, as a saved vehicle. Change the wing stop angle or the tether
+      length, save, and evaluate: the sea-state table and the year recompute from the vector, and the stage drops the
+      moment the vector changes. Simulation only — nothing here was built, wetted or tested.</p>
+  </header>
+
+  <p id="status" role="status" class="note">Loading the record…</p>
+  <p id="boot-error" class="refusal" hidden>The Explorer script could not be loaded.</p>
+
+  <section class="card" id="no-vehicle" hidden>
+    <h2>No explorer yet</h2>
+    <p class="note">Create the Explorer from the study's committed seed. It starts at <b>concept</b>: nothing is evaluated until you ask.</p>
+    <button class="btn" id="create-explorer" type="button">Create the Explorer from the study's seed</button>
+  </section>
+
+  <div id="record" hidden>
+    <section class="card">
+      <h2>Stage</h2>
+      <span class="stage" id="stage-badge">—</span>
+      <ul class="ladder" id="stage-ladder"></ul>
+      <p id="stage-because" class="note"></p>
+      <p id="stage-blocked" class="note"></p>
+      <p class="fabricable" id="fabricable"></p>
+    </section>
+
+    <section class="card">
+      <h2>Design vector</h2>
+      <div class="controls">
+        <div class="ctl"><label for="stop-angle">Wing stop angle, °</label><input id="stop-angle" type="number" min="5" max="45" step="0.5" /></div>
+        <div class="ctl"><label for="tether-length">Tether length, m</label><input id="tether-length" type="number" min="0.5" max="20" step="0.1" /></div>
+        <button class="btn" id="save-design" type="button">Save design</button>
+        <button class="btn" id="evaluate" type="button">Evaluate in seawater</button>
+        <button class="btn" id="evaluate-air" type="button">Evaluate in air</button>
+      </div>
+      <p id="medium-refusal" class="refusal" role="alert" hidden></p>
+      <table id="vector-table"><thead><tr><th>Parameter</th><th>Value</th><th>Source</th></tr></thead><tbody></tbody></table>
+    </section>
+
+    <section class="card">
+      <h2>Sea states</h2>
+      <p id="table-note" class="note"></p>
+      <table id="sea-table">
+        <thead><tr><th>Sea state</th><th class="num">H, m</th><th class="num">T, s</th><th class="num">Share of year</th><th class="num">Speed, m/s</th><th class="num">Knots</th><th class="num">km/day</th><th class="num">Ceiling, m/s</th><th>Under way</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="figures" id="summary"></div>
+      <p id="within-model" class="note"></p>
+    </section>
+
+    <section class="card" id="parts-card">
+      <h2>Parts and geometry <span id="parts-count" class="tag">0 watertight parts</span></h2>
+      <p class="note" id="parts-note">Loading the parts model…</p>
+      <p><span class="stage" id="budget-badge">—</span> <span id="budget-why" class="note"></span></p>
+      <table id="printed-parts">
+        <thead><tr><th>Part</th><th class="num">Qty</th><th>Program</th><th>Material</th><th class="num">Mass each, g</th><th class="num">Displaces, L</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <h2 style="margin-top:14px">Bought and fabricated</h2>
+      <table id="bought-parts">
+        <thead><tr><th>Item</th><th class="num">Qty</th><th>Make</th><th>Carried by</th><th class="num">Mass each, g</th><th class="num">Approx., USD</th><th>Source</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <ul class="limits" id="parts-problems"></ul>
+      <p><a id="design-md" class="btn" href="#" target="_blank" rel="noopener">Design document (design.md)</a></p>
+      <p id="cad-status" class="note" role="status"></p>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Open limits <span id="limit-count" class="tag">0</span></h2>
+        <ul class="limits" id="limits"></ul>
+      </section>
+      <section class="card">
+        <h2>Runs</h2>
+        <button class="btn" id="record-hull-drop" type="button">Record a hull drop from Embodied (air)</button>
+        <table id="runs">
+          <thead><tr><th>#</th><th>Medium</th><th>Plant</th><th>Engine</th><th>Result</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p id="runs-withheld" class="note" hidden></p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+  /* Engine loader: the script is served beside this page; try the page-relative and the absolute mount. */
+  (function () {
+    var candidates = ['assets/explorer.js', '/api/ocean-lab/assets/explorer.js'];
+    var i = 0;
+    function attempt() {
+      if (i >= candidates.length) { document.getElementById('boot-error').hidden = false; return; }
+      var s = document.createElement('script');
+      s.src = candidates[i];
+      i += 1;
+      s.onerror = attempt;
+      s.onload = function () { if (!window.OceanExplorer) attempt(); else window.OceanExplorer.start(); };
+      document.head.appendChild(s);
+    }
+    attempt();
+  }());
+</script>
+</body>
+</html>

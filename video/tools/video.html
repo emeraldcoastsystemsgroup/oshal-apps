@@ -4,12 +4,120 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Video Studio — OSHAL</title>
+<!-- 1.6.1 | maintainer@emeraldcoastsystemsgroup.com | The family audience view for the Home shell (ADR-164 D6): with ?audience=family the shared kit paints the signed-in account's saved series (where each stands, episodes finished, season cut), the episodes and season cuts the studio saved a watch link for (opening in a new tab) and the home summary's counts, from GET /series and GET /home-summary only. Every start step of the full page (the videos list, which scans the caller's connected storage, the series read, the control and joke-pump listeners, Create's brand-kit read, the handoff listener and the connected-actions mount) runs only when no audience view renders. -->
+<!-- 1.6.0 | maintainer@emeraldcoastsystemsgroup.com | Show owner-scoped season artifacts, validate series watch links and clear stale success on failed reads. -->
 <!-- 1.5.0: Use my brand colors buttons add the Create brand kit's colors, in words, to the video and series style fields. -->
 <!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
      Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
      matters — without it the surface would have no colors at all. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the signed-in account's saved
+     series (where each one stands and how many of its episodes are finished), the episodes and season cuts the studio
+     saved a watch link for, and the counts of the package's own home summary, painted by the shared kit in the family
+     grammar. On open it reads only GET /api/video/series and GET /api/video/home-summary, owner-scoped SELECTs under the
+     caller's session. It never reads /list (that scans the caller's connected storage), the joke pump, the render node
+     or Create's brand kit; it never storyboards, renders, uploads, writes a series or approves a script, and it writes
+     nothing. A watch link opens in a new tab. Any other request runs the full Video Studio page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=video', KICKER = 'Our videos';
+  var SERIES_WORDS = { scripting: 'Being written', awaiting_approval: 'Waiting for your OK on the scripts', rendering: 'Being made', assembling: 'Being put together', done: 'Finished', failed: 'Did not finish' };
+  var EPISODE_WORDS = { planned: 'Not written yet', scripted: 'Script written', storyboarded: 'Scenes planned', rendering: 'Being made', rendered: 'Made, not put together yet', assembled: 'Finished', failed: 'Did not finish' };
+  function call(path) {
+    return fetch('/api/video' + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error((j && j.error) || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j || {}; });
+    }, function () { throw new Error('Video Studio could not be reached just now.'); });
+  }
+  function refused(e) { return !!e && (e.status === 401 || e.status === 403); }
+  // The home summary is its own mount and may fail on its own: the series still show and its counts read as not checked.
+  function summary() { return call('/home-summary').catch(function (e) { if (refused(e)) throw e; return null; }); }
+  // The route sends each count as digits in a string, or the word 'Unavailable' when that source failed.
+  function metric(sum, id) {
+    var m = ((sum && (sum.metrics || sum.tiles)) || []).filter(function (x) { return x && x.id === id; })[0];
+    return m && typeof m.value === 'string' && /^\d+$/.test(m.value.trim()) ? Number(m.value) : null;
+  }
+  // Artifact metadata is untrusted: only a credential-free http(s) link is offered, the full page's own rule.
+  function watchLink(value) {
+    if (typeof value !== 'string' || !value) return null;
+    try { var u = new URL(value); return (u.protocol === 'https:' || u.protocol === 'http:') && !u.username && !u.password ? u.href : null; } catch (_) { return null; }
+  }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function word(words, status) { return words[status] || (status ? 'Status: ' + status : 'Status not recorded'); }
+  function lower(text) { return text.charAt(0).toLowerCase() + text.slice(1); }
+  function finished(s) { return (s.episodes || []).filter(function (e) { return e.status === 'assembled'; }).length; }
+  // A season cut uploaded with a link is ready to watch; one that exists only on the render computer says exactly that.
+  function seasonBadge(s) { return watchLink(s.seasonDriveUrl) ? 'Season cut ready' : s.seasonPath ? 'Season cut on the render computer' : null; }
+  function tile(s) {
+    var link = watchLink(s.seasonDriveUrl), count = Number(s.episode_count) || 0, waiting = s.status === 'awaiting_approval', failed = s.status === 'failed';
+    return { icon: failed ? '⚠️' : '🎬', title: s.title || 'Untitled series', text: word(SERIES_WORDS, s.status) + ' · ' + finished(s) + ' of ' + plural(count, 'episode', 'episodes') + ' finished',
+      meta: 'started ' + A.when(s.created_at), badge: waiting ? 'Needs your OK' : seasonBadge(s), tone: waiting || failed ? 'warn' : null, href: link, target: link ? '_blank' : null };
+  }
+  function watchItems(series) {
+    var out = [];
+    series.forEach(function (s) {
+      var season = watchLink(s.seasonDriveUrl), name = s.title || 'Untitled series';
+      if (season) out.push({ icon: '🎞️', title: name + ': the whole season', text: 'Every episode in one video', meta: 'opens in a new tab', href: season, target: '_blank' });
+      (s.episodes || []).forEach(function (e) {
+        var link = watchLink(e.drive_url), number = e.ordinal === null || e.ordinal === undefined ? '' : 'Episode ' + e.ordinal + ': ';
+        if (link) out.push({ icon: '▶️', title: number + (e.title || 'Untitled episode'), text: name, meta: word(EPISODE_WORDS, e.status), href: link, target: '_blank' });
+      });
+    });
+    return out;
+  }
+  function stat(id, label, n, tone, hint) { return { id: id, label: label, value: n === null ? '—' : n, tone: n ? tone : null, hint: n === null ? 'Could not check' : hint || null }; }
+  function stats(series, n) {
+    return [
+      { id: 'series', label: 'Series', value: series.length, hint: series.length >= 50 ? 'The newest 50' : null },
+      stat('review', 'Scripts to approve', n.review, 'warn'),
+      stat('active', 'Series in progress', n.active, null),
+      stat('saved', 'Videos saved, last 5 days', n.saved, null, 'Saves recorded, files not checked')
+    ];
+  }
+  // 'Nothing being made' is said only when the summary counted no script to approve and no series in progress.
+  function headline(series, n, ready) {
+    if (n.review > 0) return plural(n.review, 'series needs', 'series need') + ' your OK on the scripts';
+    if (n.active > 0) return plural(n.active, 'series', 'series') + ' in progress';
+    if (ready.length) return plural(ready.length, 'video', 'videos') + ' ready to watch';
+    if (n.saved > 0) return plural(n.saved, 'video', 'videos') + ' saved in the last 5 days';
+    if (n.review === null || n.active === null || n.saved === null) return 'Some saved work could not be checked';
+    return series.length ? 'Nothing being made right now' : 'No videos yet';
+  }
+  function lede(series) {
+    var first = series[0];
+    if (first) return 'Newest: ' + (first.title || 'Untitled series') + ', ' + lower(word(SERIES_WORDS, first.status)) + ', started ' + A.when(first.created_at) + '.';
+    return 'Video Studio turns an idea into a short video with a voiceover and captions, or writes a whole series of episodes for you to approve. Your series show up here.';
+  }
+  function model(series, sum) {
+    var n = { review: metric(sum, 'scripts-review'), active: metric(sum, 'series-active'), saved: metric(sum, 'videos-saved-5d') }, ready = watchItems(series);
+    return {
+      kicker: KICKER, title: headline(series, n, ready), lede: lede(series),
+      actions: [{ label: 'Open Video Studio', primary: true, onClick: function () { A.open(FULL); } }],
+      stats: stats(series, n),
+      sections: [
+        { kind: 'tiles', id: 'series', title: 'Our series', items: series.slice(0, 8).map(tile), empty: 'No series yet.',
+          note: 'Finished means the studio recorded the episode as put together. It does not mean it was posted anywhere.' },
+        { kind: 'list', id: 'watch', title: 'Ready to watch', items: ready.slice(0, 12), empty: 'Nothing ready to watch yet.',
+          note: 'Each one opens where the studio saved it, in a new tab. Single videos made in the studio are in its My videos list.' }
+      ]
+    };
+  }
+  function family() {
+    return Promise.all([call('/series'), summary()]).then(function (r) {
+      return model(Array.isArray(r[0].series) ? r[0].series : [], r[1]);
+    }).catch(function (e) {
+      if (!refused(e)) throw e && e.status ? new Error('Video Studio could not read the saved series (HTTP ' + e.status + ').') : e;
+      return { kicker: KICKER, title: e.status === 401 ? 'Sign in to see your videos' : 'This account cannot open Video Studio',
+        lede: e.status === 401 ? 'Video Studio shows the videos of whoever is signed in, and this session is not signed in.' : 'The Video Studio routes refused this account (HTTP 403).' };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'video', escapeLabel: 'Open Video Studio in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
 <script src="/api/artifacts/send-to.js" defer></script>
 <style>
   /* Short alias names kept, but each DERIVED from a framework token so all eleven themes work — not
@@ -203,8 +311,6 @@
 const $ = (id) => document.getElementById(id);
 let SB = null; // current storyboard
 
-$('len').addEventListener('input', () => { $('lenVal').textContent = $('len').value; });
-
 function readShape() {
   const voiceSel = $('voice').value;
   return {
@@ -288,7 +394,6 @@ async function loadList() {
     </div>`).join('');
   } catch (e) { $('list').innerHTML = '<div class="empty">Could not load videos.</div>'; }
 }
-loadList();
 
 /* ── SERIES ────────────────────────────────────────────────────────────────────────────
    Creating a series does NOT render anything. It queues a ticket: the screenplay-writer
@@ -329,20 +434,42 @@ async function createSeries() {
 
 const EP_STATE = { planned:'⏳ planned', scripted:'📝 scripted', rendering:'🎥 rendering', rendered:'🎞️ rendered', assembled:'✅ done', failed:'⚠️ failed' };
 
+/* The season cut: what a finished MULTI-episode series produces, over and above its episodes.
+   Three honest states and no fourth. A Drive link is shown ONLY when the stitch actually returned
+   one - a season that exists only on the render node says exactly that, and a series still being
+   stitched says so rather than looking finished. Returns '' when there is no season at all, which
+   is the normal case for a one-episode series. */
+// Artifact metadata is untrusted: escaping HTML does not make javascript: a safe link.
+function seriesArtifactLink(value) {
+  if (typeof value !== 'string') return '';
+  try {
+    const url = new URL(value);
+    if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return '';
+    return ` · <a href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">watch</a>`;
+  } catch { return ''; }
+}
+function seasonLine(s) {
+  const watch = seriesArtifactLink(s.seasonDriveUrl);
+  if (watch) return `<div class="vm">🎬 Season cut${watch}</div>`;
+  if (s.seasonPath) return '<div class="vm">🎬 Season cut ready on the render node</div>';
+  if (s.status === 'assembling') return '<div class="vm">🎬 stitching the season cut…</div>';
+  return '';
+}
+
 async function loadSeries() {
   try {
     const r = await fetch('/api/video/series');
-    if (!r.ok) return;
+    if (!r.ok) throw new Error('Series read failed');
     const { series } = await r.json();
     if (!series || !series.length) { $('seriesList').innerHTML = ''; return; }
     $('seriesList').innerHTML = series.map((s) => `<div class="vid" style="margin-top:10px">
       <div class="vt">${esc(s.title)} <span class="hint">· ${esc(s.status)}</span></div>
       <div class="vm">${s.episode_count} episode${s.episode_count === 1 ? '' : 's'} · ${s.scenes_per_episode} scenes each</div>
-      ${(s.episodes || []).map((e) => `<div class="vm">${e.ordinal}. ${esc(e.title || 'untitled')} — ${EP_STATE[e.status] || esc(e.status)}${e.drive_url ? ` · <a href="${e.drive_url}" target="_blank">watch</a>` : ''}</div>`).join('')}
+      ${(s.episodes || []).map((e) => `<div class="vm">${e.ordinal}. ${esc(e.title || 'untitled')} — ${EP_STATE[e.status] || esc(e.status)}${seriesArtifactLink(e.drive_url)}</div>`).join('')}
+      ${seasonLine(s)}
     </div>`).join('');
-  } catch (e) { /* the panel is optional; never break the studio over it */ }
+  } catch (e) { $('seriesList').textContent = 'Could not load series. Refresh to try again.'; }
 }
-loadSeries();
 
 /* ── THE JOKE PUMP ─────────────────────────────────────────────────────────────────────
    Two switches per show, and they are NOT the same switch:
@@ -447,7 +574,15 @@ async function pumpRun() {
   pumpLoad();
 }
 
-$('pumpBox').addEventListener('toggle', () => { if ($('pumpBox').open) pumpLoad(); });
+/* Start. The full page only: under an audience view the shared kit paints instead (see the head script), so no control
+   is bound and nothing is read here - not the videos list (it scans the caller's connected storage), the series or the
+   joke pump. */
+if (!window.AppView || !AppView.active()) {
+  $('len').addEventListener('input', () => { $('lenVal').textContent = $('len').value; });
+  loadList();
+  loadSeries();
+  $('pumpBox').addEventListener('toggle', () => { if ($('pumpBox').open) pumpLoad(); });
+}
 </script>
 
 <script>
@@ -456,6 +591,8 @@ $('pumpBox').addEventListener('toggle', () => { if ($('pumpBox').open) pumpLoad(
    Create access or a saved kit every button stays hidden and nothing else changes. */
 (function () {
   'use strict';
+  // The full page only: under an audience view the buttons stay hidden and Create's brand kit is not read.
+  if (typeof AppView !== 'undefined' && AppView.active()) return;
   var buttons = Array.prototype.slice.call(document.querySelectorAll('.brand-chip[data-brand-target]'));
   if (!buttons.length || typeof fetch !== 'function') return;
   fetch('/api/create/brand-kit', { credentials: 'same-origin', cache: 'no-store' })
@@ -482,10 +619,13 @@ $('pumpBox').addEventListener('toggle', () => { if ($('pumpBox').open) pumpLoad(
 <script type="module">
 import {receiveHandoff} from '/cockpit/js/app-handoff.js';
 import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
+// The full page only: under an audience view no handoff listener is added, no section is appended and no connected-actions offer is fetched.
+if (!window.AppView || !AppView.active()) {
 const input=document.getElementById('idea');
 receiveHandoff({"app":"video","action":"prepare-brief","contextType":"research-brief","version":1,"fields":["title","notes","sourceUrl"]},context=>{input.value=[context.title,context.notes,context.sourceUrl?'Source: '+context.sourceUrl:''].filter(Boolean).join('\n\n');input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();});
 const element=document.createElement('section');element.className='connected-app-actions';element.setAttribute('aria-label','Connected application actions');element.style.cssText='margin:16px auto;padding:16px;max-width:1200px;border:1px solid currentColor;border-radius:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap';document.body.append(element);
 void mountConnectedActions({app:'video',element,contextForOffer:()=>{const notes=input.value.trim().slice(0,2000);return notes?{title:'Review my video brief',notes}:null;}});
+}
 </script>
 </body>
 </html>

@@ -1,0 +1,59 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | First LoRA authorization catalog (ADR-149). The GPU worker's callbacks move onto the kernel's signed-package-callbacks rail, which the loader admits only for a package that imports a catalog, so every LoRA route, the director bot and the worker callbacks are bound to named permissions here. Until now LoRA had no catalog and, under enforce, answered only callers holding the application's app-admin assignment.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Bind POST /characters/starter to lora.configure. GET /characters no longer provisions the caller's starter character (a GET is admitted read-only and must not write), so the studio asks for it explicitly with this write; a viewer, who may only read, cannot create one.
+#
+# One resource with `own` scope only. Row ownership is still enforced by each route's owner
+# predicate and the tables' forced row-level security; the catalog decides which named permission a
+# request needs. Bindings are matched on the path relative to whichever LoRA mount owns the request,
+# so one entry covers every mount that serves that method and path (GET / is both the Home summary
+# and the readiness smoke; POST / is the worker's JSON callback). Worker callbacks run as the owner
+# the callback grant names and need that owner's current lora.execute.
+
+version: 1
+resources:
+  lora: { scopes: [own] }
+permissions:
+  app.open: { resource: lora, effect: read, minimumTier: viewer }
+  lora.read: { resource: lora, effect: read, minimumTier: viewer }
+  lora.configure: { resource: lora, effect: write, minimumTier: editor }
+  lora.execute: { resource: lora, effect: execute, minimumTier: editor }
+roles:
+  viewer:
+    tier: viewer
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: lora.read, scope: own }
+  trainer:
+    tier: editor
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: lora.read, scope: own }
+      - { permission: lora.configure, scope: own }
+      - { permission: lora.execute, scope: own }
+bindings:
+  http:
+    - { id: studio, method: GET, path: /ui, allOf: [app.open] }
+    - { id: summary, method: GET, path: /, allOf: [lora.read] }
+    - { id: characters-read, method: GET, path: /characters, allOf: [lora.read] }
+    - { id: models-read, method: GET, path: /models, allOf: [lora.read] }
+    - { id: scorecard-read, method: GET, path: /scorecard, allOf: [lora.read] }
+    - { id: cell-image-read, method: GET, path: /cell-image, allOf: [lora.read] }
+    - { id: dataset-read, method: GET, path: /dataset, allOf: [lora.read] }
+    - { id: characters-create, method: POST, path: /characters, allOf: [lora.configure] }
+    - { id: characters-starter, method: POST, path: /characters/starter, allOf: [lora.configure] }
+    - { id: autonomous, method: POST, path: /characters/:subject/autonomous, allOf: [lora.configure] }
+    - { id: active-version, method: POST, path: /characters/:subject/active, allOf: [lora.configure] }
+    - { id: model-delete, method: DELETE, path: /models/:subject/:version, allOf: [lora.configure] }
+    - { id: dataset-import, method: POST, path: /dataset/import, allOf: [lora.configure] }
+    - { id: train, method: POST, path: /train, allOf: [lora.execute] }
+    - { id: validate, method: POST, path: /validate, allOf: [lora.execute] }
+    - { id: improve, method: POST, path: /improve, allOf: [lora.execute] }
+    - { id: improve-overnight, method: POST, path: /improve-overnight, allOf: [lora.execute] }
+    - { id: worker-callback, method: POST, path: /, allOf: [lora.execute] }
+    - { id: worker-cell-image, method: POST, path: /cell-image, allOf: [lora.execute] }
+    - { id: worker-dataset-download, method: POST, path: /dataset-download/:imageId, allOf: [lora.execute] }
+  bots:
+    - { id: a0000000-0000-0000-0000-000000000065, allOf: [lora.execute] }

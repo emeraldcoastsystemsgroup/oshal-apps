@@ -1,6 +1,7 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Import explicit workspace/project roles; every stored record remains scoped to verified issuer and subject.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Add the personal brand kit: its own own-scoped resource, read for every project reader, change for editors and admins, and bindings for the page, the kit and the logo upload.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Add project.generate (execute), the separately named permission for region regeneration because it spends provider money: a new generator role (view, read, generate) and the admin role carry it, the existing roles keep their exact meaning, and the six region-edit routes are bound. Accepting a candidate is a project.change like any save.
 version: 1
 resources:
   projects:
@@ -14,6 +15,7 @@ permissions:
   project.change: { resource: projects, effect: write, minimumTier: editor }
   project.delete: { resource: projects, effect: write, minimumTier: editor }
   project.export: { resource: projects, effect: export, minimumTier: editor }
+  project.generate: { resource: projects, effect: execute, minimumTier: editor }
   brand.read: { resource: brand, effect: read, minimumTier: viewer }
   brand.change: { resource: brand, effect: write, minimumTier: editor }
 roles:
@@ -49,6 +51,12 @@ roles:
       - { permission: project.read, scope: own }
       - { permission: project.export, scope: own }
       - { permission: brand.read, scope: own }
+  generator:
+    tier: editor
+    grants:
+      - { permission: project.view, scope: own }
+      - { permission: project.read, scope: own }
+      - { permission: project.generate, scope: own }
   admin:
     tier: admin
     grants:
@@ -58,6 +66,7 @@ roles:
       - { permission: project.change, scope: own }
       - { permission: project.delete, scope: own }
       - { permission: project.export, scope: own }
+      - { permission: project.generate, scope: own }
       - { permission: brand.read, scope: own }
       - { permission: brand.change, scope: own }
 bindings:
@@ -86,4 +95,10 @@ bindings:
     - { id: save-brand-kit, method: PUT, path: /brand-kit, allOf: [project.view, brand.change] }
     - { id: delete-brand-kit, method: DELETE, path: /brand-kit, allOf: [project.view, brand.change] }
     - { id: upload-brand-logo, method: POST, path: /brand-kit/logo, allOf: [project.view, brand.change] }
+    - { id: region-edit, method: POST, path: '/projects/:id/region-edits', allOf: [project.view, project.read, project.generate] }
+    - { id: region-edit-status, method: GET, path: '/projects/:id/region-edits/:edit', allOf: [project.view, project.read] }
+    - { id: region-edit-accept, method: POST, path: '/projects/:id/region-edits/:edit/accept', allOf: [project.view, project.change] }
+    - { id: region-edit-cancel, method: POST, path: '/projects/:id/region-edits/:edit/cancel', allOf: [project.view, project.read, project.generate] }
+    - { id: region-edit-reject, method: POST, path: '/projects/:id/region-edits/:edit/reject', allOf: [project.view, project.read, project.generate] }
+    - { id: region-edit-provider, method: GET, path: /region-edit-provider, allOf: [project.view, project.read, project.generate] }
     - { id: package-readiness, method: GET, path: /, allOf: [project.view] }

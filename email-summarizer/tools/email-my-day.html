@@ -9,6 +9,130 @@
      matters — without it the surface would have no colors at all. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shell opens this page with ?audience=company: the signed-in member's
+     OWN inbox and today at a glance (what is flagged important or starred, today's calendar, who is writing, the
+     saved digest), from the SAME /api/email routes the full page reads, painted by the shared kit in the company
+     grammar. On open it requests only GET /digest (the caller's own mailbox: the same provider reads the full page
+     makes, and it may refresh an expired OAuth token, which core's connector broker writes back) and
+     /summary/cached (the saved digest row). It never asks the communications bot for a summary on open: that runs,
+     and replaces the saved digest, only when the reader clicks "Summarize my day". Any other request runs the full
+     My Day page below. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<style>
+  .av .em-digest { margin: 0 0 8px; white-space: pre-wrap; line-height: 1.55; font-size: 14px; }
+  .av .em-digest-meta { margin: 0; font-size: 12.5px; color: var(--av-muted); }
+  .av .em-digest-error { margin: 8px 0 0; font-size: 13px; color: var(--av-bad); }
+  .av .em-digest-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+</style>
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=email-summarizer', CAP = 25, PROVIDERS = ['', 'google', 'outlook', 'yahoo'];
+  var LABELS = { google: 'Google', outlook: 'Outlook', yahoo: 'Yahoo Mail' };
+  var NOTICE = {
+    no_google_connection: ['No Google account connected', 'Connect Google'],
+    no_outlook_connection: ['No Outlook / Microsoft 365 account connected', 'Connect Outlook'],
+    no_yahoo_connection: ['No Yahoo Mail account connected', 'Connect Yahoo Mail'],
+    no_mail_connection: ['No mailbox connected', 'Connect a mailbox'],
+    reconnect_required: ['This mailbox needs to be reconnected', 'Reconnect']
+  };
+  function call(path, method) {
+    var opt = { method: method || 'GET', credentials: 'same-origin', headers: { Accept: 'application/json' } };
+    if (method === 'POST') { opt.headers['Content-Type'] = 'application/json'; opt.body = '{}'; }
+    return fetch('/api/email' + path, opt).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.message || j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; });
+    });
+  }
+  // The mailbox the reader picked in My Day (a per-viewer choice kept in this browser); '' lets the server pick.
+  function chosen() { try { var v = localStorage.getItem('email-provider') || ''; return PROVIDERS.indexOf(v) >= 0 ? v : ''; } catch (_) { return ''; } }
+  function withProvider(path, p) { return p ? path + (path.indexOf('?') >= 0 ? '&' : '?') + 'provider=' + encodeURIComponent(p) : path; }
+  function refused(e) { return !!e && (e.status === 401 || e.status === 403); }
+  function sender(from) { var m = String(from || '').match(/^"?([^"<]+)"?\s*</); return (m ? m[1] : String(from || '')).trim() || 'Unknown sender'; }
+  function flags(m) { return [m.unread ? 'Unread' : '', m.important ? 'Important' : '', m.starred ? 'Starred' : ''].filter(Boolean).join(' · '); }
+  // An event start is a timestamp, or a calendar day for an all-day event (Google's start.date, Outlook's isAllDay).
+  function time(start) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(start || ''))) return 'All day';
+    var t = Date.parse(start); if (!t) return 'Time not given';
+    try { return new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch (_) { return A.when(start); }
+  }
+  // The saved digest: what the communications bot last wrote, with the reader's one way to ask for a new one.
+  function paintDigest(body, state) {
+    while (body.firstChild) body.removeChild(body.firstChild);
+    var saved = state.cached;
+    body.appendChild(saved ? A.el('p', { class: 'em-digest', text: saved.summary }) : A.el('div', { class: 'av-empty', text: 'No digest saved yet.' }));
+    if (saved) body.appendChild(A.el('p', { class: 'em-digest-meta', text: 'Written ' + A.when(saved.updatedAt) + '. This is when the bot wrote it, not how fresh the inbox is.' }));
+    if (state.error) body.appendChild(A.el('p', { class: 'em-digest-error', role: 'status', text: state.error }));
+    if (!state.canSummarize) return;
+    body.appendChild(A.el('div', { class: 'em-digest-actions' }, [
+      A.el('button', { class: 'av-btn is-primary', type: 'button', disabled: state.busy || null, text: state.busy ? 'Summarizing…' : 'Summarize my day', onClick: function () { summarize(body, state); } }),
+      A.el('span', { class: 'em-digest-meta', text: 'One communications-bot run over the last day; it replaces the saved digest.' })
+    ]));
+  }
+  function summaryError(e) {
+    if (e && e.status === 409) return 'The mailbox is not connected any more, so no summary was written.';
+    if (refused(e)) return 'This session cannot ask for a summary (HTTP ' + e.status + ').';
+    return 'No summary was written (HTTP ' + (e && e.status || 'error') + ').';
+  }
+  function summarize(body, state) {
+    if (state.busy) return;
+    state.busy = true; state.error = null; paintDigest(body, state);
+    call(withProvider('/summary', state.provider), 'POST').then(function (j) {
+      state.cached = { summary: String(j.summary || ''), updatedAt: new Date().toISOString() };
+    }, function (e) { state.error = summaryError(e); }).then(function () { state.busy = false; paintDigest(body, state); });
+  }
+  function digestSection(saved, provider) {
+    var state = { cached: saved.cached, error: saved.error || null, provider: provider, canSummarize: !!provider, busy: false };
+    return { kind: 'custom', id: 'digest', title: 'Saved digest', render: function (body) { paintDigest(body, state); } };
+  }
+  function inbox(d, saved) {
+    var events = d.events || [], total = Number(d.total) || 0, yahoo = d.provider === 'yahoo';
+    var sample = total >= CAP ? 'in the newest ' + CAP + ' of the last 24 h' : 'in the last 24 h';
+    return {
+      kicker: 'Intelligent Communication', title: 'Inbox and today',
+      lede: (LABELS[d.provider] || 'Mailbox') + ' · ' + (Number(d.unreadCount) || 0) + ' unread · ' + events.length + (events.length === 1 ? ' event' : ' events') + ' today',
+      stats: [
+        { id: 'unread', label: 'Unread', value: Number(d.unreadCount) || 0, hint: sample },
+        { id: 'important', label: 'Important', value: Number(d.importantCount) || 0, hint: sample },
+        { id: 'starred', label: 'Starred', value: Number(d.starredCount) || 0, hint: sample },
+        { id: 'events', label: 'Events today', value: events.length, hint: yahoo ? 'No calendar for Yahoo Mail' : null },
+        { id: 'recent', label: 'Mail, last 24 h', value: total, hint: total >= CAP ? 'Capped at the newest ' + CAP : null }
+      ],
+      sections: [
+        { kind: 'table', id: 'needs', title: 'Needs attention', note: 'Flagged important or starred, newest first' + ((d.priority || []).length >= 10 ? '; the first 10.' : '.'),
+          empty: 'Nothing flagged important or starred ' + sample + '.', columns: ['From', 'Subject', 'Received', 'Flags'],
+          rows: (d.priority || []).map(function (m) { return [sender(m.from), m.subject || '(no subject)', m.receivedAt ? A.when(m.receivedAt) : '—', flags(m)]; }) },
+        { kind: 'timeline', id: 'calendar', title: 'Today\'s calendar', empty: yahoo ? 'Yahoo Mail has no calendar here: oshal reads the Yahoo inbox only.' : 'No events today.',
+          items: events.map(function (e) { return { when: time(e.start), title: e.summary || '(busy)', text: e.location || null }; }) },
+        { kind: 'list', id: 'senders', title: 'Who is writing', empty: 'Quiet inbox: no mail ' + sample + '.',
+          items: (d.topSenders || []).map(function (s) { return { title: s.name, meta: s.count + (s.count === 1 ? ' message' : ' messages') }; }) },
+        digestSection(saved, d.provider || '')
+      ]
+    };
+  }
+  function setup(d, saved) {
+    var n = NOTICE[d.error] || NOTICE.no_mail_connection;
+    return { kicker: 'Intelligent Communication', title: n[0], lede: d.message || 'Connect Google, Outlook / Microsoft 365 or Yahoo Mail on the Connections page.',
+      actions: [{ label: n[1], primary: true, onClick: function () { A.open('/utilities'); } }], sections: [digestSection(saved, '')] };
+  }
+  function trouble(e, saved) {
+    if (e.status === 501) return { kicker: 'Intelligent Communication', title: 'Yahoo Mail is not available here', lede: 'This oshal core has no Yahoo Mail reader. Pick another mailbox in My Day.',
+      actions: [{ label: 'Open My Day', primary: true, onClick: function () { A.open(FULL); } }], sections: [digestSection(saved, '')] };
+    if (!refused(e)) throw new Error('Intelligent Communication could not read your mailbox (HTTP ' + (e.status || 'error') + ').');
+    return { kicker: 'Intelligent Communication', title: e.status === 401 ? 'Sign in to see your inbox' : 'This account cannot open Intelligent Communication',
+      lede: e.status === 401 ? 'This view shows the mailbox of whoever is signed in, and this session is not signed in.' : 'The mail routes refused this account (HTTP 403).' };
+  }
+  function company() {
+    var p = chosen();
+    return Promise.all([
+      call(withProvider('/digest?surface=1', p)).catch(function (e) { return { failed: e }; }),
+      call('/summary/cached').then(function (j) { return { cached: j.cached || null }; }, function (e) { return { cached: null, error: 'The saved digest could not be read (HTTP ' + (e.status || 'error') + ').' }; })
+    ]).then(function (r) { var d = r[0], saved = r[1]; return d.failed ? trouble(d.failed, saved) : d.connected === false ? setup(d, saved) : inbox(d, saved); });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'email-summarizer', escapeLabel: 'Open Intelligent Communication in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
   /* Short alias names kept, but DERIVED from framework theme tokens instead of hardcoded hex, so
      all eleven themes work — not just the dark one whose palette the old literals happened to match.
@@ -27,6 +151,8 @@
   body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
   .page { max-width:840px; margin:0 auto; padding:34px 28px 60px; }
   h1 { font-size:24px; margin:0 0 4px; }
+  .head { display:flex; align-items:center; gap:12px; }
+  .mailbox { margin-left:auto; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:4px 9px; font-size:12px; }
   .sub { color:var(--muted); font-size:13px; margin-bottom:26px; }
   .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-bottom:26px; }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; }
@@ -62,7 +188,7 @@
 </head>
 <body>
   <div class="page">
-    <h1>☀️ Good day</h1>
+    <div class="head"><h1>☀️ Good day</h1><select class="mailbox" id="provider" aria-label="Mailbox"><option value="">Any mailbox</option><option value="google">Google</option><option value="outlook">Outlook</option><option value="yahoo">Yahoo</option></select></div>
     <div class="sub" id="sub">Here's your day at a glance.</div>
     <div id="content"><div class="spin">Pulling your inbox and calendar…</div></div>
   </div>
@@ -70,13 +196,29 @@
 <script>
 const content = document.getElementById('content');
 function esc(s){ return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+const providerEl = document.getElementById('provider');
+// Which mailbox to read: '' lets the server pick the caller's connected one (Google first).
+const PROVIDERS = ['', 'google', 'outlook', 'yahoo'];
+const NOTICE = {
+  no_google_connection: ['No Google account connected.', 'Connect Google →'],
+  no_outlook_connection: ['No Outlook / Microsoft 365 account connected.', 'Connect Outlook →'],
+  no_yahoo_connection: ['No Yahoo Mail account connected.', 'Connect Yahoo Mail →'],
+  no_mail_connection: ['No mailbox connected.', 'Connect Google, Outlook or Yahoo →'],
+  reconnect_required: ['This mailbox needs to be reconnected.', 'Reconnect →'],
+};
+function connectNotice(p){ const n = NOTICE[p.error] || NOTICE.no_mail_connection; return '<div class="notice">'+esc(n[0])+'<br><a href="/utilities" target="_top">'+esc(n[1])+'</a></div>'; }
+function withProvider(url, p){ return p ? url + (url.includes('?') ? '&' : '?') + 'provider=' + encodeURIComponent(p) : url; }
+function savedProvider(){ try { const v = localStorage.getItem('email-provider') || ''; return PROVIDERS.includes(v) ? v : ''; } catch (e) { return ''; } }
+function rememberProvider(v){ try { localStorage.setItem('email-provider', v); } catch (e) { /* per-viewer convenience only */ } }
+providerEl.value = savedProvider();
 function evTime(s){ const t=Date.parse(s); if(!t) return 'all day'; return new Date(t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}); }
 
 async function run(){
-  const r = await fetch('/api/email/digest?surface=1');
+  content.innerHTML = '<div class="spin">Pulling your inbox and calendar…</div>';
+  const r = await fetch(withProvider('/api/email/digest?surface=1', providerEl.value));
   if (!r.ok) { content.innerHTML = '<div class="notice">Could not load your day ('+r.status+').</div>'; return; }
   const d = await r.json();
-  if (d.connected === false) { content.innerHTML = '<div class="notice">No Google account connected.<br><a href="/utilities" target="_top">Connect Google →</a></div>'; return; }
+  if (d.connected === false) { content.innerHTML = connectNotice(d); return; }
   document.getElementById('sub').textContent = d.date + ' · ' + d.unreadCount + ' unread · ' + d.events.length + ' events today';
 
   const events = d.events.map(e => `<div class="ev"><span class="t">${esc(evTime(e.start))}</span><span class="s">${esc(e.summary)}</span>${e.location?`<span class="loc">${esc(e.location)}</span>`:''}</div>`).join('') || '<div class="muted">No events today.</div>';
@@ -93,13 +235,18 @@ async function run(){
     <div class="section"><h3>📨 Who's emailing you</h3>${senders}</div>`;
 
   // Kick off the AI narrative (separate call — it's the slow part).
-  const sr = await fetch('/api/email/summary', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+  const sr = await fetch(withProvider('/api/email/summary', d.provider), { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
   const aiBody = document.getElementById('aiBody');
   if (!sr.ok) { aiBody.innerHTML = '<span class="muted">Summary unavailable right now.</span>'; return; }
   const { summary } = await sr.json();
   aiBody.textContent = summary;
 }
-run();
+// The full page only: under an audience view the shared kit paints instead (see the head script), so My Day neither
+// reads the digest nor asks the communications bot for a summary on open.
+if (!window.AppView || !AppView.active()) {
+  providerEl.onchange = () => { rememberProvider(providerEl.value); run(); };
+  run();
+}
 </script>
 </body>
 </html>

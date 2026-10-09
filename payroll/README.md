@@ -2,8 +2,11 @@
 SEQ | AUTHOR | DESCRIPTION
 1 | maintainer@emeraldcoastsystemsgroup.com | Document complete package test registration and honest isolated execution boundaries (2.3.1).
 2 | maintainer@emeraldcoastsystemsgroup.com | Point every backlog reference at the package-owned queue in BACKLOG.md, which core handed over, and name the guard that keeps the two honest.
+3 | maintainer@emeraldcoastsystemsgroup.com | Record the 2.3.5 schema-bootstrap advisory lock, why it exists and the guard that keeps it.
 -->
 # payroll — run payroll for your team, ADP-style
+
+2.3.6 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
 
 An installable OSHAL app package (ADR-085; design in [ADR-123](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/adr/123-payroll-app.md)).
 One OIDC sub = one company: your roster, pay runs, stubs, and reports are yours alone (owner-scoped
@@ -243,3 +246,18 @@ node --test tests/*.test.mjs
 ```
 
 Payroll vectors use synthetic identities and versioned tax/calendar tables. Artifact tests create text in memory; they do not submit payroll, tax filings or bank instructions. Passing arithmetic tests do not verify a new tax year or external filing acceptance.
+
+Payroll 2.3.3 loads the shared theme bootstrap (`/shared/ui/css/surface-themes.css` + `/shared/ui/js/surface-theme.js`) in `tools/payroll.html` and derives its palette from the framework tokens with the previous colors as fallbacks, so the surface follows the operator's chosen cockpit or experience skin whether embedded or opened standalone. No route, data or permission change.
+
+Payroll 2.3.5 runs the lazy schema bootstrap (`ensurePayrollSchema`, called by every guarded route) under a package-owned Postgres advisory lock, `PAYROLL_SCHEMA_LOCK_KEY` = 47120123 in `src-routes/payroll-schema.ts`, outside the kernel's own `SCHEMA_LOCK_KEYS` block. Before it, the parallel first reads of a fresh database each ran the same `CREATE TABLE IF NOT EXISTS`, which Postgres does not make race-safe: the loser failed with a duplicate key on `pg_type_typname_nsp_index` and its request returned 500. The kernel now applies the statements in one transaction behind the lock, so concurrent bootstraps run one at a time. [tests/payroll-schema-lock.test.mjs](tests/payroll-schema-lock.test.mjs) fails if the key is removed or changed; it asserts the call on the compiled module and does not contact a database.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+No model in the loop (T0): every feature of this application is deterministic code.
+<!-- oshal-rating:end -->

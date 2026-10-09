@@ -1,5 +1,7 @@
 # Kalshi Prediction Markets — OSHAL app package
 
+1.6.3 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 `?app=kalshi` — find mispriced event contracts on Kalshi (ADR-094). Every open market is
 evaluated like a poker hand: calibrated true probability (learned from Kalshi's own
 settled-market tape, beta-shrunk toward price so **no history ⇒ no edge**) versus the ask
@@ -210,6 +212,11 @@ cd <this dir> && node --test "tests/*.test.js"
 # local alternative: resolve the same dependencies from a sibling oshal checkout (the default),
 # or point explicitly at an installed test-dependency root.
 KALSHI_BROWSER_DEPS=/path/to/browser-deps node --test "tests/*.test.js"
+
+# the company audience view (ADR-164 D6): the static contract plus behaviour over a stub kit, stub
+# fetch and stub DOM (no browser), then the browser fixture over the real page and the real kit
+cd <this dir> && node --test tests/audience-view.test.cjs
+OSHAL_FRAMEWORK=<oshal checkout> node scripts/audience-views.browser.cjs kalshi   # from the store root
 ```
 
 ## Status
@@ -269,3 +276,29 @@ strategy families have been tested and all three were falsified; the honest stat
 system *correctly folding* is the win. The background scan makes candidates cheap to watch — it
 does not make them tradeable, and the evidence gate still forces stake to 0% until a strategy
 out-scores the market on settled predictions.
+
+**Company audience view (1.6.2).** The all-inclusive Business shells (Studio, Orbit, Commons) open the
+first surface as `/api/kalshi/?audience=company` (ADR-164 D6). The shared kit
+(`/shared/ui/js/app-view.js`, loaded right after the theme bootstrap) paints the **saved** state of the
+scan: the playable-hand count, the snapshot's age and freshness, the paper alert record (W–L, hit rate)
+and the recorded alerts over five days, then the top hands as the scan ranks them (strength, side,
+market, ask, net edge, stake, close, flags) and the newest alerts with their delivery and settlement
+outcome under the record line. On open it reads only `GET /scan`, `GET /alerts` and
+`GET /home-summary` — database reads under the caller's session — never `/status`, `/portfolio` or
+`/alerts/pops` (each asks Kalshi live), never `/trends` or `/settings`, never a write. The one action
+opens the full page; betting, "Scan now" and settings stay there. Waiting for the first scan, a scan
+that is off, a folded scan, a stale or failed snapshot, 401, 403 and failed reads are each named for
+what they are. Any other request runs the full page unchanged; its start paths (the loads and pollers,
+the account read, the connected-actions mount) are gated on the kit's decision, and a core without the
+kit runs it as before.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+No model in the loop (T0): every feature of this application is deterministic code.
+<!-- oshal-rating:end -->

@@ -5,6 +5,8 @@ SEQ | AUTHOR | DESCRIPTION
 -->
 # Marketing Engine (marketing-engine) — OSHAL app package
 
+0.5.3 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 Takes a built oshal product to traffic, users, and revenue — without ever acting on
 its own. A campaign board with stage-gated intake (no spend before validation), a
 per-channel consent model that defaults OFF, UTM-tagged links, a deterministic
@@ -160,3 +162,19 @@ node --test tests/*.test.mjs
 ```
 
 Consent, cap and sanitized-import tests never publish content, contact providers or arm spending. Persona parity remains registered and pending until a confined persona fixture is supported.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| channel-post-draft | channel post draft | T2 | none | disable | not yet measured | none recorded |
+| icp-research | ideal customer profile refinement | T2 | none | disable | not yet measured | none recorded |
+| launch-kit | launch kit | T3 | none | disable | not yet measured | none recorded |
+| weekly-campaign-review | weekly review ticket | T3 | none | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->

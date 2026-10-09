@@ -1,7 +1,11 @@
 /**
  * CHANGE LOG
- * SEQ | AUTHOR | DESCRIPTION
- * 1 | Codex | Real PostgreSQL access/persistence and real Chromium acceptance for the Identity/Home slice.
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Real PostgreSQL access/persistence and real Chromium acceptance for the Identity/Home slice.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Use the canonical cockpit preferences namespace for saved display settings and failed-save regression interception.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Traverse every selected-area source and independent catalog while retaining persisted display, keyboard, RLS and failed-save coverage.
  * Run from the core checkout with HOME_TEST_DATABASE_URL pointing to a disposable home_summary_test DB.
  */
 const path = require('node:path');
@@ -24,6 +28,29 @@ const { buildOwnerRlsPolicyStatements } = load(path.join(core, 'src/shared/servi
 const { createAppHomePreferenceRoutes, readHomePreferences, saveHomePreferences } = load(path.join(core, 'src/app/routes/app-home-preferences.ts'));
 const { createIdentitySummaryRoutes, identitySummary } = require('../routes/identity-summary.js');
 const { buildHomePlan, readManifest } = load(path.join(core, 'src/features/swarm-apps/index.ts'));
+
+/** @description Select a real named area and its application through the shipped controls.
+ * @param {object} page Isolated Playwright page. @param {string} suite Named area key.
+ * @param {string} name Authorized fixture source. @returns {Promise<object>} Its visible detail card. */
+async function selectSource(page, suite, name) {
+  await page.locator('[data-home-area="' + suite + '"]').click();
+  await page.locator('select[data-choice="detail"]').selectOption(name);
+  const card = page.locator('.apps-home-detail .apps-home-card[data-card="' + name + '"]');
+  await card.waitFor({ state: 'visible' });
+  await card.locator('.apps-home-loading').waitFor({ state: 'detached' });
+  assert.equal(await page.locator('.apps-home-detail .apps-home-card').count(), 1);
+  return card;
+}
+
+/** @description Prove the complete catalog stays reachable independently of daily display choices.
+ * @param {object} page Isolated Playwright page. @param {Array<object>} entries Complete fixture plan.
+ * @returns {Promise<void>} Exact directory membership and search focus assertions. */
+async function checkDirectory(page, entries) {
+  await page.getByRole('button', { name: 'All applications', exact: true }).click();
+  assert.deepEqual((await page.locator('#appsHomeDirectory li strong').allTextContents()).sort(), entries.map(e => e.displayName).sort());
+  assert.equal(await page.locator('#appsHomeSearch').evaluate(el => el === document.activeElement), true);
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+}
 
 async function main() {
   const url = new URL(process.env.HOME_TEST_DATABASE_URL || 'postgresql://localhost/invalid');
@@ -71,7 +98,7 @@ async function main() {
       req.oidc = { isAuthenticated: () => sub !== 'anonymous', user: { sub } };
       as(sub, () => next());
     });
-    app.use('/api/home/preferences', createAppHomePreferenceRoutes({ pool }));
+    app.use('/api/cockpit/home/preferences', createAppHomePreferenceRoutes({ pool }));
     app.use('/api/identity', createIdentitySummaryRoutes({ pool }));
     const manifest = readManifest(path.resolve(__dirname, '../oshal-app.yaml'));
     const entries = buildHomePlan([manifest, { name: 'notes', displayName: 'Notes', suite: 'ai-knowledge', ui: { static: [{ toolName: 'notes-home' }] } }, { name: 'archive', displayName: 'Archive', suite: 'ai-productivity' }]);
@@ -97,7 +124,13 @@ async function main() {
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.goto(base);
     await page.getByText('Saved accounts', { exact: true }).waitFor();
-    assert.equal(await page.locator('[data-card]').count(), 3);
+    const assistant = await page.locator('#appsHomeJarvisFrame').elementHandle();
+    const visited = [];
+    for (const entry of entries) { await selectSource(page, entry.suite, entry.name); visited.push(entry.name); }
+    assert.deepEqual(visited.sort(), entries.map(e => e.name).sort());
+    await checkDirectory(page, entries);
+    await selectSource(page, 'ai-productivity', 'identity');
+    assert.equal(await assistant.evaluate(el => el === document.getElementById('appsHomeJarvisFrame')), true);
     await page.locator('[data-card="identity"] button[data-action="edit"]').click();
     await page.getByLabel('Providers saved', { exact: true }).uncheck();
     await page.getByText('Display settings saved.', { exact: true }).first().waitFor();
@@ -109,19 +142,27 @@ async function main() {
     await page.getByLabel('Notes', { exact: true }).uncheck();
     await page.getByText('Display settings saved.', { exact: true }).first().waitFor();
     await page.getByRole('button', { name: 'Done', exact: true }).click();
-    assert.equal(await page.locator('[data-card="notes"]').count(), 0);
+    assert.equal(await page.locator('[data-home-area="ai-knowledge"]').count(), 0);
+    await checkDirectory(page, entries);
     await page.getByRole('button', { name: 'Customize', exact: true }).click();
     await page.getByRole('button', { name: 'Move archive up', exact: true }).click();
     await page.getByText('Display settings saved.', { exact: true }).first().waitFor();
     await page.getByRole('button', { name: 'Done', exact: true }).click();
-    assert.equal(await page.locator('[data-card]').first().getAttribute('data-card'), 'archive');
+    assert.deepEqual(await page.locator('select[data-choice="detail"] option').evaluateAll(rows => rows.map(row => row.value)), ['archive', 'identity']);
+    await page.reload();
+    await selectSource(page, 'ai-productivity', 'archive');
+    assert.deepEqual(await page.locator('select[data-choice="detail"] option').evaluateAll(rows => rows.map(row => row.value)), ['archive', 'identity']);
+    await selectSource(page, 'ai-productivity', 'identity');
     await page.getByRole('button', { name: 'Customize', exact: true }).click();
     await page.getByRole('button', { name: 'Restore all defaults', exact: true }).click();
     await page.getByText('Display settings saved.', { exact: true }).first().waitFor();
     await page.getByRole('button', { name: 'Done', exact: true }).click();
-    assert.equal(await page.locator('[data-card]').count(), 3);
+    for (const entry of entries) await selectSource(page, entry.suite, entry.name);
+    await checkDirectory(page, entries);
+    await selectSource(page, 'ai-productivity', 'identity');
+    assert.deepEqual(await page.locator('select[data-choice="detail"] option').evaluateAll(rows => rows.map(row => row.value)), ['identity', 'archive']);
     assert.equal(await page.locator('[data-card="identity"]').getByText('Providers saved', { exact: true }).count(), 1);
-    // Keyboard editing retains focus after persistence, and metric/suite ordering is real DOM order.
+    // Keyboard editing retains focus; selected-source metrics and daily-area ordering are real DOM order.
     await page.locator('[data-card="identity"] button[data-action="edit"]').click();
     await page.getByRole('button', { name: 'Move identity/providers up', exact: true }).click();
     await page.getByText('Display settings saved.', { exact: true }).first().waitFor();
@@ -136,27 +177,39 @@ async function main() {
     await page.getByRole('button', { name: 'Move ai-knowledge up', exact: true }).click();
     await page.getByText('Display settings saved.', { exact: true }).first().waitFor();
     await page.getByRole('button', { name: 'Done', exact: true }).click();
-    assert.equal(await page.locator('.apps-home-shelf-head h3').first().textContent(), 'AI Knowledge');
-    await page.locator('.apps-home-shelf').first().getByRole('button', { name: 'Collapse', exact: true }).click();
+    assert.deepEqual(await page.locator('[data-home-area] strong').allTextContents(), ['Learning', 'Work']);
+    await page.reload();
+    await selectSource(page, 'ai-knowledge', 'notes');
+    assert.deepEqual(await page.locator('[data-home-area] strong').allTextContents(), ['Learning', 'Work']);
+    await page.getByRole('button', { name: 'Hide details', exact: true }).click();
     await page.getByText('Display settings saved.', { exact: true }).first().waitFor();
-    assert.equal(await page.locator('[data-card="notes"]').count(), 0);
-    await page.locator('.apps-home-shelf').first().getByRole('button', { name: 'Expand', exact: true }).click();
+    assert.equal(await page.locator('.apps-home-detail .apps-home-card').count(), 0);
+    await page.reload();
+    await page.locator('[data-home-area="ai-knowledge"]').click();
+    assert.equal(await page.locator('.apps-home-detail .apps-home-card').count(), 0);
+    await page.getByRole('button', { name: 'Show details', exact: true }).click();
     await page.getByText('Display settings saved.', { exact: true }).first().waitFor();
+    await selectSource(page, 'ai-knowledge', 'notes');
     await page.getByRole('button', { name: 'Customize', exact: true }).click();
     await page.getByRole('button', { name: 'Restore all defaults', exact: true }).click();
     await page.getByText('Display settings saved.', { exact: true }).first().waitFor();
     await page.getByRole('button', { name: 'Done', exact: true }).click();
     // A failed write must not leave an apparently saved layout behind.
-    await page.route('**/api/home/preferences', async route => route.request().method() === 'PUT' ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Test save unavailable"}' }) : route.continue());
+    await page.route('**/api/cockpit/home/preferences', async route => route.request().method() === 'PUT' ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Test save unavailable"}' }) : route.continue());
     await page.getByRole('button', { name: 'Customize', exact: true }).click();
     await page.getByLabel('Notes', { exact: true }).click();
     await page.getByText(/Your changes were not applied/).first().waitFor();
     assert.equal(await page.getByLabel('Notes', { exact: true }).isChecked(), true);
     await page.getByRole('button', { name: 'Done', exact: true }).click();
-    await page.unroute('**/api/home/preferences');
+    await page.unroute('**/api/cockpit/home/preferences');
     await page.reload(); await page.getByText('Saved accounts', { exact: true }).waitFor();
+    const refreshedAssistant = await page.locator('#appsHomeJarvisFrame').elementHandle();
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     await page.getByText('Saved accounts', { exact: true }).waitFor();
+    assert.equal(await refreshedAssistant.evaluate(el => el === document.getElementById('appsHomeJarvisFrame')), true);
+    for (const entry of entries) await selectSource(page, entry.suite, entry.name);
+    await checkDirectory(page, entries);
+    await selectSource(page, 'ai-productivity', 'identity');
     const output = path.resolve(__dirname, '../../../oshal/output/home-summary-acceptance'); fs.mkdirSync(output, { recursive: true });
     await page.screenshot({ path: path.join(output, 'desktop.png'), fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });

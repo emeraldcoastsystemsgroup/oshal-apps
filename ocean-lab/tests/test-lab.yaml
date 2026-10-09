@@ -1,0 +1,381 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | The package's first Test Lab catalog (ADR-160 S2, 1.2.0): the readiness smoke under its existing identity; the three plain-node engine suites the store gate runs (the wave-propulsion model and the medium contract, the explorer record's kind, stage and fingerprints, and the study-reproduction regression); the record over loopback HTTP; the migration's owner RLS against a real disposable PostgreSQL; the Explorer tile in a real headless browser; the live acceptance walk registered for after install with the operator automation identity; and every suite that shipped before the record, declared with the fixtures it needs. Registration does not execute a suite or certify a pass.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | engine-vehicle now expects each limit sentence to EQUAL the study's whole bullet, matching the strengthened assertion in tests/engine-vehicle.test.js (two rows had drifted while only lead sentences were compared).
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: register the audience view contract of the Harvest Siting Console (ADR-164 D6) with its runner and isolation boundaries: the company view for the Business shells reads only GET /vehicles and GET /harvest/sites on open over the package's real routes, names each state for what it is, and the engine loader and the connected-actions script run only when no audience view renders.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0, ADR-160 S3: register the explorer's parts model (engine-explorer-parts), its routes over loopback with the parts live-acceptance script driven against a CAD Studio double (vehicle-parts-routes), the parts section and Open in CAD Studio in the browser (explorer-surface gains an expectation), and the parts walk for after install (explorer-parts-live-acceptance), which builds every part through the real OCCT kernel in CAD Studio.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0, ADR-160 S3: register explorer-parts-occt, which feeds the six part programs to CAD Studio's own engine image in one isolated container and requires every feature accepted, a valid seated solid, the lab's volume or mass within 0.5 % and a watertight Euler-2 STL; a missing image fails it by name.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.3.1: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed ocean-lab package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: engine-wave
+    name: The wave-propulsion model and the medium contract (ADR-160 S2, D7)
+    purpose: Drive the compiled wave engine term by term against the report's governing math - heave w = A*omega*cos(omega*t) with w_max = pi*H/T, the kinematic ceiling U_max = w/tan(beta_stop), lift that vanishes EXACTLY past the stop while profile drag remains, the vertical balance slowing the heave to what the float and the ballast carry, Theodorsen through R.T. Jones, the ITTC-57 closure - with rho, nu and g taken from the medium rather than a constant, and every named refusal raised by its own name.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-wave.test.js
+    expected:
+      - "Seawater carries rho 1025 kg/m3 and nu 1.05e-6 m2/s derived as mu/rho, and a free surface at the datum; air and vacuum carry none."
+      - Every equilibrium sits under its kinematic ceiling, thrust exceeds drag below it and falls short above it, and past the ceiling only drag remains.
+      - The sea-state year rises with the stop angle over 15-25 degrees and falls as the tether lengthens over 1-8 m; below 15 degrees the table is labelled outside the model.
+      - "Air raises medium_property_unavailable: freeSurface; vacuum raises model_not_valid_in_medium: wave-propulsion, vacuum; an undeclared model is confined to seawater; a position outside the band raises medium_outside_validity."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-vehicle
+    name: The explorer record's kind, stage and run fingerprints
+    purpose: The eight "What is not true" limit rows and the load-time refusal of a kind without limits, figures or declared envelopes; the committed seed with a provenance per field; the vector validator; the stage computed on read that drops when the vector changes and is never sized by a foreign plant; and the D5 fingerprints - a real manifest version or null, and an engine tree hash that is stable, recomputable and moves with one byte.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-vehicle.test.js
+    expected:
+      - The kind carries the design study's eight "What is not true" sentences in order, each equal to the study's whole bullet, three of them blocking built; a kind with none, with no required figures or with an undeclared force model is refused.
+      - stageOf reads concept, then sized at the evaluated vector, and concept again the moment the vector changes; a foreign plant's run or one missing a required figure sizes nothing.
+      - A run missing its medium id, a real package version or a 64-hex build hash is named field by field.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Temporary manifest and engine-tree copies under the OS temp dir are removed after each case.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-explorer-regression
+    name: The design study reproduced from the seed (ADR-160 D4)
+    purpose: The engine at today's version, run from the committed seed in seawater, reproduces every figure the autonomous-explorer design study published within the stated tolerance - half a unit in the last digit printed - for every column of the five-row sea-state table and for the mean knots, the share under way, km/day and km/year. The seed's periods and occurrences were not published and were solved against engine 1.0.0, so this case is what turns red when the engine drifts from that version.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-explorer-regression.test.js
+    expected:
+      - "Rows 0.000 / 0.033 / 0.103 / 0.396 / 1.310 m/s with their knots and km/day, each within half a unit of the printed digit."
+      - 0.46 knots mean, 65 % under way, 20.4 km/day and 7,444 km/year.
+      - Every row under its kinematic ceiling and every reconstructed sea short of the 1/7 breaking steepness.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: vehicle-routes
+    name: The explorer record over loopback HTTP
+    purpose: The record's routes on a real loopback server, mounted as the manifest mounts the package, on a SQL-dispatching store double - seed, evaluate, change the vector, re-evaluate, the named medium refusals, run ingest of the embodied hull drop (a fixture captured from embodied's own engine), withheld runs, owner isolation, delete, and the refusals without a store or an engine fingerprint - plus the live acceptance script driven unchanged against this router, passing and failing on a mutated answer.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/vehicle-routes.spec.ts
+    expected:
+      - Seed is 201 at concept with eight open limits and 200 with the same record on a second call; every record route is 401 without a caller.
+      - Evaluate is 201 at sized with the five-row table, 7,444 km/year and the package, version, engine and build hash on the run; a stop-angle change drops the stage to concept and re-evaluating moves the table and the year; so does the tether.
+      - "Air is 422 medium_property_unavailable: freeSurface and vacuum 422 model_not_valid_in_medium, recording nothing; an unknown medium is 400."
+      - The hull drop is recorded with its medium id and fingerprints and never sizes the record; one missing its schema, medium id or fingerprints is 422 run_not_displayable naming the fields, and one posing as ocean-lab is 422 run_poses_as_evaluation.
+      - Another owner lists nothing and gets 404 on every record route; 503 record_store_unavailable without a pool; 503 run_unfingerprinted without a manifest version, recording nothing.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fixtures/embodied-hull-drop-air.json
+      cleanup: The loopback servers are closed after each suite; the store is in memory; temporary package directories are removed.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: vehicle-rls
+    name: Migration 001 owner RLS against a real PostgreSQL
+    purpose: Prove the package's first migration as the role that OWNS the tables, the installed condition under which an ENABLEd-but-not-FORCEd policy never filters a row. The framework's disposable PostgreSQL fixture starts a private server, mints a NOSUPERUSER NOBYPASSRLS app role, applies the migration as that role twice, and the store's own statements run through the stamped identity.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/vehicle-rls.spec.ts
+    expected:
+      - All three tables are owned by the app role, ENABLEd and FORCEd, with one owner_or_operator policy each.
+      - The vehicle and its eight limit rows are written in one statement; runs are numbered in sequence; a stranger's stamp, no stamp and the empty stamp read nothing and a forged insert in the owner's name is refused; the operator arm reads all.
+      - The constraints hold and a delete cascades to the limits and runs.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+      - fixture:docker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - migrations/001-ocean-lab.sql
+      cleanup: The fixture force-removes its own container and anonymous volumes in stop(); no DSN is ever read from the environment, so no installed database can be reached.
+    limits:
+      timeoutMs: 240000
+      maxMemoryMb: 768
+    installation: never
+  - id: explorer-surface
+    name: The Explorer tile in a real headless browser
+    purpose: The shipped tile over the COMPILED routes on loopback with the framework theme assets and a signed-in identity - create the Explorer, evaluate, change the stop angle, re-evaluate, evaluate in air, record the embodied hull drop - and D5 in the browser, where a run whose fingerprints are stripped in flight is not drawn and the tile names the missing field.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/explorer-surface.spec.mjs
+    expected:
+      - The badge reads concept with the fabricable sentence beside it and eight open limits, then sized with five rows and 7,444 km/year, then concept with the table labelled STALE after a stop-angle change, then sized with a different year.
+      - "Evaluate in air shows medium_property_unavailable: freeSurface; the hull drop becomes a third run showing air, embodied:analytic and its package version."
+      - A run whose build hash is stripped in flight is not drawn and the tile says which field is missing.
+      - The parts section shows eleven watertight parts, the budget OPEN with its reason and the bought rows' masses and prices as not published; Open in CAD Studio on the wing posts exactly the body GET /parts/wing serves and lands on the CAD Studio tile.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fixtures/embodied-hull-drop-air.json
+      cleanup: The loopback server and the isolated browser are closed after the suite; the store is in memory.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
+  - id: explorer-live-acceptance
+    name: The operator's Explorer walk on the installed package
+    purpose: After ocean-lab 1.2.0 is installed, drive the real routes as the operator automation identity (OSHAL_VERIFY_OPERATOR_PAT, read by name, never printed) - create one uniquely tagged explorer from the seed, evaluate it, change the stop angle and require the stage to drop and the table to move on re-evaluation, require air to be refused by name, record the embodied hull drop as a run, then delete exactly what was created and prove the delete. Run with OSHAL_VERIFY_BASE_URL=http://localhost:35457 node ocean-lab/tests/explorer-live-acceptance.mjs.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/explorer-live-acceptance.mjs
+    expected:
+      - One RESULT line with state pass; evidence names the tagged vehicle, both kilometre-per-year figures, the three runs and cleanup deleted.
+      - An incomplete cleanup is reported as a failure, never a pass.
+    prerequisites:
+      - runner:node
+      - credential:operator-pat
+      - install:ocean-lab-1.2.0
+      - install:embodied-0.16.3
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: The walk deletes the one vehicle it created (its limits and runs cascade) in a finally block and reads it back as 404; anything less fails the case.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-explorer-parts
+    name: The explorer's parts model, part programs, portable objects and displacement budget (ADR-160 S3)
+    purpose: Drive the compiled parts engine at the committed seed - eleven watertight parts, each program checked by CAD Studio's own compiled contract and scaled from the design vector and the report's drawn dimensions, mass properties exact on shapes a hand can check, every emitted object a D8 portable object in CAD Studio's frame matching the committed fixture, every unpublished mass, price and placement named, and the displacement budget gating parts-complete by name.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-explorer-parts.test.js
+    expected:
+      - The seed derives the float, the sub body, four wings, the rudder, three spindle blades and the tether (eleven), and all six programs pass CAD Studio's validateBase and validateFeatureList.
+      - The float outline revolves to 23.43 L at 280 x 560 mm; the wing is 48 mm at the root tapering to 34 mm with its tip 148 mm out; the blade tip stands at 95 mm; a changed chord changes the program.
+      - Every object carries exactly schema, identity, geometry, massProperties, attachmentFrame and forceModel, quotes CAD Studio's world frame, and equals tests/fixtures/explorer-portable-objects.json; only the wing carries a force model (wave-propulsion).
+      - On the committed rows the budget is OPEN and the stage stays sized naming the incomplete parts model; complete light rows close it GREEN and reach parts-complete; a sub no ballast trims, a sinking float and parts heavier than the sizing are RED by name.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: explorer-parts-occt
+    name: The explorer's part programs through CAD Studio's real OCCT kernel
+    purpose: The contract suites prove each program is well formed; only the kernel proves it builds. Start CAD Studio's own engine image once (no network, capped memory, removed on exit), feed its worker the six programs the compiled emitter produces at the seed, and hold each result to the lab's own figures and to ocean-lab's mesh validator.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/explorer-parts-occt.spec.mjs
+    expected:
+      - All six programs build with every feature accepted and a valid solid, footprint centred on X = Y = 0 and resting on Z = 0.
+      - The hulls' and the tether's OCCT volume and the foils' OCCT mass sit within 0.5 % of the lab's integration, and every exported STL is watertight and manifold with no degenerate facet and Euler characteristic 2.
+      - A missing engine image fails the suite by name; it never skips.
+    prerequisites:
+      - runner:node-test
+      - service:docker
+      - engine-container:oshal-cad-studio-engine
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: The one engine container runs with --rm and no network, so nothing outlives the suite.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+    installation: never
+  - id: vehicle-parts-routes
+    name: The explorer parts routes over loopback HTTP
+    purpose: The parts, part and design-document routes on a real loopback server mounted as the manifest mounts the package, on the SQL-dispatching store double, with a CAD Studio double that validates every posted body with CAD Studio's compiled contract - and the parts live-acceptance script driven unchanged against it, passing, degrading when CAD Studio is absent, and failing when a feature is refused.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/vehicle-parts-routes.spec.ts
+    expected:
+      - The three routes are 401 without a caller and 404 for another owner; at concept the budget is unsized; once sized there are eleven parts, the budget is OPEN and the stage refuses parts-complete by name.
+      - GET /parts/wing serves the exact CAD Studio body with the portable object in source; a bought row without a body is 404 naming the six that have one; design.md is text/markdown; a stored vector that no longer validates is 409.
+      - The script passes and deletes everything it created; with CAD Studio absent it is degraded; with the loft refused it fails.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: The loopback servers are closed after each suite; the store and the CAD Studio double are in memory.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: explorer-parts-live-acceptance
+    name: The explorer's parts built through CAD Studio on the installed box
+    purpose: After ocean-lab 1.3.0 (and CAD Studio) are installed, drive the real routes as the operator automation identity (OSHAL_VERIFY_OPERATOR_PAT, read by name, never printed) - seed and size one tagged explorer, require eleven parts, the budget OPEN and parts-complete refused by name, then post every part's exact body to CAD Studio and require the OCCT build with every feature accepted, a valid solid and its volume or mass within 0.5 %. Run with OSHAL_VERIFY_BASE_URL=http://localhost:35457 node ocean-lab/tests/explorer-parts-live-acceptance.mjs.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/explorer-parts-live-acceptance.mjs
+    expected:
+      - One RESULT line with state pass, evidence naming six built parts with their volume or mass beside the lab's figure, and cleanup deleted; degraded (exit 3) when CAD Studio is not installed.
+      - An incomplete cleanup of a CAD model or the vehicle is reported as a failure, never a pass.
+    prerequisites:
+      - runner:node
+      - credential:operator-pat
+      - install:ocean-lab-1.3.0
+      - install:cad-studio
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: The walk deletes every CAD Studio model and the vehicle it created in a finally block and reads each back as 404; anything less fails the case.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 256
+    installation: never
+  - id: engines
+    name: The harvest, geometry and rotor engines
+    purpose: Every engine suite that shipped before the record - the energy budget and its seasonal gaps, geometry lofting and export, the soil thermal wave and its harvester, the marine power budget with density from its caller, the panel method and section polar, and blade-element momentum theory under Betz.
+    level: unit
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/energy-budget.spec.ts
+        - tests/geometry-mesh-export.spec.ts
+        - tests/ground-thermal-harvest.spec.ts
+        - tests/marine-power-budget.spec.ts
+        - tests/rotor-airfoil-panel.spec.ts
+        - tests/rotor-bemt.spec.ts
+    expected:
+      - Each suite passes against its own engine; Cp never crosses the Betz limit.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 768
+    installation: never
+  - id: routes-http
+    name: Harvest, rotor and surface routes over loopback HTTP
+    purpose: The harvest and rotor routes and their bound tables, and the surface guard that parses every shipped page for the /api/ocean-lab paths it calls and requires each to be routable, every page and script to refuse an anonymous caller, and traversal to fail.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/harvest-routes.spec.ts
+        - tests/rotor-routes.spec.ts
+        - tests/surface-reachability.spec.ts
+    expected:
+      - Every path the Harvest Console, Blade Studio and Explorer reference is routable through the package's one mount, and every one is 401 without a caller.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 768
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) and family (Home shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - The view sits on the manifest's first ui.static surface, the page the shells open.
+      - On open the company view reads only GET /vehicles and GET /harvest/sites, answered by the package's real routes; the vehicle route only SELECTs the caller's rows, and nothing simulates, solves, evaluates, seeds or deletes.
+      - The stats are saved vehicles, sized at the current vector, at concept and illustrative sites and soils; the vehicles table carries the computed stage, the run that sized it, open and blocking limits, the updated time and the fabricable sentence verbatim.
+      - The title names the account's state (no vehicle yet, how many are sized, at least 50 when the route's list is full); a 401, a 403, a missing record store, the route's own 500, an unreadable answer, an unreachable server and an unreadable site catalogue each read as what they are.
+      - Under an audience view the engine loader loads no script (no model runs) and the connected-actions script imports, binds and mounts nothing; without the audience, or without the kit, both still start.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

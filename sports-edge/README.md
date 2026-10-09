@@ -1,5 +1,7 @@
 # Sports Edge
 
+0.11.1 adds the company audience view with its family alias (ADR-164 D6): Studio, Orbit and Commons open this package's first surface, `GET /api/sports-edge/review`, with `?audience=company`, and Jarvis with `?audience=family`; the shared kit paints the followed teams and the upcoming games with a cached preview from the package's own home-summary, refusals said and never filled in; without the audience the page runs unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`.
+
 Follow a team. Really know its next game. Call it straight up or against the line.
 
 This is not a slate scanner. The unit of work is one game involving one team you chose, built from
@@ -182,7 +184,7 @@ src-routes/
   sports-refresh.ts         the background loop: ratings, previews, grading
   sports-routes.ts          /api/sports-edge
 tools/sports-edge.html      the surface
-tests/                      126 guards, plain node --test
+tests/                      130 guards, plain node --test
 ```
 
 The first four modules have **no framework imports**, so they load under plain-node tests.
@@ -210,7 +212,7 @@ There is no order route. That is the point.
 node scripts/oshal-app.js build <this dir> --framework .
 node scripts/oshal-app.js validate <this dir>
 
-# all guards
+# all guards — dependency-free plain node against the compiled modules
 cd <this dir> && node --test "tests/*.test.js"
 ```
 
@@ -229,95 +231,22 @@ change to the models:
 
 ---
 
-## Fantasy (0.2.0)
+## Fantasy moved to its own app (0.11.0)
 
-Point it at your ESPN Fantasy league and it sets the best legal lineup you could have started, then
-records what it advised so the advice can be graded.
+The fantasy half — ESPN league link, the win-probability lineup advisor and the start/sit ledger —
+is now the [`fantasy-football`](../fantasy-football/) package (ADR-146 D1; operator decisions
+2026-09-27), grouped with this one as the application group [`intelligent-sports`](../intelligent-sports/).
+It moved to per-person ownership on the way: every table there is keyed to the signed-in user under
+forced exact-owner row security, and only the caller's own ESPN connection is spent.
 
-### ESPN publishes projections as STATS, not as points
-
-This is the fact the whole fantasy half is built around. Measured on the live feed 2026-09-08:
-
-| | |
-|---|---|
-| public player feed | 11,617 players, ~39 MB, **no credential** |
-| weekly projection rows | 29,281 |
-| ...with a usable `appliedTotal` | **zero** |
-| raw projected stats | **fully populated** — Kelce week 1: 43.18 rec yds, 0.22 rec TD, 4.0 rec |
-
-`appliedTotal` is null because a fantasy point total does not exist without a league's scoring
-rules — half a point per reception or one, four points for a passing touchdown or six. So points are
-computed here from your league's own `scoringItems`, which means **this package holds no hardcoded
-stat dictionary**. A built-in table would silently mis-score every player in any non-standard
-league and look completely normal doing it; your league's settings cannot.
-
-**The `x-fantasy-filter` header is REQUIRED, and its `limit` is ignored.** Both halves matter, and
-getting it half-right cost a bug:
-
-| request | players returned |
-|---|---|
-| no `x-fantasy-filter` | **50** — ESPN's default page, alphabetically early |
-| with the header | **11,617**, whatever limit is asked for |
-
-Without the header a roster comes back almost entirely unprojected, which reads as missing data
-rather than as a truncated request. The limit is set high anyway so a future ESPN that starts
-honouring it cannot silently truncate us. Of those 11,617, about 1,617 carry weekly projections at
-all — the rest are practice-squad and inactive players — and roughly 450 project positive points in
-a given week.
-
-That size is why the feed is a cached job, distilled to six fields per player before anything is
-stored.
-
-### The credential is not an API key
-
-ESPN publishes **no OAuth for fantasy**. The only credential that exists is a pair of browser
-cookies, `SWID` and `espn_s2`, which authenticate your **ESPN account** — not a fantasy scope. There
-is no per-app revocation, no scoping, and no expiry you control; signing out of ESPN everywhere is
-the only revocation.
-
-They are stored encrypted in the connector broker, resolved per request, used on exactly the
-outbound league call, and never logged, returned, cached, or placed anywhere a model can read.
-
-**Everything except your private league needs no credential at all** — the projection feed, and
-every team model in the rest of this package.
-
-### What it does
-
-- **Best legal lineup** — slot eligibility respected, filled scarcest-slot-first so a flex opening
-  never strands the only eligible kicker, then improved by pairwise swaps.
-- **An unavailable player is never started.** A projection is not conditioned on availability, so a
-  ruled-out starter carries a great number right up to kickoff. `OUT`, `INJURY_RESERVE`,
-  `SUSPENSION` and `BYE` are excluded outright — and priced at **zero**, not at their projection,
-  when deciding whether benching them is a gain. Getting that second part wrong silences the tool on
-  exactly the swap that costs the most; it was caught by a guard rather than in a lineup.
-- **Start/sit calls, registered before kickoff** and graded afterwards against what the benched
-  player actually scored under your rules.
-- **The ledger keeps the projected gain beside the actual one.** "Claimed +40, delivered +2" and
-  "claimed +3, delivered +2" are very different tools, and a win rate alone hides that completely.
-- **Each player's completed weeks, accumulated from the same response** (0.9.0). The feed a refresh
-  already fetches carries every finished week's ACTUAL stat line beside the projections — measured
-  live 2026-09-16, one credential-free request for `scoringPeriodId=3` returned 11,617 players and
-  1,740 week-1 rows, 1,348 of them with stats. Those weeks are stored raw (never as points: a point
-  total does not exist until a league's rules are applied, and the table is shared by every league on
-  the box) and scored per league when a lineup is built, so a player's spread is measured from his
-  own scores and shrunk toward the positional prior rather than being that prior times his
-  projection. Without it two backs projected at 13.2 and 13.1 came out at spreads of 7.26 and 7.21
-  and the win-probability objective had nothing to trade — which is exactly what the first live run
-  produced: posture underdog, 40.4% to win, and zero variance swaps. The prior season rides in the
-  same response (22,243 rows on that run), so the season filter is not optional.
-
-### Routes
-
-| route | what it does |
-|---|---|
-| `GET /fantasy/status` | connected? linked leagues? (never returns `espn_s2`) |
-| `POST /fantasy/link` | link a league; your team is found from your SWID |
-| `DELETE /fantasy/leagues/:season/:leagueId` | unlink |
-| `GET /fantasy/lineup?season=&leagueId=&week=` | optimal lineup + start/sit, registered on the way out |
-| `GET /fantasy/record` | the graded record and the ledger |
-| `POST /fantasy/grade` | grade completed weeks |
-
-There is no route that changes your lineup on ESPN. It advises; you set it.
+Here, `/api/sports-edge/fantasy/*` answers **410 Gone** with the new app's address
+(`src-routes/sports-fantasy-moved.ts`), the Fantasy tab says where it went and links there, and the
+Home summary no longer carries fantasy metrics. This package no longer declares the
+`fantasy-leagues` skill or the `espn-fantasy` connector: nothing here reads a league any more.
+The `sports_fantasy_*` tables (migrations 002 and 005) are left in place, unread and unwritten — a
+version bump does not delete a person's rows, and the new package deliberately does not read
+another package's tables, so a league linked here is linked once more there. The fantasy suites
+moved with the code and still guard it there; `tests/sports-fantasy-moved.test.js` guards the move.
 
 ## Status
 
@@ -345,7 +274,7 @@ This remains a deployment-wide public news archive. It does not change the owner
 teams, use private ESPN Fantasy cookies, or turn archived news into a model adjustment. That last
 step still needs the measurement described in [backlog A](BACKLOG.md#a-the-archived-wires-are-written-but-never-read).
 
-The AI Test Lab registers all twelve shipped test suites and the unchanged `package-readiness`
+The AI Test Lab registers all ten shipped test suites and the unchanged `package-readiness`
 smoke through [tests/test-lab.yaml](tests/test-lab.yaml). The Node suites use packaged source and
 synthetic data only. The eleven-case coach unit suite runs the actual compiled refresh, provider client
 and store calls with fixture HTTP, World and persistence boundaries; it covers missing/changed
@@ -353,29 +282,28 @@ coaches, restart cooldown, team identity, conflicting follows, followed-owner is
 call live providers, classify news with a model, or place an order. The surface suite parses HTML
 and checks route contracts; it is not a browser acceptance test.
 
+Sports Edge 0.9.2 declares `uses: world-data` for its already-shipped shared-World refresh reader.
+It is a manifest compatibility floor, not a new feed or order path: a core missing the skill
+refuses the package before mount. The public World refresh remains disabled when World is off.
+
 Run the package suites with `node --test sports-edge/tests/*.test.js` from the store root, or use
 the installed Test Lab's isolated Node runner. Local registration alone does not imply execution,
 and the readiness smoke remains separate from these offline assertions.
 
-### Telling an unreachable ESPN from an unconnected account (0.8.0)
+Phase 1 odds maker, complete and proven against live data. Not built, deliberately: any order path,
+alerting into Jarvis, and leagues beyond NFL and NBA.
 
-Every ESPN read degrades to null rather than throwing, which is right at runtime and used to lose
-the one thing the screen needed: WHY nothing came back. A failed read is now classified from what
-the client already recorded — `transport` when no HTTP response was produced at all, `unavailable`
-when ESPN answered 5xx or 429, `refused` for any other 4xx — and only a refusal is something a
-credential can fix. `GET /fantasy/lineup` and `POST /fantasy/link` answer **503** naming the
-transport for the first two, and keep the connect-your-account message for the third. The same
-distinction runs one layer up: the lineup response says whether the missing opponent is a bye, a
-week the schedule does not cover, or a schedule that could not be read, and the matchup card
-renders each differently instead of calling all three a bye.
+Sports Edge 0.9.3 loads the shared theme bootstrap (`/shared/ui/css/surface-themes.css` + `/shared/ui/js/surface-theme.js`) in `tools/review.html` and derives its palette from the framework tokens with the previous colors as fallbacks, so the surface follows the operator's chosen cockpit or experience skin whether embedded or opened standalone. No route, data or permission change.
 
-This closed the 2026-09-09 report, where the box's resolver stopped answering, every ESPN read
-failed at once, and the app told the operator to paste cookies he had already pasted.
-`tests/sports-fantasy-transport.test.js` drives the compiled route with a fetch stub that throws
-and asserts both halves; it is offline and needs no framework checkout.
+<!-- oshal-rating:start -->
+## Models and requirements
 
-Phase 1 odds maker, complete and proven against live data. Fantasy (0.2.0) is built and its models
-are guarded, but its private-league path has NOT been exercised end to end against a real league
-yet — the first real test is the operator pasting his cookies, and until then the league reads are
-built to the observed contract rather than proven on it. Not built, deliberately: any order path,
-any route that changes a lineup on ESPN, alerting into Jarvis, and leagues beyond NFL and NBA.
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| team-news-classification | news item | T1 | none | template | not yet measured | none recorded |
+<!-- oshal-rating:end -->

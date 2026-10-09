@@ -1,14 +1,148 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                    | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Career worker rail: in multi-user (OSHAL) mode every completion is one POST to the package's loopback worker rail, carrying the trusted-service header, the exact OSHAL_USER_SUB and the runner-minted run token, and the rail runs it on the dedicated Career bot. No codex/claude subprocess, Anthropic SDK or OpenAI path is reachable in that mode; a failed rail call raises CareerWorkerUnavailable and every later call in the same process refuses without a request. The standalone single-user engine keeps its legacy providers unchanged.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Sign every rail request with the per-run callback grant instead of presenting the fleet service secret and a bearer token (1.25.1). The kernel's signed-package-callbacks rail admits a completion only when its grant id names a live run of the asserted owner and the HMAC (key = SHA-256 of the grant domain plus the secret) over the method, the path, a fresh timestamp, a single-use nonce and the body hash verifies; under ADR-149 enforce the previous secret-plus-subject contract was refused before the package ran. The five contract headers mirror lib/career-engine-runs.js verifyRailRequest.
+
 """AI enrichment: a first-pass about / positives / negatives / score per company.
 
-Uses whichever provider key is set (Anthropic preferred, else OpenAI). Output is
-DIRECTIONAL and flagged AI-estimated — your manual edits always override it
+Also the engine's single model chokepoint: every model call in the engine goes through
+complete(). In multi-user (OSHAL) mode that is the Career worker rail and nothing else; the
+standalone single-user engine uses whichever provider is configured (codex, Anthropic, OpenAI).
+Output is DIRECTIONAL and flagged AI-estimated — your manual edits always override it
 (see db.company_view). No review sites are scraped.
 """
 from __future__ import annotations
+import base64
+import hashlib
+import hmac
 import json
 import os
+import re
+import secrets
+import sys
+import threading
+import time
+from urllib.parse import urlsplit
 
 from . import config, db
+
+# ── Career worker rail (multi-user / OSHAL mode) ─────────────────────────────
+RAIL_CONTENT_TYPE = "application/vnd.oshal.career-rail+json"
+_RAIL_HOSTS = ("http://127.0.0.1:", "http://localhost:", "http://[::1]:")
+_RAIL_LOCK = threading.Lock()
+_RAIL_FAILURE = None
+# The signed rail contract (lib/career-engine-runs.js): a grant is `<run id>.<secret>`; the key is
+# SHA-256("oshal-career-rail-grant-v1:" + secret); the signature is HMAC-SHA256(key,
+# "POST|<path>|<unix seconds>|<nonce>|<hex sha256(body)>"), sent as five headers.
+_RAIL_GRANT_RE = re.compile(r"^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.([A-Za-z0-9_-]{43})$", re.I)
+_RAIL_KEY_DOMAIN = b"oshal-career-rail-grant-v1:"
+
+
+class CareerWorkerUnavailable(RuntimeError):
+    """The Career worker rail could not complete a model call.
+
+    Raised in multi-user mode only. The run must end here: there is no fallback provider, and
+    after the first failure every later call in this process refuses without a request.
+    """
+
+    def __init__(self, reason: str, status: int | None = None):
+        super().__init__(f"career worker unavailable: {reason}")
+        self.reason = reason
+        self.status = status
+
+
+def _rail_mode() -> bool:
+    """Multi-user (OSHAL) mode has exactly one model path: the Career worker rail."""
+    return bool(config.MULTIUSER)
+
+
+def _rail_grant() -> tuple[str, str] | None:
+    match = _RAIL_GRANT_RE.match(config.RAIL_GRANT or "")
+    return (match.group(1).lower(), match.group(2)) if match else None
+
+
+def _rail_configured() -> bool:
+    url = config.RAIL_URL or ""
+    return bool(url.startswith(_RAIL_HOSTS) and _rail_grant() is not None)
+
+
+def _rail_trip(reason: str, status: int | None) -> None:
+    """Open the circuit for this process and raise; the first recorded failure is kept."""
+    global _RAIL_FAILURE
+    with _RAIL_LOCK:
+        if _RAIL_FAILURE is None:
+            _RAIL_FAILURE = CareerWorkerUnavailable(reason, status)
+            print(f"career worker unavailable: {reason}", file=sys.stderr, flush=True)
+        failure = _RAIL_FAILURE
+    raise CareerWorkerUnavailable(failure.reason, failure.status)
+
+
+def _rail_headers(body: bytes) -> dict:
+    """The five signed-rail headers for one exact body, plus the content type. Each call mints a
+    fresh nonce, so a captured request can never be replayed."""
+    grant = _rail_grant()
+    if grant is None:
+        _rail_trip("rail-not-configured", None)
+    grant_id, secret = grant
+    key = hashlib.sha256(_RAIL_KEY_DOMAIN + secret.encode("ascii")).digest()
+    timestamp = str(int(time.time()))
+    nonce = secrets.token_urlsafe(18)
+    target = urlsplit(config.RAIL_URL).path or "/"
+    body_hash = hashlib.sha256(body or b"").hexdigest()
+    canonical = f"POST|{target}|{timestamp}|{nonce}|{body_hash}".encode("utf-8")
+    owner = base64.urlsafe_b64encode(config.USER_SUB.encode("utf-8")).decode("ascii").rstrip("=")
+    return {
+        "Content-Type": RAIL_CONTENT_TYPE,
+        "X-Career-Rail-Grant": grant_id,
+        "X-Career-Rail-Owner": owner,
+        "X-Career-Rail-Timestamp": timestamp,
+        "X-Career-Rail-Nonce": nonce,
+        "X-Career-Rail-Signature": hmac.new(key, canonical, hashlib.sha256).hexdigest(),
+    }
+
+
+def _json_or_empty(raw: bytes) -> dict:
+    try:
+        value = json.loads((raw or b"{}").decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _rail_post(body: bytes) -> tuple[int, dict]:
+    """POST one completion to the loopback rail. Proxies are bypassed on purpose: the request is
+    signed with this run's grant and must never leave the controller's own listener."""
+    import urllib.error
+    import urllib.request
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    request = urllib.request.Request(config.RAIL_URL, data=body, headers=_rail_headers(body), method="POST")
+    try:
+        with opener.open(request, timeout=config.RAIL_TIMEOUT_S) as response:
+            return response.status, _json_or_empty(response.read())
+    except urllib.error.HTTPError as err:
+        return err.code, _json_or_empty(err.read())
+    except (urllib.error.URLError, OSError, ValueError):
+        return 0, {"error": "career-worker-unavailable"}
+
+
+def _complete_rail(system, prompt, max_tokens, json_mode) -> str:
+    """One completion on the dedicated Career bot through the package's worker rail."""
+    if _RAIL_FAILURE is not None:
+        raise CareerWorkerUnavailable(_RAIL_FAILURE.reason, _RAIL_FAILURE.status)
+    if not _rail_configured():
+        _rail_trip("rail-not-configured", None)
+    body = json.dumps({
+        "system": system or "", "prompt": prompt or "",
+        "maxTokens": int(max_tokens or 900), "jsonMode": bool(json_mode),
+    }).encode("utf-8")
+    status, payload = _rail_post(body)
+    if status == 200 and payload.get("ok") is True and isinstance(payload.get("text"), str):
+        return payload["text"]
+    error = payload.get("error")
+    _rail_trip(error if isinstance(error, str) and error else f"http-{status}", status or None)
+    return ""  # unreachable: _rail_trip always raises
 
 SYSTEM = (
     "You assess employers for a job seeker. Be balanced and honest. "
@@ -130,6 +264,8 @@ def _complete_codex(system, prompt, json_mode=True, max_tokens=900):
 
 
 def provider():
+    if _rail_mode():
+        return "oshal-bot"
     if _have_codex():
         return "codex"
     if _have_raw_anthropic() or _have_cli():
@@ -143,6 +279,8 @@ _provider = provider  # backwards-compatible alias
 
 
 def auth_kind() -> str | None:
+    if _rail_mode():
+        return "oshal-bot"
     if _have_codex():
         return "codex"
     a = _have_raw_anthropic()
@@ -154,6 +292,8 @@ def auth_kind() -> str | None:
 
 
 def model_name(model: str | None = None) -> str:
+    if _rail_mode():
+        return "oshal-career-bot"
     if _have_codex():
         return os.environ.get("JOBHUNTER_CODEX_MODEL", "codex")
     if provider() == "anthropic":
@@ -215,9 +355,13 @@ def _complete_cli(system, prompt, model):
 
 def complete(system: str, prompt: str, max_tokens: int = 900, json_mode: bool = True,
              model: str | None = None) -> str | None:
-    """Single LLM completion. Prefers the platform's configured codex credential (off the
-    operator's Claude subscription); else a connected Anthropic key / OAuth (falling back to
-    the `claude` CLI on rate-limit); else OpenAI."""
+    """Single LLM completion. In multi-user (OSHAL) mode: the Career worker rail, only — no
+    subprocess, SDK or fallback is reachable, and a rail failure raises CareerWorkerUnavailable.
+    Standalone: prefers the platform's configured codex credential (off the operator's Claude
+    subscription); else a connected Anthropic key / OAuth (falling back to the `claude` CLI on
+    rate-limit); else OpenAI."""
+    if _rail_mode():
+        return _complete_rail(system, prompt, max_tokens, json_mode)
     if _have_codex():
         return _complete_codex(system, prompt, json_mode=json_mode, max_tokens=max_tokens)
     if _have_raw_anthropic():

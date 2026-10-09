@@ -1,0 +1,246 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register owner-hosted gallery byte, lifetime and browser proof with explicit disposable database and framework prerequisites.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register real owner storage and immutable worker callback acceptance without claiming GPU execution.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register console creation, transactional concurrency, rollback and input-bound acceptance against disposable PostgreSQL and Chromium.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Disclose race-only connection admission synchronization; production SQL and lock deadlines remain unchanged.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register owner-bound ADR-139 image-to-curated-dataset dispatch, callback attribution and worker command-boundary proof without claiming live GPU delivery.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register the deterministic autonomous overnight schedule handler and review-ticket handoff without claiming an installed scheduler or live GPU run.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Re-register the dataset destination: pure boundaries in the unit case, and a browser case that redeems a principal-bound handle through the real core relay, stages bytes under forced owner RLS, serves them only to the exact owner worker and imports from the studio console; still no live GPU claim.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Repoint the autonomous schedule case at its real-boundary proof (forced-RLS PostgreSQL, core's own ticket service, grant-signed review callbacks) - its "closes only its exact dispatch ticket" expectation had no test behind it - and register the per-dispatch callback grant proof. Worker callbacks now need a grant, not the fleet service secret.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register the kernel boundary proof for worker callbacks (real manifest reader, ADR-149 enforce runtime and route mounter): LoRA 1.6.0 was refused authorization_identity_required on the live box because no case crossed that boundary. The Python and PowerShell producers cross the same boundary in a suite added to the callback-grants case, which already declares those interpreters. The overnight case now also expects the not-ready skip for an autonomous character with no recorded owner issuer.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Add the real-PowerShell box-path guard to the dataset destination case. LoRA 1.7.0's first live import failed New-Item with DriveNotFound ($env:String) because the curated, image and caption paths were single-quoted literals under the default "$env:USERPROFILE/lora-characters" root; every existing PowerShell proof pointed LORA_BOX_ROOT at a literal temp directory, so no case could see it. The new suite keeps the default root, runs the shipped statements through powershell.exe with USERPROFILE redirected, and asserts the files at the expanded path; the case now declares runtime:powershell.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Register the family audience view contract (ADR-164 D6): the static kit contract of the studio page plus its behaviour against a stub kit and stub fetch (one home-summary read, never /characters, whose read provisions the starter character; plain-word stats, tiles and states) and the gated studio start. Node-only, no browser, no database, no GPU.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.7.3: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | GET /characters no longer provisions the starter character (a GET is admitted read-only on the native host); the character-console case now expects the studio's read to save nothing and the explicit starter action to save one owner-bound starter, once.
+version: 1
+cases:
+  - id: package-readiness
+    name: LoRA package readiness
+    purpose: Read package metadata without starting training or accessing user model data.
+    level: integration
+    runner: { kind: smoke, smoke: package-readiness }
+    expected: [The installed readiness route names the LoRA package.]
+    prerequisites: []
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 10000, maxMemoryMb: 256 }
+    installation: safe-smoke
+  - id: hosted-gallery
+    name: Owned scorecard images and run lifetime
+    purpose: Exercise actual thumbnail HTTP and Chromium pixels against forced-RLS disposable PostgreSQL; session identity, remote dispatch and runtime bootstrap are named fixture seams.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/gallery.core.spec.mjs]
+    expected:
+      - Each scorecard cell displays the exact stored pixels for its owner.
+      - Another owner and anonymous requests cannot read those bytes.
+      - Expiry and deletion remove access, late callbacks cannot renew a run, and revalidation cannot show a mismatched prior image.
+      - No GPU, provider, deployment database or outbound image host is contacted.
+    prerequisites: [runner:playwright, runner:vitest, browser:chromium, harness:oshal-core-root, harness:core-test-fixtures, engine-container:disposable-postgres]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/lora-gallery-browser.spec.ts, tests/gallery.config.mjs]
+      cleanup: The suite closes Chromium and its loopback server, then stops its own PostgreSQL container including anonymous volumes.
+    limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
+    installation: never
+  - id: worker-storage
+    name: Immutable character worker storage and callback ownership
+    purpose: Create owner-isolated characters and exercise worker command and callback compatibility over real HTTP and forced-RLS PostgreSQL; ticket creation and enqueue are recording seams.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/worker-storage.core.test.js]
+    expected:
+      - Identical public names and Windows filename aliases have disjoint immutable datasets and model stems.
+      - Worker callbacks cannot resolve another owner's key or an ambiguous key.
+      - Legacy model filenames remain valid for validation and overnight preparation without sharing new output paths.
+      - Missing versions cause no ticket or enqueue, and no GPU or provider work runs.
+    prerequisites: [runner:vitest, harness:oshal-core-root, harness:core-test-fixtures, engine-container:disposable-postgres]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/lora-storage-namespace.spec.ts, tests/lora-worker-storage.spec.ts, tests/gallery.config.mjs]
+      cleanup: The suite closes its loopback server and stops its own PostgreSQL container and anonymous volumes.
+    limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
+    installation: never
+  - id: gallery-routes
+    name: Thumbnail route bounds and callback attribution
+    purpose: Exercise raw-image size and type bounds, owner callback headers and refusal responses over loopback HTTP with a recording database port.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/gallery.core.test.js]
+    expected: [Invalid or unsigned image bodies are refused before storage., Reads retain private no-store headers and owner predicates.]
+    prerequisites: [runner:vitest, harness:oshal-core-root]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/lora-cell-images.spec.ts, tests/gallery.config.mjs]
+      cleanup: The suite closes its loopback servers and restores its fixture environment.
+    limits: { timeoutMs: 60000, maxMemoryMb: 512 }
+    installation: never
+  - id: character-console
+    name: Console character configuration and concurrent creation
+    purpose: Save and reload all identity fields in the real studio and prove bounded, owner-serialized creation against PostgreSQL; session identity, post-migration bootstrap and race-only connection admission are fixture seams, and work dispatch is forbidden.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/character-console.core.spec.mjs]
+    expected:
+      - Console save and reload retain all identity values and show the immutable worker dataset destination without starting work.
+      - Invalid types, NULs and UTF-8 oversize values never persist, and another owner may use the same identity.
+      - Simultaneous requests cannot reuse a hero or identity sentence; rollback and lock timeout allow clean retries.
+      - Cancellation writes nothing, duplicate submits are suppressed, and refused saves retain an escaped draft/error view.
+      - Replaying identity migration preserves a custom character sharing the starter subject while backfilling the actual starter.
+      - A fresh owner's studio read saves nothing; the explicit starter action saves exactly one owner-bound starter, idempotently, without starting work.
+    prerequisites: [runner:playwright, runner:vitest, browser:chromium, harness:oshal-core-root, harness:core-test-fixtures, engine-container:disposable-postgres]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/lora-character-browser.spec.ts, tests/gallery.config.mjs]
+      cleanup: The suite closes Chromium and loopback HTTP, releases fixture locks, and stops its own PostgreSQL container including anonymous volumes.
+    limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
+    installation: never
+  - id: dataset-artifact-destination
+    name: Dataset destination boundaries
+    purpose: Pin basenames, magic-byte typing, caption bounds, the staging DDL and the worker command without a database, network or GPU worker, and run the command's shipped directory/move/write statements through real PowerShell under the DEFAULT box root with USERPROFILE pointed at a temporary directory.
+    level: unit
+    runner:
+      kind: vitest
+      scope: package
+      files: [tests/lora-dataset-ingest.spec.ts, tests/lora-dataset-box-path.spec.ts]
+    expected:
+      - Traversal, unsafe and mislabelled names become a safe basename whose extension matches the image bytes, or are refused.
+      - The worker command downloads from the owner staging route, never the artifact handle, and carries neither the fleet secret nor the plaintext owner.
+      - A failed download, image check or write posts a failed callback from a catch before the task ends in error.
+      - Every box path in the command is a double-quoted expandable string under "$env:USERPROFILE/lora-characters" and no single-quoted "$env:" appears; the path validator refuses every quote, backtick, stray "$", wildcard, newline, control character and "..".
+      - On Windows, real powershell.exe running the shipped statements creates the curated directory at the EXPANDED path and writes the image and the exact caption bytes there; a non-Windows host prints one PLATFORM SKIP line for that case instead of passing it.
+    prerequisites: [runner:vitest, harness:oshal-core-root, runtime:powershell]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000, maxMemoryMb: 512 }
+    installation: never
+  - id: dataset-relay-acceptance
+    name: Send-to image into a named LoRA dataset
+    purpose: Redeem a principal-bound Send-to handle through the real core artifact routes and authenticated relay as the signed-in owner, stage the checked bytes in forced-RLS disposable PostgreSQL, serve them only to the exact owner worker, and import from the studio console in Chromium; session identity, ticket creation and GPU enqueue are named fixture seams.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/dataset.core.spec.mjs]
+    expected:
+      - The owner's import stages exactly the source bytes and queues one worker write whose command targets the LoRA staging route.
+      - A foreign owner, a second issuer, an expired handle and a service-rail-only request create no receipt and no dispatch.
+      - Non-image, mislabelled and over-10-MiB sources are refused before storage.
+      - Only the worker holding that import's callback grant can download staged bytes (the fleet secret alone cannot); ready and failed callbacks delete them and revoke the grant, and expiry fails the receipt.
+      - Another owner can neither read nor write the staged bytes at the database.
+      - The studio opened with ?artifact= shows the queued receipt after Import; no GPU worker, provider or deployment database is contacted.
+    prerequisites: [runner:playwright, runner:vitest, browser:chromium, harness:oshal-core-root, harness:core-test-fixtures, engine-container:disposable-postgres]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/lora-dataset-ingest.spec.ts, tests/lora-dataset-relay.spec.ts, tests/gallery.config.mjs]
+      cleanup: The suite closes Chromium and its loopback server, removes its authorization catalog directory, and stops its own PostgreSQL container including anonymous volumes.
+    limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
+    installation: never
+  - id: autonomous-overnight-schedule
+    name: Owner-enabled autonomous overnight schedule
+    purpose: Run the declared schedule handler under the system identity against forced-RLS disposable PostgreSQL (non-bypass operator and owner roles) with core's real ticket service, two owners and four characters, and send the morning review signed with the grant each dispatch handed its worker; only GPU enqueue is a recording seam.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/overnight-schedule.core.test.js]
+    expected:
+      - Only characters with autonomous=true and a trained or scored starting model are dispatched; a not-ready character is skipped and a disabled one is never touched.
+      - Each scheduled ticket, command and callback grant carries its own character's owner, worker namespace and review ticket.
+      - A second tick skips every running loop, including after an earlier night of the same character completed.
+      - The signed review parks one approval_required ticket, completes only its own dispatch ticket and revokes the grant; another owner's ticket and another character are refused untouched.
+      - An autonomous character enabled before owner issuers were recorded is skipped as not ready, with no ticket, grant or command.
+    prerequisites: [runner:vitest, harness:oshal-core-root, harness:core-test-fixtures, engine-container:disposable-postgres]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/lora-overnight-schedule.spec.ts, tests/helpers/lora-callback-signer.ts, tests/gallery.config.mjs]
+      cleanup: The suite closes its loopback server and stops its own PostgreSQL container and anonymous volumes; no provider, connector, scheduler or GPU worker is contacted.
+    limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
+    installation: never
+  - id: callback-grants
+    name: Per-dispatch worker callback grants
+    purpose: Mint grants through real dispatches, then verify worker callbacks over real HTTP and forced-RLS disposable PostgreSQL, including the framework's Python box signer and the dataset command's PowerShell signer, both against the package verifier and through the kernel's real enforce-mode mount; tickets and GPU enqueue are recording seams.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/callback-grants.core.test.js, tests/box-producers-boundary.core.test.js]
+    expected:
+      - Each dispatch mints one grant bound to its owner, character, ticket and callback kinds, stores only the derived key, and hands the token over only as an environment assignment.
+      - A fresh signed callback is accepted; the same request replayed, a tampered body, a stale timestamp, an expired or revoked grant and the fleet service secret alone are refused.
+      - Another owner's grant, another character and a callback kind the dispatch was not granted are refused with no write, and grants stay invisible and unmintable across owners at the database.
+      - The Python box signer and the PowerShell dataset command are accepted by the verifier, and the dataset command cannot run again after its final callback revoked the grant.
+      - Through the kernel's enforce-mode mount, the Python signer's callback and the dataset command's signed POST download and ready callback are admitted as the grant owner.
+    prerequisites: [runner:vitest, harness:oshal-core-root, harness:core-test-fixtures, engine-container:disposable-postgres, runtime:python3, runtime:powershell]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/lora-callback-grants.spec.ts, tests/helpers/lora-callback-signer.ts, tests/helpers/lora-callback-rail.ts, tests/helpers/kernel-callback-harness.cjs, tests/gallery.config.mjs]
+      cleanup: Each suite closes its loopback server, removes its temporary box directory, and stops its own PostgreSQL container including anonymous volumes.
+    limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
+    installation: never
+  - id: kernel-signed-callbacks
+    name: Worker callbacks through the kernel's enforce-mode boundary
+    purpose: Activate the real package through the kernel's manifest reader, ADR-149 enforce-mode authorization runtime and route mounter over forced-RLS disposable PostgreSQL, then act as the GPU worker holding a grant a real studio dispatch minted; request identity, the principal directory, tickets and GPU enqueue are named fixture seams.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/signed-callback-boundary.core.test.js]
+    expected:
+      - A grant minted by a real studio dispatch through the kernel records the verified owner's subject and issuer, and enabling autonomous mode records that issuer for the nightly schedule.
+      - A correctly signed callback is admitted by the kernel and served as the grant owner; the same request replayed is refused.
+      - Unsigned, fleet-secret-only, tampered, expired, issuer-less and foreign-owner requests are refused before any write.
+      - Revoking the owner's LoRA role or deactivating the owner refuses the grant's callbacks, and only POST reaches the worker mount.
+    prerequisites: [runner:node-test, fixture:core-checkout, harness:core-test-fixtures, engine-container:disposable-postgres]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/helpers/kernel-callback-harness.cjs, tests/helpers/lora-callback-signer.ts]
+      cleanup: The suite unmounts the package, closes its loopback server, removes its temporary box directory, and stops its own PostgreSQL container including anonymous volumes.
+    limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its family (Home shell) and company (Business shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the family view makes one read, GET /api/lora/home-summary; it never reads /characters (whose read saves the starter character for a new account), a version, scorecard, cell image or dataset receipt, and never writes.
+      - The three saved counts and the newest character's recorded score read as plain stats; each of the three newest characters reads its latest version, its status in plain words and when the version was recorded, which is never called a training finish.
+      - No characters, saved but untrained, a failed newest version, an unreadable date, an unknown status or detail and a partial answer each read as what they are; an answer without counts is never read as zero.
+      - Signed out, refused, a failed read, a non-JSON answer and an unreachable server each read as what they are.
+      - Under the family view the studio script wires no control and reads nothing; with the kit idle or absent it wires its controls and reads the character list as before.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

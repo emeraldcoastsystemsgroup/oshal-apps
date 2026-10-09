@@ -10,13 +10,15 @@
  * ---------------------------------------------------------------------------
  * 2026-06-27 | roger.murphy@agenticfederal.us | Initial rewards/loot-box + collection system
  * ---------------------------------------------------------------------------
+ * 2026-10-07 | maintainer@emeraldcoastsystemsgroup.com | Read persisted reward inventory without creating rows or modifying timestamps on GET
+ * 2026-10-08 | maintainer@emeraldcoastsystemsgroup.com | Preserve expected school setup and access refusals across reward operations; sanitize unexpected failures
  * @module education-rewards-routes
  */
 
 import { Router, type Request, type Response } from 'express';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
-import { resolveAuthedStudent } from './education-access';
+import { resolveAuthedStudent, EducationAccessError } from './education-access';
 
 const logger = createChildLogger({ module: 'education-rewards-routes' });
 
@@ -66,6 +68,17 @@ export function rollItem(): RewardItem {
   return REWARD_CATALOG[0];
 }
 
+/** Keep expected account setup refusals distinct from an unexpected storage failure. */
+function sendRewardsError(res: Response, error: unknown, operation: 'load' | 'open' | 'equip'): void {
+  if (error instanceof EducationAccessError) {
+    res.status(error.status).json({ error: error.message });
+    return;
+  }
+  // Database messages may contain private values; record only the static operation.
+  logger.error({ operation }, 'Reward operation failed');
+  res.status(500).json({ error: 'Could not complete the reward operation' });
+}
+
 export function createEducationRewardsRoutes(ctx: AppContext): Router {
   const router = Router();
 
@@ -80,8 +93,9 @@ export function createEducationRewardsRoutes(ctx: AppContext): Router {
      )`,
   ).catch((err) => logger.warn({ err }, 'lm_rewards table bootstrap failed (non-fatal)'));
 
-  async function loadState(studentId: string): Promise<{ boxes: number; inventory: string[]; equipped: any }> {
+  async function loadState(studentId: string, readOnly = false): Promise<{ boxes: number; inventory: string[]; equipped: any }> {
     const r = await ctx.pool.query(
+      readOnly ? 'SELECT boxes, inventory, equipped FROM lm_rewards WHERE student_id = $1' :
       `INSERT INTO lm_rewards (student_id) VALUES ($1)
        ON CONFLICT (student_id) DO UPDATE SET updated_at = NOW()
        RETURNING boxes, inventory, equipped`,
@@ -95,7 +109,7 @@ export function createEducationRewardsRoutes(ctx: AppContext): Router {
   router.get('/rewards', async (req: Request, res: Response) => {
     try {
       const me = await resolveAuthedStudent(req, ctx.pool);
-      const st = await loadState(me.studentId);
+      const st = await loadState(me.studentId, true);
       const prog = await ctx.pool.query('SELECT xp, level FROM lm_students WHERE student_id = $1', [me.studentId]);
       // The default pink monster is always owned so the avatar is never empty.
       const inventory = Array.from(new Set(['mon-pink', ...st.inventory]));
@@ -104,8 +118,7 @@ export function createEducationRewardsRoutes(ctx: AppContext): Router {
         xp: prog.rows[0]?.xp ?? 0, level: prog.rows[0]?.level ?? 1,
       });
     } catch (err: any) {
-      logger.error({ err }, 'Failed to load rewards');
-      res.status(500).json({ error: err.message });
+      sendRewardsError(res, err, 'load');
     }
   });
 
@@ -141,8 +154,7 @@ export function createEducationRewardsRoutes(ctx: AppContext): Router {
       }
       res.json({ item, duplicate: owned, bonusXp, boxesLeft });
     } catch (err: any) {
-      logger.error({ err }, 'Failed to open box');
-      res.status(500).json({ error: 'Could not open the box' });
+      sendRewardsError(res, err, 'open');
     }
   });
 
@@ -168,8 +180,7 @@ export function createEducationRewardsRoutes(ctx: AppContext): Router {
       );
       res.json({ equipped });
     } catch (err: any) {
-      logger.error({ err }, 'Failed to equip');
-      res.status(500).json({ error: err.message });
+      sendRewardsError(res, err, 'equip');
     }
   });
 

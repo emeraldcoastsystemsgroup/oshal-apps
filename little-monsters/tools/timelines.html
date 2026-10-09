@@ -3,87 +3,98 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Little Monsters - Timelines</title>
-<script>
-(function(){function a(n){if(!n)return;document.documentElement.setAttribute('data-theme',n);var h='/cockpit/css/themes/'+n+'.css',l=document.querySelector('link[data-lm-theme-link]');if(l){if(l.getAttribute('href')!==h)l.setAttribute('href',h);return;}l=document.createElement('link');l.rel='stylesheet';l.href=h;l.setAttribute('data-lm-theme-link','1');document.head.appendChild(l);}function i(){try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(e){}try{var s=localStorage.getItem('cockpit-theme');if(s)return s;}catch(e){}return 'little-monsters';}a(i());try{if(window.parent&&window.parent!==window){var ph=window.parent.document.documentElement;new MutationObserver(function(m){for(var k=0;k<m.length;k++)if(m[k].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)a(t);}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});}}catch(e){}})();
-</script>
+<title>Little Monsters — Timelines</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  SEQ | AUTHOR                                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com   | Timeline builder: year-or-date, event and detail entries kept in browser storage and drawn in order along a vertical line
+  2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass link and literal pink/dark palette; hero, two-column layout (timeline beside the add form, form first on phones), system fields and buttons, event cards on a token-drawn line, an empty state with a call to action, LM.toast for add/remove and validation notices, removal by stored index instead of content matching, and a plain line saying the timeline lives in this browser only
+  ---------------------------------------------------------------------------
+-->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
 <link rel="stylesheet" href="/api/education/education.css">
 <style>
-  body{margin:0;color:var(--text-primary,#fdeaf6);font-family:system-ui,'Inter',sans-serif;}
-  .wrap{padding:22px clamp(14px,4vw,40px) 60px;max-width:760px;}
-  .head{display:flex;align-items:center;gap:12px;}
-  .head img{width:48px;height:48px;border-radius:12px;border:3px solid var(--accent-primary,#ec4faa);background:var(--bg-card);}
-  h1{margin:0;font-size:clamp(20px,3vw,28px);}
-  .sub{color:var(--text-muted);font-size:13px;margin:4px 0 18px;}
-  .card{border:1px solid var(--border-color);border-radius:16px;background:var(--bg-card);padding:16px;margin-bottom:16px;}
-  .add{display:flex;gap:8px;flex-wrap:wrap;}
-  .add input{padding:10px 12px;border-radius:10px;border:1px solid var(--border-color);background:var(--bg-secondary);color:inherit;font-size:14px;}
-  .add .when{width:110px;} .add .what{flex:1;min-width:160px;}
-  .btn{background:var(--accent-primary,#ec4faa);color:#fff;border:none;border-radius:12px;padding:10px 16px;font-weight:800;cursor:pointer;}
-  /* timeline */
-  .tl{position:relative;margin-top:10px;padding-left:30px;}
-  .tl::before{content:'';position:absolute;left:9px;top:6px;bottom:6px;width:3px;border-radius:3px;
-    background:linear-gradient(180deg,#ec4faa,#a855f7,#5b8def);}
-  .ev{position:relative;margin-bottom:16px;}
-  .ev::before{content:'';position:absolute;left:-26px;top:4px;width:13px;height:13px;border-radius:50%;
-    background:var(--accent-primary,#ec4faa);box-shadow:0 0 0 4px var(--bg-card);}
-  .ev .yr{font-weight:800;color:var(--accent-primary,#ec4faa);font-size:14px;}
-  .ev .ti{font-weight:700;font-size:15px;margin-top:1px;}
-  .ev .no{font-size:13px;color:var(--text-muted);margin-top:2px;}
-  .ev .x{position:absolute;right:0;top:0;color:var(--status-error,#ff6b8b);cursor:pointer;font-size:12px;}
-  .empty{color:var(--text-muted);font-size:13px;}
-  .small{font-size:12px;color:var(--text-muted);margin-top:6px;}
+  .tl { position: relative; padding-left: 30px; }
+  .tl::before { content: ""; position: absolute; left: 9px; top: 8px; bottom: 8px; width: 3px; border-radius: 3px;
+    background: linear-gradient(180deg, var(--lm-accent), color-mix(in srgb, var(--lm-accent) 55%, var(--lm-gold))); }
+  .tl.is-empty { padding-left: 0; }
+  .tl.is-empty::before { display: none; }
+  .ev { position: relative; margin-bottom: 12px; padding: 12px 14px; background: var(--lm-card); border: 1px solid var(--lm-line); border-radius: var(--lm-radius-md); }
+  .ev::before { content: ""; position: absolute; left: -26px; top: 18px; width: 13px; height: 13px; border-radius: 50%; background: var(--lm-accent); box-shadow: 0 0 0 4px var(--lm-bg); }
+  .ev-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .ev .yr { font-weight: 800; color: var(--lm-accent); font-size: 14px; letter-spacing: .3px; }
+  .ev .ti { font-weight: 700; font-size: 16px; margin-top: 2px; overflow-wrap: anywhere; }
+  .ev .no { font-size: 13.5px; color: var(--lm-muted); margin-top: 2px; overflow-wrap: anywhere; }
+  @media (max-width: 960px) { .add-card { order: -1; } }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
-<div class="wrap">
-  <div class="head"><img src="/api/education/mascot.png" alt=""><div><h1>Timelines</h1></div></div>
-  <p class="sub">Turn a jumble of dates into a clear path. Add events and watch them line up in order.</p>
-
-  <div class="card">
-    <div class="add">
-      <input class="when" id="when" placeholder="Year / date">
-      <input class="what" id="what" placeholder="What happened?">
-      <input class="what" id="note" placeholder="A detail (optional)">
-      <button class="btn" onclick="addEv()">Add</button>
+<main class="lm-page">
+  <header class="lm-hero">
+    <div>
+      <div class="lm-eyebrow">History &amp; more</div>
+      <h1 class="lm-display">Timelines</h1>
+      <p class="lm-lead">Turn a jumble of dates into a clear path. Add events and watch them line up in order.</p>
     </div>
-    <p class="small">Tip: type a year like <b>1776</b> or a date like <b>1969-07-20</b> — events sort themselves.</p>
-  </div>
+    <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
+  </header>
 
-  <div class="card">
-    <div class="tl" id="tl"><div class="empty">No events yet. Add the milestones from your lecture above.</div></div>
+  <div class="lm-columns">
+    <section class="lm-section" aria-labelledby="tlTitle">
+      <div class="lm-section-head"><h2 id="tlTitle">Your timeline</h2><span class="lm-subtle lm-small" id="tlCount"></span></div>
+      <p class="lm-help lm-mb-md">Kept in this browser only — it is not saved to your account or shared with your class.</p>
+      <div class="tl" id="tl"></div>
+    </section>
+
+    <section class="lm-card add-card" aria-labelledby="addTitle">
+      <div class="lm-section-head"><h2 id="addTitle">Add an event</h2></div>
+      <div class="lm-field"><label for="when">Year or date</label><input class="lm-input" id="when" placeholder="1776 or 1969-07-20" autocomplete="off"></div>
+      <div class="lm-field"><label for="what">What happened?</label><input class="lm-input" id="what" placeholder="What happened?" autocomplete="off"></div>
+      <div class="lm-field"><label for="note">A detail (optional)</label><input class="lm-input" id="note" placeholder="Who, where, or why it mattered" autocomplete="off"></div>
+      <div class="lm-row is-wrap"><button type="button" class="lm-btn lm-btn-primary" onclick="addEv()">Add to timeline</button></div>
+      <p class="lm-help">Tip: type a year like <b>1776</b> or a date like <b>1969-07-20</b> — events sort themselves.</p>
+    </section>
   </div>
-</div>
+</main>
+
+<script src="/api/education/mascot.js?v=4"></script>
 <script>
-var KEY='lm-timeline';
-function load(){try{return JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){return[];}}
-function save(v){try{localStorage.setItem(KEY,JSON.stringify(v));}catch(e){}}
-function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
-function keyOf(w){ var n=parseFloat(String(w).replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
-function addEv(){
-  var w=document.getElementById('when').value.trim(), t=document.getElementById('what').value.trim(), n=document.getElementById('note').value.trim();
-  if(!w||!t) return;
-  var l=load(); l.push({w:w,t:t,n:n}); save(l);
-  document.getElementById('when').value=''; document.getElementById('what').value=''; document.getElementById('note').value='';
-  render();
+var KEY = 'lm-timeline', esc = window.LM.esc;
+function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
+function save(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) { window.LM.toast('This browser would not keep the timeline.'); } }
+function val(id) { return document.getElementById(id).value.trim(); }
+function keyOf(w) { var n = parseFloat(String(w).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }
+function addEv() {
+  var w = val('when'), t = val('what'), n = val('note');
+  if (!w || !t) { window.LM.toast('Add a year and what happened first.'); document.getElementById(w ? 'what' : 'when').focus(); return; }
+  var l = load(); l.push({ w: w, t: t, n: n }); save(l);
+  ['when', 'what', 'note'].forEach(function (id) { document.getElementById(id).value = ''; });
+  render(); window.LM.toast('Added to your timeline.'); document.getElementById('when').focus();
 }
-function render(){
-  var l=load().slice().sort(function(a,b){return keyOf(a.w)-keyOf(b.w);});
-  var tl=document.getElementById('tl');
-  if(!l.length){ tl.innerHTML='<div class="empty">No events yet. Add the milestones from your lecture above.</div>'; return; }
-  tl.innerHTML=l.map(function(e,i){
-    return '<div class="ev"><span class="x" data-i="'+i+'">remove</span>'
-      +'<div class="yr">'+esc(e.w)+'</div><div class="ti">'+esc(e.t)+'</div>'
-      +(e.n?'<div class="no">'+esc(e.n)+'</div>':'')+'</div>';
+function render() {
+  var raw = load(), tl = document.getElementById('tl');
+  var l = raw.map(function (e, i) { return { e: e, i: i }; }).sort(function (a, b) { return keyOf(a.e.w) - keyOf(b.e.w); });
+  document.getElementById('tlCount').textContent = raw.length ? raw.length + (raw.length === 1 ? ' event' : ' events') : '';
+  if (!l.length) {
+    tl.className = 'tl is-empty';
+    tl.innerHTML = '<div class="lm-empty"><div class="lm-empty-icon">🗓️</div><strong>No events yet.</strong>Add the milestones from your lecture and they line up here in order.<br><button type="button" class="lm-btn lm-btn-ghost" onclick="document.getElementById(\'when\').focus()">Add the first event</button></div>';
+    return;
+  }
+  tl.className = 'tl';
+  tl.innerHTML = l.map(function (x) {
+    return '<div class="ev"><div class="ev-head"><span class="yr">' + esc(x.e.w) + '</span><button type="button" class="lm-btn lm-btn-quiet x" data-i="' + x.i + '" aria-label="Remove ' + esc(x.e.t) + '">Remove</button></div>'
+      + '<div class="ti">' + esc(x.e.t) + '</div>' + (x.e.n ? '<div class="no">' + esc(x.e.n) + '</div>' : '') + '</div>';
   }).join('');
-  tl.querySelectorAll('.x').forEach(function(x){ x.onclick=function(){
-    // map sorted index back to a removal by matching content
-    var sorted=load().slice().sort(function(a,b){return keyOf(a.w)-keyOf(b.w);});
-    var target=sorted[parseInt(x.getAttribute('data-i'),10)];
-    var raw=load(); for(var j=0;j<raw.length;j++){ if(raw[j].w===target.w&&raw[j].t===target.t){ raw.splice(j,1); break; } }
-    save(raw); render();
-  }; });
+  tl.querySelectorAll('.x').forEach(function (x) {
+    x.onclick = function () {
+      var i = parseInt(x.getAttribute('data-i'), 10), r = load();
+      if (i >= 0 && i < r.length) r.splice(i, 1);
+      save(r); render(); window.LM.toast('Removed from your timeline.');
+    };
+  });
 }
 render();
 </script>

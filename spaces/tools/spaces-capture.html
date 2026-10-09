@@ -11,6 +11,9 @@
   pose (that's the ladder: v2 stream, v3 live pose/coverage feedback). The same
   {walk, pan} guidance contract is what a drone consumes later as velocity+yaw.
   Sensors need a user gesture (iOS permission prompts) and HTTPS (or localhost).
+  ADR-169 L7: the page remembers its session id in this browser so the upload
+  that follows can name it, and the scan is anchored to where it was captured.
+  Only the id is remembered here; the readings stay on your oshal.
 -->
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -113,7 +116,14 @@
   const qs = new URLSearchParams(location.search);
   const target = qs.get("target") || "room";
   const sessionId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+  const SESSION_KEY = "oshal-spaces-capture-session";
   const $ = (id) => document.getElementById(id);
+
+  // The upload page reads this to name the capture its clip came from (ADR-169 L7). The id only.
+  function rememberSession() {
+    try { localStorage.setItem(SESSION_KEY, JSON.stringify({ id: sessionId, at: Date.now() })); }
+    catch (_) { /* storage refused (private mode): the upload carries no session and the scan is not anchored */ }
+  }
 
   let plan = null;
   let idx = 0;
@@ -149,6 +159,7 @@
 
   function advance(dir) {
     if (dir > 0 && idx >= plan.steps.length - 1) {
+      rememberSession();
       location.href = "/cockpit/?app=spaces";
       return;
     }
@@ -245,6 +256,7 @@
       plan = (await r.json()).plan;
     } catch (e) { err("Could not load the capture plan: " + e.message); return; }
     $("gate").classList.add("hidden");
+    rememberSession();
     renderStep();
   }
 

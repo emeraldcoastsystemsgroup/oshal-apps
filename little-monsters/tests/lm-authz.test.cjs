@@ -12,6 +12,8 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Stub the shared untrusted-content encoder used by the compiled tutor containment boundary.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Exercise minimized identity projections and transaction-local roster audit writes.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Supply the package activation adapter-registration seam while retaining compiled record-boundary coverage.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Stub the owner-bound artifact relay and byte classifier so the compiled class-material receiver remains dependency-free under this authorization harness.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Preserve the native lecture engine boundary while including the full Office and Circuit Lab product bundle.
  *
  * Little Monsters authorization closure.
  *
@@ -66,6 +68,9 @@ const STUBS = {
   '@/shared/logger': {
     createChildLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }),
   },
+  '@/shared/artifact-exchange': {
+    redeemArtifactViaRelay: async () => ({ ok: false, status: 410, error: 'artifact_expired' }),
+  },
   '@/shared/services/database': {
     runtimeSchemaBootstrapEnabled: () => false,
     assertSchemaReady: async () => {},
@@ -83,6 +88,7 @@ const STUBS = {
   './education-catalog-routes': { createEducationCatalogRoutes: emptySubrouter },
   './education-rewards-routes': { createEducationRewardsRoutes: emptySubrouter },
   './education-material-storage': {
+    classifyMaterial: () => ({ mimeType: 'application/octet-stream', extension: '.bin' }),
     async deleteMaterialCollection(collection) {
       materialCleanup.calls.push({ kind: 'rag', value: collection });
       if (materialCleanup.failCollection === collection) throw new Error('simulated RAG cleanup failure');
@@ -797,29 +803,17 @@ test('tenant domain uniqueness is an installed database invariant', () => {
   assert.match(compiledBootstrap, /CREATE UNIQUE INDEX IF NOT EXISTS idx_lm_tenants_domain_unique/i);
 });
 
-test('package metadata keeps the Presentations tab local without an app dependency', () => {
+test('the full learning bundle retains the native lecture player and kernel export boundary', () => {
   const fs = require('node:fs');
   const manifest = fs.readFileSync(path.join(PKG, 'oshal-app.yaml'), 'utf8');
   const catalog = JSON.parse(fs.readFileSync(path.join(PKG, '..', 'marketplace.json'), 'utf8'));
   const entry = catalog.apps.find(app => app.name === 'little-monsters');
   assert.match(manifest, /toolName:\s*lm-presentations[^\n]*iframeUrl:\s*\/api\/education\/presentation/);
   assert.doesNotMatch(manifest, /iframeUrl:\s*\/api\/presentations\/sections\/ui/);
-  // The claim is that little-monsters declares NO app dependency - the Presentations tab is local.
-  // The tier addendum split `dependencies.apps` into required/optional, so pinning the one flat key
-  // asserted a SHAPE that no longer exists rather than the claim. Assert the claim: every apps key
-  // under dependencies, in whichever tiers exist, is empty.
-  const manifestLines = manifest.split(/\r?\n/);
-  const depStart = manifestLines.findIndex((line) => /^dependencies:\s*$/.test(line));
-  assert.ok(depStart >= 0, 'manifest declares a dependencies block');
-  const depLines = [];
-  for (let i = depStart + 1; i < manifestLines.length; i += 1) {
-    const line = manifestLines[i];
-    if (line.trim() === '') continue;
-    if (!/^\s/.test(line)) break; // a line in column zero ends the block
-    depLines.push(line);
-  }
-  const appKeys = depLines.filter((line) => /^\s+apps:/.test(line));
-  assert.ok(appKeys.length, 'dependencies declares an apps key in at least one tier');
-  for (const line of appKeys) assert.match(line, /apps:\s*\[\]\s*$/, `app dependency declared: ${line.trim()}`);
-  assert.deepEqual(entry?.dependencies?.apps, []);
+  const nativeExport = fs.readFileSync(path.join(PKG, 'src-routes/education-pptx.ts'), 'utf8');
+  assert.match(nativeExport, /import \{ renderPptx[^\n]+from '@\/features\/presentation-generation'/);
+  assert.doesNotMatch(nativeExport, /\/api\/presentations/);
+  assert.deepEqual(entry?.dependencies?.required?.apps, ['presentations', 'circuit-lab']);
+  assert.deepEqual(entry?.dependencies?.optional?.apps, []);
+  assert.deepEqual(entry?.dependencies?.apps, ['presentations', 'circuit-lab']);
 });

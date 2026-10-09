@@ -1,17 +1,116 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Travel</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the trips on the radar (saved
+     fare watches, what is coming up, which fares dropped, whether prices are live or demo), from the SAME /api/travel
+     routes the full page reads, painted by the shared kit in the family grammar. On open it reads only /config (the
+     Duffel status operation, no network call) and /watches. It never runs a flight, hotel or car search: those call
+     the provider and record prices and searches on read. No concierge and no write. Trip dates are calendar days
+     (AppView.day); checks and saves are timestamps. Any other request runs the full Travel page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<style>
+  /* Under an audience view: this page's body is a flex column and its `main` rule is a two-column grid, and the kit's
+     root is a <main> child of the body. Lay both out as blocks so the view keeps its own grammar. */
+  html[data-audience] body, html[data-audience] #av-root { display: block; }
+</style>
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=travel', KINDS = { flight: 'Flight', hotel: 'Hotel', car: 'Car' }, NO_WATCHES = 'No fare watches yet. Search a trip in Travel and tap Watch.';
+  function call(path) {
+    return fetch('/api/travel' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; });
+    });
+  }
+  function refused(e) { return !!e && (e.status === 401 || e.status === 403); }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function today() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function query(w) { var q = w.query; if (typeof q === 'string') { try { q = JSON.parse(q); } catch (_) { q = null; } } return q && typeof q === 'object' ? q : {}; }
+  // The trip's first calendar day as the watch stored it: a flight's departure, a hotel's check-in or a car's pickup.
+  function tripDay(w) { var q = query(w), d = String(q.departDate || q.checkIn || q.pickupDate || ''); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : ''; }
+  function place(w) {
+    var q = query(w);
+    if (q.origin && q.destination) return q.origin + ' → ' + q.destination + (q.returnDate ? ' and back' : '');
+    if (q.city) return (w.kind === 'car' ? 'Car in ' : w.kind === 'hotel' ? 'Hotel in ' : '') + q.city;
+    return w.route_key || 'Saved trip';
+  }
+  function detail(w) {
+    var q = query(w), cur = w.currency || 'USD';
+    return [KINDS[w.kind] || 'Trip', w.kind === 'flight' && q.cabin ? String(q.cabin).replace(/_/g, ' ') : '', Number(q.pax) > 1 ? q.pax + ' travellers' : '',
+      w.last_price != null ? 'last seen ' + A.money(w.last_price, cur) : 'no price checked yet', w.target_price != null ? 'target ' + A.money(w.target_price, cur) : ''].filter(Boolean).join(' · ');
+  }
+  // The fare-watch flips a watch to 'tripped' when the fare reaches its target (or, with no target, drops below the
+  // last price seen) and stops re-pricing it; an active watch whose date has gone by is still active, so say so.
+  function status(w, now) {
+    if (w.status === 'tripped') return { badge: w.target_price != null ? 'Reached target' : 'Price dropped', tone: 'ok' };
+    var d = tripDay(w);
+    if (d && d < now) return { badge: 'Date passed', tone: 'warn' };
+    return { badge: w.status === 'active' ? 'Watching' : w.status || null, tone: null };
+  }
+  function row(w, now) {
+    var s = status(w, now), d = tripDay(w);
+    return { title: place(w), text: [d ? A.day(d) : '', detail(w)].filter(Boolean).join(' · '), meta: w.last_checked_at ? 'checked ' + A.when(w.last_checked_at) : 'saved ' + A.when(w.created_at), badge: s.badge, tone: s.tone };
+  }
+  function prices(cfg) {
+    if (!cfg) return { id: 'prices', label: 'Prices', value: '—', hint: 'Could not check' };
+    if (cfg.mode !== 'live') return { id: 'prices', label: 'Prices', value: 'Demo', hint: 'No Duffel token', tone: 'warn' };
+    return cfg.live ? { id: 'prices', label: 'Prices', value: 'Live' } : { id: 'prices', label: 'Prices', value: 'Test', hint: 'Duffel test token', tone: 'warn' };
+  }
+  function hero(watches, next, drops, watching, demo) {
+    var d = next ? tripDay(next) : '', rel = d ? A.when(d) : '', day = d ? A.day(d) : '';
+    return {
+      kicker: 'Trips',
+      title: drops ? (drops === 1 ? 'A watched fare dropped' : drops + ' watched fares dropped') : watching ? 'Watching ' + watching + (watching === 1 ? ' fare' : ' fares') : watches.length ? watches.length + ' saved fare watches' : 'No trips on the radar',
+      lede: (next ? 'Next: ' + place(next) + ' on ' + day + (rel !== day ? ' (' + rel + ')' : '') : watches.length ? 'None of the saved watches has an upcoming date.' : 'Search a trip in Travel and tap Watch to follow its fare here.') + (demo ? ' · demo prices' : ''),
+      actions: [{ label: 'Plan a trip', primary: true, onClick: function () { A.open(FULL); } }].concat(demo ? [{ label: 'Connect live prices', onClick: function () { A.open('/utilities'); } }] : [])
+    };
+  }
+  function model(cfg, watches) {
+    var now = today(), byDay = function (a, b) { return tripDay(a) < tripDay(b) ? -1 : tripDay(a) > tripDay(b) ? 1 : 0; };
+    var soon = watches.filter(function (w) { var d = tripDay(w); return d && d >= now; }).sort(byDay), demo = !!cfg && cfg.mode !== 'live';
+    var drops = watches.filter(function (w) { return w.status === 'tripped'; }).length, watching = watches.filter(function (w) { return w.status === 'active'; }).length;
+    var m = hero(watches, soon[0], drops, watching, demo);
+    m.stats = [
+      { id: 'watching', label: 'Watching', value: watching },
+      { id: 'drops', label: 'Price drops', value: drops, tone: drops ? 'ok' : null },
+      { id: 'next', label: 'Next trip', value: soon[0] ? A.when(tripDay(soon[0])) : '—', hint: soon[0] ? place(soon[0]) : null },
+      prices(cfg)
+    ];
+    m.sections = [
+      { kind: 'timeline', id: 'upcoming', title: 'Coming up', empty: watches.length ? 'None of the saved watches has an upcoming date.' : NO_WATCHES,
+        items: soon.map(function (w) { var s = status(w, now); return { when: A.day(tripDay(w)), title: place(w), text: detail(w) + (s.tone === 'ok' ? ' · ' + s.badge : ''), tone: s.tone }; }) },
+      { kind: 'list', id: 'watches', title: 'Fare watches', empty: NO_WATCHES, items: watches.map(function (w) { return row(w, now); }),
+        note: demo ? 'Prices are demo data until a Duffel token is connected on the Connections page.' : cfg && !cfg.live ? 'Prices come from a Duffel test token.' : null }
+    ];
+    return m;
+  }
+  function family() {
+    return Promise.all([call('/config').catch(function (e) { if (refused(e)) throw e; return null; }), call('/watches')]).then(function (r) {
+      return model(r[0], r[1].items || []);
+    }).catch(function (e) {
+      if (!refused(e)) throw e && e.status >= 500 ? new Error('Travel could not read the fare watches (HTTP ' + e.status + ').') : e;
+      return { kicker: 'Trips', title: e.status === 401 ? 'Sign in to see your trips' : 'This account cannot open Travel',
+        lede: e.status === 401 ? 'Travel shows the fare watches of whoever is signed in, and this session is not signed in.' : 'The Travel routes refused this account (HTTP 403).' };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'travel', escapeLabel: 'Open Travel in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
 <style>
   /* Local tokens — defaults for the standalone view; inside the cockpit the theme-sync script
      below overrides them from the active light/dark theme (per the surface-theme-bridge rule:
      FOLLOW the selected swarm theme, never hardcode a palette). */
   :root {
-    --bg:#0e0e16; --panel:#15151f; --panel2:#1b1b27; --line:#272735;
-    --text:#e6e6f0; --muted:#8b8ba3; --accent:#3b82f6; --accent2:#00d3a7;
-    --scrollbar-thumb:rgba(255,255,255,.14);
+    --bg:var(--bg-primary,#0e0e16); --panel:var(--bg-secondary,#15151f); --panel2:var(--bg-tertiary,#1b1b27); --line:var(--border-color,#272735);
+    --text:var(--text-primary,#e6e6f0); --muted:var(--text-secondary,#8b8ba3); --accent:var(--accent-primary,#3b82f6); --accent2:var(--status-success,#00d3a7);
+    --scrollbar-thumb:var(--scrollbar-thumb,rgba(255,255,255,.14));
     --good:#00d3a7; --typical:#ffb454; --high:#ff6b6b;
     --radius:14px;
     --font:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
@@ -246,7 +345,8 @@ async function sendChat(){
   } catch(err){ addBubble('bot', 'Sorry — '+esc(err.message)); }
 }
 
-(async function init(){
+// The full page only: under an audience view the shared kit paints instead (see the head script).
+if (!window.AppView || !AppView.active()) (async function init(){
   switchTab('flight');
   try { const c = await api('/config'); document.getElementById('mode').textContent = c.mode||'demo'; document.getElementById('mode').className='badge '+(c.connected&&c.live?'live':''); } catch(e){}
 })();
@@ -260,10 +360,13 @@ const clip = value => String(value || '').slice(0,2000);
 const val = id => clip(document.getElementById(id)?.value?.trim());
 const set = (id,value) => { const el=document.getElementById(id); el.value = el.tagName === 'INPUT' ? String(value || '').replace(/\s*\n+\s*/g, ' · ') : value || ''; };
 const brief = context => [context.title,context.notes,context.sourceUrl ? 'Source: '+context.sourceUrl : ''].filter(Boolean).join('\n\n');
+// The full page only: under an audience view no handoff listener is added, no section is appended to the body and no connected-actions offer is fetched.
+if (!window.AppView || !AppView.active()) {
 receiveHandoff({"app":"travel","action":"plan-trip","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]}, context => { set('chatbox', brief(context)); document.getElementById('chatbox').focus(); });
 const element = document.createElement('section'); element.className='connected-app-actions'; element.setAttribute('aria-label','Connected application actions'); element.style.cssText='margin:16px auto;padding:16px;max-width:1200px;border:1px solid currentColor;border-radius:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap';
 document.body.append(element);
 void mountConnectedActions({ app:"travel", element, contextForOffer:()=>{ if (!LAST.search) return null; const title='Prepare for my '+KIND+' search'; const notes=clip('Travel search (not a confirmed booking): '+JSON.stringify(LAST.search)); return {title,notes}; } });
+}
 </script>
 </body>
 </html>

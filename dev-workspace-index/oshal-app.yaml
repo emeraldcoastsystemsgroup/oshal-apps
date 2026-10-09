@@ -1,0 +1,156 @@
+# OSHAL app package — developer workspace index
+#
+# This package is an opt-in, dev-console-only view of the local checkout. It never
+# indexes the published store snapshot, a user's task history, or deployment secrets.
+
+name: dev-workspace-index
+suite: ai-engineering
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features: []   # no model in the loop (T0)
+displayName: Developer Workspace Index
+description: >-
+  Build a bounded, dev-console-only index of the local OSHAL documentation and ask
+  Jarvis for cited developer references.
+version: 0.2.3
+status: active
+# operator: the catalog lists it for operators only. It is used from the ADR-077 dev console, and its
+# routes and tool answer only a super-admin in dev mode whatever the catalog shows.
+scope: operator
+chatBot: general-bot
+
+uses:
+  - rag
+  - app-dependencies
+  - test-catalog
+  - package-tools
+  - application-authorization
+  - experience-roles
+
+authorization:
+  version: 1
+  catalog: authorization.yaml
+  roleTemplates:
+  - id: developer
+    version: 1
+    label: Developer
+    members:
+    - app: dev-workspace-index
+      role: developer
+
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: dev-workspace-index
+  ref: main
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/dev-workspace-index/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+
+# Lifecycle ownership only. The index is never readable through generic RAG upload/search.
+ragCollections:
+  - dev-workspace-*
+
+# The index manifest. tools/workspace-index.js reads THIS block (tools/workspace-manifest.js),
+# so what the indexer walks is what the package declares. `include` are checkout-relative roots;
+# `exclude` are path segments refused anywhere; `.env*` segments are always refused. The named
+# local notes directory (--notes-dir) is off unless named and appears under localNotesPrefix/.
+# Dev mode granted by a super-admin lasts devModeTtlMinutes and does not survive a restart.
+devWorkspaceIndex:
+  collection: dev-workspace-local
+  include:
+    - CLAUDE.md
+    - CONTRIBUTING.md
+    - docs/BACKLOG.md
+    - docs/adr
+    - docs/backlog
+    - docs/governance
+    - docs/runbooks
+  exclude:
+    - .git
+    - .env
+    - config-seed
+    - node_modules
+    - lane-clones
+    - transcripts
+    - scratch
+    - session-notes
+    - COLLABORATE.md
+  localNotesPrefix: local-notes
+  devModeTtlMinutes: 240
+
+# Enablement is the deployment flag OSHAL_DEV_WORKSPACE_INDEX_ENABLED plus the ADR-077 super-admin
+# double gate (OSHAL_DEV_CONSOLE_ENABLED and OSHAL_SUPERADMIN_SUBS). A super-admin then turns dev
+# mode on for their own session from the Developer Workspace surface.
+
+tools:
+  - name: dev_workspace_search
+    displayName: Developer workspace search
+    description: >-
+      Search the dev-console-only index of the local checkout's documentation (ADRs, backlog,
+      runbooks, governance, contributor guides, optional local notes) and return cited references.
+      Available only to a super-admin whose dev mode is on.
+    usageInstructions: >-
+      Use when a developer asks about an ADR number, a backlog entry, a runbook, a handover or how
+      this repository works. Cite the returned doc_id and path for every claim you take from a
+      result; never quote a result without its doc_id. If the tool refuses, say dev mode is off or
+      the caller is not a super-admin; do not guess at the document.
+    defaultAuthMode: auto
+    requiresApproval: false
+    timeoutMs: 10000
+    routingTags: [developer-docs, adr, backlog, runbook, handover, dev-console]
+    executor: { executorType: builtin, builtinKey: package }
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [query]
+      properties:
+        query: { type: string, minLength: 1, maxLength: 200, description: Words from the ADR number, backlog title, runbook or note you want. }
+        limit: { type: integer, minimum: 1, maximum: 10, description: Maximum results (default 5). }
+
+ui:
+  static:
+    - toolName: dev-workspace-index
+      label: Developer Workspace
+      icon: codicon codicon-book
+      iframeUrl: /api/dev-workspace-index/app
+      section: developer
+
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/dev-workspace-index/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+  - module: routes/dev-workspace.js
+    factory: createDevWorkspaceIndexRoutes
+    mountPath: /api/dev-workspace-index
+    auth: oidc
+    requiresContext: true
+    requiresAi: false
+
+theme: midnight

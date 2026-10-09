@@ -12,11 +12,20 @@
  *                     |                             | fit names, so a number lives in one place. The design document's
  *                     |                             | tables are generated from here (`design-markdown`).
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | fitForSensorSet: the fit a sensor set flies on, so the simulation's body radius and clearance come from the parts model.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Each fit's motor is BUILT from this package's owned row in
+ *                     |                             | parts-catalog.json by id (2306-1800kv, 2807-1300kv) instead of
+ *                     |                             | a literal name, mass and price here. The row is data another
+ *                     |                             | package (Circuit Lab) reads rather than restates (ADR-152 D1),
+ *                     |                             | and it carries the source line the literal never had. The fit
+ *                     |                             | keeps what is the fit's: how many, and the role the motor plays
+ *                     |                             | on its prop. No number moved: the bought part keeps id `motor`,
+ *                     |                             | the same fields in the same order and the same values.
  */
 
 import { DRONE_SENSOR_SETS, type DroneSensorSet, type DroneSensorSetId } from '../drone/sensor-set';
 import { arm, batteryTray, centrePlate, guardSegment, landingFoot, landingPad, layoutFor, mast, tofMount, type AirframeLayout, type CadProgram } from './airframe';
 import { sizeHover, tipSpeedMps, type HoverSizing } from './propulsion';
+import { motorRow, type PartRow } from './parts-catalog';
 
 /** @description The two ways to fit the one airframe. */
 export type DroneFit = 'recon-mini' | 'recon-3d';
@@ -56,6 +65,19 @@ export interface FitSpec {
   sensing: BoughtPart[];
 }
 
+/**
+ * @description A fit's bought part built from one of this package's owned rows: the row gives the name, one unit's mass
+ * and its price; the fit gives the part's id in the bill, how many it takes and the role the part plays in it.
+ * @param row - The owned row (parts-catalog.json).
+ * @param id - The part's id in the fit's bill of materials.
+ * @param qty - How many the fit takes.
+ * @param role - What the part does in this fit.
+ * @returns The bought part.
+ */
+function boughtFromRow(row: PartRow, id: string, qty: number, role: string): BoughtPart {
+  return { id, name: row.name, qty, massEachG: row.massG, role, approxUsdEach: row.approxUsd };
+}
+
 const common: BoughtPart[] = [
   { id: 'esc', name: '4-in-1 ESC, 35–45 A, BLHeli_32 / AM32', qty: 1, massEachG: 15, role: 'one board, bidirectional DShot for rpm telemetry', approxUsdEach: 45 },
   { id: 'fc', name: 'H7-class flight controller running ArduPilot Copter', qty: 1, massEachG: 10, role: 'rangefinders, optical flow, MAVLink companion, geofence and battery failsafes are stock', approxUsdEach: 75 },
@@ -66,12 +88,12 @@ const common: BoughtPart[] = [
   { id: 'wiring', name: 'Wiring, straps, fasteners, power module with current sense', qty: 1, massEachG: 50, role: '', approxUsdEach: 30 },
 ];
 
-/** @description The two fits. */
+/** @description The two fits. Each motor is read from its owned row in parts-catalog.json by id: a missing row fails the load. */
 export const DRONE_FITS: Record<DroneFit, FitSpec> = {
   'recon-mini': {
     id: 'recon-mini', label: 'Recon-mini — the drone we print first: 2-D ring + downward ToF depth camera', sensorSet: 'recon-mini',
     propIn: 6, cells: 4, mAh: 1500, batteryG: 175, hoverRpm: 9000,
-    motor: { id: 'motor', name: '2306 brushless, 1700–1900 KV', qty: 4, massEachG: 30, role: '~1 kg peak thrust each on a 6-inch prop', approxUsdEach: 18 },
+    motor: boughtFromRow(motorRow('2306-1800kv'), 'motor', 4, '~1 kg peak thrust each on a 6-inch prop'),
     sensing: [
       { id: 'lidar2d', name: 'LDRobot LD19 / D500 class 2-D LiDAR', qty: 1, massEachG: 47, role: '12 m, 360°, ~4500 points/s, UART', approxUsdEach: 90 },
       { id: 'tof', name: 'Arducam ToF class depth camera', qty: 1, massEachG: 20, role: '0.15–4 m, 240 × 180; the height map from 1.9 m', approxUsdEach: 60 },
@@ -81,7 +103,7 @@ export const DRONE_FITS: Record<DroneFit, FitSpec> = {
   'recon-3d': {
     id: 'recon-3d', label: 'Recon-3D — the same frame with the 3-D LiDAR we would buy, held in reserve', sensorSet: 'recon-3d',
     propIn: 7, cells: 6, mAh: 2200, batteryG: 330, hoverRpm: 7500,
-    motor: { id: 'motor', name: '2807 brushless, 1300 KV', qty: 4, massEachG: 45, role: 'a 7-inch prop on 6S for a 1.3 kg machine', approxUsdEach: 28 },
+    motor: boughtFromRow(motorRow('2807-1300kv'), 'motor', 4, 'a 7-inch prop on 6S for a 1.3 kg machine'),
     sensing: [
       { id: 'lidar3d', name: 'Livox Mid-360 class 3-D LiDAR', qty: 1, massEachG: 265, role: '360° × 59°, 40 m; the sensor set the sim assumed through 0.4.0', approxUsdEach: 1000 },
       { id: 'zenith', name: 'TFmini-S class ranger (zenith)', qty: 1, massEachG: 5, role: 'the climb column', approxUsdEach: 40 },

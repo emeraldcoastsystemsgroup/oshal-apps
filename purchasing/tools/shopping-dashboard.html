@@ -6,6 +6,80 @@
   <title>Shop — Concierge</title>
   <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
   <script src="/shared/ui/js/surface-theme.js"></script>
+  <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the household's shopping list
+       (the active list's pending items, the other lists, the saved checkout-link count) from the SAME /api/purchasing
+       routes the full page reads, painted by the shared kit in the family grammar. On open it reads only /lists,
+       /lists/:id/items and /home-summary: no catalog call (search, deals, resolve), no concierge, no write. Adding and
+       removing stay in the full page and the homebase's own shopping module; the one action escapes to Shopping in
+       the cockpit. Any other request runs the full dashboard below unchanged, with its own ?view= tabs. -->
+  <link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+  <script src="/shared/ui/js/app-view.js"></script>
+  <script>
+  (function () {
+    var A = window.AppView; if (!A) return;
+    var FULL = '/cockpit/?app=purchasing';
+    function call(path) {
+      return fetch('/api/purchasing' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; });
+      });
+    }
+    function refused(e) { return !!e && (e.status === 401 || e.status === 403); }
+    // The home summary is its own mount and may fail on its own: the list still shows and the checkout-link count reads as unknown.
+    function summary() { return call('/home-summary').catch(function (e) { if (refused(e)) throw e; return null; }); }
+    function isPending(item) { return !item.status || item.status === 'pending'; }
+    // The same pick as the full page and the routes: the oldest list still active (GET /lists is ordered by creation).
+    function activeList(lists) { return lists.filter(function (l) { return !l.status || l.status === 'active'; })[0] || null; }
+    function stamp(value) { var t = new Date(String(value)).getTime(); return isFinite(t) ? t : 0; }
+    function newest(items) { return items.reduce(function (best, i) { return !best || stamp(i.created_at) > stamp(best.created_at) ? i : best; }, null); }
+    function price(item) { var n = Number(item.unit_price); return item.unit_price !== null && item.unit_price !== undefined && item.unit_price !== '' && isFinite(n) ? A.money(n) + ' each' : 'no price yet'; }
+    function line(item) { return { icon: '🛒', title: item.title || 'Untitled', text: '×' + (Number(item.quantity) || 1) + ' · ' + price(item), meta: 'added ' + A.when(item.created_at) }; }
+    function tile(l) { var n = Number(l.item_count) || 0; return { icon: '📝', title: l.name || 'My List', text: n === 1 ? '1 thing on it' : n + ' things on it', meta: 'started ' + A.when(l.created_at), badge: l.status === 'archived' ? 'Archived' : null }; }
+    function handoffs(sum) { return ((sum && sum.metrics) || []).filter(function (m) { return m.id === 'shopping-handoffs-5d'; })[0] || null; }
+    function stats(items, lists, sum) {
+      var last = newest(items), links = handoffs(sum);
+      return [
+        { id: 'pending', label: 'On the list', value: items.length },
+        { id: 'lists', label: 'Lists', value: lists.length },
+        { id: 'added', label: 'Last added', value: last ? A.when(last.created_at) : '—' },
+        { id: 'handoffs', label: 'Checkout links, 5 days', value: links ? links.value : '—', hint: links ? 'Not confirmed purchases' : 'Could not check' }
+      ];
+    }
+    function lede(list, items) {
+      var last = newest(items);
+      if (!list) return 'Nothing has been started yet. Open Shopping to start a list.';
+      if (!items.length) return 'The list is empty. Add things in Shopping or on the home list.';
+      return items.length + (items.length === 1 ? ' thing' : ' things') + ' to pick up. Newest: ' + (last.title || 'Untitled') + ', added ' + A.when(last.created_at) + '.';
+    }
+    function model(lists, list, items, sum) {
+      var others = lists.filter(function (l) { return !list || l.list_id !== list.list_id; });
+      return {
+        kicker: 'Our list',
+        title: list ? (list.name || 'My List') : 'No list yet',
+        lede: lede(list, items),
+        actions: [{ label: 'Open the shopping list', primary: true, onClick: function () { A.open(FULL); } }],
+        stats: stats(items, lists, sum),
+        sections: [
+          { kind: 'list', id: 'items', title: 'On the list', empty: list ? 'Nothing on the list yet.' : 'No list yet.', items: items.slice(0, 30).map(line),
+            note: sum && sum.partial ? 'Some saved shopping data could not be checked.' : null },
+          others.length ? { kind: 'tiles', id: 'lists', title: 'Other lists', items: others.map(tile) } : null
+        ]
+      };
+    }
+    function family() {
+      return Promise.all([call('/lists'), summary()]).then(function (r) {
+        var lists = r[0].lists || [], list = activeList(lists);
+        return (list ? call('/lists/' + encodeURIComponent(list.list_id) + '/items') : Promise.resolve({ items: [] })).then(function (j) {
+          return model(lists, list, (j.items || []).filter(isPending), r[1]);
+        });
+      }).catch(function (e) {
+        if (!refused(e)) throw e && e.status >= 500 ? new Error('Shopping could not read the list (HTTP ' + e.status + ').') : e;
+        return { kicker: 'Our list', title: e.status === 401 ? 'Sign in to see the shopping list' : 'This account cannot open Shopping',
+          lede: e.status === 401 ? 'Shopping shows the list of whoever is signed in, and this session is not signed in.' : 'The Shopping routes refused this account (HTTP 403).' };
+      });
+    }
+    A.boot({ app: 'purchasing', escapeLabel: 'Open Shopping in the cockpit', audiences: { family: family } });
+  })();
+  </script>
   <link rel="stylesheet" href="/api/purchasing/purchasing.css" />
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
@@ -192,7 +266,9 @@
     }
 
     // Open to the view named in ?view=, default shop.
-    showView(new URLSearchParams(location.search).get('view') || 'shop');
+    // Under an audience view (ADR-164 D6) the kit paints the family view instead and this start, the tab router whose
+    // List and Deals tabs read, does not run; without the kit or without an audience the dashboard starts as before.
+    if (!window.AppView || !AppView.active()) showView(new URLSearchParams(location.search).get('view') || 'shop');
   </script>
 </body>
 </html>

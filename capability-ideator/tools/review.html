@@ -1,8 +1,123 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Capability Ideator</title><style>
-:root{color-scheme:dark;--accent:#b0b8ff;--ink:#edf0fa;--muted:#a2adc5;--border:#ffffff1c}*{box-sizing:border-box}body{margin:0;background:#10131e;color:var(--ink);font:15px/1.55 system-ui}main{max-width:1180px;margin:auto;padding:40px 24px}header{margin-bottom:30px}h1{font-size:clamp(28px,5vw,44px);letter-spacing:-.035em;margin:8px 0}h2{font-size:19px;margin:0 0 18px}.eyebrow{color:var(--accent);text-transform:uppercase;font-size:11px;letter-spacing:.16em}.hint{color:var(--muted);font-size:13px}#metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}.metric,.panel{border:1px solid var(--border);border-radius:18px;background:linear-gradient(135deg,#202638,#171b28)}.metric{padding:18px}.metric strong{display:block;font-size:27px;font-weight:650}.metric span{color:var(--muted);font-size:12px}.layout{display:grid;grid-template-columns:1.05fr 1fr;gap:22px}.panel{padding:24px;min-width:0}.record{border-bottom:1px solid var(--border);padding:16px 0;overflow-wrap:anywhere}.record:first-child{padding-top:0}.record p{color:var(--muted);margin:5px 0 12px;font-size:13px}label{display:block;color:var(--muted);font-size:12px;margin:15px 0 6px}input,textarea,select{font:inherit;color:var(--ink);background:#0e1320;border:1px solid #ffffff26;border-radius:10px;width:100%;padding:11px;display:block;margin-top:7px}textarea{min-height:190px;resize:vertical}button,a{font:inherit}button{color:var(--ink);background:#ffffff0c;border:1px solid #ffffff25;border-radius:9px;padding:9px 13px;cursor:pointer;margin:5px 6px 5px 0}button:hover{background:#ffffff1c}button:disabled{opacity:.5;cursor:wait}.primary{background:#b7beff;color:#151b34;font-weight:650}a{color:var(--accent)}#status{min-height:24px;color:var(--accent);overflow-wrap:anywhere}.connected-app-actions{display:flex;flex-wrap:wrap;margin-top:16px}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:720px){main{padding:22px 16px}.layout{grid-template-columns:1fr}.panel{padding:18px}}
+<!doctype html><html lang="en" data-theme="midnight"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Capability Ideator</title><link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Business shells open this page with ?audience=company: the signed-in account's
+     OWN capability discovery runs (runs active, runs needing review, runs completed in 5 days, and the newest three runs
+     with their state, latest saved step, the start of that step's saved redacted output and when they started) from
+     GET /api/capability-ideator/home-summary (the read the full page makes: operator-gated, owner-scoped SELECTs under
+     the caller's session), painted by the shared kit in the company grammar. The view never starts a discovery run (the
+     Capability Ideation workflow runs in Workflow Studio and spends on a model), never reads the loaded-applications
+     plan, mounts no connected actions, binds no handoff listener and writes nothing. Any other request runs the full
+     Capability Ideator page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var API = '/api/capability-ideator';
+  var KICKER = 'Engineering · Capability Ideator';
+  var LEDE = 'Capability discovery runs recorded for the signed-in account by the Capability Ideation workflow. The counts describe workflow state, not ideas built or savings achieved. This view reads saved evidence only; it never starts a discovery run or spends on a model.';
+  var RUNS_NOTE = 'The newest three runs. Each row is recorded workflow evidence, not proof that a proposed tool exists, is connected, or has been implemented. Saved output is the start of the redacted output of the latest saved step.';
+  // The offer context of a run item repeats the route's own sentence (routes/home-summary.js), clipped at 2000 characters:
+  // 'Recorded workflow state: <status>. Latest step: <node title; null when no step is saved>. Saved, redacted step output:
+  // <excerpt, or No saved output>. This is workflow evidence, ...'. It is read by those fixed words; a sentence that does
+  // not carry them leaves the step and output columns unknown.
+  var STEP = 'Latest step: ', OUTPUT = '. Saved, redacted step output: ', TAIL = '. This is workflow evidence';
+  var STATUS_TONE = { completed: 'ok', error: 'bad', suspended: 'warn', escalated: 'warn' };
+  function read(path) {
+    return fetch(API + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j || {} }; });
+    }, function () { return { ok: false, status: 0, body: {} }; });
+  }
+  function refused(res) { return res.status === 401 || res.status === 403; }
+  function openFull() { window.location.assign(window.location.pathname); }
+  function routeError(res) { return typeof res.body.error === 'string' && res.body.error ? res.body.error : ''; }
+  // A run item carries the route's two continuation offers; the closing note carries none.
+  function isRun(item) { return Array.isArray(item.actions) && item.actions.length > 0; }
+  // A run item's detail is '<status> / <ISO instant of started_at>'.
+  function parseDetail(detail) {
+    var s = String(detail || ''), at = s.indexOf(' / ');
+    return at < 0 ? { status: s, started: '' } : { status: s.slice(0, at), started: s.slice(at + 3) };
+  }
+  function sentence(item) { var ctx = item.actions[0] && item.actions[0].context; return String((ctx && ctx.notes) || ''); }
+  // A table cell holds a short phrase: longer text is cut at a fixed length and marked with an ellipsis.
+  function clip(text, max) { var s = String(text).replace(/\s+/g, ' ').trim(); return s.length > max ? s.slice(0, max).trim() + '…' : s; }
+  // A run with no saved step reads 'null' in the route's sentence; a step saved without a title reads empty.
+  function parseStep(text) {
+    var s = text.indexOf(STEP), o = s < 0 ? -1 : text.indexOf(OUTPUT, s);
+    if (o < 0) return '—';
+    var name = clip(text.slice(s + STEP.length, o), 80);
+    return name === 'null' ? 'No step saved' : name || 'Untitled step';
+  }
+  // The saved output runs to the route's closing sentence, or to the end when the 2000-character clip cut it off.
+  function parseOutput(text) {
+    var o = text.indexOf(OUTPUT); if (o < 0) return '—';
+    var rest = text.slice(o + OUTPUT.length), t = rest.lastIndexOf(TAIL);
+    return clip(t < 0 ? rest : rest.slice(0, t), 100) || '—';
+  }
+  // The route sends each count as digits in a string ('0', '12'), or the word 'Unavailable' when that source failed.
+  function count(value) { return typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : null; }
+  function metrics(body) { return Array.isArray(body.metrics) ? body.metrics : Array.isArray(body.tiles) ? body.tiles : []; }
+  function value(body, id) { var m = metrics(body).filter(function (x) { return x.id === id; })[0]; return m ? count(m.value) : null; }
+  function isPartial(body) { return body.partial === true || metrics(body).some(function (m) { return count(m.value) === null; }); }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function title(body, runs, partial) {
+    var review = value(body, 'review'), running = value(body, 'running'), five = value(body, 'completed');
+    if (partial) return 'Some discovery evidence cannot be checked';
+    if (review > 0) return plural(review, 'run needs', 'runs need') + ' review';
+    if (running > 0) return plural(running, 'discovery run', 'discovery runs') + ' active';
+    if (five > 0) return plural(five, 'discovery run', 'discovery runs') + ' completed in 5 days';
+    return runs.length ? 'No discovery run completed in 5 days' : 'No discovery runs recorded yet';
+  }
+  // A run waiting on review (suspended, escalated or error) wants attention; a completed run is the figure with a result.
+  function tone(id, n) {
+    if (n === null) return 'warn';
+    if (n === 0) return null;
+    return id === 'review' ? 'warn' : id === 'completed' ? 'ok' : null;
+  }
+  function stats(body) {
+    return metrics(body).map(function (m) { var n = count(m.value); return { id: m.id, label: m.label, value: m.value, tone: tone(m.id, n), hint: n === null ? 'Could not be checked' : null }; });
+  }
+  function started(s) { return /^\d{4}-\d{2}-\d{2}T/.test(s) ? A.when(s) : (s || '—'); }
+  function runRow(item) {
+    var d = parseDetail(item.detail), text = sentence(item);
+    return [item.text || 'Capability discovery', { text: d.status || '—', tone: STATUS_TONE[d.status] || null }, parseStep(text), parseOutput(text), started(d.started)];
+  }
+  function runsSection(runs, partial) {
+    return { kind: 'table', id: 'runs', title: 'Newest discovery runs', wide: true, note: RUNS_NOTE,
+      empty: partial ? 'Some discovery evidence cannot be checked.' : 'No discovery runs recorded yet. A run starts from the Capability Ideation workflow in Workflow Studio, never from this view.',
+      columns: ['Workflow', 'State', 'Latest step', 'Saved output', 'Started'], rows: runs.map(runRow) };
+  }
+  function notesSection(items) {
+    return { kind: 'list', id: 'notes', title: 'Notes', empty: 'The route note could not be read.',
+      items: items.filter(function (i) { return !isRun(i) && i.text; }).map(function (i) { return { title: String(i.text), tone: i.tone === 'warn' ? 'warn' : null }; }) };
+  }
+  function signedOut(res) {
+    return { kicker: KICKER, title: res.status === 401 ? 'Sign in to see discovery runs' : 'This account cannot open Capability Ideator',
+      lede: res.status === 401 ? 'This view shows the capability discovery runs of whoever is signed in, and this session is not signed in.'
+        : 'The Capability Ideator summary refused this account (HTTP 403' + (routeError(res) ? ': ' + routeError(res) : '') + ').' };
+  }
+  function company() {
+    return read('/home-summary').then(function (res) {
+      if (refused(res)) return signedOut(res);
+      if (!res.ok) throw new Error(routeError(res) || 'Saved evidence cannot be checked right now' + (res.status ? ' (HTTP ' + res.status + ').' : '.'));
+      var items = Array.isArray(res.body.items) ? res.body.items : [], runs = items.filter(isRun), partial = isPartial(res.body);
+      return { kicker: KICKER, title: title(res.body, runs, partial), lede: LEDE, actions: [{ label: 'Open Capability Ideator', primary: true, onClick: openFull }],
+        stats: stats(res.body), sections: [runsSection(runs, partial), notesSection(items)] };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'capability-ideator', escapeLabel: 'Open Capability Ideator in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
+<style>
+:root{color-scheme:dark;--accent:var(--accent-primary,#b0b8ff);--ink:var(--text-primary,#edf0fa);--muted:var(--text-muted,#a2adc5);--border:var(--border-color,#ffffff1c)}*{box-sizing:border-box}body{margin:0;background:var(--bg-primary,#10131e);color:var(--ink);font:15px/1.55 system-ui}main{max-width:1180px;margin:auto;padding:40px 24px}header{margin-bottom:30px}h1{font-size:clamp(28px,5vw,44px);letter-spacing:-.035em;margin:8px 0}h2{font-size:19px;margin:0 0 18px}.eyebrow{color:var(--accent);text-transform:uppercase;font-size:11px;letter-spacing:.16em}.hint{color:var(--muted);font-size:13px}#metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}.metric,.panel{border:1px solid var(--border);border-radius:18px;background:var(--bg-card,linear-gradient(135deg,#202638,#171b28))}.metric{padding:18px}.metric strong{display:block;font-size:27px;font-weight:650}.metric span{color:var(--muted);font-size:12px}.layout{display:grid;grid-template-columns:1.05fr 1fr;gap:22px}.panel{padding:24px;min-width:0}.record{border-bottom:1px solid var(--border);padding:16px 0;overflow-wrap:anywhere}.record:first-child{padding-top:0}.record p{color:var(--muted);margin:5px 0 12px;font-size:13px}label{display:block;color:var(--muted);font-size:12px;margin:15px 0 6px}input,textarea,select{font:inherit;color:var(--ink);background:var(--bg-secondary,#0e1320);border:1px solid var(--border-color,#ffffff26);border-radius:10px;width:100%;padding:11px;display:block;margin-top:7px}textarea{min-height:190px;resize:vertical}button,a{font:inherit}button{color:var(--ink);background:var(--glass-bg,#ffffff0c);border:1px solid var(--border-color,#ffffff25);border-radius:9px;padding:9px 13px;cursor:pointer;margin:5px 6px 5px 0}button:hover{background:var(--bg-card-hover,#ffffff1c)}button:disabled{opacity:.5;cursor:wait}.primary{background:var(--accent-primary,#b7beff);color:var(--text-on-accent,#151b34);font-weight:650}a{color:var(--accent)}#status{min-height:24px;color:var(--accent);overflow-wrap:anywhere}.connected-app-actions{display:flex;flex-wrap:wrap;margin-top:16px}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:720px){main{padding:22px 16px}.layout{grid-template-columns:1fr}.panel{padding:18px}}
 </style></head><body><main><header><div class="eyebrow">Tools for better business processes</div><h1>AI Capability Ideator</h1><p class="hint">Review recorded work. Shape the next brief. Continue in the app that owns the next step.</p></header><section class="panel"><h2>Loaded application opportunities</h2><p class="hint">Inspect actual loaded actions and setup needs. Describe the business process in your brief. New external tools need sourced research and explicit connection review.</p><div id="loadedApps">Checking loaded applications…</div><p><a href="/workflow-studio/" target="_blank" rel="noopener">Open Workflow Studio</a> to run the existing Capability Ideation workflow.</p></section><div id="metrics" aria-label="Saved work metrics"></div><div class="layout"><section class="panel"><h2>Recorded work</h2><div id="records">Loading saved evidence…</div><button id="refresh">Refresh evidence</button></section><section class="panel"><h2>Your next brief</h2><label>Title<input id="title" maxlength="120" placeholder="What should happen next?"></label><label>Brief<textarea id="notes" maxlength="2000" placeholder="Select recorded work or write a new brief."></textarea></label><label>Source link<input id="sourceUrl" type="url" maxlength="2000"></label><div class="connected-app-actions"></div><p id="status" role="status" aria-live="polite"></p><p class="hint">Connected actions open editable drafts. Review and approve any publishing or generation in the destination app.</p></section></div></main><script type="module">
 import {receiveHandoff} from '/cockpit/js/app-handoff.js';
 import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
+// The full page only: under an audience view the shared kit paints instead (see the head script), so no connected-actions
+// offer is fetched, the loaded-applications plan is not read, no Refresh handler is bound and the summary is not read a
+// second time.
+if (!window.AppView || !AppView.active()) {
 const app="capability-ideator",title=document.querySelector('#title'),notes=document.querySelector('#notes'),sourceUrl=document.querySelector('#sourceUrl'),status=document.querySelector('#status');
 const fill=c=>{title.value=String(c.title||'').slice(0,120);notes.value=String(c.notes||'').slice(0,2000);sourceUrl.value=c.sourceUrl||'';};
 await mountConnectedActions({app,element:document.querySelector('.connected-app-actions'),contextForOffer:()=>notes.value.trim()?{title:title.value.trim(),notes:notes.value.trim(),sourceUrl:sourceUrl.value.trim()}:null});
@@ -10,4 +125,5 @@ async function refresh(){const list=document.querySelector('#records'),metrics=d
 document.querySelector('#refresh').addEventListener('click',refresh);
 try{const response=await fetch('/api/swarm/apps/home-plan',{cache:'no-store'});if(!response.ok)throw Error('Loaded applications unavailable');const plan=await response.json(),list=document.querySelector('#loadedApps');list.replaceChildren();for(const entry of plan.apps||[]){const row=document.createElement('details'),heading=document.createElement('summary'),body=document.createElement('p'),select=document.createElement('button');const offers=(entry.integrationSources||[]).flatMap(s=>s.offers||[]);heading.textContent=entry.displayName+' · '+offers.filter(o=>o.state==='available').length+' available actions';const facts=offers.map(o=>o.label+' → '+o.targetApp+' ('+o.state+')').join('; ');body.textContent=facts||'No loaded context action declared.';select.textContent='Develop a process idea';select.addEventListener('click',()=>fill({title:'Business process using '+entry.displayName,notes:('Current loaded actions: '+facts+'. Identify the process trigger, expected outcome, missing tools, required connections and success metric. Verify any new external capability against official documentation before implementation.').slice(0,2000)}));row.append(heading,body,select);list.append(row);}}catch(e){document.querySelector('#loadedApps').textContent=e.message;}
 await refresh();
+}
 </script></body></html>

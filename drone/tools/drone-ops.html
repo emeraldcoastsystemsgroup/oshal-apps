@@ -6,6 +6,107 @@
 <title>OSHAL Drone Ops</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the signed-in account's OWN saved
+     flight plans (how many, which are not flown yet, the latest ones with their shape and where each one stands) from
+     the SAME GET /api/drone/missions the full page reads, plus two counts of GET /api/drone/home-summary (plans started
+     and commands turned down in the last five days), painted by the shared kit in the family grammar. On open it makes
+     only those two reads, owner-scoped SELECTs under the caller's session. It never reads live telemetry, the fleet, the
+     show conductor or the operator chat, never sends a vehicle command, never drafts, saves, executes or deletes a plan
+     and mounts no connected actions. Any other request runs the full Drone Ops page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<style>
+  /* This page pins its body to one screen with overflow hidden for the map console; under an audience view the kit's page grows and scrolls. */
+  html[data-audience] body { height: auto; overflow: visible; }
+</style>
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=drone', KICKER = 'Drone flights', SHOWN = 6, LISTED = 20, CAP = 50;
+  var BADGES = { draft: 'Draft', ready: 'Ready', flown: 'Started' };
+  var SOURCES = { manual: 'made on the map', concierge: 'drafted in the operator chat', pattern: 'made from a show pattern', show: 'made in the show builder' };
+  function read(path) {
+    return fetch('/api/drone' + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }, function () { return { ok: r.ok, status: r.status, body: null }; });
+    });
+  }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  // home-summary sends each count as digits in a string ('0', '12'), or the word 'Unavailable' when that source failed.
+  function count(value) { return typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : null; }
+  function metric(summary, id) {
+    var m = ((summary && (summary.metrics || summary.tiles)) || []).filter(function (x) { return x && x.id === id; })[0];
+    return m ? count(m.value) : null;
+  }
+  // A saved plan has one of three shapes (routes/drone-routes.js): a show timeline (kind 'show', cues of drone slots),
+  // a fleet plan (one assignment per drone) or a single-drone waypoint list.
+  function shape(plan) {
+    var p = plan && typeof plan === 'object' ? plan : {};
+    if (p.kind === 'show' && Array.isArray(p.cues)) {
+      var slots = p.cues[0] && Array.isArray(p.cues[0].slots) ? p.cues[0].slots.length : 0;
+      return { icon: '✨', text: 'Timed show · ' + plural(p.cues.length, 'move', 'moves') + ' · ' + plural(slots, 'drone', 'drones') };
+    }
+    if (Array.isArray(p.assignments)) return { icon: '🛸', text: p.assignments.length === 1 ? 'One drone' : p.assignments.length + ' drones flying together' };
+    if (Array.isArray(p.waypoints)) return { icon: '📍', text: 'One drone · ' + plural(p.waypoints.length, 'stop', 'stops') };
+    return { icon: '📍', text: 'Flight plan' };
+  }
+  function waiting(m) { return m.status === 'draft' || m.status === 'ready'; }
+  // The route writes status 'flown' and last_flown_at the moment a flight STARTS, never when it finishes: 'started'.
+  function timing(m) { return m.status === 'flown' ? 'started ' + A.when(m.last_flown_at || m.updated_at) : 'saved ' + A.when(m.created_at); }
+  function badge(m) { return BADGES[m.status] || (m.status ? 'Status: ' + m.status : 'No status'); }
+  function item(m) {
+    var s = shape(m.plan), from = SOURCES[m.source];
+    return { icon: s.icon, title: m.name || 'Untitled plan', text: s.text + (from ? ' · ' + from : ''), meta: timing(m), badge: badge(m) };
+  }
+  function stat(id, label, n, tone, hint) {
+    return { id: id, label: label, value: n === null ? '—' : n, tone: n === null ? null : tone, hint: n === null ? 'Could not check' : hint };
+  }
+  // GET /missions lists the newest 50 plans; a count read from it says so when the list is full.
+  function stats(rows, summary) {
+    var full = rows.length >= CAP, started = metric(summary, 'started-5d'), refused = metric(summary, 'rejected-5d');
+    return [
+      stat('plans', 'Saved flight plans', rows.length, null, full ? 'Newest ' + CAP + ' only' : null),
+      stat('waiting', 'Not flown yet', rows.filter(waiting).length, null, full ? 'Among the newest ' + CAP : 'Drafts and ready plans'),
+      stat('started', 'Plans started, last 5 days', started, null, 'Started, not a finished flight'),
+      stat('refused', 'Commands turned down, last 5 days', refused, refused > 0 ? 'warn' : null, 'By the flight checks')
+    ];
+  }
+  function headline(rows, started) {
+    var open = rows.filter(waiting).length;
+    if (started > 0) return plural(started, 'flight plan', 'flight plans') + ' started in the last 5 days';
+    if (open > 0) return plural(open, 'flight plan', 'flight plans') + ' not flown yet';
+    return rows.length ? plural(rows.length, 'saved flight plan', 'saved flight plans') : 'No saved flight plans yet';
+  }
+  function lede(rows) {
+    var first = rows[0];
+    if (first) return 'Latest: ' + (first.name || 'Untitled plan') + ', ' + timing(first) + '. Nothing flies from here: a person approves every flight in Drone Ops.';
+    return 'Drone Ops plans drone flights inside a safety fence. Plans saved there show up here, and nothing flies until a person approves it in Drone Ops.';
+  }
+  function model(rows, summary) {
+    return { kicker: KICKER, title: headline(rows, metric(summary, 'started-5d')), lede: lede(rows),
+      actions: [{ label: 'Open Drone Ops', primary: true, onClick: function () { A.open(FULL); } }],
+      stats: stats(rows, summary),
+      sections: [
+        { kind: 'tiles', id: 'plans', title: 'Latest flight plans', empty: 'No saved flight plans yet.', items: rows.slice(0, SHOWN).map(item),
+          note: 'Only this account’s saved plans show here. Started means a person approved the flight and it began; it does not say the flight finished. Nothing on this page flies, saves or changes a plan.' },
+        rows.length > SHOWN ? { kind: 'list', id: 'earlier', title: 'Saved earlier', items: rows.slice(SHOWN, LISTED).map(item) } : null
+      ] };
+  }
+  function family() {
+    // The counts are extra: when home-summary fails, the saved plans still show and the two counts read Could not check.
+    var summary = read('/home-summary').then(function (res) { return res.ok && res.body ? res.body : null; }, function () { return null; });
+    return Promise.all([read('/missions'), summary]).then(function (r) {
+      var res = r[0];
+      if (res.status === 401 || res.status === 403) return { kicker: KICKER, title: res.status === 401 ? 'Sign in to see the saved flights' : 'This account cannot open Drone Ops',
+        lede: res.status === 401 ? 'Drone Ops shows the saved flight plans of whoever is signed in, and this session is not signed in.' : 'The Drone Ops routes refused this account (HTTP 403).' };
+      if (!res.ok) throw new Error('Drone Ops could not read the saved flight plans (HTTP ' + res.status + ').');
+      if (!res.body || !Array.isArray(res.body.missions)) throw new Error('Drone Ops sent an answer this view could not read.');
+      return model(res.body.missions, r[1]);
+    }, function () { throw new Error('Drone Ops could not be reached just now.'); });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'drone', escapeLabel: 'Open Drone Ops in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <style>
   /* Surface-local palette: consumes framework theme tokens read-only (dark fallbacks). */
@@ -430,15 +531,19 @@ function drawCaptureFrame(cv, c) {
   ground.addColorStop(0, '#274d33'); ground.addColorStop(1, '#152a1c');
   g.fillStyle = ground; g.fillRect(0, horizon, w, h - horizon);
   g.strokeStyle = 'rgba(255,255,255,.5)'; g.beginPath(); g.moveTo(0, horizon); g.lineTo(w, horizon); g.stroke();
-  // Home-direction tick along the horizon: where home sits relative to the camera axis.
-  const camAxis = (c.headingDeg + c.panDeg) * Math.PI / 180;
-  const toHome = Math.atan2(home.lon - c.position.lon, home.lat - c.position.lat);
-  let rel = toHome - camAxis;
-  while (rel > Math.PI) rel -= 2 * Math.PI;
-  while (rel < -Math.PI) rel += 2 * Math.PI;
-  if (Math.abs(rel) < Math.PI / 2) {
-    const x = w / 2 + (rel / (Math.PI / 2)) * (w / 2);
-    g.fillStyle = '#ffd166'; g.beginPath(); g.moveTo(x, horizon - 5); g.lineTo(x - 3, horizon + 1); g.lineTo(x + 3, horizon + 1); g.closePath(); g.fill();
+  // Home-direction tick along the horizon: where home sits relative to the camera axis. No home is
+  // known while the selected drone's home is withheld (ADR-169 L6: the caller is outside its group),
+  // and the captures still arrive, so the frame is drawn without the tick.
+  if (home) {
+    const camAxis = (c.headingDeg + c.panDeg) * Math.PI / 180;
+    const toHome = Math.atan2(home.lon - c.position.lon, home.lat - c.position.lat);
+    let rel = toHome - camAxis;
+    while (rel > Math.PI) rel -= 2 * Math.PI;
+    while (rel < -Math.PI) rel += 2 * Math.PI;
+    if (Math.abs(rel) < Math.PI / 2) {
+      const x = w / 2 + (rel / (Math.PI / 2)) * (w / 2);
+      g.fillStyle = '#ffd166'; g.beginPath(); g.moveTo(x, horizon - 5); g.lineTo(x - 3, horizon + 1); g.lineTo(x + 3, horizon + 1); g.closePath(); g.fill();
+    }
   }
   g.fillStyle = 'rgba(255,255,255,.85)'; g.font = '7px sans-serif';
   g.fillText('SYNTHETIC', 3, 8);
@@ -517,12 +622,13 @@ function applyFleet(payload) {
 function applyTelemetry(t) {
   state = t;
   if (!state) return;
-  home = state.home;
+  // ADR-169 L6: position and home are null for a caller outside the drone's group (positionWithheld).
+  home = state.home || home;
   const f = selInfo();
   $('providerPill').textContent = ((f && f.kind) || 'sim').toUpperCase() + (f && f.remote ? ' NODE' : '');
   const airborne = !['disarmed', 'armed'].includes(state.status);
   const pill = $('statusPill');
-  pill.textContent = selDrone.toUpperCase() + ' · ' + state.status.toUpperCase();
+  pill.textContent = selDrone.toUpperCase() + ' · ' + state.status.toUpperCase() + (state.positionWithheld ? ' · POSITION WITHHELD' : '');
   pill.className = 'pill ' + (state.failsafe ? 'alert' : airborne ? 'flying' : state.status === 'armed' ? 'ok' : '');
   const fs = $('failsafePill');
   fs.style.display = state.failsafe ? '' : 'none';
@@ -531,7 +637,7 @@ function applyTelemetry(t) {
   const fill = $('battFill');
   fill.style.width = state.batteryPct + '%';
   fill.style.background = state.batteryPct > 30 ? 'var(--dr-ok)' : state.batteryPct > 15 ? 'var(--dr-warn)' : 'var(--dr-bad)';
-  $('tAlt').textContent = state.position.alt.toFixed(1) + ' m';
+  $('tAlt').textContent = state.position ? state.position.alt.toFixed(1) + ' m' : 'withheld';
   $('tSpd').textContent = state.groundSpeedMps.toFixed(1) + ' m/s';
   $('tDist').textContent = state.distanceFromHomeM.toFixed(0) + ' m';
   $('tHdg').textContent = state.headingDeg + '°';
@@ -556,7 +662,7 @@ async function pollState() {
     // Every airborne drone paints a trail, not just the selected one.
     for (const f of fleetList) {
       const t = f.telemetry;
-      if (!f.online || !t || ['disarmed', 'armed'].includes(t.status)) continue;
+      if (!f.online || !t || !t.position || ['disarmed', 'armed'].includes(t.status)) continue;
       const arr = trails[f.droneId] = trails[f.droneId] || [];
       arr.push({ lat: t.position.lat, lon: t.position.lon, alt: t.position.alt });
       if (arr.length > 400) arr.shift();
@@ -790,7 +896,7 @@ function drawTrailAndDrone(g) {
   // Every online drone in the fleet; the selected one is accent-colored + labeled larger.
   for (const f of fleetList) {
     const t = f.droneId === selDrone ? state : f.telemetry;
-    if (!t || !f.online) continue;
+    if (!t || !f.online || !t.position) continue;
     const sel = f.droneId === selDrone;
     const p = project(t.position);
     if (t.led) { g.fillStyle = t.led; g.globalAlpha = .4; g.beginPath(); g.arc(p.x, p.y, 15, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1; }
@@ -851,7 +957,7 @@ function draw3d() {
   const c = $('map');
   if (!fence || !home) return;
   // Pick this frame's camera: FPV rides the selected drone's nose; orbit uses the user cam.
-  if (viewCam && state) {
+  if (viewCam && state && state.position) {
     const w = world3(state.position);
     renderOff = { e: w.e, n: w.n, u: state.position.alt + 1.5 };
     renderCam = { yaw: Math.PI + state.headingDeg * Math.PI / 180, pitch: 0.10, dist: 10, auto: false };
@@ -947,7 +1053,7 @@ function draw3d() {
   for (const fl of fleetList) {
     if (viewCam && fl.droneId === selDrone) continue; // FPV never renders its own airframe
     const t = fl.droneId === selDrone ? state : fl.telemetry;
-    if (!t || !fl.online) continue;
+    if (!t || !fl.online || !t.position) continue;
     const w = world3(t.position);
     const p = proj3(w.e, w.n, w.u);
     if (p) bodies.push({ fl, t, w, p });
@@ -1010,7 +1116,9 @@ function drawPlans3d(g) {
 }
 
 // Camera controls: drag = orbit, wheel = zoom, double-click = auto-orbit toggle.
-(function wireCamera() {
+// Every start step of the full page (this wiring, the map click, the resize redraw, the chat key and the boot below)
+// runs only when no audience view renders: under ?audience=family the shared kit paints instead (see the head script).
+if (!window.AppView || !AppView.active()) (function wireCamera() {
   const c = $('map');
   let dragging = false, lx = 0, ly = 0;
   c.addEventListener('mousedown', (e) => {
@@ -1042,7 +1150,7 @@ function drawPlans3d(g) {
   c.addEventListener('dblclick', () => { if (view3d) cam.auto = !cam.auto; });
 })();
 
-$('map').addEventListener('click', async (e) => {
+if (!window.AppView || !AppView.active()) $('map').addEventListener('click', async (e) => {
   if (view3d || viewCam) return; // planning clicks are a top-down (2D) interaction
   if (!fence || !home) return;
   const rect = $('map').getBoundingClientRect();
@@ -1063,7 +1171,7 @@ $('map').addEventListener('click', async (e) => {
     catch (err) { toast(err.message); }
   }
 });
-window.addEventListener('resize', draw);
+if (!window.AppView || !AppView.active()) window.addEventListener('resize', draw);
 
 // ── Mission builder + list ───────────────────────────────────────────────────
 function curDraft() { return drafts[selDrone] = drafts[selDrone] || []; }
@@ -1333,7 +1441,8 @@ function previewGhosts(T) {
   for (const id of Object.keys(byDrone)) {
     const seq = byDrone[id];
     const f = fleetList.find((x) => x.droneId === id);
-    const pad = f && f.telemetry ? f.telemetry.home : home;
+    const pad = (f && f.telemetry && f.telemetry.home) || home;
+    if (!pad) continue;
     const firstAlt = seq[0].s.alt;
     const climbT = firstAlt / 2.5;
     let led = null, rec = false, flash = false;
@@ -1480,10 +1589,12 @@ async function sendChat() {
     }
   } catch (e) { pending.textContent = 'Error: ' + e.message; }
 }
-$('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+if (!window.AppView || !AppView.active()) $('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
-(async function boot() {
+// The full page only (see the gate note above wireCamera): no chat history read, no fleet, mission, pattern, event,
+// show or capture poll and no interval starts behind an audience view.
+if (!window.AppView || !AppView.active()) (async function boot() {
   try {
     const conv = await api('/conversation');
     conversationId = conv.conversationId;
@@ -1511,7 +1622,8 @@ $('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendC
  <div id="evidenceActions"></div>
 </details>
 <script>
-(async()=>{
+// The full page only: behind an audience view no connected-actions plan is fetched, no offer is mounted and no evidence listener is bound.
+if (!window.AppView || !AppView.active()) (async()=>{
 const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');
 const panel=document.getElementById('evidenceReview'),pick=document.getElementById('evidenceChoice'),notes=document.getElementById('evidenceNotes'),state=document.getElementById('evidenceState');let records=[],loaded=false;
 await mountConnectedActions({element:document.getElementById('evidenceActions'),app:"drone",contextForOffer:()=>({title:records[pick.selectedIndex]?.text||'Diagnostic review',notes:notes.value})});

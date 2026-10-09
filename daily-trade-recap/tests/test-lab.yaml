@@ -1,5 +1,7 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Register truthful isolated recorded-report completion and source admission evidence.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Rename the drifted framework-checkout prerequisites to the Test Lab's own vocabulary so these cases can run: node-test cases declare fixture:core-checkout (the sealed Node profile runs on the oshal image, where /app is the checkout); browser cases declare harness:oshal-core-root and core:dependencies, as create does. A case that imports core's tests/fixtures, which the image does not ship, also declares harness:core-test-fixtures and stays pending with that exact reason instead of an unknown name.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.3: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.2: register the audience view contract of the review page (ADR-164 D6): the company view for the Business shell and the all-inclusive shells reads only GET /home-summary on open, never the framework plan for connected-actions offers and never a write, names the week's state, each closed session, the parked tickets and the refused, failed and partly unreadable states for what they are, and leaves the full page's own start ungated only when no audience view renders.
 version: 1
 cases:
   - id: package-readiness
@@ -30,4 +32,34 @@ cases:
       fixtures: [tests/completed-report-briefings.fixture.js]
       cleanup: Synthetic SQL maps are discarded; loopback connections close; the composed briefing runtime is restored. No live database is used.
     limits: { timeoutMs: 30000 }
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell, and the all-inclusive Studio, Orbit and Commons shells)
+      audience view through the shared kit: kit loaded after the theme bootstrap, boot with this application's own
+      name and exactly its audiences, full-page start gated on the kit's decision, head block parses and reads only
+      this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+      - On open the company view reads only GET /home-summary; it never reads the framework plan that lists connected-actions offers and never writes.
+      - The stats are the route's own four counts with their tones; the title names the week's state; the sessions table names each closed Eastern trading day as a calendar day with whether and when its recap was recorded; the review list names each parked ticket with its status and wait and says when the backlog is longer than the tickets listed.
+      - Every session recapped, no closed session, a partly unreadable record, a 401, a 403 and a failed read each read as what they are.
+      - Under an audience view the page's module script registers no handoff listener, mounts no connected actions and reads nothing; without the audience it still runs every start step.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

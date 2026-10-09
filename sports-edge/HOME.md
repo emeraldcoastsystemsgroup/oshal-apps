@@ -1,15 +1,12 @@
 # sports-edge on Home
 
-Shows the caller's followed teams, linked fantasy leagues and saved fantasy-call grading state. Upcoming cached previews must match a followed team; preview time remains visible because schedules can change. Prepare a watch-party meal or trip discussion, without refreshing odds, placing bets, adjusting fantasy lineups or booking travel.
+Shows the caller's followed teams and upcoming cached previews, which must match a followed team; preview time remains visible because schedules can change. Prepare a watch-party meal or trip discussion, without refreshing odds, placing bets or booking travel. Fantasy leagues moved to the Fantasy Football app (0.11.0), whose own Home card reports them.
 
 All metrics default on and remain individually configurable.
 
 | Metric | Source column / period |
 |---|---|
 | `followed-teams` — Followed teams | `teams` in the SELECT below |
-| `fantasy-leagues` — Saved fantasy leagues | `leagues` in the SELECT below |
-| `calls-ungraded` — Ungraded fantasy calls | `pending` in the SELECT below |
-| `graded-5d` — Fantasy calls graded/5d | `graded` in the SELECT below |
 
 ## Sources and access
 
@@ -17,14 +14,6 @@ Reads authenticate the session, bind its owner subject, and use SELECT only with
 
 ```sql
 SELECT count(*)::text AS teams FROM sports_followed_teams WHERE user_sub = $1 AND created_at<=$2
-```
-
-```sql
-SELECT count(*)::text AS leagues FROM sports_fantasy_leagues WHERE user_sub = $1 AND linked_at<=$2
-```
-
-```sql
-SELECT count(*) FILTER(WHERE settled=false)::text AS pending,count(*) FILTER(WHERE settled=true AND graded_at<=$2 AND graded_at>$2::timestamptz-interval '120 hours')::text AS graded FROM sports_fantasy_calls WHERE user_sub = $1 AND created_at<=$2
 ```
 
 ```sql

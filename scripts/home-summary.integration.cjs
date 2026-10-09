@@ -1,6 +1,11 @@
-/** CHANGE LOG
- * SEQ | AUTHOR | DESCRIPTION
- * 1 | Codex | Real PostgreSQL and Chromium acceptance for the packaged Feeds, Email and Switchboard Home extractors.
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Real PostgreSQL and Chromium acceptance for the packaged Feeds, Email and Switchboard Home extractors.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Mount platform display preferences in the canonical cockpit namespace, outside installed application gates.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Traverse every selected communications source and independent catalog without weakening real PostgreSQL, privacy or metric preference checks.
  * Run from core with HOME_TEST_DATABASE_URL set to a disposable localhost home_summary_test database.
  */
 const path = require('node:path');
@@ -25,6 +30,27 @@ const {createAppHomePreferenceRoutes} = load(path.join(core,'src/app/routes/app-
 const {buildHomePlan,readManifest,validateSummaryDeclaration} = load(path.join(core,'src/features/swarm-apps/index.ts'));
 const {encryptSessionValue} = require('../email-summarizer/routes/session-crypto.js');
 const apps = ['feeds','email-summarizer','switchboard'];
+
+/** @description Select a real area/source through the current shipped Home controls.
+ * @param {object} page Isolated Playwright page. @param {string} suite Named area key.
+ * @param {string} name Fixture source. @returns {Promise<object>} Its selected detail card. */
+async function selectSource(page, suite, name) {
+  await page.locator('[data-home-area="'+suite+'"]').click();
+  await page.locator('select[data-choice="detail"]').selectOption(name);
+  const card=page.locator('.apps-home-detail .apps-home-card[data-card="'+name+'"]');
+  await card.waitFor({state:'visible'});await card.locator('.apps-home-loading').waitFor({state:'detached'});
+  assert.equal(await page.locator('.apps-home-detail .apps-home-card').count(),1);
+  return card;
+}
+
+/** @description Check every admitted source in the independent complete directory.
+ * @param {object} page Isolated Playwright page. @param {Array<object>} manifests Expected admitted sources.
+ * @returns {Promise<void>} Exact complete directory assertions. */
+async function checkDirectory(page, manifests) {
+  await page.getByRole('button',{name:'All applications',exact:true}).click();
+  assert.deepEqual((await page.locator('#appsHomeDirectory li strong').allTextContents()).sort(),manifests.map(m=>m.displayName).sort());
+  await page.getByRole('button',{name:'Done',exact:true}).click();
+}
 
 async function main() {
   const url = new URL(process.env.HOME_TEST_DATABASE_URL || 'postgresql://localhost/invalid');
@@ -85,7 +111,7 @@ async function main() {
       assert.equal(mount.auth,'oidc'); assert.equal(mount.requiresAi,false);
       app.use(mount.mountPath,require(path.join(root,name,mount.module))[mount.factory]({pool}));
     }
-    app.use('/api/home/preferences',createAppHomePreferenceRoutes({pool}));
+    app.use('/api/cockpit/home/preferences',createAppHomePreferenceRoutes({pool}));
     app.get('/api/swarm/apps/home-plan',(_req,res)=>res.json({apps:buildHomePlan(manifests)}));
     app.get('/api/jarvis/tasks',(_req,res)=>res.json({tasks:[]}));
     app.use('/cockpit',express.static(path.join(core,'src/pages/cockpit')));
@@ -122,15 +148,21 @@ async function main() {
     const page=await browser.newPage({viewport:{width:1440,height:1100}});
     const errors=[]; page.on('pageerror',error=>errors.push(error.message));
     await page.goto(base);
-    await page.getByText('Indexed Slack / 24h',{exact:true}).waitFor();
-    await page.getByText('Saved email digest',{exact:true}).waitFor();
-    await page.getByText('Replies pending/sending',{exact:true}).waitFor();
-    assert.equal(await page.locator('.apps-home-card').count(),3);
+    const assistant=await page.locator('#appsHomeJarvisFrame').elementHandle();
+    const labels={'feeds':'Indexed Slack / 24h','email-summarizer':'Saved email digest','switchboard':'Replies pending/sending'};
+    const visited=[];
+    for(const manifest of manifests){const card=await selectSource(page,manifest.suite,manifest.name);
+      await card.getByText(labels[manifest.name],{exact:true}).waitFor();
+      assert.doesNotMatch(await card.textContent(),/Bob private|private publishing content/);visited.push(manifest.name);}
+    assert.deepEqual(visited.sort(),apps.slice().sort());
+    await checkDirectory(page,manifests);
+    assert.equal(await assistant.evaluate(el=>el===document.getElementById('appsHomeJarvisFrame')),true);
+    await selectSource(page,'ai-productivity','switchboard');
     await page.locator('[data-action="edit"][data-id="switchboard"]').click();
     await page.getByLabel('Replies unconfirmed',{exact:true}).uncheck();
     await page.getByText('Display settings saved.',{exact:true}).first().waitFor();
     await page.getByRole('button',{name:'Done',exact:true}).click();
-    await page.reload(); await page.getByText('Posts scheduled',{exact:true}).waitFor();
+    await page.reload();await selectSource(page,'ai-productivity','switchboard');await page.getByText('Posts scheduled',{exact:true}).waitFor();
     assert.equal(await page.getByText('Replies unconfirmed',{exact:true}).count(),0);
     assert.equal(await page.getByText('Some replies have an uncertain delivery result. Check Threads before retrying.',{exact:true}).count(),0);
     const output=path.join(core,'output/home-summary-acceptance');fs.mkdirSync(output,{recursive:true});
@@ -138,6 +170,8 @@ async function main() {
     await page.setViewportSize({width:390,height:844});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     await page.screenshot({path:path.join(output,'communications-mobile.png'),fullPage:true});
+    for(const manifest of manifests)await selectSource(page,manifest.suite,manifest.name);
+    await checkDirectory(page,manifests);
     assert.deepEqual(errors,[]);
     await admin.query('ALTER TABLE feed_settings RENAME TO feed_settings_unavailable');
     const partial=await get('feeds'); assert.equal(partial.status,200);assert.equal(partial.body.partial,true);assert.equal(values(partial)['sync-age'],'Unavailable');assert.equal(values(partial)['indexed-24h'],'1');

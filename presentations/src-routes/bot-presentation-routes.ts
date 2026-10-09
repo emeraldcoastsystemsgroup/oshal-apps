@@ -13,6 +13,9 @@
  * 2026-07-19 18:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the presentations app package (ADR-085 Wave 2, "skill with a surface" — the deck-generation ENGINE stays a kernel skill; this app is the AI Office surface + studio routes over it). Standard (ctx) factory; the surface serves from ctx.appPackageDir/tools (load-time env fallback, D10); shared core helpers (storage-target skill, inline-bot-execution, connectors, email senders) import via @/app/routes aliases; ensurePresentationsSchema appends buildOwnerRlsPolicyStatements (A1.2 fresh-DB chokepoint parity with migration 060).
  * 2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | ADR-043 item A — make the resolved save destination visible before a paid render. GET /destination resolves only the authenticated caller's Files target; a validated `?provider=` previews a one-off override through the same cleanOverride contract as Generate. Anonymous calls stop before preference lookup and lookup failures return 502 rather than guessing a provider.
  * 2026-09-11 18:00:00 | maintainer@emeraldcoastsystemsgroup.com | GET /starters — the purpose-first starter catalog (office-starters.ts), per kind and grouped, served like /themes so the studio and the Create front door render one catalog.
+ * 2026-09-25 22:00:00 | maintainer@emeraldcoastsystemsgroup.com | Approval-gated POST /slack uploads one rendered Office artifact through the caller's own Slack user token.
+ * 2026-09-26 06:22:00 | maintainer@emeraldcoastsystemsgroup.com | Run the Guide's tool-less structured editor proposal as protected direct reasoning, not agentic execution.
+ * 2026-10-01 15:40:00 | maintainer@emeraldcoastsystemsgroup.com | Brand looks (2.13.0): POST /pptx, /docx, /xlsx, /email and /slack take `brand` ({ base, colors, fonts }, the caller's Create kit as the studio read it in their own session); the kernel's brandTheme rebuilds and validates it and the file is drawn in the kit's exact colors and faces. The record and the response name the look `brand:<base>`. An invalid kit is a 400 with the engine's reason, checked before any outline draft, render, save or send. POST /brand-look returns the built look so the studio can show it beside the ten looks. Refusals are matched by the kernel's stable code, so on a framework without brand looks the catch blocks still answer (POST /brand-look fails there, and the studio keeps the nearest built-in look).
  */
 
 import { Router, raw, type Request, type Response } from 'express';
@@ -21,8 +24,8 @@ import { createChildLogger } from '@/shared/logger';
 import { buildOwnerRlsPolicyStatements, runRuntimeSchemaBootstrap } from '@/shared/services/database';
 import {
   PresentationEngine, renderPptx, renderDocx, renderXlsx, themeCatalog, layoutCatalog,
-  isThemeId, DEFAULT_THEME_ID, importOffice,
-  type RenderableSlide,
+  isThemeId, DEFAULT_THEME_ID, importOffice, brandTheme,
+  type RenderableSlide, type DeckTheme,
 } from '@/features/presentation-generation';
 import { BotNodeClient, createRegistryEndpointResolver } from '@/features/agent-management';
 import type { AppContext } from '@/app/composition/app-context';
@@ -30,6 +33,7 @@ import type { DeckThemeId, PresentationRequest } from '@/shared/types';
 import { saveContent, listFolder, deleteStoredFile, resolveStorageTarget, type StorageTarget } from '@/app/routes/storage-target';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
+import { uploadSlackFile } from '@/app/routes/slack-client';
 import { sendGmail, sendOutlookMail } from '@/app/routes/email-routes';
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
 import { starterCatalog } from './office-starters';
@@ -92,6 +96,52 @@ async function outlineFromTopic(ctx: AppContext, sub: string, topic: string, sli
   const parsed = JSON.parse(m ? m[0] : String(result.response)) as RenderableSlide[];
   if (!Array.isArray(parsed) || !parsed.length) throw new Error('bot did not return a slide array');
   return parsed;
+}
+
+/**
+ * @description The look a render draws. With `brand` (the caller's brand kit as the studio read it
+ * from Create in their own session: `{ base, colors, fonts }`) the kernel's brandTheme rebuilds
+ * and validates it, so a client can never hand the renderer a look it built itself. Otherwise a
+ * built-in look id, and an unknown id is the default look, as it always was.
+ * @param body - the request body.
+ * @returns a built-in look id, or the validated brand look.
+ * @throws BrandLookError when `brand` is present but invalid; the caller answers 400.
+ */
+function lookFrom(body: { theme?: unknown; brand?: unknown }): DeckThemeId | DeckTheme {
+  if (body.brand !== undefined && body.brand !== null) return brandTheme(body.brand);
+  return isThemeId(body.theme) ? body.theme : DEFAULT_THEME_ID;
+}
+
+/**
+ * @description What a record and a response call a look: its id, which for a brand look is
+ * `brand:<base>`, so a file's provenance names the brand look and the layout it was drawn on.
+ * @param look - the look a render used.
+ * @returns the look's id.
+ */
+function lookName(look: DeckThemeId | DeckTheme): string {
+  return typeof look === 'string' ? look : look.id;
+}
+
+/**
+ * @description Whether a caught error is the kernel's brand-look refusal, matched by its stable
+ * code (`invalid_brand_look`) rather than through a kernel export, so on a framework that predates
+ * brand looks this compiled route's catch blocks still answer instead of throwing.
+ * @param err - anything caught.
+ * @returns true for a brand-look refusal.
+ */
+function isLookRefusal(err: unknown): err is Error {
+  return !!err && typeof err === 'object' && (err as { code?: unknown }).code === 'invalid_brand_look';
+}
+
+/**
+ * @description Answer a refused brand look: 400 with the engine's readable reason, and a log line.
+ * @param res - the response.
+ * @param err - the BrandLookError.
+ * @param where - which route refused it, for the log.
+ */
+function refuseLook(res: Response, err: Error, where: string): void {
+  logger.warn({ err: err.message, where }, 'brand look refused');
+  res.status(400).json({ error: 'invalid_brand_look', message: err.message });
 }
 
 /** Validate an optional per-save target override (the "Save to…" choice). */
@@ -249,6 +299,24 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
   });
 
   /**
+   * @description POST /brand-look — the caller's brand look, built by the kernel from the kit the
+   * studio read in the caller's own session (`{ base, colors, fonts }`), so the studio can draw it
+   * beside the ten looks before anything renders. Computation only: no storage, no model. An
+   * invalid kit is a 400 with the engine's reason.
+   */
+  router.post('/brand-look', (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    try {
+      res.json({ look: brandTheme(req.body) });
+    } catch (err) {
+      if (isLookRefusal(err)) { refuseLook(res, err, 'brand-look'); return; }
+      logger.error({ err }, 'brand look failed');
+      res.status(500).json({ error: 'brand look failed' });
+    }
+  });
+
+  /**
    * @description The purpose-first starter catalog, per artifact kind and grouped: what a document,
    * a workbook and a deck are each FOR, with a real outline per purpose. The studio's walkthrough and
    * the Create front door both render this — the catalog lives here so nothing is copied. Static
@@ -350,7 +418,7 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
       const result = await executeBotOrInline(ctx, botClient, DECK_BUILDER_AGENT_ID, {
         text: guidePrompt(message, String(body.title || ''), slides, history, String(body.theme || '')),
         taskId: `deckguide-${sub}`, workspaceFolderId: `deckguide-${sub}`,
-        agentId: DECK_BUILDER_AGENT_ID, agenticMode: true, direct: true, userSub: sub,
+        agentId: DECK_BUILDER_AGENT_ID, agenticMode: false, direct: true, userSub: sub,
       });
       const m = String(result.response || '').match(/\{[\s\S]*\}/);
       let reply = String(result.response || '').slice(0, 1200);
@@ -382,9 +450,12 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
   /**
    * @description The shared generate handler behind POST /pptx, /docx and /xlsx (ADR-103:
    * one outline, three projections). Body: { title, sections?[], topic?, slideCount?, theme?,
-   * subtitle?, byline?, autoLayout?, slideNumbers?, saveTo? }. With `topic` and no `sections`,
-   * the comms bot drafts the outline first — the SAME draft syntax feeds every format. Saves
-   * to the deck-builder bot's store (ADR-043) and records the artifact with its format; falls
+   * brand?, subtitle?, byline?, autoLayout?, slideNumbers?, saveTo? }. With `topic` and no
+   * `sections`, the comms bot drafts the outline first — the SAME draft syntax feeds every
+   * format. `brand` draws the file in the caller's brand look (see lookFrom); an invalid one is
+   * refused before the draft. An unknown theme id falls back to the default rather than 400-ing:
+   * a bad theme string is not worth failing an artifact the user is waiting on. Saves to the
+   * deck-builder bot's store (ADR-043) and records the artifact with its format and look; falls
    * back to a direct download when no storage target is connected.
    */
   function officeHandler(kind: keyof typeof OFFICE_FORMATS) {
@@ -394,13 +465,12 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
       if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
       const body = req.body as {
         title?: string; sections?: RenderableSlide[]; topic?: string; slideCount?: number; saveTo?: unknown;
-        theme?: string; subtitle?: string; byline?: string; autoLayout?: boolean; slideNumbers?: boolean;
+        theme?: string; brand?: unknown; subtitle?: string; byline?: string; autoLayout?: boolean; slideNumbers?: boolean;
       };
       const title = (body.title || body.topic || 'Presentation').trim();
-      // An unknown theme falls back to the default rather than 400-ing: a bad theme string is
-      // not worth failing an artifact the user is waiting on.
-      const theme: DeckThemeId = isThemeId(body.theme) ? body.theme : DEFAULT_THEME_ID;
       try {
+        const look = lookFrom(body);
+        const theme = lookName(look);
         let sections = Array.isArray(body.sections) ? body.sections : null;
         if ((!sections || !sections.length) && body.topic) {
           sections = await outlineFromTopic(ctx, sub, body.topic, Math.min(Math.max(body.slideCount || 6, 1), 30));
@@ -408,7 +478,7 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
         if (!sections || !sections.length) { res.status(400).json({ error: 'provide sections[] or topic' }); return; }
 
         const buf = await fmt.render(title, sections, {
-          theme,
+          theme: look,
           subtitle: body.subtitle ? String(body.subtitle).slice(0, 200) : undefined,
           byline: body.byline ? String(body.byline).slice(0, 120) : undefined,
           autoLayout: body.autoLayout !== false,
@@ -439,6 +509,7 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
         res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
         res.send(buf);
       } catch (err) {
+        if (isLookRefusal(err)) { refuseLook(res, err, kind); return; }
         logger.error({ err, kind }, 'office generation failed');
         res.status(502).json({ error: (err as Error).message });
       }
@@ -509,8 +580,8 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
    * Microsoft Graph). The comms leg of ADR-108's delivery adapters, approval-gated: generation
    * is not consent to broadcast, so the server requires `confirm: true` (428 otherwise) and
    * there is no batch or scheduled path — one explicit user action per send. Body: { confirm,
-   * to, subject?, note?, title, sections[], format?, theme?, subtitle?, byline?, autoLayout?,
-   * slideNumbers? }.
+   * to, subject?, note?, title, sections[], format?, theme?, brand?, subtitle?, byline?,
+   * autoLayout?, slideNumbers? }. An invalid `brand` is refused before anything renders or sends.
    */
   router.post('/email', async (req: Request, res: Response) => {
     const sub = callerSub(req);
@@ -518,7 +589,7 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
     if (!hasExplicitWriteConfirmation(req.body)) { res.status(428).json(confirmationRequiredPayload('office-email', 'Emailing a generated file')); return; }
     const body = req.body as {
       to?: string; subject?: string; note?: string; title?: string; sections?: RenderableSlide[]; format?: string;
-      theme?: string; subtitle?: string; byline?: string; autoLayout?: boolean; slideNumbers?: boolean;
+      theme?: string; brand?: unknown; subtitle?: string; byline?: string; autoLayout?: boolean; slideNumbers?: boolean;
     };
     const to = String(body.to || '').trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { res.status(400).json({ error: 'a valid "to" address is required' }); return; }
@@ -526,11 +597,11 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
     const sections = Array.isArray(body.sections) ? body.sections.filter((s) => s && (s.title || s.content)) : [];
     if (!sections.length) { res.status(400).json({ error: 'sections[] required — there is nothing to send' }); return; }
     const title = String(body.title || 'Document').trim() || 'Document';
-    const theme: DeckThemeId = isThemeId(body.theme) ? body.theme : DEFAULT_THEME_ID;
     try {
+      const look = lookFrom(body);
       const fmt = OFFICE_FORMATS[kind];
       const buf = await fmt.render(title, sections, {
-        theme,
+        theme: look,
         subtitle: body.subtitle ? String(body.subtitle).slice(0, 200) : undefined,
         byline: body.byline ? String(body.byline).slice(0, 120) : undefined,
         autoLayout: body.autoLayout !== false,
@@ -559,7 +630,59 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
       }
       res.status(409).json({ error: 'no_mail_connection', message: 'Connect Google (Gmail) or Microsoft 365 in /utilities to send email.' });
     } catch (err) {
+      if (isLookRefusal(err)) { refuseLook(res, err, 'email'); return; }
       logger.error({ err, kind }, 'office email failed');
+      res.status(502).json({ error: (err as Error).message });
+    }
+  });
+
+  /**
+   * @description POST /slack — approval-gated delivery of one rendered Office artifact to a
+   * caller-selected Slack conversation through the caller's own Slack user token. This is a
+   * file upload, not a public link, so the connected Slack account remains the accountable
+   * sender. Body mirrors /email plus { channelId, comment? }. Teams/Twilio and live recipient
+   * acceptance remain separate adapter work. An invalid `brand` is refused before the token read.
+   */
+  router.post('/slack', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    if (!hasExplicitWriteConfirmation(req.body)) { res.status(428).json(confirmationRequiredPayload('office-slack', 'Uploading a generated file to Slack')); return; }
+    const body = req.body as {
+      channelId?: string; comment?: string; title?: string; sections?: RenderableSlide[]; format?: string;
+      theme?: string; brand?: unknown; subtitle?: string; byline?: string; autoLayout?: boolean; slideNumbers?: boolean;
+    };
+    const channelId = String(body.channelId || '').trim();
+    const kind = (['pptx', 'docx', 'xlsx'] as const).find((k) => k === body.format) ?? 'pptx';
+    const sections = Array.isArray(body.sections) ? body.sections.filter((s) => s && (s.title || s.content)) : [];
+    if (!sections.length) { res.status(400).json({ error: 'sections[] required — there is nothing to send' }); return; }
+    if (!channelId) { res.status(400).json({ error: 'channelId required' }); return; }
+    const title = String(body.title || 'Document').trim() || 'Document';
+    try {
+      const look = lookFrom(body);
+      const token = await getValidAccessToken(ctx.pool, sub, 'slack');
+      if (!token) { res.status(409).json({ error: 'no_slack_connection', message: 'Connect Slack with file-upload permission in /utilities before delivering an artifact.' }); return; }
+      const fmt = OFFICE_FORMATS[kind];
+      const buf = await fmt.render(title, sections, {
+        theme: look,
+        subtitle: body.subtitle ? String(body.subtitle).slice(0, 200) : undefined,
+        byline: body.byline ? String(body.byline).slice(0, 120) : undefined,
+        autoLayout: body.autoLayout !== false,
+        slideNumbers: body.slideNumbers !== false,
+      });
+      const fileName = title.replace(/[^\w.\- ]/g, '_').slice(0, 80) + fmt.ext;
+      const uploaded = await uploadSlackFile(token, {
+        channelId,
+        filename: fileName,
+        content: buf,
+        mimeType: fmt.mime,
+        title,
+        initialComment: String(body.comment || '').slice(0, 4000),
+      });
+      logger.info({ sub, kind, channelId, fileId: uploaded.fileId, bytes: buf.length }, 'office artifact uploaded to Slack');
+      res.json({ ok: true, via: 'slack', channelId, fileId: uploaded.fileId, permalink: uploaded.permalink, format: kind, fileName });
+    } catch (err) {
+      if (isLookRefusal(err)) { refuseLook(res, err, 'slack'); return; }
+      logger.error({ err, kind }, 'office Slack delivery failed');
       res.status(502).json({ error: (err as Error).message });
     }
   });

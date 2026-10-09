@@ -1,9 +1,10 @@
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                  | DESCRIPTION
+ * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-07-24 20:10:00 | @codex-surface-audit    | Add a manifest-driven desktop/mobile and theme audit for every declared app surface.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Add a manifest-driven desktop/mobile and theme audit for every declared app surface.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Select requested experience appearance through its visible style control before measuring the unchanged three audit variants.
  */
 
 import fs from 'node:fs/promises';
@@ -163,6 +164,12 @@ async function inspectSurface(context, surface, variant) {
         waitUntil: 'domcontentloaded',
         timeout: navigationTimeout,
       });
+    }
+    if (await auditFrame.locator('body[data-experience-app]').count()) {
+      const picker = auditFrame.locator('#universal-skin-picker');
+      await picker.waitFor({ state: 'visible', timeout: navigationTimeout });
+      await picker.selectOption(variant.theme);
+      await auditFrame.waitForFunction(theme => document.documentElement.dataset.theme === theme, variant.theme, { timeout: navigationTimeout });
     }
     await page.waitForTimeout(200);
   } catch (error) {

@@ -31,6 +31,8 @@
  * ---------------------------------------------------------------------------
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove Walmart credentials from generic orchestrator dispatch. Catalog access resolves a fixed-server-operation credential only inside the deterministic CLI helper; the model receives bounded product records and never a credential map.
  * 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove the final credential-bearing subprocess boundary. Walmart catalog/deep-link work now calls the import-safe core provider helper with one explicit request-scoped credential value.
+ * 2026-09-26 | maintainer@emeraldcoastsystemsgroup.com | Commerce surfaces (backlog "Consumer commerce native surfaces"): (1) POST /lists/:listId/items no longer trusts the browser's price, title or image — it prices a product line from the Walmart catalog by exact productId (lookupCatalogProduct) and refuses an item the catalog cannot confirm with 422 unknown_product, while a title-only body stays a free-text list entry stored with no product and no price (the Homebase list adds these); the chat's fallback lookup uses the same exact match instead of taking the first search hit. (2) Every total (/cart, the checkout record, the chat proposal) is summed in integer cents by ./cart-totals, and /cart adds totalCents + unpricedLines beside the unchanged listId/items/total. (3) A chat "checkout" no longer builds the hand-off or writes shop_purchase_history in the same request: it returns a `proposal` the surface shows as a confirm card, and only the shopper's confirm calls POST /checkout. `checkout` stays in the reply (always null) so older surfaces keep their shape.
+ * 2026-10-08 | maintainer@emeraldcoastsystemsgroup.com | GET /cart is a pure read. It called getOrCreateDefaultList, which INSERTs a list for a shopper who has none; the native host admits a GET read-only and refuses any SQL write, so every first visit answered 500 'SQL mutation requires original writer admission' and the cart rendered empty. readCart now answers the unchanged shape with listId null and no lines when no active list exists; the list is still created by a write request (POST /lists, which the chat surface now calls before its first add, the chat turn, or checkout).
  *
  * @module purchasing-routes
  */
@@ -38,6 +40,7 @@
 import { Router, type Request, type Response, type RequestHandler } from 'express';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
+import { cartTotalCents, centsToDollars, formatCents, lineQuantity, type CartTotal } from './cart-totals';
 import { createChildLogger } from '@/shared/logger';
 import { buildOwnerRlsPolicyStatements, runRuntimeSchemaBootstrap } from '@/shared/services/database';
 import type { AppContext } from '@/app/composition/app-context';
@@ -166,6 +169,50 @@ export function enforceWalmartCatalogActionPolicy(
       ? 'Walmart is not connected. The cards are demo examples, so I did not add anything or start checkout.'
       : 'The Walmart catalog is unavailable. I did not add anything or start checkout.';
   return true;
+}
+
+/** A catalog product id as the Walmart cart deep link accepts it (the provider's `cart` spec). */
+const PRODUCT_ID = /^[A-Za-z0-9._-]{1,64}$/;
+
+/** Reduce free text to the provider's safe catalog-query alphabet (it refuses anything else). */
+function catalogQuery(text: unknown): string {
+  return String(text ?? '')
+    .replace(/[^\p{L}\p{N}\p{Zs}.,&'()/%+\-:]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[^\p{L}\p{N}]+/u, '')
+    .trim()
+    .slice(0, 200);
+}
+
+/** One catalog product found by exact id, with the provider response that produced it. */
+export interface CatalogMatch { product: any; response: any }
+
+/**
+ * @description Find ONE catalog product by its exact productId, for pricing a cart line on the
+ * server. The provider has no get-by-id operation, so this searches by the id and then by a title
+ * hint, and accepts only a row whose productId is EXACTLY the one asked for — a search hit is not
+ * a match (a query the demo catalog does not recognise returns every demo row). A refused query is
+ * logged and treated as no match, never as an error the shopper sees as a 500.
+ * @param run - The request-scoped provider call (`walmartProviderOperation` bound to the caller).
+ * @param productId - The id the line is for.
+ * @param hint - Optional title to search by when the id itself finds nothing.
+ * @returns The matching product and its response, or null when the catalog cannot confirm it.
+ */
+export async function lookupCatalogProduct(
+  run: (args: string[]) => Promise<any>,
+  productId: string,
+  hint?: unknown,
+): Promise<CatalogMatch | null> {
+  if (!PRODUCT_ID.test(productId)) return null;
+  for (const query of [productId, catalogQuery(hint)]) {
+    if (!query) continue;
+    let response: any;
+    try { response = await run(['search', query, '12']); }
+    catch (err) { logger.error({ err, productId }, 'catalog lookup query refused'); continue; }
+    const product = (response?.items || []).find((item: any) => String(item?.productId) === productId);
+    if (product) return { product, response };
+  }
+  return null;
 }
 
 /** Build the single prompt the concierge bot reasons over: rules + memory + real candidates + turn. */
@@ -344,18 +391,30 @@ async function loadSuggestions(pool: Pool, sub: string): Promise<any[]> {
   return r.rows;
 }
 
-/** Get the shopper's default active list, creating one on first use. */
-async function getOrCreateDefaultList(pool: Pool, sub: string): Promise<string> {
+/**
+ * @description The shopper's default list: the oldest one still active, or null when they have none
+ * yet. A pure read, so a GET (which the native host admits read-only) never has to create anything.
+ * @param pool - The package pool.
+ * @param sub - The authenticated shopper.
+ * @returns The list id, or null.
+ */
+async function findDefaultList(pool: Pool, sub: string): Promise<string | null> {
   const found = await pool.query(
     `SELECT list_id FROM shop_lists WHERE user_sub = $1 AND status = 'active' ORDER BY created_at LIMIT 1`, [sub]);
-  if (found.rows[0]) return found.rows[0].list_id;
+  return found.rows[0]?.list_id ?? null;
+}
+
+/** Get the shopper's default active list, creating one on first use. Write requests only. */
+async function getOrCreateDefaultList(pool: Pool, sub: string): Promise<string> {
+  const found = await findDefaultList(pool, sub);
+  if (found) return found;
   const created = await pool.query(`INSERT INTO shop_lists (user_sub, name) VALUES ($1, 'My List') RETURNING list_id`, [sub]);
   return created.rows[0].list_id;
 }
 
 /** Insert one item into a list + learn it as the shopper's usual for that intent. */
 async function addItem(pool: Pool, sub: string, listId: string, prod: any, qty: number, reason: string, intentKey: string): Promise<any> {
-  const q = Math.max(1, Math.min(10, qty || 1));
+  const q = lineQuantity(qty);
   const ins = await pool.query(
     `INSERT INTO shop_list_items (list_id,user_sub,retailer,product_id,title,brand,image_url,product_url,quantity,unit_price,reason)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
@@ -375,19 +434,80 @@ async function addItem(pool: Pool, sub: string, listId: string, prod: any, qty: 
   return ins.rows[0];
 }
 
+/** The shopper's pending lines on one list (the cart a checkout hands off). */
+async function pendingLines(pool: Pool, sub: string, listId: string): Promise<any[]> {
+  return (await pool.query(
+    `SELECT * FROM shop_list_items WHERE list_id = $1 AND user_sub = $2 AND status = 'pending' ORDER BY created_at`, [listId, sub])).rows;
+}
+
+/** The GET /cart body: { listId, items, total } plus the exact cents the total came from. */
+export interface CartView {
+  listId: string | null;
+  items: any[];
+  total: number;
+  totalCents: number;
+  unpricedLines: number;
+}
+
+/**
+ * @description Read the shopper's one open cart without writing. A shopper with no active list gets
+ * the same shape with listId null and no lines; the first write (POST /lists, the chat turn or a
+ * checkout) creates the list.
+ * @param pool - The package pool.
+ * @param sub - The authenticated shopper.
+ * @returns The cart view.
+ */
+async function readCart(pool: Pool, sub: string): Promise<CartView> {
+  const listId = await findDefaultList(pool, sub);
+  if (!listId) return { listId: null, items: [], total: 0, totalCents: 0, unpricedLines: 0 };
+  const items = await pendingLines(pool, sub, listId);
+  const { totalCents, unpricedLines } = cartTotalCents(items);
+  return { listId, items, total: centsToDollars(totalCents), totalCents, unpricedLines };
+}
+
 /** Build the order deep link for a list's pending items via the request-scoped provider helper. */
-async function buildCheckout(pool: Pool, sub: string, listId: string): Promise<{ checkoutUrl: string | null; total: number; orderRef: string | null }> {
-  const items = (await pool.query(
-    `SELECT * FROM shop_list_items WHERE list_id = $1 AND user_sub = $2 AND status = 'pending'`, [listId, sub])).rows;
-  if (!items.length) return { checkoutUrl: null, total: 0, orderRef: null };
-  const spec = items.filter((i) => i.product_id).map((i) => `${i.product_id}_${i.quantity}`).join(',');
+async function buildCheckout(pool: Pool, sub: string, listId: string): Promise<{ checkoutUrl: string | null; total: number; totalCents: number; orderRef: string | null }> {
+  const items = await pendingLines(pool, sub, listId);
+  if (!items.length) return { checkoutUrl: null, total: 0, totalCents: 0, orderRef: null };
+  const spec = items.filter((i) => i.product_id).map((i) => `${i.product_id}_${lineQuantity(i.quantity)}`).join(',');
   const r = await walmartProviderOperation(pool, sub, ['cart', spec]);
-  const total = items.reduce((s, i) => s + (Number(i.unit_price) || 0) * (i.quantity || 1), 0);
+  const { totalCents } = cartTotalCents(items);
   await pool.query(
     `INSERT INTO shop_purchase_history (user_sub, retailer, order_ref, items, total, handoff_url)
      VALUES ($1, 'walmart', $2, $3::jsonb, $4, $5)`,
-    [sub, r.orderRef || null, JSON.stringify(items), total.toFixed(2), r.checkoutUrl || null]);
-  return { checkoutUrl: r.checkoutUrl || null, total: Number(total.toFixed(2)), orderRef: r.orderRef || null };
+    [sub, r.orderRef || null, JSON.stringify(items), formatCents(totalCents), r.checkoutUrl || null]);
+  return { checkoutUrl: r.checkoutUrl || null, total: centsToDollars(totalCents), totalCents, orderRef: r.orderRef || null };
+}
+
+/** What a chat "checkout" returns instead of a hand-off: the confirm card the surface shows. */
+export interface CheckoutProposal {
+  actionId: 'checkout';
+  listId: string;
+  lines: number;
+  totalCents: number;
+  total: number;
+  unpricedLines: number;
+  summary: string;
+}
+
+/**
+ * @description Describe the checkout the shopper would be handing off, WITHOUT building the
+ * deep link or recording anything. The concierge may decide the shopper wants to order, but only
+ * the shopper's confirm click (POST /checkout) creates the hand-off and its history row.
+ * @param lines - The pending cart lines.
+ * @param listId - The list those lines belong to.
+ * @returns The proposal, or null for an empty cart.
+ */
+export function checkoutProposal(lines: readonly any[], listId: string): CheckoutProposal | null {
+  if (!lines.length) return null;
+  const totals: CartTotal = cartTotalCents(lines);
+  const units = lines.reduce((sum, line) => sum + lineQuantity(line.quantity), 0);
+  const partial = totals.unpricedLines ? ` (${totals.unpricedLines} line${totals.unpricedLines === 1 ? '' : 's'} without a price)` : '';
+  return {
+    actionId: 'checkout', listId, lines: lines.length, totalCents: totals.totalCents,
+    total: centsToDollars(totals.totalCents), unpricedLines: totals.unpricedLines,
+    summary: `Open Walmart checkout for ${units} item${units === 1 ? '' : 's'} totalling $${formatCents(totals.totalCents)}${partial}? You sign in and pay on Walmart; nothing is charged here.`,
+  };
 }
 
 export function createPurchasingRoutes(ctx: AppContext): Router {
@@ -492,13 +612,29 @@ export function createPurchasingRoutes(ctx: AppContext): Router {
     res.json({ items: r.rows });
   }));
 
+  // A product line is priced by the SERVER from the catalog: the body names a productId (and may
+  // carry a title as a search hint), but price, title, brand and links come from the catalog row
+  // whose id matches exactly. A client-sent price is ignored, and an id the catalog cannot confirm
+  // is refused rather than stored at whatever price the browser claimed. A body with a title and
+  // NO productId is a free-text list entry ("milk", as the Homebase list adds): it is stored with
+  // no product and no price, so it can never move a total, and checkout leaves it out.
   router.post('/lists/:listId/items', shopper(async (req, res, sub) => {
     const b = req.body || {};
     const own = await pool.query(`SELECT 1 FROM shop_lists WHERE list_id = $1 AND user_sub = $2`, [req.params.listId, sub]);
     if (!own.rowCount) { res.status(403).json({ error: 'not your list' }); return; }
-    const item = await addItem(pool, sub, String(req.params.listId),
-      { retailer: b.retailer, productId: b.productId, title: b.title, brand: b.brand, imageUrl: b.imageUrl, productUrl: b.productUrl, price: b.price != null ? Number(b.price) : null },
-      Number(b.quantity) || 1, b.reason || null, b.itemKey || b.title || '');
+    const productId = String(b.productId || '').trim();
+    const title = String(b.title || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+    if (!productId && title) {
+      const note = await addItem(pool, sub, String(req.params.listId), { retailer: 'walmart', title },
+        Number(b.quantity) || 1, b.reason || null, b.itemKey || title);
+      res.json({ item: note });
+      return;
+    }
+    if (!PRODUCT_ID.test(productId)) { res.status(400).json({ error: productId ? 'productId is invalid' : 'productId or title is required' }); return; }
+    const match = await lookupCatalogProduct((args) => walmartProviderOperation(pool, sub, args), productId, b.title);
+    if (!match) { res.status(422).json({ error: 'unknown_product', message: 'The catalog could not confirm that product, so it was not added.' }); return; }
+    const item = await addItem(pool, sub, String(req.params.listId), match.product,
+      Number(b.quantity) || 1, b.reason || null, b.itemKey || match.product.title || '');
     res.json({ item });
   }));
 
@@ -512,7 +648,7 @@ export function createPurchasingRoutes(ctx: AppContext): Router {
     const listId = req.body?.listId || (await getOrCreateDefaultList(pool, sub));
     const r = await buildCheckout(pool, sub, listId);
     if (!r.checkoutUrl) { res.status(400).json({ error: 'nothing to check out (or Walmart not connected)' }); return; }
-    res.json({ checkoutUrl: r.checkoutUrl, orderRef: r.orderRef, total: r.total,
+    res.json({ checkoutUrl: r.checkoutUrl, orderRef: r.orderRef, total: r.total, totalCents: r.totalCents,
       note: 'Opens at Walmart — sign in there and check out. This is a tracked handoff, not an in-app charge.' });
   }));
 
@@ -572,22 +708,21 @@ export function createPurchasingRoutes(ctx: AppContext): Router {
     for (const a of env.add) {
       let prod = candById.get(a.productId);
       if (!prod) {
-        const lk = await walmartProviderOperation(pool, sub, ['search', a.productId, '1']);
-        if (!walmartCatalogAllowsActions(lk)) continue;
-        prod = lk.items?.[0];
+        const lk = await lookupCatalogProduct((args) => walmartProviderOperation(pool, sub, args), a.productId);
+        if (!lk || !walmartCatalogAllowsActions(lk.response)) continue;
+        prod = lk.product;
       }
       if (!prod) continue;
       await addItem(pool, sub, listId, prod, a.quantity, a.reason || 'added in chat', message.length < 40 ? message : prod.title);
-      added.push({ ...prod, quantity: Math.max(1, Math.min(10, a.quantity || 1)), reason: a.reason });
+      added.push({ ...prod, quantity: lineQuantity(a.quantity), reason: a.reason });
     }
     for (const note of env.remember) {
       await pool.query(`INSERT INTO shop_feedback (user_sub, note) VALUES ($1, $2) ON CONFLICT (user_sub, lower(note)) DO NOTHING`, [sub, note.slice(0, 300)]);
     }
-    let checkout: { checkoutUrl: string; total: number } | null = null;
-    if (env.checkout) {
-      const c = await buildCheckout(pool, sub, listId);
-      if (c.checkoutUrl) checkout = { checkoutUrl: c.checkoutUrl, total: c.total };
-    }
+    // The concierge may decide the shopper wants to order; it may not hand off on its own. A
+    // proposal is returned for the surface's confirm card and NOTHING outward-facing happens
+    // (no deep link, no history row) until the shopper confirms, which calls POST /checkout.
+    const proposal = env.checkout ? checkoutProposal(await pendingLines(pool, sub, listId), listId) : null;
 
     await pool.query(`INSERT INTO shop_messages (conversation_id, user_sub, role, content) VALUES ($1, $2, 'assistant', $3)`, [conversationId, sub, env.say]);
     await pool.query(`UPDATE shop_conversations SET updated_at = NOW() WHERE conversation_id = $1`, [conversationId]);
@@ -595,8 +730,10 @@ export function createPurchasingRoutes(ctx: AppContext): Router {
     const cards = env.show.map((id) => candById.get(id)).filter(Boolean)
       .map((card) => catalogActionsAllowed ? card : { ...card, demo: true, actionable: false });
     res.json({
+      // `checkout` is kept for response-shape compatibility and is always null now: a hand-off
+      // is created only by the shopper's confirm (POST /checkout), never by the chat turn.
       conversationId, reply: env.say, cards,
-      added, remembered: env.remember, checkout, ...catalog,
+      added, remembered: env.remember, checkout: null, proposal, ...catalog,
       catalogActionable: catalogActionsAllowed, source: searchRes.source || 'walmart',
       error: catalog.providerError?.message || (typeof searchRes.error === 'string' ? searchRes.error.slice(0, 160) : undefined),
     });
@@ -633,12 +770,11 @@ export function createPurchasingRoutes(ctx: AppContext): Router {
   }));
 
   // The shopper's ONE open cart + items — what the assistant works on.
+  // Shape: { listId, items, total } unchanged (other surfaces read it); totalCents is the exact
+  // integer the total was computed from, and unpricedLines says when the total is partial. A read
+  // never creates the list: with none yet, listId is null (see readCart).
   router.get('/cart', shopper(async (_req, res, sub) => {
-    const listId = await getOrCreateDefaultList(pool, sub);
-    const items = (await pool.query(
-      `SELECT * FROM shop_list_items WHERE list_id=$1 AND user_sub=$2 AND status='pending' ORDER BY created_at`, [listId, sub])).rows;
-    const total = items.reduce((s, i) => s + (Number(i.unit_price) || 0) * (i.quantity || 1), 0);
-    res.json({ listId, items, total: Number(total.toFixed(2)) });
+    res.json(await readCart(pool, sub));
   }));
 
   router.get('/suggestions', shopper(async (_req, res, sub) => {

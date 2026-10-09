@@ -10,8 +10,34 @@
 # threshold the photo's own histogram chooses (Otsu), the solid is the visual
 # hull carved from the outlines on a voxel grid, the mesh is surface nets over
 # that grid, the drawing is the grid re-projected. Same photos, same ruler
-# number, same bytes. The ONE inline concierge briefs and guides; it never
-# computes geometry and never sends a print.
+# number, same bytes. The ONE concierge briefs and guides; it never computes
+# geometry, and it sends a print only through print-to-3d-printer, which asks the
+# person first (ask by default).
+#
+# THE PRINT SERVICE (0.6.0, operator decision 2026-10-06: "build it into the
+# app as a service", the way agents call the RAG service): any agent, persona
+# script or app prints through /api/scan-to-print/service — a scan job or a
+# posted model. Bambu Lab printers are reached directly on the LAN (FTPS upload
+# + MQTT; the printer is pinned by its certificate when it is added), and a model is
+# sliced for THAT printer by the package's own OrcaSlicer engine container (engine/,
+# BUILDING-EXTENSIONS §7). What the service ENFORCES for every caller is the OWNER's
+# per-printer auto-start: off when the printer is added, turned on only by the owner
+# (OIDC-only route, with confirmation), and re-read at the moment a start would be
+# sent. With it off the service uploads and says so. The OPERATOR's per-agent grant
+# on print-to-3d-printer (ships ask) additionally governs agents that call through
+# that tool; a direct caller holding the service secret is not subject to it. On a
+# box running core application authorization in enforce mode, a bare service-secret
+# call has no verified identity and core refuses it before this package runs.
+#
+# AGENT TOOLS ARE PACKAGE TOOLS (0.7.0, operator decision 2026-10-06: "agents can use
+# tools that they are assigned to and there should be a bot that can call the
+# printer"; BACKLOG B18). The five print-service tools run in-process (executor
+# builtin/package) under the caller's verified actor, so an agent, Jarvis or this
+# app's operator bot can use them on an enforce box. That needs an ADR-149 catalog
+# (authorization.yaml): one `maker` role carries the whole app, as @app-admin did.
+# Adopting it is a breaking catalog change: the install refuses with
+# authorization_catalog_migration_required until an administrator approves the
+# review, and a person then needs the maker role — docs/PRINTERS.md §6.
 #
 # WHY THIS IS A BUILDING BLOCK (docs/ARCHITECTURE.md): every input lane ends in
 # the same OCCUPANCY GRID. Silhouettes carry "nothing along this ray"; a depth
@@ -28,16 +54,26 @@
 
 name: scan-to-print
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  # 0.6.0: + the slicer engine container (idle ~17 MiB; mem_limit 3g while OrcaSlicer slices), the
+  # cad-studio convention of package range + engine ceiling. Slicing is not a model: features stay T0.
+  memoryMb: { low: 64, high: 3200, basis: declared }
+  features: []   # no model in the loop (T0)
 displayName: Scan to Print
 description: >-
   Photograph an object from its six sides (or film it, or import a LiDAR point
   cloud), enter one ruler measurement, and get a third-angle engineering drawing
   with overall dimensions, a watertight STL/OBJ you can rotate in the browser,
-  and a one-click job on your own OctoPrint, Klipper/Moonraker or PrusaLink
-  printer. The geometry is deterministic — silhouettes carve a voxel grid, the
-  grid becomes the mesh and the drawing — and the same occupancy grid accepts
-  depth and LiDAR input, so it is the building block a scanner plugs into.
-version: 0.5.1
+  and a one-click job on your own OctoPrint, Klipper/Moonraker, PrusaLink or
+  Bambu Lab printer (sliced for that printer by a bundled OrcaSlicer engine and
+  sent over your home network). The same printers are a swarm print service any
+  agent or app can call, starting a print on its own only on printers where you
+  turned auto-start on. The geometry is deterministic — silhouettes carve a voxel
+  grid, the grid becomes the mesh and the drawing — and the same occupancy grid
+  accepts depth and LiDAR input, so it is the building block a scanner plugs into.
+version: 0.7.0
 status: active
 scope: person
 
@@ -98,11 +134,15 @@ uses:
   - memory
   - test-catalog
   - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
+  - application-authorization   # ADR-149: the authorization.yaml catalog below
+  - package-tools               # the five print-service tools run in-process (src-routes/print-tools.ts)
+authorization: { version: 1, catalog: authorization.yaml }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BOTS — one INLINE concierge (no container: reasoning rides the caller's hosted/BYO brain
 # through the framework's accounted path). It briefs jobs and drafts capture guidance; the
-# geometry is the engine's and printing is a confirmed human click. selectorDescriptor and
+# geometry is the engine's, and printing is the person's confirmed click or the print service's
+# tool (ask by default; a machine starts only under the printer owner's auto-start). selectorDescriptor and
 # routingKeywords are declared HERE, not in the persona: the loader reads persona routing
 # fields from a server-cwd path a store package never lives at (ADR-083).
 # ─────────────────────────────────────────────────────────────────────────────
@@ -116,12 +156,14 @@ bots:
       - capture-guidance
       - reconstruction-explainer
       - print-readiness
+      - print-service
     selectorDescriptor: >-
       Select for the Scan to Print app ONLY: briefing an object-scan job (which views are
       assigned, the ruler measurement, the reconstruction report), explaining why a visual
       hull filled a cavity or why a mesh is not printable, drafting photo-capture guidance
       (background, framing, the six views, scale), or explaining how a job reaches the
-      person's own 3D printer. Do NOT select for room-scale scanning (spaces-operator),
+      person's own 3D printer (OctoPrint, Moonraker, PrusaLink, Bambu Lab) and the print
+      service's auto-start rules. Do NOT select for room-scale scanning (spaces-operator),
       camera devices, drones, or anything that is not this app.
     routingKeywords:
       - 3d print
@@ -134,55 +176,108 @@ bots:
       - octoprint
       - prusalink
       - moonraker
+      - bambu
+      - print service
       - six views
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TOOLS — route-backed and read-only. A bot that calls these gets the engine's numbers and
-# the caller's own rows, never an opinion. Print submission is deliberately NOT a tool: it
-# is a human click behind the explicit-confirm gate.
+# TOOLS — in-process package tools (0.7.0). Each runs in the api under the caller's verified
+# actor, never an input, and calls the same functions the print service routes call
+# (src-routes/print-tools.ts); each is bound in authorization.yaml. A bot that calls them gets the
+# caller's own rows and the printer's own answers, never an opinion. print-to-3d-printer ships ASK
+# (the operator flips an agent's grant to auto in the cockpit), and even an auto grant only UPLOADS
+# unless the printer's owner turned that printer's auto-start on. Inputs are closed server-side.
 # ─────────────────────────────────────────────────────────────────────────────
 tools:
   - name: scan-to-print-capabilities
     displayName: Scan to Print Capabilities
-    type: api
     category: engineering
-    description: Report the six canonical views, the reconstruction bounds (resolution, smoothing), upload ceilings, supported printer hosts, and whether a slicer and frame extraction are configured.
-    executor: { executorType: api, apiEndpoint: "GET /api/scan-to-print/capabilities" }
+    description: Report the six canonical views, the reconstruction bounds (resolution, smoothing), upload ceilings, supported printer hosts, whether a slicer and frame extraction are configured, and the slicer engine for Bambu Lab printers.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scan-to-print
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, properties: {} }
     usageInstructions: >-
       Read-only. The bounds returned are the SAME numbers the reconstruct route enforces, so
       quote them rather than guessing.
     routingTags: [scan, print, capabilities]
-    tags: [scan-to-print, route-backed]
+    tags: [scan-to-print, package-tool]
 
-  - name: scan-to-print-jobs
-    displayName: List Scan Jobs
-    type: api
+  - name: print-service-jobs
+    displayName: Scan Jobs (print service)
     category: engineering
-    description: The caller's scan jobs with state, known dimensions and the last reconstruction report (extents with sources, volume, facets, printable verdict, warnings, limitations).
-    executor: { executorType: api, apiEndpoint: "GET /api/scan-to-print/jobs" }
+    description: The person's scan jobs as the print service sees them — id, title, state, source, whether the current model is printable, last change. Use the jobId with print-to-3d-printer.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scan-to-print
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, properties: {} }
     usageInstructions: >-
-      Owner-scoped. Quote the report's warnings and limitations verbatim; never invent an
-      extent, a volume or a facet count that is not in the report.
-    routingTags: [scan, jobs, report]
-    tags: [scan-to-print, route-backed]
+      Read-only and owner-scoped. Only a job whose printable is true can be printed; never offer
+      one that is not.
+    routingTags: [scan, jobs, print]
+    tags: [scan-to-print, package-tool, print-service]
 
-  - name: scan-to-print-printers
-    displayName: List Printers
-    type: api
+  - name: print-service-printers
+    displayName: 3D Printers (print service)
     category: engineering
-    description: The caller's registered printer hosts (label, kind, base URL — never the key) and whether the swarm has a slicer configured.
-    executor: { executorType: api, apiEndpoint: "GET /api/scan-to-print/printers" }
+    description: The person's printers as the print service sees them — id, label, kind (octoprint, moonraker, prusalink, bambu-lan), model, whether auto-start is on, and the slice profile (nozzle, filament, plate). Never a key or access code.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scan-to-print
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, properties: {} }
     usageInstructions: >-
-      Read-only. Sending a job is not available to bots; tell the person to use the Print
-      step in the app, which asks for an explicit confirmation.
-    routingTags: [printer, octoprint, moonraker, prusalink]
-    tags: [scan-to-print, route-backed]
+      Read-only. Use it to pick a printerId and to tell the person whether a print will start by
+      itself (autoStart true) or wait for them on the printer (autoStart false).
+    routingTags: [printer, 3d-print, bambu]
+    tags: [scan-to-print, package-tool, print-service]
+
+  - name: print-service-printer-status
+    displayName: 3D Printer Status
+    category: engineering
+    description: One printer's live state — idle, preparing, printing, paused, finished, failed or offline — with progress, layers, minutes left and, for a Bambu Lab printer, whether it accepts start commands from oshal (Developer Mode) and any health codes.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scan-to-print
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        printerId: { type: string, description: "From print-service-printers." }
+      required: [printerId]
+    usageInstructions: >-
+      Read-only. Quote the state the printer reports; never infer that a print finished or
+      succeeded from anything else.
+    routingTags: [printer, status, 3d-print]
+    tags: [scan-to-print, package-tool, print-service]
+
+  - name: print-to-3d-printer
+    displayName: Print to 3D Printer
+    category: engineering
+    description: Send a scan job's current model to one of the person's 3D printers through the print service. A Bambu Lab printer gets it sliced for that printer and uploaded over the home network; the print STARTS only when the owner turned auto-start on for that printer and the printer accepts it — otherwise the file waits on the printer for a person to start it.
+    executor: { executorType: builtin, builtinKey: package }
+    authGroup: scan-to-print
+    defaultAuthMode: ask
+    requiresApproval: true
+    timeoutMs: 600000
+    inputSchema:
+      type: object
+      properties:
+        jobId: { type: string, description: "A printable scan job from print-service-jobs." }
+        printerId: { type: string, description: "Optional when the person has exactly one printer." }
+      required: [jobId]
+    usageInstructions: >-
+      Physical action. Before calling, ask the person to confirm the build plate is clear.
+      Report exactly what the reply says: ok false means nothing was sent and error/message say
+      why; outcome.started true means the printer began; false means the file is on the printer
+      and outcome.message says why it did not start (auto-start off for that printer, the printer
+      requires its vendor's signed commands, it is busy, or no loaded AMS slot holds the sliced
+      material). Never tell the person a print started unless outcome.started is true, and never
+      call this to retry a refused start.
+    routingTags: [print, 3d-print, bambu, printer]
+    tags: [scan-to-print, package-tool, print-service, approval-required]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon tile opens the app, self-served by this package's route from
@@ -197,10 +292,21 @@ ui:
       section: top
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ROUTES — compiled JS bundled in this package, mounted in-process. OIDC only: every input is
-# the person's own, and the print step leaves the controller for a host they registered.
+# ROUTES — compiled JS bundled in this package, mounted in-process. The person's routes are OIDC
+# only: every input is the person's own, and the print step leaves the controller for a host they
+# registered. The print service is the one service-or-oidc mount (a bot node's service secret plus
+# the user it acts for, narrowed to that user before any query); it cannot change printer settings.
+# The mounter runs the most specific mount first, so /service is reached before the OIDC catch-all.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/scan-to-print-routes.js
+    factory: createScanToPrintServiceRoutes
+    mountPath: /api/scan-to-print/service
+    auth: service-or-oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/home-summary.js
     factory: createHomeSummaryRoutes
     mountPath: /api/scan-to-print/home-summary
@@ -224,9 +330,11 @@ routes:
     requiresContext: true
     requiresAi: false
 
-# The app's own schema (jobs, images, printers, submissions) with owner RLS, applied on install.
+# The app's own schema (jobs, images, printers, submissions) with owner RLS, applied on install;
+# 002 adds Bambu Lab printers, the per-printer auto-start opt-in and service submissions.
 migrations:
   - migrations/001-scan-to-print.sql
+  - migrations/002-bambu-lan-printers.sql
 
 # The right-rail chat agent when this app is focused.
 chatBot: scan-to-print-operator

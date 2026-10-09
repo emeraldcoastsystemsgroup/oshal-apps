@@ -177,6 +177,16 @@ SEQ                 | AUTHOR                      | DESCRIPTION
   |                                           | the dual storage contract: limit-cycle replay is
   |                                           | ideal-only; real ECM state is advanced once per
   |                                           | accepted Simpson/RK4 bus interval and observed.
+10 | maintainer@emeraldcoastsystemsgroup.com  | Structured closure reasons: every closed_reasons
+  |                                           | append in both integrators is followed by its
+  |                                           | aerosim.validity code with the numbers that
+  |                                           | decided it, published as
+  |                                           | detail["closed_reason_codes"] (same order, same
+  |                                           | length), and the trim refusal carries
+  |                                           | trim_not_converged {residual_N, tol_N, V_ms}.
+  |                                           | One-line emissions only; no verdict changes.
+  |                                           | The import falls back to the flat layout so a
+  |                                           | direct `python integrate.py` self-test still runs.
 -------------------------------------------------------------------------------
 
 aerosim.integrate -- two-timescale trajectory / energy integrator.
@@ -288,6 +298,13 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Optional, Sequence
 
 import numpy as np
+
+try:
+    from .validity import attach as _attach_reason
+    from .validity import reason as _vr
+except ImportError:  # a direct `python integrate.py` (flat layout), as _env() resolves env
+    from validity import attach as _attach_reason  # type: ignore[no-redef]
+    from validity import reason as _vr  # type: ignore[no-redef]
 
 # --------------------------------------------------------------------------------------
 # Constants
@@ -1744,7 +1761,7 @@ def _trim_airspeed(
         ev = eval_at(V)
     lift_N = float(np.sum(ev.forces_N[:, 2]))
     residual_N = weight_N - lift_N
-    raise TrimConvergenceError(
+    raise _attach_reason(TrimConvergenceError(
         f"quasi-steady trim did not converge: after {_TRIM_MAX_ITER} fixed-point "
         f"iterations, a 60-step bisection on [{_TRIM_V_MIN_MS:g}, {_TRIM_V_MAX_MS:g}] "
         f"m/s and {_TRIM_MAX_ITER} polish iterations, the vertical residual is "
@@ -1753,7 +1770,8 @@ def _trim_airspeed(
         f"last V = {V:.6g} m/s, lift = {lift_N:.6g} N, "
         f"{ev.n_invalid_aero} element(s) consuming uncertified aero at that state). "
         "This design cannot be evaluated -- it is a hard failure, not a score."
-    )
+    ), "trim_not_converged", residual_N=residual_N,
+        tol_N=_TRIM_REL_TOL * max(weight_N, 1.0), V_ms=V)
 
 
 # --------------------------------------------------------------------------------------
@@ -2514,6 +2532,7 @@ def integrate_energy(
 
     # ---- FATAL 2: score the LIMIT CYCLE, not the seeded window -------------------------
     reasons: list[str] = []
+    codes: list[dict] = []    # aerosim.validity twin of each reason, appended line-for-line
     # ROUND-5: the night-skipper.  A PV-carrying run stepped coarser than
     # MAX_CERTIFIED_SOLAR_DT_S under-samples the diurnal cycle the closure verdict is
     # about -- measured: dt = 86400 s (one step per day) reported min_soc 1.0000
@@ -2531,6 +2550,7 @@ def integrate_energy(
             f"(usable margin within 0.04%), coarser does not"
         )
         reasons.append(dt_taint_reason)
+        codes.append(_vr("dt_too_coarse", dt_s=dt_s, ceiling_s=MAX_CERTIFIED_SOLAR_DT_S))
     # ROUND-4 layer 3: uncertified aerodynamics anywhere on the cruise path refuses the
     # closure verdict outright.  The R4 winner "flew" 1441 steps of zero-filled polar
     # (Re 5.6e7, beyond every certified bin) and closed on avionics power alone.
@@ -2541,12 +2561,15 @@ def integrate_energy(
             "(Reynolds band, alpha span or confidence floor) -- the forces are "
             "edge-clamped or zero-filled fiction and no closure verdict exists"
         )
+        codes.append(_vr("aero_uncertified_steps", steps=uncertified_aero_steps, of_steps=n_pts))
     weight_scale_N = max(sum(float(b.mass_kg) for b in vehicle.bodies) * G0_MS2, 1.0)
     if max_excess_thrust_N > 1e-6 * weight_scale_N:
         reasons.append(
             f"uncommanded forward force {max_excess_thrust_N:.6g} N -- the vehicle is being "
             "pushed along its flight path by something nothing paid for"
         )
+        codes.append(_vr("uncommanded_forward_force", max_excess_thrust_N=max_excess_thrust_N,
+                         tol_N=1e-6 * weight_scale_N))
     # ROUND-3 fix 1b: saturation is VISIBLE.  The deficit is billed above, but billing is
     # not flying -- a design whose motor cannot produce its own trim thrust is not closed.
     if max_unmet_thrust_N > 1e-6 * weight_scale_N:
@@ -2555,10 +2578,13 @@ def integrate_energy(
             "fly the vehicle's own trim (the deficit was billed at the thruster's own "
             "actuator-disk price, but a motor that cannot deliver the thrust does not fly)"
         )
+        codes.append(_vr("unmet_thrust", max_unmet_thrust_N=max_unmet_thrust_N,
+                         tol_N=1e-6 * weight_scale_N))
     # ROUND-3 fix 3: no sub-diurnal closure verdict with a solar source aboard.
     window_reason = _sub_diurnal_window_reason(vehicle, t0_s, t_end_s)
     if window_reason is not None:
         reasons.append(window_reason)
+        codes.append(_vr("sub_diurnal_window", window_s=float(t_end_s) - float(t0_s)))
 
     soc_as_seeded = soc_hist[used].copy()
     if spec.capacity_J > 0.0 and n_tape > 0 and spec.authority is not None:
@@ -2581,16 +2607,20 @@ def integrate_energy(
                 f"accepted real-ECM floor {min_soc:.4f} does not clear "
                 f"soc_min {spec.soc_min:.4f}"
             )
+            codes.append(_vr("soc_floor_breached", min_soc=min_soc, soc_min=spec.soc_min))
         if shortfall_lc_J > 1.0e-6:
             reasons.append(
                 f"{shortfall_lc_J / 3600.0:.1f} Wh of demand was refused by "
                 "the real electrochemical pack"
             )
+            codes.append(_vr("unmet_bus_demand_Wh", unmet_Wh=shortfall_lc_J / 3600.0))
         if soc_end < soc_start - 1.0e-9:
             reasons.append(
                 f"accepted real-ECM state of charge does not return: "
                 f"{soc_start:.4f} -> {soc_end:.4f}"
             )
+            codes.append(_vr("soc_not_persistent", soc_start=soc_start, soc_end=soc_end,
+                             min_soc=min_soc))
         unabsorbed_J = surplus_lc_J - shortfall_lc_J
     elif spec.capacity_J > 0.0 and n_tape > 0:
         tape = _StorageTape(h_s=tape_h_s[:n_tape], gen_W=tape_gen_W[:n_tape],
@@ -2612,18 +2642,23 @@ def integrate_energy(
                 "no sustainable periodic state exists: the window's net stored-energy change "
                 "is negative, so the pack loses ground every cycle whatever it is seeded with"
             )
+            codes.append(_vr("no_sustainable_periodic_state"))
         if min_soc <= spec.soc_min + 1e-9:
             reasons.append(
                 f"limit-cycle floor {min_soc:.4f} does not clear soc_min {spec.soc_min:.4f}"
             )
+            codes.append(_vr("soc_floor_breached", min_soc=min_soc, soc_min=spec.soc_min))
         if shortfall_lc_J > 1e-6:
             reasons.append(
                 f"{shortfall_lc_J / 3600.0:.1f} Wh of demand went unserved on the limit cycle"
             )
+            codes.append(_vr("unmet_bus_demand_Wh", unmet_Wh=shortfall_lc_J / 3600.0))
         if soc_end < soc_start - 1e-9:
             reasons.append(
                 f"state of charge does not return: {soc_start:.4f} -> {soc_end:.4f}"
             )
+            codes.append(_vr("soc_not_persistent", soc_start=soc_start, soc_end=soc_end,
+                             min_soc=min_soc))
     else:
         # No storage at all.  That is not automatically 'closed' -- it means the design has
         # nowhere to put a deficit, so it must never run one, at any instant.
@@ -2637,6 +2672,7 @@ def integrate_energy(
             reasons.append(
                 f"no storage, yet the bus runs a {deficit_W:.3g} W deficit at some instant"
             )
+            codes.append(_vr("storage_absent_deficit", deficit_W=deficit_W))
     closed = not reasons
 
     return SimResult(
@@ -2691,6 +2727,7 @@ def integrate_energy(
                 if spec.authority is not None else "integrator-flat-efficiency"
             ),
             "closed_reasons": reasons,
+            "closed_reason_codes": codes,
             "limit_cycle_soc0": soc0_star,
             "limit_cycle_sustainable": bool(sustainable),
             "initial_soc_declared": spec.initial_soc,
@@ -2939,12 +2976,14 @@ def integrate_dynamic(
     # charge must come back, nothing may go unserved -- and closure_mode says plainly that
     # this is a single-window verdict so a sweep can never mistake it for a limit cycle.
     reasons: list[str] = []
+    codes: list[dict] = []    # aerosim.validity twin of each reason, appended line-for-line
     # ROUND-3 fix 3, fast-loop half: integrate_energy delegates any vehicle with no lifting
     # support (a hovering quad, case C) HERE, so without this the sub-diurnal certification
     # would simply move loops.
     window_reason = _sub_diurnal_window_reason(vehicle, t0_s, t_end_s)
     if window_reason is not None:
         reasons.append(window_reason)
+        codes.append(_vr("sub_diurnal_window", window_s=float(t_end_s) - float(t0_s)))
     if spec.capacity_J > 0.0:
         soc_start = float(soc_hist[0])
         soc_end = float(soc_hist[-1])
@@ -2953,18 +2992,23 @@ def integrate_dynamic(
                 f"state of charge reached its floor ({min_soc:.4f} vs soc_min "
                 f"{spec.soc_min:.4f})"
             )
+            codes.append(_vr("soc_floor_breached", min_soc=min_soc, soc_min=spec.soc_min))
         if shortfall_J > 1e-6:
             reasons.append(f"{shortfall_J / 3600.0:.1f} Wh of demand went unserved")
+            codes.append(_vr("unmet_bus_demand_Wh", unmet_Wh=shortfall_J / 3600.0))
         if soc_end < soc_start - 1e-9:
             reasons.append(
                 f"state of charge does not return: {soc_start:.4f} -> {soc_end:.4f}"
             )
+            codes.append(_vr("soc_not_persistent", soc_start=soc_start, soc_end=soc_end,
+                             min_soc=min_soc))
     else:
         deficit_W = float(np.max(pout_hist - pin_hist)) if n_pts else 0.0
         if deficit_W > 1e-9:
             reasons.append(
                 f"no storage, yet the bus runs a {deficit_W:.3g} W deficit at some instant"
             )
+            codes.append(_vr("storage_absent_deficit", deficit_W=deficit_W))
     closed = not reasons
 
     return SimResult(
@@ -3007,6 +3051,7 @@ def integrate_dynamic(
                 if spec.authority is not None else "integrator-flat-efficiency"
             ),
             "closed_reasons": reasons,
+            "closed_reason_codes": codes,
             "initial_soc_declared": spec.initial_soc,
             "min_soc_as_seeded": min_soc,
             "soc_as_seeded": soc_hist,

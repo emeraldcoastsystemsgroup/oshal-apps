@@ -15,6 +15,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | B4: export the scenario registry.
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | The printed arm (ADR-152 D5 task 3): the servo catalogue and drive sizing, the arm's parts, its design and document, and its MuJoCo model.
  * 10 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 S1: the medium record and its three implementations, and the explorer hull as one solid.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 D5: the run-result fingerprint — package version, compiled engine tree hash, which plant answered — and the refusal a result without them gets.
  */
 
 export * from './math/vec';
@@ -35,6 +36,7 @@ export * from './design/arm-parts';
 export * from './design/arm-design';
 export * from './design/arm-markdown';
 export * from './medium/medium';
+export * from './medium/run-fingerprint';
 export * from './physics/mjcf';
 export * from './physics/hull-mjcf';
 export * from './physics/arm-mjcf';

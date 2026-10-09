@@ -1,0 +1,242 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Own Jarvis entry, display and exact reviewed roles using existing application hosting.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Release explicitly authorized installed readiness.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Include the complete shared user product bundle in one reviewed member assignment; retain each component's exact catalog roles and data boundaries.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Map Jarvis to its explicit Editor chat-user catalog role without requiring optional Print or changing the member selection; template version 4 needs normal review.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Scan to Print 0.7.0 adopts an ADR-149 catalog, so its member role is the catalog's `maker` (the whole app, as @app-admin was); template version 3 carries it, and existing version 2 assignments keep their grants until an administrator reviews and applies the upgrade.
+name: jarvis-experience
+displayName: Jarvis
+description: Your assistant briefing, conversations, agenda and admitted applications.
+version: 1.1.2
+status: active
+suite: ai-home
+rating:
+  memoryMb: { low: 16, high: 64, basis: declared }
+  features:
+    - id: assistant-handoff
+      unit: assistant request
+      tier: T1
+      generation: none
+      degrade: disable
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: jarvis-experience
+  ref: main
+uses:
+  - application-authorization
+  - experience
+  - experience-roles
+  - app-dependencies
+  - test-catalog
+# Product components are included by one role assignment; their own record, connection and
+# execution checks still apply. The set is explicit, not expanded from catalog suite metadata.
+dependencies:
+  required:
+    apps:
+      - home
+      - purchasing
+      - finance
+      - little-monsters
+      - movies
+      - spotify
+      - travel
+      - presentations
+      - calendar
+      - email-summarizer
+      - world
+      - switchboard
+      - social
+      - calling-assistant
+      - marketing-engine
+      - venture-plan
+      - private-app-1
+      - payroll
+      - payments
+      - identity
+      - cad-studio
+      - circuit-lab
+      - create
+      - portrait-studio
+      - video
+      - lora
+      - vids
+      - creative-studio
+      - scan-to-print
+      - storage
+      - career-hunter
+      - dnd
+      - game-show
+      - games
+      - jarvis
+      - workflow-studio
+      - private-app-2
+      - intelligent-sales
+      - private-app-3
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+authorization:
+  version: 1
+  catalog: authorization.yaml
+experience:
+  version: 1
+  label: Jarvis
+  entry: /api/jarvis-experience/app
+  shell: page
+  skin: jarvis
+  surfaces: []
+  roleTemplates:
+    - id: member
+      version: 4
+      label: Complete workspace member
+      members:
+        - app: jarvis-experience
+          role: member
+        - app: home
+          role: '@app-admin'
+        - app: purchasing
+          role: '@app-admin'
+        - app: finance
+          role: '@app-admin'
+        - app: little-monsters
+          role: student
+        - app: movies
+          role: '@app-admin'
+        - app: spotify
+          role: '@app-admin'
+        - app: travel
+          role: '@app-admin'
+        - app: presentations
+          role: '@app-admin'
+        - app: calendar
+          role: '@app-admin'
+        - app: email-summarizer
+          role: '@app-admin'
+        - app: world
+          role: '@app-admin'
+        - app: switchboard
+          role: '@app-admin'
+        - app: social
+          role: '@app-admin'
+        - app: calling-assistant
+          role: caller
+        - app: marketing-engine
+          role: '@app-admin'
+        - app: venture-plan
+          role: member
+        - app: private-app-1
+          role: crm_representative
+        - app: payroll
+          role: '@app-admin'
+        - app: payments
+          role: '@app-admin'
+        - app: identity
+          role: '@app-admin'
+        - app: cad-studio
+          role: '@app-admin'
+        - app: circuit-lab
+          role: '@app-admin'
+        - app: create
+          role: creator
+        - app: create
+          role: editor
+        - app: create
+          role: exporter
+        - app: create
+          role: generator
+        - app: portrait-studio
+          role: creator
+        - app: portrait-studio
+          role: editor
+        - app: portrait-studio
+          role: deleter
+        - app: portrait-studio
+          role: mailer
+        - app: portrait-studio
+          role: artist
+        - app: video
+          role: producer
+        - app: video
+          role: creator
+        - app: video
+          role: editor
+        - app: video
+          role: exporter
+        - app: lora
+          role: trainer
+        - app: vids
+          role: '@app-admin'
+        - app: creative-studio
+          role: '@app-admin'
+        - app: scan-to-print
+          role: maker
+        - app: storage
+          role: '@app-admin'
+        - app: career-hunter
+          role: member
+        - app: dnd
+          role: '@app-admin'
+        - app: game-show
+          role: '@app-admin'
+        - app: games
+          role: '@app-admin'
+        - app: jarvis
+          role: chat-user
+        - app: workflow-studio
+          role: '@app-admin'
+        - app: private-app-2
+          role: '@app-admin'
+        - app: intelligent-sales
+          role: sales_manager
+        - app: private-app-3
+          role: administrator
+routes:
+  - module: routes/experience.js
+    factory: createExperienceRoutes
+    mountPath: /api/jarvis-experience
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/jarvis-experience/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+ui:
+  static:
+    - toolName: jarvis-experience-main
+      label: Jarvis
+      icon: codicon codicon-layout
+      iframeUrl: /api/jarvis-experience/app
+      section: top
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/jarvis-experience/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+connectors: []
+chatBot: general-bot

@@ -7,6 +7,7 @@
  *   GET    /api/trading/research/:symbol  → quote + fundamentals + news + EDGAR filings/events + next earnings
  *   GET    /api/trading/symbols/search    → market-wide type-ahead over the Alpaca asset directory (no book)
  *   GET    /api/trading/reports/movers    → whole-market movers (Alpaca screener), falling back to the bounded board
+ *   GET    /api/trading/reports/congress  → the congressional disclosure feed's recent names, each with its disclosure date (no book)
  *   GET    /api/trading/watchlist         → the caller's watchlist (per USER, not per book) with best-effort quotes
  *   POST   /api/trading/watchlist         → add { symbol, note? } (201; re-adding updates the note)
  *   DELETE /api/trading/watchlist/:symbol → remove
@@ -43,6 +44,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — GET /research/:symbol (five independently guarded sections: quote via latestTrade/latestPrice, fundamentalsSummary, recentNews 7d/25, EDGAR submissions → latest 10-K/10-Q + 12 decoded 8-Ks + events, earnings from the world calendar else a labelled cadence estimate), the per-user FORCE-RLS watchlist (GET with book-rail quotes / POST 201 upsert / DELETE), GET /lots + POST /lots/:id/release (428 confirm-gated) over the kernel pinned-lot store; TradingError → its status/code else logger.error + 502.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-143 D5: GET /reports/movers gains the Alpaca REST screener as a SECOND, labelled source — winners/losers from screener/stocks/movers, active from screener/stocks/most-actives, over the whole US-equity board instead of the ~30-symbol bounded universe. The payload carries source 'Alpaca screener', the vendor's own last_updated verbatim, and the filter that ran (minimum price / asset directory) as a stated note; 'volatile' keeps the bounded daily-bar board because the vendor has no such kind. Every screener failure shape (no key, non-200, unusable body, empty board) falls through to the bounded report, which is unchanged — the surface degrades, never blanks.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Add GET /symbols/search (400 query_required, limit capped 25, searchSymbols over the market-wide asset directory — no book) and GET /reports/movers (kind ∈ winners|losers|volatile|active, 400 kind_invalid, limit default 15/cap 50) over the honest bounded universe DEFAULT_UNIVERSE ∪ the caller's watchlist — one daily-bar batch fetch of 30 bars, the PURE computeMovers ranking (trading-movers.ts), best-effort per-row names, an empty batch → an honest empty board with a note, never a fabricated row.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Project feed-only congressional world_metrics points into each caller's owner-scoped watchlist, preserving the Quiver source and disclosure date; unavailable world data stays explicitly unavailable.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | GET /reports/congress lists the names the congressional disclosure feed reported lately (core recentFeedMetricPoints, bounded: limit default 25 / cap 100, 90-day window), each with its disclosure date and when the collector observed it, newest disclosure first. It sits under /reports because /research/:symbol would swallow /research/congress. The surface's Add button posts the existing POST /watchlist with the symbol only, so a watchlist row never stores a holding. The projection now also requires a recorded observedAt: rows written before core recorded it were keyed on the trade day and must not be labelled "disclosed". A core without the read answers 'unavailable', never an error.
  *
  * @module trading-research-routes
  */
@@ -56,7 +59,7 @@ import {
   marketDataConfigured, recentNews, screenerMostActives, screenerMovers, searchSymbols,
   type Fundamentals, type NewsItem, type ScreenerBoard, type ScreenerFilter, type TradingBook,
 } from '@/features/trading';
-import { createWorldIntelligenceService } from '@/features/world-data';
+import { createWorldIntelligenceService, type LatestMetricPoint } from '@/features/world-data';
 import { callerSub, resolveBook, TradingError } from '@/app/routes/trading-routes-helpers';
 import { ensurePinnedLotsSchema, listPinnedLots, pinnedQtyBySymbol, releasePinnedLot } from '@/app/trading-pinned-lots';
 import { computeMovers, isMoverKind, type MoverKind } from './trading-movers';
@@ -109,7 +112,32 @@ interface ResearchReport {
   filings: FilingsSummary; events: FilingEvent[]; earnings: Earnings; sections: Record<string, SectionState>;
 }
 /** One watchlist row as the surface shows it. */
-interface WatchlistItem { symbol: string; note: string | null; addedAt: string; quote: { price: number; dayChangePct: number | null } | null }
+interface WatchlistItem {
+  symbol: string; note: string | null; addedAt: string;
+  quote: { price: number; dayChangePct: number | null } | null;
+  congress: CongressWatchlistSignal | null;
+}
+
+export interface CongressWatchlistSignal {
+  buys: number | null; sells: number | null; net: number | null;
+  sentiment: number | null; notional: number | null;
+  /** The STOCK Act report day from the feed — when the trade became public. */
+  disclosureDate: string;
+  /** When the world collector read this disclosure from the feed. */
+  observedAt: string;
+  source: 'quiver-congress';
+}
+
+/** One row of the recent-disclosures list: the watchlist signal plus the symbol it belongs to. */
+export interface CongressDisclosureRow extends CongressWatchlistSignal { symbol: string }
+
+const CONGRESS_METRICS = ['congress_buys', 'congress_sells', 'congress_net', 'congress_sentiment', 'congress_notional'] as const;
+const CONGRESS_SOURCE = 'quiver-congress';
+/** GET /reports/congress: default and maximum names, and the disclosure window it reads. */
+const CONGRESS_LIST_DEFAULT = 25;
+const CONGRESS_LIST_MAX = 100;
+const CONGRESS_WINDOW_DAYS = 90;
+const CONGRESS_NOTE = 'Congressional (STOCK Act) disclosures from the Quiver feed. The date is the day the trade was reported, which can be up to ~45 days after the trade. Adding a name to your watchlist stores only the symbol.';
 
 const EMPTY_FILINGS: FilingsRead = { summary: { latest10K: null, latest10Q: null, recent8K: [] }, resultsDates: [] };
 
@@ -330,8 +358,129 @@ async function watchlistQuotes(book: TradingBook, s: string, symbols: string[]):
 }
 
 /** The watchlist row projection. */
-function watchlistItem(r: Record<string, unknown>, quote: WatchlistItem['quote']): WatchlistItem {
-  return { symbol: String(r.symbol), note: (r.note as string) ?? null, addedAt: new Date(r.added_at as string).toISOString(), quote };
+function watchlistItem(r: Record<string, unknown>, quote: WatchlistItem['quote'], congress: CongressWatchlistSignal | null = null): WatchlistItem {
+  return { symbol: String(r.symbol), note: (r.note as string) ?? null, addedAt: new Date(r.added_at as string).toISOString(), quote, congress };
+}
+
+/**
+ * @description Project only feed-authored, provenance-complete points into the congressional read
+ * model. A point is dropped unless it carries the quiver-congress source AND a recorded observedAt:
+ * rows written before core recorded observed_at were keyed on the trade day, so labelling their date
+ * "disclosed" would be false.
+ * @param points - Latest or recent world metric points.
+ * @returns Symbol → the signal with its disclosure date and observation time.
+ */
+export function projectCongressSignals(points: LatestMetricPoint[]): Map<string, CongressWatchlistSignal> {
+  const bySymbol = new Map<string, Partial<CongressWatchlistSignal>>();
+  for (const point of points) {
+    if (point.source !== CONGRESS_SOURCE || !point.observedAt) continue;
+    const match = /^world:ticker:([a-z.\-]+)$/i.exec(point.entity);
+    if (!match || !CONGRESS_METRICS.includes(point.metric as typeof CONGRESS_METRICS[number])) continue;
+    const symbol = match[1].toUpperCase();
+    const current = bySymbol.get(symbol) || {};
+    const field = point.metric.replace('congress_', '') as keyof CongressWatchlistSignal;
+    if (field === 'buys' || field === 'sells' || field === 'net' || field === 'sentiment' || field === 'notional') current[field] = point.value;
+    if (!current.disclosureDate || point.ts > current.disclosureDate) current.disclosureDate = point.ts;
+    if (!current.observedAt || point.observedAt > current.observedAt) current.observedAt = point.observedAt;
+    bySymbol.set(symbol, current);
+  }
+  return new Map([...bySymbol.entries()].map(([symbol, row]) => [symbol, {
+    buys: row.buys ?? null, sells: row.sells ?? null, net: row.net ?? null,
+    sentiment: row.sentiment ?? null, notional: row.notional ?? null,
+    disclosureDate: row.disclosureDate!, observedAt: row.observedAt!, source: CONGRESS_SOURCE,
+  }]));
+}
+
+async function watchlistCongress(symbols: string[]): Promise<Map<string, CongressWatchlistSignal>> {
+  const out = new Map<string, CongressWatchlistSignal>();
+  if (!symbols.length) return out;
+  const svc = createWorldIntelligenceService();
+  if (!svc) return out;
+  try {
+    const entities = symbols.map((symbol) => `world:ticker:${symbol.toLowerCase()}`);
+    return projectCongressSignals(await svc.latestMetricPoints(entities, [...CONGRESS_METRICS]));
+  } catch (err) {
+    logger.error({ err }, 'watchlist congressional signal read failed — shown without feed data');
+    return out;
+  }
+}
+
+interface CongressDisclosuresOptions {
+  limit: number;
+  view?: string;
+  politician?: string;
+  symbol?: string;
+  party?: string;
+  chamber?: string;
+  direction?: string;
+}
+
+/**
+ * @description The names the congressional disclosure feed reported lately, newest disclosure first.
+ * Every failure shape answers 'unavailable' with rows [] — world off, a core that predates the read,
+ * or a read error (logged) — so the surface says so instead of blanking or inventing a list.
+ * Supports granular trade filtering by politician, symbol, party, chamber, or view mode.
+ * @param limit - Maximum names (already clamped by the handler).
+ * @param opts - Granular filter options for bots and UI.
+ * @returns The list payload, labelled with its source and window.
+ */
+async function congressDisclosures(limit: number, opts: Partial<CongressDisclosuresOptions> = {}): Promise<Record<string, unknown>> {
+  const base = { source: CONGRESS_SOURCE, windowDays: CONGRESS_WINDOW_DAYS, note: CONGRESS_NOTE };
+  const svc = createWorldIntelligenceService();
+  if (!svc) return { ...base, status: 'unavailable', reason: 'World intelligence is not enabled on this deployment.', rows: [] };
+  if (typeof svc.recentFeedMetricPoints !== 'function') {
+    return { ...base, status: 'unavailable', reason: 'This core does not provide dated disclosure reads yet.', rows: [] };
+  }
+  try {
+    const isGranularFilter = Boolean(opts.view === 'trades' || opts.politician || opts.party || opts.chamber || opts.direction);
+    let trades: unknown[] = [];
+    if (typeof (svc as unknown as { queryCongressTrades?: unknown }).queryCongressTrades === 'function') {
+      try {
+        trades = await (svc as unknown as { queryCongressTrades: (f: unknown) => Promise<unknown[]> }).queryCongressTrades({
+          representative: opts.politician,
+          ticker: opts.symbol,
+          party: opts.party,
+          chamber: opts.chamber,
+          direction: opts.direction,
+          sinceDays: CONGRESS_WINDOW_DAYS,
+          limit,
+        });
+      } catch (err) {
+        logger.warn({ err }, 'queryCongressTrades read failed, continuing with summary metrics');
+      }
+    }
+
+    if (isGranularFilter && trades.length > 0) {
+      return { ...base, status: 'ok', view: 'trades', count: trades.length, trades, rows: [] };
+    }
+
+    const points = await svc.recentFeedMetricPoints([...CONGRESS_METRICS], CONGRESS_SOURCE, CONGRESS_WINDOW_DAYS, limit);
+    const rows: CongressDisclosureRow[] = [...projectCongressSignals(points).entries()]
+      .map(([symbol, signal]) => ({ symbol, ...signal }))
+      .sort((a, b) => b.disclosureDate.localeCompare(a.disclosureDate) || a.symbol.localeCompare(b.symbol))
+      .slice(0, limit);
+    return { ...base, status: 'ok', rows, trades };
+  } catch (err) {
+    logger.error({ err }, 'congressional disclosure list read failed — shown as unavailable');
+    return { ...base, status: 'unavailable', reason: 'The disclosure feed could not be read right now.', rows: [] };
+  }
+}
+
+/** GET /reports/congress — the disclosure feed's recent names; market-wide, no book, never a holding. */
+function registerCongressDisclosures(router: Router): void {
+  router.get('/reports/congress', async (req: Request, res: Response) => {
+    const s = sub(req, res); if (!s) return;
+    const limit = Math.min(CONGRESS_LIST_MAX, Math.max(1, Math.floor(Number(req.query.limit)) || CONGRESS_LIST_DEFAULT));
+    const politician = typeof req.query.politician === 'string' ? req.query.politician.trim() : undefined;
+    const symbol = typeof req.query.symbol === 'string' ? req.query.symbol.trim() : undefined;
+    const party = typeof req.query.party === 'string' ? req.query.party.trim() : undefined;
+    const chamber = typeof req.query.chamber === 'string' ? req.query.chamber.trim() : undefined;
+    const direction = typeof req.query.direction === 'string' ? req.query.direction.trim() : undefined;
+    const view = typeof req.query.view === 'string' ? req.query.view.trim() : undefined;
+    try {
+      res.json(await congressDisclosures(limit, { limit, view, politician, symbol, party, chamber, direction }));
+    } catch (err) { fail(res, err, 'congress-disclosures'); }
+  });
 }
 
 /**
@@ -344,6 +493,7 @@ export function registerTradingResearchRoutes(router: Router, ctx: AppContext): 
   registerResearchRead(router, ctx);
   registerSymbolSearch(router);
   registerMovers(router, ctx);
+  registerCongressDisclosures(router);
   registerWatchlist(router, ctx);
   registerLots(router, ctx);
 }
@@ -515,8 +665,9 @@ function registerWatchlist(router: Router, ctx: AppContext): void {
       await ensureWatchlistSchema(ctx.pool);
       const book = await resolveRequestBook(ctx, s, req);
       const rows = (await ctx.pool.query('SELECT symbol, note, added_at FROM oshal_trading_watchlist WHERE user_sub=$1 ORDER BY added_at DESC', [s])).rows as Array<Record<string, unknown>>;
-      const quotes = await watchlistQuotes(book, s, rows.map((r) => String(r.symbol)));
-      res.json({ items: rows.map((r) => watchlistItem(r, quotes.get(String(r.symbol)) ?? null)), book: book.ref });
+      const symbols = rows.map((r) => String(r.symbol));
+      const [quotes, congress] = await Promise.all([watchlistQuotes(book, s, symbols), watchlistCongress(symbols)]);
+      res.json({ items: rows.map((r) => watchlistItem(r, quotes.get(String(r.symbol)) ?? null, congress.get(String(r.symbol).toUpperCase()) ?? null)), book: book.ref });
     } catch (err) { fail(res, err, 'watchlist-list'); }
   });
 

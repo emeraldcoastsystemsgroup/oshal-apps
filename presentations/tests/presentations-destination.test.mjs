@@ -76,6 +76,7 @@ const STUBS = {
   },
   '@/app/routes/inline-bot-execution': { executeBotOrInline: async () => ({ response: '[]' }) },
   '@/app/routes/connectors-routes': { getValidAccessToken: async () => null },
+  '@/app/routes/slack-client': { uploadSlackFile: async () => { throw new Error('unexpected Slack upload'); } },
   '@/app/routes/email-routes': { sendGmail: async () => ({}), sendOutlookMail: async () => ({}) },
   '@/shared/security/explicit-write-confirmation': {
     hasExplicitWriteConfirmation: (body) => body?.confirm === true,

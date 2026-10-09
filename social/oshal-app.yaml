@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — social (Social swarm, ADR-038)
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 2, "skill with a surface" —
@@ -20,13 +26,38 @@
 
 name: social
 suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 128, high: 512, basis: declared }
+  features:
+    - id: post-draft
+      unit: post draft
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: signals-briefing
+      unit: weekly signals briefing
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: daily-social-digest
+      unit: daily digest
+      tier: T3
+      generation: none
+      degrade: disable
+    - id: linkedin-content-post
+      unit: LinkedIn post ticket
+      tier: T2
+      generation: none
+      degrade: disable
 displayName: Social
 description: >-
   Listens to your feeds, surfaces trends, and drafts posts and replies from your
   input — then publishes to multiple platforms at once (LinkedIn + Facebook + X).
   AI drafting runs on the comms bot; publishing uses your per-user connector
   tokens. Human-approved — nothing posts until you click Publish.
-version: 1.4.1
+version: 1.5.4
 status: active
 
 source:
@@ -69,17 +100,18 @@ readiness:
     detailPointer: /signals/detail
 
 # ── Cross-package prerequisites: what this package actually reaches ─────────
-# OPTIONAL, NOT REQUIRED: tools/social-composer.html:102 links to /api/email/inbox — Intelligent
-# Communication is what the composer points at when it explains that X, Facebook and LinkedIn no
-# longer expose a timeline. Without that package the link 404s; drafting, publishing and the
-# Signals view are unaffected.
+# email-summarizer owns the communications bot used by this app's digest and shared chat.
+# The composer also links to that app's inbox. The bot owner is a required prerequisite.
 dependencies:
   required:
-    apps: []
+    apps: [email-summarizer]
+    bots:
+      - app: email-summarizer
+        name: communications-bot
     tools: []
     connectors: []
   optional:
-    apps: [email-summarizer]   # the composer links to its inbox as the "feed"; absent, that one link 404s
+    apps: []
     tools: []
     connectors: [linkedin, twitter, meta-business, facebook, google]
 
@@ -95,21 +127,25 @@ uses:
 theme: light-blue
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LinkedIn AI Content Assistant — the social north-star orchestrated flow.
-# A ticketType=linkedin-content ticket (scheduled / swarm-initiated) routes via the
+# LinkedIn Content Assistant — the social north-star orchestrated flow.
+# A ticketType=linkedin-content-post ticket (queue intake / scheduled) routes via the
 # generic single-bot worker dispatch (dispatchManifestWorkerTicket) straight to the
 # social-writer persona (the drafting owner, registered globally as a0…0040 — stays
-# framework-resident). Interactive drafting uses the direct/inline path in the
+# framework-resident), where the kernel's bound LinkedIn queue worker turns the result into
+# an owner-scoped pending-approval draft. Interactive drafting uses the direct/inline path in the
 # kernel-resident linkedin-assistant-routes (draft -> quality-judge score -> one
-# refine under SOCIAL_JUDGE_BAR -> pending-approval); no ticket needed for that.
+# refine under SOCIAL_JUDGE_BAR -> pending-approval); the interactive path does not need a ticket.
 # Nothing publishes without an explicit human Publish click.
 # ─────────────────────────────────────────────────────────────────────────────
-ticketType: linkedin-content
+ticketType: linkedin-content-post
 workflow:
   name: LinkedIn Content Assistant
-  # No `pipeline:` — not an incident. Single-bot worker dispatch to social-writer; the
-  # persona is its own quality gate. The quality-judge SCORING step is an orchestration
-  # step inside the assistant flow, NOT a second reviewer bot (one-bot-per-ticket-type).
+  # `pipeline: manifest-worker` is the single-bot worker dispatch to social-writer. It is
+  # declared, not implied: the kernel's bound LinkedIn queue worker accepts a ticket only when
+  # the registered workflow names this pipeline, so omitting it makes every queued ticket fail.
+  # The quality-judge SCORING step is an orchestration step inside the assistant flow, NOT a
+  # second reviewer bot (one-bot-per-ticket-type).
+  pipeline: manifest-worker
   workerBot: social-writer
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -128,34 +164,17 @@ schedules:
       Summarize what happened across my connected social accounts in the last day:
       notable mentions, replies needing attention, and anything worth a post.
 
-# The Social app's chat agent IS the communications-bot — the real, secure bot
-# (own container, NO master key) that owns the inbox-fed social signals. The
-# comms NODE (container + static registry blocks) is framework-resident (ADR-093);
-# the persona here is a package COPY for the registrar — the container keeps using
-# /app/ai-lab. ADR-083: this manifest and email-summarizer's manifest BOTH declare
-# communications-bot, and manifest bot upserts clobber base_capabilities whole-array
-# — keep this list the SAME UNION as email's or load order decides the bot's identity.
+# Social owns its drafting bot. The shared communications bot is imported from email-summarizer.
 bots:
-  - agentId: b0000000-0000-0000-0000-000000000001
-    name: communications-bot
-    persona: personas/email-summarizer.yaml
-    role: comms/email-calendar-social
-    capabilities:
-      - email-summarization
-      - gmail-triage
-      - outlook-mail
-      - calendar-digest
-      - meeting-agenda
-      - reply-drafting
-      - inbox-triage
-      - social-signals-feed
-      - social-publishing
-      - sms-texting
-      - voice-calls
+  - agentId: a0000000-0000-0000-0000-000000000040
+    name: social-writer
+    persona: personas/social-writer.yaml
+    container: social-writer-bot
+    port: 5000
+    requiresOwnNode: true
+    role: social/content-partner
+    capabilities: ['post-drafting', 'voice-matching', 'content-refinement', 'personal-branding', 'linkedin-post-drafting', 'x-post-drafting', 'facebook-page-post-drafting', 'caption-writing', 'hook-and-cta-crafting']
 
-# Cockpit surface. Studio + Composer are COMBINED into one Workspace (split screen:
-# who to engage on the left, draft/publish on the right). The LinkedIn Assistant tile
-# opens the kernel-resident /api/linkedin-assistant surface; Accounts opens /utilities.
 ui:
   static:
     - toolName: social-composer
@@ -204,6 +223,13 @@ routes:
     factory: createSocialRoutes
     mountPath: /api/social
     auth: oidc   # what core server.ts mounted (requiresAuth — ADR-085 D2)
+    requiresAuth: true
+    requiresContext: true
+
+  - module: routes/linkedin-content-queue.js
+    factory: createLinkedInContentQueueRoutes
+    mountPath: /api/social/linkedin-content-queue
+    auth: oidc
     requiresAuth: true
     requiresContext: true
 

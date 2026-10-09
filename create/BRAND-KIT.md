@@ -39,9 +39,9 @@ Kit tile opens at `/api/create/brand`.
 
 **4. Then pick a slice.** In [BACKLOG.md](BACKLOG.md): CREATE-EDIT-11 several kits and a brand set,
 CREATE-EDIT-12 the remaining studios, CREATE-EDIT-13 logo variants, CREATE-EDIT-14 recent work with
-real previews, CREATE-EDIT-15 blank starts and one-tap formats. The core follow-up that lets AI Office
-draw in the brand's exact colors and faces is in the core backlog, dated 2026-09-14, and needs the
-operator's approval before anyone touches the renderer.
+real previews, CREATE-EDIT-15 blank starts and one-tap formats. The follow-up that lets AI Office
+draw in the brand's exact colors and faces was approved on 2026-09-22 and is built: the core deck
+engine's `brandTheme` (core ADR-103 addendum) and AI Office 2.13.0, which sends the kit.
 
 ## The kit
 
@@ -128,9 +128,12 @@ test asserts every color of all eight designs is mapped, for four deliberately d
   thumbnails.
 - **Home** — a "Your brand" band with the name, swatches, faces and logo, or a setup prompt. It is
   read only after Create access resolves, and any refusal hides the band.
-- **AI Office** — badges the built-in look nearest the brand (hue, then canvas darkness, then shared
-  faces) and picks it only when nothing else chose one; fills an empty cover byline with the brand
-  name; adds the brand voice to an AI draft's topic while the switch is on.
+- **AI Office** (2.13.0) — draws decks, documents and workbooks in the brand's exact colors and faces.
+  The look **Your brand** is built by the core deck engine from the kit's roles and faces, on the layout
+  of the built-in look nearest the brand (hue, then canvas darkness, then shared faces), which stays
+  badged. It leads the look galleries and is picked only when nothing else chose a look, and every
+  render and send carries the kit. AI Office also fills an empty cover byline with the brand name and
+  adds the brand voice to an AI draft's topic while the switch is on.
 - **Portrait Studio / Video Studio** — a "Use my brand colors" button appends the colors, in words, to
   the notes or style field, once, within the field's limit.
 
@@ -162,9 +165,10 @@ OSHAL_CORE_ROOT=<core> node --test tests/browser/create-brand-proof.mjs   # 5  r
 cd <core> && OSHAL_CORE_ROOT=<core> node node_modules/vitest/vitest.mjs run --config <store>/create/tests/editor/authorization-boundary.config.mjs
 ```
 
-Sibling packages: `presentations/tests/presentations-brand.test.js` (5),
-`portrait-studio/tests/portrait-brand.test.js` (3), `video/tests/video-brand.test.js` (3). Every case is
-registered in the owning package's Test Lab catalog.
+Sibling packages: `presentations/tests/presentations-brand.test.js` (9) and
+`presentations/tests/brand-look-render.core.spec.mjs` (5, with `OSHAL_CORE_ROOT` set to a framework
+checkout), `portrait-studio/tests/portrait-brand.test.js` (3), `video/tests/video-brand.test.js` (3).
+Every case is registered in the owning package's Test Lab catalog.
 
 ## Installing it — the catalog gate
 
@@ -186,9 +190,8 @@ Rolling back is the reverse: restore `/app/output/_pkg-backups/create-pre-<TS>.t
 
 ## Known limits
 
-- AI Office renders its own ten built-in looks. A deck, document or workbook drawn in the brand's exact
-  colors and faces needs the core renderer to accept a look; recorded in the core backlog with
-  done-when, not implemented.
+- AI Office draws the brand on one of its ten layouts: the cover, decoration and corner treatment are
+  the nearest built-in look's, and the kit's logo is not placed in the file.
 - One kit per person. No sharing, no team kit, no per-project kit.
 - Raster logos only (PNG, JPEG, WebP), one of them, with no dark-background variant.
 - Vids, Stories, LoRA and Scan-to-Print do not read the kit yet.
@@ -203,7 +206,6 @@ Start with whichever of these the operator wants; each is a self-contained slice
    endpoint; the New screen can draw its cards in the brand.
 3. **Logo variants** (CREATE-EDIT-13). A mark for dark surfaces and a square avatar, chosen by the
    contrast of the surface a template places it on.
-4. **AI Office in the exact brand** — core, see the core backlog entry from 2026-09-14.
 
 The shared module is the seam: anything that needs to reason about a brand should import it rather
 than re-derive color math, and any new consumer should fail closed and silent when the kit is refused.

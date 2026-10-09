@@ -4,9 +4,23 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Apply explicit immutable layer operations and retain editable project JSON across saves.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Publish the image filter bounds and a small set of named filter looks; each look sets all four filters so choosing one replaces the previous look instead of stacking on it.
  */
 import { demand, identifier, objectKeys, LIMITS, validateProject } from './model-validation.mjs';
-export { LIMITS, validateProject } from './model-validation.mjs';
+export { LIMITS, IMAGE_FILTERS, validateProject } from './model-validation.mjs';
+
+const look = (label, saturation, grayscale, sepia, blur) => Object.freeze({ label, patch: Object.freeze({ saturation, grayscale, sepia, blur }) });
+
+/** @description Named image filter looks offered by the properties panel; every patch is a valid image-layer update.
+ * @returns {object} Immutable look ID to { label, patch } map. */
+export const IMAGE_FILTER_LOOKS = Object.freeze({
+  none: look('None', 100, 0, 0, 0),
+  mono: look('Black and white', 100, 100, 0, 0),
+  vintage: look('Vintage', 80, 0, 70, 0),
+  vivid: look('Vivid', 170, 0, 0, 0),
+  muted: look('Muted', 50, 0, 0, 0),
+  soft: look('Soft focus', 100, 0, 0, 2),
+});
 
 function newId() { return globalThis.crypto?.randomUUID?.() ?? `layer-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`; }
 

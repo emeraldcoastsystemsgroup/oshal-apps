@@ -1,0 +1,526 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Initial — the five fantasy cases moved from sports-edge with their suites (ADR-146 D1), renamed for this package, the two route suites also loading tests/fantasy-routes-harness.js; plus the readiness smoke, optimiser exactness against brute force, per-person ownership (migration, statements, own connection only), the served surface, and cross-user denial proved on a disposable PostgreSQL through the real routes.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: register the season value, waiver board, trade finder, hand-typed league parity and week-ledger suites, the three read-only PAT smokes that read the caller's own real league from the installed package, and the isolation case's hand-typed league and grading expectations on the real store.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | fantasy-transport: a schedule read that throws and a failed player-week history read each keep their lineup fallback and are logged at ERROR.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | own-lineup: the PAT smoke for the caller's own real league's weekly P(win) lineup beside the mean-maximising one (the first P0 clause's automated acceptance); fantasy-transport and fantasy-grading gain the unread-league-shape refusals and the own-lineup smoke contract.
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the service-authenticated metadata readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed Fantasy Football identity satisfies its smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: own-status
+    name: Your own status on the installed package
+    purpose: >-
+      Read GET /api/fantasy-football/status on the installed package as the signed-in operator (PAT). Proves the
+      data router is mounted behind the signed-in identity and answers with the caller's own state; read-only, no
+      ESPN league read and no write.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: own-status
+    expected:
+      - The operator receives 200 with the season, whether their OWN ESPN connection is present, and only their own linked leagues.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: own-lineup
+    name: Your real league's weekly lineup, P(win) beside the mean-maximising lineup (installed)
+    purpose: >-
+      Read GET /api/fantasy-football/lineup on the installed package as the signed-in operator (PAT). Naming no
+      league means the caller's most recently linked ESPN league, read with their own connection; read-only toward
+      ESPN. Serving the lineup registers that week's decision and start/sit calls in the caller's own ledger (one
+      week row, updated in place until graded), which is the behaviour under test.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: own-lineup
+    expected:
+      - The operator receives 200 with their own league's name, the P(win) lineup, the mean-maximising lineup beside it (non-empty starters), and both win probabilities when the week has an opponent; a 400 means no league is linked yet.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: own-season-value
+    name: Your real league's rest-of-season value (installed)
+    purpose: >-
+      Read GET /api/fantasy-football/season on the installed package as the signed-in operator (PAT). Naming no
+      league means the caller's most recently linked ESPN league, read with their own connection; read-only toward ESPN.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: own-season-value
+    expected:
+      - The operator receives 200 with their own league's name and the season value of their own roster; a 400 means no league is linked yet.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: own-waiver-board
+    name: Your real league's waiver board (installed)
+    purpose: >-
+      Read GET /api/fantasy-football/waivers on the installed package as the signed-in operator (PAT), for the caller's
+      most recently linked ESPN league. Nothing is claimed; the only write is the caller's own projection cache.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: own-waiver-board
+    expected:
+      - The operator receives 200 with their own league's name, and every rest-of-season row carries a drop and, in a FAAB league, a bid.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: own-trade-finder
+    name: Your real league's two-sided trades (installed)
+    purpose: >-
+      Read GET /api/fantasy-football/trades on the installed package as the signed-in operator (PAT), for the caller's
+      most recently linked ESPN league. Nothing is sent to ESPN.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: own-trade-finder
+    expected:
+      - The operator receives 200 with their own league's name and proposals that each show both managers' gains.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: fantasy-scoring
+    name: Fantasy scoring
+    purpose: Apply synthetic league rules, roster availability and fixture-only credential transport.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-scoring.test.js
+    expected:
+      - Each league scores its own raw projection rows.
+      - Unavailable players are excluded and private cookie data stays in the transport.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fantasy-leagues-fixture.js
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-winprob
+    name: Fantasy matchup optimization
+    purpose: Optimize synthetic lineups against the actual fixture opponent.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-winprob.test.js
+    expected:
+      - Lineups maximize matchup win probability with legal positions.
+      - Opponent identity and scoring distributions remain consistent.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fantasy-leagues-fixture.js
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-transport
+    name: Fantasy read-failure reporting
+    purpose: >-
+      Drive the compiled lineup route with a synthetic transport that throws, proving an unreachable
+      ESPN is reported as a transport fault while a refusal keeps its credential message; and the
+      season-long boards with only the league-shape read failing, proving none prices on an assumed shape.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-transport.test.js
+    expected:
+      - A read that never reaches ESPN is answered as a transport fault, with or without a stored credential.
+      - A refusal still names the credential or the league.
+      - A failed schedule read and a bye render different surface copy.
+      - A schedule read that throws and a failed player-week history read keep their fallback (no opponent; projections alone) and are each logged at ERROR with the error.
+      - A FAAB league whose shape read (budget, last week, playoff start) fails every retry gets 503 naming ESPN from the waiver board, season value and trade finder, never mode rolling or a row priced on an assumed shape; a refused shape read gets 502 naming it, and the same league with its shape read bids on every row.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fantasy-leagues-fixture.js
+        - tests/fantasy-routes-harness.js
+        - tests/fantasy-manual-fixture.js
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-history
+    name: Fantasy scoring history
+    purpose: Accumulate completed weeks from the player feed and feed them to the spread model.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-history.test.js
+    expected:
+      - Completed weeks are kept per player; projections, season totals and prior seasons are not.
+      - Weekly points are computed from the league's own scoring rules.
+      - An underdog moves to the volatile player and a favourite to the steady one.
+      - Withholding the history returns the highest-projected lineup unchanged.
+      - The history read is scoped to one season, the weeks already played, and the roster.
+      - The registered GET /lineup handler itself stores the completed weeks and reads them back.
+      - That same route serves the volatile player to an underdog, and the highest-projected lineup when nothing was played.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fantasy-leagues-fixture.js
+        - tests/fantasy-routes-harness.js
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-skill
+    name: Fantasy reads go through the kernel skill
+    purpose: >-
+      Read the package's own sources, compiled routes and manifest to prove ESPN fantasy data is read
+      only through the fantasy-leagues kernel skill.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-skill.test.js
+    expected:
+      - The private ESPN fantasy client is absent, as source and as compiled route.
+      - No package module names the fantasy host, builds the cookie header or sends the feed filter.
+      - The compiled fantasy route requires @/features/fantasy-leagues for every league read.
+      - The manifest declares fantasy-leagues under uses.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-optimiser
+    name: Lineup optimiser is exact
+    purpose: >-
+      Compare the compiled weekly lineup optimiser with an exhaustive search over 3,000 seeded random
+      rosters shaped to hit dual-position players and several flexible slots.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-optimiser.test.js
+    expected:
+      - The optimiser total equals the exhaustive-search total on every one of 3,000 seeded rosters.
+      - A dual RB/WR player starts at WR when the RB slot has its own star, the case the old greedy optimiser lost 10.9 points on.
+      - An opening nobody can legally fill stays empty and nobody starts out of position.
+      - An unavailable player is never started, and every fillable opening is filled.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-ownership
+    name: Per-person ownership, static and routed
+    purpose: >-
+      Read the migrations and the store's statements and drive the compiled router with the connection
+      lookup doubled, to prove every table is walled and only the caller's own ESPN connection is spent.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-ownership.test.js
+    expected:
+      - Every table the migrations create is in OWNED_TABLES, carries user_sub and is enabled and FORCED.
+      - The owner policy is exact owner with no operator arm, in the migration and in the self-heal DDL.
+      - Every store statement names its owner as the first parameter.
+      - A caller with only a household-shared ESPN connection is not connected and the shared secret is never resolved.
+      - A caller with both is served from their own personal connection, named by id.
+      - espn_s2 is never returned, and every data route answers 401 with no caller before any data statement.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fantasy-leagues-fixture.js
+        - tests/fantasy-routes-harness.js
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-surface
+    name: Surface syntax and routes
+    purpose: Parse the packaged page and check every endpoint it calls against the compiled router, without a browser.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-surface.test.js
+    expected:
+      - The inline classic script parses and the page is LF only.
+      - Every endpoint the page calls is registered by the compiled router.
+      - The page warns that the credential is an account session cookie and that a shared connection is never used.
+      - The page never builds or posts a credential, and states that points come from the league's own rules.
+      - The page's own renderers show a bid and a drop per waiver row, both gains per trade and which weeks were priced from a rate; with no connection the page offers the hand-typed league.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fantasy-leagues-fixture.js
+        - tests/fantasy-routes-harness.js
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-season
+    name: Rest-of-season value
+    purpose: Compute SV and MV over synthetic season plans and check them against exhaustive weekly optima, with the plan's week provenance.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-season.test.js
+    expected:
+      - SV equals the weighted sum of exhaustive weekly optima on 400 seeded rosters and plans.
+      - A bye collision costs exactly the emptied week, and a third running back is worth only the weeks he would start.
+      - Two scoring rule sets give two season values; the drop candidate is the least costly player; replacement level deepens with more teams.
+      - The plan names weeks priced from their own feed and from the rate, applies the bye table, carries only lasting injuries forward, and rates a bye-week player from the nearest week read.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-waivers
+    name: Waiver board
+    purpose: Build the waiver board over a synthetic ten-team league shaped like the operator's roster, a replacement-level RB2 included.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-waivers.test.js
+    expected:
+      - Every rest-of-season row carries a whole-dollar bid and a drop, and rows are ranked by rest-of-season swap value.
+      - No bid exceeds the cap that keeps a dollar for every other remaining week.
+      - The leftover-RB claim is flagged as replacing a replacement-level starter and its bid carries the premium.
+      - The streaming lane holds defence, kicker and a superflex quarterback at a zero bid, never enters the rest-of-season lane, and moves no bid.
+      - A rolling-priority league gets rows and drops and no invented bid.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-trades
+    name: Two-sided trade finder
+    purpose: Search synthetic leagues for trades and re-derive the other manager's gain for every surfaced proposal.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-trades.test.js
+    expected:
+      - The slot-pressure trade (their surplus back for your receiver, your RB hole) surfaces with both gains shown.
+      - A trade good only for you never surfaces.
+      - Over 150 seeded leagues no surfaced proposal has the other side's gain at or below the threshold, re-derived independently, and the rosters do contain the one-sided candidates this forbids.
+      - A 2-for-1 prices the receiving side's forced drop and never cuts a player just received.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-manual
+    name: Hand-typed league parity
+    purpose: >-
+      Drive the compiled router for a caller with no ESPN connection against a league typed in by hand, with ESPN
+      answering only the two public reads.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-manual.test.js
+    expected:
+      - The lineup, season value, waiver board and trade finder all answer 200 from the hand-typed league.
+      - The connection lookup and the broker are never consulted, no ESPN league is read and no cookie is sent.
+      - Validation names every problem in a league typed in wrong.
+      - Another person can neither read, list, replace, delete nor build on the league; the owner can replace and delete it.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fantasy-leagues-fixture.js
+        - tests/fantasy-routes-harness.js
+        - tests/fantasy-manual-fixture.js
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-grading
+    name: Week ledger grading
+    purpose: Serve lineups through the compiled router, then grade the weeks from stored actuals, for a hand-typed league and an ESPN one.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-grading.test.js
+    expected:
+      - A week still in progress is not graded, and a week whose actual lines are not stored yet stays open with no call settled at zero.
+      - A completed week is graded from stored actuals, advised lineup against the lineup started, with its start/sit calls settled first.
+      - An ESPN week is graded against the lineup ESPN holds for that week, not the one recorded at lineup time.
+      - A request naming no league reads the caller's own most recently linked league, and a caller with none gets 400.
+      - The own-lineup smoke as the manifest declares it passes for a linked league (league name, P(win) lineup, mean-maximising lineup and both win probabilities), and a repeat run keeps one week row.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fantasy-leagues-fixture.js
+        - tests/fantasy-routes-harness.js
+        - tests/fantasy-manual-fixture.js
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-isolation
+    name: Cross-user denial on a real database
+    purpose: >-
+      Mount the packaged routes over loopback HTTP on the real kernel connection lookup and broker,
+      against a disposable PostgreSQL where a NOBYPASSRLS runtime role owns the forced ff_* tables.
+      ESPN is a recording fetch seam keyed by the cookie each request carries.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/isolation.core.test.js
+    expected:
+      - The runtime role owns every ff_* table, each forced with one exact-owner policy, and a forged row is refused.
+      - A second user sees none of the first user's leagues, calls, cached projections or completed weeks.
+      - A second user can neither unlink nor read the first user's league, and their reads carry only their own cookie.
+      - An operator identity sees none of the first user's rows over HTTP or SQL.
+      - A household-shared connection is refused and never sent; the owner's personal one is used although the shared row sorts first.
+      - The refresh writes 522 completed player-weeks across the 500-row insert chunk, each person their own copy.
+      - A hand-typed league serves every board on the real store with no cookie sent, and nobody else can read, list, replace, delete or build on it.
+      - A completed week is graded from its owner's stored actuals by the real grading statements; another person's grading pass grades nothing of it.
+    prerequisites:
+      - runner:vitest
+      - harness:oshal-core-root
+      - harness:core-test-fixtures
+      - engine-container:disposable-postgres
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fantasy-isolation.spec.ts
+        - tests/isolation.config.mjs
+      cleanup: The suite closes its loopback server, restores fetch and its environment, and stops its own PostgreSQL container including anonymous volumes.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) audience view through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.cjs
+    expected:
+      - The shared kit stylesheet and script follow the theme bootstrap exactly once.
+      - The boot names this application and exactly the audiences the page provides, with an escape label.
+      - The full page start runs only when the kit renders no audience, and when the kit is absent.
+      - The head block parses, reads only this package's routes and builds no HTML from data.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

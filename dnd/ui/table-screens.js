@@ -28,6 +28,7 @@
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Require an explicit campaign choice before party building and activate the saved campaign's authored world on resume.
  * 2026-07-27 22:05:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Confirm a successful join on the join screen itself, report a failed table load instead of freezing on the code, and show a joined player their seat rather than the host's join-code instructions.
  * 2026-09-14 15:20:00 | maintainer@emeraldcoastsystemsgroup.com  | Move the dock to table-dock.js. This file had reached 811 executable lines against the package's own 800-line decomposition guard, and the dock was the one section that is a complete concern on its own.
+ * 2026-09-28 23:05:00 | maintainer@emeraldcoastsystemsgroup.com  | Start the table only when no audience view renders (ADR-164 D6): the Jarvis shell opens this page with ?audience=family and the head block of table.html paints the family view from the shared kit, so the animation loop, the glitch banner, the narrator status and boot() (the /content, /campaigns and /characters reads and every screen after them) run only when AppView is absent or AppView.active() is null. The full table starts exactly as before.
  */
 
 'use strict';
@@ -712,9 +713,15 @@ function frame() {
   try { if (!document.hidden && content && board) { easeAll(dt); draw(); } } catch (_e) { /* one bad frame must NEVER kill the loop */ }
   requestAnimationFrame(frame); // always reschedule
 }
-requestAnimationFrame(frame);
-// Global safety net — if anything throws, tell the player how to recover instead
-// of leaving a silently dead board.
-window.addEventListener('error', () => { try { banner('⚠ Something glitched. If the board looks stuck, tap ? Help → ✦ Fresh Campaign, or refresh.'); } catch (_e) {} });
-initVoiceStatus();
-boot();
+// Audience view (ADR-164 D6): when the shared kit paints the family view of this page (table.html's head block
+// decided it before this bundle ran), the table never starts: no content, campaign or character read of its own, no
+// animation loop, no narrator status and no glitch banner. Without the kit, or without an audience view, everything
+// below starts exactly as before.
+if (!window.AppView || !AppView.active()) {
+  requestAnimationFrame(frame);
+  // Global safety net — if anything throws, tell the player how to recover instead
+  // of leaving a silently dead board.
+  window.addEventListener('error', () => { try { banner('⚠ Something glitched. If the board looks stuck, tap ? Help → ✦ Fresh Campaign, or refresh.'); } catch (_e) {} });
+  initVoiceStatus();
+  boot();
+}

@@ -13,6 +13,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | Added the MASTER document: id=master loads the durable profile through `resume base`, save whitelists back through `resume base-save` (changelog returned to the surface), and the guide bot is told it is editing the profile every tailored resume is generated from — with cover and title/org/span edits stripped for the master case.
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | Track the engine's corrected 96 KiB master-document ceiling. The document reaches the engine as an environment string across execve, which Linux caps at 128 KiB, so the previous 256 KiB pair described a limit neither side could enforce.
  * 10 | maintainer@emeraldcoastsystemsgroup.com  | THE EDITOR TALKS BACK. Operator, 2026-08-13: "the concierge will take the commands but doesn't talk to me or respond — I just tell it what to do and it does it. OK but not great." The prompt was the cause: it asked for "one short conversational sentence" and the model complied exactly, making a command executor out of something that should be a conversation. `reply` is now the half that carries the work (what changed and WHY, the tradeoff, the replaced words quoted), a clarifying question with actions:[] is an explicitly valid turn, and a question/opinion/review answers without editing. Also fixed the matching bug: a model reply with no JSON had its words DISCARDED and replaced with "Updated." — throwing away the answer and claiming an edit that never happened; the prose is now kept as the reply.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com  | GET /resume/doc?id=<posting> also returns the packet's verified story citations as meta.storiesCited (1.26.0), read from application.json's stories_cited, which generate_for writes and nothing served until now. The story review's live acceptance reads it to prove a generated packet cited a story; the document the studio edits is unchanged.
  */
 
 /**
@@ -142,6 +143,7 @@ async function readDoc(dir: string): Promise<ResumeDocument> {
       title: data.title,
       url: data.url,
       include_oshal: data.include_oshal,
+      storiesCited: Array.isArray(data.stories_cited) ? data.stories_cited : [],
     },
   };
 }

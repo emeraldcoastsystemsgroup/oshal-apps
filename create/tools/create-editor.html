@@ -3,6 +3,9 @@
 1 | maintainer@emeraldcoastsystemsgroup.com | Add the themed layered image workspace, owned projects and explicit export controls.
 2 | maintainer@emeraldcoastsystemsgroup.com | Add an accessible catalog of real editable image templates inside the existing workspace.
 3 | maintainer@emeraldcoastsystemsgroup.com | Add the Your brand panel (swatches, logo, kit link), brand and Office fonts, and the gallery's Show in my brand switch.
+4 | maintainer@emeraldcoastsystemsgroup.com | Add simple image filters to the selected image layer: a named look plus saturation, grayscale, sepia and blur sliders.
+5 | maintainer@emeraldcoastsystemsgroup.com | Add region selection controls (Select region, Whole image, Clear) and a live region status beside the canvas.
+6 | maintainer@emeraldcoastsystemsgroup.com | Add the Change a region panel (what is sent and what it costs, instruction, regenerate, cancel) and the side-by-side compare dialog with explicit accept and reject.
 -->
 <html lang="en" data-theme="create">
 <head>
@@ -68,19 +71,29 @@
     </aside>
     <section class="canvas-panel" aria-label="Image canvas">
       <div class="canvas-toolbar"><div><button id="undo" disabled>Undo</button><button id="redo" disabled>Redo</button></div>
+        <div class="region-tools" role="group" aria-label="Image region"><button id="regionMode" type="button" aria-pressed="false" disabled>Select region</button><button id="selectWholeImage" type="button" disabled>Whole image</button><button id="clearRegion" type="button" disabled>Clear region</button></div>
         <label>Zoom <select id="zoom"><option value="fit">Fit</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="1">100%</option><option value="2">200%</option></select></label>
       </div>
       <div id="canvasViewport" class="canvas-viewport"><div id="canvasFrame" class="canvas-frame">
         <canvas id="artboard" width="1200" height="800" aria-label="Editable image canvas" tabindex="0"></canvas>
         <canvas id="selection" width="1200" height="800" aria-hidden="true"></canvas>
       </div></div>
-      <footer class="canvas-footer"><span id="canvasDimensions">1200 × 800</span><span id="selectionHint">Select a layer to move or resize it.</span></footer>
+      <footer class="canvas-footer"><span id="canvasDimensions">1200 × 800</span><span id="regionStatus" role="status" aria-live="polite"></span><span id="selectionHint">Select a layer to move or resize it.</span></footer>
     </section>
     <aside class="inspector-panel" aria-label="Layers and properties">
       <section><h2>Layers <span id="layerCount" class="count">0</span></h2>
         <div id="layers" class="layers" role="list" aria-label="Layer stack"><p class="hint">Your layers will appear here.</p></div>
         <div class="layer-actions"><button id="raiseLayer" data-selected disabled aria-label="Move selected layer up">Up</button><button id="lowerLayer" data-selected disabled aria-label="Move selected layer down">Down</button>
           <button id="duplicateLayer" data-selected disabled>Duplicate</button><button id="deleteLayer" data-selected disabled>Delete</button></div>
+      </section>
+      <section id="regionEditPanel" class="region-edit-panel" aria-labelledby="regionEditTitle" hidden>
+        <h2 id="regionEditTitle">Change a region</h2>
+        <p id="regionSummary" class="hint"></p>
+        <p id="regionCost" class="hint"></p>
+        <label>What should change?<textarea id="regionInstruction" maxlength="1000" rows="3" placeholder="For example: replace the cup with a small potted plant"></textarea></label>
+        <div class="region-edit-actions"><button id="regionSend" type="button" class="primary" disabled>Regenerate region</button>
+          <button id="regionCancel" type="button" hidden>Cancel</button><button id="regionCompare" type="button" hidden>Compare and decide</button></div>
+        <p id="regionEditStatus" class="hint" role="status" aria-live="polite"></p>
       </section>
       <fieldset id="properties" disabled><legend>Selected layer</legend>
         <p id="noSelection" class="hint">Select an element on the canvas or in the layer list.</p>
@@ -96,6 +109,9 @@
           <label id="fillProperty">Color<input id="layerFill" data-property="fill" type="color"></label>
           <div id="strokeProperties" hidden><label>Stroke color<input id="layerStroke" data-property="stroke" type="color" value="#111827"></label><label>Stroke width<input id="strokeWidth" data-property="strokeWidth" type="number" min="0" max="512"></label></div>
           <div id="imageProperties" hidden><label>Brightness<input id="brightness" data-property="brightness" type="range" min="0" max="300"></label><label>Contrast<input id="contrast" data-property="contrast" type="range" min="0" max="300"></label>
+            <label>Filter look<select id="filterLook"><option value="">Choose a look…</option></select></label>
+            <label>Saturation<input id="saturation" data-property="saturation" data-neutral="100" type="range" min="0" max="300"></label><label>Grayscale<input id="grayscale" data-property="grayscale" data-neutral="0" type="range" min="0" max="100"></label>
+            <label>Sepia<input id="sepia" data-property="sepia" data-neutral="0" type="range" min="0" max="100"></label><label>Blur<input id="blur" data-property="blur" data-neutral="0" type="range" min="0" max="64" step="0.5"></label>
             <p class="hint">Crop source image (%)</p><div class="pair"><label>Left<input id="cropX" type="number" min="0" max="99.9" step="0.1" value="0"></label><label>Top<input id="cropY" type="number" min="0" max="99.9" step="0.1" value="0"></label></div>
             <div class="pair"><label>Width<input id="cropW" type="number" min="0.1" max="100" step="0.1" value="100"></label><label>Height<input id="cropH" type="number" min="0.1" max="100" step="0.1" value="100"></label></div>
             <button id="applyCrop" type="button">Apply crop</button><button id="resetCrop" type="button">Reset crop</button>
@@ -108,6 +124,14 @@
     <p class="hint">Open a saved canvas or a previous revision. Restoring a revision becomes a new edit.</p>
     <button id="cleanupUploads" disabled>Clean unused uploads</button><p id="cleanupResult" class="hint" role="status"></p>
     <div id="projectList" class="project-list"></div>
+  </dialog>
+  <dialog id="regionCompareDialog" aria-labelledby="regionCompareTitle" aria-describedby="regionCompareIntro">
+    <header><h2 id="regionCompareTitle">Compare the regenerated region</h2><button id="closeRegionCompare" type="button">Decide later</button></header>
+    <p id="regionCompareIntro" class="hint">Only the selected region differs. Accepting adds a new revision you can undo; rejecting keeps your project as it is.</p>
+    <p class="hint">Instruction: <span id="regionCompareInstruction"></span></p>
+    <div class="region-compare"><figure><img id="regionBefore" alt="The image before the region was regenerated"><figcaption>Before</figcaption></figure>
+      <figure><img id="regionAfter" alt="The image with the regenerated region"><figcaption>After</figcaption></figure></div>
+    <div class="region-edit-actions"><button id="regionAccept" type="button" class="primary">Accept as a new revision</button><button id="regionReject" type="button">Reject</button></div>
   </dialog>
   <dialog id="templateDialog" aria-labelledby="templatesTitle" aria-describedby="templateIntro">
     <header><div><span class="eyebrow">MAKE IT YOURS</span><h2 id="templatesTitle">Start with a design</h2></div><button id="closeTemplates" type="button" aria-label="Close templates">Close</button></header>

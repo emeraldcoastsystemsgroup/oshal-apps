@@ -9,6 +9,11 @@
  *                     |                             | The two sub-factories keep their own files (619 and 338 code lines)
  *                     |                             | rather than being merged: one 1000-line route module is exactly
  *                     |                             | what the file cap exists to prevent.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 S2: the Explorer surface (tools/explorer.html and its
+ *                     |                             | script) and the vehicle record under /vehicles, inside this same
+ *                     |                             | requiresAuth mount so nothing escapes the guard. The record's
+ *                     |                             | store is the framework's GUC-stamped pool from the AppContext;
+ *                     |                             | mounted without one, the record routes answer 503 by name.
  */
 
 import { Router, type Request, type RequestHandler, type Response } from 'express';
@@ -16,12 +21,14 @@ import { createChildLogger } from '@/shared/logger';
 import { HARVEST_LIMITS, createHarvestRoutes } from './harvest-routes';
 import { ROTOR_LIMITS, createRotorRoutes } from './rotor-routes';
 import { serveSurfaceFile, surfaceFile } from './surface-files';
+import { createVehicleRoutes } from './vehicle-routes';
+import type { Pool } from './vehicle-store';
 
 const logger = createChildLogger({ module: 'ocean-lab-routes' });
 
 /** The engine scripts both bundled pages load, served from one mount so a page-relative
  * `assets/<file>` and an absolute `/api/ocean-lab/assets/<file>` reach the same bytes. */
-const SURFACE_SCRIPTS = ['harvest-console.js', 'blade-studio.js', 'blade-studio-gl.js'] as const;
+const SURFACE_SCRIPTS = ['harvest-console.js', 'blade-studio.js', 'blade-studio-gl.js', 'explorer.js'] as const;
 
 /** Optional overrides for specs, plus the framework's per-package context. */
 export interface OceanLabRouteOpts {
@@ -47,6 +54,7 @@ export function createOceanLabRoutes(arg: OceanLabRouteOpts | Record<string, unk
   const isOpts = arg !== null && typeof arg === 'object' && ('requiresAuth' in arg || 'ctx' in arg);
   const opts: OceanLabRouteOpts = isOpts ? (arg as OceanLabRouteOpts) : { ctx: arg };
   const appPackageDir = (opts.ctx as { appPackageDir?: string } | undefined)?.appPackageDir;
+  const pool = (opts.ctx as { pool?: Pool } | undefined)?.pool ?? null;
   const sub = { appPackageDir, requiresAuth: opts.requiresAuth };
 
   const router = Router();
@@ -56,11 +64,13 @@ export function createOceanLabRoutes(arg: OceanLabRouteOpts | Record<string, unk
   // /api/ocean-lab/assets/<file> — hence the top-level assets mount alongside the per-half ones.
   const harvestConsole = surfaceFile(appPackageDir, 'harvest-console.html');
   const bladeStudio = surfaceFile(appPackageDir, 'blade-studio.html');
-  logger.info({ harvestConsole, bladeStudio, appPackageDir }, 'Resolved the ocean-lab surfaces');
+  const explorer = surfaceFile(appPackageDir, 'explorer.html');
+  logger.info({ harvestConsole, bladeStudio, explorer, appPackageDir, recordStore: pool ? 'pool' : 'none' }, 'Resolved the ocean-lab surfaces');
 
   router.get('/app', serveSurfaceFile(harvestConsole, 'html'));
   router.get('/harvest-console', serveSurfaceFile(harvestConsole, 'html'));
   router.get('/blade-studio', serveSurfaceFile(bladeStudio, 'html'));
+  router.get('/explorer', serveSurfaceFile(explorer, 'html'));
 
   const assets = Router();
   for (const file of SURFACE_SCRIPTS) {
@@ -76,10 +86,11 @@ export function createOceanLabRoutes(arg: OceanLabRouteOpts | Record<string, unk
   router.get('/capabilities', (_req: Request, res: Response) => {
     res.json({
       app: 'ocean-lab',
-      domains: ['marine', 'ground', 'rotor'],
+      domains: ['marine', 'ground', 'rotor', 'wave'],
       surfaces: [
         { name: 'harvest-console', url: '/api/ocean-lab/harvest-console' },
         { name: 'blade-studio', url: '/api/ocean-lab/blade-studio' },
+        { name: 'explorer', url: '/api/ocean-lab/explorer' },
       ],
       limits: { harvest: HARVEST_LIMITS, rotor: ROTOR_LIMITS },
       provenance: 'illustrative parameters over real models — not survey data, no hardware built',
@@ -88,6 +99,7 @@ export function createOceanLabRoutes(arg: OceanLabRouteOpts | Record<string, unk
 
   router.use('/harvest', createHarvestRoutes(sub));
   router.use('/rotor', createRotorRoutes(sub));
+  router.use('/vehicles', createVehicleRoutes({ pool, packageDir: appPackageDir }));
 
   return router;
 }

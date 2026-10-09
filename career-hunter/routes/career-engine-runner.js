@@ -3,9 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PORTAL_LOGINS_ENV = void 0;
 exports.resolveEngineCli = resolveEngineCli;
-exports.operatorPortalFallback = operatorPortalFallback;
 exports.buildCareerEngineProcessEnv = buildCareerEngineProcessEnv;
 exports.releaseRun = releaseRun;
 exports.tryAcquireRun = tryAcquireRun;
@@ -39,6 +37,8 @@ exports.runCliAwait = runCliAwait;
  * 16 | maintainer@emeraldcoastsystemsgroup.com  | Bound asynchronous completion observers and abort them before releasing child ownership after timeout.
  * 17 | maintainer@emeraldcoastsystemsgroup.com  | ADR-137 amendment A: the exact operator's engine child inherits the deployment's mounted vendor logins under DEMO_MODE (the ADR-127 two-gate "portal fallback"), and brokered per-user OSHAL_CRED_* keys are mapped onto the names the engine reads — AI scoring had been dead since 2026-08-10 because the brokered-only wall had no operator carve and the brokered key never reached ANTHROPIC_API_KEY.
  * 18 | maintainer@emeraldcoastsystemsgroup.com  | The 1.12.4 carve never reached Python: bin/oshal-jobhunter.js re-applies its own .brokered-auth-only wall to the engine child, so the live 2026-09-05 pass still raised "No AI auth found". The runner now states its verdict to the launcher as OSHAL_PORTAL_LOGINS=1 (set only under both gates; any caller-supplied copy is stripped) and the launcher honors exactly that flag.
+ * 19 | maintainer@emeraldcoastsystemsgroup.com  | Career worker rail: retire the ADR-137 amendment-A portal carve and the brokered model key. The engine child no longer inherits vendor logins or receives a model-provider key under any subject or deployment mode; model work leaves the controller through the package's worker rail to the dedicated Career bot. Every launched child is registered as an engine run (lib/career-engine-runs.js) with a runner-minted, owner-bound rail token in its environment, revoked when the child settles; the run's process tree is attached for owner cancellation and its exit facts settle a visible terminal state. Callers may observe the run id through onRunStarted.
+ * 20 | maintainer@emeraldcoastsystemsgroup.com  | Mint a per-run callback grant instead of a bearer token, and stop forwarding the fleet service secret to the engine child (1.25.1). The rail moved onto the kernel's signed-package-callbacks rail because under ADR-149 enforce a service-secret caller was refused before the package ran; a run now records its owner's verified issuer (CliRunOptions.ownerIssuer, which the dispatch reads from the kernel's request identity and the cron from the owner's recorded automation opt-in) and the child gets CAREER_RAIL_GRANT to sign its completions with. A run launched without a verified issuer is registered and cancellable but gets no rail entries, so its model calls stop at rail-not-configured rather than being minted a grant the kernel can never admit. The retired 1.24.0 names (CAREER_RAIL_TOKEN, CAREER_RAIL_SERVICE_SECRET) are stripped from any caller-supplied environment.
  */
 /**
  * Career Hunter engine process boundary.
@@ -54,7 +54,6 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const child_process_1 = require("child_process");
 const logger_1 = require("@/shared/logger");
-const deployment_mode_1 = require("@/shared/deployment-mode");
 const career_user_store_1 = require("./career-user-store");
 const logger = (0, logger_1.createChildLogger)({ module: 'career-engine-runner' });
 const TENANT = (0, career_user_store_1.careerTenant)();
@@ -62,6 +61,8 @@ const STDOUT_LIMIT = 200_000;
 const STDERR_LIMIT = 4_000;
 const DEFAULT_COMPLETION_TIMEOUT_MS = 10_000;
 const runLocks = require('../lib/career-run-lock');
+/** Engine run registry shared with the worker rail route; plain JS so every loader resolves it. */
+const engineRuns = require('../lib/career-engine-runs');
 const resourcesInFlight = new Map();
 const claimsInFlight = new Map();
 /** Resolve the shared engine ceiling consistently with direct package CLI admission. */
@@ -118,19 +119,22 @@ function inheritedCliEnv() {
     }
     return env;
 }
-/** Engine-facing names for the caller-scoped credentials the dispatch brokers (ADR-137 A). */
+/** Engine-facing names for the caller-scoped credentials the dispatch brokers. */
 const BROKERED_ENGINE_KEYS = {
-    OSHAL_CRED_ANTHROPIC: 'ANTHROPIC_API_KEY',
     OSHAL_CRED_FIRECRAWL: 'FIRECRAWL_API_KEY',
 };
-/** Vendor-login locations the operator's engine child may inherit under the portal fallback. */
-const PORTAL_LOGIN_ENV_KEYS = ['CODEX_HOME', 'CLAUDE_CONFIG_DIR'];
 /**
- * The runner's verdict, stated to the packaged launcher (bin/oshal-jobhunter.js), which builds the
- * Python child's environment itself and would otherwise re-apply the brokered-only wall. Only this
- * function may set it: a copy arriving in `extra` is stripped, so no route can smuggle the carve.
+ * Keys no caller-supplied `extra` may carry into the engine child: model-provider credentials,
+ * vendor-login locations, the retired portal verdict, and the rail entries only the runner mints.
+ * Model reasoning reaches the Career bot through the worker rail; the engine never holds a way to
+ * call a provider itself.
  */
-exports.PORTAL_LOGINS_ENV = 'OSHAL_PORTAL_LOGINS';
+const FORBIDDEN_EXTRA_KEYS = new Set([
+    'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'OSHAL_CRED_ANTHROPIC', 'OSHAL_CRED_OPENAI',
+    'CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'OSHAL_PORTAL_LOGINS',
+    ...Object.values(engineRuns.RAIL_ENV),
+    ...engineRuns.RETIRED_RAIL_ENV,
+]);
 /**
  * Maps the credentials the dispatch brokered for THIS caller onto the variable names the packaged
  * engine actually reads. Only `extra` is consulted — the controller's own keys never sit there, so
@@ -145,52 +149,35 @@ function brokeredEngineCredentials(extra) {
     }
     return mapped;
 }
-/**
- * @description ADR-137 amendment A, the demo "portal fallback": in a DEMO deployment the exact
- * operator's engine child may use the deployment's own mounted vendor logins — the same `~/.codex`
- * and `~/.claude` every bot consumes — under exactly the two gates ADR-127 uses to lend those logins
- * to a Jarvis turn. Every other caller, and every non-demo deployment, keeps the brokered-only wall.
- * @param userSub - Authenticated raw OIDC subject of the caller.
- * @returns true when the child may inherit the mounted logins instead of the empty sandbox.
- */
-function operatorPortalFallback(userSub) {
-    return (0, deployment_mode_1.demoModeEnabled)() && (0, deployment_mode_1.isDeploymentOperatorSub)(userSub);
-}
-/** The portal fallback passes through any explicit login location the controller itself runs with. */
-function inheritedPortalLoginEnv() {
-    const env = {};
-    for (const key of PORTAL_LOGIN_ENV_KEYS) {
-        if (process.env[key])
-            env[key] = process.env[key];
+/** Keep every caller-supplied entry except the forbidden credential, login and rail keys. */
+function boundedExtraEnv(extra) {
+    const bounded = {};
+    for (const [key, value] of Object.entries(extra)) {
+        if (!FORBIDDEN_EXTRA_KEYS.has(key.toUpperCase()))
+            bounded[key] = value;
     }
-    return env;
+    return bounded;
 }
 /**
  * @description Builds an identity-locked child environment containing only engine configuration,
- * canonical storage paths, and credentials explicitly brokered for this caller. The brokered keys
- * are also presented under the names the engine reads; the vendor-login directories point at an
- * empty per-user sandbox unless the caller qualifies for the demo portal fallback.
+ * canonical storage paths, the deterministic-I/O credential brokered for this caller, and the
+ * runner-minted rail entries. The vendor-login directories always point at an empty per-user
+ * sandbox and no model-provider key is ever present, for every subject and deployment mode.
  * @param userSub - Authenticated raw OIDC subject retained for engine authorization.
  * @param extra - Per-command inputs and caller-scoped brokered credentials.
+ * @param rail - Rail entries minted by the runner for this child (see lib/career-engine-runs.js).
  * @returns Least-privilege child process environment.
  */
-function buildCareerEngineProcessEnv(userSub, extra = {}) {
-    const storeRoot = careerStoreRoot();
-    const { [exports.PORTAL_LOGINS_ENV]: _callerSupplied, ...boundedExtra } = extra;
-    const base = {
-        ...inheritedCliEnv(),
-        ...boundedExtra,
-        ...brokeredEngineCredentials(extra),
-        OSHAL_USER_SUB: userSub,
-        OSHAL_TENANT: TENANT,
-        JOBHUNTER_STORE_ROOT: storeRoot,
-    };
-    if (operatorPortalFallback(userSub)) {
-        return { ...base, ...inheritedPortalLoginEnv(), [exports.PORTAL_LOGINS_ENV]: '1' };
-    }
+function buildCareerEngineProcessEnv(userSub, extra = {}, rail = {}) {
     const disabledAuthRoot = path_1.default.join((0, career_user_store_1.userPaths)(userSub).userDir, '.brokered-auth-only');
     return {
-        ...base,
+        ...inheritedCliEnv(),
+        ...boundedExtraEnv(extra),
+        ...brokeredEngineCredentials(extra),
+        ...rail,
+        OSHAL_USER_SUB: userSub,
+        OSHAL_TENANT: TENANT,
+        JOBHUNTER_STORE_ROOT: careerStoreRoot(),
         CLAUDE_CONFIG_DIR: path_1.default.join(disabledAuthRoot, 'claude'),
         CODEX_HOME: path_1.default.join(disabledAuthRoot, 'codex'),
     };
@@ -391,7 +378,7 @@ function claimForLaunch(userSub, args, options) {
     return { lease, automatic: !options.preclaimed };
 }
 /** Build the child environment with a proof for only the exact filesystem locks it inherits. */
-function adoptedChildEnv(userSub, extraEnv, lease, options) {
+function adoptedChildEnv(userSub, extraEnv, lease, options, rail) {
     const claim = claimsInFlight.get(lease.token);
     if (!claim)
         throw new Error('career engine filesystem lease is not held');
@@ -400,7 +387,29 @@ function adoptedChildEnv(userSub, extraEnv, lease, options) {
     return buildCareerEngineProcessEnv(userSub, {
         ...extraEnv,
         [runLocks.RUN_LOCK_ADOPTION_ENV]: adoption,
-    });
+    }, rail);
+}
+/**
+ * Register the child as an engine run and mint the grant only it may sign with. The grant carries
+ * the owner's verified issuer; a run whose caller established none is still registered (listed,
+ * cancellable, settled) but receives no rail entries, because the kernel could never admit its
+ * callbacks and the engine's own rail-not-configured refusal names the cause.
+ */
+function startEngineRun(userSub, args, options) {
+    const run = engineRuns.registerEngineRun(userSub, args[0] || 'engine', { ownerIssuer: options.ownerIssuer ?? null });
+    const rail = run.ownerIssuer
+        ? engineRuns.railChildEnv(run.runId, run.token, { port: process.env.PORT || '5000' })
+        : {};
+    if (!run.ownerIssuer) {
+        logger.warn({ runId: run.runId, verb: args[0] }, 'career engine run has no verified owner issuer; its model calls will be refused');
+    }
+    try {
+        options.onRunStarted?.(run.runId);
+    }
+    catch (err) {
+        logger.error({ err, runId: run.runId }, 'career run observer failed');
+    }
+    return { runId: run.runId, rail };
 }
 /** Clamp observer work separately from the much longer engine command deadline. */
 function completionTimeoutFor(options) {
@@ -444,7 +453,7 @@ function releaseChildClaim(claim, options, spawned) {
         releaseRun(claim.lease);
 }
 /** Bind deadline, completion notification, and exactly-once lease cleanup to one child. */
-function bindChildLease(proc, claim, args, options, notifyCompletion) {
+function bindChildLease(proc, claim, args, options, notifyCompletion, runId) {
     let didTimeout = false;
     let spawned = false;
     let settled = false;
@@ -455,6 +464,9 @@ function bindChildLease(proc, claim, args, options, notifyCompletion) {
             return;
         settled = true;
         clearTimeout(timer);
+        // Settled first and synchronously: the run's token is revoked and its terminal state is
+        // recorded before any awaited observer runs, so a route reading it on close sees the truth.
+        engineRuns.settleEngineRun(runId, { code, timedOut: didTimeout });
         if (spawned && notifyCompletion) {
             const completion = { code, timedOut: didTimeout, ok: code === 0 && !didTimeout };
             if (options.onComplete)
@@ -473,23 +485,26 @@ function launchCli(userSub, args, extraEnv, options, captureOutput) {
     const claim = claimForLaunch(userSub, args, options);
     if ('ok' in claim)
         return claim;
+    const { runId, rail } = startEngineRun(userSub, args, options);
     let proc;
     try {
         proc = (options.spawnProcess || child_process_1.spawn)('node', [resolveEngineCli(), ...args], {
-            env: adoptedChildEnv(userSub, extraEnv, claim.lease, options),
+            env: adoptedChildEnv(userSub, extraEnv, claim.lease, options, rail),
             stdio: captureOutput ? ['ignore', 'pipe', 'pipe'] : 'ignore',
             detached: process.platform !== 'win32',
         });
         const active = claimsInFlight.get(claim.lease.token);
         if (active)
             active.proc = proc;
+        engineRuns.attachRunTerminator(runId, () => terminateProcessTree(proc));
     }
     catch (error) {
+        engineRuns.settleEngineRun(runId, { code: null });
         if (claim.automatic)
             releaseRun(claim.lease);
         return { ok: false, out: '', err: error instanceof Error ? error.message : String(error) };
     }
-    return { proc, timedOut: bindChildLease(proc, claim, args, options, !captureOutput) };
+    return { proc, timedOut: bindChildLease(proc, claim, args, options, !captureOutput, runId) };
 }
 /**
  * @description Starts a bounded background engine command and acknowledges it only after the OS

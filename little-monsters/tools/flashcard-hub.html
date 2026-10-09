@@ -2,166 +2,246 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Little Monsters - Flashcards</title>
-<script>
-(function(){function a(n){if(!n)return;document.documentElement.setAttribute('data-theme',n);var h='/cockpit/css/themes/'+n+'.css',l=document.querySelector('link[data-lm-theme-link]');if(l){if(l.getAttribute('href')!==h)l.setAttribute('href',h);return;}l=document.createElement('link');l.rel='stylesheet';l.href=h;l.setAttribute('data-lm-theme-link','1');document.head.appendChild(l);}function i(){try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(e){}try{var s=localStorage.getItem('cockpit-theme');if(s)return s;}catch(e){}return 'little-monsters';}a(i());try{if(window.parent&&window.parent!==window){var ph=window.parent.document.documentElement;new MutationObserver(function(m){for(var k=0;k<m.length;k++)if(m[k].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)a(t);}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});}}catch(e){}})();
-</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Little Monsters — Flashcards</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  SEQ | AUTHOR                                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com   | Flashcard hub: gallery of the caller's readable sets with study, edit and delete; manual set creation with quick fill from pasted notes; class auto-build
+  2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass and literal palette; hero, set cards, forms and empty states use the system. Role truth: the class picker, class-owned edit/delete and "Build a set from my class" appear only for the class's teacher/admin (the store's write rule), students make private sets. The dead lm-navigate to a view without a ribbon target and the unused go() are gone (study opens by URL); toasts replace alert(); the prompt() add-card dialog is an inline row
+  ---------------------------------------------------------------------------
+-->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
 <link rel="stylesheet" href="/api/education/education.css">
 <style>
-  body{margin:0;color:var(--text-primary,#fdeaf6);font-family:system-ui,'Inter',sans-serif;}
-  .wrap{padding:20px clamp(14px,4vw,40px) 60px;max-width:760px;}
-  .head{display:flex;align-items:center;gap:12px;margin-bottom:4px;}
-  .head img{width:46px;height:46px;border-radius:12px;border:3px solid var(--accent-primary,#ec4faa);background:var(--bg-card);}
-  h1{margin:0;font-size:clamp(20px,3vw,26px);}
-  .sub{color:var(--text-muted);font-size:13px;margin:2px 0 16px;}
-  .btn{background:var(--accent-primary,#ec4faa);color:#fff;border:none;border-radius:12px;padding:10px 16px;font-weight:800;cursor:pointer;font-size:14px;}
-  .btn.ghost{background:transparent;color:var(--text-primary);border:1px solid var(--border-color);}
-  .btn.sm{padding:7px 12px;font-size:13px;}
-  .btn.danger{color:var(--status-error,#ff6b8b);border-color:var(--status-error,#ff6b8b);background:transparent;border-width:1px;border-style:solid;}
-  .topbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
-  .topbar .back{cursor:pointer;color:var(--accent-primary,#ec4faa);font-weight:700;font-size:14px;}
-  .set{border:1px solid var(--border-color);border-radius:14px;background:var(--bg-card);padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
-  .set .info{flex:1;min-width:150px;}
-  .set .t{font-weight:800;font-size:15px;}
-  .set .m{font-size:12px;color:var(--text-muted);margin-top:2px;}
-  .set .acts{display:flex;gap:8px;flex-wrap:wrap;}
-  .empty{color:var(--text-muted);font-size:14px;padding:14px 0;}
-  label{display:block;font-size:12px;color:var(--text-muted);margin:8px 0 4px;}
-  input,select,textarea{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid var(--border-color);background:var(--bg-secondary);color:inherit;font-size:14px;font-family:inherit;}
-  .row{display:flex;gap:8px;margin-bottom:8px;}.row input{flex:1;}
-  .row .del{flex:0 0 auto;width:38px;border:1px solid var(--border-color);background:transparent;color:var(--status-error,#ff6b8b);border-radius:10px;cursor:pointer;}
-  .card{border:1px solid var(--border-color);border-radius:16px;background:var(--bg-card);padding:16px;margin-bottom:14px;}
-  .msg{font-weight:700;font-size:13px;min-height:18px;margin-top:8px;}
-  .small{font-size:12px;color:var(--text-muted);}
+  /* A front/back card row: two inputs and a 44px remove control; stacks on phones. */
+  .card-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--lm-touch); gap: 8px; align-items: center; margin-bottom: 8px; }
+  @media (max-width: 640px) {
+    .card-row { grid-template-columns: minmax(0, 1fr) var(--lm-touch); }
+    .card-row .card-row-del { grid-row: 1 / span 2; grid-column: 2; }
+  }
+  .set-card { display: flex; flex-direction: column; }
+  .set-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 16px; }
+  .view-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .view-head h2 { font-size: 20px; font-weight: 700; }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
-<div class="wrap" id="app"><div class="empty">Loading your flashcards…</div></div>
-<script>
-var classes=[];
-// Attribute-safe escape (also escapes quotes) so set titles/ids are safe both as text and
-// inside HTML attribute values — set titles are user-controlled.
-function esc(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
-function app(){return document.getElementById('app');}
-function go(view){ if(window.parent!==window){ window.parent.postMessage({type:'lm-navigate',view:view},'*'); } else { window.location.href='/api/education/'+view; } }
+<main class="lm-page">
+  <header class="lm-hero">
+    <div>
+      <div class="lm-eyebrow">Flashcards</div>
+      <h1 class="lm-display">Cards that stick.</h1>
+      <p class="lm-lead">Make new cards, edit them, or jump in and study.</p>
+      <div class="lm-hero-actions"><button type="button" class="lm-btn lm-btn-primary" id="newSetBtn">＋ New flashcard set</button></div>
+    </div>
+    <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
+  </header>
+  <div id="app"><div class="lm-loading">Loading your flashcards…</div></div>
+</main>
 
-async function loadClasses(){ try{var r=await fetch('/api/education/classes'); if(r.ok)classes=(await r.json()).classes||[];}catch(e){} }
+<script src="/api/education/mascot.js?v=4"></script>
+<script>
+var esc = window.LM.esc;
+var classes = [], me = null, taught = {}, currentTitle = '';
+function app() { return document.getElementById('app'); }
+function isTeacher() { return !!me && (me.role === 'teacher' || me.role === 'admin'); }
+/** Classes the caller may write class-owned sets for: every class for an admin, own classes for a teacher, none for a student (the store's rule). */
+function writableClasses() {
+  if (!isTeacher()) return [];
+  return classes.filter(function (c) { return me.role === 'admin' || c.teacher_student_id === me.studentId; });
+}
+/** A private set is readable only by its owner, so it is always writable; a class set only by the class's teacher/admin. */
+function canWrite(set) {
+  if (!set.class_id) return true;
+  if (!isTeacher()) return false;
+  return me.role === 'admin' || !!taught[set.class_id];
+}
+function setView(view) { document.getElementById('newSetBtn').classList.toggle('hide', view !== 'gallery'); }
+function status(id, text, isError) { var el = document.getElementById(id); if (!el) return; el.textContent = text || ''; el.classList.toggle('is-error', !!isError); }
+function backButton() { return '<button type="button" class="lm-btn lm-btn-quiet" onclick="gallery()">← My flashcards</button>'; }
+
+async function loadClasses() {
+  try { var r = await fetch('/api/education/classes'); if (r.ok) classes = (await r.json()).classes || []; } catch (e) { classes = []; }
+  taught = {};
+  writableClasses().forEach(function (c) { taught[c.class_id] = true; });
+}
 
 // ───────── GALLERY ─────────
-async function gallery(){
-  var sets=[];
-  try{ var r=await fetch('/api/education/flashcards/sets'); if(r.ok)sets=(await r.json()).sets||[]; }catch(e){}
-  var h='<div class="head"><img src="/api/education/mascot.png" alt=""><div><h1>🃏 My Flashcards</h1></div></div>'
-    +'<p class="sub">Make new cards, edit them, or jump in and study.</p>'
-    +'<div style="margin-bottom:14px;"><button class="btn" onclick="create()">＋ New flashcard set</button></div>';
-  if(!sets.length){ h+='<div class="empty">No sets yet — tap “New flashcard set” to make your first one.</div>'; }
-  else { h+=sets.map(function(s){
-    var t=esc(s.title||'Untitled');
-    // Values go in data-* attributes (read via getAttribute) instead of inline onclick
-    // strings, so a title with a quote can't break out into executable script.
-    return '<div class="set"><div class="info"><div class="t">'+t+'</div>'
-      +'<div class="m">'+(s.card_count||0)+' cards'+(s.class_name?(' · '+esc(s.class_name)):'')+'</div></div>'
-      +'<div class="acts">'
-      +'<button class="btn sm" data-act="study" data-set="'+esc(s.set_id)+'">▶ Study</button>'
-      +'<button class="btn sm ghost" data-act="edit" data-set="'+esc(s.set_id)+'" data-title="'+t+'">✎ Edit</button>'
-      +'<button class="btn sm danger" data-act="del" data-set="'+esc(s.set_id)+'">🗑</button></div></div>';
-  }).join(''); }
-  app().innerHTML=h;
-  app().querySelectorAll('button[data-act]').forEach(function(b){
-    b.addEventListener('click', function(){
-      var id=b.getAttribute('data-set'), act=b.getAttribute('data-act');
-      if(act==='study') study(id); else if(act==='edit') edit(id, b.getAttribute('data-title')); else delSet(id);
+async function gallery() {
+  setView('gallery');
+  app().innerHTML = '<div class="lm-loading">Loading your flashcards…</div>';
+  var sets = [], failed = false;
+  try { var r = await fetch('/api/education/flashcards/sets'); if (r.ok) sets = (await r.json()).sets || []; else failed = true; } catch (e) { failed = true; }
+  var h = '<section class="lm-section"><div class="lm-section-head"><h2>Your sets</h2>' +
+    (sets.length ? '<span class="lm-subtle lm-small">' + sets.length + (sets.length === 1 ? ' set' : ' sets') + '</span>' : '') + '</div>';
+  if (failed) {
+    h += '<div class="lm-empty"><div class="lm-empty-icon">☁️</div><strong>Your sets could not be loaded right now.</strong>Nothing is assumed in their place; try again in a moment.<div><button type="button" class="lm-btn lm-btn-ghost" onclick="gallery()">Try again</button></div></div>';
+  } else if (!sets.length) {
+    h += '<div class="lm-empty"><div class="lm-empty-icon">🃏</div><strong>No sets yet.</strong>Type your first cards in, or paste your notes and watch them become cards.<div><button type="button" class="lm-btn lm-btn-primary" onclick="create()">＋ New flashcard set</button></div></div>';
+  } else {
+    h += '<div class="lm-grid" style="--min:300px">' + sets.map(setCard).join('') + '</div>';
+  }
+  app().innerHTML = h + '</section>';
+  // Values travel in data-* attributes (read via getAttribute) instead of inline onclick strings,
+  // so a set title with a quote can never break out into executable script.
+  app().querySelectorAll('button[data-act]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var id = b.getAttribute('data-set'), act = b.getAttribute('data-act');
+      if (act === 'study') study(id); else if (act === 'edit') edit(id, b.getAttribute('data-title')); else delSet(id);
     });
   });
 }
-function study(setId){ if(window.parent!==window){ window.parent.postMessage({type:'lm-navigate',view:'flashcards-study',setId:setId},'*'); }
-  window.location.href='/api/education/flashcards?setId='+encodeURIComponent(setId); }
-async function delSet(setId){
-  if(!confirm('Delete this whole set?')) return;
-  try{ var r=await fetch('/api/education/flashcards/sets/'+setId,{method:'DELETE'}); if(!r.ok) alert('Could not delete the set.'); }
-  catch(e){ alert('Could not delete the set.'); }
+function setCard(s) {
+  var t = esc(s.title || 'Untitled'), n = Number(s.card_count);
+  var meta = [Number.isFinite(n) ? n + (n === 1 ? ' card' : ' cards') : '', s.source_type === 'textbook' ? 'From the textbook' : ''].filter(Boolean).join(' · ');
+  var acts = '<button type="button" class="lm-btn lm-btn-primary" data-act="study" data-set="' + esc(s.set_id) + '">▶ Study</button>';
+  if (canWrite(s)) {
+    acts += '<button type="button" class="lm-btn lm-btn-ghost" data-act="edit" data-set="' + esc(s.set_id) + '" data-title="' + t + '">✎ Edit</button>' +
+      '<button type="button" class="lm-btn lm-btn-danger lm-btn-icon" data-act="del" data-set="' + esc(s.set_id) + '" aria-label="Delete ' + t + '" title="Delete set">🗑</button>';
+  }
+  return '<article class="lm-card set-card"><div class="lm-card-kicker">' + (s.class_name ? esc(s.class_name) : 'Just for me') + '</div>' +
+    '<h3>' + t + '</h3>' + (meta ? '<div class="lm-card-meta">' + meta + '</div>' : '') +
+    '<div class="set-actions">' + acts + '</div></article>';
+}
+/** The study page is reached by its own URL; it has no ribbon target of its own. */
+function study(setId) { window.location.href = '/api/education/flashcards?setId=' + encodeURIComponent(setId); }
+async function delSet(setId) {
+  if (!confirm('Delete this whole set?')) return;
+  try { var r = await fetch('/api/education/flashcards/sets/' + encodeURIComponent(setId), { method: 'DELETE' }); window.LM.toast(r.ok ? 'Set deleted' : 'Could not delete the set.'); }
+  catch (e) { window.LM.toast('Could not delete the set.'); }
   gallery();
 }
 
 // ───────── CREATE ─────────
-function create(){
-  app().innerHTML='<div class="topbar"><span class="back" onclick="gallery()">← My flashcards</span></div>'
-    +'<div class="head"><img src="/api/education/mascot.png" alt=""><div><h1>✍️ New set</h1></div></div>'
-    +'<div class="card"><div class="row" style="gap:10px;"><div style="flex:1;"><label>Class</label><select id="cls"><option value="">No class</option>'
-    +classes.map(function(c){return '<option value="'+c.class_id+'">'+esc(c.name)+'</option>';}).join('')+'</select></div>'
-    +'<div style="flex:1;"><label>Title</label><input id="title" placeholder="e.g. Chapter 5 terms"></div></div></div>'
-    +'<div class="card"><label>Quick fill — paste "term: definition" lines</label>'
-    +'<textarea id="paste" rows="3" placeholder="Mitochondria: the powerhouse of the cell"></textarea>'
-    +'<div style="margin-top:8px;"><button class="btn ghost sm" onclick="parsePaste()">Make cards from notes</button></div></div>'
-    +'<div class="card"><div id="rows"></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">'
-    +'<button class="btn ghost sm" onclick="addRow()">＋ Add a card</button>'
-    +'<button class="btn" onclick="saveNew()">💾 Save set</button></div><div class="msg" id="msg"></div></div>'
-    +'<div class="card"><label>🤖 Or auto-build from a class\'s notes</label>'
-    +'<div><button class="btn sm" id="aiBtn" onclick="aiGen()">Build a set from my class</button></div><div class="msg" id="aiMsg"></div></div>';
+function create() {
+  setView('create');
+  var mine = writableClasses();
+  var classField = isTeacher()
+    ? '<div class="lm-field"><label for="cls">Class</label><select id="cls"><option value="">Just for me (private set)</option>' +
+      mine.map(function (c) { return '<option value="' + esc(c.class_id) + '">' + esc(c.name) + (c.subject ? ' · ' + esc(c.subject) : '') + '</option>'; }).join('') +
+      '</select><div class="lm-help">A class set is shared with everyone in that class. Only classes you teach are listed.</div></div>'
+    : '<div class="lm-help">This set is private to you. Sets your teacher shares with a class show up on their own.</div>';
+  var aiCard = isTeacher() && mine.length
+    ? '<div class="lm-card"><h3>🤖 Build a set from my class</h3><p class="lm-help lm-mb-sm">Pick one of your classes above and your monster makes a study set from its textbook and lecture notes.</p>' +
+      '<button type="button" class="lm-btn lm-btn-soft" id="aiBtn" onclick="aiGen()">Build a set from my class</button><div class="lm-status" id="aiMsg" role="status"></div></div>'
+    : '';
+  app().innerHTML =
+    '<section class="lm-section"><div class="lm-section-head"><div class="view-head">' + backButton() + '<h2>New set</h2></div></div>' +
+    '<div class="lm-stack">' +
+    '<div class="lm-card"><div class="lm-field"><label for="title">Title</label><input id="title" placeholder="e.g. Chapter 5 terms"></div>' + classField + '</div>' +
+    '<div class="lm-card"><h3>⚡ Quick fill from notes</h3><p class="lm-help lm-mb-sm">Paste lines like <b>term: definition</b> (or <b>term - definition</b>) and each line becomes a card.</p>' +
+    '<div class="lm-field"><textarea id="paste" rows="3" placeholder="Mitochondria: the powerhouse of the cell"></textarea></div>' +
+    '<button type="button" class="lm-btn lm-btn-ghost" onclick="parsePaste()">Make cards from notes</button></div>' +
+    '<div class="lm-card"><h3 class="lm-mb-sm">✍️ Cards</h3><div id="rows"></div>' +
+    '<div class="lm-row is-wrap lm-mt-md"><button type="button" class="lm-btn lm-btn-ghost" onclick="addRow()">＋ Add a card</button>' +
+    '<button type="button" class="lm-btn lm-btn-primary" onclick="saveNew()">💾 Save set</button></div><div class="lm-status" id="msg" role="status"></div></div>' +
+    aiCard + '</div></section>';
   addRow(); addRow();
 }
-function addRow(f,b){ var d=document.createElement('div'); d.className='row';
-  d.innerHTML='<input class="f" placeholder="Front" value="'+esc(f||'')+'"><input class="b" placeholder="Back" value="'+esc(b||'')+'"><button class="del">✕</button>';
-  d.querySelector('.del').onclick=function(){d.remove();}; document.getElementById('rows').appendChild(d); }
-function parsePaste(){ var n=0; document.getElementById('paste').value.split('\n').forEach(function(ln){ ln=ln.trim(); if(!ln)return;
-  var m=ln.split(/\s*[:\-–]\s+/); if(m.length>=2){ addRow(m[0],m.slice(1).join(' - ')); n++; } });
-  document.getElementById('paste').value=''; document.getElementById('msg').textContent=n?('Added '+n+' cards.'):'Use "term: definition" lines.'; }
-function collect(){ var c=[]; document.querySelectorAll('#rows .row').forEach(function(r){ var f=r.querySelector('.f').value.trim(),b=r.querySelector('.b').value.trim(); if(f&&b)c.push({front:f,back:b}); }); return c; }
-async function saveNew(){
-  var cards=collect(); if(!cards.length){ document.getElementById('msg').textContent='Add at least one card.'; return; }
-  document.getElementById('msg').textContent='Saving…';
-  try{ var r=await fetch('/api/education/flashcards/sets',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({classId:document.getElementById('cls').value||null,title:document.getElementById('title').value.trim()||'My cards',sourceType:'manual',cards:cards})});
-    var d=await r.json(); if(!r.ok)throw new Error(d.error||'save failed');
-    gallery();
-  }catch(e){ document.getElementById('msg').textContent='Could not save: '+e.message; }
+function addRow(f, b) {
+  var d = document.createElement('div'); d.className = 'card-row';
+  d.innerHTML = '<input class="lm-input f" placeholder="Front (term / question)" aria-label="Front" value="' + esc(f || '') + '">' +
+    '<input class="lm-input b" placeholder="Back (definition / answer)" aria-label="Back" value="' + esc(b || '') + '">' +
+    '<button type="button" class="lm-btn lm-btn-ghost lm-btn-icon card-row-del" aria-label="Remove card">✕</button>';
+  d.querySelector('.card-row-del').onclick = function () { d.remove(); };
+  document.getElementById('rows').appendChild(d);
 }
-async function aiGen(){
-  var cls=document.getElementById('cls').value; if(!cls){ document.getElementById('aiMsg').textContent='Pick a class first.'; return; }
-  var b=document.getElementById('aiBtn'); b.disabled=true; document.getElementById('aiMsg').textContent='Reading your class notes…';
-  try{ var r=await fetch('/api/education/flashcards/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({classId:cls})});
-    var d=await r.json(); if(!r.ok)throw new Error(d.error||d.reason||'unavailable');
+function parsePaste() {
+  var n = 0;
+  document.getElementById('paste').value.split('\n').forEach(function (ln) {
+    ln = ln.trim(); if (!ln) return;
+    var m = ln.split(/\s*[:\-–]\s+/); if (m.length >= 2) { addRow(m[0], m.slice(1).join(' - ')); n++; }
+  });
+  document.getElementById('paste').value = '';
+  status('msg', n ? ('Added ' + n + (n === 1 ? ' card.' : ' cards.')) : 'Use "term: definition" lines.', !n);
+}
+function collect() {
+  var c = [];
+  document.querySelectorAll('#rows .card-row').forEach(function (r) { var f = r.querySelector('.f').value.trim(), b = r.querySelector('.b').value.trim(); if (f && b) c.push({ front: f, back: b }); });
+  return c;
+}
+async function saveNew() {
+  var cards = collect(); if (!cards.length) { status('msg', 'Add at least one card (front and back).', true); return; }
+  status('msg', 'Saving…');
+  var clsEl = document.getElementById('cls');
+  try {
+    var r = await fetch('/api/education/flashcards/sets', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ classId: (clsEl && clsEl.value) || null, title: document.getElementById('title').value.trim() || 'My cards', sourceType: 'manual', cards: cards }) });
+    var d = await r.json(); if (!r.ok) throw new Error(d.error || 'save failed');
+    window.LM.toast('Saved “' + (d.title || 'your set') + '”');
     gallery();
-  }catch(e){ document.getElementById('aiMsg').textContent='Could not build: '+e.message; b.disabled=false; }
+  } catch (e) { status('msg', 'Could not save: ' + e.message, true); }
+}
+async function aiGen() {
+  var clsEl = document.getElementById('cls'), cls = clsEl ? clsEl.value : '';
+  if (!cls) { status('aiMsg', 'Pick one of your classes first.', true); return; }
+  var b = document.getElementById('aiBtn'); b.disabled = true; status('aiMsg', 'Reading your class notes…');
+  try {
+    var r = await fetch('/api/education/flashcards/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ classId: cls }) });
+    var d = await r.json(); if (!r.ok) throw new Error(d.error || d.reason || 'unavailable');
+    window.LM.toast('Built “' + (d.title || 'a set') + '” from your class');
+    gallery();
+  } catch (e) { status('aiMsg', 'Could not build: ' + e.message, true); b.disabled = false; }
 }
 
 // ───────── EDIT ─────────
-async function edit(setId,title){
-  var cards=[];
-  try{ var r=await fetch('/api/education/flashcards/sets/'+setId+'/cards'); if(r.ok)cards=(await r.json()).cards||[]; }catch(e){}
-  var h='<div class="topbar"><span class="back" onclick="gallery()">← My flashcards</span></div>'
-    +'<div class="head"><img src="/api/education/mascot.png" alt=""><div><h1>✎ '+esc(title||'Edit set')+'</h1></div></div>'
-    +'<p class="sub">Edit a card and tap away to save. '+cards.length+' cards.</p><div id="ecards"></div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"><button class="btn ghost sm" onclick="addNewCard(\''+setId+'\')">＋ Add a card</button>'
-    +'<button class="btn sm" onclick="study(\''+setId+'\')">▶ Study this set</button></div>'
-    +'<div class="msg" id="emsg"></div>';
-  app().innerHTML=h;
-  var box=document.getElementById('ecards');
-  cards.forEach(function(c){ box.appendChild(editRow(c)); });
-  if(!cards.length) box.innerHTML='<div class="empty">No cards yet — add one below.</div>';
+async function edit(setId, title) {
+  setView('edit');
+  currentTitle = title || '';
+  app().innerHTML = '<div class="lm-loading">Loading cards…</div>';
+  var cards = [], failed = false;
+  try { var r = await fetch('/api/education/flashcards/sets/' + encodeURIComponent(setId) + '/cards'); if (r.ok) cards = (await r.json()).cards || []; else failed = true; } catch (e) { failed = true; }
+  cards = cards.filter(function (c) { return c && c.card_id; }); // an empty set answers one row without a card
+  app().innerHTML =
+    '<section class="lm-section"><div class="lm-section-head"><div class="view-head">' + backButton() + '<h2>✎ ' + esc(currentTitle || 'Edit set') + '</h2></div>' +
+    (failed ? '' : '<span class="lm-subtle lm-small">' + cards.length + (cards.length === 1 ? ' card' : ' cards') + '</span>') + '</div>' +
+    '<p class="lm-help lm-mb-md">Edit a card and tap away to save it.</p><div id="ecards"></div>' +
+    '<div class="lm-card lm-mt-md"><h3 class="lm-mb-sm">＋ Add a card</h3><div class="card-row"><input class="lm-input" id="newFront" placeholder="Front (term / question)" aria-label="Front">' +
+    '<input class="lm-input" id="newBack" placeholder="Back (definition / answer)" aria-label="Back">' +
+    '<button type="button" class="lm-btn lm-btn-primary lm-btn-icon card-row-del" id="addCardBtn" aria-label="Add card" title="Add card">＋</button></div></div>' +
+    '<div class="lm-row is-wrap lm-mt-md"><button type="button" class="lm-btn lm-btn-primary" id="studyBtn">▶ Study this set</button></div></section>';
+  document.getElementById('addCardBtn').onclick = function () { addNewCard(setId); };
+  document.getElementById('studyBtn').onclick = function () { study(setId); };
+  var box = document.getElementById('ecards');
+  if (failed) box.innerHTML = '<div class="lm-empty"><div class="lm-empty-icon">☁️</div><strong>The cards could not be loaded right now.</strong>Try again in a moment.</div>';
+  else if (!cards.length) box.innerHTML = '<div class="lm-empty"><div class="lm-empty-icon">✍️</div><strong>No cards yet.</strong>Add your first card below.</div>';
+  else cards.forEach(function (c) { box.appendChild(editRow(c)); });
 }
-function editRow(c){
-  var d=document.createElement('div'); d.className='row';
-  d.innerHTML='<input class="ef" value="'+esc(c.front)+'"><input class="eb" value="'+esc(c.back)+'"><button class="del">✕</button>';
-  var save=function(){ var f=d.querySelector('.ef').value.trim(),b=d.querySelector('.eb').value.trim(); if(!f||!b)return;
-    fetch('/api/education/flashcards/cards/'+c.card_id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({front:f,back:b})})
-      .then(function(r){ flash(r.ok?'Saved ✓':'Save failed — try again'); }).catch(function(){ flash('Save failed — try again'); }); };
-  d.querySelector('.ef').addEventListener('change',save); d.querySelector('.eb').addEventListener('change',save);
-  d.querySelector('.del').onclick=function(){ if(!confirm('Delete this card?'))return;
-    fetch('/api/education/flashcards/cards/'+c.card_id,{method:'DELETE'}).then(function(){ d.remove(); flash('Card removed'); }); };
+function editRow(c) {
+  var d = document.createElement('div'); d.className = 'card-row';
+  d.innerHTML = '<input class="lm-input ef" aria-label="Front" value="' + esc(c.front) + '"><input class="lm-input eb" aria-label="Back" value="' + esc(c.back) + '">' +
+    '<button type="button" class="lm-btn lm-btn-ghost lm-btn-icon card-row-del" aria-label="Delete card" title="Delete card">✕</button>';
+  var save = function () {
+    var f = d.querySelector('.ef').value.trim(), b = d.querySelector('.eb').value.trim(); if (!f || !b) return;
+    fetch('/api/education/flashcards/cards/' + encodeURIComponent(c.card_id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ front: f, back: b }) })
+      .then(function (r) { window.LM.toast(r.ok ? 'Saved ✓' : 'Save failed — try again'); }).catch(function () { window.LM.toast('Save failed — try again'); });
+  };
+  d.querySelector('.ef').addEventListener('change', save); d.querySelector('.eb').addEventListener('change', save);
+  d.querySelector('.card-row-del').onclick = function () {
+    if (!confirm('Delete this card?')) return;
+    fetch('/api/education/flashcards/cards/' + encodeURIComponent(c.card_id), { method: 'DELETE' })
+      .then(function (r) { if (r.ok) { d.remove(); window.LM.toast('Card removed'); } else window.LM.toast('Could not remove the card.'); })
+      .catch(function () { window.LM.toast('Could not remove the card.'); });
+  };
   return d;
 }
-async function addNewCard(setId){
-  var f=prompt('Front (term / question)?'); if(!f)return; var b=prompt('Back (definition / answer)?'); if(!b)return;
-  try{ var r=await fetch('/api/education/flashcards/sets/'+setId+'/cards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({front:f,back:b})});
-    if(!r.ok){ alert('Could not add the card.'); return; } }catch(e){ alert('Could not add the card.'); return; }
-  edit(setId);
+async function addNewCard(setId) {
+  var f = document.getElementById('newFront').value.trim(), b = document.getElementById('newBack').value.trim();
+  if (!f || !b) { window.LM.toast('Type a front and a back first.'); return; }
+  try {
+    var r = await fetch('/api/education/flashcards/sets/' + encodeURIComponent(setId) + '/cards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ front: f, back: b }) });
+    if (!r.ok) { window.LM.toast('Could not add the card.'); return; }
+  } catch (e) { window.LM.toast('Could not add the card.'); return; }
+  window.LM.toast('Card added');
+  edit(setId, currentTitle);
 }
-function flash(t){ var e=document.getElementById('emsg')||document.getElementById('msg'); if(e){ e.textContent=t; setTimeout(function(){e.textContent='';},1200); } }
 
-(async function(){ await loadClasses(); gallery(); })();
+document.getElementById('newSetBtn').addEventListener('click', create);
+(async function () { me = await window.LM.me(); await loadClasses(); gallery(); })();
 </script>
 </body>
 </html>

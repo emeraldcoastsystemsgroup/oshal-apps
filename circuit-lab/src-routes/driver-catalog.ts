@@ -28,6 +28,21 @@
  *                     |                             | outright still loads. Restating a field the owner declares, or
  *                     |                             | choosing an operating point outside the owner's voltage
  *                     |                             | window, is refused at load with the field named.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | A MOTOR row reads its owner too. The two brushless motors
+ *                     |                             | embodied's drone fits fly were restated here (name, mass,
+ *                     |                             | price, KV) with a source line saying they came from embodied;
+ *                     |                             | embodied now publishes them as data rows
+ *                     |                             | (routes/engine/design/parts-catalog.json, list `motors`), so
+ *                     |                             | the rows carry `sharedPart` and only this lab's electrical
+ *                     |                             | block: the operating point it solves at, the winding, the
+ *                     |                             | no-load current, the inductance and the rotor inertia. The
+ *                     |                             | owner supplies name, mass, price, source and the propulsion
+ *                     |                             | block's KV; noLoadRpm is DERIVED as KV x this lab's
+ *                     |                             | nominalVolts, so restating it is refused like any owned
+ *                     |                             | field. Readers are per type now: each names the row and
+ *                     |                             | nameplate fields its owner publishes and the ones this lab
+ *                     |                             | must declare itself. Same data-not-runtime rule, same
+ *                     |                             | fail-closed withholding when embodied is absent.
  */
 
 import fs from 'node:fs';
@@ -82,10 +97,35 @@ const ID = /^[a-z0-9][a-z0-9-]{1,60}$/;
 const OWNER = /^[a-z0-9][a-z0-9-]{1,60}$/;
 const REL_FILE = /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/;
 
-/** Fields a shared row's owner supplies, which this package therefore may not restate. */
+/** Fields every shared row's owner supplies, which this package therefore may not restate. */
 const OWNED_FIELDS = ['name', 'massG', 'approxUsd', 'source'] as const;
 /** Nameplate fields a shared servo's owner supplies, for the same reason. */
 const OWNED_SERVO_PROPS = ['minPulseMs', 'maxPulseMs', 'travelDeg', 'noLoadDegPerS', 'stallTorqueMnm', 'idleAmps', 'runAmps', 'stallAmps'] as const;
+
+type Obj = Record<string, unknown>;
+
+const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/** @description What a reader takes from an owner's row: the identity block, the nameplate fields it derives, and what else the row carries. */
+interface SharedReading {
+  shared: { name: string; massG: number; approxUsd: number; source: string };
+  props: Record<string, number>;
+  /** The motor constant, when the owner publishes one. */
+  kv?: number;
+  /** The supply window the owner publishes, when it publishes one; an operating point outside it is refused. */
+  window?: { voltsMin: number; voltsMax: number };
+}
+
+/** @description How one part type is read from another package: which fields are the owner's, which this lab must declare, and the read. */
+interface SharedReader {
+  /** Row fields, beyond OWNED_FIELDS, that the owner publishes. */
+  ownedRow: readonly string[];
+  /** Nameplate fields the read derives from the owner. */
+  ownedProps: readonly string[];
+  /** Nameplate fields this lab must declare itself because the read needs them. */
+  localRequired: readonly string[];
+  read(row: Obj, local: Obj): SharedReading | { reason: string };
+}
 
 /** One kg*cm of torque in mN*m. */
 const KGCM_TO_MNM = 98.0665;
@@ -145,26 +185,41 @@ function ownerNumber(row: Record<string, unknown>, key: string): number | { bad:
 }
 
 /**
+ * @description Read the identity block every owner row carries: name, one unit's mass and price, and the source line.
+ * @param row - The owner's raw row.
+ * @returns The identity block, or the reason it cannot be used.
+ */
+function readIdentity(row: Obj): SharedReading['shared'] | { reason: string } {
+  const name = row.name;
+  const source = row.source;
+  if (typeof name !== 'string' || !name.trim()) return { reason: 'the owner row has no name' };
+  if (typeof source !== 'string' || !source.trim()) return { reason: 'the owner row has no source line' };
+  const massG = ownerNumber(row, 'massG');
+  if (typeof massG !== 'number') return { reason: `the owner row is missing a usable ${massG.bad}` };
+  const approxUsd = ownerNumber(row, 'approxUsd');
+  if (typeof approxUsd !== 'number') return { reason: `the owner row is missing a usable ${approxUsd.bad}` };
+  return { name, massG, approxUsd, source };
+}
+
+/**
  * @description Translate the owner's servo block into this lab's nameplate. The owner publishes
  * microseconds, seconds per 60 degrees, kg*cm and milliamps because that is what a rig is built
  * from; the solver wants milliseconds, degrees per second, mN*m and amps. The translation lives
  * here, once, so the owner never has to carry this lab's units.
  * @param row - The owner's raw row.
- * @returns The derived nameplate fields, the owner's identity block, or the reason it cannot be used.
+ * @returns The owner's identity block, the derived nameplate fields and the supply window, or the reason it cannot be used.
  */
-function readServoPart(row: Record<string, unknown>): { shared: Record<string, unknown>; props: Record<string, number>; voltsMin: number; voltsMax: number } | { reason: string } {
-  const name = row.name;
-  const source = row.source;
-  if (typeof name !== 'string' || !name.trim()) return { reason: 'the owner row has no name' };
-  if (typeof source !== 'string' || !source.trim()) return { reason: 'the owner row has no source line' };
+function readServoPart(row: Obj): SharedReading | { reason: string } {
+  const shared = readIdentity(row);
+  if ('reason' in shared) return shared;
   const numbers: Record<string, number> = {};
-  for (const key of ['massG', 'approxUsd', 'voltsMin', 'voltsMax', 'pulseMinUs', 'pulseMaxUs', 'travelDeg', 'secondsPer60', 'stallKgCm', 'idleMa', 'movingMa', 'stallMa']) {
+  for (const key of ['voltsMin', 'voltsMax', 'pulseMinUs', 'pulseMaxUs', 'travelDeg', 'secondsPer60', 'stallKgCm', 'idleMa', 'movingMa', 'stallMa']) {
     const v = ownerNumber(row, key);
     if (typeof v !== 'number') return { reason: `the owner row is missing a usable ${v.bad}` };
     numbers[key] = v;
   }
   return {
-    shared: { name, massG: numbers.massG, approxUsd: numbers.approxUsd, source },
+    shared,
     props: {
       minPulseMs: round(numbers.pulseMinUs / 1000, 4),
       maxPulseMs: round(numbers.pulseMaxUs / 1000, 4),
@@ -175,13 +230,92 @@ function readServoPart(row: Record<string, unknown>): { shared: Record<string, u
       runAmps: round(numbers.movingMa / 1000, 4),
       stallAmps: round(numbers.stallMa / 1000, 4),
     },
-    voltsMin: numbers.voltsMin,
-    voltsMax: numbers.voltsMax,
+    window: { voltsMin: numbers.voltsMin, voltsMax: numbers.voltsMax },
   };
 }
 
-/** The part types this lab knows how to read from another package's catalog. */
-const SHARED_READERS: Record<string, typeof readServoPart> = { servo: readServoPart };
+/**
+ * @description Read a motor the owner publishes with a propulsion block. The owner gives the part
+ * (name, mass, price, source) and its KV; this lab keeps its own electrical model and the operating
+ * point it solves at, so the only nameplate field derived here is the no-load speed: KV times that
+ * operating voltage.
+ * @param row - The owner's raw row.
+ * @param local - This lab's declared nameplate block (nominalVolts is checked before the read).
+ * @returns The owner's identity block, the KV and the derived noLoadRpm, or the reason it cannot be used.
+ */
+function readMotorPart(row: Obj, local: Obj): SharedReading | { reason: string } {
+  const shared = readIdentity(row);
+  if ('reason' in shared) return shared;
+  if (!isObj(row.propulsion)) return { reason: 'the owner row has no propulsion block' };
+  const kv = ownerNumber(row.propulsion, 'kv');
+  if (typeof kv !== 'number') return { reason: 'the owner row is missing a usable propulsion.kv' };
+  return { shared, kv, props: { noLoadRpm: Math.round(kv * (local.nominalVolts as number)) } };
+}
+
+/** The part types this lab knows how to read from another package's catalog, and what each one owns. */
+const SHARED_READERS: Record<string, SharedReader> = {
+  servo: { ownedRow: [], ownedProps: OWNED_SERVO_PROPS, localRequired: [], read: (row) => readServoPart(row) },
+  motor: { ownedRow: ['kv'], ownedProps: ['noLoadRpm'], localRequired: ['nominalVolts'], read: readMotorPart },
+};
+
+/** The fields a row carries whether or not it is shared. */
+type CommonFields = Pick<DriverRow, 'id' | 'type' | 'kind' | 'usedBy' | 'kv' | 'cells'>;
+
+/**
+ * @description Refuse what a shared row may not say: a field its owner publishes, a missing
+ * operating point the read needs, or a missing note. These are this package's own mistakes, so they
+ * throw at load rather than withholding the row.
+ * @param r - The raw row.
+ * @param field - The row's field path, for the refusal.
+ * @param ref - The owner reference.
+ * @param reader - The reader for the row's type.
+ * @returns This lab's declared nameplate block.
+ */
+function checkSharedDeclaration(r: Obj, field: string, ref: SharedPartRef, reader: SharedReader): Obj {
+  for (const key of [...OWNED_FIELDS, ...reader.ownedRow]) if (r[key] !== undefined) throw new ContractError(`${key} is ${ref.owner}'s to publish; this row reads it`, `${field}.${key}`);
+  const local = isObj(r.nameplate) ? r.nameplate : {};
+  for (const key of reader.ownedProps) if (local[key] !== undefined) throw new ContractError(`${key} is ${ref.owner}'s to publish; this row reads it`, `${field}.nameplate.${key}`);
+  for (const key of reader.localRequired) {
+    const v = local[key];
+    if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) throw new ContractError(`${key} is the operating point this lab solves a shared ${r.type as string} at; the row declares it`, `${field}.nameplate.${key}`);
+  }
+  if (typeof r.note !== 'string' || !r.note.trim()) throw new ContractError('note says what this package adds to the shared row', `${field}.note`);
+  return local;
+}
+
+/**
+ * @description Resolve a row that names another package as the part's owner: check what the row
+ * declares, read the owner's row, and merge the owner's fields with this lab's block.
+ * @param r - The raw row.
+ * @param field - The row's field path, for refusals.
+ * @param ref - The owner reference.
+ * @param common - The fields the row carries either way.
+ * @param packagesRoot - Where packages sit beside each other.
+ * @returns The resolved row, or the unresolved entry naming the owner and the reason.
+ */
+function resolveSharedRow(r: Obj, field: string, ref: SharedPartRef, common: CommonFields, packagesRoot: string): { row: DriverRow } | { unresolved: UnresolvedRow } {
+  const reader = SHARED_READERS[common.type];
+  if (!reader) throw new ContractError(`a ${common.type} row cannot be read from another package yet`, `${field}.sharedPart`);
+  const local = checkSharedDeclaration(r, field, ref, reader);
+  const withheld = (reason: string) => ({ unresolved: { id: common.id, type: common.type, owner: ref.owner, ref, reason } });
+  const owned = readOwnerRow(ref, packagesRoot);
+  if ('reason' in owned) return withheld(owned.reason);
+  const part = reader.read(owned.row, local);
+  if ('reason' in part) return withheld(`${ref.owner}/${ref.file}#${ref.id}: ${part.reason}`);
+  const nameplate = validateProps(common.type, { ...local, ...part.props }, field);
+  const volts = nameplate.nominalVolts as number;
+  if (part.window && (volts < part.window.voltsMin || volts > part.window.voltsMax)) {
+    throw new ContractError(`${ref.owner} publishes ${ref.id} at ${part.window.voltsMin}-${part.window.voltsMax} V; this lab solves it at ${volts} V`, `${field}.nameplate.nominalVolts`);
+  }
+  return { row: {
+    ...common,
+    ...(part.kv !== undefined ? { kv: part.kv } : {}),
+    ...part.shared,
+    nameplate,
+    source: `${part.shared.source} [read from ${ref.owner}/${ref.file}#${ref.id}] ${r.note as string}`,
+    sharedFrom: ref,
+  } };
+}
 
 /**
  * @description Parse and validate the catalog file: every row a known driver type, an id, a mass,
@@ -217,32 +351,9 @@ export function loadDriverCatalog(file: string, opts: LoadDriverCatalogOpts = {}
       return;
     }
 
-    const reader = SHARED_READERS[r.type];
-    if (!reader) throw new ContractError(`a ${r.type} row cannot be read from another package yet`, `${field}.sharedPart`);
-    for (const key of OWNED_FIELDS) if (r[key] !== undefined) throw new ContractError(`${key} is ${ref.owner}'s to publish; this row reads it`, `${field}.${key}`);
-    const local = (r.nameplate && typeof r.nameplate === 'object' && !Array.isArray(r.nameplate) ? r.nameplate : {}) as Record<string, unknown>;
-    for (const key of OWNED_SERVO_PROPS) if (local[key] !== undefined) throw new ContractError(`${key} is ${ref.owner}'s to publish; this row reads it`, `${field}.nameplate.${key}`);
-    if (typeof r.note !== 'string' || !r.note.trim()) throw new ContractError('note says what this package adds to the shared row', `${field}.note`);
-
-    const owned = readOwnerRow(ref, packagesRoot);
-    if ('reason' in owned) { unresolved.push({ id: r.id, type: r.type, owner: ref.owner, ref, reason: owned.reason }); return; }
-    const part = reader(owned.row);
-    if ('reason' in part) { unresolved.push({ id: r.id, type: r.type, owner: ref.owner, ref, reason: `${ref.owner}/${ref.file}#${ref.id}: ${part.reason}` }); return; }
-
-    const nameplate = validateProps(r.type, { ...local, ...part.props }, field);
-    const volts = nameplate.nominalVolts as number;
-    if (volts < part.voltsMin || volts > part.voltsMax) {
-      throw new ContractError(`${ref.owner} publishes ${ref.id} at ${part.voltsMin}-${part.voltsMax} V; this lab solves it at ${volts} V`, `${field}.nameplate.nominalVolts`);
-    }
-    drivers.push({
-      ...common,
-      name: part.shared.name as string,
-      massG: part.shared.massG as number,
-      approxUsd: part.shared.approxUsd as number,
-      nameplate,
-      source: `${part.shared.source as string} [read from ${ref.owner}/${ref.file}#${ref.id}] ${r.note as string}`,
-      sharedFrom: ref,
-    });
+    const resolved = resolveSharedRow(r, field, ref, common, packagesRoot);
+    if ('row' in resolved) drivers.push(resolved.row);
+    else unresolved.push(resolved.unresolved);
   });
   return { drivers, unresolved };
 }

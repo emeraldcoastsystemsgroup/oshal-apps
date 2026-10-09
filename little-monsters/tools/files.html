@@ -3,124 +3,133 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Little Monsters - My Files</title>
-<script>
-(function(){function a(n){if(!n)return;document.documentElement.setAttribute('data-theme',n);var h='/cockpit/css/themes/'+n+'.css',l=document.querySelector('link[data-lm-theme-link]');if(l){if(l.getAttribute('href')!==h)l.setAttribute('href',h);return;}l=document.createElement('link');l.rel='stylesheet';l.href=h;l.setAttribute('data-lm-theme-link','1');document.head.appendChild(l);}function i(){try{if(window.parent&&window.parent!==window){var p=window.parent.document.documentElement.getAttribute('data-theme');if(p)return p;}}catch(e){}try{var s=localStorage.getItem('cockpit-theme');if(s)return s;}catch(e){}return 'little-monsters';}a(i());try{if(window.parent&&window.parent!==window){var ph=window.parent.document.documentElement;new MutationObserver(function(m){for(var k=0;k<m.length;k++)if(m[k].attributeName==='data-theme'){var t=ph.getAttribute('data-theme');if(t)a(t);}}).observe(ph,{attributes:true,attributeFilter:['data-theme']});}}catch(e){}})();
-</script>
+<title>Little Monsters — My Files</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  SEQ | AUTHOR                                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com   | Notes and files: a quick note kept in browser storage, save to / open from the computer (File System Access API with a download fallback), and links to connect cloud accounts in the hub
+  2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass link and literal pink/dark palette; hero, two-column layout (editor beside the saved list and cloud tiles), system fields, buttons, list items and empty state; plain copy that notes stay in this browser only, cloud tiles labelled "Connect in the hub" without implying files sync today, a confirm before deleting a saved note
+  ---------------------------------------------------------------------------
+-->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
 <link rel="stylesheet" href="/api/education/education.css">
 <style>
-  body{margin:0;color:var(--text-primary,#fdeaf6);font-family:system-ui,'Inter',sans-serif;}
-  .wrap{padding:22px clamp(14px,4vw,40px) 60px;max-width:780px;}
-  .head{display:flex;align-items:center;gap:12px;}
-  .head img{width:48px;height:48px;border-radius:12px;border:3px solid var(--accent-primary,#ec4faa);background:var(--bg-card);}
-  h1{margin:0;font-size:clamp(20px,3vw,28px);}
-  .sub{color:var(--text-muted);font-size:13px;margin:4px 0 18px;}
-  .card{border:1px solid var(--border-color);border-radius:16px;background:var(--bg-card);padding:16px;margin-bottom:16px;}
-  .card h2{margin:0 0 10px;font-size:15px;}
-  textarea{width:100%;box-sizing:border-box;min-height:120px;padding:12px;border-radius:12px;border:1px solid var(--border-color);
-    background:var(--bg-secondary);color:inherit;font-size:14px;resize:vertical;}
-  input.fn{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid var(--border-color);
-    background:var(--bg-secondary);color:inherit;font-size:14px;margin:8px 0;}
-  .btns{display:flex;gap:8px;flex-wrap:wrap;}
-  .btn{background:var(--accent-primary,#ec4faa);color:#fff;border:none;border-radius:12px;padding:10px 16px;font-weight:800;cursor:pointer;}
-  .btn.ghost{background:transparent;color:var(--text-primary);border:1px solid var(--border-color);}
-  .dest{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
-  .dest a{display:block;text-decoration:none;color:inherit;border:1px solid var(--border-color);border-radius:14px;
-    background:var(--bg-secondary);padding:16px;transition:.15s;text-align:center;}
-  .dest a:hover{border-color:var(--accent-primary,#ec4faa);transform:translateY(-2px);}
-  .dest .e{font-size:30px;} .dest .n{font-weight:800;margin-top:6px;} .dest .d{font-size:11px;color:var(--text-muted);margin-top:2px;}
-  .saved li{display:flex;align-items:center;gap:10px;font-size:13px;padding:8px 0;border-bottom:1px solid var(--border-color);}
-  .saved li .x{margin-left:auto;color:var(--status-error,#ff6b8b);cursor:pointer;font-size:12px;}
-  .small{font-size:12px;color:var(--text-muted);}
+  #ftext { min-height: 240px; }
+  .lm-item .lm-tile-icon { flex: 0 0 44px; }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
-<div class="wrap">
-  <div class="head"><img src="/api/education/mascot.png" alt=""><div><h1>My Files</h1></div></div>
-  <p class="sub">A home for your notes and work — keep it here, save it to your computer, or send it to the cloud.</p>
-
-  <div class="card">
-    <h2>📝 Quick note / file</h2>
-    <input class="fn" id="fname" placeholder="File name (e.g. biology-notes.txt)" value="my-note.txt">
-    <textarea id="ftext" placeholder="Type or paste your notes here…"></textarea>
-    <div class="btns" style="margin-top:10px;">
-      <button class="btn" onclick="saveLocal()">💾 Keep it here</button>
-      <button class="btn ghost" onclick="saveToComputer()">⬇️ Save to my computer</button>
-      <button class="btn ghost" onclick="openFromComputer()">📂 Open from my computer</button>
+<main class="lm-page">
+  <header class="lm-hero">
+    <div>
+      <div class="lm-eyebrow">Notes &amp; files</div>
+      <h1 class="lm-display">My Files</h1>
+      <p class="lm-lead">A home for your notes and work — keep a copy here, save it to your computer, or open a file to keep going.</p>
     </div>
-    <p class="small" id="msg" style="margin-top:8px;"></p>
-  </div>
+    <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
+  </header>
 
-  <div class="card">
-    <h2>📚 Saved here</h2>
-    <ul class="saved" id="saved"></ul>
-    <p class="small" id="empty">Nothing saved yet. Files you keep here stay in this browser.</p>
-  </div>
+  <div class="lm-columns">
+    <section class="lm-card" aria-labelledby="noteTitle">
+      <div class="lm-section-head"><h2 id="noteTitle">📝 Quick note</h2></div>
+      <div class="lm-field"><label for="fname">File name</label><input class="lm-input" id="fname" placeholder="e.g. biology-notes.txt" value="my-note.txt" autocomplete="off"></div>
+      <div class="lm-field"><label for="ftext">Your notes</label><textarea id="ftext" class="lm-input" placeholder="Type or paste your notes here…"></textarea></div>
+      <div class="lm-row is-wrap">
+        <button type="button" class="lm-btn lm-btn-primary" onclick="saveLocal()">💾 Keep it here</button>
+        <button type="button" class="lm-btn lm-btn-ghost" onclick="saveToComputer()">⬇️ Save to my computer</button>
+        <button type="button" class="lm-btn lm-btn-ghost" onclick="openFromComputer()">📂 Open from my computer</button>
+      </div>
+      <p class="lm-status lm-mt-md" id="msg" role="status" aria-live="polite"></p>
+    </section>
 
-  <div class="card">
-    <h2>☁️ Save to the cloud</h2>
-    <p class="small" style="margin-top:0;">Connect an account once, then your files can sync there. Connections open in the hub.</p>
-    <div class="dest">
-      <a href="/utilities" target="_blank" rel="noopener"><div class="e">📦</div><div class="n">Dropbox</div><div class="d">Connect to sync</div></a>
-      <a href="/utilities" target="_blank" rel="noopener"><div class="e">🐙</div><div class="n">GitHub</div><div class="d">Connect to sync</div></a>
-      <a href="/utilities" target="_blank" rel="noopener"><div class="e">📁</div><div class="n">Google Drive</div><div class="d">Connect to sync</div></a>
+    <div class="lm-stack">
+      <section class="lm-card" aria-labelledby="savedTitle">
+        <div class="lm-section-head"><h2 id="savedTitle">📚 Saved here</h2><span class="lm-subtle lm-small" id="savedCount"></span></div>
+        <p class="lm-help lm-mb-md">Kept in this browser only — not in your account and not on other devices. Save important work to your computer too.</p>
+        <ul class="lm-list" id="saved"></ul>
+        <div class="lm-empty" id="empty"><div class="lm-empty-icon">🗂️</div><strong>Nothing saved here yet.</strong>Write a note and tap “Keep it here” to see it in this list.</div>
+      </section>
+
+      <section class="lm-card" aria-labelledby="cloudTitle">
+        <div class="lm-section-head"><h2 id="cloudTitle">☁️ Cloud accounts</h2></div>
+        <p class="lm-help lm-mb-md">Accounts are connected in the hub. Files on this page do not sync to them today — use “Save to my computer” to move work out.</p>
+        <div class="lm-grid is-tight" style="--min:220px">
+          <a class="lm-tile" href="/utilities" target="_blank" rel="noopener"><span class="lm-tile-icon is-info">📦</span><span><strong>Dropbox</strong><small>Connect in the hub ↗</small></span></a>
+          <a class="lm-tile" href="/utilities" target="_blank" rel="noopener"><span class="lm-tile-icon">🐙</span><span><strong>GitHub</strong><small>Connect in the hub ↗</small></span></a>
+          <a class="lm-tile" href="/utilities" target="_blank" rel="noopener"><span class="lm-tile-icon is-success">📁</span><span><strong>Google Drive</strong><small>Connect in the hub ↗</small></span></a>
+        </div>
+      </section>
     </div>
   </div>
-</div>
+</main>
+
+<script src="/api/education/mascot.js?v=4"></script>
 <script>
-var KEY='lm-files';
-function load(){ try{ return JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(e){ return []; } }
-function save(v){ try{ localStorage.setItem(KEY, JSON.stringify(v)); }catch(e){} }
-function msg(m){ document.getElementById('msg').textContent = m||''; }
-function esc(s){ var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+var KEY = 'lm-files', esc = window.LM.esc;
+function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
+function save(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) { msg('This browser would not keep the note. Save it to your computer instead.'); } }
+function msg(m) { document.getElementById('msg').textContent = m || ''; }
+function words(text) { return String(text || '').trim().split(/\s+/).filter(Boolean).length; }
 
-function saveLocal(){
-  var name=document.getElementById('fname').value.trim()||'untitled.txt';
-  var text=document.getElementById('ftext').value;
-  if(!text){ msg('Type something first.'); return; }
-  var list=load(); list.unshift({name:name,text:text}); save(list); render(); msg('Saved “'+name+'” here.');
+function saveLocal() {
+  var name = document.getElementById('fname').value.trim() || 'untitled.txt';
+  var text = document.getElementById('ftext').value;
+  if (!text) { msg('Type something first.'); document.getElementById('ftext').focus(); return; }
+  var list = load(); list.unshift({ name: name, text: text }); save(list); render(); msg('Kept “' + name + '” here, in this browser.');
 }
 // Real local file system save (Chrome File System Access API), with a download fallback.
-async function saveToComputer(){
-  var name=document.getElementById('fname').value.trim()||'untitled.txt';
-  var text=document.getElementById('ftext').value;
-  try{
-    if(window.showSaveFilePicker){
-      var handle=await window.showSaveFilePicker({suggestedName:name});
-      var w=await handle.createWritable(); await w.write(text); await w.close();
+async function saveToComputer() {
+  var name = document.getElementById('fname').value.trim() || 'untitled.txt';
+  var text = document.getElementById('ftext').value;
+  try {
+    if (window.showSaveFilePicker) {
+      var handle = await window.showSaveFilePicker({ suggestedName: name });
+      var w = await handle.createWritable(); await w.write(text); await w.close();
       msg('Saved to your computer ✓'); return;
     }
-  }catch(e){ if(e&&e.name==='AbortError'){ return; } }
+  } catch (e) { if (e && e.name === 'AbortError') { return; } }
   // Fallback: trigger a download
-  var blob=new Blob([text],{type:'text/plain'});
-  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
-  setTimeout(function(){ URL.revokeObjectURL(a.href); },1000);
-  msg('Downloaded “'+name+'” ✓');
+  var blob = new Blob([text], { type: 'text/plain' });
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  msg('Downloaded “' + name + '” ✓');
 }
-async function openFromComputer(){
-  try{
-    if(window.showOpenFilePicker){
-      var picks=await window.showOpenFilePicker();
-      var file=await picks[0].getFile(); var text=await file.text();
-      document.getElementById('fname').value=file.name; document.getElementById('ftext').value=text;
-      msg('Opened “'+file.name+'” ✓'); return;
+async function openFromComputer() {
+  try {
+    if (window.showOpenFilePicker) {
+      var picks = await window.showOpenFilePicker();
+      var file = await picks[0].getFile(); var text = await file.text();
+      document.getElementById('fname').value = file.name; document.getElementById('ftext').value = text;
+      msg('Opened “' + file.name + '” ✓'); return;
     }
-  }catch(e){ if(e&&e.name==='AbortError'){ return; } }
+  } catch (e) { if (e && e.name === 'AbortError') { return; } }
   // Fallback: hidden input
-  var inp=document.createElement('input'); inp.type='file';
-  inp.onchange=function(){ var f=inp.files[0]; if(!f)return; var r=new FileReader();
-    r.onload=function(){ document.getElementById('fname').value=f.name; document.getElementById('ftext').value=String(r.result); msg('Opened “'+f.name+'” ✓'); }; r.readAsText(f); };
+  var inp = document.createElement('input'); inp.type = 'file';
+  inp.onchange = function () { var f = inp.files[0]; if (!f) return; var r = new FileReader();
+    r.onload = function () { document.getElementById('fname').value = f.name; document.getElementById('ftext').value = String(r.result); msg('Opened “' + f.name + '” ✓'); }; r.readAsText(f); };
   inp.click();
 }
-function render(){
-  var list=load(), ul=document.getElementById('saved'); ul.innerHTML='';
-  document.getElementById('empty').style.display=list.length?'none':'block';
-  list.forEach(function(f,i){
-    var li=document.createElement('li');
-    li.innerHTML='📄 <span>'+esc(f.name)+'</span> <span class="x" data-i="'+i+'">delete</span>';
-    li.onclick=function(e){ if(e.target.classList.contains('x')){ var l=load(); l.splice(i,1); save(l); render(); return; }
-      document.getElementById('fname').value=f.name; document.getElementById('ftext').value=f.text; msg('Loaded “'+f.name+'”.'); };
+function render() {
+  var list = load(), ul = document.getElementById('saved'); ul.innerHTML = '';
+  document.getElementById('empty').style.display = list.length ? 'none' : '';
+  document.getElementById('savedCount').textContent = list.length ? list.length + (list.length === 1 ? ' file' : ' files') : '';
+  list.forEach(function (f, i) {
+    var li = document.createElement('li'); li.className = 'lm-item is-clickable'; li.tabIndex = 0; li.setAttribute('role', 'button');
+    var n = words(f.text);
+    li.innerHTML = '<span class="lm-tile-icon" aria-hidden="true">📄</span><div class="lm-item-body"><strong>' + esc(f.name) + '</strong><small>' + n + (n === 1 ? ' word' : ' words') + ' · tap to open</small></div>'
+      + '<button type="button" class="lm-btn lm-btn-quiet x" data-i="' + i + '" aria-label="Delete ' + esc(f.name) + '">Delete</button>';
+    function open() { document.getElementById('fname').value = f.name; document.getElementById('ftext').value = f.text; msg('Loaded “' + f.name + '”.'); }
+    li.onclick = function (e) {
+      if (e.target.closest('.x')) {
+        if (!confirm('Delete “' + f.name + '” from this browser? This cannot be undone.')) return;
+        var l = load(); l.splice(i, 1); save(l); render(); msg('Deleted “' + f.name + '”.'); return;
+      }
+      open();
+    };
+    li.onkeydown = function (e) { if (e.target === li && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); } };
     ul.appendChild(li);
   });
 }

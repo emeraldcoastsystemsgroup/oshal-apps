@@ -2,10 +2,106 @@
 <!-- CHANGE LOG
 SEQ | AUTHOR | DESCRIPTION
 1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette in Stories while retaining the existing editable brief and handoff behavior.
+2 | maintainer@emeraldcoastsystemsgroup.com | The family audience view for the Home shell (ADR-164 D6): with ?audience=family the shared kit paints the signed-in account's own story videos (waiting or being made, one count because the route counts queued and running together; finished in five days, not finished, last change, and the newest three with where each stands) from the same GET /home-summary the full page reads, in plain words. The module script's start steps (handoff listener, connected-actions mount, Refresh handler, summary read) run only when no audience view renders, so the view reads once, writes nothing and never starts a story.
 -->
 <html lang="en" data-theme="workspace"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Creative Studio</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the signed-in account's OWN story
+     videos (how many are waiting or being made, which the route counts together as queued plus running, finished in
+     the last five days and not finished, and the newest three with where each one stands) from the SAME GET /api/creative-studio/home-summary the full page reads, painted by the shared kit
+     in the family grammar. On open it makes only that one read, an owner-scoped SELECT over the story rows of the
+     vids_jobs ledger under the caller's session. It never starts or produces a story, never fetches connected-actions
+     offers, binds no handoff listener and writes nothing. Any other request runs the full Creative Studio page below
+     unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<style>
+  /* This page gives every bare button a margin for its own controls; under an audience view the kit's buttons keep the kit's spacing. */
+  html[data-audience] .av-btn { margin: 0; }
+</style>
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=creative-studio', KICKER = 'Story videos', ISO = /^\d{4}-\d{2}-\d{2}T/;
+  var WORDS = { queued: 'Waiting its turn', running: 'Being made now', done: 'Finished', failed: 'Did not finish' };
+  function read() {
+    return fetch('/api/creative-studio/home-summary', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j || {} }; });
+    });
+  }
+  function refused(res) { return res.status === 401 || res.status === 403; }
+  // A story item carries the route's two draft offers (prepare-document, prepare-episode); the trailing ledger note and
+  // the not-checked or no-work sentence carry none.
+  function isStory(item) { return !!item && Array.isArray(item.actions) && item.actions.length > 0; }
+  // A story item's detail is '<status> · updated <when>' (routes/home-summary.js): status is the vids_jobs status and
+  // when is an ISO instant or the route's own 'date unavailable'.
+  function parse(detail) {
+    var s = String(detail || ''), at = s.lastIndexOf(' · updated ');
+    return at < 0 ? { status: s, updated: '' } : { status: s.slice(0, at), updated: s.slice(at + 11) };
+  }
+  function word(status) { return WORDS[status] || (status ? 'Status: ' + status : 'Status not recorded'); }
+  function updated(value) { return 'updated ' + (ISO.test(value) ? A.when(value) : (value || 'date unavailable')); }
+  // The Vids story route saves each story's idea as 'story: <label>'; the family view shows the label.
+  function name(item) { return String(item.text || '').replace(/^story:\s*/i, '') || 'Untitled story'; }
+  // The route sends each count as digits in a string ('0', '12'), or the word 'Unavailable' when that source failed.
+  function count(value) { return typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : null; }
+  function metric(body, id) { var m = (body.metrics || body.tiles || []).filter(function (x) { return x && x.id === id; })[0]; return m ? count(m.value) : null; }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function stat(id, label, n, tone, hint) {
+    return { id: id, label: label, value: n === null ? '—' : n, tone: n === null ? null : tone, hint: n === null ? 'Could not check' : hint || null };
+  }
+  // stories-active counts status IN ('queued','running'): a queued story waits for the worker and is not being made
+  // yet, so the count and the title name both states; the tiles keep the per-story words.
+  function stats(n, newest) {
+    var last = newest ? parse(newest.detail).updated : '';
+    return [
+      stat('active', 'Waiting or being made', n.active, null),
+      stat('finished', 'Finished, last 5 days', n.done, null),
+      stat('unfinished', 'Did not finish', n.failed, n.failed > 0 ? 'warn' : null, 'All time'),
+      { id: 'latest', label: 'Last change', value: ISO.test(last) ? A.when(last) : '—' }
+    ];
+  }
+  function headline(n, stories, partial) {
+    if (n.active > 0) return plural(n.active, 'story video', 'story videos') + ' waiting or being made';
+    if (n.done > 0) return plural(n.done, 'story video', 'story videos') + ' finished in the last 5 days';
+    if (partial) return 'Some saved work could not be checked';
+    return stories.length ? 'Nothing waiting or being made right now' : 'No story videos yet';
+  }
+  function lede(stories, partial) {
+    var first = stories[0], p = first ? parse(first.detail) : null;
+    if (first) return 'Newest: ' + name(first) + ' (' + word(p.status).toLowerCase() + ', ' + updated(p.updated) + ').';
+    if (partial) return 'Some saved story videos could not be read just now. Try again in a moment, or open Creative Studio.';
+    return 'Creative Studio makes short story videos for kids from fables, fairy tales and famous sayings. The ones it makes show up here.';
+  }
+  function tile(item) {
+    var p = parse(item.detail), failed = p.status === 'failed';
+    return { icon: failed ? '⚠️' : '🎬', title: name(item), text: word(p.status), meta: updated(p.updated), tone: failed ? 'warn' : null };
+  }
+  function storiesSection(stories, partial) {
+    return { kind: 'tiles', id: 'stories', title: 'Newest story videos', items: stories.map(tile),
+      empty: partial ? 'None to show: some saved work could not be checked.' : 'No story videos yet.',
+      note: 'Only the story videos made for this account show here. Finished means the video maker reported the story done; it does not mean the video was posted anywhere or that the file is still where it was saved.' };
+  }
+  function model(body) {
+    var stories = (body.items || []).filter(isStory), partial = body.partial === true;
+    var n = { active: metric(body, 'stories-active'), done: metric(body, 'stories-done-5d'), failed: metric(body, 'stories-failed') };
+    return { kicker: KICKER, title: headline(n, stories, partial), lede: lede(stories, partial),
+      actions: [{ label: 'Open Creative Studio', primary: true, onClick: function () { A.open(FULL); } }],
+      stats: stats(n, stories[0]), sections: [storiesSection(stories, partial)] };
+  }
+  function family() {
+    return read().then(function (res) {
+      if (refused(res)) return { kicker: KICKER, title: res.status === 401 ? 'Sign in to see the story videos' : 'This account cannot open Creative Studio',
+        lede: res.status === 401 ? 'Creative Studio shows the story videos of whoever is signed in, and this session is not signed in.' : 'The Creative Studio routes refused this account (HTTP 403).' };
+      if (!res.ok) throw new Error('Creative Studio could not read the saved story videos (HTTP ' + res.status + ').');
+      return model(res.body);
+    }, function () { throw new Error('Creative Studio could not be reached just now.'); });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'creative-studio', escapeLabel: 'Open Creative Studio in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
 <style>
 :root {
   --ink: var(--text-primary, #edf0fa);
@@ -17,6 +113,9 @@ SEQ | AUTHOR | DESCRIPTION
 </style></head><body><main><header><div class="eyebrow">Connected creative workspace</div><h1>Creative Studio</h1><p class="hint">Review recorded work. Shape the next brief. Continue in the app that owns the next step.</p></header><div id="metrics" aria-label="Saved work metrics"></div><div class="layout"><section class="panel"><h2>Recorded work</h2><div id="records">Loading saved evidence…</div><button id="refresh">Refresh evidence</button><a href="/api/vids/app">Open Vids Studio</a></section><section class="panel"><h2>Your next brief</h2><label>Title<input id="title" maxlength="120" placeholder="What should happen next?"></label><label>Brief<textarea id="notes" maxlength="2000" placeholder="Select recorded work or write a new brief."></textarea></label><label>Source link<input id="sourceUrl" type="url" maxlength="2000"></label><div class="connected-app-actions"></div><p id="status" role="status" aria-live="polite"></p><p class="hint">Connected actions open editable drafts. Review and approve any publishing or generation in the destination app.</p></section></div></main><script type="module">
 import {receiveHandoff} from '/cockpit/js/app-handoff.js';
 import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
+// The full page only: under an audience view the shared kit paints instead (see the head script), so no handoff listener
+// is bound, no connected-actions offer is fetched, no Refresh handler is bound and the summary is not read a second time.
+if (!window.AppView || !AppView.active()) {
 const app="creative-studio",title=document.querySelector('#title'),notes=document.querySelector('#notes'),sourceUrl=document.querySelector('#sourceUrl'),status=document.querySelector('#status');
 const fill=c=>{title.value=String(c.title||'').slice(0,120);notes.value=String(c.notes||'').slice(0,2000);sourceUrl.value=c.sourceUrl||'';};
 receiveHandoff({app,action:'prepare-brief',version:1,contextType:'research-brief',fields:['title','notes','sourceUrl']},fill);
@@ -24,4 +123,5 @@ await mountConnectedActions({app,element:document.querySelector('.connected-app-
 async function refresh(){const list=document.querySelector('#records'),metrics=document.querySelector('#metrics');try{const r=await fetch('/api/'+app+'/home-summary',{cache:'no-store'}),data=await r.json();if(!r.ok)throw Error('Saved evidence cannot be checked right now.');list.replaceChildren();metrics.replaceChildren();for(const m of data.metrics||[]){const card=document.createElement('div');card.className='metric';const v=document.createElement('strong'),l=document.createElement('span');v.textContent=m.value;l.textContent=m.label;card.append(v,l);metrics.append(card);}for(const item of data.items||[]){const el=document.createElement('div'),heading=document.createElement('strong'),detail=document.createElement('p');el.className='record';heading.textContent=item.text;detail.textContent=item.detail||'';el.append(heading,detail);const context=item.actions?.[0]?.context;if(context){const b=document.createElement('button');b.textContent='Use this evidence';b.addEventListener('click',()=>{fill(context);status.textContent='Evidence loaded. Edit the brief before continuing.';});el.append(b);}list.append(el);}}catch(e){list.textContent=e.message;metrics.replaceChildren();}}
 document.querySelector('#refresh').addEventListener('click',refresh);
 await refresh();
+}
 </script></body></html>

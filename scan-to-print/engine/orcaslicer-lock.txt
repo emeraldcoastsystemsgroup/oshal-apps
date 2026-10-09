@@ -1,0 +1,13 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com   | Pin the slicer the engine container downloads at build time: the upstream
+#   |                                           | OrcaSlicer release AppImage per CPU architecture, with the sha256 GitHub
+#   |                                           | publishes for that asset. The Dockerfile refuses a download whose digest
+#   |                                           | differs. Part of the engine build hash, so changing a pin makes the running
+#   |                                           | container report itself out of date.
+#
+# arch     version  sha256                                                            url
+amd64      2.4.2    d12fb8c8eac1aecd2dfb6377acd48f994f8fa439ed5292fa532dd82880f029fd  https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.4.2/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.4.2.AppImage
+arm64      2.4.2    e1a07275a25f176626c55a5df39e91bc4476d8c28ee4a3192ff758e29dd5c3ba  https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.4.2/OrcaSlicer_Linux_AppImage_Ubuntu2404_aarch64_V2.4.2.AppImage

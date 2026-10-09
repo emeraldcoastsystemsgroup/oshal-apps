@@ -28,6 +28,19 @@
  *                     |                             | copy and requires the run to go red, which also proves the
  *                     |                             | child's exit code is readable at all (a `node --test` child
  *                     |                             | inheriting NODE_TEST_CONTEXT exits 0 even when it fails).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | The MOTOR rows read embodied. The fixture packages root now
+ *                     |                             | carries both owners (animatronics' servo catalog and
+ *                     |                             | embodied's compiled parts-catalog.json), each replaceable or
+ *                     |                             | removable on its own. New cases, the same four shapes the
+ *                     |                             | servo has: a fixture embodied whose different numbers move
+ *                     |                             | name, mass, price, source, KV and the derived noLoadRpm while
+ *                     |                             | this lab's electrical block stays its own; embodied absent
+ *                     |                             | withholds exactly the two motor rows naming embodied;
+ *                     |                             | embodied present but unable to answer withholds with the
+ *                     |                             | reason; restating name, mass, price, source, KV or noLoadRpm
+ *                     |                             | - or dropping the operating point the read needs - is
+ *                     |                             | refused with the field named. Installed alone, the package
+ *                     |                             | now withholds three rows (the SG90 and both motors).
  */
 'use strict';
 const test = require('node:test');
@@ -39,22 +52,40 @@ const { spawnSync } = require('node:child_process');
 
 const { loadDriverCatalog, listDrivers } = require(path.resolve(__dirname, '..', 'routes', 'driver-catalog.js'));
 const { ContractError } = require(path.resolve(__dirname, '..', 'routes', 'circuit-contract.js'));
+const { missingSharedOwners } = require(path.resolve(__dirname, 'shared-part-owners.js'));
 
 const PACKAGES_ROOT = path.resolve(__dirname, '..', '..');
 const FILE = path.resolve(__dirname, '..', 'catalog', 'drivers.json');
 const SHARED_ID = 'servo-micro-9g';
 const OWNER_LOADER = path.join(PACKAGES_ROOT, 'animatronics', 'routes', 'engine', 'catalog.js');
 const OWNER_CATALOG = path.join(PACKAGES_ROOT, 'animatronics', 'catalog', 'servos.json');
+const MOTOR_OWNER_FILE = ['routes', 'engine', 'design', 'parts-catalog.json'];
+const MOTOR_IDS = ['bl-2306-1800kv', 'bl-2807-1300kv'];
 
-/** Build a packages root on disk: this lab's catalog file, plus whatever owner tree is asked for. */
-function fixtureRoot(ownerJson) {
+/** A fixture embodied parts catalog: both motor rows, with numbers no real row carries, so a read can be told from a copy. */
+const MOTOR_OWNER = {
+  motors: [
+    { id: '2306-1800kv', name: 'A DIFFERENT MOTOR', massG: 33, approxUsd: 21, source: 'a fixture motor row, so that a read can be told from a copy', propulsion: { kv: 2000 } },
+    { id: '2807-1300kv', name: 'ANOTHER FIXTURE MOTOR', massG: 50, approxUsd: 31, source: 'a second fixture motor row', propulsion: { kv: 1250 } },
+  ],
+  servos: [],
+};
+
+/**
+ * Build a packages root on disk: this lab's catalog file, plus whatever owner trees are asked for.
+ * `ownerJson` is animatronics' servo catalog and `motorOwnerJson` embodied's parts catalog; null
+ * leaves that owner out, a string is written verbatim (an unreadable file).
+ */
+function fixtureRoot(ownerJson, motorOwnerJson = MOTOR_OWNER) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'circuit-lab-shared-'));
   fs.mkdirSync(path.join(root, 'circuit-lab', 'catalog'), { recursive: true });
   fs.copyFileSync(FILE, path.join(root, 'circuit-lab', 'catalog', 'drivers.json'));
-  if (ownerJson !== null) {
-    fs.mkdirSync(path.join(root, 'animatronics', 'catalog'), { recursive: true });
-    fs.writeFileSync(path.join(root, 'animatronics', 'catalog', 'servos.json'), typeof ownerJson === 'string' ? ownerJson : JSON.stringify(ownerJson));
-  }
+  const write = (file, json) => {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, typeof json === 'string' ? json : JSON.stringify(json));
+  };
+  if (ownerJson !== null) write(path.join(root, 'animatronics', 'catalog', 'servos.json'), ownerJson);
+  if (motorOwnerJson !== null) write(path.join(root, 'embodied', ...MOTOR_OWNER_FILE), motorOwnerJson);
   return { root, file: path.join(root, 'circuit-lab', 'catalog', 'drivers.json') };
 }
 
@@ -114,7 +145,8 @@ test('with the owner absent the row is WITHHELD naming the owner, and the rest o
   const { drivers, unresolved } = loadDriverCatalog(file);
   assert.equal(drivers.find((r) => r.id === SHARED_ID), undefined, 'nothing is invented in the owner place');
   assert.equal(listDrivers(drivers, 'servo').length, 0);
-  assert.ok(drivers.length >= 4, 'the rows this package owns outright still load');
+  const outright = JSON.parse(fs.readFileSync(FILE, 'utf8')).drivers.filter((r) => !r.sharedPart).map((r) => r.id);
+  for (const id of [...outright, ...MOTOR_IDS]) assert.ok(drivers.some((r) => r.id === id), `${id} still loads: its owner is not the one missing`);
   assert.equal(unresolved.length, 1);
   assert.equal(unresolved[0].id, SHARED_ID);
   assert.equal(unresolved[0].owner, 'animatronics');
@@ -187,6 +219,104 @@ test('against the real tree the lab and the owner describe the SAME servo', { sk
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// The motors: embodied owns them (ADR-152 D1) and publishes each as a data row with a
+// propulsion block. This lab keeps its electrical model and the operating point it solves at.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('a shared MOTOR is READ from embodied: name, mass, price, source and KV move with the owner, and noLoadRpm is KV x this lab’s operating point', () => {
+  const { root, file } = fixtureRoot(ownerCatalogWith(OWNER_ROW));
+  const { drivers, unresolved } = loadDriverCatalog(file);
+  assert.deepEqual(unresolved, [], 'both owners are installed, so nothing is withheld');
+  const declared = JSON.parse(fs.readFileSync(FILE, 'utf8')).drivers.find((r) => r.id === 'bl-2306-1800kv');
+  const row = drivers.find((r) => r.id === 'bl-2306-1800kv');
+  assert.equal(row.name, 'A DIFFERENT MOTOR');
+  assert.equal(row.massG, 33);
+  assert.equal(row.approxUsd, 21);
+  assert.equal(row.kv, 2000);
+  assert.match(row.source, /a fixture motor row, so that a read can be told from a copy/);
+  assert.match(row.source, /embodied\/routes\/engine\/design\/parts-catalog\.json#2306-1800kv/, 'the resolved source names the owner row');
+  assert.equal(row.nameplate.noLoadRpm, Math.round(2000 * declared.nameplate.nominalVolts), 'the owner KV at this lab’s operating point');
+  for (const key of ['nominalVolts', 'stallAmps', 'noLoadAmps', 'inductanceMh', 'rotorInertiaGcm2']) {
+    assert.equal(row.nameplate[key], declared.nameplate[key], `${key} is this lab's own electrical block`);
+  }
+  assert.equal(row.cells, declared.cells, 'the cell count is this lab’s operating point too');
+  assert.deepEqual(row.sharedFrom, { owner: 'embodied', file: 'routes/engine/design/parts-catalog.json', list: 'motors', id: '2306-1800kv' });
+  assert.equal(drivers.find((r) => r.id === 'bl-2807-1300kv').kv, 1250, 'the second motor reads its own row');
+  for (const id of MOTOR_IDS) {
+    const d = JSON.parse(fs.readFileSync(FILE, 'utf8')).drivers.find((r) => r.id === id);
+    for (const key of ['name', 'massG', 'approxUsd', 'source', 'kv']) assert.equal(d[key], undefined, `${id}: ${key} is not restated in this package`);
+    assert.equal(d.nameplate.noLoadRpm, undefined, `${id}: noLoadRpm is derived from the owner KV, not restated`);
+  }
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('with embodied absent exactly the two motor rows are WITHHELD naming embodied, and the rest of the catalog still loads', () => {
+  const { root, file } = fixtureRoot(ownerCatalogWith(OWNER_ROW), null);
+  const { drivers, unresolved } = loadDriverCatalog(file);
+  assert.deepEqual(unresolved.map((u) => u.id).sort(), [...MOTOR_IDS].sort());
+  for (const u of unresolved) {
+    assert.equal(u.owner, 'embodied');
+    assert.equal(u.type, 'motor');
+    assert.match(u.reason, /embodied owns this part and is not installed/);
+    assert.equal(drivers.find((r) => r.id === u.id), undefined, `${u.id}: nothing is invented in the owner's place`);
+  }
+  assert.deepEqual(listDrivers(drivers, 'motor').map((r) => r.id), ['brushed-12v-generic'], 'the motor this package owns outright still loads');
+  assert.ok(drivers.some((r) => r.id === SHARED_ID), 'the servo reads its own owner, which is present');
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('an embodied that is installed but cannot answer withholds the motor row with the reason, never a guess', () => {
+  const only2807 = { motors: [MOTOR_OWNER.motors[1]] };
+  const with2306 = (patch) => ({ motors: [{ ...MOTOR_OWNER.motors[0], ...patch }, MOTOR_OWNER.motors[1]] });
+  const cases = [
+    [only2807, /no row 2306-1800kv/],
+    [{ servos: [] }, /has no motors list/],
+    ['{ not json', /could not be read/],
+    [with2306({ propulsion: undefined }), /no propulsion block/],
+    [with2306({ propulsion: { kv: 'fast' } }), /propulsion\.kv/],
+    [with2306({ massG: 'heavy' }), /massG/],
+    [with2306({ source: '' }), /no source line/],
+  ];
+  for (const [motorOwnerJson, reason] of cases) {
+    const { root, file } = fixtureRoot(ownerCatalogWith(OWNER_ROW), motorOwnerJson);
+    const { drivers, unresolved } = loadDriverCatalog(file);
+    assert.equal(drivers.find((r) => r.id === 'bl-2306-1800kv'), undefined, `${reason}: the row is withheld`);
+    const withheld = unresolved.find((u) => u.id === 'bl-2306-1800kv');
+    assert.ok(withheld, `${reason}: and named`);
+    assert.match(withheld.reason, reason);
+    assert.equal(withheld.owner, 'embodied');
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('restating a field embodied publishes, or dropping the operating point the read needs, is refused at load with the field named', () => {
+  const declared = JSON.parse(fs.readFileSync(FILE, 'utf8')).drivers.find((r) => r.id === 'bl-2306-1800kv');
+  const { nominalVolts, ...withoutVolts } = declared.nameplate;
+  assert.ok(nominalVolts > 0, 'the declared row carries its operating point');
+  const cases = [
+    [{ ...declared, name: 'my own name for it' }, 'drivers[0].name'],
+    [{ ...declared, massG: 30 }, 'drivers[0].massG'],
+    [{ ...declared, approxUsd: 18 }, 'drivers[0].approxUsd'],
+    [{ ...declared, source: 'the usual sheet for the class' }, 'drivers[0].source'],
+    [{ ...declared, kv: 1800 }, 'drivers[0].kv'],
+    [{ ...declared, nameplate: { ...declared.nameplate, noLoadRpm: 26640 } }, 'drivers[0].nameplate.noLoadRpm'],
+    [{ ...declared, nameplate: withoutVolts }, 'drivers[0].nameplate.nominalVolts'],
+    [{ ...declared, note: '' }, 'drivers[0].note'],
+  ];
+  for (const [row, field] of cases) {
+    const made = fixtureRoot(ownerCatalogWith(OWNER_ROW));
+    fs.writeFileSync(made.file, JSON.stringify({ version: 1, drivers: [row] }));
+    assert.throws(() => loadDriverCatalog(made.file), (e) => e instanceof ContractError && e.field === field, field);
+    fs.rmSync(made.root, { recursive: true, force: true });
+  }
+  const stepper = JSON.parse(fs.readFileSync(FILE, 'utf8')).drivers.find((r) => r.type === 'stepper');
+  const made = fixtureRoot(ownerCatalogWith(OWNER_ROW));
+  fs.writeFileSync(made.file, JSON.stringify({ version: 1, drivers: [{ ...stepper, name: undefined, massG: undefined, approxUsd: undefined, source: undefined, note: 'n', sharedPart: { owner: 'embodied', file: 'routes/engine/design/parts-catalog.json', list: 'steppers', id: 'x1' } }] }));
+  assert.throws(() => loadDriverCatalog(made.file), (e) => e instanceof ContractError && e.field === 'drivers[0].sharedPart', 'a stepper still has no reader, and is refused rather than half-resolved');
+  fs.rmSync(made.root, { recursive: true, force: true });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Installed ALONE: the environment the fail-closed read exists for.
 //
 // A store package installs on its own, and the framework's Test Lab runs a package case against a
@@ -221,6 +351,10 @@ function runInstalledAlone(files, mutate) {
 }
 
 test('installed ALONE, with no owner beside it, this package\u2019s own catalog suite still passes', () => {
+  // Alone, the SG90 (animatronics) and both motors (embodied) are withheld, and the suite must agree.
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'circuit-lab-empty-'));
+  assert.deepEqual(missingSharedOwners(FILE, empty).map((m) => m.id).sort(), [...MOTOR_IDS, SHARED_ID].sort());
+  fs.rmSync(empty, { recursive: true, force: true });
   const run = runInstalledAlone(['tests/driver-catalog.test.js']);
   assert.equal(run.status, 0, `the catalog suite must pass against a single-package install:\n${run.output}`);
   assert.match(run.output, /^# fail 0$/m, 'nothing failed');

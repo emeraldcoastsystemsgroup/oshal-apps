@@ -27,6 +27,8 @@
   8   | maintainer@emeraldcoastsystemsgroup.com     | Open owned editable images with saved-project context and omit launcher aliases from studio cards.
   9   | maintainer@emeraldcoastsystemsgroup.com     | Forward admitted image artifact handoffs to the editor while keeping ordinary Home visits unchanged.
   10  | maintainer@emeraldcoastsystemsgroup.com     | Your brand band: the saved brand kit's swatches, fonts and logo (or a setup prompt), read only after Create access is open.
+  11  | maintainer@emeraldcoastsystemsgroup.com     | Add Video Studio's manual timeline editor as its own studio card and an Edit video quick start (CREATE-EDIT-05d). It shares Video Studio's access answer and summary, so its catalog entry is marked summary: false and is never probed twice.
+  12  | maintainer@emeraldcoastsystemsgroup.com     | Add Brand Graphics as a studio card and a Brand intro clip quick start; both open the brand-graphics package's own review page, behind the same access check as every studio.
 -->
 <html lang="en" data-theme="create">
 <head>
@@ -252,10 +254,12 @@
     { tool: 'create-office',   app: 'presentations',   name: 'AI Office',       swatch: '#ff8a5b', tint: 'peach', art: 'deck',      url: '/api/presentations/sections/ui', blurb: 'Decks, documents and live workbooks from one outline.' },
     { tool: 'create-portrait', app: 'portrait-studio', name: 'Portrait Studio', swatch: '#7d2ae8', tint: 'lilac', art: 'portrait',  url: '/api/portrait-studio/app',      blurb: 'Headshots, characters and group scenes from a photo.' },
     { tool: 'create-video',    app: 'video',           name: 'Video Studio',    swatch: '#2f9bff', tint: 'sky',   art: 'video',     url: '/api/video/ui',                 blurb: 'Short-form video from a storyboard.' },
+    { tool: 'create-video-editor', app: 'video',       name: 'Video editor',    swatch: '#ff5c8a', tint: 'rose',  art: 'clip',      url: '/api/video/editor',             blurb: 'Trim, split and join your own clips, add a title and music, export an MP4.', summary: false },
     { tool: 'create-lora',     app: 'lora',            name: 'LoRA Studio',     swatch: '#10b981', tint: 'mint',  art: 'nodes',     url: '/api/lora/ui',                  blurb: 'Train and score your own characters.' },
     { tool: 'create-vids',     app: 'vids',            name: 'Vids Studio',     swatch: '#00b8c4', tint: 'sky',   art: 'clip',      url: '/api/vids/app',                 blurb: 'The render queue for clips and episodes.' },
     { tool: 'create-story',    app: 'creative-studio', name: 'Stories',         swatch: '#ffb020', tint: 'lemon', art: 'film',      url: '/api/creative-studio/review',   blurb: 'Kid-safe story episodes, produced on a schedule.' },
-    { tool: 'create-scan-to-print', app: 'scan-to-print', name: '3D Scan-to-Print', swatch: '#00b8c4', tint: 'mint', art: 'cube', url: '/api/scan-to-print/app', blurb: 'Capture an object, review its 3D model and prepare a print.' }
+    { tool: 'create-scan-to-print', app: 'scan-to-print', name: '3D Scan-to-Print', swatch: '#00b8c4', tint: 'mint', art: 'cube', url: '/api/scan-to-print/app', blurb: 'Capture an object, review its 3D model and prepare a print.' },
+    { tool: 'create-brand-graphics', app: 'brand-graphics', name: 'Brand Graphics', swatch: '#1d4ed8', tint: 'sky', art: 'clip', url: '/api/brand-graphics/review', blurb: 'An on-brand oshal intro clip from a short brief, made in Google Vids.' }
   ];
   var byTool = {}; STUDIOS.forEach(function (s) { byTool[s.tool] = s; });
   byTool['create-new'] = { tool: 'create-new', name: 'Create', url: '/api/create/new' };
@@ -272,6 +276,8 @@
     { id: 'group',     label: 'Group portrait',     hint: 'Everyone in one shot', cat: 'images',    tool: 'create-portrait', tint: 'lemon', art: 'group' },
     { id: 'short',     label: 'Short video',        hint: 'Reels, Shorts, TikTok', cat: 'video',    tool: 'create-video',    tint: 'lilac', art: 'video' },
     { id: 'clip',      label: 'Video clip',         hint: 'Rendered on the node', cat: 'video',     tool: 'create-vids',     tint: 'sky',   art: 'clip' },
+    { id: 'edit-video', label: 'Edit video',        hint: 'Trim and join clips',  cat: 'video',     tool: 'create-video-editor', tint: 'rose', art: 'clip' },
+    { id: 'brand-intro', label: 'Brand intro clip', hint: 'On-brand motion graphic', cat: 'video', tool: 'create-brand-graphics', tint: 'sky', art: 'clip' },
     { id: 'episode',   label: 'Story episode',      hint: 'Kid-safe animation',   cat: 'story',     tool: 'create-story',    tint: 'peach', art: 'film' },
     { id: 'lora',      label: 'LoRA character',     hint: 'Train your own look',  cat: 'training',  tool: 'create-lora',     tint: 'mint',  art: 'nodes' },
     { id: 'scan-to-print', label: '3D scan to print', hint: 'Photos to a 3D model', cat: '3d', tool: 'create-scan-to-print', tint: 'mint', art: 'cube' }
@@ -500,6 +506,7 @@
     recentGrid.replaceChildren(); metricsEl.replaceChildren();
     var cards = [], pills = [], cantCheck = [];
     return Promise.all(STUDIOS.map(function (studio) {
+      if (studio.summary === false) return Promise.resolve();   // another catalog entry already reads this app's summary
       if (studio.app === 'create' && ACCESS.create !== 'open') { if (ACCESS.create !== 'locked') cantCheck.push(studio.name); return Promise.resolve(); }
       if (ACCESS[studio.app] === 'locked') return Promise.resolve();   // not provisioned: nothing to ask, nothing to show
       return fetchJson('/api/' + studio.app + '/home-summary').then(function (data) {

@@ -22,11 +22,12 @@ services:
     # without it only the JSON-lines bridge serves. install-engine.sh runs inside the api container and passes the
     # secret from that environment -- it is never written to a file.
     environment:
-      SWARM_SERVICE_SECRET: ${SWARM_SERVICE_SECRET:-}
       OSHAL_API_URL: ${EMBODIED_API_URL:-http://oshal-api:5000}
       EMBODIED_NODE_ID: ${EMBODIED_NODE_ID:-embodied-plant}
       # The person the node belongs to (ADR-114): the sub its heartbeats carry as the trusted service user identity.
-      EMBODIED_NODE_OWNER_SUB: ${EMBODIED_NODE_OWNER_SUB:-}
+      # ADR-175: each node's device credential (POST /api/join/enroll); the owner is whoever enrolled it.
+      EMBODIED_NODE_TOKEN: ${EMBODIED_NODE_TOKEN:-}
+      EMBODIED_PX4_NODE_TOKEN: ${EMBODIED_PX4_NODE_TOKEN:-}
       EMBODIED_NODE_ENDPOINT: http://embodied-engine:7414
       # The PX4 node (B6): set by install-engine.sh --with-px4; the vehicle is the px4 service below.
       EMBODIED_PX4_ADDR: ${EMBODIED_PX4_ADDR:-}
@@ -57,6 +58,29 @@ services:
       oshal:
         aliases:
           - embodied-px4
+  # The PteroSim leg of the cross-check (B28): the same PX4 image flying an EXTERNAL simulator. The none_iris airframe
+  # starts simulator_mavlink, which dials OUT to the simulator on TCP 4560 (PX4 is the client, the simulator listens) and
+  # runs lockstep once it connects; PX4_SIM_HOSTNAME names the host PteroSim runs on (host.docker.internal is the Windows
+  # host under Docker Desktop). Started only with --profile px4-external, never by install-engine.sh, and nothing restarts
+  # it. No host port: engine/crosscheck/px4_crosscheck.py --backend external dials it as embodied-px4-external:14580.
+  embodied-px4-external:
+    image: px4io/px4-sitl:latest
+    container_name: oshal-embodied-px4-external
+    entrypoint: ["/opt/px4/bin/px4"]
+    stdin_open: true
+    restart: "no"
+    init: true
+    profiles: [px4-external]
+    environment:
+      PX4_SIM_MODEL: none_iris
+      PX4_SIM_HOSTNAME: ${EMBODIED_PX4_SIM_HOSTNAME:-host.docker.internal}
+      PX4_SIM_SPEED_FACTOR: "1"
+    labels:
+      oshal.app: embodied
+    networks:
+      oshal:
+        aliases:
+          - embodied-px4-external
 networks:
   oshal:
     external: true

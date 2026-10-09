@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Inspect actual Canvas2D pixels, raster encodings and portable asset reads in isolated headless Chromium.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Prove each image filter changes real pixels as named, that the fixed filter string is what reaches the canvas, and that exported PNG pixels equal the preview canvas for a filtered layer.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -77,6 +78,42 @@ test('native image crop, brightness, contrast and opacity affect pixels without 
   assert.deepEqual(result.cropped, [0, 0, 255, 255]); assert.ok(result.darker[2] >= 127 && result.darker[2] <= 129);
   assert.ok(result.flat.slice(0, 3).every(channel => channel >= 126 && channel <= 130)); assert.ok(result.flat[3] >= 127 && result.flat[3] <= 129);
   assert.deepEqual(result.originalCrop, { x: 0, y: 0, w: 1, h: 1 }); assert.equal(result.sameSource, true); clean(value);
+});
+
+test('saturation, grayscale, sepia and blur change actual pixels as named without touching the source asset', async t => {
+  const value = await open(t), result = await value.page.evaluate(async () => {
+    const original = imageProject(photo()), assets = await rendering.loadProjectImages(original), sample = {};
+    const draw = patch => { rendering.renderProject(ctx, model.applyOperation(original, { type: 'update', id: 'photo', patch }), { images: assets }); };
+    for (const [name, patch] of [['plain', {}], ['gray', { grayscale: 100 }], ['desaturated', { saturation: 0 }], ['sepia', { sepia: 100 }], ['vivid', { saturation: 200, brightness: 60 }], ['softened', { blur: 4 }]]) {
+      draw(patch); sample[name] = { red: pixel(15, 20), edge: pixel(29, 20), blue: pixel(45, 20), outside: pixel(10, 5) };
+    }
+    return { sample, filter: rendering.imageFilter(model.applyOperation(original, { type: 'update', id: 'photo', patch: { sepia: 30, blur: 1.5, saturation: 80, grayscale: 10 } }).layers[0]),
+      neutral: rendering.imageFilter(original.layers[0]), sameSource: original.images.photo.src.startsWith('data:image/png') };
+  });
+  const { plain, gray, desaturated, sepia, softened } = result.sample;
+  assert.deepEqual(plain.red, [255, 0, 0, 255]); assert.deepEqual(plain.edge, [255, 0, 0, 255]); assert.equal(plain.outside[3], 0);
+  assert.ok(Math.abs(gray.red[0] - gray.red[1]) <= 1 && Math.abs(gray.red[1] - gray.red[2]) <= 1 && gray.red[0] > 40 && gray.red[0] < 90, String(gray.red));
+  assert.deepEqual(desaturated.red, gray.red);
+  assert.ok(sepia.red[0] > sepia.red[1] && sepia.red[1] > sepia.red[2], String(sepia.red));
+  assert.ok(softened.edge[2] > 20 && softened.edge[0] < 255, String(softened.edge)); assert.ok(softened.outside[3] > 0, 'blur softens the layer edge onto the canvas');
+  assert.equal(result.filter, 'brightness(100%) contrast(100%) saturate(80%) grayscale(10%) sepia(30%) blur(1.5px)');
+  assert.equal(result.neutral, 'brightness(100%) contrast(100%)'); assert.equal(result.sameSource, true); clean(value);
+});
+
+test('an exported PNG of a filtered layer decodes to exactly the preview canvas pixels', async t => {
+  const value = await open(t), result = await value.page.evaluate(async () => {
+    const project = model.applyOperation(imageProject(photo()), { type: 'update', id: 'photo', patch: { saturation: 40, sepia: 50, grayscale: 20, blur: 1.5 } });
+    const images = await rendering.loadProjectImages(project); rendering.renderProject(ctx, project, { images });
+    const preview = [...ctx.getImageData(0, 0, project.width, project.height).data];
+    const blob = await rendering.exportProjectImage(project, { type: 'image/png', images }), bitmap = await createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+    const output = document.createElement('canvas'); output.width = bitmap.width; output.height = bitmap.height;
+    const paint = output.getContext('2d'); paint.drawImage(bitmap, 0, 0); bitmap.close();
+    const exported = [...paint.getImageData(0, 0, output.width, output.height).data];
+    let differing = 0; for (let index = 0; index < preview.length; index++) if (Math.abs(preview[index] - exported[index]) > 1) differing++;
+    return { length: preview.length, exportedLength: exported.length, differing, filteredRed: preview.slice((20 * 80 + 15) * 4, (20 * 80 + 15) * 4 + 4) };
+  });
+  assert.equal(result.exportedLength, result.length); assert.equal(result.differing, 0);
+  assert.notDeepEqual(result.filteredRed, [255, 0, 0, 255]); clean(value);
 });
 
 for (const type of ['image/png', 'image/jpeg']) test(`native ${type} export has real file bytes and decodes to the edited composition`, async t => {

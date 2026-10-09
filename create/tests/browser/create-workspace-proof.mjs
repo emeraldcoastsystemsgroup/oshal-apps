@@ -7,6 +7,8 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Include the single added 3D scan starter in the existing clear-filter and catalog totals.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Include the distinct layered-image starter while retaining exact filter/navigation behavior.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Verify the complete restored catalog with distinct editable templates and blank image design entries.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Include the single added Edit video starter and card (CREATE-EDIT-05d) in the existing clear-filter and catalog totals.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Include the single added Brand intro clip starter and card in the existing clear-filter and catalog totals.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -121,7 +123,7 @@ test('keyboard Home search preserves the chosen starter kind and empty search st
   assert.match(await surface.locator('#filterStatus').innerText(), /no matches/i);
   await surface.locator('#clearQ').click();
   assert.equal(await surface.locator('#q').inputValue(), '');
-  assert.equal(await surface.locator('.tile:not(.hidden)').count(), 12);
+  assert.equal(await surface.locator('.tile:not(.hidden)').count(), 14);
 });
 
 test('section controls move keyboard focus and New returns Home through the existing navigation contract', async t => {
@@ -148,7 +150,7 @@ test('New format and purpose filters retain keyboard focus and truthful selectio
   assert.equal(await purpose.evaluate(node => node === document.activeElement), true);
   await surface.getByRole('button', { name: /All templates/ }).click();
   assert.deepEqual(await surface.locator('.card .name').allTextContents(), ['Launch presentation', 'Resume', 'Budget',
-    'Image templates', 'Image design', 'Headshot', 'Character portrait', 'Group portrait', 'Short video', 'Video clip', 'Story episode', '3D scan to print']);
+    'Image templates', 'Image design', 'Headshot', 'Character portrait', 'Group portrait', 'Short video', 'Video clip', 'Edit video', 'Brand intro clip', 'Story episode', '3D scan to print']);
 });
 
 test('locked studios do not navigate or probe and unavailable summaries never masquerade as zero work', async t => {

@@ -12,9 +12,14 @@
 
 name: hello-oshal
 suite: ai-engineering   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features: []   # no model in the loop (T0)
 displayName: Hello OSHAL
 description: The minimal working OSHAL app package — one JSON route, one themed ribbon surface.
-version: 1.2.1
+version: 1.2.3
 status: active
 scope: person
 chatBot: general-bot

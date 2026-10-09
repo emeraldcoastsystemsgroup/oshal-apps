@@ -1,0 +1,185 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Own Classroom entry, display and exact reviewed roles using existing application hosting.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Release explicitly authorized installed readiness.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Include every functional member and required dependency in one reviewed application role; no component selections.
+name: classroom-experience
+displayName: Classroom
+description: Classwork, class schedules and personal learning through existing school roles and roster rules.
+version: 1.0.2
+status: active
+suite: ai-knowledge
+rating:
+  memoryMb: { low: 16, high: 64, basis: declared }
+  features:
+    - id: assistant-handoff
+      unit: assistant request
+      tier: T1
+      generation: none
+      degrade: disable
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: classroom-experience
+  ref: main
+uses:
+  - application-authorization
+  - experience
+  - experience-roles
+  - app-dependencies
+  - test-catalog
+dependencies:
+  required:
+    apps:
+      - little-monsters
+      - presentations
+      - circuit-lab
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+authorization:
+  version: 1
+  catalog: authorization.yaml
+experience:
+  version: 1
+  label: Classroom
+  entry: /api/classroom-experience/app
+  shell: page
+  skin: classroom
+  surfaces:
+    - app: little-monsters
+      surface: lm-dashboard
+      audience: classroom
+    - app: little-monsters
+      surface: lm-myday
+      audience: classroom
+    - app: little-monsters
+      surface: lm-tutor
+      audience: classroom
+    - app: little-monsters
+      surface: lm-flashcards
+      audience: classroom
+    - app: little-monsters
+      surface: lm-arcade
+      audience: classroom
+    - app: little-monsters
+      surface: lm-monsters
+      audience: classroom
+    - app: little-monsters
+      surface: lm-recorder
+      audience: classroom
+    - app: little-monsters
+      surface: lm-presentations
+      audience: classroom
+    - app: little-monsters
+      surface: lm-timelines
+      audience: classroom
+    - app: little-monsters
+      surface: lm-formula-lab
+      audience: classroom
+    - app: little-monsters
+      surface: lm-stem
+      audience: classroom
+    - app: little-monsters
+      surface: lm-citations
+      audience: classroom
+    - app: little-monsters
+      surface: lm-files
+      audience: classroom
+    - app: little-monsters
+      surface: lm-teacher
+      audience: classroom
+    - app: little-monsters
+      surface: lm-voice-settings
+      audience: classroom
+    - app: presentations
+      surface: presentations-studio
+      audience: classroom
+    - app: circuit-lab
+      surface: circuit-lab
+      audience: classroom
+  roleTemplates:
+    - id: learner
+      version: 2
+      label: Learner
+      members:
+        - app: classroom-experience
+          role: learner
+        - app: little-monsters
+          role: student
+        - app: presentations
+          role: '@app-admin'
+        - app: circuit-lab
+          role: '@app-admin'
+    - id: teacher
+      version: 2
+      label: Teacher
+      members:
+        - app: classroom-experience
+          role: teacher
+        - app: little-monsters
+          role: teacher
+        - app: presentations
+          role: '@app-admin'
+        - app: circuit-lab
+          role: '@app-admin'
+    - id: administrator
+      version: 2
+      label: School administrator
+      members:
+        - app: classroom-experience
+          role: administrator
+        - app: little-monsters
+          role: admin
+        - app: presentations
+          role: '@app-admin'
+        - app: circuit-lab
+          role: '@app-admin'
+routes:
+  - module: routes/experience.js
+    factory: createExperienceRoutes
+    mountPath: /api/classroom-experience
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/classroom-experience/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+ui:
+  static:
+    - toolName: classroom-experience-main
+      label: Classroom
+      icon: codicon codicon-mortar-board
+      iframeUrl: /api/classroom-experience/app
+      section: top
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/classroom-experience/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+connectors: []
+chatBot: general-bot

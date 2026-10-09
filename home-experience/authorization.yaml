@@ -1,0 +1,85 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Host roles open this application only; member catalogs and relationships retain their authority.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Authorize exact read-only readiness roots using existing app.open.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Bind the owned attention asset GET and HEAD to existing app.open without new authority.
+version: 1
+resources:
+  application:
+    scopes:
+    - own
+permissions:
+  app.open:
+    resource: application
+    effect: read
+    minimumTier: viewer
+roles:
+  adult:
+    tier: viewer
+    grants:
+    - permission: app.open
+      scope: own
+  child:
+    tier: viewer
+    grants:
+    - permission: app.open
+      scope: own
+  guest:
+    tier: viewer
+    grants:
+    - permission: app.open
+      scope: own
+bindings:
+  http:
+  - id: entry
+    method: GET
+    path: /app
+    allOf:
+    - app.open
+  - id: entry-head
+    method: HEAD
+    path: /app
+    allOf:
+    - app.open
+  - id: asset-get-config-js
+    method: GET
+    path: /assets/config.js
+    allOf:
+    - app.open
+  - id: asset-head-config-js
+    method: HEAD
+    path: /assets/config.js
+    allOf:
+    - app.open
+  - id: asset-get-home-attention-js
+    method: GET
+    path: /assets/home-attention.js
+    allOf:
+    - app.open
+  - id: asset-head-home-attention-js
+    method: HEAD
+    path: /assets/home-attention.js
+    allOf:
+    - app.open
+  - id: asset-get-homebase-css
+    method: GET
+    path: /assets/homebase.css
+    allOf:
+    - app.open
+  - id: asset-head-homebase-css
+    method: HEAD
+    path: /assets/homebase.css
+    allOf:
+    - app.open
+  - id: readiness
+    method: GET
+    path: /
+    allOf:
+    - app.open
+  - id: readiness-head
+    method: HEAD
+    path: /
+    allOf:
+    - app.open

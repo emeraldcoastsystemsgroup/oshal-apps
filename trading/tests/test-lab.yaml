@@ -1,0 +1,119 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | The package's first Test Lab catalog (trading 1.33.0): the readiness smoke under its existing identity, and the suites of the ADR-052 addendum paper-to-live parity work - the Strategy Lab knob reference and editor, the confirm-gated plan amend control, the yield-sleeve governance readout, and the confirm-gated promotion of the three knobs - each with its real runner and prerequisites. The remaining package suites are still to be registered (trading/BACKLOG.md T1). Registration does not execute a suite or certify a pass.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Two expectations for cases the suites gained before 1.33.0 shipped: sleeve-governance-readout states what the positions table shows for an armed sleeve's fund (the badge style, the sentence in the open in its own block, and that the fund is not counted under the engine-will-not-trade headline), and position-plan-amend states that a life below 1 or a fraction is refused on the card before any request.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without broker, market-data, provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed intelligent-trades package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: lab-parity-knobs
+    name: Strategy Lab documents and edits the three parity knobs (ADR-052 addendum)
+    purpose: Drive GET /lab/knobs and POST /lab/strategies through the package's real lab router and the kernel's normalizeConfig, and execute the shipped view-strategies.js over app.js's real api() so the knob reference and the three editor rows are exercised end to end. The pool is an in-memory recording double; no broker, market data or order path is touched.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-lab-parity-knobs.spec.ts
+    expected:
+      - GET /lab/knobs carries marketGapFilterPct, exitPlanSessions and yieldSleeveFloatPct, each stating it is OFF by default, what 0 and blank mean, its env arm, its pre-registered value and that it reaches an account only through a confirmed Apply.
+      - Every key the kernel's normalizeConfig emits is documented in the reference, so a kernel knob without a row fails the case.
+      - The Lab editor paints the three fields blank by default and filled from a drafted config; Save posts blank as null (inherit), 0 as an explicit off and a number as the arm, stored exactly as the kernel normalizes it (plan life clamped to 252).
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: position-plan-amend
+    name: Exit plans are readable and amendable only on purpose (ADR-052 addendum P4)
+    purpose: Drive GET /position-plans and the confirm-gated POST /position-plans/amend through the package's real router against the kernel's plan ledger functions, and execute the shipped position-plans.js amend card over app.js's real api() wired to that router. The pool is an in-memory recording double holding the plan rows.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-position-plans-surface.spec.ts
+    expected:
+      - The amend route answers 428 confirm_required before any statement without confirm:true, 400 on a bad posture, sessions, symbols or empty change, and re-prices open plans from their original entry with the caller and the note when confirmed.
+      - The amend card sends its first request without confirm, shows the route's 428 words, and sends confirm:true only after an explicit OK; declining leaves every plan unchanged.
+      - A re-read refreshes only the card's count so typed input survives, and the card leaves with the last open plan.
+      - A life of 0, a negative or a fraction is refused on the card before any request, with or without a posture beside it, and the confirmation names every term the request carries.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: sleeve-governance-readout
+    name: The positions readout says what the engine will not trade, including an armed yield sleeve's fund
+    purpose: Drive ledgerGovernance, bookGovernance and exitRuleRows over the kernel's real resolvers, ring-fence parse, pinned-lot subtraction and cost attachment, so the positions badge and the Exits card answer exactly as the dispatch behaves (ADR-159, ADR-052 addendum P6). The pool is an in-memory double for the order and lot ledgers.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-unmanaged-positions.spec.ts
+    expected:
+      - A holding the engine cannot account for reads not managed, a ring-fence reads as a setting, a failed read reads NOT KNOWN, and a holding pinned in full reads as protected lots.
+      - On a book where the yield sleeve is armed (env arm for the book's kind, or a strategy knob), the fund reads yield sleeve with no exits and orders still applying, and its Exits card rules are inactive with no would-fire reason; unarmed, the answer is unchanged.
+      - A kernel without armedYieldSleeve keeps the old answer instead of failing the payload, and both reads call bookGovernance in the source and in the compiled twin.
+      - The positions table, rendered from that armed answer, badges the fund yield sleeve in the settings style and never the not-known one, prints the server's sentence outside any title attribute in the fund's own block, and does not count the fund under the engine-will-not-trade headline; an unaccounted neighbour still sits under that headline, counted alone.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: parity-knob-promotion
+    name: The three parity knobs reach an account only through the confirm-gated applies
+    purpose: Drive POST /accounts/books/:bookId/strategy and /mix through the package's real account router with the kernel's normalizeConfig and resolvers, on the live and paper books. Needs a framework carrying ADR-052 addendum P6 (core 693e6f7a or later); on an older framework the case fails naming it rather than skipping.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-parity-feature-promotion.spec.ts
+    expected:
+      - Without confirm:true every promotion shape answers 428 and reads and writes nothing, on the live book as on paper.
+      - Confirmed, the knobs are stored through normalizeConfig and the stored value is what the dispatch resolves for the book; an explicit 0 disarms an env-armed book.
+      - Applying a knob to the live book does not arm live trading, which still needs TRADING_LIVE_ENABLED and TRADING_AUTOPILOT_LIVE.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never

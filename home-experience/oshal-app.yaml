@@ -1,0 +1,254 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Own Home entry and supported references; exact member roles require explicit reviewed assignment.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Release explicitly authorized installed readiness.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Add the owned ticket-attention first screen without changing member roles or data authority.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Include every functional member and required dependency in one reviewed application role; no component selections.
+name: home-experience
+displayName: Home
+description: Your schedule, shopping list, household updates and explicitly connected applications in the established
+  Home layout.
+version: 1.0.3
+status: active
+suite: ai-home
+rating:
+  memoryMb: { low: 16, high: 64, basis: declared }
+  features:
+    - id: assistant-handoff
+      unit: assistant request
+      tier: T1
+      generation: none
+      degrade: disable
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: home-experience
+  ref: main
+uses:
+  - application-authorization
+  - experience
+  - experience-roles
+  - app-dependencies
+  - test-catalog
+dependencies:
+  required:
+    apps:
+      - purchasing
+      - home
+      - finance
+      - little-monsters
+      - movies
+      - spotify
+      - travel
+      - presentations
+      - calendar
+      - circuit-lab
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+authorization:
+  version: 1
+  catalog: authorization.yaml
+experience:
+  version: 1
+  label: Home
+  entry: /api/home-experience/app
+  shell: page
+  skin: family
+  surfaces:
+    - app: home
+      surface: home-dashboard
+      audience: family
+    - app: purchasing
+      surface: shop-concierge
+      audience: family
+    - app: purchasing
+      surface: shop-browse
+      audience: family
+    - app: purchasing
+      surface: shop-lists
+      audience: family
+    - app: purchasing
+      surface: shop-deals
+      audience: family
+    - app: finance
+      surface: finance-home
+      audience: family
+    - app: little-monsters
+      surface: lm-dashboard
+      audience: family
+    - app: little-monsters
+      surface: lm-myday
+      audience: family
+    - app: little-monsters
+      surface: lm-tutor
+      audience: family
+    - app: little-monsters
+      surface: lm-flashcards
+      audience: family
+    - app: little-monsters
+      surface: lm-arcade
+      audience: family
+    - app: little-monsters
+      surface: lm-monsters
+      audience: family
+    - app: little-monsters
+      surface: lm-recorder
+      audience: family
+    - app: little-monsters
+      surface: lm-presentations
+      audience: family
+    - app: little-monsters
+      surface: lm-timelines
+      audience: family
+    - app: little-monsters
+      surface: lm-formula-lab
+      audience: family
+    - app: little-monsters
+      surface: lm-stem
+      audience: family
+    - app: little-monsters
+      surface: lm-citations
+      audience: family
+    - app: little-monsters
+      surface: lm-files
+      audience: family
+    - app: movies
+      surface: movies-concierge
+      audience: family
+    - app: spotify
+      surface: spotify-concierge
+      audience: family
+    - app: travel
+      surface: travel-concierge
+      audience: family
+    - app: presentations
+      surface: presentations-studio
+      audience: family
+  roleTemplates:
+    - id: adult
+      version: 2
+      label: Household adult
+      members:
+        - app: home-experience
+          role: adult
+        - app: purchasing
+          role: '@app-admin'
+        - app: home
+          role: '@app-admin'
+        - app: finance
+          role: '@app-admin'
+        - app: little-monsters
+          role: student
+        - app: movies
+          role: '@app-admin'
+        - app: spotify
+          role: '@app-admin'
+        - app: travel
+          role: '@app-admin'
+        - app: presentations
+          role: '@app-admin'
+        - app: calendar
+          role: '@app-admin'
+        - app: circuit-lab
+          role: '@app-admin'
+    - id: child
+      version: 2
+      label: Household child
+      members:
+        - app: home-experience
+          role: child
+        - app: purchasing
+          role: '@app-admin'
+        - app: home
+          role: '@app-admin'
+        - app: finance
+          role: '@app-admin'
+        - app: little-monsters
+          role: student
+        - app: movies
+          role: '@app-admin'
+        - app: spotify
+          role: '@app-admin'
+        - app: travel
+          role: '@app-admin'
+        - app: presentations
+          role: '@app-admin'
+        - app: calendar
+          role: '@app-admin'
+        - app: circuit-lab
+          role: '@app-admin'
+    - id: guest
+      version: 2
+      label: Household guest
+      members:
+        - app: home-experience
+          role: guest
+        - app: purchasing
+          role: '@app-admin'
+        - app: home
+          role: '@app-admin'
+        - app: finance
+          role: '@app-admin'
+        - app: little-monsters
+          role: student
+        - app: movies
+          role: '@app-admin'
+        - app: spotify
+          role: '@app-admin'
+        - app: travel
+          role: '@app-admin'
+        - app: presentations
+          role: '@app-admin'
+        - app: calendar
+          role: '@app-admin'
+        - app: circuit-lab
+          role: '@app-admin'
+routes:
+  - module: routes/experience.js
+    factory: createExperienceRoutes
+    mountPath: /api/home-experience
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/home-experience/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+ui:
+  static:
+    - toolName: home-experience-main
+      label: Home
+      icon: codicon codicon-home
+      iframeUrl: /api/home-experience/app
+      section: top
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - chat
+    - calendar
+    - addressbook
+    - dashboard
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/home-experience/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+connectors: []
+chatBot: general-bot

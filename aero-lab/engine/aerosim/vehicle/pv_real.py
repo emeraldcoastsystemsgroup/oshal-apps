@@ -12,6 +12,9 @@ SEQ                 | AUTHOR                      | DESCRIPTION
     converter curve, PV-side harness I2R, with a physics ceiling guard that
     raises FreeEnergyError when a parameter walks. pv_model='flat' is the
     explicit ideal legacy path, bit-identical to the parent.
+2 | maintainer@emeraldcoastsystemsgroup.com   | The declared-efficiency band
+    refusal passes its parameter, value and [lo, hi] into ParamBoundsError, so
+    the structured param_out_of_bounds reason carries the band's numbers.
 
 WHY THE CEILING GUARD IS AN ENVELOPE, NOT THE FLAT DEFAULTS
 -----------------------------------------------------------
@@ -290,7 +293,9 @@ class PVArrayDiode(PVArray):
                 f"{hi:.4f}]: the diode set's own STC efficiency is "
                 f"{eta_diode:.4f} and the declared flat value is the CEILING "
                 f"claim for the SAME hardware -- outside the band either the "
-                f"declaration or the diode parameters walked"
+                f"declaration or the diode parameters walked",
+                param="PVArrayDiode.cell_efficiency_stc",
+                value=self.cell_efficiency_stc, lo=lo, hi=hi,
             )
 
     def _ceiling_W(self, poa_Wm2: float, cell_temp_K: float) -> float:

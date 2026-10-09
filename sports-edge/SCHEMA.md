@@ -2,11 +2,11 @@
 
 # Sports Edge (`sports-edge`) - database schema
 
-Postgres database `oshal`, schema `public` - shared with the platform and every other installed package. 10 tables in the reference database.
+Postgres database `oshal`, schema `public` - shared with the platform and every other installed package. 11 tables in the reference database.
 
-**Migrations** (declared in `oshal-app.yaml`, applied on activation, recorded in `app_package_migrations`): `migrations/001-sports-edge.sql`, `migrations/002-sports-fantasy.sql`, `migrations/003-sports-line-history.sql`, `migrations/004-sports-world-subjects.sql`
+**Migrations** (declared in `oshal-app.yaml`, applied on activation, recorded in `app_package_migrations`): `migrations/001-sports-edge.sql`, `migrations/002-sports-fantasy.sql`, `migrations/003-sports-line-history.sql`, `migrations/004-sports-world-subjects.sql`, `migrations/005-sports-fantasy-player-weeks.sql`
 
-**Created at runtime by package code** (`CREATE TABLE IF NOT EXISTS`): `routes/sports-fantasy-store.js`, `routes/sports-line-store.js`, `routes/sports-store.js`, `src-routes/sports-fantasy-store.ts`, `src-routes/sports-line-store.ts`, `src-routes/sports-store.ts`
+**Created at runtime by package code** (`CREATE TABLE IF NOT EXISTS`): `routes/sports-line-store.js`, `routes/sports-store.js`, `src-routes/sports-line-store.ts`, `src-routes/sports-store.ts`
 
 Platform conventions (ownership, RLS, how migrations run): [core data model](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/architecture/data-model/README.md).
 
@@ -21,6 +21,11 @@ erDiagram
   }
   sports_fantasy_leagues {
     bigint id PK
+  }
+  sports_fantasy_player_weeks {
+    integer season PK
+    integer week PK
+    integer player_id PK
   }
   sports_fantasy_projections {
     integer season PK
@@ -54,7 +59,7 @@ erDiagram
 
 ### `sports_fantasy_calls`
 
-Defined in `migrations/002-sports-fantasy.sql`, `routes/sports-fantasy-store.js`, `src-routes/sports-fantasy-store.ts` · RLS **off**
+Defined in `migrations/002-sports-fantasy.sql` · RLS **off**
 
 | Column | Type | Null | Default | Notes |
 |---|---|---|---|---|
@@ -81,7 +86,7 @@ Defined in `migrations/002-sports-fantasy.sql`, `routes/sports-fantasy-store.js`
 
 ### `sports_fantasy_leagues`
 
-Defined in `migrations/002-sports-fantasy.sql`, `routes/sports-fantasy-store.js`, `src-routes/sports-fantasy-store.ts` · RLS **off**
+Defined in `migrations/002-sports-fantasy.sql` · RLS **off**
 
 | Column | Type | Null | Default | Notes |
 |---|---|---|---|---|
@@ -94,9 +99,21 @@ Defined in `migrations/002-sports-fantasy.sql`, `routes/sports-fantasy-store.js`
 | `team_name` | text | yes |  |  |
 | `linked_at` | timestamp with time zone | no | now() |  |
 
+### `sports_fantasy_player_weeks`
+
+Defined in `migrations/005-sports-fantasy-player-weeks.sql` · RLS **off**
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `season` | integer | no |  | PK |
+| `week` | integer | no |  | PK |
+| `player_id` | integer | no |  | PK |
+| `stats` | jsonb | no |  |  |
+| `updated_at` | timestamp with time zone | no | now() |  |
+
 ### `sports_fantasy_projections`
 
-Defined in `migrations/002-sports-fantasy.sql`, `routes/sports-fantasy-store.js`, `src-routes/sports-fantasy-store.ts` · RLS **off**
+Defined in `migrations/002-sports-fantasy.sql` · RLS **off**
 
 | Column | Type | Null | Default | Notes |
 |---|---|---|---|---|

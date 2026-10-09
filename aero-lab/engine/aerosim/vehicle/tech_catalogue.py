@@ -5,6 +5,7 @@ SEQ                 | AUTHOR                      | DESCRIPTION
 -------------------------------------------------------------------------------
 1 | maintainer@emeraldcoastsystemsgroup.com   | New module: the TECHNOLOGY CATALOGUE -- named, cited technology points that exist TOGETHER, and the joint-frontier checks that close round 4's boundary-rider (FATAL 2). Measured exploit: cell_efficiency 0.4999 at areal density 0.15 kg/m2 + a 499.9 Wh/kg pack + a 1-gram fuselage + extra_CD0 = 0.0 -- every parameter individually inside its scalar band, jointly a technology that has never existed -- built, closed and screened admissible at usable margin 1.585. Scalar bands cannot see joint impossibility; a catalogue of real hardware can.
 2 | maintainer@emeraldcoastsystemsgroup.com   | ROUND 5 (cleanup): TOLERANCE COMPOUNDING closed. Measured corner (R6/R7): cell_efficiency 0.32999 at 0.1905 kg/m2 constructed -- the 5% density-class tolerance reached UP to the ELO point at 0.20 kg/m2 and the 10% efficiency tolerance then stacked ON TOP of it, minting a ~1730 W/kg specific-power cell no catalogue row contains (+4.1% usable on the frontier ship). Fix: PV_EFFICIENCY_TOL_FRAC now applies ONLY at or above the frontier point's OWN areal density; a design billing LIGHTER than the point it borrows (i.e. eligible only through the density-class tolerance) gets the frontier efficiency EXACTLY, no headroom -- tolerances no longer compound across the class edge. Also MAX_PV_PACKING_FACTOR = 0.92: packing_factor 0.999 was legal and rode the same corner; the best flown layouts (AtlantikSolar as-flown 0.802, Zephyr-class thin-film ~0.90) do not reach 0.92 -- cells cannot cover taper, spar caps and control-surface gaps. PVArray's declared bound now ends there. No band loosened; both changes strictly tighten.
+3 | maintainer@emeraldcoastsystemsgroup.com   | Each TechCatalogueError raise carries a structured technology_beyond_catalogue reason (aerosim.validity) with its kind (pv, pv_density_class, pack), the claimed value, the frontier ceiling and the billed areal density, attached at the raise so a sweep record or certification report names the frontier by its numbers. Checks and messages unchanged.
 
 WHY A CATALOGUE AND NOT MORE SCALAR BOUNDS
 ------------------------------------------
@@ -45,6 +46,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ..validity import attach as _attach_reason
 from .mass import (
     CELL_SI_ANODE_AMPRIUS_WH_PER_KG,
     MassClosureError,
@@ -225,12 +227,13 @@ def _pv_frontier_point(areal_density_kg_m2: float) -> CellTechnology:
         if p.areal_density_kg_m2 <= d * (1.0 + PV_DENSITY_CLASS_TOL_FRAC)
     ]
     if not eligible:
-        raise TechCatalogueError(
+        raise _attach_reason(TechCatalogueError(
             f"no catalogued PV technology exists at {d:g} kg/m2 or lighter -- "
             f"the lightest point is "
             f"{min(p.areal_density_kg_m2 for p in PV_CELL_CATALOGUE):g} kg/m2 "
             f"({PV_CELL_CATALOGUE[0].name})"
-        )
+        ), "technology_beyond_catalogue", kind="pv_density_class", value=d,
+            ceiling=None, areal_density_kg_m2=d)
     return max(eligible, key=lambda p: p.cell_efficiency_stc)
 
 
@@ -279,7 +282,7 @@ def check_pv_technology_pair(
     tol_frac = PV_EFFICIENCY_TOL_FRAC if same_class else 0.0
     ceiling = best.cell_efficiency_stc * (1.0 + tol_frac)
     if eff > ceiling * (1.0 + FRONTIER_REL_EPS):
-        raise TechCatalogueError(
+        raise _attach_reason(TechCatalogueError(
             f"technology catalogue: cell_efficiency_stc = {eff:g} at "
             f"{d:g} kg/m2 is beyond the catalogue frontier for its "
             f"areal-density class: best catalogued technology at or below "
@@ -297,7 +300,8 @@ def check_pv_technology_pair(
             + "). High efficiency and low areal density are COUPLED through "
             f"device physics; parameters must exist together, not merely "
             f"each be inside its own band."
-        )
+        ), "technology_beyond_catalogue", kind="pv", value=eff, ceiling=ceiling,
+            areal_density_kg_m2=d)
 
 
 def check_pack_technology(specific_energy_Wh_per_kg: float) -> None:
@@ -317,10 +321,11 @@ def check_pack_technology(specific_energy_Wh_per_kg: float) -> None:
     value = float(specific_energy_Wh_per_kg)
     if value > PACK_FRONTIER_WH_PER_KG * (1.0 + FRONTIER_REL_EPS):
         best = max(PACK_CATALOGUE, key=lambda p: p.pack_Wh_per_kg)
-        raise TechCatalogueError(
+        raise _attach_reason(TechCatalogueError(
             f"technology catalogue: pack specific energy {value:g} Wh/kg "
             f"exceeds the catalogue frontier {PACK_FRONTIER_WH_PER_KG:g} Wh/kg "
             f"('{best.name}': {best.source}). The 500 Wh/kg scalar ceiling is "
             f"a unit-error backstop, not a technology; no pack beyond "
             f"{PACK_FRONTIER_WH_PER_KG:g} Wh/kg exists to be bought."
-        )
+        ), "technology_beyond_catalogue", kind="pack", value=value,
+            ceiling=PACK_FRONTIER_WH_PER_KG, areal_density_kg_m2=None)

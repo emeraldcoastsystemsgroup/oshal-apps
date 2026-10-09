@@ -49,13 +49,48 @@
 
 name: intelligent-trades
 suite: ai-finance   # ADR-097: primary catalog shelf (tools keep their own category:)
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }
+  features:
+    - id: trade-decision
+      unit: trade decision
+      tier: T2
+      generation: none
+      degrade: template
+    - id: strategy-draft
+      unit: strategy draft
+      tier: T2
+      generation: none
+      degrade: disable
+    - id: strategy-studio
+      unit: strategy studio turn
+      tier: T3
+      generation: none
+      degrade: disable
+    - id: futures-study-review
+      unit: futures study review
+      tier: T3
+      generation: none
+      degrade: disable
+    - id: earnings-release-read
+      unit: earnings release
+      tier: T1
+      generation: none
+      degrade: disable
+    - id: trading-decision-ticket
+      unit: trading decision ticket
+      tier: T4
+      generation: none
+      degrade: disable
 displayName: Intelligent Trades
 description: >-
   Turn market signals into justified trades. Capture a tweet or headline, let the analyst
   reason over it, and place the trade through your broker (Alpaca) — with a full decision
   trail from every order back to the signal that triggered it. Paper-trade and live-trade as
   two separate books. Cash equities. No crypto.
-version: 1.20.1
+version: 1.33.0
 status: active
 
 source:
@@ -87,7 +122,7 @@ dependencies:
     tools: []
     connectors: []
   optional:
-    apps: [world]   # the World tab FRAMES world's own surface; absent, that tab is empty
+    apps: [world, futures-research]   # optional World surface and opt-in scheduled Futures reviewer
     tools: []
     connectors: []
 
@@ -97,11 +132,25 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - bound-workflow-results
+  - futures-forward-receipts
+  - futures-archive-import
+  # The research route reads the shared world index even when the World surface is absent.
+  - world-data
   # ADR-090: the specialist-context channel. A protected bot-node run is TOOL-LESS, so the
   # controller-side fact append registered by createTradingRoutes is the accountable trading
   # bot's ONLY data channel. Declared here so a kernel that predates the channel REFUSES this
   # package instead of installing it with the bot silently blind.
   - specialist-context
+  # The package's tests are registered with the AI Test Lab (tests/test-lab.yaml). Declared so a
+  # kernel that predates package catalogs refuses the package instead of silently ignoring them.
+  - test-catalog
+
+# AI Test Lab catalog: the readiness smoke and the ADR-052 addendum parity suites (T1 in BACKLOG.md
+# tracks registering the rest).
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 
 # Dark, focused trading skin.
 theme: midnight
@@ -121,6 +170,13 @@ workflow:
   workerBot: trading-analyst
 
 bots:
+  # Interactive research-only concierge; omit container to use the kernel's inline default.
+  - agentId: 90a8023d-7f86-485a-b215-f427d92ce032
+    name: futures-research-analyst
+    persona: personas/futures-research-analyst.yaml
+    role: trading/futures-research
+    accessRoles: [operator, swarm]
+    capabilities: [futures-study-review]
   - agentId: a0000000-0000-0000-0000-000000000046
     name: trading-analyst
     persona: personas/trading-analyst.yaml
@@ -332,7 +388,7 @@ routes:
     mountPath: /api/trading/autopilot
     auth: service-or-oidc   # what core server.ts ACTUALLY mounted (ADR-085 D2)
     requiresAuth: true
-    requiresContext: false
+    requiresContext: true   # Futures run ledger reads the framework pool through the route context.
   - module: routes/trading-strategy-lab-routes.js
     factory: createTradingStrategyLabRoutes
     mountPath: /api/trading/lab

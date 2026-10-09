@@ -1,111 +1,105 @@
-/* ═══ Little Monsters — Playful Education Theme ═══
+/* ═══ Little Monsters — the package skin the cockpit wears while this app is focused ═══
  *
- * Brand-matched to the Little Monsters mascot logo: a teal monster with orange
- * horns holding a pencil over a book on a warm yellow sunburst. The palette is
- * teal + cyan + orange on a soft deep-teal background, with cream text — bright,
- * friendly, and high-contrast for young students. Rounded corners, a sunburst
- * glow, and the mascot in the header make it read as "Little Monsters" the moment
- * the student opens the app.
- *
- * Everything here is scoped to [data-theme="little-monsters"] — it cannot affect
- * any other theme or app. Applied transiently by the cockpit when the LM app is
- * focused (manifest `theme: little-monsters`), so the operator's global theme is
- * preserved for plain /cockpit visits.
+ * One Little Monsters look everywhere: this skin is the same playful classroom palette the
+ * package pages and the classroom experience use (cream paper, soft lavender surfaces, a warm
+ * violet accent, sunny gold), so a learner sees the same app whether it is opened from the
+ * cockpit ribbon, from the classroom experience or on its own. Everything here is scoped to
+ * [data-theme="little-monsters"]; the cockpit applies it transiently for `theme: little-monsters`
+ * and the shared surface-theme bootstrap copies it into the app's own pages.
  *
  * CHANGE LOG
  * ---------------------------------------------------------------------------
- * DATE           | AUTHOR                    | DESCRIPTION
+ * SEQ | AUTHOR                                    | DESCRIPTION
  * ---------------------------------------------------------------------------
- * 2026-04-19     | roger.murphy@emeraldcoastsystemsgroup.com    | Initial creation — LM education theme (purple)
- * 2026-06-27     | roger.murphy@emeraldcoastsystemsgroup.com    | Rebrand to the teal/orange/cream mascot palette; add header mascot badge, rounded "bubbly" ribbon, sunburst background, brand gamification tokens
- * 2026-07-12     | roger.murphy@emeraldcoastsystemsgroup.com    | Wider docked rail (64px): the active pill's inset ring + the always-present thin scrollbar don't fit the framework's 48px collapsed rail — every icon clipped against the scrollbar gutter. Desktop-only override; the ≤640px mobile drawer keeps its 240px width.
+ * 1   | maintainer@emeraldcoastsystemsgroup.com   | Initial LM education theme (purple)
+ * 2   | maintainer@emeraldcoastsystemsgroup.com   | Teal/orange/cream mascot palette, header mascot badge, bubbly ribbon
+ * 3   | maintainer@emeraldcoastsystemsgroup.com   | Wider docked rail (64px) so the active pill and scrollbar fit
+ * 4   | maintainer@emeraldcoastsystemsgroup.com   | Aligned with the classroom skin (light, violet) so the package, the cockpit and the classroom experience share one Little Monsters look; kept the mascot wordmark, bubbly ribbon and rail width
  * ---------------------------------------------------------------------------
  */
 
 [data-theme="little-monsters"] {
-  /* ── Background: Deep purple (the monster's world), warm and playful ── */
-  --bg-primary: #1a1030;
-  --bg-secondary: rgba(36, 22, 64, 0.9);
-  --bg-tertiary: rgba(48, 30, 84, 0.74);
-  --bg-card: rgba(44, 26, 78, 0.62);
-  --bg-card-hover: rgba(64, 38, 110, 0.72);
+  color-scheme: light;
+  /* ── Background: warm paper with a lavender second surface ── */
+  --bg-primary: #fbf8f5;
+  --bg-secondary: #f4eef9;
+  --bg-tertiary: #efe6f6;
+  --bg-card: #ffffff;
+  --bg-card-hover: #fdfbff;
 
-  /* ── Borders: Soft pink glow ── */
-  --border-color: rgba(236, 79, 170, 0.14);
-  --border-color-hover: rgba(236, 79, 170, 0.32);
+  /* ── Borders ── */
+  --border-color: #ebdff5;
+  --border-color-hover: #d8c3e8;
 
-  /* ── Text: Soft pink-white on purple — high contrast ── */
-  --text-primary: #fdeaf6;
-  --text-secondary: #e7c6e6;
-  --text-muted: #b98cc8;
+  /* ── Text ── */
+  --text-primary: #342845;
+  --text-secondary: #584670;
+  --text-muted: #796694;
 
-  /* ── Accent: Monster magenta-pink with the blue-horn pop (the LM signature gradient) ── */
-  --accent-primary: #ec4faa;
-  --accent-primary-hover: #f56fbd;
-  --accent-gradient: linear-gradient(135deg, #ec4faa 0%, #a855f7 52%, #5b8def 100%);
-  --accent-glow: rgba(236, 79, 170, 0.32);
+  /* ── Accent: playful violet, the monster's horn-blue as the active tone ── */
+  --accent-primary: #6c4f97;
+  --accent-primary-hover: #8664b8;
+  --accent-gradient: linear-gradient(135deg, #6c4f97 0%, #a47ec9 100%);
+  --accent-glow: rgba(108, 79, 151, 0.22);
 
-  /* ── Status: Clear, friendly, accessible ── */
-  --status-success: #46d39a;
-  --status-active: #5b8def;     /* the monster's blue horns */
-  --status-warning: #f6c945;
-  --status-error: #ff6b8b;
+  /* ── Status ── */
+  --status-success: #15803d;
+  --status-active: #2563eb;
+  --status-warning: #b45309;
+  --status-error: #b91c1c;
 
-  /* ── Glass: Pink frost ── */
-  --glass-bg: rgba(236, 79, 170, 0.06);
-  --glass-bg-heavy: rgba(236, 79, 170, 0.12);
-  --glass-border: rgba(236, 79, 170, 0.14);
-  --glass-highlight: linear-gradient(135deg, rgba(236,79,170,0.16) 0%, rgba(91,141,239,0.07) 55%, rgba(236,79,170,0) 100%);
-  --glass-blur: 20px;
-  --glass-blur-light: 12px;
+  /* ── Glass ── */
+  --glass-bg: rgba(108, 79, 151, 0.05);
+  --glass-bg-heavy: rgba(108, 79, 151, 0.10);
+  --glass-border: rgba(108, 79, 151, 0.14);
+  --glass-highlight: linear-gradient(135deg, rgba(108, 79, 151, 0.12) 0%, rgba(242, 201, 76, 0.10) 55%, rgba(108, 79, 151, 0) 100%);
+  --glass-blur: 16px;
+  --glass-blur-light: 10px;
 
-  /* ── Scrollbar ── */
+  /* ── Inputs, scrollbar, shadows ── */
+  --input-bg: #ffffff;
   --scrollbar-track: transparent;
-  --scrollbar-thumb: rgba(236, 79, 170, 0.22);
+  --scrollbar-thumb: rgba(108, 79, 151, 0.25);
+  --panel-shadow: 0 10px 30px rgba(52, 40, 69, 0.10);
+  --card-shadow: 0 4px 14px rgba(52, 40, 69, 0.06);
+  --depth-shadow: 0 20px 50px rgba(52, 40, 69, 0.16);
 
-  /* ── Shadows: Warm depth ── */
-  --panel-shadow: 0 8px 32px rgba(0, 0, 0, 0.44), inset 0 1px 0 rgba(236,79,170,0.1);
-  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(236,79,170,0.07);
-  --depth-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
-
-  /* ── Little Monsters custom tokens (used by education bot UIs) ── */
-  --lm-xp-bar: linear-gradient(90deg, #ec4faa 0%, #a855f7 50%, #5b8def 100%);
-  --lm-streak-fire: #ff8a3d;
-  --lm-sunburst: #f6c945;
-  --lm-mascot-bg: rgba(236, 79, 170, 0.14);
-  --lm-flashcard-front: rgba(44, 26, 78, 0.85);
-  --lm-flashcard-back: rgba(91, 141, 239, 0.16);
-  --lm-quiz-correct: #46d39a;
-  --lm-quiz-incorrect: #ff6b8b;
-  --lm-quiz-pending: rgba(236, 79, 170, 0.28);
+  /* ── Little Monsters custom tokens (used by the education pages) ── */
+  --lm-xp-bar: linear-gradient(90deg, #6c4f97 0%, #c9a55a 100%);
+  --lm-streak-fire: #f97316;
+  --lm-sunburst: #f2c94c;
+  --lm-mascot-bg: rgba(108, 79, 151, 0.12);
+  --lm-flashcard-front: #ffffff;
+  --lm-flashcard-back: #f4eef9;
+  --lm-quiz-correct: #15803d;
+  --lm-quiz-incorrect: #b91c1c;
+  --lm-quiz-pending: rgba(108, 79, 151, 0.28);
 }
 
-/* ════════════════════════════════════════════════════════════════════════════
- * Playful flourishes — all scoped to the LM theme so nothing else is touched.
- * ════════════════════════════════════════════════════════════════════════════ */
+/* ═════ Playful flourishes, scoped to the LM theme so nothing else is touched. ═════ */
 
-/* Warm sunburst glows behind the whole cockpit, echoing the logo's halo. */
+/* A soft sunburst behind the cockpit, echoing the logo's halo. */
 [data-theme="little-monsters"] body,
 [data-theme="little-monsters"] .cockpit-body {
   background-image:
-    radial-gradient(900px 520px at 14% -12%, rgba(236, 79, 170, 0.12), transparent 60%),
-    radial-gradient(760px 520px at 102% -4%, rgba(91, 141, 239, 0.10), transparent 55%);
+    radial-gradient(900px 520px at 14% -12%, rgba(242, 201, 76, 0.16), transparent 60%),
+    radial-gradient(760px 520px at 102% -4%, rgba(108, 79, 151, 0.10), transparent 55%);
   background-attachment: fixed;
 }
 
-/* Header: swap the generic diamond glyph for the teal mascot, give the wordmark warmth. */
+/* Header: the mascot replaces the generic glyph; the wordmark takes the accent gradient. */
 [data-theme="little-monsters"] .logo > svg { display: none; }
 [data-theme="little-monsters"] .logo::before {
   content: "";
-  display: inline-block;       /* so width/height apply even if .logo isn't flex */
+  display: inline-block;
   vertical-align: middle;
   flex: 0 0 auto;
   width: 30px;
   height: 30px;
   margin-right: 4px;
   border-radius: 9px;
-  background: url("/api/education/mascot.png") center / contain no-repeat; /* the pink monster */
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+  background: url("/api/education/mascot.png") center / contain no-repeat;
+  filter: drop-shadow(0 2px 4px rgba(52, 40, 69, 0.25));
 }
 [data-theme="little-monsters"] .logo-text {
   font-weight: 800;
@@ -116,7 +110,7 @@
   -webkit-text-fill-color: transparent;
 }
 
-/* Bubbly ribbon: rounder buttons, a soft bounce on hover, a glowing active pill. */
+/* Bubbly ribbon: rounder buttons, a gentle lift on hover, a glowing active pill. */
 [data-theme="little-monsters"] .ribbon-btn {
   border-radius: 14px;
   transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
@@ -141,9 +135,8 @@
 }
 
 /* ── Docked rail width ──
-   The bubbly active pill (inset ring + hover scale) plus the tray's always-present
-   thin scrollbar (this app ships 13+ icons — it always overflows) don't fit the
-   framework's 48px collapsed rail: icons clip against the scrollbar gutter.
+   The bubbly active pill (inset ring + hover scale) plus the tray's thin scrollbar (this app
+   ships 13+ icons — it always overflows) don't fit the framework's 48px collapsed rail.
    Desktop-only: the ≤640px drawer keeps the framework's 240px mobile width. */
 @media (min-width: 641px) {
   [data-theme="little-monsters"] .ribbon-nav { width: 64px; min-width: 64px; }

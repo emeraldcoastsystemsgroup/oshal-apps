@@ -1,17 +1,86 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>OSHAL Movies &amp; TV</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: what is saved to watch
+     (movies and shows, newest first) and whether the movie database is connected, from the SAME /api/movies routes
+     the full page reads, painted by the shared kit in the family grammar. On open it reads only /config and
+     /watchlist: no movie-database call (trending, search, title detail), no concierge, no write. A saved title
+     opens its The Movie Database page in a new tab. Any other request runs the full Movies & TV page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<style>
+  /* This page's body is a flex column; under an audience view it lays out as a block so the kit's root keeps its full width. */
+  html[data-audience] body { display: block; }
+</style>
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=movies', TMDB = /^https:\/\/www\.themoviedb\.org\//;
+  function call(path) {
+    return fetch('/api/movies' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; });
+    });
+  }
+  function refused(e) { return !!e && (e.status === 401 || e.status === 403); }
+  // The connection check may fail on its own: the watchlist needs no movie-database key, so it still shows.
+  function config() { return call('/config').catch(function (e) { if (refused(e)) throw e; return null; }); }
+  function tmdbLink(row) { return TMDB.test(String(row.tmdb_url || '')) ? row.tmdb_url : null; }
+  function tile(row) {
+    var tv = row.media_type === 'tv', link = tmdbLink(row);
+    return { icon: tv ? '📺' : '🎬', title: row.title || 'Untitled', text: [tv ? 'Show' : 'Movie', row.year].filter(Boolean).join(' · '), meta: 'saved ' + A.when(row.created_at), href: link, target: link ? '_blank' : null };
+  }
+  function stats(rows, cfg) {
+    var count = function (type) { return rows.filter(function (r) { return r.media_type === type; }).length; };
+    return [
+      { id: 'want', label: 'Want to watch', value: rows.length },
+      { id: 'movies', label: 'Movies', value: count('movie') },
+      { id: 'shows', label: 'Shows', value: count('tv') },
+      { id: 'database', label: 'Movie database', value: !cfg ? '—' : cfg.connected ? 'Connected' : 'Not set up', hint: cfg ? null : 'Could not check', tone: cfg && !cfg.connected ? 'warn' : null }
+    ];
+  }
+  function model(cfg, rows) {
+    var off = !!cfg && !cfg.connected, first = rows[0];
+    var actions = [{ label: 'Find something to watch', primary: true, onClick: function () { A.open(FULL); } }];
+    if (off) actions.push({ label: 'Connect the movie database', onClick: function () { A.open('/utilities'); } });
+    return {
+      kicker: 'Movie night',
+      title: rows.length ? rows.length + ' saved to watch' : 'Nothing saved to watch yet',
+      lede: first ? 'Newest: ' + (first.title || 'Untitled') + ', saved ' + A.when(first.created_at) : off ? 'Connect the movie database, then save titles in Movies & TV to see them here.' : 'Open Movies & TV and tap + Watchlist on a title to see it here.',
+      actions: actions,
+      stats: stats(rows, cfg),
+      sections: [
+        { kind: 'tiles', id: 'watchlist', title: 'Up next on the watchlist', empty: 'Nothing on the watchlist yet.', items: rows.slice(0, 8).map(tile),
+          note: off ? 'The movie database is not connected, so search and where-to-watch are off in Movies & TV. The saved watchlist still shows.' : rows.some(tmdbLink) ? 'Tap a title to see it on The Movie Database.' : null },
+        rows.length > 8 ? { kind: 'list', id: 'earlier', title: 'Saved earlier', items: rows.slice(8, 30).map(tile) } : null
+      ]
+    };
+  }
+  function family() {
+    return Promise.all([config(), call('/watchlist')]).then(function (r) {
+      return model(r[0], (r[1].items || []).filter(function (x) { return !x.status || x.status === 'want'; }));
+    }).catch(function (e) {
+      if (!refused(e)) throw e && e.status >= 500 ? new Error('Movies & TV could not read the watchlist (HTTP ' + e.status + ').') : e;
+      return { kicker: 'Movie night', title: e.status === 401 ? 'Sign in to see the watchlist' : 'This account cannot open Movies & TV',
+        lede: e.status === 401 ? 'Movies & TV shows the watchlist of whoever is signed in, and this session is not signed in.' : 'The Movies & TV routes refused this account (HTTP 403).' };
+    });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'movies', escapeLabel: 'Open Movies & TV in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
 <style>
   /* OSHAL dark-glass surface (cockpit midnight palette) + cinematic gold accent. */
   :root{
-    --bg:#0a0a12; --bg2:rgba(18,18,30,.85); --card:rgba(28,28,48,.55); --card-hover:rgba(40,40,68,.7);
-    --border:rgba(255,255,255,.08); --border2:rgba(255,255,255,.16);
-    --text:#eeeef5; --muted:#a0a0be; --dim:#5c5c78;
-    --accent:#f5c518; --accent2:#f59e0b; --accent-glow:rgba(245,197,24,.26);
-    --watch:#34d399; --warn:#fbbf24; --blur:20px;
+    --bg:var(--bg-primary,#0a0a12); --bg2:var(--glass-bg-heavy,rgba(18,18,30,.85)); --card:var(--bg-card,rgba(28,28,48,.55)); --card-hover:var(--bg-card-hover,rgba(40,40,68,.7));
+    --border:var(--border-color,rgba(255,255,255,.08)); --border2:var(--border-color-hover,rgba(255,255,255,.16));
+    --text:var(--text-primary,#eeeef5); --muted:var(--text-secondary,#a0a0be); --dim:var(--text-muted,#5c5c78);
+    --accent:var(--accent-primary,#f5c518); --accent2:var(--accent-primary-hover,#f59e0b); --accent-glow:var(--accent-glow,rgba(245,197,24,.26));
+    --watch:#34d399; --warn:var(--status-warning,#fbbf24); --blur:20px;
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow-x:hidden}
@@ -363,17 +432,21 @@ async function boot(){
     convId=cv.conversationId;if(convId)localStorage.setItem('oshalMoviesConv',convId);$('#msgs').innerHTML='';
     cv.messages.forEach(m=>pushMsg(m.role==='user'?'me':'bot',m.content));}}catch(e){}
 }
-boot();
+// The full page only: under an audience view the shared kit paints instead (see the head script).
+if (!window.AppView || !AppView.active()) boot();
 </script>
 
 <script type="module">
 import {receiveHandoff} from '/cockpit/js/app-handoff.js';
 import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
+// The full page only: under an audience view no handoff listener is added and no connected-actions offer is fetched.
+if (!window.AppView || !AppView.active()) {
 const panel=document.getElementById('planningPanel'),draft=document.getElementById('planningDraft');
 receiveHandoff({"app":"movies","action":"plan-movie","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]},context=>{draft.value=[context.title,context.notes,context.sourceUrl?'Source: '+context.sourceUrl:''].filter(Boolean).join('\n\n');panel.hidden=false;draft.focus();});
 document.getElementById('usePlanningDraft').onclick=()=>{if(document.getElementById('appWrap').style.display==='none'){document.getElementById('planningStatus').textContent='Your draft is ready. Complete the connection below, refresh its status, then use this draft.';return;}const input=document.getElementById('chatq');input.value=draft.value.replace(/\s+/g,' ').trim();input.focus();input.scrollIntoView({block:'center'});document.getElementById('planningStatus').textContent='Draft copied to the concierge. Review it and choose Send when ready.';};
 const element=document.querySelector('.connected-app-actions');
 void mountConnectedActions({app:"movies",element,contextForOffer:()=>{const notes=(panel.hidden?'':draft.value.trim())||document.getElementById('chatq').value.trim()||document.getElementById('q').value.trim();return notes?{title:"Plan around my movie request",notes:notes.slice(0,2000)}:null;}}).then(()=>element.querySelectorAll('button').forEach(b=>b.classList.add('btn')));
+}
 </script>
 </body>
 </html>

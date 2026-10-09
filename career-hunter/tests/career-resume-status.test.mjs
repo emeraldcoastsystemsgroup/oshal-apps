@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove a re-upload reports its own pending and failed lifecycle even when an older parsed profile remains available.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Recover newer JSON markers across re-upload crash windows instead of exposing a stale succeeded status.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Prove aborted and stale completion observers cannot overwrite the current resume-ingest generation.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Preserve observed resume lifecycle fields without fabricated active state or empty inventory.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -115,6 +116,8 @@ test('re-upload lifecycle supersedes an older parsed profile through child failu
   const pending = responseRecorder();
   await status({ userSub }, pending);
   assert.equal(pending.body.hasResume, true);
+  assert.equal(Object.hasOwn(pending.body, 'status'), false);
+  assert.equal(Object.hasOwn(pending.body, 'resumes'), false);
   assert.equal(pending.body.indexing, true);
   assert.equal(pending.body.ingest.state, 'pending');
   assert.match(pending.body.ingest.operationId, /^[0-9a-f-]{36}$/i);

@@ -12,6 +12,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Supply the kernel caller-identity boundary required when the user-store leaf is loaded in isolation.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Prove one admission deadline bounds hung credential queries and decryption before spawn and releases automatic leases.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Follow the kernel-owned Profile Studio dispatch boundary after capability binding and asset staging moved behind one awaited input object.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Career worker rail: invert the demo-operator carve case into the guard that every subject, the DEMO_MODE operator included, gets the empty login sandbox, no model key and no smuggled verdict or rail entry, while each real child receives its own runner-minted loopback rail entries; dispatch now brokers only Firecrawl, ignores any Anthropic row the query could return, and still fails closed on a Firecrawl decrypt failure.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,6 +25,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import Module from 'node:module';
 import { deploymentModeStub } from './helpers/deployment-mode-stub.mjs';
+import { requestIdentity } from './helpers/request-identity-stub.mjs';
 
 const require = createRequire(import.meta.url);
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -68,6 +70,20 @@ if (mode === 'delay') {
     home: process.env.HOME || process.env.USERPROFILE,
     portalLogins: process.env.OSHAL_PORTAL_LOGINS,
   })), 50);
+} else if (mode === 'rail') {
+  process.stdout.write(JSON.stringify({
+    railUrl: process.env.CAREER_RAIL_URL,
+    railGrant: process.env.CAREER_RAIL_GRANT,
+    railRunId: process.env.CAREER_RAIL_RUN_ID,
+    railToken: process.env.CAREER_RAIL_TOKEN,
+    railSecret: process.env.CAREER_RAIL_SERVICE_SECRET,
+    fleetSecret: process.env.SWARM_SERVICE_SECRET,
+    anthropic: process.env.ANTHROPIC_API_KEY,
+    credAnthropic: process.env.OSHAL_CRED_ANTHROPIC,
+    portalLogins: process.env.OSHAL_PORTAL_LOGINS,
+    claudeConfigDir: process.env.CLAUDE_CONFIG_DIR,
+    codexHome: process.env.CODEX_HOME,
+  }));
 } else if (mode === 'noisy') {
   process.stdout.write('x'.repeat(200001) + 'OUT-TAIL');
   process.stderr.write('y'.repeat(4001) + 'ERR-TAIL');
@@ -92,6 +108,7 @@ Module._load = function loadWithLoggerStub(request, ...rest) {
     return { decryptToken: (...args) => decryptBehavior(...args) };
   }
   if (request === '@/app/routes/caller-sub') return { callerSub: (req) => req?.userSub || null };
+  if (request === '@/shared/services/database/request-identity') return requestIdentity;
   // No trusted-service identity in these isolation runs — the OIDC-only path stays exercised.
   if (request === '@/shared/middleware/authz') return { getTrustedServiceUserSub: () => null };
   if (request === 'better-sqlite3') return class FixtureDatabase {};
@@ -241,53 +258,84 @@ test('a delayed real child leaves the event loop responsive and receives the sco
   });
 });
 
-test('the demo-mode operator inherits the mounted vendor logins; everyone else keeps the brokered-only wall', async () => {
+test('every subject, the demo-mode operator included, gets the login sandbox, no model key and its own rail entries', async () => {
   const walled = (sub) => ({
     claudeConfigDir: join(fixtureDir, 'store', 'default', sub, '.brokered-auth-only', 'claude'),
     codexHome: join(fixtureDir, 'store', 'default', sub, '.brokered-auth-only', 'codex'),
   });
-  const loginDirsOf = async (sub, extra = {}) => {
-    const result = await runner.runCliAwait(sub, ['delay'], extra);
+  const smuggled = {
+    [`OSHAL_PORTAL_LOGINS`]: '1', ANTHROPIC_API_KEY: 'smuggled', OSHAL_CRED_ANTHROPIC: 'smuggled',
+    CAREER_RAIL_TOKEN: 'smuggled-token', CAREER_RAIL_SERVICE_SECRET: 'smuggled-secret', CAREER_RAIL_GRANT: 'smuggled-grant',
+    CAREER_RAIL_URL: 'http://192.168.50.10:5000/steal',
+    CODEX_HOME: '/home/user/.codex', CLAUDE_CONFIG_DIR: '/home/user/.claude',
+  };
+  const railEnvOf = async (sub, launch = { ownerIssuer: 'https://issuer.oshal.example.com' }) => {
+    let runId;
+    const result = await runner.runCliAwait(sub, ['rail'], smuggled, { ...launch, onRunStarted: (id) => { runId = id; } });
     assert.equal(result.ok, true, result.err);
-    const env = JSON.parse(result.out);
-    return { claudeConfigDir: env.claudeConfigDir, codexHome: env.codexHome, home: env.home, portalLogins: env.portalLogins };
+    return { ...JSON.parse(result.out), observedRunId: runId };
   };
   process.env.DEMO_MODE = 'true';
-  process.env.OSHAL_OPERATOR_SUBS = ' operator-42 ,other-operator';
+  process.env.OSHAL_OPERATOR_SUBS = 'operator-42';
+  process.env.SWARM_SERVICE_SECRET = 'fixture-service-secret';
+  process.env.PORT = '5123';
   try {
-    const operator = await loginDirsOf('operator-42');
-    assert.equal(operator.claudeConfigDir, undefined, 'the demo operator must not be sandboxed away from ~/.claude');
-    assert.equal(operator.codexHome, undefined, 'the demo operator must not be sandboxed away from ~/.codex');
-    assert.ok(operator.home, 'the engine child needs HOME to find the mounted logins');
-    assert.equal(operator.portalLogins, '1', 'the launcher only lifts ITS wall on the runner\'s explicit verdict');
-    assert.equal(runner.operatorPortalFallback('operator-42'), true);
-
-    const guest = await loginDirsOf('guest-7', { [runner.PORTAL_LOGINS_ENV]: '1' });
-    assert.deepEqual({ claudeConfigDir: guest.claudeConfigDir, codexHome: guest.codexHome }, walled('guest-7'),
-      'a non-operator stays walled even in demo mode');
-    assert.equal(guest.portalLogins, undefined, 'a caller-supplied verdict is stripped — no route can smuggle the carve');
-    assert.equal(runner.operatorPortalFallback('Operator-42'), false, 'the operator match is exact and case-sensitive');
-
-    delete process.env.DEMO_MODE;
-    const offDemo = await loginDirsOf('operator-42');
-    assert.deepEqual({ claudeConfigDir: offDemo.claudeConfigDir, codexHome: offDemo.codexHome }, walled('operator-42'),
-      'off demo, even the operator stays walled (tenant posture is brokered-only)');
-    assert.equal(offDemo.portalLogins, undefined, 'off demo the verdict is never stated');
+    for (const sub of ['operator-42', 'guest-7']) {
+      const env = await railEnvOf(sub);
+      assert.deepEqual({ claudeConfigDir: env.claudeConfigDir, codexHome: env.codexHome }, walled(sub),
+        `${sub}: the vendor-login sandbox is unconditional`);
+      assert.equal(env.portalLogins, undefined, `${sub}: the retired verdict never reaches the launcher`);
+      assert.equal(env.anthropic, undefined, `${sub}: no model key, controller or smuggled`);
+      assert.equal(env.credAnthropic, undefined, `${sub}: no brokered model key`);
+      assert.equal(env.railUrl, 'http://127.0.0.1:5123/api/career-hunter/engine/complete', `${sub}: loopback rail only`);
+      assert.notEqual(env.railGrant, 'smuggled-grant', `${sub}: the runner mints the grant`);
+      assert.ok(env.railGrant.startsWith(`${env.observedRunId}.`), `${sub}: the grant names the run`);
+      assert.equal(env.railSecret, undefined, `${sub}: the fleet secret is never forwarded to the engine`);
+      assert.equal(env.fleetSecret, undefined, `${sub}: nor under its own name`);
+      assert.equal(env.railToken, undefined, `${sub}: the retired bearer token is stripped`);
+      assert.equal(env.railRunId, env.observedRunId, `${sub}: the observer sees the same run id the child holds`);
+    }
+    const noIssuer = await railEnvOf('guest-7', {});
+    assert.deepEqual([noIssuer.railUrl, noIssuer.railGrant, noIssuer.railRunId], [undefined, undefined, undefined],
+      'a launch that established no verified issuer mints no rail entries');
+    assert.ok(noIssuer.observedRunId, 'the run is still registered');
+    const viaIdentity = await requestIdentity.runWithRequestIdentity(
+      { sub: 'guest-7', principalIssuer: 'https://issuer.oshal.example.com', isOperator: false },
+      async () => {
+        let runId;
+        const result = await dispatch.runCareerCliAwait({ query: async () => ({ rows: [] }) }, 'guest-7', ['rail'], {}, {
+          onRunStarted: (id) => { runId = id; }, spawnProcess: undefined,
+        });
+        return { ...JSON.parse(result.out), observedRunId: runId };
+      });
+    assert.ok(viaIdentity.railGrant?.startsWith(`${viaIdentity.observedRunId}.`),
+      "the dispatch reads the issuer from the kernel's request identity, so a route launch is minted a grant");
+    assert.equal(typeof runner.operatorPortalFallback, 'undefined', 'the carve predicate is gone');
+    assert.equal(runner.PORTAL_LOGINS_ENV, undefined);
   } finally {
     delete process.env.DEMO_MODE;
     delete process.env.OSHAL_OPERATOR_SUBS;
+    delete process.env.SWARM_SERVICE_SECRET;
+    delete process.env.PORT;
   }
 });
 
 test('mounted dispatch brokers only the caller credentials and never spawns on decrypt failure', async () => {
+  const decrypted = [];
+  const priorDecrypt = decryptBehavior;
+  decryptBehavior = async (_pool, _userSub, blob) => { decrypted.push(blob); return `plain:${blob}`; };
   const pool = {
     query: async (query, params) => {
+      const text = typeof query === 'string' ? query : query.text;
       const values = typeof query === 'string' ? params : query.values;
       assert.deepEqual(values, ['broker-user']);
+      assert.match(text, /provider = 'firecrawl'/);
+      assert.doesNotMatch(text, /anthropic/, 'the model credential is not even selected');
+      // Even if the store returned an Anthropic row, dispatch must ignore it.
       return { rows: [
         { provider: 'anthropic', access_token: 'anth-cipher' },
-        { provider: 'anthropic', access_token: 'older-anth-cipher' },
         { provider: 'firecrawl', access_token: 'fire-cipher' },
+        { provider: 'firecrawl', access_token: 'older-fire-cipher' },
       ] };
     },
   };
@@ -301,14 +349,16 @@ test('mounted dispatch brokers only the caller credentials and never spawns on d
       return child;
     } },
   );
+  decryptBehavior = priorDecrypt;
   assert.deepEqual(started, { started: true });
-  assert.equal(childEnv.OSHAL_CRED_ANTHROPIC, 'plain:anth-cipher');
+  assert.deepEqual(decrypted, ['fire-cipher'], 'only the newest Firecrawl row is decrypted');
+  assert.equal(childEnv.OSHAL_CRED_ANTHROPIC, undefined, 'a caller-supplied model credential is stripped');
   assert.equal(childEnv.OSHAL_CRED_FIRECRAWL, 'plain:fire-cipher');
   assert.equal(childEnv.CAREER_HUNTER_BROKER_COMPLETE, '1');
   assert.equal(childEnv.CH_TEST, 'present');
-  // The brokered per-user keys reach the engine under the names it reads — and ONLY those values:
-  // the controller's own keys (global-*-must-not-leak) are never in the child.
-  assert.equal(childEnv.ANTHROPIC_API_KEY, 'plain:anth-cipher');
+  // The brokered Firecrawl key reaches the engine under the name it reads — and no model key does:
+  // the controller's own keys (global-*-must-not-leak) are never in the child either.
+  assert.equal(childEnv.ANTHROPIC_API_KEY, undefined);
   assert.equal(childEnv.FIRECRAWL_API_KEY, 'plain:fire-cipher');
   assert.equal(childEnv.OPENAI_API_KEY, undefined);
   assert.equal(childEnv.SESSION_SECRET, undefined);
@@ -318,7 +368,7 @@ test('mounted dispatch brokers only the caller credentials and never spawns on d
 
   let spawned = false;
   const failed = await dispatch.runCareerCliAsync({
-    query: async () => ({ rows: [{ provider: 'anthropic', access_token: 'bad-ciphertext' }] }),
+    query: async () => ({ rows: [{ provider: 'firecrawl', access_token: 'bad-ciphertext' }] }),
   }, 'broker-user', ['broker-fail'], {}, { spawnProcess: () => { spawned = true; return fakeChild(18_002); } });
   assert.deepEqual(failed, { started: false, err: 'career engine credentials unavailable' });
   assert.equal(spawned, false);
@@ -347,7 +397,7 @@ test('awaited dispatch times out hung decryption before spawn and releases admis
   decryptBehavior = () => new Promise(() => {});
   try {
     const result = await dispatch.runCareerCliAwait(
-      { query: async () => ({ rows: [{ provider: 'anthropic', access_token: 'cipher' }] }) },
+      { query: async () => ({ rows: [{ provider: 'firecrawl', access_token: 'cipher' }] }) },
       'hung-decrypt-user', ['broker-decrypt-timeout'], {}, { deadlineAt: Date.now() + 40 },
     );
     assert.deepEqual(result, {

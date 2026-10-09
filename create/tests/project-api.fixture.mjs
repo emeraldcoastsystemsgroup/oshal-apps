@@ -3,6 +3,8 @@
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Serve the actual compiled Create project router with real Express/Sharp and explicit fixture-only verified actors.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Route brand.* permissions to the brand resource adapter, as the runtime routes each permission to its catalog resource.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Region editing: the compiled router now imports the core logger and the media-generation skill. The logger resolves to a recording double; the kernel provider resolves to a module that refuses to run, so every region test must name its own fixture provider through options.regionEdits. loadCompiled exposes other compiled modules under the same dependency map.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | options.extend lets a browser fixture add the real static editor routes and shared assets to the same server, after the project router.
  */
 import { createRequire } from 'node:module';
 import Module from 'node:module';
@@ -16,14 +18,26 @@ export const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..'
 export const coreRoot = resolve(process.env.OSHAL_CORE_ROOT || resolve(packageRoot, '../../oshal'));
 export const requireCore = createRequire(resolve(coreRoot, 'package.json'));
 export const express = requireCore('express'), sharp = requireCore('sharp');
-const dependencies = new Map([['express', express], ['multer', requireCore('multer')], ['sharp', sharp]]);
+/** Everything the compiled routes log, so a test can prove a failure was recorded. */
+export const logged = [];
+const record = level => (fields, message) => logged.push({ level, fields, message });
+const logger = { createChildLogger: () => ({ debug: record('debug'), info: record('info'), warn: record('warn'), error: record('error') }) };
+const refuse = () => { throw new Error('Fixture: the kernel image provider must never be reached; name a fixture provider'); };
+const dependencies = new Map([['express', express], ['multer', requireCore('multer')], ['sharp', sharp], ['@/shared/logger', logger],
+  ['@/features/video-generation', { resolveStoryboardImageProvider: refuse, recordStoryboardImageCost: refuse }]]);
 const requirePackage = createRequire(resolve(packageRoot, 'routes/create-project-routes.js'));
 const original = Module._load;
-let createCreateProjectRoutes;
-try {
-  Module._load = function(request, parent, main) { return dependencies.has(request) ? dependencies.get(request) : original.call(this, request, parent, main); };
-  ({ createCreateProjectRoutes } = requirePackage('./create-project-routes.js'));
-} finally { Module._load = original; }
+
+/** @description Load one compiled package module with the framework dependencies this fixture supplies.
+ * @param {string} name File name under routes/.
+ * @returns {object} The module's exports. */
+export function loadCompiled(name) {
+  try {
+    Module._load = function(request, parent, main) { return dependencies.has(request) ? dependencies.get(request) : original.call(this, request, parent, main); };
+    return requirePackage('./' + name);
+  } finally { Module._load = original; }
+}
+const { createCreateProjectRoutes } = loadCompiled('create-project-routes.js');
 
 export const ISSUER = 'https://create-identity.fixture.test';
 export const actors = {
@@ -55,7 +69,8 @@ export async function startApi(t, pool, options = {}) {
   };
   const app = express();
   app.use((req, _res, next) => scope.run(actors[req.header('x-fixture-actor') || 'alice'], next));
-  app.use('/api/create', createCreateProjectRoutes({ pool, authorization, appPackageDir: packageRoot }, { dataRoot }));
+  app.use('/api/create', createCreateProjectRoutes({ pool, authorization, appPackageDir: packageRoot }, { dataRoot, regionEdits: options.regionEdits }));
+  options.extend?.(app);
   const server = app.listen(0, '127.0.0.1');
   await new Promise(done => server.once('listening', done));
   t.after(async () => { server.closeAllConnections(); await new Promise(done => server.close(done)); await rm(dataRoot, { recursive: true, force: true }); });

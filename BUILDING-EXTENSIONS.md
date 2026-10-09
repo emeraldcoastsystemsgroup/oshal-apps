@@ -204,6 +204,12 @@ zero-dependency gate rejects YAML anchors, aliases, merge keys, tags, duplicate 
 implicitly typed non-string names rather than guessing how the runtime parser will resolve them.
 `node scripts/check-concierge-coverage.mjs` checks the whole manifest tree with no allowlist.
 
+A concierge that has to act needs package tools, and a package with an authorization catalog
+must bind its bots as well as its routes. Core `docs/apps/package-tools.md` ("Bots in an adopted
+package") has both rules and the failure each one prevents. A catalog that binds only HTTP routes
+refuses every turn with the bot (`authorization_operation_unbound`). A route-backed tool
+(`executorType: api`) answers 401 when a bot calls it.
+
 ### Joining the artifact exchange — "Send to…" (ADR-139)
 
 #### Choosing an existing file (Stage 4a)
@@ -346,6 +352,38 @@ don't provide `ctx.appPackageDir`; reading it per-request is a bug.
 Only `name` + `displayName` are required. Everything else is opt-in — a UI-only app declares no
 bots; a deterministic app declares no routes; etc.
 
+### The rating label (`rating:`, core ADR-170)
+
+Every package declares what it asks of the platform, so a person can read it before installing: the
+container memory it needs, and for each feature that calls a model, what one transaction is and what
+the model must be able to do. Put the block right after `suite:`, in this one standard form (the
+store gate refuses any other YAML shape for it):
+
+```yaml
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }   # MiB; basis declared | observed
+  features:
+    - id: daily-digest
+      unit: daily digest            # the thing one transaction is
+      tier: T3                      # T1 pick | T2 bounded plan | T3 grounded reasoning | T4 tool loops
+      generation: none              # none | local (ComfyUI, TTS, engine container) | hosted (Veo)
+      degrade: disable              # template | hosted | disable | reduced
+```
+
+- No model in the loop: `features: []`. That is a statement, not an omission.
+- `degrade: reduced` needs `reducedEdition:`, one sentence on what the reduced edition drops.
+  Use `template` only when the code has a real non-model path for that feature.
+- Memory is what this one app needs on the swarm host. Count every bot container it uses, even a
+  shared one, and leave out services on another machine. Declared figures follow one rule: 64 MiB
+  low and 256 high per bot-node container; 32 and 128 for an app with no bot container of its own;
+  a package engine container counts its `mem_limit` as high and a quarter of it as low.
+- Never type a token count or a verified model. Those are generated; the gate refuses them.
+
+After changing a `rating:` block run `node scripts/ai-usage-ledger.mjs --write`. It regenerates
+`AI-USAGE-LEDGER.md` and the "Models and requirements" section at the end of your package README.
+`--check` (in store-ci and the pre-push gate) fails on a stale ledger or section. A version bump
+alone does not need a regenerate.
+
 ## 5. Routes — compiled JS, framework imports by alias
 
 Routes are the only server code a package carries.
@@ -368,6 +406,25 @@ staged into **one** TypeScript program:
 ```bash
 node scripts/security/rebuild-store-routes.mjs --store <store> --framework <oshal checkout>
 ```
+
+The sources are staged inside the framework checkout, in `<oshal checkout>/src/__oshal_store_parity_<random>/`,
+because the framework's `tsconfig.json` compiles only `src`. The run prints that path and removes it
+when it ends. If the run is killed, a guardian process removes the stage and the compiler output once
+the run's process is gone. The guardian is started through a launcher that exits straight away, so it
+is not part of the run's process tree: killing the run, a Git Bash `timeout`, and `taskkill /T /F` on
+the run all leave the guardian running (measured on Windows). A kill that ends the guardian as well,
+such as killing the guardian's own pid, leaves the stage behind with its owner record, and the next
+run removes it at once. Every removal deletes the staged files before the owner record, so a removal
+that is cut short still names its run. Every run also first removes stages that earlier runs left
+behind:
+
+- a stage whose run (the pid in its `.oshal-stage-owner.json`) is no longer running;
+- a stage with no owner record, or one written on another machine, once it is more than an hour old;
+- a stage more than twelve hours old even if its pid still answers, because by then the pid belongs
+  to another process or the run is hung.
+
+It keeps the stage of a run that is still going, and it prints every stage it removes or keeps, with
+the reason.
 
 Packages type-check their `@/…` imports against a local `src-routes/core-modules.d.ts` — ambient
 `declare module` stubs for the framework surfaces they use. That file is a convenience, and it is
@@ -455,7 +512,7 @@ Some packages cannot compute inside the api process. The api image is Alpine (mu
 scientific Python stacks publish glibc-only wheels, and native toolchains like a SPICE solver or
 an AVR compiler are not on it at all. A package whose numbers come from one of those ships its own
 container and dials it over the stack network. Four packages arrived at this shape independently
-before it was written down; the differences between them were accidents, not choices, so what
+before it was written down (a fifth, `scene-studio`, and a sixth, `scan-to-print`, followed it); the differences between them were accidents, not choices, so what
 follows is the pattern — and the store CI gate `scripts/check-engine-container-pattern.mjs` holds
 every engine package to it.
 
@@ -465,6 +522,8 @@ every engine package to it.
 | `cad-studio` | CadQuery on the OCCT kernel | OCCT wheels are glibc + link against libGL | `cad-studio-engine:7412` |
 | `circuit-lab` | ngspice + avr-gcc / avr8js | apt-installed native toolchains | `circuit-lab-engine:7413` |
 | `embodied` | MuJoCo / Gymnasium | glibc-only wheels | `embodied-engine:7413` |
+| `scan-to-print` | OrcaSlicer CLI (STL → a Bambu Lab `.gcode.3mf`) | the slicer is a glibc AppImage linking GTK/WebKit/GL | `scan-to-print-engine:7414` |
+| `scene-studio` | Godot 4.7 + godot-mcp, Blender 5.1 + the Blender Lab MCP | native editors and their MCP servers; user code sandboxed per job | `scene-studio-engine:7414` |
 
 Read any one of them as a worked example; they agree. The port numbers need not be unique across
 packages — nothing is published to the host, and each container has its own network namespace.
@@ -712,3 +771,34 @@ returning up to four legacy tiles for existing group displays. See
 
 Never re-declare a bot `agentId` owned by another app. Never reference paths outside the
 package. Recurring `schedules` and `autoStart` cost money — declare them only when intended.
+
+## Shared bot ownership and dependencies
+
+Declare a bot once in the owning application's `bots` list. Keep its stable `agentId`, package-local
+reasoning persona and `container`/`port` when it runs on a dedicated node. A consumer's workflow
+imports the bot explicitly through its YAML:
+
+```yaml
+uses: [app-dependencies]
+dependencies:
+  required:
+    apps: [vids]
+    bots:
+      - app: vids
+        name: vids-operator
+  optional:
+    apps: []
+```
+
+Required imports require the owner in `required.apps`. Optional imports may reference owners in
+either application tier and cannot satisfy a required workflow worker. The selector grants no
+permissions, runtime configuration or credentials; application composites still declare their
+exact role members. A `chatBot` is metadata-only and does not claim execution ownership of a
+shared platform concierge. Groups borrow a required member's canonical concierge.
+
+`OSHAL_FRAMEWORK=/path/to/core node scripts/check-bot-dependencies.mjs` validates all source
+packages through the core YAML/dependency parser. The companion mutation suite is
+`OSHAL_FRAMEWORK=/path/to/core node --test scripts/check-bot-dependencies.test.mjs`. Both run in
+the standard store gate. They prove declaration consistency, not provider execution or live
+authorization. Catalog dependency mirrors are regenerated with
+`node scripts/gen-catalog-dependencies.mjs`.

@@ -1,4 +1,12 @@
-/** Actual app screens and cockpit relay; fixture records, no provider calls or business writes. */
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Actual app screens and cockpit relay with fixture records, no provider calls or business writes.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Serve the platform display preferences fixture under the canonical cockpit namespace.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Traverse every selected source and the complete independent directory; open real receiver surfaces through that directory and retain all context and zero-actuation assertions.
+ */
 const fs=require('fs'),path=require('path'),assert=require('node:assert/strict');
 const core=path.resolve(__dirname,'../../oshal'),store=path.resolve(__dirname,'..');
 const express=require(path.join(core,'node_modules/express')),yaml=require(path.join(core,'node_modules/js-yaml'));
@@ -53,7 +61,7 @@ assert.ok(vidsTemplate,'Use the actual compiled Vids HTML');
 const vidsHtml=new Function('return `'+vidsTemplate[1]+'`;')();
 app.get('/api/vids/app',(_req,res)=>res.type('html').send(vidsHtml));
 app.get('/api/swarm/apps/home-plan',(_req,res)=>res.json({apps:entries}));
-app.get('/api/home/preferences',(_req,res)=>res.json({preferences:{version:1},revision:0}));
+app.get('/api/cockpit/home/preferences',(_req,res)=>res.json({preferences:{version:1},revision:0}));
 for(const media of ['movies','spotify'])app.get('/api/'+media+'/config',(_req,res)=>res.json({connected:mediaConnected,status:mediaConnected?'ok':'not_connected'}));
 const campaign=id=>({campaign_id:id,name:id,product:id+' product',status:'draft',stage:0,channels:[],icp:{audience:id+' audience'},message_map:{brief:id+' evidence'}});
 app.get('/api/marketing/overview',(_req,res)=>res.json({campaigns:[campaign('unselected-campaign'),campaign('selected-campaign')]}));
@@ -75,10 +83,40 @@ app.use((req,res)=>res.json({tasks:[],items:[],campaigns:[],channels:[],scorecar
   await page.route('**/*',r=>new URL(r.request().url()).origin===base?r.continue():r.abort());
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   const frame=()=>page.frameLocator('iframe');
-  const open=async name=>{await page.goto(base);await page.locator(`.apps-home-card[data-card="${name}"]`).getByRole('button',{name:'Open',exact:true}).first().click();};
+  /** @description Open the exact declared receiver through the shipped complete application directory.
+   * @param {string} name Fixture manifest name. @returns {Promise<void>} The actual receiving frame. */
+  const open=async name=>{
+   const entry=entries.find(row=>row.name===name);assert.ok(entry);
+   await page.goto(base);await page.getByRole('button',{name:'All applications',exact:true}).click();
+   const destination=page.locator('#appsHomeDirectory [data-open="'+entry.firstSurface+'"]');
+   assert.equal(await destination.count(),1);await destination.click();
+   const expectedPath=new URL(entry.firstSurfaceUrl,base).pathname;
+   await page.waitForFunction(expected=>document.querySelector('iframe')?.contentDocument?.location.pathname===expected,expectedPath);
+   assert.equal(await page.locator('#appsHomeJarvisFrame').count(),0);assert.equal(await page.locator('iframe').count(),1);
+  };
+  /** @description Visit each actual selected source without manufacturing an application fact.
+   * @param {object} entry Authorized fixture entry. @returns {Promise<void>} Selected-source assertions. */
+  const selectSource=async entry=>{
+   await page.locator('[data-home-area="'+entry.suite+'"]').click();
+   await page.locator('select[data-choice="detail"]').selectOption(entry.name);
+   const card=page.locator('.apps-home-detail .apps-home-card[data-card="'+entry.name+'"]');
+   await card.waitFor({state:'visible'});await card.locator('.apps-home-loading').waitFor({state:'detached'});
+   await card.getByRole('heading',{name:entry.displayName,exact:true}).waitFor();
+   assert.equal(await page.locator('.apps-home-detail .apps-home-card').count(),1);
+  };
   const filled=async (id,target)=>{const expectedPath=new URL(manifests.find(m=>m.name===target).ui.static[0].iframeUrl,base).pathname;await page.waitForFunction(({id,expectedPath})=>{const doc=document.querySelector('iframe')?.contentDocument;return doc?.location.pathname===expectedPath&&!!doc.getElementById(id)?.value;},{id,expectedPath});};
   const reachable=async selector=>{assert.equal(await frame().locator('.connected-app-actions').evaluate((el,selector)=>el.parentElement.matches(selector),selector),true);assert.ok(await frame().locator('.connected-app-actions button.btn').count());};
-  await page.goto(base,{waitUntil:'domcontentloaded'});await page.getByRole('button',{name:'Prepare a document',exact:true}).click();await filled('outline','presentations');
+  await page.goto(base,{waitUntil:'domcontentloaded'});
+  const assistant=await page.locator('#appsHomeJarvisFrame').elementHandle();
+  await page.getByRole('button',{name:'All applications',exact:true}).click();
+  assert.deepEqual((await page.locator('#appsHomeDirectory li strong').allTextContents()).sort(),entries.map(e=>e.displayName).sort());
+  assert.deepEqual((await page.locator('#appsHomeDirectory [data-open]').evaluateAll(rows=>rows.map(row=>row.dataset.open))).sort(),entries.map(e=>e.firstSurface).sort());
+  await page.getByRole('button',{name:'Done',exact:true}).click();
+  const visited=[];for(const entry of entries){await selectSource(entry);visited.push(entry.name);}
+  assert.deepEqual(visited.sort(),entries.map(e=>e.name).sort());
+  assert.equal(await assistant.evaluate(el=>el===document.getElementById('appsHomeJarvisFrame')),true);assert.deepEqual(writes,[]);
+  await selectSource(entries.find(e=>e.name==='world'));
+  await page.getByRole('button',{name:'Prepare a document',exact:true}).click();await filled('outline','presentations');
   assert.match(await frame().locator('#outline').inputValue(),/Evidence for review/);
   await frame().getByRole('button',{name:'Prepare a campaign',exact:true}).click();await filled('ncBrief','marketing-engine');
   assert.match(await frame().locator('#ncBrief').inputValue(),/https:\/\/news.example\/story/);

@@ -22,6 +22,8 @@
  * 16 | maintainer@emeraldcoastsystemsgroup.com   | Registered each user's own scrape-target list (career-targets) beside the admin's shared companies table.
  * 18 | maintainer@emeraldcoastsystemsgroup.com   | ADR-141 D7: register the role-anchored story review (career-stories-routes.ts) — the resume conversation that leaves a defensible story on every job title.
  * 17 | maintainer@emeraldcoastsystemsgroup.com   | ADR-141: register the per-user readiness route (career-readiness.ts) the Intelligent Career group's setup dashboard asks for the "stories" and "materials" steps.
+ * 19 | maintainer@emeraldcoastsystemsgroup.com   | ADR-149 (1.25.1): register the `career` resource adapter the new authorization catalog names, first thing in the factory, so every catalog-bound request the kernel authorizes (this mount's routes, the tools, the bot, the engine rail) finds it.
+ * 20 | maintainer@emeraldcoastsystemsgroup.com   | 1.27.0: register the owner-only Test Lab application seam (career-test-lab-applications.ts) beside the application mutations, so the Career worker rail's live acceptance can drive a real approve -> draft on an application it plants and removes.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.userPaths = exports.openUserDb = exports.listStoreUsers = exports.callerSub = exports.isCareerAdmin = exports.buildJobFilters = exports.enqueueForUser = void 0;
@@ -38,6 +40,7 @@ exports.createCareerHunterRoutes = createCareerHunterRoutes;
 const express_1 = require("express");
 const career_application_routes_1 = require("./career-application-routes");
 const career_artifacts_1 = require("./career-artifacts");
+const career_authorization_1 = require("./career-authorization");
 const career_autofill_routes_1 = require("./career-autofill-routes");
 const career_automation_1 = require("./career-automation");
 const career_board_routes_1 = require("./career-board-routes");
@@ -56,6 +59,7 @@ const career_settings_routes_1 = require("./career-settings-routes");
 const career_strengthen_routes_1 = require("./career-strengthen-routes");
 const career_surface_routes_1 = require("./career-surface-routes");
 const career_targets_1 = require("./career-targets");
+const career_test_lab_applications_1 = require("./career-test-lab-applications");
 const career_readiness_1 = require("./career-readiness");
 const career_stories_routes_1 = require("./career-stories-routes");
 const career_title_score_1 = require("./career-title-score");
@@ -103,6 +107,7 @@ function registerExtractedRouteFamilies(router, ctx) {
     (0, career_recruiter_routes_1.registerCareerRecruiterRoutes)(router);
     (0, career_strengthen_routes_1.registerCareerStrengthenRoutes)(router, ctx);
     (0, career_application_routes_1.registerCareerApplicationMutationRoutes)(router, ctx);
+    (0, career_test_lab_applications_1.registerCareerTestLabApplicationRoutes)(router, ctx);
     (0, career_settings_routes_1.registerCareerSettingsRoutes)(router, ctx);
     (0, career_run_routes_1.registerCareerRunRoutes)(router, ctx);
     (0, career_onboarding_routes_1.registerCareerOnboardingRoutes)(router);
@@ -114,6 +119,7 @@ function registerExtractedRouteFamilies(router, ctx) {
  */
 function createCareerHunterRoutes(ctx) {
     const router = (0, express_1.Router)();
+    (0, career_authorization_1.registerCareerAuthorization)(ctx);
     (0, career_run_routes_1.startCareerCron)(ctx);
     (0, career_surface_routes_1.registerCareerSurfaceRoutes)(router);
     registerExistingFeatureRoutes(router, ctx);

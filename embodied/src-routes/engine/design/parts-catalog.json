@@ -1,0 +1,51 @@
+{
+  "schema": "oshal.embodied-parts/1",
+  "adr": "ADR-152 D1 — one parts model: a bought part is described once, and a number lives in one place",
+  "what": "The bought parts this package OWNS, one committed row per real part. Every row carries the identity block (id, name), the mass and price of one unit and a source line saying where those numbers came from, plus the per-domain block this package designs from: `propulsion` for a drone motor, `jointDrive` for an arm servo. parts-model.ts and servos.ts build DRONE_FITS[...].motor and STS3215_12V from these rows BY ID, so the drone's mass budget, its price and the arm's joint sizing all read this file. It is deliberately dependency-free JSON so another package that describes the same part — Circuit Lab's shaft-driver catalog — READS the row from the compiled copy (routes/engine/design/parts-catalog.json) as data, instead of restating its name, mass or price, and never imports this package's code.",
+  "notWhat": "Not the parts a fit PICKS (quantity and the role a part plays in one fit belong to the fit in parts-model.ts), not a price quote and not a measurement of a unit in hand: a number marked typical is the class figure, replaced by the scale and the invoice at assembly.",
+  "units": {
+    "massG": "grams, one unit",
+    "approxUsd": "approximate 2026 US street price of one unit, US dollars",
+    "propulsion.kv": "motor velocity constant, rpm per volt, unloaded",
+    "jointDrive.stallKgCm": "rated stall torque, kg*cm",
+    "jointDrive.secondsPer60": "rated no-load time for 60 degrees of output travel, s",
+    "jointDrive.bodyMm": "the case, length x width x height, mm",
+    "jointDrive.splineOffsetMm": "case centre to the output axis along the length, mm. MEASURED on the servo in hand, not published in the vendor listings found: change it here before the pockets are printed",
+    "jointDrive.hornDiscMm": "diameter of the disc horn supplied with the servo, mm. MEASURED on the servo in hand, not published: change it here before the hub recess is printed"
+  },
+  "motors": [
+    {
+      "id": "2306-1800kv",
+      "name": "2306 brushless, 1700–1900 KV",
+      "massG": 30,
+      "approxUsd": 18,
+      "source": "the 2306 class the recon-mini fit flies on a 6-inch prop at 4S, as the recon-drone hardware design sizes it (core docs/architecture/embodied-recon-drone-hardware.md, section 3: 1700–1900 KV on 4S, about 30 g each): 30 g is the class figure and 18 USD an approximate 2026 street price, not a measurement or a quote for a unit in hand; kv 1800 is the middle of the 1700–1900 KV class the design names",
+      "propulsion": { "kv": 1800 }
+    },
+    {
+      "id": "2807-1300kv",
+      "name": "2807 brushless, 1300 KV",
+      "massG": 45,
+      "approxUsd": 28,
+      "source": "the 2807 class the reserve recon-3d fit flies on a 7-inch prop at 6S: 45 g is the class figure and 28 USD an approximate 2026 street price, not a measurement or a quote for a unit in hand; kv 1300 is the rating the fit names",
+      "propulsion": { "kv": 1300 }
+    }
+  ],
+  "servos": [
+    {
+      "id": "sts3215-12v",
+      "name": "Feetech STS3215 class serial-bus servo, 12 V, 1:345 metal gearbox",
+      "massG": 55,
+      "approxUsd": 20,
+      "source": "rated figures and case: feetechrc.com STS3215 12 V product page (https://www.feetechrc.com/525603.html); continuous duty: robonine.com bench test (https://robonine.com/testing-of-feetech-sts3215-servomotor-backlash-repeatability-and-torque/) — stable at 15 kg·cm for 10 min, overload protection after a few cycles at 20 kg·cm, backlash about 0.87°",
+      "jointDrive": {
+        "stallKgCm": 30,
+        "secondsPer60": 0.222,
+        "bodyMm": [45.2, 24.7, 35],
+        "splineOffsetMm": 10,
+        "hornDiscMm": 23,
+        "encoder": "12-bit magnetic (4096 steps per turn), 0–360° plus a multi-turn mode"
+      }
+    }
+  ]
+}

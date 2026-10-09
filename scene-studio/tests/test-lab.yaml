@@ -1,0 +1,299 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 0.1.0: register every shipped package test with its runner, prerequisites and boundaries — the file and tool contracts (Node against the engine's Python), the engine transport against a fake bridge, the engine sandbox and plumbing under python3, the audience view, the compiled routes over loopback HTTP, the project store against a disposable PostgreSQL, and the engine's own end-to-end self-test inside its container.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: the tool contract also proves the director's persona authorizes exactly the manifest's tools; the sandbox suite proves create_scene refuses an existing scene.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: the director's tools are in-process package tools bound by an ADR-149 catalog. The tool contract now guards the package-tool declaration and the persona's protected-turn opt-in; register the package-tool suite (the real handlers against the fake bridge), the catalog binding guard, and the framework-coupled suite that runs the tools, the HTTP guard and the catalog migration through the real core seam. The route suite names its shared fixture.
+# -----------------------------------------------------------------------------
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register bounded native transport and held revision transaction compatibility proof.
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed scene-studio package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: contract-files
+    name: Project file contract (api and engine agree)
+    purpose: Prove the api's validatePath and the engine's validate_path accept and refuse exactly the same project paths and normalise them the same way, that their limits agree, that the file-map helpers keep sorted bounded maps, and that a revision blob round-trips under a name no other write can share.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/contract-files.test.js
+    expected:
+      - Thirty paths get the same verdict from Node and Python; the ten safe ones normalise identically (res:// dropped).
+      - Two writes of one revision produce two blob names; a traversal blob name is refused.
+    prerequisites:
+      - runner:node-test
+      - python3
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: contract-tools
+    name: Tool contract (manifest, package tools, engine, persona)
+    purpose: Prove the api's godot-mcp and Blender Lab MCP allowlists, templates and export formats equal the engine's tables, that a tool body's framework fields are dropped and an engine-owned argument (projectPath, blend_file) is refused, that all 22 manifest tools are in-process package tools whose handler specs name exactly the manifest's tools, and that the director's persona authorizes exactly those tools and opts in to protected node turns.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/contract-tools.test.js
+    expected:
+      - All 22 manifest tools declare exactly { executorType builtin, builtinKey package }, auto and authGroup scene-studio, with no route, type, timeoutMs or additionalProperties, and each description plus usage fits the node bridge's 1024-character budget.
+      - The handler specs name the 22 tools in manifest order; the godot targets cover the 7 allowlisted godot-mcp tools; deleting a project is not a tool.
+      - The persona's perspective names only tools it authorizes auto, with no shell, script or secret instruction.
+    prerequisites:
+      - runner:node-test
+      - python3
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-client
+    name: Engine transport against a fake bridge
+    purpose: Prove the api's engine client over the real wire protocol on loopback — hello verification (protocol, build hash, busy), serialised ops answered by id, the bridge's error codes mapped, a timeout dropping the connection and the next request reconnecting, a dropped bridge failing the queue, a multi-megabyte reply arriving whole, an oversized line refused, and the bounded queue.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-client.test.js
+    expected:
+      - A stale build hash is capability_unavailable naming install-engine.sh; a 6 MB reply split into 4 kB chunks parses whole.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-sandbox
+    name: Engine sandbox and plumbing (python3, Linux)
+    purpose: Prove the job sandbox through the real sandbox_exec.py — no IP sockets, ptrace or io_uring while AF_UNIX works, a malformed launch refused before anything runs, a well-formed seccomp program for both syscall tables — plus the scrub's victim selection, symlink-free project collection, refused file maps and engine-owned arguments, the Node/Python build-hash agreement and the MCP client against a fake stdio server.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-sandbox.test.js
+    expected:
+      - A sandboxed job gets EACCES for AF_INET, AF_INET6 and netlink sockets and EPERM for ptrace and io_uring_setup.
+      - The scrub kills job processes and orphans and spares PID 1, the bridge and docker-exec sessions.
+    prerequisites:
+      - runner:node-test
+      - python3
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: audience-view
+    name: Audience view contract
+    purpose: >-
+      Verify the page provides its company (Business shell) and family (Home shell) audience views through the shared kit: kit loaded after the
+      theme bootstrap, boot with this application's own name and exactly its audiences, full-page start gated
+      on the kit's decision, head block parses and reads only this package's own routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-view.test.js
+    expected:
+      - The boot names scene-studio and exactly the company and family audiences; the head block reads only /api/scene-studio.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: routes-http
+    name: Packaged routes over loopback HTTP
+    purpose: Drive the compiled routes with express and multer from a framework checkout and the real engine client against a fake bridge that records every request — caller gate, owner isolation, files as revisions with path refusals, godot-mcp and Blender Lab MCP calls (projectPath never reaches the engine), run/preview/export artifacts, restore, Blender-to-Godot import, a concurrent write answered 409, pruning, delete behind confirm, and the 503 with the install command when the bridge is gone.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/routes.core.test.js
+    expected:
+      - 401 without a caller, 404 across owners, 400 for unsafe paths, the wrong project kind and engine-owned arguments, 413 for an oversized write, 409 for a lost race, 428 for an unconfirmed delete, 503 naming install-engine.sh.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/scene.fixture.cjs
+      cleanup: Close the loopback HTTP servers and the fake engine bridge and remove the temporary project directory; module hooks stay confined to the disposable Node process, with no real database or engine.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: package-tools
+    name: The director's package tools against a fake bridge
+    purpose: Drive the 22 in-process package tool handlers with the real engine client against a fake bridge that records every request and an owner-keyed in-memory pool - registration once, the verified actor required before any query or engine request, identity never an input, closed inputs, revisions shaped like the route replies, godot-mcp arguments without framework fields, Blender save defaults, the 192 KiB reply budget and the 96 KiB read cut, the 285 s deadline, the engine-down answer and the route's failure codes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/package-tools.test.js
+    expected:
+      - Each of the 22 tools registers once; a missing, inactive or issuer-less actor is refused signed_in_owner_required with no query and no engine request.
+      - userSub, tenantId, projectPath, blend_file and any other undeclared key are refused invalid_tool_input; another owner's project is project_not_found.
+      - A 2 MB file reads back at most 96 KiB on a character boundary; a 600-file project with 4,000-path deltas and a 1,200-project list each stay within 192 KiB with honest counts.
+      - A stuck engine is refused tool_deadline_exceeded at the deadline and its late failure is logged; a down engine names install-engine.sh.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/scene.fixture.cjs
+      cleanup: Close the fake engine bridges and the engine clients and remove the temporary project directory; the pool is in memory, with no real database or engine.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: catalog-bindings
+    name: Authorization catalog covers every route, tool and bot
+    purpose: Prove the ADR-149 catalog binds the package exactly - every literal route under every manifest mount matches one http binding under the kernel's segment rule and every binding serves a route, every manifest tool has one tools binding, the director is the one bound bot, exactly the 8 read tools are read-only, and the creator role grants every bound permission at scope own.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/catalog-bindings.test.js
+    expected:
+      - 24 mounted routes each match exactly one of the 23 http bindings; GET / serves the Home summary and the readiness smoke with scene.read.
+      - The 22 tool bindings equal the manifest's tools and the bots binding is the director with scene.run; the read-only tools are exactly the 8 read tools.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+      fixtures:
+        - tests/catalog.fixture.cjs
+    limits:
+      timeoutMs: 15000
+      maxMemoryMb: 128
+    installation: never
+  - id: package-tools-core
+    name: Package tools, HTTP guard and catalog migration through the real core seam
+    purpose: Load the framework's manifest reader, package-tool registry, authorization service and runtime, route mounter and tool executor from the core root, mount this package against a fake bridge answering with the package's real engine build hash, and prove a creator runs all 22 tools, the refusals for no role, a narrower permit, an explicit deny and another owner, the HTTP guard, unmount without fallback, and the @app-admin to catalog migration review.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/tools.core.test.js
+    expected:
+      - The kernel's resolveOperationPermissions agrees with the bare binding mirror for all 24 routes, 22 tools and the director; activation publishes 22 handlers and the 8 read tools are the auto-proposable ones.
+      - A creator granted through the real preview and apply runs all 22 tools; no role is authorization_tier_denied, a permit without scene.edit is authorization_executor_scope_denied, an explicit deny wins.
+      - An @app-admin grant makes the catalog-adopting prepare refuse authorization_catalog_migration_required (breaking); after approval the next start removes @app-admin and the former admin needs creator.
+    prerequisites:
+      - runner:node-test
+      - core:dependencies
+      - harness:oshal-core-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/scene.fixture.cjs
+        - tests/catalog.fixture.cjs
+      cleanup: Unmount the package, close the loopback server and the fake engine bridge, and remove the temporary project directory; the authorization store and the pool are in memory and end with the process.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: store-postgres
+    name: Project store against a disposable PostgreSQL
+    purpose: Run the compiled project store's SQL against a real PostgreSQL 16 whose tables are owned by a non-superuser, non-BYPASSRLS role — forced row security hides and refuses other owners' rows, an unstamped session sees nothing, a spoofed owner fails WITH CHECK, a revision commits only from the revision its writer read (one winner of a real four-way race), and pruning, records and the cascading delete behave.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/store.pg.test.js
+    expected:
+      - Both tables are owned by the app role with relforcerowsecurity; exactly one of four concurrent commits from revision 0 lands.
+    prerequisites:
+      - runner:node-test
+      - harness:oshal-core-root
+      - core:dependencies
+      - service:docker
+      - image:postgres-16-alpine-local
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove the uniquely named PostgreSQL container (tmpfs data, no published port beyond 127.0.0.1) and end both pools.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-selftest
+    name: Engine end-to-end self-test (engine container)
+    purpose: Prove the RUNNING engine over its own TCP protocol inside its container — the hello names this engine tree, the sandbox probe passed, both MCP servers list their tools, code a person writes cannot open a network connection, godot-mcp edits a Godot project that is then previewed (glTF + STL + Cycles still) and run headless, the Blender Lab MCP edits, reads back, previews and exports a model, and the model is imported into the Godot project. The installer runs it after every install.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/container/scene_engine_bridge.py
+    expected:
+      - '`docker exec oshal-scene-studio-engine python3 /opt/scene-studio/engine/container/scene_engine_bridge.py --selftest` ends with {"selftest": "pass"} (19 checks).'
+    prerequisites:
+      - engine-container:oshal-scene-studio-engine
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 4096
+    installation: never
+
+  - id: native-bridge
+    name: Native Scene client and atomic adapter contract
+    purpose: Verify actual native proof and finite limits, standalone revision refusal, stale expected revision and unchanged legacy CTE.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/native-bridge.test.js]
+    expected:
+      - No package network socket is opened for native requests.
+      - Invalid proof and absent held transaction refuse without completed revision success.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: {mode: disposable}
+    limits: {timeoutMs: 30000, maxMemoryMb: 256}
+    installation: never

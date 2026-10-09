@@ -1,5 +1,7 @@
 # Daily Trade Recap (daily-trade-recap) — OSHAL app package
 
+1.3.3 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
+
 After the closing bell: render the day's charted trade-recap video (real Alpaca
 data → PowerPoint deck → narrated MP4) on the swarm render node, then email it to
 the operator with the day's numbers and the video attached as a preview
@@ -86,3 +88,41 @@ live trading records. Registration is distinct from executing the suite.
 $env:OSHAL_CORE_DIR = 'C:/Projects/oshal'
 node --test tests/completed-report-briefings.core.test.js
 ```
+
+The audience view contract is also registered (`audience-view` in `tests/test-lab.yaml`):
+
+- `node --test tests/audience-view.test.cjs` — the contract and behaviour of the company view
+  (stub kit, stub fetch, stub DOM; no browser).
+- `OSHAL_FRAMEWORK=<core checkout> node scripts/audience-views.browser.cjs daily-trade-recap` from
+  the store root drives `tests/audience-view.fixture.cjs` over the real page and the real kit in
+  headless Chromium.
+
+## Audience view (ADR-164 D6)
+
+Daily Trade Recap 1.3.2 answers `?audience=company` on Recap Review, which is how the Business
+shell and the all-inclusive Studio, Orbit and Commons shells open the application's first surface.
+The view is the owner's recap record for the closed Eastern trading days in the last 7 days, today
+excluded, painted by the shared kit: the four counts (sessions with no recap, recaps recorded,
+trading sessions, recaps awaiting review), a table of the closed sessions with whether and when each
+recap was recorded, and the recap tickets parked at their approval gate. On open it reads only
+`GET /home-summary` under the caller's session — never the framework plan that lists
+connected-actions offers, never a write; nothing here renders, emails or re-runs a recap. Every
+session recapped, no closed session (a market holiday records none), a partly unreadable record,
+401, 403 and a failed read are each named. The one action opens Recap Review; the escape opens the
+application in the cockpit. Any other request runs the full page unchanged, and its start (the
+handoff listener, the connected-actions mount, the record read) is gated on the kit's decision.
+
+Daily Trade Recap 1.3.1 loads the shared theme bootstrap (`/shared/ui/css/surface-themes.css` + `/shared/ui/js/surface-theme.js`) in `tools/review.html` and derives its palette from the framework tokens with the previous colors as fallbacks, so the surface follows the operator's chosen cockpit or experience skin whether embedded or opened standalone. No route, data or permission change.
+
+<!-- oshal-rating:start -->
+## Models and requirements
+
+Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
+The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
+
+Container memory, MiB low / high: **32 / 128 (declared)**.
+
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| daily-recap-production | daily recap production | T4 | hosted | disable | not yet measured | none recorded |
+<!-- oshal-rating:end -->
