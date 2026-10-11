@@ -218,20 +218,59 @@ export function addDays(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Fetch (auto-creating) the caller's company settings row. */
+/** The company settings a caller has before saving any: every column at its declared default. */
+export function companyDefaults(sub: string): Row {
+  return {
+    user_sub: sub,
+    company_name: 'My Company',
+    pay_frequency: 'biweekly',
+    state_code: 'FL',
+    suta_rate_pct: DEFAULT_SUTA_RATE_PCT,
+    suta_wage_base_cents: DEFAULT_SUTA_WAGE_BASE_CENTS,
+    shift_pay_date: true,
+    futa_credit_reduction_pct: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    legal_name: '',
+    trade_name: '',
+    ein_encrypted: null,
+    ein_last4: '',
+    address_line1: '',
+    address_line2: '',
+    city: '',
+    postal_code: '',
+    state_account_number: '',
+    depositor_status: 'monthly',
+    workweek_start_day: 0,
+    ach_odfi_routing: '',
+    ach_odfi_name: '',
+    ach_company_id: '',
+    ach_entry_description: 'PAYROLL',
+    ach_next_trace: 1,
+    bank_name: '',
+    bso_user_id: '',
+    contact_name: '',
+    contact_phone: '',
+    contact_email: '',
+    kind_of_employer: 'N',
+    employment_code: 'R',
+  };
+}
+
+/**
+ * Fetch the caller's company settings row, or its defaults when nothing was saved yet. A read never
+ * writes: the row is created by the first update, so a reader-admitted request (the native kernel's
+ * GET) cannot be refused on an insert it never needed.
+ */
 export async function getCompany(pool: Queryable, sub: string): Promise<Row> {
   const found = await pool.query('SELECT * FROM payroll_company WHERE user_sub = $1', [sub]);
-  if (found.rows[0]) return found.rows[0];
-  const created = await pool.query(
-    'INSERT INTO payroll_company (user_sub) VALUES ($1) ON CONFLICT (user_sub) DO UPDATE SET updated_at = now() RETURNING *',
-    [sub],
-  );
-  return created.rows[0];
+  return found.rows[0] || companyDefaults(sub);
 }
 
 /** Update the caller's company row from an allowlisted column map. */
 export async function updateCompany(pool: Pool, sub: string, cols: Record<string, unknown>): Promise<Row> {
   const keys = COMPANY_COLUMNS.filter((k) => k in cols);
+  await pool.query('INSERT INTO payroll_company (user_sub) VALUES ($1) ON CONFLICT (user_sub) DO NOTHING', [sub]);
   if (!keys.length) return getCompany(pool, sub);
   const sets = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
   const r = await pool.query(

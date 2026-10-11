@@ -118,7 +118,11 @@ routes:
 
 # No migrations: the owner-scoped audit table (oshal_merchant_payments) is created
 # lazily by the route at first use, with tier-1 owner RLS applied at the chokepoint.
-migrations: []
+# The merchant-payments audit table is declared here AND created lazily by the route: the legacy
+# platform applies the lazy DDL, the native kernel provisions the declaration in each person's
+# scope before their first read or write and verifies the route's DDL against it.
+migrations:
+  - migrations/001-merchant-payments.sql
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon icon opens the Payments page (served by

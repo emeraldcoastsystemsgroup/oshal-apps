@@ -88,6 +88,9 @@ async function ensurePayrollSchema(pool) {
         moduleName: 'payroll schema',
         lockKey: exports.PAYROLL_SCHEMA_LOCK_KEY,
         statements: [
+            // Declarations only: every table in its final shape. Indexes and the historical ALTER
+            // evolution live in migrations/001-payroll.sql; a native kernel admits a reader's CREATE
+            // TABLE IF NOT EXISTS as a verifiable declaration but refuses ALTER and ordered indexes.
             /* ── company ─────────────────────────────────────────────────────── */
             `CREATE TABLE IF NOT EXISTS payroll_company (
         user_sub TEXT PRIMARY KEY,
@@ -99,48 +102,46 @@ async function ensurePayrollSchema(pool) {
         shift_pay_date BOOLEAN NOT NULL DEFAULT true,
         futa_credit_reduction_pct NUMERIC NOT NULL DEFAULT 0,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        legal_name TEXT NOT NULL DEFAULT '',
+        trade_name TEXT NOT NULL DEFAULT '',
+        ein_encrypted TEXT,
+        ein_last4 TEXT NOT NULL DEFAULT '',
+        address_line1 TEXT NOT NULL DEFAULT '',
+        address_line2 TEXT NOT NULL DEFAULT '',
+        city TEXT NOT NULL DEFAULT '',
+        postal_code TEXT NOT NULL DEFAULT '',
+        state_account_number TEXT NOT NULL DEFAULT '',
+        depositor_status TEXT NOT NULL DEFAULT 'monthly',
+        workweek_start_day INTEGER NOT NULL DEFAULT 0,
+        ach_odfi_routing TEXT NOT NULL DEFAULT '',
+        ach_odfi_name TEXT NOT NULL DEFAULT '',
+        ach_company_id TEXT NOT NULL DEFAULT '',
+        ach_entry_description TEXT NOT NULL DEFAULT 'PAYROLL',
+        check_next_number INTEGER NOT NULL DEFAULT 1001,
+        ach_next_trace INTEGER NOT NULL DEFAULT 1,
+        bank_name TEXT NOT NULL DEFAULT '',
+        bso_user_id TEXT NOT NULL DEFAULT '',
+        contact_name TEXT NOT NULL DEFAULT '',
+        contact_phone TEXT NOT NULL DEFAULT '',
+        contact_email TEXT NOT NULL DEFAULT '',
+        kind_of_employer TEXT NOT NULL DEFAULT 'N',
+        employment_code TEXT NOT NULL DEFAULT 'R'
       )`,
-            'ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS shift_pay_date BOOLEAN NOT NULL DEFAULT true',
-            'ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS futa_credit_reduction_pct NUMERIC NOT NULL DEFAULT 0',
             // Legal identity — without these a W-2 cannot be issued, only previewed.
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS legal_name TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS trade_name TEXT NOT NULL DEFAULT ''",
-            'ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS ein_encrypted TEXT',
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS ein_last4 TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS address_line1 TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS address_line2 TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS city TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS postal_code TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS state_account_number TEXT NOT NULL DEFAULT ''",
             // Monthly vs semiweekly decides WHEN a deposit is due — see the deposits report.
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS depositor_status TEXT NOT NULL DEFAULT 'monthly'",
             // FLSA requires a FIXED recurring 168-hour workweek; 0 = Sunday.
-            'ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS workweek_start_day INTEGER NOT NULL DEFAULT 0',
             // ACH origination — the employer's OWN bank receives the generated file.
             // oshal never moves money; these only shape the file the bank ingests.
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS ach_odfi_routing TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS ach_odfi_name TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS ach_company_id TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS ach_entry_description TEXT NOT NULL DEFAULT 'PAYROLL'",
             // v2.2 — settlement. The check sequence lives here so allocation is a
             // single UPDATE on one row: two operators printing at the same moment
             // serialise rather than being handed the same number.
-            'ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS check_next_number INTEGER NOT NULL DEFAULT 1001',
             // The ACH trace sequence continues across files. Restarting it at 1 per
             // file makes two runs mint identical traces, and since the trace is the
             // only handle a return gives back, a return could then be matched to a
             // different pay run's payment.
-            'ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS ach_next_trace INTEGER NOT NULL DEFAULT 1',
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS bank_name TEXT NOT NULL DEFAULT ''",
             // EFW2 submitter identity. The BSO User ID names the person attesting to
             // the file's accuracy; SSA rejects a submission without a contact e-mail.
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS bso_user_id TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS contact_name TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS contact_phone TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS contact_email TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS kind_of_employer TEXT NOT NULL DEFAULT 'N'",
-            "ALTER TABLE payroll_company ADD COLUMN IF NOT EXISTS employment_code TEXT NOT NULL DEFAULT 'R'",
             /* ── employees ───────────────────────────────────────────────────── */
             `CREATE TABLE IF NOT EXISTS payroll_employees (
         employee_id TEXT PRIMARY KEY,
@@ -165,36 +166,43 @@ async function ensurePayrollSchema(pool) {
         state_rate_pct NUMERIC NOT NULL DEFAULT 0,
         status TEXT NOT NULL DEFAULT 'active',
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        state_code TEXT NOT NULL DEFAULT '',
+        state_allowances INTEGER NOT NULL DEFAULT 0,
+        garnishment_cents BIGINT NOT NULL DEFAULT 0,
+        birth_date DATE,
+        w4_exempt BOOLEAN NOT NULL DEFAULT false,
+        tipped_occupation_code TEXT NOT NULL DEFAULT '',
+        hire_date DATE,
+        termination_date DATE,
+        prior_ytd_year INTEGER,
+        prior_ytd_taxable_wages_cents BIGINT NOT NULL DEFAULT 0,
+        prior_ytd_ss_taxable_cents BIGINT NOT NULL DEFAULT 0,
+        prior_ytd_deferral_cents BIGINT NOT NULL DEFAULT 0,
+        prior_ytd_supplemental_cents BIGINT NOT NULL DEFAULT 0,
+        prior_ytd_gross_cents BIGINT NOT NULL DEFAULT 0,
+        prior_ytd_fit_cents BIGINT NOT NULL DEFAULT 0,
+        prior_ytd_ss_cents BIGINT NOT NULL DEFAULT 0,
+        prior_ytd_medicare_cents BIGINT NOT NULL DEFAULT 0,
+        prior_ytd_state_cents BIGINT NOT NULL DEFAULT 0,
+        ssn_encrypted TEXT,
+        ssn_last4 TEXT NOT NULL DEFAULT '',
+        address_line1 TEXT NOT NULL DEFAULT '',
+        address_line2 TEXT NOT NULL DEFAULT '',
+        city TEXT NOT NULL DEFAULT '',
+        postal_code TEXT NOT NULL DEFAULT '',
+        worker_type TEXT NOT NULL DEFAULT 'w2',
+        flsa_exempt BOOLEAN NOT NULL DEFAULT false,
+        department TEXT NOT NULL DEFAULT '',
+        cost_center TEXT NOT NULL DEFAULT '',
+        work_location TEXT NOT NULL DEFAULT '',
+        pay_method TEXT NOT NULL DEFAULT 'check',
+        pto_balance_hours NUMERIC NOT NULL DEFAULT 0,
+        sick_balance_hours NUMERIC NOT NULL DEFAULT 0
       )`,
-            'CREATE INDEX IF NOT EXISTS payroll_employees_user ON payroll_employees (user_sub)',
-            "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS state_code TEXT NOT NULL DEFAULT ''",
-            'ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS state_allowances INTEGER NOT NULL DEFAULT 0',
-            'ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS garnishment_cents BIGINT NOT NULL DEFAULT 0',
-            'ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS birth_date DATE',
-            'ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS w4_exempt BOOLEAN NOT NULL DEFAULT false',
-            "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS tipped_occupation_code TEXT NOT NULL DEFAULT ''",
-            'ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS hire_date DATE',
-            'ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS termination_date DATE',
-            'ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS prior_ytd_year INTEGER',
-            ...['taxable_wages', 'ss_taxable', 'deferral', 'supplemental', 'gross', 'fit', 'ss', 'medicare', 'state'].map((c) => `ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS prior_ytd_${c}_cents BIGINT NOT NULL DEFAULT 0`),
             // Identity + classification + org placement (v2).
-            'ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS ssn_encrypted TEXT',
-            "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS ssn_last4 TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS address_line1 TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS address_line2 TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS city TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS postal_code TEXT NOT NULL DEFAULT ''",
             // W-2 employee vs 1099 contractor — different forms, different taxes.
-            "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS worker_type TEXT NOT NULL DEFAULT 'w2'",
             // FLSA exempt workers earn no overtime; non-exempt do. Getting this wrong is a wage claim.
-            'ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS flsa_exempt BOOLEAN NOT NULL DEFAULT false',
-            "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS department TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS cost_center TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS work_location TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS pay_method TEXT NOT NULL DEFAULT 'check'",
-            'ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS pto_balance_hours NUMERIC NOT NULL DEFAULT 0',
-            'ALTER TABLE payroll_employees ADD COLUMN IF NOT EXISTS sick_balance_hours NUMERIC NOT NULL DEFAULT 0',
             /* ── direct-deposit accounts ─────────────────────────────────────── */
             `CREATE TABLE IF NOT EXISTS payroll_bank_accounts (
         account_id TEXT PRIMARY KEY,
@@ -213,7 +221,6 @@ async function ensurePayrollSchema(pool) {
         active BOOLEAN NOT NULL DEFAULT true,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )`,
-            'CREATE INDEX IF NOT EXISTS payroll_bank_accounts_emp ON payroll_bank_accounts (user_sub, employee_id)',
             /* ── deduction elections ─────────────────────────────────────────── */
             `CREATE TABLE IF NOT EXISTS payroll_deduction_elections (
         election_id TEXT PRIMARY KEY,
@@ -236,7 +243,6 @@ async function ensurePayrollSchema(pool) {
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )`,
-            'CREATE INDEX IF NOT EXISTS payroll_elections_emp ON payroll_deduction_elections (user_sub, employee_id)',
             /* ── runs ────────────────────────────────────────────────────────── */
             `CREATE TABLE IF NOT EXISTS payroll_runs (
         run_id TEXT PRIMARY KEY,
@@ -247,20 +253,16 @@ async function ensurePayrollSchema(pool) {
         pay_frequency TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'draft',
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        kind TEXT NOT NULL DEFAULT 'regular',
+        corrects_run_id TEXT,
+        approved_by TEXT,
+        approved_at TIMESTAMPTZ,
+        note TEXT,
+        suppress_voluntary BOOLEAN NOT NULL DEFAULT false
       )`,
-            'CREATE INDEX IF NOT EXISTS payroll_runs_user ON payroll_runs (user_sub, pay_date)',
-            `ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT '${exports.KIND_REGULAR}'`,
-            'ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS corrects_run_id TEXT',
-            'ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS approved_by TEXT',
-            'ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ',
-            'ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS note TEXT',
-            'ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS suppress_voluntary BOOLEAN NOT NULL DEFAULT false',
-            'DROP INDEX IF EXISTS payroll_runs_one_void',
-            "CREATE UNIQUE INDEX IF NOT EXISTS payroll_runs_one_void_per_run ON payroll_runs (user_sub, corrects_run_id) WHERE kind = 'void'",
             // One REGULAR run per period per company. Off-cycle runs are deliberately
             // exempt — the whole point of an off-cycle is a second check in a period.
-            "CREATE UNIQUE INDEX IF NOT EXISTS payroll_runs_one_regular_period ON payroll_runs (user_sub, period_start, period_end) WHERE kind = 'regular'",
             /* ── run lines ───────────────────────────────────────────────────── */
             `CREATE TABLE IF NOT EXISTS payroll_run_lines (
         run_id TEXT NOT NULL,
@@ -288,22 +290,32 @@ async function ensurePayrollSchema(pool) {
         suta_cents BIGINT NOT NULL DEFAULT 0,
         computed JSONB,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        PRIMARY KEY (run_id, employee_id)
+        PRIMARY KEY (run_id, employee_id),
+        k401_cents BIGINT NOT NULL DEFAULT 0,
+        health_cents BIGINT NOT NULL DEFAULT 0,
+        roth_cents BIGINT NOT NULL DEFAULT 0,
+        supplemental_fit_cents BIGINT NOT NULL DEFAULT 0,
+        deferral_cents BIGINT NOT NULL DEFAULT 0,
+        tips_cents BIGINT NOT NULL DEFAULT 0,
+        qualified_ot_cents BIGINT NOT NULL DEFAULT 0,
+        garnishment_cents BIGINT NOT NULL DEFAULT 0,
+        disposable_cents BIGINT NOT NULL DEFAULT 0,
+        supplemental_taxable_cents BIGINT NOT NULL DEFAULT 0,
+        imputed_cents BIGINT NOT NULL DEFAULT 0,
+        cash_earnings_cents BIGINT NOT NULL DEFAULT 0,
+        nontaxable_paid_cents BIGINT NOT NULL DEFAULT 0,
+        prorate_pct NUMERIC NOT NULL DEFAULT 100,
+        bonus_method TEXT NOT NULL DEFAULT 'aggregate',
+        ot_flsa_qualified BOOLEAN NOT NULL DEFAULT true,
+        bonus_is_discretionary BOOLEAN NOT NULL DEFAULT false,
+        warnings JSONB,
+        workweek_hours JSONB,
+        uses_earning_rows BOOLEAN NOT NULL DEFAULT false
       )`,
-            'CREATE INDEX IF NOT EXISTS payroll_run_lines_user ON payroll_run_lines (user_sub, employee_id)',
-            ...['k401', 'health', 'roth', 'supplemental_fit', 'deferral', 'tips', 'qualified_ot',
-                'garnishment', 'disposable', 'supplemental_taxable', 'imputed', 'cash_earnings', 'nontaxable_paid'].map((c) => `ALTER TABLE payroll_run_lines ADD COLUMN IF NOT EXISTS ${c}_cents BIGINT NOT NULL DEFAULT 0`),
-            'ALTER TABLE payroll_run_lines ADD COLUMN IF NOT EXISTS prorate_pct NUMERIC NOT NULL DEFAULT 100',
-            "ALTER TABLE payroll_run_lines ADD COLUMN IF NOT EXISTS bonus_method TEXT NOT NULL DEFAULT 'aggregate'",
-            'ALTER TABLE payroll_run_lines ADD COLUMN IF NOT EXISTS ot_flsa_qualified BOOLEAN NOT NULL DEFAULT true',
             // Persisted because approveRun RECOMPUTES from the stored line: without the
             // column the flag read back as false and a bonus the operator marked
             // discretionary silently gained an FLSA overtime premium at approval.
-            'ALTER TABLE payroll_run_lines ADD COLUMN IF NOT EXISTS bonus_is_discretionary BOOLEAN NOT NULL DEFAULT false',
-            'ALTER TABLE payroll_run_lines ADD COLUMN IF NOT EXISTS warnings JSONB',
-            'ALTER TABLE payroll_run_lines ADD COLUMN IF NOT EXISTS workweek_hours JSONB',
             // v2: the line is assembled from earnings rows rather than scalar inputs.
-            'ALTER TABLE payroll_run_lines ADD COLUMN IF NOT EXISTS uses_earning_rows BOOLEAN NOT NULL DEFAULT false',
             /* ── per-check earning rows ──────────────────────────────────────── */
             `CREATE TABLE IF NOT EXISTS payroll_line_earnings (
         earning_id TEXT PRIMARY KEY,
@@ -320,7 +332,6 @@ async function ensurePayrollSchema(pool) {
         memo TEXT NOT NULL DEFAULT '',
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )`,
-            'CREATE INDEX IF NOT EXISTS payroll_line_earnings_line ON payroll_line_earnings (user_sub, run_id, employee_id)',
             /* ── per-check deduction rows ────────────────────────────────────── */
             `CREATE TABLE IF NOT EXISTS payroll_line_deductions (
         deduction_id TEXT PRIMARY KEY,
@@ -334,7 +345,6 @@ async function ensurePayrollSchema(pool) {
         reason TEXT NOT NULL DEFAULT '',
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )`,
-            'CREATE INDEX IF NOT EXISTS payroll_line_deductions_line ON payroll_line_deductions (user_sub, run_id, employee_id)',
             /* ── payment records ─────────────────────────────────────────────── */
             `CREATE TABLE IF NOT EXISTS payroll_payments (
         payment_id TEXT PRIMARY KEY,
@@ -351,22 +361,19 @@ async function ensurePayrollSchema(pool) {
         cleared_on DATE,
         note TEXT NOT NULL DEFAULT '',
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        return_code TEXT NOT NULL DEFAULT '',
+        return_reason TEXT NOT NULL DEFAULT '',
+        returned_on DATE,
+        noc_change_code TEXT NOT NULL DEFAULT ''
       )`,
-            'CREATE INDEX IF NOT EXISTS payroll_payments_run ON payroll_payments (user_sub, run_id)',
             // A check number, once used, may not be reused — that is what makes a
             // register reconcile against a bank statement.
-            "CREATE UNIQUE INDEX IF NOT EXISTS payroll_payments_check_no ON payroll_payments (user_sub, check_number) WHERE check_number <> ''",
             // v2.2 — what the bank said back. Without these a payment sat at
             // 'pending' forever and a returned deposit was indistinguishable from a
             // successful one.
-            "ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS return_code TEXT NOT NULL DEFAULT ''",
-            "ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS return_reason TEXT NOT NULL DEFAULT ''",
-            'ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS returned_on DATE',
-            "ALTER TABLE payroll_payments ADD COLUMN IF NOT EXISTS noc_change_code TEXT NOT NULL DEFAULT ''",
             // The trace is the ONLY handle a return gives us back, so it is indexed:
             // matching an imported return is a lookup on this column.
-            "CREATE INDEX IF NOT EXISTS payroll_payments_trace ON payroll_payments (user_sub, ach_trace) WHERE ach_trace <> ''",
             /* ── imported ACH returns and notifications of change ─────────────── */
             `CREATE TABLE IF NOT EXISTS payroll_ach_events (
         event_id TEXT PRIMARY KEY,
@@ -384,9 +391,7 @@ async function ensurePayrollSchema(pool) {
         detail JSONB,
         imported_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )`,
-            'CREATE INDEX IF NOT EXISTS payroll_ach_events_user ON payroll_ach_events (user_sub, imported_at DESC)',
             // The same return arriving twice must not double-count anyone as unpaid.
-            "CREATE UNIQUE INDEX IF NOT EXISTS payroll_ach_events_trace ON payroll_ach_events (user_sub, return_trace) WHERE return_trace <> ''",
             /* ── artifacts produced, for traceability ─────────────────────────── */
             `CREATE TABLE IF NOT EXISTS payroll_filings (
         filing_id TEXT PRIMARY KEY,
@@ -398,7 +403,6 @@ async function ensurePayrollSchema(pool) {
         produced_by TEXT NOT NULL DEFAULT '',
         produced_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )`,
-            'CREATE INDEX IF NOT EXISTS payroll_filings_user ON payroll_filings (user_sub, kind, produced_at DESC)',
             /* ── change audit log ────────────────────────────────────────────── */
             `CREATE TABLE IF NOT EXISTS payroll_audit (
         audit_id BIGSERIAL PRIMARY KEY,
@@ -411,7 +415,6 @@ async function ensurePayrollSchema(pool) {
         after_json JSONB,
         at TIMESTAMPTZ NOT NULL DEFAULT now()
       )`,
-            'CREATE INDEX IF NOT EXISTS payroll_audit_entity ON payroll_audit (user_sub, entity, entity_id, at DESC)',
             ...(0, database_1.buildOwnerRlsPolicyStatements)('payroll_company', 'user_sub'),
             ...(0, database_1.buildOwnerRlsPolicyStatements)('payroll_employees', 'user_sub'),
             ...(0, database_1.buildOwnerRlsPolicyStatements)('payroll_bank_accounts', 'user_sub'),

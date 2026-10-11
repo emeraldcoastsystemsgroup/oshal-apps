@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: declare the three apps the ribbon FRAMES (optional — an absent target leaves one tab empty, it does not break finance).
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Declare the three finance stores as a package migration so a native kernel provisions them before the first read; the status route had answered 500 on an unprovisioned scope.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — finance ("Finance")
@@ -158,9 +159,12 @@ routes:
     auth: oidc
     requiresContext: true
 
-# No migrations: all three owner-scoped stores (oshal_finance_items/data/payments)
-# are created lazily by the route at first use with tier-1 owner RLS at the chokepoint.
-migrations: []
+# The three owner-scoped stores (oshal_finance_items/data/payments) are declared here AND created
+# lazily by the route at first use with tier-1 owner RLS at the chokepoint: the legacy platform
+# applies the lazy DDL, the native kernel provisions the declaration in each person's scope before
+# their first read or write and verifies the route's DDL against it.
+migrations:
+  - migrations/001-finance-stores.sql
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon icon opens the Finance page (served by

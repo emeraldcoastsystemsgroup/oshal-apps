@@ -140,6 +140,7 @@ function ensureScanSchema(pool) {
           id BIGSERIAL PRIMARY KEY, user_sub TEXT NOT NULL, ticker TEXT NOT NULL,
           strength TEXT, edge_net NUMERIC, channel TEXT, delivered BOOLEAN NOT NULL DEFAULT FALSE,
           detail JSONB, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          batch_id UUID,
           CONSTRAINT kalshi_scan_alerts_user_ticker UNIQUE (user_sub, ticker)
         );
         -- batch_id groups the hands announced TOGETHER; the daily budget counts batches, not rows.

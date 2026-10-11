@@ -127,7 +127,12 @@ routes:
 
 # No ticketType / bots — payroll is a deterministic controller-side app.
 # No migrations: owner-scoped tables are created lazily at the RLS chokepoint.
-migrations: []
+# Every payroll table is declared here in its final shape AND created lazily by the route (which
+# also adds the later columns with ALTER): the legacy platform applies the lazy DDL, the native
+# kernel provisions the declaration in each person's scope before their first read or write and
+# verifies the route's DDL against it.
+migrations:
+  - migrations/001-payroll.sql
 
 ui:
   static:
