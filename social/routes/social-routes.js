@@ -29,6 +29,9 @@
  *
  * @module social-routes * 2026-09-05 23:30:00 | maintainer@emeraldcoastsystemsgroup.com | ADR-141 readiness (1.1.0): GET /readiness answers the Intelligent Career group's "Connect Facebook" and "articles you want to comment on" steps from the caller's own connection rows and the last 30 days of captured social signals — no Graph call, no token leaves the box; asked in the user's session by the kernel setup dashboard.
  * 2026-09-16 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | LinkedIn publishing leaves this module for the DECLARED connector action: POST /post delegates to social-publish.publishToLinkedIn, which runs the kernel's create-post write action — schema-validated params, the shared approval gate, the caller's own brokered token, and a connector_action_audit 'attempt' row that must commit BEFORE the provider call, so an unavailable audit trail refuses the publication instead of posting unrecorded. The bespoke fetch() to /v2/ugcPosts, which left no audit row at all, is gone; the caller's request body is threaded through so the executor's own confirm gate decides the write.
+ * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Native kernel egress (OSHAL_EGRESS=kernel): the X legs (POST /post to X, GET /twitter/timeline, POST /twitter/follow, the X profile) and the LinkedIn and Facebook profile reads in GET /profiles send their requests to the declared hosts with no Authorization header and no access_token, the kernel applying the caller's twitter / linkedin / meta-business connection; connection state comes from connectors.metadata (none or lapsed reads as not connected, as the broker's null did), a kernel "not connected" refusal answers the same 409 no_twitter_connection, the X user id comes from GET /2/users/me because the connection row is not the package's to read there, and GET /readiness reads the Facebook connections from the metadata. Outside the kernel every path is unchanged. The Facebook Page legs stay on the broker: they send Page access tokens the package itself takes from /me/accounts.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | POST /draft and POST /signals/organize run on the package's own social-writer (a0…0040): the native kernel refused the email-summarizer comms bot (b0…0001) with "this bot requires an enrolled node", so the Workspace and Composer could not draft at all. A package's own node-posture bot answers a plain completion there.
+ * 2026-10-13 14:50:00 | maintainer@emeraldcoastsystemsgroup.com | Sweep 14: an X draft came back at 315 of 280 characters and the person had to trim it before it could publish. POST /draft for X goes through draftWithinXLimit: a draft over 280 is sent back to the bot to shorten (at most twice), and one still over answers `tooLong` {length, max}, which the composer says in words. Guard: tests/social-draft-limit.test.cjs.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -64,6 +67,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.draftWithinXLimit = draftWithinXLimit;
 exports.createSocialRoutes = createSocialRoutes;
 const express_1 = require("express");
 const path = __importStar(require("path"));
@@ -73,13 +77,17 @@ const connectors_routes_1 = require("@/app/routes/connectors-routes");
 const inline_bot_execution_1 = require("@/app/routes/inline-bot-execution");
 const explicit_write_confirmation_1 = require("@/shared/security/explicit-write-confirmation");
 const social_publish_1 = require("./social-publish");
+const kernel_egress_1 = require("./kernel-egress");
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 const logger = (0, logger_1.createChildLogger)({ module: 'social-routes' });
-/** The comms bot (codex) drafts posts — same bot the email swarm uses. */
-const COMMS_BOT_AGENT_ID = 'b0000000-0000-0000-0000-000000000001';
+/** The package's own social-writer drafts posts and organizes signals. The comms bot this used is
+ *  another package's node bot, which the native kernel refuses without an enrolled node. */
+const COMMS_BOT_AGENT_ID = 'a0000000-0000-0000-0000-000000000040';
 const botClient = new agent_management_1.BotNodeClient((0, agent_management_1.createRegistryEndpointResolver)());
 const FB_GRAPH = `https://graph.facebook.com/${process.env.FACEBOOK_API_VERSION || 'v21.0'}`;
+/** The honest answer when the caller has no usable X connection. */
+const NO_X = { error: 'no_twitter_connection', message: 'Connect X at /utilities first.' };
 /** Signed-in user's OIDC sub. */
 function callerSub(req) {
     const u = req.oidc?.user;
@@ -111,18 +119,53 @@ async function runOnBot(ctx, kind, sub, prompt) {
     });
     return result.response;
 }
+/** X's limit on one post: a longer one is refused at publish. */
+const X_LIMIT = 280;
+/**
+ * @description Draft an X post that fits X's limit. Sweep 14: the draft came back at 315 of 280 characters (the prompt
+ * says "HARD LIMIT 280", nothing checked it) and the person had to trim it before it could publish. A draft over the
+ * limit is sent back to the bot to shorten, at most twice; one still over is returned with `tooLong`, which the
+ * composer says in words beside the counter.
+ * @param ctx - App context.
+ * @param sub - The verified caller.
+ * @param prompt - The X draft prompt.
+ * @returns The draft, and its length against the limit when it is still over.
+ */
+async function draftWithinXLimit(ctx, sub, prompt) {
+    let draft = String((await runOnBot(ctx, 'draft', sub, prompt)) || '').trim();
+    for (let attempt = 0; attempt < 2 && draft.length > X_LIMIT; attempt += 1) {
+        const shorter = String((await runOnBot(ctx, 'draft', sub, [
+            `This X post is ${draft.length} characters; X allows at most ${X_LIMIT}.`,
+            `Rewrite it in at most ${X_LIMIT - 20} characters, keeping its message and its hook.`,
+            'Output ONLY the post text — no preamble, no quotes.',
+            '',
+            draft,
+        ].join('\n'))) || '').trim();
+        if (shorter)
+            draft = shorter;
+    }
+    return draft.length > X_LIMIT ? { draft, tooLong: { length: draft.length, max: X_LIMIT } } : { draft };
+}
 /** Publish approved text to X/Twitter via the connector token (POST /2/tweets). */
 async function publishToX(ctx, sub, text) {
-    if (text.length > 280)
-        return { ok: false, code: 400, error: 'too_long', message: `Tweet is ${text.length} chars (max 280).` };
-    const token = await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'twitter');
+    if (text.length > X_LIMIT)
+        return { ok: false, code: 400, error: 'too_long', message: `Tweet is ${text.length} chars (max ${X_LIMIT}).` };
+    const token = await (0, kernel_egress_1.connectorTokens)(ctx, sub)('twitter');
     if (!token)
-        return { ok: false, code: 409, error: 'no_twitter_connection', message: 'Connect X at /utilities first.' };
-    const r = await fetch('https://api.twitter.com/2/tweets', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-    });
+        return { ok: false, code: 409, ...NO_X };
+    let r;
+    try {
+        r = await fetch('https://api.twitter.com/2/tweets', {
+            method: 'POST',
+            headers: { ...(0, kernel_egress_1.bearer)(token), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+        });
+    }
+    catch (err) {
+        if ((0, kernel_egress_1.isNotConnected)(err))
+            return { ok: false, code: 409, ...NO_X };
+        throw err;
+    }
     const j = (await r.json().catch(() => ({})));
     if (r.status >= 200 && r.status < 300)
         return { ok: true, target: 'twitter', tweetId: j?.data?.id ?? null };
@@ -130,6 +173,8 @@ async function publishToX(ctx, sub, text) {
 }
 /** The caller's numeric X user id (the API's source id for timeline + follow), or null. */
 async function twitterUserId(ctx, sub) {
+    if ((0, kernel_egress_1.kernelEgress)())
+        return (0, kernel_egress_1.kernelTwitterUserId)();
     const r = (await ctx.pool.query("SELECT account_id FROM oshal_connections WHERE user_sub = $1 AND provider = 'twitter'", [sub])).rows[0];
     return r?.account_id ? String(r.account_id) : null;
 }
@@ -208,10 +253,11 @@ function createSocialRoutes(ctx) {
             return;
         }
         const profiles = {};
+        const tokenFor = (0, kernel_egress_1.connectorTokens)(ctx, sub);
         try {
-            const li = await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'linkedin');
+            const li = await tokenFor('linkedin');
             if (li) {
-                const r = await fetch('https://api.linkedin.com/v2/userinfo', { headers: { Authorization: `Bearer ${li}` } });
+                const r = await fetch('https://api.linkedin.com/v2/userinfo', { headers: (0, kernel_egress_1.bearer)(li) });
                 if (r.ok)
                     profiles.linkedin = await r.json();
             }
@@ -222,9 +268,9 @@ function createSocialRoutes(ctx) {
         try {
             // Facebook is the Pages (Business) connector now — the standalone login app was
             // dropped + merged into Pages. Report Facebook as connected via meta-business.
-            const fb = await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'meta-business');
+            const fb = await tokenFor('meta-business');
             if (fb) {
-                const r = await fetch(`${FB_GRAPH}/me?fields=id,name&access_token=${encodeURIComponent(fb)}`);
+                const r = await fetch(`${FB_GRAPH}/me?fields=id,name${(0, kernel_egress_1.graphTokenParam)(fb)}`);
                 if (r.ok)
                     profiles.facebook = await r.json();
                 else
@@ -235,9 +281,9 @@ function createSocialRoutes(ctx) {
             logger.warn({ err }, 'Facebook profile read failed');
         }
         try {
-            const tw = await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'twitter');
+            const tw = await tokenFor('twitter');
             if (tw) {
-                const r = await fetch('https://api.twitter.com/2/users/me?user.fields=username,name,public_metrics', { headers: { Authorization: `Bearer ${tw}` } });
+                const r = await fetch('https://api.twitter.com/2/users/me?user.fields=username,name,public_metrics', { headers: (0, kernel_egress_1.bearer)(tw) });
                 if (r.ok)
                     profiles.twitter = await r.json();
             }
@@ -258,9 +304,10 @@ function createSocialRoutes(ctx) {
             return;
         }
         try {
-            const conn = await ctx.pool.query(`SELECT provider FROM oshal_connections
-          WHERE user_sub = $1 AND provider IN ('meta-business', 'facebook') AND status <> 'revoked'`, [sub]);
-            const providers = conn.rows.map((r) => r.provider);
+            const providers = (0, kernel_egress_1.kernelEgress)()
+                ? await (0, kernel_egress_1.kernelFacebookProviders)(ctx)
+                : (await ctx.pool.query(`SELECT provider FROM oshal_connections
+            WHERE user_sub = $1 AND provider IN ('meta-business', 'facebook') AND status <> 'revoked'`, [sub])).rows.map((r) => r.provider);
             const sig = await ctx.pool.query(`SELECT COUNT(*)::int AS n FROM oshal_inbox_messages
           WHERE user_sub = $1 AND category = 'social' AND received_at > NOW() - INTERVAL '30 days'`, [sub]);
             const signals = Number(sig.rows[0]?.n || 0);
@@ -311,7 +358,7 @@ function createSocialRoutes(ctx) {
                     'Hook first, 2–4 short paragraphs, 1–3 relevant hashtags at the end.',
                     'Output ONLY the post text — no preamble, no quotes.',
                 ].join('\n');
-            res.json({ draft: await runOnBot(ctx, 'draft', sub, prompt) });
+            res.json((target === 'twitter' || target === 'x') ? await draftWithinXLimit(ctx, sub, prompt) : { draft: await runOnBot(ctx, 'draft', sub, prompt) });
         }
         catch (err) {
             logger.error({ err }, 'Draft failed');
@@ -472,9 +519,9 @@ function createSocialRoutes(ctx) {
             return;
         }
         try {
-            const token = await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'twitter');
+            const token = await (0, kernel_egress_1.connectorTokens)(ctx, sub)('twitter');
             if (!token) {
-                res.status(409).json({ error: 'no_twitter_connection', message: 'Connect X at /utilities first.' });
+                res.status(409).json(NO_X);
                 return;
             }
             const uid = await twitterUserId(ctx, sub);
@@ -482,7 +529,7 @@ function createSocialRoutes(ctx) {
                 res.status(409).json({ error: 'reconnect', message: 'Missing X user id — reconnect X.' });
                 return;
             }
-            const r = await fetch(`https://api.twitter.com/2/users/${uid}/timelines/reverse_chronological?max_results=25&tweet.fields=created_at,public_metrics`, { headers: { Authorization: `Bearer ${token}` } });
+            const r = await fetch(`https://api.twitter.com/2/users/${uid}/timelines/reverse_chronological?max_results=25&tweet.fields=created_at,public_metrics`, { headers: (0, kernel_egress_1.bearer)(token) });
             const gate = xTierGate(r.status);
             if (gate) {
                 res.status(gate.code).json(gate.body);
@@ -499,6 +546,10 @@ function createSocialRoutes(ctx) {
                 })) });
         }
         catch (err) {
+            if ((0, kernel_egress_1.isNotConnected)(err)) {
+                res.status(409).json(NO_X);
+                return;
+            }
             logger.error({ err }, 'X timeline read failed');
             res.status(502).json({ error: err.message });
         }
@@ -521,9 +572,9 @@ function createSocialRoutes(ctx) {
             return;
         }
         try {
-            const token = await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'twitter');
+            const token = await (0, kernel_egress_1.connectorTokens)(ctx, sub)('twitter');
             if (!token) {
-                res.status(409).json({ error: 'no_twitter_connection', message: 'Connect X at /utilities first.' });
+                res.status(409).json(NO_X);
                 return;
             }
             const uid = await twitterUserId(ctx, sub);
@@ -531,7 +582,7 @@ function createSocialRoutes(ctx) {
                 res.status(409).json({ error: 'reconnect', message: 'Missing X user id — reconnect X.' });
                 return;
             }
-            const ur = await fetch(`https://api.twitter.com/2/users/by/username/${encodeURIComponent(handle)}`, { headers: { Authorization: `Bearer ${token}` } });
+            const ur = await fetch(`https://api.twitter.com/2/users/by/username/${encodeURIComponent(handle)}`, { headers: (0, kernel_egress_1.bearer)(token) });
             const ugate = xTierGate(ur.status);
             if (ugate) {
                 res.status(ugate.code).json(ugate.body);
@@ -543,7 +594,7 @@ function createSocialRoutes(ctx) {
                 return;
             }
             const fr = await fetch(`https://api.twitter.com/2/users/${uid}/following`, {
-                method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                method: 'POST', headers: { ...(0, kernel_egress_1.bearer)(token), 'Content-Type': 'application/json' },
                 body: JSON.stringify({ target_user_id: target }),
             });
             const fgate = xTierGate(fr.status);
@@ -559,6 +610,10 @@ function createSocialRoutes(ctx) {
             res.status(502).json({ ok: false, error: JSON.stringify(fj).slice(0, 300) });
         }
         catch (err) {
+            if ((0, kernel_egress_1.isNotConnected)(err)) {
+                res.status(409).json(NO_X);
+                return;
+            }
             logger.error({ err }, 'X follow failed');
             res.status(502).json({ error: err.message });
         }

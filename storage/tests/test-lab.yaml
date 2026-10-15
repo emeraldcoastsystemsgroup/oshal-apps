@@ -4,9 +4,56 @@
 # -----------------------------------------------------------------------------
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries: the company view of the assistant page for the Business shells reads only GET /home-summary, GET /prefs and GET /local/list on open, never POSTs /assistant and never calls a provider, names signed-out, refused, unsaved, empty, partial and failed states for what they are, and leaves the full page's own start ungated only when no audience view renders.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register the native-kernel egress case: the GitHub and Dropbox pickers, repo creation and the assistant's create_repo / list_files call the declared hosts with no Authorization header, GET /prefs reads connections from metadata, and a missing or unusable connection gives each route's own not-connected answer.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | kernel-egress also covers list_files by Files bucket: OSHAL local lists the caller's local store (no provider call, no Dropbox in the answer), Dropbox lists Dropbox, GitHub says it cannot list a repository here. The case writes a disposable temp directory, so its isolation is disposable.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | The audience-view case also expects the summary to say what Automatic resolves to (the concierge called the location unset while Settings showed OSHAL local).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | The audience-view case asserts that expectation against the compiled routes/home-summary.js (stub Router and pool), not a copy of its text, and feeds the view the route's own JSON; the hand-shaped saved and failed summaries are checked against the route.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register the notes case (save a text note with approval, read it back, list it from the kernel's file store under the native kernel); kernel-egress expects list_files and /local/list to read the kernel's file store under the kernel.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | The notes case also expects the usage answer (sweep 9: "How much space am I using?" had no answer) and the persona's one-step approval for held tools.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | The notes case also expects a .txt note to be saved as plain text (sweep 10: a saved note kept the chat's **bold** and * bullets) while a .md note keeps its Markdown.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Review of sweep 10: the notes case expects only word-bounded **bold** taken out of a .txt note; dunders, globs, # lines, code ticks, a crontab line, x**2, bullets and links are saved exactly as approved.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | The notes case also expects every delete request to call the delete tool and a card named by what it does (sweep 13).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
+  - id: notes-save-read
+    name: Save a text note and read it back
+    purpose: Drive the compiled /local/save, /local/read and /local/list handlers under the native kernel (a storage.* intent double answering like the kernel's file store) and on the legacy per-user directory.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/notes.test.cjs] }
+    expected:
+      - "Every delete request calls storage-delete-note in that reply, nothing is called deleted or saved before the tool answers ok, and a card is named by what it does, never by where it sits (sweep 13)."
+      - An unconfirmed save touches nothing; a confirmed one saves the named .txt or .md note for the verified caller with OSHAL local forced.
+      - A file of the same name is never replaced unless replace is true; names, kinds and sizes are bounded before anything is written.
+      - GET /local/read returns the saved text; a missing note answers 404; the list shows the saved note.
+      - DELETE /local/note removes a saved note (storage.delete under the kernel); a missing one answers 404 and deletes nothing.
+      - The manifest offers storage-save-note held for approval and storage-read-file.
+      - GET /local/list answers usage (file count, total bytes and "<used> of 250.0 MB" with what it counts) and the assistant's usage action says it in words.
+      - The persona proposes a held tool at once (the card is the confirmation, never a typed yes first) and answers space questions from the usage.
+      - A .txt note is saved and read back without chat **bold** only; __init__, *.txt globs, # comment lines, `code` ticks, a crontab line, x**2, bullets and links are saved exactly as approved; a .md note is saved exactly as sent; the tool and persona ask for plain text.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 20000 }
+    installation: never
+  - id: kernel-egress-providers
+    name: Native kernel GitHub and Dropbox calls through the declared egress
+    purpose: Drive the compiled storage handlers with OSHAL_EGRESS=kernel, a recording fetch, a stubbed assistant reply and synthetic connection metadata.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/kernel-egress.test.cjs] }
+    expected:
+      - The repo list, repo creation, Dropbox folder picker and the assistant's create_repo and list_files reach api.github.com or api.dropboxapi.com with only accepted headers, no Authorization header and no key in the URL; answers map as before.
+      - GET /prefs lists the caller's usable connections from connection metadata (Google aliases as google) and does not read the framework connections table.
+      - A kernel "not connected" refusal, or metadata with no usable connection, gives each route's own not-connected answer.
+      - Outside the kernel the brokered token is still sent as the Bearer header and the connections table still answers GET /prefs.
+      - The manifest declares api.github.com and api.dropboxapi.com with their Bearer credentials.
+      - 'List my files lists the store the Files bucket points at; with Files on OSHAL local it never answers about Dropbox.'
+      - Under the native kernel list_files and /local/list read the kernel's personal file store through storage.list, never the sandbox directory; the legacy framework lists its per-user directory.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 20000 }
+    installation: never
   - id: audience-view
     name: Audience view contract
     purpose: >-
@@ -24,6 +71,7 @@ cases:
       - The boot names this application and exactly the audiences the page provides, with an escape label.
       - The full page start runs only when the kit renders no audience, and when the kit is absent.
       - The head block parses, reads only this package's routes and builds no HTML from data.
+      - With nothing saved the compiled route (routes/home-summary.js, run with a stub Router and pool) says the default target is in use and that Automatic resolves to OSHAL (local) unless GitHub, Dropbox or Google Drive is connected, never that the location is unset; its saved and failed answers match the summaries the view is tested with.
       - On open the company view reads only GET /home-summary, GET /prefs and GET /local/list; it never POSTs /assistant (the chat turn, which runs a model and acts with the caller's tokens) and never reads /dropbox/folders or /github/repos (live provider calls).
       - The title names the effective code and files targets; the stats are the two targets with their saved or automatic state, the connected stores among GitHub, Dropbox and Google Drive, and the top-level file count of the oshal-local store; the table lists those files by name with their size, capped at twelve; the stores list marks each store connected or not and which bucket it serves.
       - Signed out (401), refused (403), nothing saved, an empty store, a partial summary, a failed prefs read, a failed store listing and a failed summary read each read as what they are; only both the summary and the prefs failing raises the kit's failure notice.

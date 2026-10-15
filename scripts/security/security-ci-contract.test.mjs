@@ -216,6 +216,39 @@ function writeInventoryFixture(t, sourceBody, compiledBody = sourceBody) {
   return routeInventory(root);
 }
 
+/** Build native ESM beside an actual typed readiness peer; no route code is executed. */
+function nativeEsmInventoryFixture(t, { runtime = 'process', body = 'export function createFixture() { return 1; }', helper = '' } = {}) {
+  const root = mkdtempSync(join(tmpdir(), 'oshal-native-esm-inventory-'));
+  t.after(() => { assert.equal(dirname(root), tmpdir()); rmSync(root, { recursive: true, force: true }); });
+  const app = join(root, 'fixture-app');
+  mkdirSync(join(app, 'src-routes'), { recursive: true }); mkdirSync(join(app, 'routes'));
+  writeFileSync(join(app, 'oshal-app.yaml'), `name: fixture-app\nruntime: ${runtime}\nroutes:\n  - { module: routes/test.mjs, factory: createFixture, mountPath: /api/fixture, auth: oidc }\n  - { module: routes/smoke.js, factory: createSmoke, mountPath: /api/fixture/_smoke, auth: service }\n`);
+  writeFileSync(join(app, 'src-routes/smoke.ts'), 'function createSmoke() { return 1; }');
+  writeFileSync(join(app, 'routes/smoke.js'), 'function createSmoke() { return 1; }');
+  writeFileSync(join(app, 'routes/test.mjs'), body);
+  if (helper) writeFileSync(join(app, 'routes/helper.mjs'), helper);
+  return { root, app };
+}
+
+test('explicit native ESM coexists with typed readiness and retains auth plus transitive write classification', t => {
+  const f = nativeEsmInventoryFixture(t, { body: 'import { save } from "./helper.mjs"; export function createFixture() { return save; }', helper: 'export function save(pool) { return pool.query("INSERT INTO fixture_rows(id) VALUES($1)"); }' });
+  assert.deepEqual(routeInventory(f.root), ['fixture-app|routes/smoke.js|createSmoke|/api/fixture/_smoke|service|no-sql-write', 'fixture-app|routes/test.mjs|createFixture|/api/fixture|oidc|machine-write']);
+});
+
+test('native ESM syntax failures refuse even alongside a valid typed readiness peer', t => {
+  const f = nativeEsmInventoryFixture(t, { body: 'export function createFixture( {' });
+  assert.throws(() => routeInventory(f.root), /route does not parse/);
+});
+
+test('native ESM does not waive compiled JS peers or a missing explicit native process declaration', t => {
+  const f = nativeEsmInventoryFixture(t, { runtime: 'wasm' });
+  assert.throws(() => routeInventory(f.root), /Manifest route has no source peer/);
+  writeFileSync(join(f.app, 'oshal-app.yaml'), readFileSync(join(f.app, 'oshal-app.yaml'), 'utf8').replace('runtime: wasm', 'runtime: process'));
+  writeFileSync(join(f.app, 'routes/unpaired.js'), 'function createUnpaired() { return 1; }');
+  writeFileSync(join(f.app, 'oshal-app.yaml'), readFileSync(join(f.app, 'oshal-app.yaml'), 'utf8') + '  - { module: routes/unpaired.js, factory: createUnpaired, mountPath: /api/unpaired, auth: oidc }\n');
+  assert.throws(() => routeInventory(f.root), /Manifest route has no source peer/);
+});
+
 test('completed-task writer calls are machine-write in source or compiled route inventory', t => {
   const reader = 'function createFixture() { return taskStore.findJarvisTaskSessionId(context, owner, id); }';
   const writer = 'async function createFixture() { return await taskStore.saveCompletedBriefing(id, owner, session, title, result); }';

@@ -45,6 +45,9 @@
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove Uber Rides credentials from generic bot dispatch. Estimate/deep-link access resolves a fixed-server-operation credential only inside the deterministic CLI helper; the model receives rider context and never a credential map.
  * 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: replace the final credential-bearing subprocess with the import-safe Uber Rides provider helper. Estimate, geocode, and handoff calls receive only the current request's explicit credential value.
  * 2026-09-26 | maintainer@emeraldcoastsystemsgroup.com | Commerce surfaces (backlog "Consumer commerce native surfaces"): a chat turn in which the concierge sets `book` no longer builds the Uber deep link or writes rides_requests in the same request. It prices the trip with the deterministic estimate and returns a `proposal` (rideProposal: pickup, dropoff, the matching ride type and its fare range) that the surface shows as a confirm card; only the rider's confirm calls POST /request. `ride` stays in the reply (always null) so older surfaces keep their shape.
+ * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | No Uber connector is not "no rides". When the runtime's Uber Rides `status` answers mode not_connected (the native kernel has no Uber connector and refuses every other operation with 503, which also fails the whole call), the routes never call that operation: geocode, reverse, estimate and the hand-off link run on the package's keyless rail (rides-keyless: Nominatim over the declared egress host, haversine x 1.3 and the platform fare model, Uber's public links). /estimate and /request accept the two map pins (pickupLat/pickupLon/dropoffLat/dropoffLon), so a dropped pin prices with no address lookup. /config answers the rail and its sentence. The concierge prompt states the installation's facts and never tells the rider to connect Uber; the chat no longer 503s before the bot answers. Guard: tests/rides-keyless.test.js.
+ * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | With no Uber rail the prompt says no pickup ETA is known: live, the concierge put "Est. Arrival 5-10 min" beside the modelled fares while every option's etaPickupMin is null. The prompt also carries the measured distance of the trip on screen (it said "approximately 105 miles" for an 87 km trip) and forbids any other. Guard: tests/rides-keyless.test.js.
+ * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: an approved hand-off card showed only "Done in Rides." with no way to open Uber. POST /request also answers `url` (the https Uber web link, else the deep link) and `where` (one sentence: open the link to see the price and request; also under Trips), the fields an approval card shows beside its result. Guard: tests/rides-keyless.test.js.
  *
  * @module rides-routes
  */
@@ -82,6 +85,8 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.HANDOFF_WHERE = void 0;
+exports.railIsAbsent = railIsAbsent;
 exports.ensureRidesSchema = ensureRidesSchema;
 exports.rideProposal = rideProposal;
 exports.createRidesRoutes = createRidesRoutes;
@@ -97,6 +102,7 @@ const concierge_store_1 = require("@/app/routes/concierge-store");
 const concierge_reply_1 = require("@/app/routes/concierge-reply");
 const agent_management_1 = require("@/features/agent-management");
 const inline_bot_execution_1 = require("@/app/routes/inline-bot-execution");
+const rides_keyless_1 = require("./rides-keyless");
 const logger = (0, logger_1.createChildLogger)({ module: 'rides-routes' });
 const CONCIERGE_AGENT_ID = 'b0090000-0000-0000-0000-000000000001';
 // rides-concierge is a real accountable bot-node. This route uses it for tool-disabled reasoning;
@@ -129,10 +135,40 @@ function resolveRiderSub(req) {
         return 'demo-rider';
     throw Object.assign(new Error('Not authenticated'), { status: 401 });
 }
-/** Run one Uber Rides provider operation with the caller's explicit request-scoped credential. */
-async function ridesProviderOperation(pool, sub, args) {
+/** Where an approved hand-off is found, said in every /request answer so an approval card can say it beside the link. */
+exports.HANDOFF_WHERE = 'Open the Uber link to see the real price and request the ride in Uber. It is also listed under Trips in Rides.';
+/** The package's keyless rail: one per process, so its Nominatim queue and cache are shared. */
+const keyless = (0, rides_keyless_1.createKeylessRides)();
+/**
+ * @description True when the runtime's Uber Rides status says it has no Uber rail at all (the native
+ * kernel's not-connected answer). Calling any other operation there refuses with 503 and fails the
+ * whole request, so the routes must not.
+ * @param status - The provider's `status` answer.
+ * @returns Whether the keyless rail serves this request.
+ */
+function railIsAbsent(status) {
+    return !!status && typeof status === 'object' && status.mode === 'not_connected';
+}
+/**
+ * @description Run one Uber Rides operation: the provider helper with the caller's request-scoped
+ * credential where the runtime has an Uber rail, the package's keyless rail where it has none.
+ * @param pool - The package pool (credential lookup).
+ * @param sub - The caller.
+ * @param args - The operation and its arguments.
+ * @param pins - Map pins the request carried (keyless rail only).
+ * @returns The operation's answer in the provider helper's shape.
+ */
+async function ridesProviderOperation(pool, sub, args, pins) {
     const creds = await (0, connector_token_broker_1.resolveServerOperationCreds)(pool, sub, ['uber-rides'], 'fixed-server-operation');
-    return (0, provider_operation_clients_1.runUberRidesProviderOperation)(creds.OSHAL_CRED_UBER_RIDES, args);
+    const status = await (0, provider_operation_clients_1.runUberRidesProviderOperation)(creds.OSHAL_CRED_UBER_RIDES, ['status']);
+    if (railIsAbsent(status))
+        return keyless.run(args, pins);
+    return args[0] === 'status' ? status : (0, provider_operation_clients_1.runUberRidesProviderOperation)(creds.OSHAL_CRED_UBER_RIDES, args);
+}
+/** The map pins in a query string or body (each end only when both of its numbers are valid). */
+function pinsFrom(src) {
+    const o = src || {};
+    return { pickup: (0, rides_keyless_1.pointFrom)(o.pickupLat, o.pickupLon), dropoff: (0, rides_keyless_1.pointFrom)(o.dropoffLat, o.dropoffLon) };
 }
 async function ensureRidesSchema(pool) {
     await (0, database_1.runRuntimeSchemaBootstrap)({
@@ -216,13 +252,18 @@ function buildConciergePrompt(o) {
         ? `- ${x.label}: no fare estimate (the address did not resolve to a location)`
         : `- ${x.label}: ~$${x.fareLow}-${x.fareHigh}`)).join('\n') || '(none shown yet)';
     const convo = (o.history || []).map((h) => `${h.role === 'assistant' ? 'You' : 'Rider'}: ${h.content}`).join('\n');
+    const km = typeof o.distanceKm === 'number' && Number.isFinite(o.distanceKm) ? o.distanceKm : null;
+    const distance = km === null ? 'MEASURED DISTANCE: none yet. Never state a distance.'
+        : `MEASURED DISTANCE: ${km} km (${Math.round(km * 0.621371)} miles), the modelled road distance between the two points. Quote only this distance.`;
     return [
         'You are the Rides Concierge — a quick, practical Uber trip planner. Confirm pickup + destination, show ride options with ESTIMATED fares, and hand off an Uber deep link. You never request the ride or take payment.',
         'Pickup defaults to "my location". Ask only what you need (destination is required). Set "showOptions": true to display fare estimates; set "book": true ONLY when the rider clearly picks a ride to go. Always note fares are estimates.',
         'Fares are modelled from the MEASURED distance between the two geocoded points. If an option says the address did not resolve, there is no fare — say so and ask for a street number or a city. NEVER invent a dollar figure to fill the gap.',
+        o.railNote ? `THIS INSTALLATION: ${o.railNote} Never tell the rider to connect Uber or to add an Uber connection: there is no Uber connector to add here. The rider can still see the distance and the modelled fare on the map and open the Uber hand-off. No pickup time (ETA) is known here: never state one, and never add a column or line for it.` : '',
         '',
         `RIDER PROFILE: ${profileLine}`,
         `LAST OPTIONS SHOWN:\n${opts}`,
+        distance,
         '',
         convo ? `CONVERSATION SO FAR:\n${convo}` : '',
         '',
@@ -297,8 +338,14 @@ function createRidesRoutes(ctx) {
             process.env.VITE_GOOGLE_MAPS_BROWSER_KEY ||
             '';
         const googleMapsMapId = process.env.GOOGLE_MAPS_MAP_ID || '';
+        const status = await ridesProviderOperation(pool, sub, ['status']);
+        const absent = status?.mode === 'keyless';
         res.json({
-            uberRidesConnected: !!r.rowCount,
+            uberRidesConnected: !absent && !!r.rowCount,
+            // 'keyless': this installation has no Uber connector; distance, fares and the hand-off link
+            // are computed here (railNote says so in words). 'provider': the runtime's Uber Rides helper.
+            rail: absent ? 'keyless' : 'provider',
+            railNote: absent ? rides_keyless_1.NO_CONNECTOR_NOTE : undefined,
             maps: {
                 // 'osm' is a REAL map, not a fallback: keyless OpenStreetMap tiles under the Leaflet
                 // build vendored at tools/vendor/leaflet. Google is the upgrade when a key exists —
@@ -365,15 +412,16 @@ function createRidesRoutes(ctx) {
             res.status(400).json({ error: 'dropoff is required' });
             return;
         }
-        const r = await ridesProviderOperation(pool, sub, ['estimate', pickup, dropoff]);
+        const r = await ridesProviderOperation(pool, sub, ['estimate', pickup, dropoff], pinsFrom(req.query));
         res.json({
-            pickup, dropoff, options: r.options || [], source: r.source || 'estimate', error: r.error,
+            pickup, dropoff, options: r.options || [], source: r.source || 'estimate', error: r.error, rail: r.rail || 'provider',
             // The provider helper geocoded both ends; hand its pins and measurement to the
             // map so it draws the route without asking Nominatim the same two questions again.
             coords: r.coords || null,
             distanceKm: r.distanceKm ?? null,
             straightLineKm: r.straightLineKm ?? null,
             basis: r.basis || 'unresolved',
+            roadFactor: r.roadFactor ?? null,
             note: r.note,
         });
     }));
@@ -386,14 +434,14 @@ function createRidesRoutes(ctx) {
             res.status(400).json({ error: 'dropoff is required' });
             return;
         }
-        const r = await ridesProviderOperation(pool, sub, ['ride', pickup, dropoff, rideType]);
+        const r = await ridesProviderOperation(pool, sub, ['ride', pickup, dropoff, rideType], pinsFrom(b));
         if (!r.rideUrl) {
             res.status(400).json({ error: r.error || 'could not build ride link' });
             return;
         }
         await recordRequest(pool, sub, { pickup, dropoff, rideType, deepLink: r.rideUrl, fareLow: b.fareLow, fareHigh: b.fareHigh });
-        res.json({ rideUrl: r.rideUrl, pickup, dropoff, rideType,
-            note: 'Opens at Uber — sign in, confirm pickup, and request. This is a handoff, not an in-app charge.' });
+        res.json({ rideUrl: r.rideUrl, webUrl: r.webUrl, appUrl: r.appUrl, url: r.webUrl || r.rideUrl, where: exports.HANDOFF_WHERE,
+            pickup, dropoff, rideType, note: 'Opens at Uber — sign in, confirm pickup, and request. This is a handoff, not an in-app charge.' });
     }));
     router.get('/history', rider(async (_req, res, sub) => {
         const r = await pool.query(`SELECT pickup, dropoff, ride_type, est_fare_low, est_fare_high, deep_link, created_at FROM rides_requests WHERE user_sub = $1 ORDER BY created_at DESC LIMIT 20`, [sub]);
@@ -434,7 +482,12 @@ function createRidesRoutes(ctx) {
             hintedDropoff ? `Current destination field: ${hintedDropoff}` : '',
             message,
         ].filter(Boolean).join('\n');
-        const prompt = buildConciergePrompt({ message: messageWithHints, history, profile });
+        const pins = pinsFrom(req.body);
+        const rail = await ridesProviderOperation(pool, sub, ['status']);
+        // The trip already on screen is priced before the turn, so the concierge quotes the same numbers the map shows.
+        const onScreen = hintedDropoff ? await ridesProviderOperation(pool, sub, ['estimate', hintedPickup || 'my location', hintedDropoff], pins) : null;
+        const prompt = buildConciergePrompt({ message: messageWithHints, history, profile, lastOptions: onScreen?.options,
+            distanceKm: onScreen?.distanceKm ?? null, railNote: rail?.mode === 'keyless' ? rides_keyless_1.NO_CONNECTOR_NOTE : '' });
         // Dispatch credential-free reasoning to the accountable rides-bot. The controller validates its
         // envelope, then performs any estimate/deep-link lookup through ridesProviderOperation at the bounded provider
         // boundary below. Cost/audit still land under this agent_id; no model tool receives a token.
@@ -461,7 +514,10 @@ function createRidesRoutes(ctx) {
         const rideType = env.rideType || '';
         let options = [];
         if (dropoff) {
-            const estimate = await ridesProviderOperation(pool, sub, ['estimate', pickup, dropoff]);
+            const same = onScreen && dropoff === hintedDropoff && pickup === (hintedPickup || 'my location');
+            // A pin prices only the end the concierge left as it was on screen.
+            const kept = { pickup: pickup === (hintedPickup || 'my location') ? pins.pickup : null, dropoff: dropoff === hintedDropoff ? pins.dropoff : null };
+            const estimate = same ? onScreen : await ridesProviderOperation(pool, sub, ['estimate', pickup, dropoff], kept);
             options = estimate.options || [];
         }
         // The concierge may decide the rider wants to go; it may not hand off on its own. A proposal

@@ -21,6 +21,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | A request that names no league resolves to the caller's most recently linked ESPN league, so the installed package's boards can be read as the signed-in operator (the Test Lab's PAT smokes) without a league id written into the manifest.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | A schedule read that THROWS is logged at ERROR before it degrades to no schedule; the catch came over from sports-edge swallowing it. The fallback is unchanged.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | A league shape read (mSettings+mTeam: the FAAB budget, the last week, the first playoff week) that comes back empty no longer reads as "the league does not bid": the skill returns null once its retries fail, and the null body used to become faab null, lastWeek 17 and playoffStart null, so the waiver board of a FAAB league said it claims by waiver priority, with no bid on any row. The read now captures its classified failure; a transport or 5xx/429 failure answers through the unreachable-ESPN path (503 naming the transport), and a refusal or a read that threw answers 502 naming the unread shape. A read that throws is logged at ERROR. Nothing season-long is priced on an assumed shape.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Where the runtime cannot carry ESPN's sign-in cookies (the native kernel's skill reports credentialSupport.supported false: no connection lookup, and its egress refuses a package Cookie), no answer tells a person to connect ESPN, which cannot help there. credentialUnsupported() gives the skill's sentence; answerUnreachable answers a `credential-unsupported` league failure 403 with it; espnContext's private-league answer and its own-team answer (a public league reads, but no team can be matched to an account) say it too, naming the hand-typed league. Elsewhere the messages are unchanged. Guard: tests/fantasy-native-credential.test.js.
  *
  * @module fantasy-context
  */
@@ -31,7 +32,7 @@ import { createChildLogger } from '@/shared/logger';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
 import { accessibleConnections } from '@/app/routes/connector-tenancy';
 import {
-  classifyFailure, findOwnTeam, parseCredential, readCurrentScoringPeriod, readLeague, readLeagueSettingsOutcome,
+  classifyFailure, credentialSupport, findOwnTeam, parseCredential, readCurrentScoringPeriod, readLeague, readLeagueSettingsOutcome,
   readMatchupsOutcome, readTeams, type FantasyCredential, type FantasyMatchup, type FantasyReadFailure,
   type FantasyReadOptions, type FantasyTeam, type LeagueSettings,
 } from '@/features/fantasy-leagues';
@@ -82,14 +83,32 @@ export async function credentialFor(pool: Pool, sub: string): Promise<OwnCredent
 }
 
 /**
+ * @description Why this runtime cannot use anyone's ESPN connection, or null where it can. The native
+ * kernel's skill reports `credentialSupport.supported === false`: it cannot send ESPN's sign-in cookies,
+ * so "connect ESPN Fantasy" would send a person to a step that cannot help. A skill that does not
+ * report it (the platform's) keeps the connection advice.
+ * @returns The skill's sentence, or null when connecting can help.
+ */
+export function credentialUnsupported(): string | null {
+  const support = credentialSupport as { supported?: boolean; reason?: string } | undefined;
+  if (!support || support.supported !== false) return null;
+  return String(support.reason || 'This installation cannot read a private ESPN league or find your own team. Type your league in by hand to use every board.');
+}
+
+/**
  * @description Answer a league read that never reached ESPN, or reached it and got a 5xx. Neither is
- * a credential problem, and the credential message is actively harmful advice for both.
+ * a credential problem, and the credential message is actively harmful advice for both. A read refused
+ * because this runtime cannot send ESPN's sign-in cookies is answered 403 with that reason.
  * @param res - The response to answer on.
  * @param failure - The classified failure, or null when the read simply returned nothing.
  * @returns True when the failure was answered here and the caller should stop.
  */
 export function answerUnreachable(res: Response, failure: FantasyReadFailure | null): boolean {
   if (!failure || failure.kind === 'refused') return false;
+  if ((failure.kind as string) === 'credential-unsupported') {
+    res.status(403).json({ error: failure.reason, reason: failure.kind, espnStatus: failure.status });
+    return true;
+  }
   const error = failure.kind === 'unavailable'
     ? `Could not reach ESPN for that league — it answered ${failure.reason}. ESPN's fantasy API is failing, `
       + 'not your ESPN account, so there is nothing to re-paste; try again shortly.'
@@ -168,13 +187,14 @@ async function espnContext(pool: Pool, sub: string, req: LeagueRequest): Promise
   if (!settings) {
     if (failure && failure.kind !== 'refused') return { ok: false, status: 503, body: { failure } };
     return { ok: false, status: cred ? 404 : 403, body: {
-      error: cred ? 'ESPN would not return that league right now.' : 'Connect ESPN Fantasy to read a private league, or use a league typed in by hand.',
+      error: cred ? 'ESPN would not return that league right now.'
+        : credentialUnsupported() || 'Connect ESPN Fantasy to read a private league, or use a league typed in by hand.',
     } };
   }
   const week = req.week || settings.scoringPeriodId;
   const teams = await readTeams(req.season, leagueId, week, cred, espn);
   const own = cred ? findOwnTeam(teams, cred.swid) : null;
-  if (!own) return { ok: false, status: 404, body: { error: 'no team in that league belongs to this ESPN account' } };
+  if (!own) return ownTeamMissing(cred);
   const schedule = await readMatchupsOutcome(req.season, leagueId, cred, espn).catch((err: unknown) => {
     log.error({ err, season: req.season, leagueId, week }, 'schedule read threw; serving the highest-projected lineup');
     return { matchups: [], failure: null };
@@ -190,6 +210,19 @@ async function espnContext(pool: Pool, sub: string, req: LeagueRequest): Promise
     matchups: schedule.matchups, scheduleFailure: schedule.failure, byes: {},
     faab: shape?.faab ?? null, lastWeek: shape?.lastWeek ?? DEFAULT_LAST_WEEK, playoffStart: shape?.playoffStart ?? null, cred,
   } };
+}
+
+/**
+ * @description The answer when no team in a readable league can be matched to the caller. With a
+ * credential that is a fact about the league; without one, where this runtime cannot carry ESPN's
+ * cookies, it is the runtime's limit, and the answer says so instead of blaming the account.
+ * @param cred - The caller's credential, or null.
+ * @returns The refusal.
+ */
+function ownTeamMissing(cred: FantasyCredential | null): ContextResult {
+  const unsupported = cred ? null : credentialUnsupported();
+  if (unsupported) return { ok: false, status: 403, body: { error: unsupported, reason: 'credential-unsupported' } };
+  return { ok: false, status: 404, body: { error: 'no team in that league belongs to this ESPN account' } };
 }
 
 /** A league's FAAB budget and season shape, as the season-long boards price from them. */

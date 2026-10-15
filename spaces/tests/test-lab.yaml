@@ -5,6 +5,11 @@
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.9.2: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # 3   | maintainer@emeraldcoastsystemsgroup.com     | ADR-169 L7: register the capture-session hand-off between the two surfaces and the route's anchor on capture.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register the live-capture link case: with no scan engine the LIVE guided capture link is switched off with the reason, like the capture buttons.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register the phone layout case (tests/browser/spaces-phone-layout.test.cjs): forms and viewer as one scrolling column.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Phone layout case: a refused drone scan's toast is drawn inside the visible screen (it was under the screen, at the bottom of the viewer below the forms).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Phone layout case: nothing is drawn over the toast (the fixed diagnostic-brief panel covered it) and the hand-off panel is in the page flow; the "Choose a video first" toast is checked too.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register spaces-surfaces, which now also guards the empty viewer copy: it names the upload form's own labels instead of 'on the left', which was wrong at phone width.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -91,4 +96,61 @@ cases:
     limits:
       timeoutMs: 60000
       maxMemoryMb: 512
+    installation: never
+  - id: live-capture-link
+    name: LIVE guided capture link follows availability
+    purpose: >-
+      Run the shipped applyAvailability and setLiveCapture from tools/spaces.html against a stub DOM: where the scan list answers
+      configured:false (no reconstruction engine; the capture plan answers 503) the LIVE guided capture link is switched off with its reason.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/spaces-live-capture.test.js
+    expected:
+      - With no scan engine the link has no href, is aria-disabled and says why; with an engine it stays live.
+      - A refused capture plan also switches the link off.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: spaces-phone-layout
+    name: Spaces forms on a phone
+    purpose: Open the real Spaces page with the native unavailable reason in Chromium at 412 x 915 and in the 392 x 641 cockpit frame, and with a connected engine and a refused drone scan.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/browser/spaces-phone-layout.test.cjs] }
+    expected:
+      - The capture forms are laid out at their natural height (no inner scroll box) and the last control is reachable by scrolling the page.
+      - The 3D viewer follows the forms and is at least 300px tall; nothing is wider than the screen and nothing is written.
+      - With a connected engine, tapping the drone scan after scrolling to it shows its refusal toast inside the visible screen; the only write is that refused POST.
+      - Each toast (the refused drone scan, and "Choose a video first" with the native unavailable reason) is the topmost thing at its centre; the "Prepare a diagnostic brief" panel sits in the page flow, not fixed over the page.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none, cleanup: Each case closes its browser context; pages and answers are synthetic and served inside the browser with no network or server. }
+    limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
+    installation: never
+  - id: spaces-surfaces
+    name: Packaged surfaces and viewer copy
+    purpose: Read the packaged route source, the compiled route and the shipped pages - no browser, server or GPU.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/spaces-surfaces.test.js
+    expected:
+      - The packaged factory and the /pair endpoint are present in source and compiled routes.
+      - The empty viewer names the Walk-through video field and the Reconstruct 3D scene button and gives no left/right direction, which is wrong at phone width.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

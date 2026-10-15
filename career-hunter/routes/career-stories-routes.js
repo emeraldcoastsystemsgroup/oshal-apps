@@ -6,6 +6,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | ADR-141 D7 role-anchored story review: GET /stories reports every role with its stories and which role is next (with the question, built from that role's own bullets); POST /stories/answer attaches ONE story to ONE role from the candidate's own words. Both ride the engine's `stories` verb, so the profile write stays inside the leased child that owns the store.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | DELETE /stories/test-lab/:tag (1.26.0): remove only the caller's stories whose recorded answer starts with that acceptance run's Test Lab mark, through the engine's `stories remove-marked` in the same leased child. An automated live acceptance that answers the review with marked answers had no way to leave the owner's profile as it found it. A tag that marks nothing answers 404, so another user's tag reaches nothing.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | GET /stories reads the caller's career_db.json through lib/career-stories-state.js (the same projection as the engine's stories.state()) instead of starting `jobhunter stories list`. On the native kernel the package sandbox exports no Python source, so the read died with "No module named jobhunter.__main__" and the Stories screen answered 502. The read takes no engine lease, brokers no credential and starts no run; the answer and removal writes still go through the leased engine child.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerCareerStoryRoutes = registerCareerStoryRoutes;
@@ -13,6 +14,7 @@ const logger_1 = require("@/shared/logger");
 const career_engine_dispatch_1 = require("./career-engine-dispatch");
 const career_targets_1 = require("./career-targets");
 const career_user_store_1 = require("./career-user-store");
+const storiesState = require('../lib/career-stories-state');
 const logger = (0, logger_1.createChildLogger)({ module: 'career-stories' });
 /** A spoken answer, not an essay — bounded so one turn cannot fill the store. */
 const MAX_RESPONSE_CHARS = 6000;
@@ -20,29 +22,24 @@ const MAX_RESPONSE_CHARS = 6000;
 const TEST_LAB_TAG = /^[a-z0-9][a-z0-9-]{5,63}$/;
 /**
  * @description GET /stories — the review's state: every role with its stories, how many roles
- * still need one, and the next question. Read-only; it spends no tokens.
- * @param ctx - App context.
+ * still need one, and the next question. Read straight from the caller's profile file: no engine
+ * child, no lease, no credential brokerage, no tokens.
  * @param req - Express request.
  * @param res - Express response.
  */
-async function listStories(ctx, req, res) {
+async function listStories(req, res) {
     const userSub = (0, career_user_store_1.callerSub)(req);
     if (!userSub) {
         res.status(401).json({ error: 'unauthorized' });
         return;
     }
-    const result = await (0, career_engine_dispatch_1.runCareerCliAwait)(ctx.pool, userSub, ['stories', 'list'], {}, { slot: 'stories' });
-    if (result.limitReason) {
-        res.status(503).json({ error: result.limitReason === 'inflight' ? 'a review turn is already running' : 'engine busy' });
-        return;
+    try {
+        res.json(await storiesState.readStoriesState((0, career_user_store_1.userPaths)(userSub).userDir));
     }
-    const json = result.ok ? (0, career_targets_1.parseEngineJson)(result.out) : null;
-    if (!json) {
-        logger.error({ userSub, err: (result.err || '').slice(-200) }, 'career stories list failed');
+    catch (err) {
+        logger.error({ err, userSub }, 'career stories list failed');
         res.status(502).json({ error: 'the review is unavailable' });
-        return;
     }
-    res.json(json);
 }
 /**
  * @description POST /stories/answer — attach one story to one role. Awaited rather than detached
@@ -132,7 +129,7 @@ async function removeMarkedStories(ctx, req, res) {
  * @param ctx - App context.
  */
 function registerCareerStoryRoutes(router, ctx) {
-    router.get('/stories', (req, res) => { void listStories(ctx, req, res); });
+    router.get('/stories', (req, res) => { void listStories(req, res); });
     router.post('/stories/answer', (req, res) => { void answerStory(ctx, req, res); });
     router.delete('/stories/test-lab/:tag', (req, res) => { void removeMarkedStories(ctx, req, res); });
 }

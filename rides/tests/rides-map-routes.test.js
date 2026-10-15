@@ -7,6 +7,8 @@
  *
  * 2026-08-06 03:05:00 | maintainer@emeraldcoastsystemsgroup.com   | Exercise the compiled request-scoped in-process Rides provider bridge instead of the retired CLI subprocess seam.
  *
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | The routes probe `status` to choose the rail (provider, or the keyless one where the runtime has no Uber connector); the stub answers it connected without recording it, and ./rides-keyless loads for real.
+ *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
 'use strict';
@@ -50,6 +52,8 @@ function loadRoutes(opts = {}) {
     },
     '@/app/routes/provider-operation-clients': {
       runUberRidesProviderOperation: async (_credential, args) => {
+        // The rail-choosing `status` probe is answered connected and not recorded as an operation.
+        if (args[0] === 'status') return {};
         cliCalls.push([...args]);
         const payload = (opts.cliResponses || {})[args[0]];
         return payload === undefined ? {} : payload;
@@ -62,6 +66,7 @@ function loadRoutes(opts = {}) {
       createRegistryEndpointResolver: () => () => undefined,
     },
     '@/app/routes/inline-bot-execution': { executeBotOrInline: async () => ({ response: '{}' }) },
+    './rides-keyless': require(path.join(__dirname, '..', 'routes', 'rides-keyless.js')),
   };
   const shimRequire = (id) => {
     if (Object.prototype.hasOwnProperty.call(stubs, id)) return stubs[id];

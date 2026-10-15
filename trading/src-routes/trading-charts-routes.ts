@@ -9,6 +9,8 @@
  *            |          | with the same key resolution as the broker, so it does not touch the trading
  *            |          | engine's trading-routes.ts / market-data.ts. Mounted at /api/trading-charts.
  * 2026-07-19 23:30:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Carved out of OSHAL core into the trading app package (ADR-085 Wave 3). Standard (ctx) factory; the vendored chart lib now serves from the package's tools/vendor (ctx.appPackageDir per D10, load-time env fallback, then the relative dev fallback) — the kernel src/api/vendor copy ripped with the app. The split posture is UNCHANGED and declared auth: public in the manifest (EXACTLY what core server.ts mounted, ADR-085 D2): the lib is a public MIT JS asset, GET /bars self-gates via callerSub → 401.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | With no Alpaca data keys, GET /bars answers market_data_not_connected with a sentence that says there is no market-data source (and no Alpaca connector natively) instead of telling the person to set keys this installation has no place for.
+ * 2026-10-13 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | With no Alpaca data keys on a host that has the World price archive (the native kernel's prices.series intent), GET /bars answers the archive's stored prices for the symbol as a line ({bars: [], line: [{t, v}], source: 'world-archive', note}) instead of 503: 5Min/15Min from raw points, 1Hour from hour buckets, 1Day from day buckets, 1Week from the last day of each week. Never invented candles: the archive keeps one price per point. A ticker the archive does not track answers 404 not_in_price_archive in words; a failed archive read keeps the 503 sentence. A host without the archive keeps the existing 503.
  */
 
 import { existsSync, readFileSync } from 'fs';
@@ -16,6 +18,8 @@ import path from 'path';
 import { Router, type Request, type Response } from 'express';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
+import { archiveAvailable, archiveChart } from './trading-archive-quotes';
+import { nativeSchwabReads, readNativeChart } from './trading-native-reads';
 
 const logger = createChildLogger({ module: 'trading-charts-routes' });
 
@@ -57,6 +61,31 @@ const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
  * @param ctx - The per-package app context (appPackageDir locates tools/vendor per D10; no pool use).
  * @returns An Express router mounted at /api/trading-charts.
  */
+/** The sentence every no-source answer starts with. */
+const NO_SOURCE = 'No market-data source is connected, so there are no chart bars: charts read the Alpaca data API, and no Alpaca data keys are set on this host (the native installation has no Alpaca connector).';
+
+/**
+ * @description Answer GET /bars from the World price archive: the symbol's stored prices as a line for the timeframe.
+ * @param ctx - The package context (its intent call reads prices.series).
+ * @param res - The response.
+ * @param symbol - Upper-case ticker.
+ * @param tfKey - The requested timeframe.
+ * @returns Nothing - the answer is written to res.
+ */
+async function archiveBars(ctx: AppContext, res: Response, symbol: string, tfKey: string): Promise<void> {
+  try {
+    const chart = await archiveChart(ctx, symbol, tfKey);
+    if (!chart.line.length) {
+      res.status(404).json({ error: 'not_in_price_archive', message: `No market-data source is connected, and oshal's World price archive has no stored prices for ${symbol} (it tracks the default trading universe).` });
+      return;
+    }
+    res.json({ symbol, timeframe: chart.timeframe, bars: [], line: chart.line, source: chart.source, note: chart.note });
+  } catch (err) {
+    logger.error({ err, symbol, tf: tfKey }, 'trading chart archive read failed');
+    res.status(503).json({ error: 'market_data_not_connected', message: NO_SOURCE + ' The World price archive could not be read either.' });
+  }
+}
+
 export function createTradingChartsRoutes(ctx: AppContext): Router {
   const router = Router();
   const appPackageDir = ctx.appPackageDir;
@@ -92,8 +121,18 @@ export function createTradingChartsRoutes(ctx: AppContext): Router {
     const tfKey = String(req.query.timeframe || '1Day');
     const tf = TIMEFRAMES[tfKey] || TIMEFRAMES['1Day'];
     if (!symbol) { res.status(400).json({ error: 'symbol_required' }); return; }
+    if (nativeSchwabReads()) {
+      try {
+        const chart = await readNativeChart(ctx, symbol, tf.tf, typeof req.query.connection === 'string' ? req.query.connection : undefined);
+        if (chart) { res.json(chart); return; }
+      } catch {
+        res.status(503).json({error:'schwab_market_data_unavailable',message:'Schwab could not supply chart candles. Check your connection and market-data permissions, then retry.'});
+        return;
+      }
+    }
     const { id, secret } = alpacaKeys();
-    if (!id || !secret) { res.status(503).json({ error: 'broker_not_configured', message: 'Set the Alpaca paper keys to load charts.' }); return; }
+    if ((!id || !secret) && archiveAvailable(ctx)) { await archiveBars(ctx, res, symbol, tfKey); return; }
+    if (!id || !secret) { res.status(503).json({ error: 'market_data_not_connected', message: 'No market-data source is connected, so there are no chart bars: charts read the Alpaca data API, and no Alpaca data keys are set on this host (the native installation has no Alpaca connector).' }); return; }
     // Hard timeout: without it a stalled Alpaca data feed leaves the request hanging until an
     // upstream gateway kills it with a generic (bodyless) 502 — the surface then shows a bare
     // "HTTP 502" with no cause. Abort fast and hand the UI a real, explainable JSON error instead.

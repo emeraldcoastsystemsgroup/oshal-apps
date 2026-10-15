@@ -9,6 +9,16 @@
      matters — without it the surface would have no colors at all. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- CHANGE LOG
+     1 | maintainer@emeraldcoastsystemsgroup.com | Sweep 7: the New schedule fields had no labels (the concierge could only say 'the
+       unlabelled time field' and 'the unlabelled list'). Each field now sits in its own visible label (Action, When,
+       Time, Repeat, Minutes before or after), shown and hidden with its label.
+     2 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: with no device or scene the Action list was empty and Add schedule only
+       said 'Pick an action' (the concierge told the person to press it). The list says no device or scene exists yet and where
+       to add one, and Add schedule says a schedule runs a device or scene action.
+     3 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 1: the assistant reply printed markdown asterisks ('Go to the **Hubs tab**')
+       and sat flush on the screen edge at 412 px. **bold** now renders as bold text (text nodes only, nothing becomes markup)
+       and the reply has 16 px side padding. Guard: tests/browser/home-reply-words.test.cjs. -->
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the household picture
      (what is on, scenes to run, what is scheduled) from the SAME routes as the full page, painted by the shared
      kit in the family grammar. Any other request runs the full Smart Home page below unchanged. -->
@@ -127,14 +137,24 @@
   .dim input { flex:1; accent-color:var(--accent); }
   .dim .lvl { font-size:11.5px; color:var(--muted); width:34px; text-align:right; }
   .sel, .tin { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font-size:13px; }
+  .schf { display:flex; flex-direction:column; gap:3px; font-size:11.5px; color:var(--muted); min-width:0; }
+  .schf .sel, .schf .tin { max-width:100%; box-sizing:border-box; }
   .lnk { color:var(--accent); cursor:pointer; }
   .empty { color:var(--muted); font-size:14px; padding:30px 2px; }
   /* Chat bar */
-  .chat { position:fixed; left:0; right:0; bottom:0; background:var(--panel); border-top:1px solid var(--line); padding:12px 18px; }
+  /* z-index: positioned page content later in the document (the diagnostic-brief panel, position:relative) painted
+     over this fixed bar when it scrolled beneath it, so taps on Send landed on the panel (2026-10-11, phone).
+     Guard: tests/browser/home-phone-layout.test.cjs. */
+  .chat { position:fixed; left:0; right:0; bottom:0; z-index:20; background:var(--panel); border-top:1px solid var(--line); padding:12px 18px; }
   .chat .inner { max-width:1100px; margin:0 auto; display:flex; gap:9px; align-items:center; }
   .chat input { flex:1; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:9px; padding:11px 13px; font-size:14px; }
-  .reply { max-width:1100px; margin:0 auto 8px; color:var(--muted); font-size:13px; min-height:0; }
-  .toast { position:fixed; bottom:78px; left:50%; transform:translateX(-50%); background:var(--panel2); border:1px solid var(--line); color:var(--text); padding:9px 15px; border-radius:10px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; }
+  .reply { max-width:1100px; margin:0 auto 8px; padding:0 16px; box-sizing:border-box; color:var(--muted); font-size:13px; min-height:0; }
+  .reply .you { color:var(--text); font-weight:600; margin-bottom:4px; }
+  .hubs { max-width:600px; margin:14px 0; gap:10px; }
+  .hubs .hubrow { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; }
+  .hubs[hidden] { display:none; }
+  body.view-hubs .dash-only { display:none !important; }
+  .toast { position:fixed; z-index:21; bottom:78px; left:50%; transform:translateX(-50%); background:var(--panel2); border:1px solid var(--line); color:var(--text); padding:9px 15px; border-radius:10px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; }
   .toast.show { opacity:1; }
   ::-webkit-scrollbar{width:10px;height:10px}
   ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb);border-radius:6px}
@@ -158,6 +178,15 @@
     <button class="btn" id="refresh" onclick="refresh()">↻ Refresh</button>
   </header>
 
+  <section class="card hubs" id="hubsPanel" hidden aria-labelledby="hubs-title">
+    <div class="nm" id="hubs-title">Hubs</div>
+    <p class="dim" id="hubsReporting" role="status">Checking which hubs have reported devices…</p>
+    <div class="hubrow"><span>Samsung SmartThings</span><a class="btn solid" href="/api/connect/smartthings/start" target="_top">Connect SmartThings</a></div>
+    <div class="hubrow"><span>Google Home</span><a class="btn" href="/utilities" target="_top">Set up in Connections</a></div>
+    <p class="dim">After connecting, press Refresh to read the hub's devices.</p>
+  </section>
+
+  <div class="dash-only">
   <div class="sectitle" id="scenes-title" style="display:none">Scenes</div>
   <div class="scenes" id="scenes"></div>
 
@@ -165,27 +194,28 @@
   <div class="scenes" id="schedules"></div>
   <div class="card" style="max-width:600px;margin-top:8px;gap:8px">
     <div class="nm">New schedule</div>
-    <select id="sch-what" class="sel"></select>
+    <label class="schf" for="sch-what"><span>Action</span><select id="sch-what" class="sel"></select></label>
     <div class="dim" style="gap:8px;flex-wrap:wrap">
+      <label class="schf" for="sch-trig"><span>When</span>
       <select id="sch-trig" class="sel" onchange="schTrigChange()">
         <option value="clock">At a time</option>
         <option value="sunset">At sunset</option>
         <option value="sunrise">At sunrise</option>
-      </select>
-      <input id="sch-time" type="time" value="19:00" class="tin" />
-      <select id="sch-repeat" class="sel"><option value="daily">Every day</option><option value="weekdays">Weekdays</option></select>
-      <input id="sch-offset" type="number" value="0" class="tin" style="display:none;width:84px;flex:none" title="minutes before(-) / after(+)" />
-      <span id="sch-offlbl" class="lvl" style="display:none;width:auto">min offset</span>
+      </select></label>
+      <label class="schf" id="sch-time-f" for="sch-time"><span>Time</span><input id="sch-time" type="time" value="19:00" class="tin" /></label>
+      <label class="schf" id="sch-repeat-f" for="sch-repeat"><span>Repeat</span><select id="sch-repeat" class="sel"><option value="daily">Every day</option><option value="weekdays">Weekdays</option></select></label>
+      <label class="schf" id="sch-offset-f" for="sch-offset" style="display:none"><span>Minutes before (−) or after (+)</span><input id="sch-offset" type="number" value="0" class="tin" style="width:96px" /></label>
     </div>
     <div class="crow"><button class="btn solid" onclick="createSchedule()">Add schedule</button></div>
   </div>
 
   <div class="sectitle">Devices</div>
   <div class="grid" id="grid"><div class="empty">Loading…</div></div>
+  </div>
 </div>
 
-<div class="reply" id="reply"></div>
-<div class="chat"><div class="inner">
+<div class="reply dash-only" id="reply" role="log" aria-live="polite"></div>
+<div class="chat dash-only"><div class="inner">
   <input id="msg" placeholder='Ask: "make it cozy", "create a Movie Night scene", "I&apos;m home"…' onkeydown="if(event.key==='Enter')ask()" />
   <button class="btn solid" id="send" onclick="ask()">Send</button>
 </div></div>
@@ -239,6 +269,16 @@ async function loadDevices() {
     ? DEVICES.map(cardHtml).join('')
     : '<div class="empty">No devices yet. Connect a hub at <b>Hubs</b> (or hit Refresh).</div>';
   buildWhatOptions();
+  renderHubsReporting(data.hubs || [], DEVICES.length);
+}
+
+/** The Hubs tab opens this page with ?view=hubs: the hub connections, not the whole catalog of connectors. */
+const HUBS_VIEW = new URLSearchParams(location.search).get('view') === 'hubs';
+if (HUBS_VIEW) { document.body.classList.add('view-hubs'); $('hubsPanel').hidden = false; }
+function renderHubsReporting(hubs, deviceCount) {
+  $('hubsReporting').textContent = hubs.length
+    ? 'Reporting devices: ' + hubs.join(', ') + ' (' + deviceCount + ' device' + (deviceCount === 1 ? '' : 's') + ').'
+    : 'No hub has reported devices yet.';
 }
 
 async function loadScenes() {
@@ -255,6 +295,8 @@ async function loadScenes() {
 }
 
 // ── Schedules ────────────────────────────────────────────────────────────────
+/** Why a schedule cannot be added yet: it runs a device or scene action, and there is none. */
+const NO_SCHEDULE_ACTION = 'No device or scene yet: connect a hub on the Hubs tab or save a scene first';
 function buildWhatOptions() {
   const sel = $('sch-what'); if (!sel) return;
   const opts = [];
@@ -263,7 +305,9 @@ function buildWhatOptions() {
     opts.push({ l: 'Turn ON: ' + nm, a: { kind:'device', name:nm, cmd:'on' } });
     opts.push({ l: 'Turn OFF: ' + nm, a: { kind:'device', name:nm, cmd:'off' } }); });
   window.__schedOpts = opts;
-  sel.innerHTML = opts.map((o, i) => `<option value="${i}">${esc(o.l)}</option>`).join('');
+  // Sweep 12: with no device or scene the Action list was empty and Add schedule only said 'Pick an action'.
+  sel.innerHTML = opts.length ? opts.map((o, i) => `<option value="${i}">${esc(o.l)}</option>`).join('')
+    : `<option value="" selected disabled>${esc(NO_SCHEDULE_ACTION)}</option>`;
 }
 function cronToLocalTime(cron) {
   const p = String(cron || '').split(' '); if (p.length < 2) return cron || '';
@@ -285,14 +329,14 @@ async function loadSchedules() {
 }
 function schTrigChange() {
   const clock = $('sch-trig').value === 'clock';
-  $('sch-time').style.display = clock ? '' : 'none';
-  $('sch-repeat').style.display = clock ? '' : 'none';
-  $('sch-offset').style.display = clock ? 'none' : '';
-  $('sch-offlbl').style.display = clock ? 'none' : '';
+  // Each field is shown or hidden with its own label (the fields carried no label before).
+  $('sch-time-f').style.display = clock ? '' : 'none';
+  $('sch-repeat-f').style.display = clock ? '' : 'none';
+  $('sch-offset-f').style.display = clock ? 'none' : '';
 }
 function createSchedule() {
   const opts = window.__schedOpts || []; const action = opts[+$('sch-what').value] && opts[+$('sch-what').value].a;
-  if (!action) { toast('Pick an action'); return; }
+  if (!action) { toast(opts.length ? 'Pick an action' : 'A schedule runs a device or scene action. Connect a hub on the Hubs tab or save a scene first.'); return; }
   const t = $('sch-trig').value;
   if (t === 'clock') {
     const [h, m] = $('sch-time').value.split(':').map(Number);
@@ -340,13 +384,27 @@ async function ask() {
   const input = $('msg'); const message = input.value.trim(); if (!message) return;
   const confirmWrite = homeMightWrite(message);
   if (confirmWrite && !confirm('Run this smart-home action now?')) return;
-  const send = $('send'); input.value = ''; send.disabled = true; $('reply').textContent = 'Thinking…';
+  const send = $('send'); input.value = ''; send.disabled = true; showTurn(message, 'Thinking…');
   try {
     const r = await api('/assistant', { message, confirm: confirmWrite });
-    $('reply').textContent = r.reply || '';
+    showTurn(message, r.reply || '');
     await loadDevices(); await loadScenes(); // the bot may have changed state/scenes
-  } catch (e) { $('reply').textContent = 'Error: ' + e.message; }
+  } catch (e) { showTurn(message, 'Error: ' + e.message); }
   finally { send.disabled = false; }
+}
+/** The assistant's words as text nodes: **bold** becomes a strong element (the reply printed the asterisks), every
+ *  other character stays text, so nothing in a reply can become markup. */
+function replyNodes(reply) {
+  return String(reply || '').split(/\*\*([^*\n]+)\*\*/).map((part, index) => {
+    if (index % 2 === 0) return document.createTextNode(part);
+    const strong = document.createElement('strong'); strong.textContent = part; return strong;
+  });
+}
+/** The last exchange: what the person asked, then the answer (the reply alone read as if out of nowhere). */
+function showTurn(message, reply) {
+  const you = document.createElement('div'); you.className = 'you'; you.textContent = 'You: ' + message;
+  const answer = document.createElement('div'); answer.className = 'answer'; answer.append(...replyNodes(reply));
+  $('reply').replaceChildren(you, answer);
 }
 
 // The full page only: under an audience view the shared kit paints instead (see the head script).
@@ -408,7 +466,8 @@ if (!window.AppView || !AppView.active()) { loadDevices(); loadScenes(); loadSch
 })();
 </script>
 
-<details id="evidenceReview" style="position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px));max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box;box-shadow:0 8px 30px #0005">
+<!-- In the page flow, not position:fixed: a fixed panel sat on top of the Ask bar (input and Send) at the bottom of the screen on a phone. Guard: scripts/phone-screens.browser.cjs (home). -->
+<details id="evidenceReview" style="position:relative;margin:16px auto 96px;width:min(560px,calc(100% - 32px));background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box;box-shadow:0 8px 30px #0005">
  <summary style="cursor:pointer;font-weight:600">Prepare a diagnostic brief</summary>
  <p id="evidenceState" role="status">Choose recorded evidence, then review what to share.</p>
  <label>Saved evidence<select id="evidenceChoice" style="width:100%;margin:6px 0"></select></label>

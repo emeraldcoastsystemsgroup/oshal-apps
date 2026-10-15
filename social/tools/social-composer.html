@@ -273,7 +273,11 @@ $('draftBtn').onclick = async () => {
   try {
     const r = await fetch('/api/social/draft', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ topic, target: NET }) });
     const j = await r.json();
-    if (r.ok && j.draft) { $('text').value = j.draft; setCount(); showRefine(); }
+    if (r.ok && j.draft) {
+      $('text').value = j.draft; setCount(); showRefine();
+      // The route asked the bot to shorten an over-limit X draft; one still over is said in words (sweep 14: 315 / 280).
+      if (j.tooLong) $('result').innerHTML = '<div class="result err">This draft is ' + esc(String(j.tooLong.length)) + ' characters; X allows ' + esc(String(j.tooLong.max)) + '. Shorten it before publishing.</div>';
+    }
     else $('result').innerHTML = '<div class="result err">Draft failed: '+esc(j.error||r.status)+'</div>';
   } catch (e) { $('result').innerHTML = '<div class="result err">Draft error.</div>'; }
   $('draftBtn').disabled = false; $('draftBtn').textContent = '✨ Draft';
@@ -293,7 +297,7 @@ async function refine(instruction){
   if (!inst || !cur) return;
   const ctrls = document.querySelectorAll('.chip, #refineBtn'); ctrls.forEach(b=>b.disabled=true);
   try {
-    const r = await fetch('/api/content/refine', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ draft: cur, instruction: inst, topic: $('topic').value.trim() }) });
+    const r = await fetch('/api/social/content/refine', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ draft: cur, instruction: inst, topic: $('topic').value.trim() }) });
     const j = await r.json();
     if (r.ok && j.draft) { $('text').value = j.draft; setCount(); if ($('refineInput')) $('refineInput').value=''; }
     else $('result').innerHTML = '<div class="result err">Refine failed: '+esc(j.error||r.status)+'</div>';

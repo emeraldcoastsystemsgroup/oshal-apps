@@ -32,6 +32,11 @@
  *                     |                             | the kernel's activation ports, once; the capabilities answer is
  *                     |                             | one function the route and the scan-to-print-capabilities tool
  *                     |                             | share.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | `/capabilities` (and so the scan-to-print-capabilities tool)
+ *                     |                             | states the upload ceilings that hold HERE: under the native
+ *                     |                             | kernel every per-file byte ceiling is its 10 MiB file cap and
+ *                     |                             | `requestBytes` bounds one request (upload-limits.ts); it used
+ *                     |                             | to advertise a 200 MiB .ply the kernel refuses at 10 MiB.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -48,6 +53,7 @@ const logger_1 = require("@/shared/logger");
 const surface_files_1 = require("./surface-files");
 const data_dir_1 = require("./data-dir");
 const job_routes_1 = require("./job-routes");
+const upload_limits_1 = require("./upload-limits");
 const print_routes_1 = require("./print-routes");
 const service_routes_1 = require("./service-routes");
 const scan_authorization_1 = require("./scan-authorization");
@@ -127,7 +133,7 @@ function capabilitiesOf(env, deps) {
         slicerConfigured = false;
     }
     return {
-        app: 'scan-to-print', views: views_1.VIEW_NAMES, lanes: ['silhouettes', 'pointcloud', 'depth'], limits: pipeline_1.RECONSTRUCTION_LIMITS, upload: job_routes_1.UPLOAD_LIMITS,
+        app: 'scan-to-print', views: views_1.VIEW_NAMES, lanes: ['silhouettes', 'pointcloud', 'depth'], limits: pipeline_1.RECONSTRUCTION_LIMITS, upload: (0, upload_limits_1.effectiveUploadLimits)(job_routes_1.UPLOAD_LIMITS, env),
         depth: depth_decode_1.DEPTH_UPLOAD_LIMITS, printers: { kinds: printer_adapters_1.PRINTER_KINDS, slicerConfigured }, video: ffmpeg,
         printService: { mountPath: '/api/scan-to-print/service', startsOnlyWhenPrinterAutoStart: true },
         slicerEngine: { address: `${deps.slicer.host}:${deps.slicer.port}`, expectedBuildHash: deps.slicer.expectedBuildHash, installHint: deps.slicer.installHint },

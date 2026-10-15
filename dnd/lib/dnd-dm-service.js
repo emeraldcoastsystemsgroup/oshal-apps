@@ -14,6 +14,7 @@
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Ground every Dungeon Master mode in the selected campaign's title, tone, and authored world.
  * 2026-07-31 11:15:00 | roger.murphy@emeraldcoastsystemsgroup.com  | After each ordinary story exchange, hand the committed narration to the story-motion service: the acting hero walks beside whoever the fiction engaged and the exchange's art is requested server-side — the table's dominant play path (free Ask-the-DM conversation) previously narrated movement and meetings that never appeared on the board or as images.
  * 2026-07-31 23:25:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Lead rolls ride the SAME shared d20 (roadmap #13): performSharedRoll honors a request's precomputed modifier (a lead's skill bonus includes proficiency, which the ability-only sheet derivation cannot see) and applies lead crit semantics (a natural 20 always finds it, a natural 1 always fumbles) when the request carries a lead contract; the DM narration path refuses lead rolls — their outcome is committed by the exploration service, never narrated into being.
+ * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Directive lines are stripped from the narration in every mode, not only narrate and a roll. Sweep 8: a combat highlight was archived and shown as '... against the oak frame ... CHOICES: Bram takes a step forward | ...'. Outside narrate/roll the stripped ROLL/GRANT/CHOICES are never applied or offered, so a combat highlight still changes nothing on the table. Guard: tests/dnd-dm-fast-path.test.js.
  */
 
 'use strict';
@@ -821,6 +822,8 @@ async function completeDmExchange(deps, sub, body, mode, guard, taskId, requestI
     let directives = { narration, choices: [], roll: null, grant: null, transition: null };
     if (mode === 'narrate' && !body.rollId) directives = await applyNarrationDirectives(deps, sub, body, narration, guard);
     else if (body.rollId) directives = { ...directives, ...parseDirectives(narration), roll: null, grant: null };
+    // Any other mode (combat, opening, scene, recap) never acts on a directive, but its line must not reach the log.
+    else directives = { ...directives, narration: parseDirectives(narration).narration };
     if (body.rollId) directives.transition = await resolveSharedRollNarration(deps, sub, body.campaignId, body.rollId, guard);
     const archiveEntry = await archiveNarration(deps, sub, mode, body, directives.narration, guard);
     if (body.campaignId && !archiveEntry) return staleDmResponse(requestId);

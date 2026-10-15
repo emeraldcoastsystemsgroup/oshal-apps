@@ -8,6 +8,7 @@
   4 | maintainer@emeraldcoastsystemsgroup.com | Add the owner-bound ADR-139 image destination, named-character dataset import control, and queued/ready receipt view without claiming live GPU delivery.
   5 | maintainer@emeraldcoastsystemsgroup.com | The family audience view for the Home shell (ADR-164 D6): with ?audience=family the shared kit, loaded right after the theme bootstrap, paints the signed-in account's saved characters in plain words from GET /api/lora/home-summary alone (three counts, the three newest characters with their latest recorded version and score). The full page's own first read, GET /characters, saves the starter character for a new account, and every other studio read needs a character that read picks, so the view makes none of them; it never trains, validates, improves, imports or changes anything. The studio's control wiring and its character-list start now run only when no audience view renders; without the parameter the studio runs unchanged.
   6 | maintainer@emeraldcoastsystemsgroup.com | GET /characters no longer saves the starter character (a GET is admitted read-only and must not write; the native host refused it, so the list failed to load for every account). An account with no characters now sees an explicit "Add the starter character" action, which calls POST /characters/starter and paints the list it returns; a refusal (a viewer may not create characters) is shown in place. The audience-view note no longer gives the starter as the reason the view skips /characters.
+  7 | maintainer@emeraldcoastsystemsgroup.com | Save character with a required field empty (Hero image on the worker) did nothing and said nothing: the browser's validity bubble did not show in the docked frame. The form is novalidate and names each empty required field by its label in the result line, focusing the first; nothing is sent.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -198,7 +199,7 @@
       <details class="character-editor" id="characterEditor">
         <summary>Create a character</summary>
         <p class="hint">Save the identity here, then prepare its own curated dataset on the GPU worker. Saving starts no training and creates no schedule.</p>
-        <form id="characterForm">
+        <form id="characterForm" novalidate>
           <fieldset id="characterFields">
             <label>Subject slug<input name="subject" maxlength="64" required autocomplete="off" /></label>
             <label>Display name<input name="displayName" maxlength="2048" autocomplete="off" /></label>
@@ -216,6 +217,7 @@
         </form>
         <div class="result" id="createResult" role="status" aria-live="polite"></div>
       </details>
+      <div class="result" id="charsStatus" role="status" aria-live="polite"></div>
       <div id="chars"><div class="spin">Loading…</div></div>
       <div id="actions" style="display:none">
         <div class="lbl" style="margin-top:20px">Actions · <span id="actName"></span></div>
@@ -227,6 +229,7 @@
         </div>
         <label class="toggle"><input type="checkbox" id="autoTog" onchange="setAuto()" /> Improve overnight (autonomous, gated review)</label>
         <div class="bar"><button class="btn ghost sm" id="overnightBtn" onclick="act('improve-overnight')">🌙 Run overnight now</button></div>
+        <div class="bar"><button class="btn ghost sm" id="deleteCharBtn" type="button">Delete character</button><button class="btn ghost sm" id="deleteCharCancel" type="button" style="display:none">Keep it</button></div>
         <div class="result" id="result"></div>
         <div class="character-editor" id="datasetPanel" style="margin-top:16px">
           <div class="lbl">Curated dataset</div>
@@ -282,9 +285,20 @@ function empty(id,msg){ $(id).innerHTML='<div class="empty">'+esc(msg)+'</div>';
 function showResult(kind, msg){ const e=$('result'); e.style.display=''; e.className='result '+kind; e.textContent=String(msg||''); }
 function creationResult(kind, msg){ const e=$('createResult'); e.className='result '+kind; e.textContent=String(msg||''); }
 
+/* The required fields left empty, by the words of their labels. The form is novalidate: the browser's own bubble did
+   not show inside the docked frame, so Save with an empty Hero image did nothing and said nothing. */
+function requiredGaps(form){
+  return Array.from(form.querySelectorAll('[required]')).filter(f=>!String(f.value||'').trim())
+    .map(f=>({field:f,label:String((f.closest('label')&&f.closest('label').firstChild&&f.closest('label').firstChild.textContent)||f.name).trim()}));
+}
 async function saveCharacter(event){
   event.preventDefault();
   if($('characterFields').disabled) return;
+  const gaps=requiredGaps($('characterForm'));
+  if(gaps.length){
+    creationResult('err','Fill in '+gaps.map(g=>g.label).join(', ')+' to save the character. Nothing was saved.');
+    gaps[0].field.focus(); return;
+  }
   const body=Object.fromEntries(new FormData($('characterForm')));
   for(const [key,value] of Object.entries(body)){
     if(typeof value!=='string'||value.includes('\0')||new TextEncoder().encode(value).length>2048){
@@ -316,6 +330,46 @@ function bindStudio(){
   });
   $('importArtifactBtn').addEventListener('click',importIncomingArtifact);
   $('refreshDatasetBtn').addEventListener('click',()=>{ if(SEL) void loadDataset(SEL); });
+  $('deleteCharBtn').addEventListener('click',()=>{ void deleteCharacter(); });
+  $('deleteCharCancel').addEventListener('click',resetDeleteCharacter);
+}
+
+// Deleting a character asks twice in place (no browser dialog, which an embedded page may not show):
+// the first tap says what goes with it, the second deletes it.
+let DELETE_ARMED=null;
+function resetDeleteCharacter(){
+  DELETE_ARMED=null;
+  $('deleteCharBtn').textContent='Delete character';
+  $('deleteCharBtn').disabled=false;
+  $('deleteCharCancel').style.display='none';
+}
+function deleteCharacterWarning(c){
+  const versions=safeInt(c&&c.version_count)??0;
+  return 'Delete '+String(c&&c.display_name||c&&c.subject||'this character')+' and its '+versions+' version'+(versions===1?'':'s')+', scorecards and dataset receipts? Files already on the GPU worker are not removed. Tap "Yes, delete it" to confirm.';
+}
+async function deleteCharacter(){
+  const c=CHARS.find(x=>x.subject===SEL);
+  if(!c) return;
+  if(DELETE_ARMED!==c.subject){
+    DELETE_ARMED=c.subject;
+    $('deleteCharBtn').textContent='Yes, delete it';
+    $('deleteCharCancel').style.display='';
+    showResult('warn',deleteCharacterWarning(c));
+    return;
+  }
+  $('deleteCharBtn').disabled=true;
+  showResult('warn','Deleting '+c.display_name+'…');
+  const {ok,j}=await api('/characters/'+encodeURIComponent(c.subject),{method:'DELETE'});
+  resetDeleteCharacter();
+  if(!ok){ showResult('err',j.message||j.error||'The character could not be deleted.'); return; }
+  SEL=null;
+  $('actions').style.display='none';
+  $('verMeta').textContent='';
+  $('gallery').innerHTML='';
+  empty('vers','Select a character to see its trained versions and scorecards.');
+  await loadChars();
+  const removed=safeInt(j.removedVersions)??0;
+  const status=$('charsStatus'); status.className='result ok'; status.textContent='Deleted '+c.display_name+' ('+removed+' version'+(removed===1?'':'s')+' removed).';
 }
 
 function showCharacterConfig(c){
@@ -391,6 +445,7 @@ async function loadChars(){
 }
 
 async function select(subject){
+  if(DELETE_ARMED!==subject) resetDeleteCharacter();
   SEL = subject; const c = CHARS.find(x=>x.subject===subject);
   if(!c) return;
   await loadChars();

@@ -35,12 +35,70 @@
  *
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Add default-off scheduled rebaseline execution, per-call measured-cost gating, database slot idempotency, and owner-bound progress writes.
  *
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | On the native kernel a run is driven inside the request that started it. The kernel answers a
+ *   package's host calls only while that request is open (bridge: "Completed application request is unavailable in this native
+ *   runtime"), so the detached drive's first write after its BOM call was refused and the run sat at 'phase: bom' running for
+ *   21+ minutes. One request is 60 seconds there, so one analyst runs per request; the later analysts are recorded 'skipped' as
+ *   deferred and the next Run continues from the first deferred one. A run that throws is closed failed with the reason; a
+ *   reply cut off before its JSON closed says so; runs an earlier request left 'running' are closed as interrupted.
+ *
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | A native run whose request was abandoned (the page closed or the connection dropped
+ *   mid-run: the kernel drops the request and refuses its later host calls) stayed 'running' until the next Run, so the
+ *   console showed "Analysts running…" indefinitely and the home tile counted it in progress. Reads now present such a
+ *   run closed: presentRun shows a 'running' run older than the native request deadline plus a margin that this process
+ *   is not driving as failed (interrupted), and GET /ventures/:id, GET /ventures/:id/runs and GET /runs/:runId answer
+ *   through it. A read writes nothing (the kernel refuses SQL mutations on a read request); the next Run records the
+ *   close (closeInterrupted).
+ *
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | After bom, market and ops had all run, every document stayed "not generated yet" and the model
+ *   refused on model:traceability: the analysts named their own keys, and nothing registered bom.final-assembly.cost,
+ *   channel.dtc.terms, season.sell-through, a role's org.<id>.cost or a vendor's supplier.<id>.terms. Market and ops now
+ *   register the code-owned "required" slots under the exact keys (venture-required-inputs) and a slot left empty is
+ *   named on the phase and the run instead of the phase reading clean; ops registers each role's salary under its
+ *   org.<id>.cost and BOM each vendor's terms under supplier.<id>.terms; a write that failed is named too. A native full
+ *   run stores every catalogue document rendered from the computed numbers (no bot, no spend), so documents open and
+ *   Regenerate prose adds the written sections. Run the analysts continues from the first analyst the latest full run
+ *   deferred, failed or left with a gap, instead of starting again at bom.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | A required slot whose live row a person entered or that carries evidence (a recorded
+ *   vendor quote, the person's own value, a published source) is left as it is: the analyst's value is not stored over it
+ *   (bulkInsertAssumptions keeps it) and the slot is not named as a gap when the analyst left it empty, so Run does not
+ *   repeat the analyst over it. Before, pressing Run again replaced a quoted container freight with the ops analyst's
+ *   guess and the plan computed with the guess.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | A BOM run that redrafts the bill of materials closes the BOM analyst's own estimates for lines and vendors
+ *   the redraft no longer has (retireAnalystRows): the lines were replaced but their bom.<ref>.unit-cost and
+ *   supplier.<id>.terms rows stayed live, so a second BOM run left 13 BOM costs for a six-line product. A person's entry,
+ *   a quote or a published source is never closed.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | A native run stores its computed documents in one batched statement (insertDocumentVersions) instead of
+ *   one insert per document, and renders them only while the request has NATIVE_DOCUMENTS_RESERVE_MS left; with less, the
+ *   Documents phase is deferred with that reason and the documents keep their earlier version, which the document routes
+ *   mark stale. Live, an ops run answered 503 "package call timed out" after 60 s: its analyst finished at 18 s, the model
+ *   was stored at 29 s, and the 17 single inserts that followed on a loaded host ran past the limit. The narration table
+ *   shows each figure as the document prints it (formatFigure) for the {{fig:id}} tokens the strategist writes.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: the first Run the analysts failed "BOM analyst reply unusable: no
+ *   JSON object in the reply" (1,070 tokens that did not parse, 15 s) and the next run succeeded. An analyst reply that does
+ *   not parse, and was not cut off at the output limit, is asked for once more with the strict JSON rule (parsedAnalystReply),
+ *   on the native kernel only while the request still has room for a second reply as long as the first plus the documents
+ *   reserve. The narrated "What would have to be true" said "before the venture reaches break-even" over a table reading
+ *   break-even not reachable: the narrator is told the document's unreachable figures and a sentence still claiming one is
+ *   removed before storing (venture-prose-claims).
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Round 14: no narrated sentence is deleted. The narrator is given break-even
+ *   as the frozen model computed it (breakEvenFacts over the snapshot's figures and P&L), and after narration one check
+ *   (withBreakEvenCheck) keeps the prose as written and attaches "Check: the computed model does not reach break-even within
+ *   the horizon" to a section that says it is reached when it is not, logged as a warning (narrateDocument).
+ *
  * @module venture-run
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.DOCUMENTS_LATE = exports.GAP = exports.DEFERRED = exports.ABANDONED_REASON = exports.ABANDONED_MARGIN_MS = exports.NATIVE_DOCUMENTS_RESERVE_MS = exports.NATIVE_REQUEST_MS = exports.NATIVE_ANALYST_WINDOW_MS = void 0;
+exports.onNativeKernel = onNativeKernel;
 exports.inFlightRun = inFlightRun;
 exports.recomputeVenture = recomputeVenture;
+exports.unusableReply = unusableReply;
+exports.roleCosts = roleCosts;
 exports.startRun = startRun;
+exports.nativePhases = nativePhases;
+exports.needsAnotherRun = needsAnotherRun;
+exports.presentRun = presentRun;
 exports.startScheduledRebaseline = startScheduledRebaseline;
 const agent_management_1 = require("@/features/agent-management");
 const logger_1 = require("@/shared/logger");
@@ -48,11 +106,14 @@ const venture_model_1 = require("./venture-model");
 const venture_store_compose_1 = require("./venture-store-compose");
 const venture_bots_1 = require("./venture-bots");
 const venture_bot_contracts_1 = require("./venture-bot-contracts");
+const venture_required_inputs_1 = require("./venture-required-inputs");
 const venture_documents_1 = require("./venture-documents");
 const venture_doc_catalog_1 = require("./venture-doc-catalog");
 const venture_store_1 = require("./venture-store");
 const venture_store_supply_1 = require("./venture-store-supply");
 const venture_store_outputs_1 = require("./venture-store-outputs");
+const venture_figures_1 = require("./venture-figures");
+const venture_prose_claims_1 = require("./venture-prose-claims");
 const venture_rebaseline_1 = require("./venture-rebaseline");
 const venture_store_rebaseline_1 = require("./venture-store-rebaseline");
 const venture_types_1 = require("./venture-types");
@@ -61,6 +122,36 @@ const log = (0, logger_1.createChildLogger)({ module: 'venture-run' });
 const botClient = new agent_management_1.BotNodeClient((0, agent_management_1.createRegistryEndpointResolver)());
 /** In-flight runs by venture id. A second click must not double-spend. */
 const inFlight = new Map();
+/**
+ * How long into a native request an analyst phase may still start. The native kernel gives an
+ * ordinary request 60 seconds and serves its host calls only while it is open; an analyst reply is
+ * capped at ANALYST_MAX_OUTPUT_TOKENS (venture-bots), about 33 s of writing, so only an analyst that
+ * starts this early can finish and record its outcome inside the same request.
+ */
+exports.NATIVE_ANALYST_WINDOW_MS = 10_000;
+/** The native kernel's package request deadline (oshal-kernel crates/host-process/src/host.rs CALL_DEADLINE). */
+exports.NATIVE_REQUEST_MS = 60_000;
+/**
+ * How much of a native request must remain for a run to render and store its documents: two reads, one batched
+ * insert and the run's closing write, with room for a loaded host (live, single SQL calls took up to two seconds).
+ */
+exports.NATIVE_DOCUMENTS_RESERVE_MS = 15_000;
+/** Past the deadline, how long before a run nobody is driving is closed on read (clock skew, a slow close). */
+exports.ABANDONED_MARGIN_MS = 30_000;
+/** Why a run read after its request was abandoned is shown closed. */
+exports.ABANDONED_REASON = 'interrupted: the request that ran it ended before it recorded a result (the page was '
+    + 'closed, the connection dropped or the 60-second limit passed). Press Run the analysts again to continue.';
+/** Prefix of a phase error that means "not run yet; the next Run continues here". */
+exports.DEFERRED = 'deferred: ';
+/** Prefix of a done phase's note naming what its analyst did not supply; the next Run repeats that analyst. */
+exports.GAP = 'did not supply: ';
+/**
+ * @description Whether this package runs on the native kernel, where the bridge marks kernel-applied egress.
+ * @returns True on the native kernel.
+ */
+function onNativeKernel() {
+    return process.env.OSHAL_EGRESS === 'kernel';
+}
 /**
  * @description Whether a venture already has an authoring run in flight.
  * @param ventureId - Venture id.
@@ -148,6 +239,61 @@ async function mark(pool, ownerSub, ventureId, runId, phases, name, status, star
         && (x.status === 'done' || x.status === 'failed' || x.status === 'skipped')).length;
     await (0, venture_store_1.advanceRun)(pool, ownerSub, ventureId, runId, name, phases, done);
 }
+/**
+ * @description The failure text for an analyst reply that did not parse. A reply that opened its JSON
+ * and never closed it was cut off (the model reached its output limit), which a person should be told
+ * plainly; any other unusable reply keeps the parser's reason.
+ * @param who - The analyst, as the run names it.
+ * @param text - The reply text.
+ * @param error - The contract parser's reason.
+ * @returns The phase error.
+ */
+function unusableReply(who, text, error) {
+    return replyCutOff(text)
+        ? `${who} reply was cut off before its JSON closed (it reached the model's output limit): ${error}`
+        : `${who} reply unusable: ${error}`;
+}
+/** @description Whether a reply opened its JSON and never closed it (the model reached its output limit). */
+function replyCutOff(text) {
+    const body = String(text || '').trim().replace(/```\s*$/, '').trim();
+    return /[{[]/.test(body) && !/[}\]]$/.test(body);
+}
+/**
+ * @description Whether a second analyst reply fits: always off the native kernel; on it, only while the request still has
+ * room for a reply as long as the first one plus the documents reserve (a retry that ran past 60 s would lose the run).
+ * @param p - The phase context.
+ * @param firstMs - How long the first reply took.
+ * @returns True when the retry may be made.
+ */
+function retryFits(p, firstMs) {
+    if (p.nativeStartedAt === undefined)
+        return true;
+    const left = exports.NATIVE_REQUEST_MS - (Date.now() - p.nativeStartedAt);
+    return left >= firstMs + exports.NATIVE_DOCUMENTS_RESERVE_MS;
+}
+/**
+ * @description One analyst reply that parses: a reply that does not parse, and was not cut off at the output limit (a retry
+ * would be cut off again), is asked for once more with the strict JSON rule when the retry fits.
+ * @param p - The phase context.
+ * @param who - The analyst, as the run names it.
+ * @param call - The analyst call; `strict` asks for the JSON object alone.
+ * @param parse - The analyst's contract parser.
+ * @returns The reply and its parse.
+ * @throws When neither reply parses, with the parser's reason (unusableReply).
+ */
+async function parsedAnalystReply(p, who, call, parse) {
+    const started = Date.now();
+    let reply = await paidBotCall(p, () => call(false));
+    let parsed = parse(reply.text);
+    if (!parsed.ok && !replyCutOff(reply.text) && retryFits(p, Date.now() - started)) {
+        log.warn({ runId: p.runId, who, error: parsed.error }, 'analyst reply did not parse; asking once more for the JSON alone');
+        reply = await paidBotCall(p, () => call(true));
+        parsed = parse(reply.text);
+    }
+    if (!parsed.ok)
+        throw new Error(unusableReply(who, reply.text, String(parsed.error)));
+    return { reply, parsed: parsed };
+}
 /** Run and persist one bot boundary through the scheduled cap when present. */
 async function paidBotCall(p, call) {
     if (!p.budget)
@@ -169,18 +315,54 @@ async function paidBotCall(p, call) {
         }
     }
 }
+/**
+ * @description Register a batch of rows and name every key whose write failed. bulkInsertAssumptions logs and
+ * skips a failed row; a phase that dropped that list read as clean while the model refused on the missing key.
+ * @param p - The phase context.
+ * @param rows - Rows to register.
+ * @param agentId - The authoring analyst.
+ * @returns One gap per key that was not written.
+ */
+async function register(p, rows, agentId) {
+    if (!rows.length)
+        return [];
+    const { failed } = await (0, venture_store_1.bulkInsertAssumptions)(p.pool, p.ownerSub, p.ventureId, rows, agentId, p.runId);
+    return failed.map((key) => `${key}: not saved`);
+}
+/**
+ * @description Register the slots an analyst filled under the exact keys the model names; name the rest.
+ * Registered after the free-form rows, so a slot supersedes a free-form row that reused its key. A slot whose
+ * live row a person entered or that carries evidence keeps that row (bulkInsertAssumptions) and is no gap.
+ * @param p - The phase context.
+ * @param text - The analyst's reply.
+ * @param analyst - Which analyst.
+ * @param agentId - Its agent id.
+ * @returns The gaps: slots not filled or not saved, other than those a held row already answers.
+ */
+async function registerRequired(p, text, analyst, agentId) {
+    const { rows, missing } = (0, venture_required_inputs_1.parseRequiredInputs)((0, venture_bot_contracts_1.extractJsonObject)(text), analyst);
+    const held = new Set((await (0, venture_store_1.liveAssumptions)(p.pool, p.ownerSub, p.ventureId))
+        .filter(venture_types_1.heldAgainstAnalysts).map((a) => a.key));
+    const answered = (0, venture_required_inputs_1.slotsFor)(analyst).filter((s) => held.has(s.key)).map((s) => `${s.slot}:`);
+    const open = missing.filter((gap) => !answered.some((prefix) => gap.startsWith(prefix)));
+    return [...open, ...await register(p, rows, agentId)];
+}
 /** Run the BOM phase: draft lines and vendor candidates, store what parses. */
 async function phaseBom(p, spec) {
     const model = await recomputeVenture(p.pool, p.ownerSub, p.ventureId, { onDate: p.onDate, runId: p.runId });
     const runQty = model?.model.bom.runQtyUnits ?? 5000;
-    const reply = await paidBotCall(p, () => (0, venture_bots_1.authorBom)(p.ctx, botClient, p.ownerSub, spec, runQty));
-    const parsed = (0, venture_bot_contracts_1.parseBomOutput)(reply.text);
-    if (!parsed.ok)
-        throw new Error(`BOM analyst reply unusable: ${parsed.error}`);
+    const { parsed } = await parsedAnalystReply(p, 'BOM analyst', (strict) => (0, venture_bots_1.authorBom)(p.ctx, botClient, p.ownerSub, spec, runQty, strict), venture_bot_contracts_1.parseBomOutput);
     const vendorIds = new Map();
+    const terms = [];
     for (const v of parsed.vendors ?? []) {
         const stored = await (0, venture_store_supply_1.insertVendor)(p.pool, p.ownerSub, p.ventureId, { ...v, sourceKind: 'model-estimate' });
         vendorIds.set(v.name, stored.id);
+        // A line bought from this vendor rests on supplier.<id>.terms; the analyst's stated deposit is that term.
+        terms.push({
+            key: `supplier.${stored.id}.terms`, domain: 'manufacturing', label: `${v.name} deposit`, unit: 'bps',
+            valueNum: v.depositBps, sourceKind: 'model-estimate', confidence: v.confidence,
+            sourceDetail: `deposit ${v.depositBps} bps, balance net ${v.balanceNetDays} days, as the BOM analyst proposed`,
+        });
     }
     // A band, not a point: the midpoint is what the roll-up costs, and the band is
     // what the sensitivity sweep swings. Storing only a midpoint would delete the
@@ -200,21 +382,23 @@ async function phaseBom(p, spec) {
     await (0, venture_store_supply_1.replaceBomFromBot)(p.pool, p.ownerSub, p.ventureId, rows);
     // Every line's cost also becomes a registered assumption, so the figure that
     // rests on it can name it and the sweep can move it.
-    await (0, venture_store_1.bulkInsertAssumptions)(p.pool, p.ownerSub, p.ventureId, parsed.rows.map((l) => ({
-        key: `bom.${l.ref}.unit-cost`, domain: 'manufacturing',
-        label: `${l.partName} unit cost`, unit: 'micros',
-        valueNum: Math.round((l.lowMicros + l.highMicros) / 2),
-        lowNum: l.lowMicros, highNum: l.highMicros,
-        sourceKind: 'model-estimate', sourceDetail: l.specText, confidence: l.confidence,
-    })), venture_bots_1.AGENT_IDS.bomAnalyst, p.runId);
+    const costs = [...parsed.rows.map((l) => ({
+            key: `bom.${l.ref}.unit-cost`, domain: 'manufacturing',
+            label: `${l.partName} unit cost`, unit: 'micros',
+            valueNum: Math.round((l.lowMicros + l.highMicros) / 2),
+            lowNum: l.lowMicros, highNum: l.highMicros,
+            sourceKind: 'model-estimate', sourceDetail: l.specText, confidence: l.confidence,
+        })), ...terms];
+    const gaps = await register(p, costs, venture_bots_1.AGENT_IDS.bomAnalyst);
+    // The lines were replaced; this analyst's estimates for lines and vendors the redraft no longer has go with them.
+    await (0, venture_store_1.retireAnalystRows)(p.pool, p.ownerSub, p.ventureId, venture_bots_1.AGENT_IDS.bomAnalyst, ['bom.%.unit-cost', 'supplier.%.terms'], new Set(costs.map((c) => c.key)));
+    return gaps;
 }
 /** Run the market phase: demand, price ladder and channel terms. */
 async function phaseMarket(p, spec) {
-    const reply = await paidBotCall(p, () => (0, venture_bots_1.authorMarket)(p.ctx, botClient, p.ownerSub, spec));
-    const parsed = (0, venture_bot_contracts_1.parseAssumptionOutput)(reply.text);
-    if (!parsed.ok)
-        throw new Error(`market analyst reply unusable: ${parsed.error}`);
-    await (0, venture_store_1.bulkInsertAssumptions)(p.pool, p.ownerSub, p.ventureId, parsed.rows, venture_bots_1.AGENT_IDS.marketAnalyst, p.runId);
+    const { reply, parsed } = await parsedAnalystReply(p, 'market analyst', (strict) => (0, venture_bots_1.authorMarket)(p.ctx, botClient, p.ownerSub, spec, strict), venture_bot_contracts_1.parseAssumptionOutput);
+    const gaps = await register(p, parsed.rows, venture_bots_1.AGENT_IDS.marketAnalyst);
+    return [...gaps, ...await registerRequired(p, reply.text, 'market', venture_bots_1.AGENT_IDS.marketAnalyst)];
 }
 /** Run the ops phase against the frozen BOM roll-up. */
 async function phaseOps(p, spec) {
@@ -226,67 +410,124 @@ async function phaseOps(p, spec) {
             name: l.name, purchaseQty: l.purchaseQty, extendedMicros: l.extendedMicros,
         })),
     } : { note: 'no BOM computed yet' };
-    const reply = await paidBotCall(p, () => (0, venture_bots_1.authorOps)(p.ctx, botClient, p.ownerSub, spec, summary));
-    const parsed = (0, venture_bot_contracts_1.parseOpsOutput)(reply.text);
-    if (!parsed.ok)
-        throw new Error(`ops analyst reply unusable: ${parsed.error}`);
-    await (0, venture_store_1.bulkInsertAssumptions)(p.pool, p.ownerSub, p.ventureId, parsed.rows, venture_bots_1.AGENT_IDS.opsAnalyst, p.runId);
+    const { reply, parsed } = await parsedAnalystReply(p, 'ops analyst', (strict) => (0, venture_bots_1.authorOps)(p.ctx, botClient, p.ownerSub, spec, summary, strict), venture_bot_contracts_1.parseOpsOutput);
+    const gaps = await register(p, parsed.rows, venture_bots_1.AGENT_IDS.opsAnalyst);
+    gaps.push(...await registerRequired(p, reply.text, 'ops', venture_bots_1.AGENT_IDS.opsAnalyst));
     if (parsed.tasks?.length)
         await (0, venture_store_supply_1.replaceScheduleTasks)(p.pool, p.ownerSub, p.ventureId, parsed.tasks);
-    if (parsed.roles?.length)
+    if (parsed.roles?.length) {
         await (0, venture_store_supply_1.replaceHeadcount)(p.pool, p.ownerSub, p.ventureId, parsed.roles);
+        gaps.push(...await register(p, roleCosts(await (0, venture_store_supply_1.listHeadcount)(p.pool, p.ownerSub, p.ventureId)), venture_bots_1.AGENT_IDS.opsAnalyst));
+    }
+    return gaps;
+}
+/**
+ * @description The salary of each analyst-proposed role as the assumption its payroll line rests on
+ * (org.<id>.cost, venture-store-compose rolesFor). The analyst gives a salary and no range, so none is invented.
+ * @param roles - The venture's stored roles.
+ * @returns One row per model-estimate role without its own assumption key.
+ */
+function roleCosts(roles) {
+    return roles.filter((r) => r.sourceKind === 'model-estimate' && !r.assumptionKey).map((r) => ({
+        key: `org.${r.id}.cost`, domain: 'org', label: `${r.role} base salary`, unit: 'micros',
+        valueNum: r.baseSalaryMicros, sourceKind: 'model-estimate', confidence: r.confidence,
+        sourceDetail: `annual base salary the ops analyst proposed, ${r.fte} FTE`,
+    }));
+}
+/** The document version to store for one rendered document. */
+function documentInsert(p, snapshot, rendered, withProse) {
+    return {
+        docKey: rendered.docKey, modelId: snapshot.id, title: rendered.title,
+        bodyMd: rendered.bodyMd, sections: rendered.sections, proseRunId: p.runId,
+        proseStatus: withProse ? (rendered.unverifiedNumbers.length ? 'flagged' : 'generated') : 'none',
+        unverifiedNumbers: rendered.unverifiedNumbers,
+        assumptionsCited: rendered.assumptionsCited, estimatePct: rendered.estimatePct,
+    };
+}
+/** Render one document from the frozen snapshot, or null after logging why the engine refused it. */
+function renderFrom(spec, snapshot, assumptions, prose, ventureName) {
+    try {
+        return (0, venture_documents_1.renderDocument)(spec, {
+            figures: snapshot.figures, tables: snapshot.tables, coverage: snapshot.coverage,
+            posture: snapshot.posture, canPublish: snapshot.canPublish, warnings: snapshot.warnings,
+            assumptions, prose, ventureName, computedAt: snapshot.computedAt,
+        });
+    }
+    catch (err) {
+        log.error({ err, stack: err?.stack, docKey: spec.key }, 'document render refused');
+        return null;
+    }
+}
+/** Store every requested document rendered from the computed numbers alone, in one batched write. */
+async function storeComputedDocuments(p, snapshot, docKeys, assumptions, ventureName) {
+    const docs = docKeys.map((key) => (0, venture_doc_catalog_1.getDocSpec)(key))
+        .filter((spec) => Boolean(spec))
+        .map((spec) => renderFrom(spec, snapshot, assumptions, {}, ventureName))
+        .filter((r) => r !== null)
+        .map((r) => documentInsert(p, snapshot, r, false));
+    await (0, venture_store_outputs_1.insertDocumentVersions)(p.pool, p.ownerSub, p.ventureId, docs);
+}
+/**
+ * Narrate one document's prose sections over the frozen figures, with break-even stated as computed, and run the one
+ * break-even check on the reply. A failed narration returns no prose: the computed sections stand on their own.
+ */
+async function narrateDocument(p, snapshot, spec, figureTable) {
+    const wanted = (0, venture_doc_catalog_1.proseKeysFor)(spec);
+    if (!wanted.length)
+        return {};
+    const unreachable = (0, venture_prose_claims_1.unreachableFigures)(spec, snapshot.figures);
+    const breakEven = (0, venture_prose_claims_1.breakEvenFacts)(snapshot.figures, (snapshot.tables ?? {}));
+    try {
+        const reply = await paidBotCall(p, () => (0, venture_bots_1.narrate)(p.ctx, botClient, p.ownerSub, spec.title, wanted, figureTable, unreachable.map((u) => u.fact), breakEven.lines));
+        const checked = (0, venture_prose_claims_1.withBreakEvenCheck)((0, venture_bot_contracts_1.parseProseOutput)(reply.text), breakEven);
+        if (checked.flagged.length) {
+            log.warn({ docKey: spec.key, sections: checked.flagged }, 'prose says break-even is reached; the model does not reach it - check note attached');
+        }
+        return checked.prose;
+    }
+    catch (err) {
+        // A missing narrator must never cost the evidence: the computed sections
+        // stand on their own and the document records that prose is absent.
+        log.error({ err, stack: err?.stack, docKey: spec.key }, 'narration failed — rendering computed sections only');
+        return {};
+    }
 }
 /** Narrate and store every requested document from the FROZEN snapshot. */
-async function phaseNarrate(p, snapshot, docKeys) {
+async function phaseNarrate(p, snapshot, docKeys, withProse = true) {
     const assumptions = await (0, venture_store_1.liveAssumptions)(p.pool, p.ownerSub, p.ventureId);
     const venture = await (0, venture_store_1.getVenture)(p.pool, p.ownerSub, p.ventureId);
     if (!venture)
         return;
+    if (!withProse) {
+        await storeComputedDocuments(p, snapshot, docKeys, assumptions, venture.name);
+        return;
+    }
     const figureTable = {};
     for (const [id, f] of Object.entries(snapshot.figures))
-        figureTable[id] = `${f.label}: ${f.value} ${f.unit}`;
+        figureTable[id] = `${f.label}: ${(0, venture_figures_1.formatFigure)(f)}`;
     for (const key of docKeys) {
         const spec = (0, venture_doc_catalog_1.getDocSpec)(key);
         if (!spec)
             continue;
-        let prose = {};
-        const wanted = (0, venture_doc_catalog_1.proseKeysFor)(spec);
-        if (wanted.length) {
-            try {
-                const reply = await paidBotCall(p, () => (0, venture_bots_1.narrate)(p.ctx, botClient, p.ownerSub, spec.title, wanted, figureTable));
-                prose = (0, venture_bot_contracts_1.parseProseOutput)(reply.text);
-            }
-            catch (err) {
-                // A missing narrator must never cost the evidence: the computed sections
-                // stand on their own and the document records that prose is absent.
-                log.error({ err, stack: err?.stack, docKey: key }, 'narration failed — rendering computed sections only');
-            }
-        }
+        const prose = await narrateDocument(p, snapshot, spec, figureTable);
+        const rendered = renderFrom(spec, snapshot, assumptions, prose, venture.name);
+        if (!rendered)
+            continue;
         try {
-            const rendered = (0, venture_documents_1.renderDocument)(spec, {
-                figures: snapshot.figures, tables: snapshot.tables, coverage: snapshot.coverage,
-                posture: snapshot.posture, canPublish: snapshot.canPublish, warnings: snapshot.warnings,
-                assumptions, prose, ventureName: venture.name, computedAt: snapshot.computedAt,
-            });
-            await (0, venture_store_outputs_1.insertDocumentVersion)(p.pool, p.ownerSub, p.ventureId, {
-                docKey: rendered.docKey, modelId: snapshot.id, title: rendered.title,
-                bodyMd: rendered.bodyMd, sections: rendered.sections, proseRunId: p.runId,
-                proseStatus: Object.keys(prose).length
-                    ? (rendered.unverifiedNumbers.length ? 'flagged' : 'generated') : 'none',
-                unverifiedNumbers: rendered.unverifiedNumbers,
-                assumptionsCited: rendered.assumptionsCited, estimatePct: rendered.estimatePct,
-            });
+            await (0, venture_store_outputs_1.insertDocumentVersion)(p.pool, p.ownerSub, p.ventureId, documentInsert(p, snapshot, rendered, Object.keys(prose).length > 0));
         }
         catch (err) {
-            log.error({ err, stack: err?.stack, docKey: key }, 'document render refused');
+            log.error({ err, stack: err?.stack, docKey: key }, 'document version not stored');
         }
     }
 }
 /**
- * @description Start an authoring run and return its id immediately.
+ * @description Start an authoring run and return its id.
  *
- * The caller answers 202 with this id; the phases execute detached. Single-flight
- * per venture: a second call while one is running returns the SAME id.
+ * Off the native kernel the caller answers 202 at once and the phases execute detached.
+ * On the native kernel the phases run inside this request (see `driveRun`), so the id is
+ * returned once the run is closed. Single-flight per venture: a second call while one is
+ * running returns the SAME id.
  *
  * @param ctx - App context.
  * @param ownerSub - The accountable spend owner.
@@ -298,17 +539,116 @@ async function phaseNarrate(p, snapshot, docKeys) {
  */
 async function startRun(ctx, ownerSub, ventureId, kind, docKeys, onDate) {
     const open = inFlightRun(ventureId);
-    const phases = phasesFor(kind);
-    if (open)
-        return { runId: open, alreadyRunning: true, phases: phases.map((p) => p.name) };
     const pool = ctx.pool;
+    if (open)
+        return { runId: open, alreadyRunning: true, phases: phasesFor(kind).map((p) => p.name) };
+    const native = onNativeKernel();
+    const phases = native ? await nativePhases(pool, ownerSub, ventureId, kind) : phasesFor(kind);
+    if (native)
+        await closeInterrupted(pool, ownerSub, ventureId);
     const runId = await (0, venture_store_1.openRun)(pool, ownerSub, ventureId, kind, phases);
     inFlight.set(ventureId, runId);
-    // Detached on purpose: the HTTP response must not wait on minutes of bot work.
-    void drive({ ctx, pool, ownerSub, ventureId, runId, onDate }, kind, phases, docKeys)
-        .catch((err) => log.error({ err, stack: err?.stack, ventureId, runId }, 'venture run crashed'))
-        .finally(() => { inFlight.delete(ventureId); });
+    await driveRun({ ctx, pool, ownerSub, ventureId, runId, onDate }, kind, phases, docKeys, 'venture run crashed');
     return { runId, alreadyRunning: false, phases: phases.map((p) => p.name) };
+}
+/**
+ * @description Drive a run that is already open and in flight, then release its single-flight slot.
+ *
+ * Off the native kernel the drive is detached on purpose: the HTTP response must not wait on
+ * minutes of bot work. On the native kernel the drive is awaited: the kernel answers a package's
+ * host calls only while the request that made them is open, so detached work could not record
+ * anything after the response, not even its own failure.
+ *
+ * @param p - The run's phase context.
+ * @param kind - What to author.
+ * @param phases - The run's phases.
+ * @param docKeys - Documents to narrate.
+ * @param crashed - Log message for a drive that threw.
+ * @returns Nothing; the run is closed when it resolves on the native kernel.
+ */
+async function driveRun(p, kind, phases, docKeys, crashed) {
+    const native = onNativeKernel();
+    const run = drive({ ...p, ...(native ? { nativeStartedAt: Date.now() } : {}) }, kind, phases, docKeys)
+        .catch((err) => log.error({ err, stack: err?.stack, ventureId: p.ventureId, runId: p.runId }, crashed))
+        .finally(() => { inFlight.delete(p.ventureId); });
+    if (native)
+        await run;
+}
+/**
+ * @description The phases a native run walks. A full run continues from the first analyst the
+ * venture's latest full run deferred, so pressing Run again finishes what one request could not.
+ * @param pool - Shared pool.
+ * @param ownerSub - The caller's sub.
+ * @param ventureId - Venture id.
+ * @param kind - What to author.
+ * @returns The phases for this run.
+ */
+async function nativePhases(pool, ownerSub, ventureId, kind) {
+    const all = phasesFor(kind);
+    if (kind !== 'full')
+        return all;
+    const last = await (0, venture_store_1.latestRun)(pool, ownerSub, ventureId);
+    if (!last || last.kind !== 'full')
+        return all;
+    const from = last.phases.find((x) => x.agentId && x.name !== 'narrate' && needsAnotherRun(x));
+    if (!from)
+        return all;
+    const index = all.findIndex((x) => x.name === from.name);
+    return index < 0 ? all : all.slice(index);
+}
+/**
+ * @description Whether an analyst phase of the latest full run still has work: it was deferred, it failed or was
+ * interrupted, or it finished with inputs it did not supply. A Run continues from the first such phase.
+ * @param phase - One phase of the latest full run.
+ * @returns True when the next Run should start there.
+ */
+function needsAnotherRun(phase) {
+    const error = String(phase.error || '');
+    if (phase.status === 'skipped')
+        return error.startsWith(exports.DEFERRED);
+    return phase.status === 'failed' || phase.status === 'running' || phase.status === 'pending'
+        || (phase.status === 'done' && error.startsWith(exports.GAP));
+}
+/** A run's phases as an interrupted run leaves them: the running one failed, the pending ones not run. */
+function interruptedPhases(phases) {
+    return phases.map((x) => (x.status === 'running' || x.status === 'pending'
+        ? { ...x, status: 'failed', error: x.status === 'running' ? 'interrupted before it recorded a result' : 'not run' }
+        : x));
+}
+/**
+ * @description Close this venture's runs that are still 'running' but that no request is driving.
+ * On the native kernel a run lives only as long as the request that drives it, so such a run was
+ * interrupted (by the 60-second request limit, a closed page or a restart) and can never finish on its own.
+ * Called when a new run starts, a write request; a read presents such a run closed (presentRun) instead.
+ * @param pool - Shared pool.
+ * @param ownerSub - The caller's sub.
+ * @param ventureId - Venture id.
+ * @returns Nothing.
+ */
+async function closeInterrupted(pool, ownerSub, ventureId) {
+    for (const run of await (0, venture_store_1.listRuns)(pool, ownerSub, ventureId)) {
+        if (run.status !== 'running' || inFlight.get(ventureId) === run.id)
+            continue;
+        await (0, venture_store_1.closeRun)(pool, ownerSub, ventureId, run.id, 'failed', interruptedPhases(run.phases), 'interrupted: the request that ran it ended before it recorded a result');
+    }
+}
+/**
+ * @description A run as a read presents it. On the native kernel a run is driven inside the request that started
+ * it, and the kernel drops that request when the page closes or the connection drops and refuses its later host
+ * calls, so the run records nothing more. Once a 'running' run is older than the request deadline plus a margin and
+ * this process is not driving it, it can only have been abandoned: it is shown failed (interrupted) with the reason,
+ * instead of "Analysts running…" for ever. The stored row is unchanged (a read request may not write; the kernel
+ * refuses it), and the next Run records the close. Off the native kernel runs are driven detached for minutes.
+ * @param run - The stored run.
+ * @param now - The time to judge its age by.
+ * @returns The run, or its interrupted view.
+ */
+function presentRun(run, now = Date.now()) {
+    if (!onNativeKernel() || run.status !== 'running' || inFlight.get(run.ventureId) === run.id)
+        return run;
+    if (!(now - Date.parse(run.startedAt) >= exports.NATIVE_REQUEST_MS + exports.ABANDONED_MARGIN_MS))
+        return run;
+    return { ...run, status: 'failed', phase: null, error: exports.ABANDONED_REASON, phases: interruptedPhases(run.phases) };
 }
 /**
  * Start the already-authorized scheduled path after a service tick evaluates an
@@ -336,20 +676,111 @@ async function startScheduledRebaseline(ctx, ownerSub, ventureId, slot, onDate, 
     }
     const budget = new venture_rebaseline_1.ScheduledRunBudget(capMicros);
     inFlight.set(ventureId, reserved.runId);
-    void drive({
+    await driveRun({
         ctx, pool, ownerSub, ventureId, runId: reserved.runId, onDate, budget,
-    }, 'rebaseline', phases, undefined)
-        .catch((err) => log.error({
-        err, stack: err?.stack, ventureId, runId: reserved.runId,
-    }, 'scheduled venture rebaseline crashed'))
-        .finally(() => { inFlight.delete(ventureId); });
+    }, 'rebaseline', phases, undefined, 'scheduled venture rebaseline crashed');
     return {
         runId: reserved.runId, alreadyRunning: false, alreadyScheduled: false,
         phases: phases.map((phase) => phase.name),
     };
 }
-/** Walk the phases, isolating each failure, then close the run. */
+/** Why a native run did not start this analyst; the next Run continues from it. */
+function deferredReason(name) {
+    return `${exports.DEFERRED}not started in this request — on this installation a request runs for at most 60 seconds, `
+        + `which fits one analyst. Press Run the analysts again to continue with ${name}.`;
+}
+/** Run the analyst phases in order, isolating each failure; native runs defer what cannot fit. */
+async function runAnalysts(p, phases, spec, failures) {
+    for (const phase of phases) {
+        if (phase.name === 'compute' || phase.name === 'narrate')
+            continue;
+        const started = Date.now();
+        if (p.nativeStartedAt !== undefined && started - p.nativeStartedAt > exports.NATIVE_ANALYST_WINDOW_MS) {
+            await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, phase.name, 'skipped', started, deferredReason(phase.name));
+            continue;
+        }
+        await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, phase.name, 'running', started);
+        try {
+            const gaps = phase.name === 'bom' ? await phaseBom(p, spec)
+                : phase.name === 'market' ? await phaseMarket(p, spec)
+                    : phase.name === 'ops' ? await phaseOps(p, spec) : [];
+            const gap = gaps.length ? `${exports.GAP}${gaps.join('; ')}` : undefined;
+            if (gap)
+                failures.push(`${phase.name}: ${gap}`);
+            await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, phase.name, 'done', started, gap);
+        }
+        catch (err) {
+            log.error({ err, stack: err?.stack, phase: phase.name, runId: p.runId }, 'venture phase failed');
+            failures.push(`${phase.name}: ${err?.message || String(err)}`);
+            const skipped = err instanceof venture_rebaseline_1.RebaselineError
+                && err.code === 'rebaseline_cost_cap_blocked';
+            await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, phase.name, skipped ? 'skipped' : 'failed', started, err?.message || String(err));
+        }
+    }
+}
+/** Why a native run left its documents as they were: too little of the request remained to store them. */
+exports.DOCUMENTS_LATE = `${exports.DEFERRED}the documents were not rendered again: too little of this request's 60 seconds was left `
+    + 'after the analyst. They keep the numbers they were rendered from and say so; open one and press Regenerate prose '
+    + 'to render it from the new numbers.';
+/**
+ * @description A native run's documents with no bot: every document is stored as rendered from the computed numbers, so
+ * it can be opened and its prose added one document at a time (a narration per document fits one native request). With
+ * less than NATIVE_DOCUMENTS_RESERVE_MS of the request left the documents are left as they were (DOCUMENTS_LATE).
+ * @param p - The run's phase context (native).
+ * @param phases - The run's phases.
+ * @param snapshot - The computed snapshot.
+ * @param docKeys - Documents to store; the whole catalogue when absent.
+ * @param failures - The run's failure notes.
+ * @param started - When the Documents phase started.
+ * @returns Nothing; the Documents phase is marked.
+ */
+async function storeLateDocuments(p, phases, snapshot, docKeys, failures, started) {
+    if (exports.NATIVE_REQUEST_MS - (started - p.nativeStartedAt) < exports.NATIVE_DOCUMENTS_RESERVE_MS) {
+        await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, 'narrate', 'skipped', started, exports.DOCUMENTS_LATE);
+        return;
+    }
+    try {
+        await phaseNarrate(p, snapshot, docKeys?.length ? docKeys : venture_doc_catalog_1.DOC_CATALOG.map((d) => d.key), false);
+        await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, 'narrate', 'skipped', started, `${exports.DEFERRED}documents were rendered from the computed numbers; open one and press Regenerate prose to add its written sections.`);
+    }
+    catch (err) {
+        log.error({ err, stack: err?.stack, runId: p.runId }, 'computed documents could not be stored');
+        failures.push(`narrate: ${err?.message || String(err)}`);
+        await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, 'narrate', 'failed', started, err?.message || String(err));
+    }
+}
+/** Narrate the documents of a computed run; a native full run leaves them to per-document Regenerate. */
+async function runNarrate(p, kind, phases, snapshot, docKeys, failures) {
+    const started = Date.now();
+    const late = p.nativeStartedAt !== undefined
+        && (kind !== 'narrate' || started - p.nativeStartedAt > exports.NATIVE_ANALYST_WINDOW_MS);
+    if (late) {
+        await storeLateDocuments(p, phases, snapshot, docKeys, failures, started);
+        return;
+    }
+    await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, 'narrate', 'running', started);
+    try {
+        await phaseNarrate(p, snapshot, docKeys?.length ? docKeys : venture_doc_catalog_1.DOC_CATALOG.map((d) => d.key));
+        await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, 'narrate', 'done', started);
+    }
+    catch (err) {
+        failures.push(`narrate: ${err?.message || String(err)}`);
+        await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, 'narrate', 'failed', started, err?.message || String(err));
+    }
+}
+/** Walk the phases, isolating each failure, then close the run; a throw closes it failed. */
 async function drive(p, kind, phases, docKeys) {
+    try {
+        await walk(p, kind, phases, docKeys);
+    }
+    catch (err) {
+        const reason = `run stopped: ${err?.message || String(err)}`;
+        await (0, venture_store_1.closeRun)(p.pool, p.ownerSub, p.ventureId, p.runId, 'failed', phases, reason);
+        throw err;
+    }
+}
+/** The phase walk itself: analysts, the free compute, narration, then the closing row. */
+async function walk(p, kind, phases, docKeys) {
     const venture = await (0, venture_store_1.getVenture)(p.pool, p.ownerSub, p.ventureId);
     if (!venture) {
         await (0, venture_store_1.closeRun)(p.pool, p.ownerSub, p.ventureId, p.runId, 'failed', phases, 'venture not found');
@@ -360,28 +791,7 @@ async function drive(p, kind, phases, docKeys) {
         spec: venture.spec,
     };
     const failures = [];
-    for (const phase of phases) {
-        if (phase.name === 'compute' || phase.name === 'narrate')
-            continue;
-        const started = Date.now();
-        await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, phase.name, 'running', started);
-        try {
-            if (phase.name === 'bom')
-                await phaseBom(p, spec);
-            else if (phase.name === 'market')
-                await phaseMarket(p, spec);
-            else if (phase.name === 'ops')
-                await phaseOps(p, spec);
-            await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, phase.name, 'done', started);
-        }
-        catch (err) {
-            log.error({ err, stack: err?.stack, phase: phase.name, runId: p.runId }, 'venture phase failed');
-            failures.push(`${phase.name}: ${err?.message || String(err)}`);
-            const skipped = err instanceof venture_rebaseline_1.RebaselineError
-                && err.code === 'rebaseline_cost_cap_blocked';
-            await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, phase.name, skipped ? 'skipped' : 'failed', started, err?.message || String(err));
-        }
-    }
+    await runAnalysts(p, phases, spec, failures);
     const computeStarted = Date.now();
     await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, 'compute', 'running', computeStarted);
     const computed = await recomputeVenture(p.pool, p.ownerSub, p.ventureId, {
@@ -389,20 +799,13 @@ async function drive(p, kind, phases, docKeys) {
     });
     await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, 'compute', computed ? 'done' : 'failed', computeStarted);
     if (computed && phases.some((x) => x.name === 'narrate')) {
-        const started = Date.now();
-        await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, 'narrate', 'running', started);
-        try {
-            await phaseNarrate(p, computed.snapshot, docKeys?.length ? docKeys : venture_doc_catalog_1.DOC_CATALOG.map((d) => d.key));
-            await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, 'narrate', 'done', started);
-        }
-        catch (err) {
-            failures.push(`narrate: ${err?.message || String(err)}`);
-            await mark(p.pool, p.ownerSub, p.ventureId, p.runId, phases, 'narrate', 'failed', started, err?.message || String(err));
-        }
+        await runNarrate(p, kind, phases, computed.snapshot, docKeys, failures);
     }
+    const deferred = phases.filter((x) => String(x.error || '').startsWith(exports.DEFERRED)).map((x) => x.name);
+    const notes = [...failures, ...(deferred.length ? [`not run yet: ${deferred.join(', ')}`] : [])];
     // A run with a failed phase is still `done` when it produced a model: the user
     // has a plan plus a named gap, which is more useful than a wholesale failure.
-    await (0, venture_store_1.closeRun)(p.pool, p.ownerSub, p.ventureId, p.runId, computed ? 'done' : 'failed', phases, failures.length ? failures.join(' | ') : null);
+    await (0, venture_store_1.closeRun)(p.pool, p.ownerSub, p.ventureId, p.runId, computed ? 'done' : 'failed', phases, notes.length ? notes.join(' | ') : null);
     log.info({ ventureId: p.ventureId, runId: p.runId, kind, failures: failures.length }, 'venture run closed');
 }
 //# sourceMappingURL=venture-run.js.map

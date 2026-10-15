@@ -21,6 +21,9 @@
  * 2026-07-23 00:31:18 | roger.murphy@emeraldcoastsystemsgroup.com  | Resolve saved generic monster labels through scene-authored identities so names remain names and tactical roles remain subtitles.
  * 2026-07-23 11:21:50 | roger.murphy@emeraldcoastsystemsgroup.com  | Hold stateful presentation until natural narration settles and allow post-action movement while the Dungeon Master speaks.
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Resolve scenes and preload maps across the selected multi-adventure catalog while applying campaign-specific table themes.
+ * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | tokenArtUrl / mapArtUrl / artStyle: art is requested only for ids /content lists in content.art; an id without bundled art keeps the drawn fallback instead of a request that 404s (on the native kernel, "application asset not found").
+ * 2026-10-12 10:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Phone width: a shown voiceover caption is kept above the sticky action dock (liftCaption, run on show, scroll and resize). The dock (z-index 21) covers the bottom of the stage whenever the stage runs past the screen less the dock; during an AI turn in the 392 x 641 cockpit frame the whole caption sat behind it, and at 412 x 859 its last line. Guard: tests/browser/dnd-caption-phone.test.cjs.
+ * 2026-10-13 15:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 14: the DM narration caption printed raw Markdown ('... eastern woods. **What do you do?**'). captionExcerpt reads plainNarration(): bold, italic and heading marks out, the words kept. Guard: tests/browser/dnd-caption-phone.test.cjs.
  */
 
 'use strict';
@@ -72,12 +75,18 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': 
 
 // ── Art (portrait tokens + painted maps), preloaded once ─────────────────────
 const art = { tokens: {}, maps: {}, ready: false };
+// Only bundled art is ever requested: /content names it (content.art), and an id without art keeps
+// the drawn fallback instead of a request that can only 404. A bundle without the list asks as before.
+const hasArt = (kind, id) => !content || !content.art || (content.art[kind] || []).includes(String(id));
+const tokenArtUrl = (id) => (hasArt('tokens', id) ? `${API}/art/token/${encodeURIComponent(id)}` : null);
+const mapArtUrl = (id) => (hasArt('maps', id) ? `${API}/art/map/${encodeURIComponent(id)}` : null);
+const artStyle = (url) => (url ? ` style="background-image:url('${url}')"` : '');
 function loadArt() {
-  const add = (bag, key, url) => { const im = new Image(); im.src = url; bag[key] = im; };
-  content.heroes.forEach((h) => add(art.tokens, h.id, `${API}/art/token/${h.id}`));
-  Object.keys(content.monsters).forEach((k) => add(art.tokens, k, `${API}/art/token/${k}`));
+  const add = (bag, key, url) => { if (!url) return; const im = new Image(); im.src = url; bag[key] = im; };
+  content.heroes.forEach((h) => add(art.tokens, h.id, tokenArtUrl(h.id)));
+  Object.keys(content.monsters).forEach((k) => add(art.tokens, k, tokenArtUrl(k)));
   (content.adventures || [content.adventure]).forEach((adventure) => {
-    (adventure.scenes || []).forEach((scene) => add(art.maps, scene.id, `${API}/art/map/${scene.id}`));
+    (adventure.scenes || []).forEach((scene) => add(art.maps, scene.id, mapArtUrl(scene.id)));
   });
   art.ready = true;
 }
@@ -455,8 +464,21 @@ function withShow(actor, action, aim, fn) {
 // meanwhile wait instead of replacing words the Dungeon Master is still saying.
 let capTimer = null, capHideTimer = null, capSerial = 0, heldCaption = null, pendingCaption = null;
 const captionReadMs = (text) => Math.min(60000, Math.max(5200, 2200 + String(text || '').length * 90));
+/**
+ * @description The caption's words without chat Markdown marks: the caption is plain text, so "**What do you do?**" printed
+ * its asterisks (sweep 14). Bold, italic and heading marks are taken out; the words stay.
+ * @param {string} text - The narration.
+ * @returns {string} The narration as plain words.
+ */
+function plainNarration(text) {
+  return String(text || '')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, '$2')
+    .replace(/(^|[^*\w])\*(?=\S)([^*\n]*?\S)\*(?![*\w])/g, '$1$2')
+    .replace(/(^|[^_\w])_(?=\S)([^_\n]*?\S)_(?![_\w])/g, '$1$2');
+}
 function captionExcerpt(text) {
-  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  const clean = plainNarration(text).replace(/\s+/g, ' ').trim();
   if (clean.length <= 260) return clean;
   const first = clean.slice(0, 257), stop = Math.max(first.lastIndexOf('. '), first.lastIndexOf('! '), first.lastIndexOf('? '));
   return (stop > 110 ? first.slice(0, stop + 1) : first) + '…';
@@ -465,6 +487,29 @@ function dismissCaption() {
   const el = $('caption'); clearTimeout(capTimer); clearTimeout(capHideTimer); capTimer = null;
   heldCaption = null; pendingCaption = null;
   el.classList.remove('show'); capHideTimer = setTimeout(() => el.classList.add('hidden'), 220);
+}
+/**
+ * @description Phone width: keep a shown caption above the sticky action dock, which is drawn over the bottom of the stage
+ * whenever the stage runs past the screen less the dock. Lifts the caption by the covered height and, when the room left
+ * above the dock is shorter than the caption, bounds its height (it scrolls). Does nothing when the dock is not sticky
+ * (desktop, TV, or a screen card open). @returns {void}
+ */
+function liftCaption() {
+  if (typeof getComputedStyle !== 'function') return;
+  const el = $('caption'), dock = $('dock'), stage = $('stage');
+  if (!el || !el.style || !dock || !stage || !stage.getBoundingClientRect || !dock.getBoundingClientRect) return;
+  el.style.bottom = ''; el.style.maxHeight = '';
+  if (!el.classList.contains('show') || getComputedStyle(dock).position !== 'sticky') return;
+  const s = stage.getBoundingClientRect(), d = dock.getBoundingClientRect(), covered = s.bottom - d.top;
+  if (covered <= 0) return;
+  const base = parseFloat(getComputedStyle(el).bottom) || 0;
+  el.style.bottom = `${Math.round(base + covered)}px`;
+  const room = d.top - Math.max(s.top, 0) - base - 4;
+  if (room < el.offsetHeight) el.style.maxHeight = `${Math.max(48, Math.round(room))}px`;
+}
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('scroll', () => liftCaption(), { passive: true });
+  window.addEventListener('resize', () => liftCaption());
 }
 function caption(text, options) {
   if (!text) return null;
@@ -477,7 +522,7 @@ function caption(text, options) {
   const el = $('caption'); el.textContent = captionExcerpt(text); el.title = 'Full narration is in Story · tap to dismiss'; el.tabIndex = 0;
   el.setAttribute('role', 'button'); el.setAttribute('aria-label', `${captionExcerpt(text)} — tap to dismiss`);
   if (!el._dismissReady) { el._dismissReady = true; el.onclick = dismissCaption; el.onkeydown = (e) => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); dismissCaption(); } }; }
-  el.classList.remove('hidden'); el.classList.add('show');
+  el.classList.remove('hidden'); el.classList.add('show'); liftCaption();
   const id = ++capSerial, ms = captionReadMs(text);
   if (opts.hold) heldCaption = { id, startedAt: Date.now(), minMs: ms };
   else capTimer = setTimeout(dismissCaption, ms);

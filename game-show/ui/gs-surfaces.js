@@ -10,6 +10,7 @@
  * 2026-07-26 19:10:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Broadcast shell (operator: "no set, no characters, just the inner workings"): stage and tv now render inside GS.play.frame — marquee, beams, podium characters, lower-third caption — with the stage's player controls + owner quick actions in the bottom glass dock (team/presence switching folded into a 🙂 You popover) and the tv shot branches preserved verbatim; the lobby's show <select> became clickable poster cards that host straight onto the stage; every render stamps the chrome via GS.play.sync(). Host desk, clicker, audience, and rehearsal are untouched.
  * 2026-07-26 21:45:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Integration pass: restore the five hooks the committed browser playthrough asserts that the rebuild dropped — the TV lobby's join QR (GS.qrNode), the host desk's 🔧 Show tools drawer (module-level open state; holds the recovery panel, hotseat, interview, cutaways), the 'AI spend $' cost text, the clicker's #gs-dock action container + 'buzzed first' status for the losing phone, and the stage dock's .gs-dockbuzz pinned buzzer bar.
  * 2026-07-31 22:50:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog #11: the lobby's 🏆 Hall of fame — top end-of-game scores across YOUR ended games (GET /leaderboard over the gameshow_seats.score snapshots), best first, with the show each score was set on. Renders nothing when there is no history yet.
+ * 2026-10-12 21:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 9: each show poster is a real button (type=button) whose text names the show and 'Host this show', not a clickable div: a keyboard, a screen reader and the concierge's screen snapshot could not tell 'Host this show' was something to press.
  */
 
 /* global window, document, location, navigator */
@@ -569,11 +570,11 @@
     }
     var posters = GS.el('div', { class: 'gp-posters' });
     catalog.forEach(function (s) {
-      posters.appendChild(GS.el('div', { class: 'gp-poster', 'data-show': s.id, onclick: function () { hostShow(s.id); } },
-        GS.el('div', { class: 'gp-poster-art' }, ART[s.id] || '🎬'),
-        GS.el('div', { class: 'gp-poster-title' }, s.title),
-        GS.el('div', { class: 'gp-poster-tag' }, s.tagline || ''),
-        GS.el('div', { class: 'gp-poster-cta' }, '🎬 Host this show')));
+      posters.appendChild(GS.el('button', { type: 'button', class: 'gp-poster', 'data-show': s.id, onclick: function () { hostShow(s.id); } },
+        GS.el('span', { class: 'gp-poster-art', 'aria-hidden': 'true' }, ART[s.id] || '🎬'),
+        GS.el('span', { class: 'gp-poster-title' }, s.title),
+        GS.el('span', { class: 'gp-poster-tag' }, s.tagline || ''),
+        GS.el('span', { class: 'gp-poster-cta' }, '🎬 Host this show')));
     });
     box.appendChild(GS.el('div', { class: 'gs-col' }, code, GS.el('div', { class: 'gs-center gs-muted' }, 'Pick your team (team games only)'), teamSel,
       GS.el('button', { class: 'gs-btn blue', onclick: join }, 'Join game')));

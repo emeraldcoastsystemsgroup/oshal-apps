@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Execute the packaged handoff and output retirement in a Node VM with explicit DOM, HTTP and navigation ports; delayed contours cannot create a CAD part for another job or retired output. No browser, server, CAD engine or real data is used.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | A refused contour request shows the refusal in words with its HTTP status (the page's failureText), never the bare snake_case code.
  */
 'use strict';
 const test = require('node:test');
@@ -83,7 +84,7 @@ for (const status of [401, 403, 404, 409]) {
   test(`contour HTTP ${status} never creates a CAD part`, async () => {
     const f = surface(); f.control.contour = async () => response(status, { error: 'synthetic_contour_refusal' });
     await f.openInCadStudio(); assert.equal(f.requests.length, 1); assert.deepEqual(f.navigations, []);
-    assert.equal(f.get('toast').textContent, 'synthetic_contour_refusal');
+    assert.equal(f.get('toast').textContent, `The server refused this request: synthetic contour refusal (HTTP ${status}).`);
   });
 }
 

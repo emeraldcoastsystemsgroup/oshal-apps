@@ -28,6 +28,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Mount /threads and /stage through their self-contained sibling modules.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Mount the confirmed durable reply outbox under /replies without changing the parent authentication boundary.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Mount the Streams CMS pane under /streams (operator direction 2026-08-09: CMS-grade publishing — states, variants, revisions, review, confirm-gated publish over compose's publishTo) through its self-contained sibling module; the parent authentication boundary is unchanged.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Native kernel (OSHAL_EGRESS=kernel): the Today feed reads Gmail (gmail.googleapis.com) and Calendar (www.googleapis.com) through the kernel egress with no Authorization header, summarizes with the package-local Gmail summary (the framework one is inert there), answers a missing Google connection (connectors.metadata or the kernel's "not connected" refusal) with the same connect payload, and GET /accounts lists the caller's usable connections from connectors.metadata. The broker path is unchanged outside the kernel.
  *
  * @module switchboard-routes
  */
@@ -46,6 +47,9 @@ import { createThreadsRoutes } from './switchboard-threads-routes';
 import { createStageRoutes } from './switchboard-stage-routes';
 import { createReplyOutboxRoutes } from './switchboard-reply-outbox-routes';
 import { createStreamsRoutes } from './switchboard-streams-routes';
+import {
+  GOOGLE_IDS, connectionState, isNotConnected, kernelEgress, readConnections, summarizeGmail, usableConnections,
+} from './switchboard-kernel-egress';
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -91,30 +95,71 @@ function servePage(dir: string, file: string): RequestHandler {
   };
 }
 
-/** GET a Google API URL with the bearer token; throws on non-2xx. */
+/** Token stand-in under the native kernel: the kernel egress, not the package, holds the credential. */
+const KERNEL_TOKEN = 'kernel';
+
+/** GET a Google API URL with the bearer token (none under the kernel, whose egress applies it); throws on non-2xx. */
 async function gget(token: string, url: string): Promise<Record<string, unknown>> {
-  const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const r = await fetch(url, { headers: kernelEgress() ? {} : { Authorization: `Bearer ${token}` } });
   if (!r.ok) throw new Error(`google ${r.status}: ${(await r.text()).slice(0, 200)}`);
   return r.json() as Promise<Record<string, unknown>>;
 }
 
-/** List recent inbox message metadata for a query (bounded). */
+const FEED_DEADLINE_MS = 900;
+const MAX_METADATA_FETCH = 5;
+const METADATA_BATCH_SIZE = 2;
+
+/** Bound an async read by wall-clock time, resolving to fallback() on timeout while propagating immediate rejections. */
+function withDeadline<T>(work: Promise<T>, ms: number, fallback: () => T): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => resolve(fallback()), ms);
+    timer.unref?.();
+    work.then(
+      (val) => { clearTimeout(timer); resolve(val); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
+
+/** List recent inbox message metadata for a query (bounded in count and wall-clock time). */
 async function listInbox(token: string, q: string, max: number): Promise<MailSummary[]> {
-  const list = await gget(token, `${GMAIL}/messages?q=${encodeURIComponent(q)}&maxResults=${max}`);
-  const ids = ((list.messages as Array<{ id: string }>) || []).map((m) => m.id).slice(0, max);
-  const out: MailSummary[] = [];
-  for (const id of ids) {
-    const m = await gget(token, `${GMAIL}/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`);
-    out.push(summarizeGmailMetadata(id, m));
+  const t0 = Date.now();
+  const list = await withDeadline(
+    gget(token, `${GMAIL}/messages?q=${encodeURIComponent(q)}&maxResults=${max}`),
+    FEED_DEADLINE_MS,
+    () => ({ messages: [] }),
+  );
+  const ids = ((list.messages as Array<{ id: string }>) || []).map((m) => m.id).slice(0, Math.min(max, MAX_METADATA_FETCH));
+  const out: Array<MailSummary | null> = new Array(ids.length).fill(null);
+  for (let start = 0; start < ids.length; start += METADATA_BATCH_SIZE) {
+    const rem = FEED_DEADLINE_MS - (Date.now() - t0);
+    if (rem <= 100) break;
+    const batch = ids.slice(start, start + METADATA_BATCH_SIZE);
+    await withDeadline(
+      Promise.all(batch.map(async (id, offset) => {
+        try {
+          const m = await gget(token, `${GMAIL}/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`);
+          out[start + offset] = kernelEgress() ? summarizeGmail(id, m) : summarizeGmailMetadata(id, m);
+        } catch (err) {
+          if (isNotConnected(err)) throw err;
+        }
+      })),
+      rem,
+      () => [],
+    );
   }
-  return out;
+  return out.filter((m): m is MailSummary => m !== null);
 }
 
 /** Today's remaining calendar events (upcoming only). */
 async function eventsToday(token: string): Promise<Array<{ summary: string; start: string; guests: number }>> {
   const now = new Date();
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
-  const data = await gget(token, `${CAL}?timeMin=${encodeURIComponent(now.toISOString())}&timeMax=${encodeURIComponent(end)}&singleEvents=true&orderBy=startTime&maxResults=10`);
+  const data = await withDeadline(
+    gget(token, `${CAL}?timeMin=${encodeURIComponent(now.toISOString())}&timeMax=${encodeURIComponent(end)}&singleEvents=true&orderBy=startTime&maxResults=10`),
+    FEED_DEADLINE_MS,
+    () => ({ items: [] }),
+  );
   return ((data.items as Array<{ summary?: string; start?: { dateTime?: string; date?: string }; attendees?: unknown[] }>) || []).map((e) => ({
     summary: e.summary || '(busy)',
     start: e.start?.dateTime || e.start?.date || '',
@@ -289,8 +334,39 @@ export async function ensureWorkspaceSchema(pool: AppContext['pool']): Promise<v
   });
 }
 
+/** One connected account as the settings picker shows it. */
+type AccountRow = { connectionId: string; provider: string; label: string; email: string | null };
+
+/** The caller's usable connections under the native kernel, from connectors.metadata (metadata only). */
+async function kernelAccounts(ctx: AppContext): Promise<AccountRow[]> {
+  const meta = await readConnections(ctx, (err) => logger.error({ err }, 'connection metadata read failed'));
+  return usableConnections(meta)
+    .map((c) => ({ connectionId: String(c.id || ''), provider: String(c.provider), label: accountLabel(String(c.provider), c.label || null), email: null }))
+    .sort((a, b) => a.provider.localeCompare(b.provider));
+}
+
+/**
+ * @description The Google token for the Today feed: the broker token, or under the native kernel a stand-in
+ * when connectors.metadata shows a usable (or cannot say) Google connection, and null when it shows none.
+ * @param ctx - app context (pool for the broker, `intent` on the native bridge).
+ * @param sub - caller OIDC sub.
+ * @returns the token (or stand-in), or null when the caller has no usable Google connection.
+ */
+async function googleToken(ctx: AppContext, sub: string): Promise<string | null> {
+  if (!kernelEgress()) return getValidAccessToken(ctx.pool, sub, 'google');
+  const meta = await readConnections(ctx, (err) => logger.error({ err }, 'connection metadata read failed'));
+  const state = connectionState(meta, GOOGLE_IDS);
+  return state === 'none' || state === 'reconnect' ? null : KERNEL_TOKEN;
+}
+
+/** Answer a feed request whose caller has no usable Google connection (connect payload, or 409). */
+function noGoogleConnection(req: Request, res: Response): void {
+  if (req.query.surface === '1') { res.json({ connected: false, message: 'Connect your Google account at /utilities to light up your board.' }); return; }
+  res.status(409).json({ error: 'no_google_connection', message: 'Connect your Google account at /utilities first.' });
+}
+
 /** List the caller's connected accounts (the settings picker source). */
-async function listAccounts(pool: AppContext['pool'], sub: string): Promise<Array<{ connectionId: string; provider: string; label: string; email: string | null }>> {
+async function listAccounts(pool: AppContext['pool'], sub: string): Promise<AccountRow[]> {
   const rows = (await pool.query(
     `SELECT connection_id, provider, account_email FROM oshal_connections
      WHERE user_sub = $1 AND status = 'connected' ORDER BY provider`,
@@ -347,12 +423,8 @@ export function createSwitchboardRoutes(ctx: AppContext): Router {
     // calendar from the board (they ride the google connection). Absent → include all.
     const providers = await workspaceProviderSet(ctx.pool, sub, req.query.workspace);
     const includeGoogle = !providers || providers.has('google');
-    const token = includeGoogle ? await getValidAccessToken(ctx.pool, sub, 'google') : null;
-    if (includeGoogle && !token) {
-      if (req.query.surface === '1') { res.json({ connected: false, message: 'Connect your Google account at /utilities to light up your board.' }); return; }
-      res.status(409).json({ error: 'no_google_connection', message: 'Connect your Google account at /utilities first.' });
-      return;
-    }
+    const token = includeGoogle ? await googleToken(ctx, sub) : null;
+    if (includeGoogle && !token) { noGoogleConnection(req, res); return; }
     try {
       const [msgs, events, sigs] = await Promise.all([
         token ? listInbox(token, 'in:inbox newer_than:2d', 40) : Promise.resolve([]),
@@ -361,6 +433,7 @@ export function createSwitchboardRoutes(ctx: AppContext): Router {
       ]);
       res.json({ connected: true, workspace: typeof req.query.workspace === 'string' ? req.query.workspace : null, ...assembleBoard(msgs, events, sigs) });
     } catch (err) {
+      if (kernelEgress() && isNotConnected(err)) { noGoogleConnection(req, res); return; }
       logger.error({ err }, 'Switchboard feed failed');
       res.status(502).json({ error: (err as Error).message });
     }
@@ -375,7 +448,7 @@ export function createSwitchboardRoutes(ctx: AppContext): Router {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
-      res.json({ accounts: await listAccounts(ctx.pool, sub) });
+      res.json({ accounts: kernelEgress() ? await kernelAccounts(ctx) : await listAccounts(ctx.pool, sub) });
     } catch (err) {
       logger.error({ err }, 'Switchboard accounts list failed');
       res.status(502).json({ error: (err as Error).message });

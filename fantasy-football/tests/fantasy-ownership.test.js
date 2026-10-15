@@ -17,6 +17,8 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — every migrated table is in OWNED_TABLES, forced, with an exact-owner policy and no operator arm (migration and self-heal both); every store statement names its owner; the router spends only the caller's own ESPN connection and never a household-shared one.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.2.0: the owner-first statement guard covers the hand-typed league store, the week ledger and the new call and feed reads (23 statements), and the migrations it reads now include 002 (ff_manual_leagues, ff_weeks).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | 25 statements: a hand-typed league's delete also deletes its week-ledger rows, and the week record reads one league's weeks by key; both name their owner first.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The one-league record and call list, and a hand-typed league's call delete, name their owner first too (28 statements).
  */
 
 'use strict';
@@ -83,6 +85,8 @@ test('EVERY STORE STATEMENT NAMES ITS OWNER — a query that forgets is refused 
   await store.gradeCall(pool, sub, 7, 10, 2);
   await store.fantasyRecord(pool, sub);
   await store.listCalls(pool, sub, 10);
+  await store.fantasyRecord(pool, sub, 'manual:9');
+  await store.listCalls(pool, sub, 10, 'manual:9');
   await store.openCallsForWeek(pool, sub, 2026, '1', 3);
   await store.readProjectionWeeks(pool, sub, 2026, 1, 17);
   const league = { name: 'L', season: 2026, scoring: [], slots: [], teams: [], schedule: [], byes: {}, faab: null, lastWeek: 17, playoffStart: null };
@@ -95,7 +99,8 @@ test('EVERY STORE STATEMENT NAMES ITS OWNER — a query that forgets is refused 
   await grading.openWeeks(pool, sub, 2026, 4);
   await grading.weekActuals(pool, sub, 2026, 3, []);
   await grading.weekRecord(pool, sub);
-  assert.equal(pool.calls.length, 23);
+  await grading.weekRecord(pool, sub, 'manual:9');
+  assert.equal(pool.calls.length, 28);
   for (const { text, params } of pool.calls) {
     assert.equal(params[0], sub, `the owner must be the first parameter: ${text.slice(0, 60)}`);
     assert.ok(/user_sub = \$1/.test(text) || /INSERT INTO ff_\w+\s*\(\s*user_sub/.test(text.replace(/\s+/g, ' ')),

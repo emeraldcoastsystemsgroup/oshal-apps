@@ -14,6 +14,7 @@
  * 9   | maintainer@emeraldcoastsystemsgroup.com     | CREATE-EDIT-05d: the Edit video quick start and the Video editor studio card open the Video-owned editor rail tile; its catalog entry never reads Video's summary a second time.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Permit the inline editing concierge while preserving no generation schedules/workflow; show its Concierge control.
  */
 'use strict';
 const test = require('node:test');
@@ -205,7 +206,7 @@ test('the manifest preserves the creative shell and declares its owned image-pro
   const text = manifest();
   assert.match(text, /^theme:\s*create\b/m);
   assert.match(text, /defaultView:\s*create-home/);
-  assert.match(text, /hideChatPanel:\s*true/);
+  assert.match(text, /hideChatPanel:\s*false/);
   assert.match(text, /hideStatusBar:\s*true/);
   assert.match(text, /^suite:\s*ai-creative\b/m);
   const modules = [...text.matchAll(/module:\s*(routes\/[a-z-]+\.js)/g)].map((m) => m[1]).sort();
@@ -214,7 +215,10 @@ test('the manifest preserves the creative shell and declares its owned image-pro
   assert.match(text, /migrations\/001-create-projects\.sql/);
   assert.match(text, /migrations\/002-create-brand-kits\.sql/);
   assert.match(text, /path: \/api\/create\/home-summary/);
-  assert.ok(!/^\s*(bots|schedules|workflow|ticketType):/m.test(text), 'manual editing schedules no providers or generation');
+  assert.ok(!/^\s*(schedules|workflow|ticketType):/m.test(text), 'manual editing schedules no providers or generation');
+  assert.match(text, /^chatBot:\s*create-editor$/m);
+  assert.match(text, /name: create-editor[\s\S]*?posture: inline/);
+  assert.match(text, /name: create-apply-edits[\s\S]*?requiresApproval: true/);
 });
 
 test('the home asks access first, locks a studio that is not provisioned, and never probes it', () => {

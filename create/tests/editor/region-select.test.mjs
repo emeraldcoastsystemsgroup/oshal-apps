@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove region selections land on the intended source pixels under zoom, crop, rotation and resize, stay put when the layer later moves, and that stale, ambiguous, locked, hidden, malformed and oversized selections are refused.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -134,4 +135,19 @@ test('a long freehand lasso is decimated within the point budget and summarized 
   assert.deepEqual(Object.keys(summary), ['kind', 'layerId', 'x', 'y', 'width', 'height', 'area', 'points']);
   assert.ok(Object.values(summary).every(value => ['string', 'number'].includes(typeof value)));
   assert.deepEqual({ x: summary.x, y: summary.y, width: summary.width, height: summary.height }, { x: 120, y: 20, width: 160, height: 160 });
+});
+
+
+test('group transforms preserve source-space region coordinates and ancestor locks refuse selection', async () => {
+  const { createProject, applyOperation } = await import('../../tools/editor/model.mjs');
+  let project = createProject({ width: 200, height: 200 });
+  project = applyOperation(project, { type: 'add', images: { asset: { src: 'data:image/png;base64,YWJjZA==', width: 40, height: 20 } },
+    layer: { id: 'image', type: 'image', assetId: 'asset', x: 10, y: 10, w: 40, h: 20 } });
+  project = applyOperation(project, { type: 'add', layer: { id: 'shape', type: 'rect', x: 60, y: 10, w: 20, h: 20 } });
+  project = applyOperation(project, { type: 'group', ids: ['image', 'shape'], id: 'group' });
+  const selected = selectionFromLayer(project, 'image');
+  project = applyOperation(project, { type: 'update', id: 'group', patch: { x: 50, rotation: 90, w: 140, h: 40 } });
+  assert.deepEqual(resolveSelection(project, selected).selection.points, selected.points);
+  const locked = applyOperation(project, { type: 'update', id: 'group', patch: { locked: true } });
+  assert.throws(() => resolveSelection(locked, selected), /Unlock/);
 });

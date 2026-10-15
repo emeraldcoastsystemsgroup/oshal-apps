@@ -39,6 +39,9 @@ status: active
 # the installed row from every other user). Portrait DATA stays strictly
 # per-user — every route filters ps_portraits by the caller's user_sub.
 scope: public
+# On the native kernel the package folder is read-only: photos and generated portraits are kept
+# in the package's own lasting directory (OSHAL_PACKAGE_DATA_DIR), still one hashed folder per person.
+lastingStorage: true
 
 source:
   type: git-subdir
@@ -71,10 +74,28 @@ uses:
   - application-authorization
   - authenticated-artifacts
   - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
+  - experience-roles
 
 authorization:
   version: 1
   catalog: authorization.yaml
+  roleTemplates:
+    - id: manager
+      version: 1
+      label: Portrait Studio Manager
+      members:
+        - { app: portrait-studio, role: manager }
+        - { app: create, role: admin }
+    - id: creator
+      version: 1
+      label: Portrait Creator
+      members:
+        - { app: portrait-studio, role: creator }
+        - { app: portrait-studio, role: editor }
+        - { app: portrait-studio, role: deleter }
+        - { app: portrait-studio, role: mailer }
+        - { app: portrait-studio, role: artist }
+        - { app: create, role: creator }
 
 # Named application permissions above own admission. The retired subject-only
 # access.defaultTier would deny legitimate named-role holders before that policy.

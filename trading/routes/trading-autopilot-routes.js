@@ -30,6 +30,8 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Mount separately operator-gated archive preview and explicit import routes.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Mount a read-only Schwab Futures bar capability check ahead of the generic research routes.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Mount owner-private Schwab Futures capture controls without crossing the trading order rail.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: GET/POST/DELETE /api/trading/autopilot answer from the native paper autopilot (routes/paper/: the caller's armed paper book, its recent ticks and the manifest's person-activated paper-autopilot schedule) instead of the legacy schedule service, which the native kernel lacks (every call answered 503 native_executor_unavailable). POST arms the paper book, DELETE disarms it; the schedule's activation stays the person's own on the kernel.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Native status reports armed and schedule-active apart: POST answered enabled:true on arming although the person's paper-autopilot schedule was not activated, so nothing traded. `enabled` is now false while disarmed and null while armed (the activation lives in the kernel, which a package cannot read), `scheduleActive` is null, and `lastScheduledRunAt` names the newest tick the schedule fired. The TypeScript source carries the same handlers.
  * @module trading-autopilot-routes
  */
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -51,6 +53,11 @@ const trading_futures_prediction_ledger_1 = require("@/app/trading-futures-predi
 const trading_futures_archive_routes_1 = require("./trading-futures-archive-routes");
 const trading_futures_schwab_probe_routes_1 = require("./trading-futures-schwab-probe-routes");
 const trading_futures_schwab_capture_routes_1 = require("./trading-futures-schwab-capture-routes");
+const paper_tick_1 = require("./paper/tick");
+const paper_store_1 = require("./paper/store");
+const paper_screen_1 = require("./paper/screen");
+const paper_universe_1 = require("./paper/universe");
+const trading_paper_routes_1 = require("./trading-paper-routes");
 /** The advisor legs and their cadences. */
 const RESEARCH_CRON = '*/15 * * * *';
 const FAST_CRON = '*/2 * * * *';
@@ -158,14 +165,104 @@ function statusOf(schedule) {
         executionCount: schedule.executionCount,
     };
 }
+/** The manifest's paper-autopilot schedule (oshal-app.yaml schedules: paper-autopilot). */
+const NATIVE_PAPER_CRON = '*/5 9-15 * * 1-5';
+const NATIVE_PAPER_TIMEZONE = 'America/New_York';
+/** Where the person's own activation of that schedule is listed (the kernel, read with the person's session). */
+const NATIVE_SCHEDULES_PATH = '/api/v1/agent/schedules';
+/**
+ * @description The autopilot status shape, answered from the caller's native paper book. The book trades only while
+ *   it is armed AND the person has activated the paper-autopilot schedule for themselves. That activation lives in the
+ *   kernel's schedule store, which a package cannot read, so `scheduleActive` is null and `enabled` (armed and
+ *   scheduled) is never claimed true: it is false while disarmed and null (not known here) while armed. The newest
+ *   tick the kernel's schedule fired is reported as evidence, not as the activation.
+ * @param config - The paper configuration (or null before the first arm).
+ * @param account - The paper account (or null).
+ * @param ticks - Recent ticks, newest first.
+ * @returns The status body.
+ */
+function nativePaperStatus(config, account, ticks) {
+    const armed = Boolean(config && config.armed);
+    const pin = config && Array.isArray(config.universe) && config.universe.length ? config.universe : null;
+    const scheduled = ticks.find((t) => t.trigger_kind === 'schedule');
+    return {
+        ok: true, native: true, armed, scheduleActive: null, enabled: armed ? null : false,
+        mode: 'paper', cron: NATIVE_PAPER_CRON, timezone: NATIVE_PAPER_TIMEZONE,
+        universeSource: pin ? 'pinned' : 'default', universeCount: pin ? pin.length : paper_universe_1.DEFAULT_UNIVERSE.length,
+        defaultUniverseCount: paper_universe_1.DEFAULT_UNIVERSE.length,
+        nextRunAt: null, lastRunAt: ticks.length ? ticks[0].created_at || null : null,
+        lastScheduledRunAt: scheduled ? scheduled.created_at || null : null, recentTicks: ticks.length,
+        account: account ? { equity: account.equity, cash: account.cash, startingCash: account.startingCash, realizedPl: account.realizedPl } : null,
+        legs: { technical: armed, research: false, fast: false, assess: false, review: false, optimize: false, lab: false },
+        schedule: { ...paper_tick_1.PAPER_SCHEDULE, cron: NATIVE_PAPER_CRON, timezone: NATIVE_PAPER_TIMEZONE, activation: 'person',
+            activationKnown: false, activationSource: NATIVE_SCHEDULES_PATH },
+        note: armed
+            ? 'Armed: your paper book will trade only while the paper-autopilot job is activated for you. This application cannot read that activation; ' + NATIVE_SCHEDULES_PATH + ' lists it, and Start paper autopilot on the Trading page (or Activate for me on Jobs) activates it.'
+            : 'Disarmed: the paper autopilot places no simulated fills. Arming alone does not schedule it; the paper-autopilot job must also be activated for you.',
+    };
+}
+/** Read the caller's paper book and answer its status. */
+async function nativeStatus(ctx, sub) {
+    const [config, account, ticks] = await Promise.all([paper_store_1.loadConfig(ctx.pool, sub), paper_store_1.loadAccount(ctx.pool, sub),
+        paper_store_1.listTicks(ctx.pool, sub)]);
+    return nativePaperStatus(config, account, ticks);
+}
+/** Answer a paper refusal with its own status and code, anything else as a logged 500. */
+function nativeFailure(res, err, action) {
+    const status = Number(err && err.status) >= 400 && Number(err.status) < 500 ? Number(err.status) : 500;
+    logger.error({ err, action }, 'native paper autopilot ' + action + ' failed');
+    res.status(status).json({ error: status === 500 ? 'paper_autopilot_failed' : err.code, message: err.message });
+}
+/**
+ * @description The native kernel's autopilot switch over the paper book: GET status, POST arm, DELETE disarm.
+ * @param ctx - The per-package route context (pool + intent).
+ * @returns The three handlers, each (req, res).
+ */
+function nativeAutopilotHandlers(ctx) {
+    const deps = { pool: ctx.pool, intent: (name, input) => ctx.intent(name, input), newId: ctx.newId };
+    const guarded = (action, fn) => async (req, res) => {
+        const sub = (0, trading_paper_routes_1.callerOf)(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        try {
+            await fn(req, res, sub);
+        }
+        catch (err) {
+            nativeFailure(res, err, action);
+        }
+    };
+    return {
+        get: guarded('status', async (_req, res, sub) => { res.json(await nativeStatus(ctx, sub)); }),
+        post: guarded('arm', async (req, res, sub) => {
+            const b = (req.body || {});
+            if (typeof b.cron === 'string' && b.cron.trim() && b.cron.trim() !== NATIVE_PAPER_CRON) {
+                res.status(400).json({ error: 'cron_fixed', message: 'The native paper autopilot runs on its declared schedule (' + NATIVE_PAPER_CRON + ' ' + NATIVE_PAPER_TIMEZONE + ').' });
+                return;
+            }
+            await paper_tick_1.armPaper(deps, sub, b, new Date());
+            res.json(await nativeStatus(ctx, sub));
+        }),
+        delete: guarded('disarm', async (_req, res, sub) => {
+            const out = await paper_tick_1.disarmPaper(deps, sub, new Date());
+            res.json({ ...(await nativeStatus(ctx, sub)), deleted: 0, disarmed: out.changed });
+        }),
+    };
+}
 /**
  * @description Build the autopilot control router (mount at /api/trading/autopilot behind requiresAuth).
  * @returns Express router.
  */
 function createTradingAutopilotRoutes(ctx) {
     const router = (0, express_1.Router)();
+    // On the native kernel the advisor's legacy schedule service does not exist; the switch is the paper book.
+    const native = () => (0, paper_screen_1.nativeHost)(ctx) ? nativeAutopilotHandlers(ctx) : null;
     /** GET /api/trading/autopilot — advisor status (all three legs) for the caller. */
     router.get('/', async (req, res) => {
+        const paper = native();
+        if (paper)
+            return paper.get(req, res);
         const sub = callerSub(req);
         if (!sub) {
             res.status(401).json({ error: 'not_authenticated' });
@@ -196,6 +293,9 @@ function createTradingAutopilotRoutes(ctx) {
     /** POST /api/trading/autopilot — enable/replace the whole advisor (technical + research + fast).
      *  Body: { cron?, universe?: string[] }. Paper-only. */
     router.post('/', async (req, res) => {
+        const paper = native();
+        if (paper)
+            return paper.post(req, res);
         const sub = callerSub(req);
         if (!sub) {
             res.status(401).json({ error: 'not_authenticated' });
@@ -244,6 +344,9 @@ function createTradingAutopilotRoutes(ctx) {
     });
     /** DELETE /api/trading/autopilot — stop the whole advisor (all three legs) for the caller. */
     router.delete('/', async (req, res) => {
+        const paper = native();
+        if (paper)
+            return paper.delete(req, res);
         const sub = callerSub(req);
         if (!sub) {
             res.status(401).json({ error: 'not_authenticated' });

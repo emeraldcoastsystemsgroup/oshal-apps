@@ -16,6 +16,8 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial implementation — bake_off_jobs / bake_off_runs / bake_off_results with owner-or-operator RLS, plus the owner-scoped CRUD the routes and the engine share. Reads are always parameterised on owner_sub so a missing GUC cannot widen a query.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | updateJob: edit an owner's job in place (same id, runs kept). The console's Save had only an insert, so editing a job made a duplicate.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | updateJob moves updated_at only when the measured spec (prompt, rubric, reference) changes, so a job's updated_at later than a run's start means that run measured an earlier prompt; a name, quality bar, volume or lane edit leaves it where it was. The report marks such a run stale.
  *
  * @module bake-off-store
  */
@@ -24,6 +26,7 @@ exports.ensureBakeOffSchema = ensureBakeOffSchema;
 exports.insertJob = insertJob;
 exports.listJobs = listJobs;
 exports.getJob = getJob;
+exports.updateJob = updateJob;
 exports.deleteJob = deleteJob;
 exports.openRun = openRun;
 exports.closeRun = closeRun;
@@ -152,6 +155,30 @@ async function listJobs(pool, ownerSub) {
  */
 async function getJob(pool, ownerSub, jobId) {
     const { rows } = await pool.query('SELECT * FROM bake_off_jobs WHERE id = $1 AND owner_sub = $2', [jobId, ownerSub]);
+    return rows.length ? toJob(rows[0]) : null;
+}
+/**
+ * @description Replace one owner's job spec in place, keeping its id, runs and creation time.
+ *
+ * Owner-scoped in the WHERE clause, like every read here: a job the caller does not own updates
+ * nothing and answers the same `null` as one that does not exist.
+ *
+ * @param pool - Shared pool.
+ * @param ownerSub - The authenticated caller's sub.
+ * @param jobId - Job id.
+ * @param spec - The validated replacement spec.
+ * @param measuredChanged - Whether the prompt, rubric or reference changed; only then does updated_at move.
+ * @returns The updated job, or null when the owner has no such job.
+ */
+async function updateJob(pool, ownerSub, jobId, spec, measuredChanged = true) {
+    // updated_at records when what a run measures last changed, so the report can tell a run graded on an earlier
+    // prompt from one graded on this one; renaming a job or moving its bar does not make its runs stale.
+    const stamp = measuredChanged ? ', updated_at = NOW()' : '';
+    const { rows } = await pool.query(`UPDATE bake_off_jobs SET name = $3, prompt = $4, rubric = $5::jsonb, reference = $6, quality_bar = $7,
+       monthly_volume = $8, lane_agent_ids = $9::jsonb${stamp}
+     WHERE id = $1 AND owner_sub = $2 RETURNING *`, [jobId, ownerSub, spec.name, spec.prompt, JSON.stringify(spec.rubric), spec.reference,
+        spec.qualityBar, spec.monthlyVolume, JSON.stringify(spec.laneAgentIds)]);
+    log.info({ ownerSub, jobId, updated: rows.length }, 'Bake-off job update');
     return rows.length ? toJob(rows[0]) : null;
 }
 /**

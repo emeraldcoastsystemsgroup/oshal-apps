@@ -1,0 +1,67 @@
+/** CHANGE LOG
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Human drafts, page controls, immutable history and explicit original-owner job polling.
+ */
+const base='/api/pdf-workbench',$=id=>document.getElementById(id);
+let saved=null,model=null,ops=[],undo=[],redo=[],permissions={},job=null,timer=null,sourceIndex=[],intent=null,uploadIntent=null,createIntent=null;
+const uuid=()=>crypto.randomUUID();
+const status=value=>{$('status').textContent=value;};
+export async function api(path,options={}){const response=await fetch(base+path,{credentials:'same-origin',...options,headers:options.body instanceof FormData?{}:{'Content-Type':'application/json',...options.headers}});const result=await response.json();if(!response.ok){const error=new Error(result.error??'PDF request failed');error.code=result.error;error.status=response.status;throw error;}return result;}
+const post=(path,input)=>api(path,{method:'POST',body:JSON.stringify(input)});
+const action=fn=>async()=>{try{await fn();}catch(error){status(error.message);}};
+function controls(){for(const[name,allowed]of Object.entries({create:permissions.create,save:permissions.change,rotate:permissions.change,remove:permissions.change,extract:permissions.change,merge:permissions.change,annotate:permissions.change,fill:permissions.change,restore:permissions.change,split:permissions.create,ocr:permissions.ocr,'delete-document':permissions.delete,'delete-source':permissions.delete,'cancel-job':!!job&&permissions['job.manage']}))$(name).disabled=!allowed||(['save','restore','rotate','remove','extract','merge','annotate','fill','ocr'].includes(name)&&(!saved||!!job));$('upload').querySelector('button').disabled=!permissions.create;$('download').hidden=!permissions.export||!saved;}
+function options(node,items){node.replaceChildren(...items.map(item=>{const option=document.createElement('option');option.value=item.id;option.textContent=item.title;return option;}));}
+async function refresh(){const[result,sources]=await Promise.all([api('/documents'),api('/sources')]);sourceIndex=sources.sources;options($('sources'),sourceIndex);$('documents').replaceChildren(...result.documents.map(item=>{const li=document.createElement('li'),button=document.createElement('button');button.textContent=`${item.title} · revision ${item.revision}`;button.onclick=action(()=>open(item.id));li.append(button);return li;}));controls();}
+async function open(id,revision){if(ops.length&&!confirm('Discard the unsaved draft?'))return;const result=await api('/documents/'+id+(revision?'?revision='+revision:''));saved=result.document;model=structuredClone(saved.model);ops=[];undo=[];redo=[];intent=null;options($('history'),result.history.map(row=>({id:String(row.revision),title:'Revision '+row.revision})));$('history').value=String(saved.revision);$('document-title').textContent=saved.title;$('revision').textContent='Saved revision '+saved.revision+(saved.revision!==saved.currentRevision?' · historical, read only until restored':'');$('download').href=`${base}/documents/${id}/revisions/${saved.revision}/content`;history.replaceState(null,'','?document='+id);await render();controls();status('Opened saved PDF.');}
+const selected=()=>[...$('pages').querySelectorAll('input:checked')].map(input=>input.value);
+function edit(operation){if(!saved||saved.revision!==saved.currentRevision)throw new Error('Open the latest revision before editing.');undo.push({model:structuredClone(model),ops:structuredClone(ops)});redo=[];ops.push(operation);const old=model.pages;
+ if(operation.op==='rotate')model.pages.find(p=>p.id===operation.page).rotation=(model.pages.find(p=>p.id===operation.page).rotation+operation.degrees)%360;
+ if(operation.op==='reorder')model.pages=operation.pageIds.map(id=>old.find(p=>p.id===id));
+ if(['remove','extract'].includes(operation.op)){model.pages=old.filter(p=>operation.pageIds.includes(p.id)===(operation.op==='extract'));if(!model.pages.length){const prior=undo.pop();model=prior.model;ops=prior.ops;throw new Error('A document must keep at least one page.');}model.annotations=model.annotations.filter(a=>model.pages.some(p=>p.id===a.page));}
+ if(operation.op==='annotate')model.annotations.push(operation.annotation);
+ if(operation.op==='fill')model.fields[operation.name]=operation.value;
+ status(`${ops.length} unsaved operation(s). Save creates a new revision.`);void render();}
+async function render(){if(!saved)return;$('pages').replaceChildren();for(const[ordinal,page]of model.pages.entries()){const card=document.createElement('div');card.className='page';const label=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.value=page.id;check.onchange=()=>card.classList.toggle('selected',check.checked);label.append(check,document.createTextNode(' Page '+(ordinal+1)));const img=document.createElement('img');img.alt='Saved page '+(ordinal+1);img.src=`${base}/documents/${saved.id}/pages/${page.id}/preview?revision=${saved.revision}`;img.onerror=()=>{img.alt='Preview unavailable; retry the saved page.';};img.style.transform=`rotate(${(page.rotation-(saved.model.pages.find(p=>p.id===page.id)?.rotation??0))%360}deg)`;const up=document.createElement('button');up.textContent='Move earlier';up.disabled=!permissions.change||ordinal===0;up.onclick=action(()=>{const ids=model.pages.map(p=>p.id);[ids[ordinal-1],ids[ordinal]]=[ids[ordinal],ids[ordinal-1]];edit({op:'reorder',pageIds:ids});});const down=document.createElement('button');down.textContent='Move later';down.disabled=!permissions.change||ordinal===model.pages.length-1;down.onclick=action(()=>{const ids=model.pages.map(p=>p.id);[ids[ordinal],ids[ordinal+1]]=[ids[ordinal+1],ids[ordinal]];edit({op:'reorder',pageIds:ids});});card.append(label,img,up,down);$('pages').append(card);}
+ $('forms').replaceChildren();for(const field of saved.inspection.fields){const label=document.createElement('label');label.textContent=field.name;let input;if(field.options.length){input=document.createElement('select');options(input,(field.type==='Btn'?['/Off',...field.options]:field.options).map(value=>({id:value,title:value})));}else input=document.createElement('input');input.dataset.field=field.name;input.value=model.fields[field.name]??field.value;input.disabled=!field.supported||!permissions.change;label.append(input);$('forms').append(label);}controls();}
+async function poll(){
+ if(!job)return;
+ try{
+  const result=await api('/jobs/'+job.id);job=result.job;status(`Job ${job.state}`);
+  if(['ready','failed','cancelled'].includes(job.state)){
+   clearInterval(timer);timer=null;const done=job;job=null;intent=null;
+   if(done.state==='ready'){
+    if(done.kind==='ocr'){
+     const reports=[];
+     for(const[index,page]of done.result.pages.entries()){
+      let text='',offset=0;
+      for(;;){const part=await api(`/jobs/${done.id}/ocr/${index}/${offset}`);text+=part.text;if(part.nextOffset===null)break;offset=part.nextOffset;}
+      reports.push(`Page ${page.page+1}: ${page.language}, ${page.quality}, confidence ${page.confidence??'unavailable'}\n${text}`);
+     }
+     $('ocr-results').textContent=reports.join('\n\n');
+    }else{ops=[];await open(done.document,done.result.revision);}
+   }else status(done.error??'Job cancelled; no new revision published.');
+   controls();
+  }
+ }catch(error){status(error.code==='pdf_storage_busy'?'Storage is busy; checking the job again shortly.':error.message);}
+}
+async function start(kind,input){const signature=JSON.stringify([kind,saved.id,input]);if(intent?.signature!==signature)intent={signature,key:uuid()};const result=await post(`/documents/${saved.id}/${kind==='ocr'?'ocr':'revisions'}`,{...input,requestKey:intent.key});job=result.job;controls();status('Job queued; the saved PDF remains available.');clearInterval(timer);timer=setInterval(()=>void poll(),2000);await poll();}
+$('refresh').onclick=action(refresh);
+$('upload').onsubmit=async event=>{event.preventDefault();await action(async()=>{const file=$('file').files[0],name=$('source-title').value,signature=JSON.stringify([file.name,file.size,file.lastModified,name]);if(uploadIntent?.signature!==signature)uploadIntent={signature,key:uuid()};const form=new FormData();form.append('file',file);form.append('title',name);form.append('requestKey',uploadIntent.key);await api('/sources/upload',{method:'POST',body:form});uploadIntent=null;await refresh();status('Original PDF preserved.');})();};
+$('file').onchange=()=>{$('source-title').value=$('file').files[0]?.name??'';};
+$('create').onclick=action(async()=>{const source=$('sources').value,title=$('title').value||sourceIndex.find(s=>s.id===source)?.title,signature=JSON.stringify([source,title]);if(createIntent?.signature!==signature)createIntent={signature,key:uuid()};const result=await post('/documents',{source,title,requestKey:createIntent.key});createIntent=null;await refresh();await open(result.document.id);});
+$('rotate').onclick=action(()=>{const pages=selected();if(!pages.length)throw new Error('Select a page.');for(const page of pages)edit({op:'rotate',page,degrees:90});});
+for(const name of ['remove','extract'])$(name).onclick=action(()=>{const pageIds=selected();if(!pageIds.length)throw new Error('Select pages.');edit({op:name,pageIds});});
+$('split').onclick=action(async()=>{if(ops.length)throw new Error('Save or undo the draft first.');const pages=saved.model.pages.filter(p=>selected().includes(p.id));if(!pages.length)throw new Error('Select saved pages.');if(new Set(pages.map(p=>p.source)).size!==1||pages.some(p=>p.rotation!==0)||saved.model.annotations.length||Object.keys(saved.model.fields).length)throw new Error('Selected-page copy currently accepts unedited pages from one original; use keep-selected and save for edited pages.');const result=await post('/documents',{source:pages[0].source,indices:pages.map(p=>p.index),title:saved.title+' selected',requestKey:uuid()});await refresh();await open(result.document.id);});
+$('merge').onclick=action(async()=>{if(!saved||saved.revision!==saved.currentRevision)throw new Error('Open the latest document.');undo.push({model:structuredClone(model),ops:structuredClone(ops)});redo=[];ops.push({op:'merge',source:$('sources').value,position:model.pages.length});status('Source append queued in draft. Save to inspect its real page instances.');});
+$('annotate').onclick=action(()=>{const page=selected()[0];if(!page)throw new Error('Select a page.');const kind=$('annotation-kind').value,annotation={id:uuid(),page,kind,rect:$('annotation-rect').value.split(',').map(Number),color:$('annotation-color').value.slice(1)};if(kind==='text')annotation.text=$('annotation-text').value;if(kind==='ink')annotation.points=$('annotation-points').value.split(';').map(pair=>pair.split(',').map(Number));edit({op:'annotate',annotation});});
+$('fill').onclick=action(()=>{for(const input of $('forms').querySelectorAll('[data-field]:not(:disabled)'))if(input.value!==(model.fields[input.dataset.field]??saved.inspection.fields.find(f=>f.name===input.dataset.field).value))edit({op:'fill',name:input.dataset.field,value:input.value});});
+$('undo').onclick=action(()=>{const prior=undo.pop();if(!prior)return;redo.push({model:structuredClone(model),ops:structuredClone(ops)});model=prior.model;ops=prior.ops;void render();status('Draft undo applied.');});
+$('redo').onclick=action(()=>{const next=redo.pop();if(!next)return;undo.push({model:structuredClone(model),ops:structuredClone(ops)});model=next.model;ops=next.ops;void render();status('Draft redo applied.');});
+$('save').onclick=action(()=>{if(!ops.length)throw new Error('No draft changes.');return start('revision',{baseRevision:saved.currentRevision,operations:ops});});
+$('cancel-job').onclick=action(async()=>{if(job){await post('/jobs/'+job.id+'/cancel',{});await poll();}});
+$('ocr').onclick=action(()=>{if(ops.length)throw new Error('OCR uses the saved revision. Save or undo the draft first.');return start('ocr',{revision:saved.revision,pageIds:selected(),language:$('language').value});});
+$('search-button').onclick=action(async()=>{if(!saved)return;const result=await api(`/documents/${saved.id}/text?revision=${saved.revision}`),term=$('search').value.toLowerCase();$('search-results').textContent=result.pages.filter(p=>p.text.toLowerCase().includes(term)).map(p=>`Page ${p.page+1}${p.truncated?' (truncated)':''}:\n${p.text}`).join('\n\n')||'No selectable-text match. OCR scanned pages explicitly.';});
+$('open-history').onclick=action(()=>open(saved.id,Number($('history').value)));
+$('restore').onclick=action(()=>{if(ops.length)throw new Error('Save or undo the draft first.');return start('revision',{baseRevision:saved.currentRevision,restoreRevision:Number($('history').value)});});
+$('delete-document').onclick=action(async()=>{if(!saved||!confirm('Delete this document and all derivative history? Original source PDFs remain.'))return;await api('/documents/'+saved.id,{method:'DELETE'});saved=null;model=null;ops=[];$('pages').replaceChildren();await refresh();status('Document history deleted; original sources remain.');});
+$('delete-source').onclick=action(async()=>{if(confirm('Delete this unused original PDF? Saved history references will refuse deletion.')){await api('/sources/'+$('sources').value,{method:'DELETE'});await refresh();}});
+try{permissions=(await api('/permissions')).permissions;await refresh();const id=new URL(location.href).searchParams.get('document');if(id)await open(id);}catch(error){status(error.message);}controls();

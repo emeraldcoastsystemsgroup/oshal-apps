@@ -35,6 +35,7 @@
 # 2026-08-06 02:43:35 | maintainer@emeraldcoastsystemsgroup.com     | Release v0.19.1 with FORCE RLS on all six tenant tables, derived owner columns, member-safe shared-table policies, and transaction-local join-code admission.
 # 2026-09-28 08:52:00 | maintainer@emeraldcoastsystemsgroup.com     | Release v0.21.4 with the family audience view for the Home shell (ADR-164 D6) on the first surface, tools/review.html: the saved games, where the story left off and the saved heroes from the existing GET /campaigns, /characters and /home-summary reads, never a turn, narration, dice, illustration, seat change or join code; declare the package test catalog (testing: + uses: test-catalog) with its audience-view case.
 # 2026-09-28 23:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Release v0.21.5 with the family audience view on the table, ui/table.html at /api/dnd/table, the games group's first surface that the Jarvis shell frames (ADR-164 D6): the saved games with their adventure and chapter, where each stands, the saved heroes and the adventure shelf from the table's own GET /campaigns, /characters and /content reads; the tabletop start paths (boot, animation loop, narrator status, glitch banner, audio unlock, immersive wiring) run only when no audience view renders, so no turn, narration, dice, illustration, seat change or join code happens under the view. No route, schema or authorization change.
+# 2026-10-10 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Declare nativeMigrations: the native kernel skips 005 (a DO-guarded constraint, now in 001's dnd_archive) and 006 (PL/pgSQL owner/member triggers and caller-GUC RLS; routes write owner_sub and the per-person scope enforces ownership natively). The PostgreSQL runtime still applies both.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Dungeon Master (AI D&D at the table)
@@ -222,6 +223,16 @@ migrations:
   - migrations/004-character-library.sql
   - migrations/005-roll-events.sql
   - migrations/006-owner-rls.sql
+
+# The native kernel does not run procedural SQL. It applies the list above except
+# these; the PostgreSQL runtime reads only `migrations:` and still applies all six.
+nativeMigrations:
+  - id: migrations/005-roll-events.sql
+    native: skip
+    reason: "Its only native-relevant effects (the payload column, CHECK ck_dnd_archive_roll_payload and index uq_dnd_archive_roll_event) are in 001's dnd_archive; the DO block that adds the constraint idempotently is PostgreSQL-only."
+  - id: migrations/006-owner-rls.sql
+    native: skip
+    reason: "Its triggers only stamp owner_sub/member_subs and its policies scope rows by caller GUCs; routes write owner_sub explicitly and the native per-person scope enforces ownership."
 
 # Read-the-story-aloud requires the configured natural server provider; the game
 # reports narration unavailable instead of falling back to a robotic browser voice.

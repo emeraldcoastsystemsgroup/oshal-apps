@@ -5,6 +5,7 @@
   SEQ | AUTHOR | DESCRIPTION
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
+  2 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: in a fresh conversation the concierge answered "Which recruiter did I just add?" with "not visible in the current view" while the row sat at the end of a long list, beyond what its screen snapshot carries, and nothing on the screen said which row was new (the "Added" toast lasts two seconds). The All view names the latest added recruiter and its bucket above the list (the highest id, so it survives a reload). Guard: tests/recruiters-latest.test.cjs.
 -->
 
 <!--
@@ -34,6 +35,7 @@
   .row .contact { font-size:12px; color:var(--muted); flex:1; min-width:120px; } .row .contact a { color:var(--accent2); }
   .row select, .row input.note { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:5px 8px; font-size:12px; }
   .row input.note { flex:1; min-width:120px; }
+  .latest { font-size:12.5px; color:var(--muted); margin:0 0 12px; } .latest b { color:var(--text); }
   .grp { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:16px 0 8px; }
   .empty { color:var(--muted); font-size:13px; padding:30px; text-align:center; border:1px dashed var(--line); border-radius:12px; }
   .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:9px 15px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; } .toast.show { opacity:1; } .toast.err { border-color:var(--danger); color:var(--danger); }
@@ -67,6 +69,7 @@
     <input id="contact_name" placeholder="Contact name"/>
     <button class="btn primary" onclick="addRecruiter()">Add</button>
   </div>
+  <p class="latest" id="latest" hidden></p>
   <div id="list"></div>
 </div>
 <div class="toast" id="toast"></div>
@@ -95,16 +98,25 @@ async function load(){
   try {
     const u=new URLSearchParams(); if(activeStatus) u.set('status',activeStatus);
     const { recruiters=[], byStatus=[], empty } = await (await fetch('/api/career-hunter/recruiters?'+u)).json();
-    if(empty){ listEl.innerHTML='<div class="empty">No recruiters tracked yet — add one above.</div>'; tabsEl.innerHTML=''; return; }
+    if(empty){ listEl.innerHTML='<div class="empty">No recruiters tracked yet — add one above.</div>'; tabsEl.innerHTML=''; showLatest([]); return; }
     const map=Object.fromEntries(byStatus.map(s=>[s.status,s.n])); const total=byStatus.reduce((a,s)=>a+s.n,0);
     const tabs=[{k:'',label:'All',n:total}].concat(STATUSES.filter(s=>map[s]).map(s=>({k:s,label:s,n:map[s]})));
     tabsEl.innerHTML=tabs.map(t=>`<button class="tab${t.k===activeStatus?' active':''}" data-k="${t.k}">${t.label}<span class="n">${t.n}</span></button>`).join('');
     tabsEl.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{ activeStatus=b.dataset.k; load(); });
+    showLatest(recruiters);
     // group by bucket
     const groups={}; recruiters.forEach(r=>{ const b=r.bucket||'Other'; (groups[b]=groups[b]||[]).push(r); });
     listEl.innerHTML=Object.keys(groups).sort().map(b=>`<div class="grp">${esc(b)} (${groups[b].length})</div>`+groups[b].map(row).join('')).join('')
       || '<div class="empty">No recruiters in this view.</div>';
   } catch(e){ listEl.innerHTML='<div class="empty">Could not load: '+esc(e.message)+'</div>'; }
+}
+// The latest added recruiter (the highest id), named above the list on the All view, so a person and the concierge
+// can tell which row is new after the two-second toast and after a reload.
+function showLatest(recruiters){
+  const el=$('latest');
+  const newest=activeStatus?null:recruiters.reduce((a,r)=>(!a||Number(r.id)>Number(a.id)?r:a),null);
+  el.hidden=!newest;
+  el.innerHTML=newest?`Latest added: <b>${esc(newest.firm)}</b> · bucket ${esc(newest.bucket||'Other')} · status ${esc(newest.status||'To contact')}`:'';
 }
 async function upd(id,field,value){
   try { const r=await fetch('/api/career-hunter/recruiters/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[field]:value})});

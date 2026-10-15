@@ -30,6 +30,8 @@
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — the Figure record with its formula and provenance chain, registry construction across every engine result, the traceability report with soft and unsourced figure lists, the derived posture, and token rendering that throws on an unknown figure id.
  * 2 | roger.murphy@emeraldcoastsystemsgroup.com   | Provenance no longer fails OPEN on an empty chain. Fourteen computed figures — revenue, net income, the cash trough, the funding requirement and break-even among them — carried no assumption references at all, and both classification branches test the references, so an empty array fell through both and was scored exactly like a fully-quoted number. Aggregate figures now INHERIT the references of everything they were built from, and a computed figure that still has none is unprovenanced rather than clean.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Sweep 13: a plan's summary read "a fully loaded factory cost of $48.32 per unit ... and landed logistics of $53.75 per unit", adding the landed cost on top of the factory cost: the landed figures include the ex-works goods (the BOM cost), and their labels did not say so. They now read "Landed cost per unit (BOM cost included)" and "Landed cost of the run (BOM spend included)", in the document table and in the figure table the narration is written from. Guard: tests/venture-landed-label.test.js.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Sweep 14: narrated prose read "requiring 2 of ocean freight to achieve a fill ratio of 0.8333333333333334" and "its 10 lead time from order to shelf". A figure with no explicit format now reads with its unit word (containers, weeks, days, months, FTE) and at most two decimals, and a ratio as a rounded percent; a token the writer already follows with its unit is not given it twice; `|raw` keeps the stored value. Guard: tests/venture-figure-units.test.js.
  *
  * @module venture-figures
  */
@@ -105,8 +107,8 @@ function costFigures(s) {
         fig(L, 'bom.fullyLoadedUnitMicros', 'Fully loaded factory cost per unit', s.bom.fullyLoadedUnitMicros, 'micros', 'computed', 'recurringUnitMicros + amortizedUnitMicros', bomRefs),
         fig(L, 'bom.moqConstrainedRunUnits', 'Smallest run no supplier minimum inflates', s.bom.moqConstrainedRunUnits, 'units', 'computed', 'max over components of ceil(moq / effectiveQtyPerUnit)', bomRefs),
         fig(L, 'bom.lineCount', 'BOM lines', s.bom.lines.length, 'count', 'count', 'length of the flattened BOM', []),
-        fig(L, 'landed.buyerUnitMicros', 'Landed cost per unit', s.landed.buyerUnitMicros, 'micros', 'computed', 'buyerTotalMicros / units', landedRefs),
-        fig(L, 'landed.buyerTotalMicros', 'Landed cost of the run', s.landed.buyerTotalMicros, 'micros', 'computed', 'sum of buyer-paid legs', landedRefs),
+        fig(L, 'landed.buyerUnitMicros', 'Landed cost per unit (BOM cost included)', s.landed.buyerUnitMicros, 'micros', 'computed', 'buyerTotalMicros / units', landedRefs),
+        fig(L, 'landed.buyerTotalMicros', 'Landed cost of the run (BOM spend included)', s.landed.buyerTotalMicros, 'micros', 'computed', 'sum of buyer-paid legs', landedRefs),
         fig(L, 'landed.customsValueMicros', 'Declared customs value', s.landed.customsValueMicros, 'micros', 'computed', 'goods plus the legs the declared basis includes', landedRefs),
         fig(L, 'landed.containers', 'Containers shipped', s.landed.containers, 'count', 'computed', 'ceil(units / unitsPerContainer)', s.landed.assumptionRefs),
         fig(L, 'landed.containerFillRatio', 'Container fill', s.landed.containerFillRatio, 'ratio', 'computed', 'units / (containers x unitsPerContainer)', s.landed.assumptionRefs),
@@ -247,22 +249,47 @@ const TOKEN_RE = /\{\{fig:([A-Za-z0-9_.\-]+)(?:\|([a-z]+))?\}\}/g;
  * @returns The rendered text.
  */
 function renderFigureTokens(template, figures) {
-    return template.replace(TOKEN_RE, (_match, id, format) => {
+    return template.replace(TOKEN_RE, (match, id, format, offset, whole) => {
         const f = figures[id];
         if (!f)
             throw new MissingFigureError(id);
+        // A token the writer already follows with its unit ("{{fig:schedule.criticalPathWeeks}} weeks") is not given it twice.
+        const word = format ? '' : unitWord(f);
+        const after = whole.slice(offset + match.length);
+        if (word && new RegExp(`^\\s+${word.slice(0, 4)}`, 'i').test(after))
+            return plainNumber(f.value);
         return formatFigure(f, format);
     });
+}
+/** The word a count is read with, by figure (a count with none, such as units, reads as its number). */
+const COUNT_WORDS = { 'landed.containers': 'containers', 'headcount.peakFte': 'FTE', 'bom.lineCount': 'BOM lines' };
+/** The word each measured unit is read with. */
+const UNIT_WORDS = { weeks: 'weeks', days: 'days', months: 'months', oz: 'oz', cbm: 'cbm', lb: 'lb' };
+/**
+ * @description The word printed after a figure's number. Sweep 14: narrated prose read "requiring 2 of ocean freight" and
+ *   "its 10 lead time from order to shelf": a count of containers and a span of weeks printed as bare numbers.
+ * @param f - The figure.
+ * @returns The unit word (singular for exactly one of a counted thing), or '' when the number reads alone.
+ */
+function unitWord(f) {
+    const word = f.unit === 'count' ? (COUNT_WORDS[f.id] ?? '') : (UNIT_WORDS[f.unit] ?? '');
+    return f.value === 1 && /^(weeks|days|months|containers)$/.test(word) ? word.slice(0, -1) : word;
+}
+/** A number as a person reads it: at most two decimals, no trailing zeros ("0.8333333333333334" never prints). */
+function plainNumber(value) {
+    return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
 }
 /**
  * @description Format one figure for a document. The presentation boundary — the
  *   only other place the rounding policy applies.
  * @param f - The figure.
- * @param format - `usd` (default for money), `cents`, `pct`, `bps` or `raw`.
+ * @param format - `usd` (default for money), `cents`, `pct` (default for bps), `bps`, `ratio` (default for a ratio: a
+ *   rounded percent), `number` (the default otherwise: the number rounded to two decimals with its unit word) or `raw`
+ *   (the stored value exactly).
  * @returns The formatted string.
  */
 function formatFigure(f, format) {
-    const mode = format ?? (f.unit === 'micros' ? 'usd' : f.unit === 'bps' ? 'pct' : 'raw');
+    const mode = format ?? (f.unit === 'micros' ? 'usd' : f.unit === 'bps' ? 'pct' : f.unit === 'ratio' ? 'ratio' : 'number');
     if (mode === 'usd')
         return (0, venture_primitives_1.formatUsd)(f.value);
     if (mode === 'cents')
@@ -271,6 +298,11 @@ function formatFigure(f, format) {
         return `${(f.value / 100).toFixed(2)}%`;
     if (mode === 'bps')
         return `${f.value} bps`;
+    // A ratio reads as a rounded percent ("Container fill 83.3%", never "0.8333333333333334").
+    if (mode === 'ratio')
+        return `${(f.value * 100).toFixed(1)}%`;
+    if (mode === 'number')
+        return [plainNumber(f.value), unitWord(f)].filter(Boolean).join(' ');
     return String(f.value);
 }
 /**

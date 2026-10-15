@@ -6,6 +6,9 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | The queue intake case also pins the manifest contract the kernel queue binding admits (linkedin-content-post, pipeline manifest-worker, workerBot social-writer).
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: register the audience view contract of the Composer (ADR-164 D6): the company view for the Business shell reads only database-backed routes on open, never the live profiles, and names each empty, refused and failed state. The linkedin-content-queue case now declares installation: never: a package node-test case cannot run during installation, and the core catalog loader (scripts/oshal-test-catalog.js loadPackageTestCatalog) refused the whole catalog for that one field ("cases[2].installation: local/core suites cannot execute during installation").
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register the native-kernel egress case: X, LinkedIn and Facebook profile requests reach their declared hosts with no credential and map to the routes' rows; missing, lapsed or refused connections keep the 409s; the Page legs and LinkedIn publishing make no egress request.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register social-content-routes: the package-owned Workspace content routes and the daily digest bot target.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register draft-limit: an X draft over 280 characters is shortened before it reaches the composer, and one that never fits is said in words (sweep 14: 315 / 280).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -106,4 +109,76 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: kernel-egress
+    name: Native kernel social egress
+    purpose: Drive the compiled social routes with OSHAL_EGRESS=kernel, the bridge's inert framework stand-ins, synthetic connection metadata and a recording fetch - no network or credentials.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/kernel-egress.test.cjs
+    expected:
+      - The X post, timeline and follow requests and the LinkedIn, Facebook and X profile reads go to api.twitter.com, api.linkedin.com and graph.facebook.com with no Authorization and no access_token, and map to the routes' rows.
+      - The X user id comes from GET /2/users/me under the kernel, never the connection table; readiness reads the Facebook connections from the connection metadata.
+      - No, a lapsed or a kernel-refused X connection answers the same 409 no_twitter_connection.
+      - The Facebook Page legs and LinkedIn publishing make no egress request under the kernel.
+      - Outside the kernel the broker token still travels as a Bearer header and a Graph access_token.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: social-content-routes
+    name: Workspace content routes and daily digest target
+    purpose: Drive the compiled /api/social/content router with in-process framework stand-ins, a recording pool, a scripted fetch and a recording bot - no network, database or model.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/social-content-routes.test.cjs
+    expected:
+      - Every /api/social/content call the Workspace and Composer make has a handler; no screen calls the old /api/content routes.
+      - Topics come from declared egress hosts, match the caller's focus, skip dismissed articles, decode entities and read only; every source failing answers 502.
+      - Focus, settings, dismissals and saved drafts are keyed to the caller; drafting, refining and notes run on the package's own social-writer.
+      - The manifest mounts the router and its migration, and social-daily-digest names a bot the package declares or imports.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: draft-limit
+    name: An X draft fits X's limit
+    purpose: >-
+      In Chromium at 412x915 the person drafts an X post in the shipped composer over the compiled social router with a
+      scripted drafting bot (sweep 14: the draft came back at 315 / 280).
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/social-draft-limit.test.cjs
+    expected:
+      - A 315-character draft is sent back once with its length and the 250-character rewrite is the editor's text.
+      - A bot that never fits is asked at most twice more and the composer says "This draft is 315 characters; X allows 280. Shorten it before publishing."
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
     installation: never

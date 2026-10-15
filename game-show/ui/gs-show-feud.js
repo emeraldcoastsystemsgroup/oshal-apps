@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-24 13:40:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Family Feud's client half, extracted from gs-surfaces.js into the per-show registry (the ADR-112 table collapse) and extended with the Fast Money surfaces: the setup picker on the host desk, the timed two-run board, and the classic two-column reveal.
  * 2026-07-26 19:25:00 | roger.murphy@emeraldcoastsystemsgroup.com  | The board became a SET PIECE (broadcast rebuild): gold-framed two-column flip-card board ordered column-first like the show, question marquee + BANK plate, one-shot 3D reveals and the giant strike-slam overlay driven by module-level last-seen deltas (never replayed on plain re-renders), steal-phase frame pulse, and the Fast Money masthead board with covered runs, DUPLICATE stamps, and an id-repaint odometer total. Phase tables, hostKey, and the Fast Money launcher are untouched.
+ * 2026-10-12 21:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 9: the Host Desk's answer key now starts with the round's own question ("Round 2 question: ..."). The desk showed no current question, only the host caption from round 1, so the concierge read the round-1 question during round 2.
  */
 
 /* global window, document, setTimeout, setInterval */
@@ -191,6 +192,10 @@
       });
     } else {
       if (!(board2.answers || []).length) return null;
+      if (board2.question) {
+        list.appendChild(GS.el('div', { class: 'a up gsf-host-question' },
+          GS.el('span', {}, 'Round ' + (st.round || 1) + ' question: ' + board2.question), GS.el('span', {}, '')));
+      }
       board2.answers.forEach(function (a, i) {
         list.appendChild(GS.el('div', { class: 'a' + (a.revealed ? ' up' : '') },
           GS.el('span', {}, (i + 1) + '. ' + a.text), GS.el('span', {}, a.points + (a.revealed ? ' ✓' : ''))));

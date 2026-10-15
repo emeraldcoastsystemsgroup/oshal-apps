@@ -35,6 +35,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — the four literal JSON contracts embedded in the prompts, strict parsers that reject unknown keys and force-downgrade an unsourced source-kind claim, the mandatory band rule for model estimates, and the prose numeral verifier the document store flags on.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | An analyst assumption's unit is normalised to the ledger's: "usd" (plain dollars) becomes integer micros, "pct" becomes integer basis points, the ledger's own units pass through, and any other unit refuses the row. A key that names a percentage (its last segment ends in pct or percent) must be stated as a rate. Before, the unit string was stored as written: live the ledger held channel.amazon.fulfillment-pct as 550000 "usd_micros" and compliance.fcc.cost as 3000 "usd", and the engine read both as ratios.
  *
  * @module venture-bot-contracts
  */
@@ -162,6 +163,46 @@ export function resolveSourceKind(
   return claimed === 'vendor-quote' || claimed === 'user-entered' ? 'published-source' : claimed;
 }
 
+/** A unit an analyst may write: the ledger unit it is stored in and the factor that converts it. */
+const UNIT_ALIASES: Readonly<Record<string, { unit: string; factor: number }>> = Object.freeze({
+  usd: { unit: 'micros', factor: 1_000_000 }, dollars: { unit: 'micros', factor: 1_000_000 },
+  micros: { unit: 'micros', factor: 1 }, usd_micros: { unit: 'micros', factor: 1 }, 'usd-micros': { unit: 'micros', factor: 1 },
+  pct: { unit: 'bps', factor: 100 }, percent: { unit: 'bps', factor: 100 }, '%': { unit: 'bps', factor: 100 },
+  bps: { unit: 'bps', factor: 1 },
+  ratio: { unit: 'ratio', factor: 1 }, units: { unit: 'units', factor: 1 }, count: { unit: 'count', factor: 1 },
+  weeks: { unit: 'weeks', factor: 1 }, days: { unit: 'days', factor: 1 }, months: { unit: 'months', factor: 1 },
+  oz: { unit: 'oz', factor: 1 }, lb: { unit: 'lb', factor: 1 }, cbm: { unit: 'cbm', factor: 1 },
+});
+
+/** Ledger units held as whole numbers: a fractional micro or basis point is a rounding defect waiting downstream. */
+const INTEGER_UNITS = new Set(['micros', 'bps']);
+
+/**
+ * @description The ledger unit and values for an analyst's stated unit, or why the row cannot be stored.
+ * The prompts ask for plain dollars and percent; a unit the ledger cannot read would be computed as a ratio, and a
+ * key that names a percentage stated as money is exactly the unit mix this refuses.
+ * @param key - The assumption key.
+ * @param stated - The unit the analyst wrote.
+ * @param values - The value and band in the stated unit.
+ * @returns The ledger unit and converted values, or a reject reason.
+ */
+export function normaliseUnit(
+  key: string, stated: unknown, values: { value: number | null; low: number | null; high: number | null },
+): { unit?: string; value?: number | null; low?: number | null; high?: number | null; reject?: string } {
+  const written = typeof stated === 'string' && stated.trim() ? stated.trim().toLowerCase() : 'ratio';
+  const alias = UNIT_ALIASES[written];
+  if (!alias) return { reject: `key ${key}: unknown unit "${written.slice(0, 24)}"` };
+  if (/(pct|percent)$/i.test(key.split('.').pop() ?? '') && alias.unit !== 'bps' && alias.unit !== 'ratio') {
+    return { reject: `key ${key}: names a percentage but is stated in "${written}"` };
+  }
+  const convert = (n: number | null): number | null => {
+    if (n === null) return null;
+    const scaled = n * alias.factor;
+    return INTEGER_UNITS.has(alias.unit) ? Math.round(scaled) : scaled;
+  };
+  return { unit: alias.unit, value: convert(values.value), low: convert(values.low), high: convert(values.high) };
+}
+
 /** Parse one assumption row, or explain why it was rejected. */
 function parseAssumptionRow(raw: unknown): { row?: AssumptionInput; reject?: string } {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { reject: 'not an object' };
@@ -184,13 +225,15 @@ function parseAssumptionRow(raw: unknown): { row?: AssumptionInput; reject?: str
   if (lowNum !== null && highNum !== null && lowNum > highNum) {
     return { reject: `key ${key}: band is inverted` };
   }
+  const unit = normaliseUnit(key, r.unit, { value: valueNum, low: lowNum, high: highNum });
+  if (unit.reject) return { reject: unit.reject };
   return {
     row: {
       key,
       domain: r.domain as Domain,
       label: typeof r.label === 'string' && r.label.trim() ? r.label.trim().slice(0, 300) : key,
-      unit: typeof r.unit === 'string' ? r.unit.trim().slice(0, 24) : 'ratio',
-      valueNum, valueText, lowNum, highNum,
+      unit: unit.unit as string,
+      valueNum: unit.value ?? null, valueText, lowNum: unit.low ?? null, highNum: unit.high ?? null,
       sourceKind,
       sourceDetail: typeof r.sourceDetail === 'string' ? r.sourceDetail.slice(0, 500) : null,
       sourceUrl: typeof r.sourceUrl === 'string' ? r.sourceUrl.slice(0, 500) : null,

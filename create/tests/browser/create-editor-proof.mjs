@@ -8,6 +8,10 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Verify friendly nonJSON and20-second timeout errors, unchanged drafts and successful explicit retry over real HTTP.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Prove actual Daylight and Midnight disclosures remain opaque over a changing raster underlay.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Drive the image filter look and sliders in the real editor: one undoable edit, neutral sliders for an unfiltered layer, saved/reopened values and an exported PNG that matches the canvas.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Drive real mask controls through save, reopen, undo and source-preserving removal.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Prove brush masks, mask combination and editable adjustment persistence with actual rendered pixels and UI gestures.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -368,4 +372,128 @@ for (const theme of ['daylight', 'midnight']) for (const kind of ['dialog', 'men
   await opaqueScene(value, value.surface.locator(kind === 'dialog' ? '#projectDialog' : '#exportMenu .popover'));
   assert.equal(await value.surface.locator('#layerText').inputValue(), 'Synthetic content behind disclosures');
   assert.equal(value.fixture.state.successfulWrites, 0); assert.equal(value.fixture.state.uploads, 0); clean(value);
+});
+
+
+test('image mask controls persist a v2 project and undo, reopen, invert and disable without losing the source', async t => {
+  const value = await open(t), { surface } = value;
+  await noAutosave(value);
+  await surface.locator('#imageFile').setInputFiles({ name: 'mask-source.png', mimeType: 'image/png', buffer: await syntheticImage() });
+  await surface.locator('#imageProperties').waitFor();
+  await surface.locator('#selectWholeImage').click(); await surface.locator('#maskFromRegion').click();
+  await surface.locator('#maskStatus').filter({ hasText: 'Enabled' }).waitFor();
+  await change(surface, '#maskFeather', 3);
+  await surface.locator('#invertMask').click();
+  await surface.locator('#maskStatus').filter({ hasText: 'outside region' }).waitFor();
+  await surface.locator('#undo').click();
+  await surface.locator('#maskStatus').filter({ hasText: 'inside region' }).waitFor();
+  await surface.locator('#saveProject').click(); await saved(value);
+  const record = [...value.fixture.state.projects.values()][0];
+  assert.equal(record.document.version, 2); assert.equal(record.document.layers[0].mask.feather, 3);
+  const original = record.document.images[record.document.layers[0].assetId].src;
+  await value.page.goto(value.fixture.origin + '/fixture?project=' + record.id);
+  await surface.locator('#saveStatus').filter({ hasText: 'Saved' }).waitFor();
+  await surface.locator('.layer-select').first().click();
+  await surface.locator('#maskStatus').filter({ hasText: '3 source px feather' }).waitFor();
+  await noAutosave(value); await surface.locator('#toggleMask').click();
+  await surface.locator('#maskStatus').filter({ hasText: 'Disabled' }).waitFor();
+  await surface.locator('#removeMask').click();
+  await surface.locator('#maskStatus').filter({ hasText: 'No mask' }).waitFor();
+  await surface.locator('#undo').click();
+  await surface.locator('#maskStatus').filter({ hasText: 'Disabled' }).waitFor();
+  await surface.locator('#saveProject').click(); await saved(value, 2);
+  assert.equal(value.fixture.state.projects.get(record.id).document.images[record.document.layers[0].assetId].src, original);
+  clean(value);
+});
+
+
+test('mask brush gestures and adjustment properties save, reopen and preserve real pixels', async t => {
+  const value = await open(t), { surface, page } = value; await noAutosave(value);
+  await surface.locator('#canvasWidth').fill('80'); await surface.locator('#canvasHeight').fill('60'); await surface.locator('#applyCanvas').click();
+  await surface.locator('#imageFile').setInputFiles({ name: 'brush-source.png', mimeType: 'image/png', buffer: await syntheticImage() });
+  await surface.locator('#imageProperties').waitFor();
+  await surface.locator('#maskBrush').selectOption('subtract'); await surface.locator('#maskBrushSize').fill('8');
+  const box = await surface.locator('#artboard').boundingBox();
+  await page.mouse.click(box.x + 10, box.y + 10);
+  await surface.locator('#maskStatus').filter({ hasText: '1 edits' }).waitFor();
+  let alpha = await surface.locator('#artboard').evaluate(canvas => canvas.getContext('2d').getImageData(10, 10, 1, 1).data[3]);
+  assert.equal(alpha, 0); await surface.locator('#undo').click();
+  await surface.locator('#maskStatus').filter({ hasText: 'No mask' }).waitFor();
+  await page.mouse.move(box.x + 10, box.y + 10); await page.mouse.down();
+  await page.mouse.move(box.x + 15, box.y + 10, { steps: 3 }); await page.mouse.up();
+  await surface.locator('#maskStatus').filter({ hasText: '1 edits' }).waitFor();
+  await surface.locator('#maskBrush').selectOption('');
+  await surface.locator('#addAdjustment').click(); await surface.locator('#adjustmentProperties').waitFor();
+  await surface.locator('#adjustmentScope').selectOption('layer');
+  await change(surface, '[data-property="exposure"]', -1);
+  await surface.locator('#adjustmentCurve').fill('0:0, 0.5:0.6, 1:1'); await surface.locator('#applyAdjustmentCurve').click();
+  await surface.locator('#saveProject').click(); await saved(value);
+  const record = [...value.fixture.state.projects.values()][0];
+  assert.equal(record.document.version, 3); assert.equal(record.document.layers[0].mask.operations[0].kind, 'brush');
+  assert.equal(record.document.layers[1].scope, 'layer'); assert.equal(record.document.layers[1].exposure, -1);
+  assert.deepEqual(record.document.layers[1].curve[1], { x: .5, y: .6 });
+  await page.goto(value.fixture.origin + '/fixture?project=' + record.id);
+  await surface.locator('#saveStatus').filter({ hasText: 'Saved' }).waitFor();
+  await surface.locator('.layer-select').first().click();
+  await surface.locator('#adjustmentProperties').waitFor();
+  assert.equal(await surface.locator('[data-property="exposure"]').inputValue(), '-1'); clean(value);
+});
+
+
+test('group controls retain isolated opacity and child identity through save/reopen and ungroup', async t => {
+  const value = await open(t), { surface, page } = value; await noAutosave(value);
+  await surface.locator('#addRectangle').click(); await change(surface, '#layerName', 'First child');
+  await surface.locator('#addEllipse').click(); await change(surface, '#layerName', 'Second child');
+  await surface.locator('#groupBelow').click(); await change(surface, '#layerName', 'My group');
+  await change(surface, '#layerOpacity', .5);
+  await surface.locator('#saveProject').click(); await saved(value);
+  const record = [...value.fixture.state.projects.values()][0];
+  assert.equal(record.document.layers.at(-1).type, 'group'); assert.equal(record.document.layers.at(-1).children.length, 2);
+  await page.goto(value.fixture.origin + '/fixture?project=' + record.id);
+  await surface.locator('#saveStatus').filter({ hasText: 'Saved' }).waitFor();
+  await surface.locator('.layer-select').filter({ hasText: 'My group' }).click();
+  assert.equal(await surface.locator('#layerOpacity').inputValue(), '0.5');
+  await noAutosave(value); await change(surface, '#layerOpacity', 1); await surface.locator('#ungroupLayer').click();
+  await surface.locator('#layerCount').filter({ hasText: '2' }).waitFor();
+  await surface.locator('#saveProject').click(); await saved(value, 2);
+  assert.equal(value.fixture.state.projects.get(record.id).document.layers.length, 2); clean(value);
+});
+
+
+test('vector pen, cubic node edits and timed-worker booleans produce saved editable geometry', async t => {
+  const value = await open(t), { surface, page } = value; await noAutosave(value);
+  await surface.locator('#canvasWidth').fill('100'); await surface.locator('#canvasHeight').fill('100'); await surface.locator('#applyCanvas').click();
+  const box = await surface.locator('#artboard').boundingBox();
+  const pen = async points => {
+    await surface.locator('#vectorPen').click();
+    for (const [x, y] of points) await page.mouse.click(box.x + x, box.y + y);
+    await surface.locator('#finishVector').click(); await surface.locator('#vectorProperties').waitFor();
+  };
+  await pen([[10, 10], [60, 10], [60, 60], [10, 60]]); await change(surface, '#layerName', 'Outer path');
+  await pen([[25, 25], [45, 25], [45, 45], [25, 45]]); await change(surface, '#layerName', 'Inner path');
+  await surface.locator('.layer-select').filter({ hasText: 'Outer path' }).click();
+  await surface.locator('#vectorOperand').selectOption({ label: 'Inner path' }); await surface.locator('#vectorBoolean').selectOption('difference');
+  await surface.locator('#applyVectorBoolean').click(); await surface.locator('.layer-select').filter({ hasText: 'difference result' }).waitFor();
+  assert.equal(await surface.locator('#vectorContour option').count(), 2);
+  await surface.locator('#insertVectorNode').click(); await surface.locator('#smoothVectorNode').click();
+  await surface.locator('#cornerVectorNode').click();
+  await surface.locator('#applyVectorGradient').click(); await surface.locator('#saveProject').click(); await saved(value);
+  const record = [...value.fixture.state.projects.values()][0];
+  assert.equal(record.document.layers.length, 3); assert.ok(record.document.layers.slice(0, 2).every(layer => !layer.visible));
+  assert.equal(record.document.layers[2].type, 'path'); assert.equal(record.document.layers[2].gradient.stops.length, 2);
+  const svg = await download(value, '#exportSvg'); assert.match(svg.bytes.toString(), /<linearGradient/); assert.match(svg.bytes.toString(), /fill-rule="evenodd"/);
+  clean(value);
+});
+
+test('SVG import preserves cubic editing and refuses executable content without replacing the project', async t => {
+  const value = await open(t), { surface } = value; await noAutosave(value);
+  const source = '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><path d="M10 10 C30 10 50 30 50 50 L10 50 Z" fill="#ff0000"/></svg>';
+  await surface.locator('#vectorSvgFile').setInputFiles({ name: 'curve.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(source) });
+  await surface.locator('#layerCount').filter({ hasText: '1' }).waitFor();
+  await surface.locator('.layer-select').first().click(); await surface.locator('#vectorProperties').waitFor();
+  await surface.locator('#saveProject').click(); await saved(value);
+  const record = [...value.fixture.state.projects.values()][0]; assert.equal(record.document.layers[0].contours[0].nodes.length, 3);
+  await surface.locator('#vectorSvgFile').setInputFiles({ name: 'bad.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(source.replace('<path', '<script>alert(1)</script><path')) });
+  await surface.locator('#editorError').filter({ hasText: /refused/ }).waitFor();
+  assert.equal(value.fixture.state.projects.get(record.id).revision, 1); clean(value);
 });

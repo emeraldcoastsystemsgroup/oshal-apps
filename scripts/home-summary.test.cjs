@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | Codex | Exercise packaged Home routes: session gate, unavailable sources, no secret leakage and no outbound dependencies.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Sweep 13: Pumpkin Review printed a saved time as a raw UTC instant ('saved 2026-10-13T10:55:35.857Z'); thirteen review pages render a summary item's detail the same way. Every page that renders item.detail formats its instants in the viewer's zone (localInstants, run as shipped).
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -110,4 +111,25 @@ test('Email: decrypted saved digest becomes a review draft only', async () => {
     assert.equal(response.body.items[0].actions[0].context.notes,'A saved commitment to review');
     assert.deepEqual(response.body.items[0].actions.map(a=>a.integration),['prepare-document','review-sales']);
   } finally {if(prior===undefined)delete process.env.SESSION_SECRET;else process.env.SESSION_SECRET=prior;}
+});
+
+test('every review page shows a summary detail\'s saved instants in the viewer\'s zone, not as UTC text', () => {
+  const previous = process.env.TZ;
+  process.env.TZ = 'America/Chicago';
+  try {
+    const pages = fs.readdirSync(root).map((dir) => path.join(root, dir, 'tools', 'review.html')).filter((file) => fs.existsSync(file));
+    const rendering = pages.filter((file) => fs.readFileSync(file, 'utf8').includes('item.detail'));
+    assert.ok(rendering.length >= 14, `found ${rendering.length} review pages rendering item.detail`);
+    for (const file of rendering) {
+      const html = fs.readFileSync(file, 'utf8');
+      assert.ok(!/detail\.textContent\s*=\s*item\.detail\b/.test(html), `${file} renders the raw detail`);
+      assert.ok(/detail\.textContent\s*=\s*localInstants\(item\.detail/.test(html), `${file} formats the detail`);
+      const line = html.slice(html.indexOf('const localInstants='), html.indexOf('\n', html.indexOf('const localInstants=')));
+      const localInstants = new Function(`${line}\nreturn localInstants;`)();
+      assert.match(localInstants('mischief / saved 2026-10-13T10:55:35.857Z'), /^mischief \/ saved Oct 13, 2026, 5:55\s?AM$/, file);
+      assert.equal(localInstants('no instant here'), 'no instant here');
+    }
+  } finally {
+    if (previous === undefined) delete process.env.TZ; else process.env.TZ = previous;
+  }
 });

@@ -275,3 +275,10 @@ authorization proof or production performance measurement. Those remain required
    revision after explicit acceptance. Keep original media and the accepted manual
    edit. Regional generation, advanced masks, stock/template libraries, multitrack
    editing and full desktop interchange remain later capabilities.
+
+## Multitrack source extension — 1.10.0 (2026-10-11)
+
+V2 source delivery is described in the README. It reuses the first-slice store,
+media verification, export job lifecycle and catalog instead of creating another
+editor service. V1 remains supported; upgrade creates track equivalents and is
+undoable. Native installation/catalog acceptance remains a separate gate.

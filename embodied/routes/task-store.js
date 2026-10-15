@@ -9,6 +9,7 @@
  *                     |                             | it stopped) and the COMMAND LOG (every command any actor issued
  *                     |                             | to any node, with its outcome). Owner-scoped SQL only; the
  *                     |                             | world itself is in memory and is not stored here.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | registerPendingTaskStatuses / pendingTaskStatuses: a GET reader on another mount (the Home summary) overlays the owner's queued task outcomes, because the native kernel only lets a writer (non-GET) request mutate and a task finished between requests is stored on the owner's next POST.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.insertTask = insertTask;
@@ -17,6 +18,8 @@ exports.listTasks = listTasks;
 exports.updateTaskStatus = updateTaskStatus;
 exports.insertLog = insertLog;
 exports.listLog = listLog;
+exports.registerPendingTaskStatuses = registerPendingTaskStatuses;
+exports.pendingTaskStatuses = pendingTaskStatuses;
 const TASK_COLUMNS = 'task_id, owner_sub, task, title, plan, rehearsal, status, current_step, failure, created_at, updated_at';
 /**
  * @description Persist a drafted plan with its rehearsal.
@@ -66,5 +69,34 @@ async function insertLog(pool, sub, taskId, record) {
 async function listLog(pool, sub, limit = 100) {
     const r = await pool.query('SELECT log_id, task_id, sim_ms, actor, node_id, command, params, outcome, reason, created_at FROM embodied_command_log WHERE owner_sub = $1 ORDER BY log_id DESC LIMIT $2', [sub, limit]);
     return r.rows;
+}
+/** The live worlds' pending-outcome readers in this process (one per mounted embodied router). */
+const pendingReaders = new Set();
+/**
+ * @description Register a reader of one owner's queued task outcomes. The native kernel lets only a
+ * writer (non-GET) request mutate, so a task the timer finished stays `executing` in the store until
+ * the owner's next POST; a GET reader on another mount (the Home summary) overlays these instead of
+ * reporting the stale row.
+ * @param read - Returns the owner's queued outcomes; must not throw.
+ * @returns A function that removes the registration.
+ */
+function registerPendingTaskStatuses(read) {
+    pendingReaders.add(read);
+    return () => { pendingReaders.delete(read); };
+}
+/**
+ * @description The owner's task outcomes every live router has queued but not stored.
+ * @param sub - Owner.
+ * @returns The queued outcomes; a failing reader contributes none.
+ */
+function pendingTaskStatuses(sub) {
+    const out = [];
+    for (const read of pendingReaders) {
+        try {
+            out.push(...read(sub));
+        }
+        catch (_) { /* a reader that fails reports nothing */ }
+    }
+    return out;
 }
 //# sourceMappingURL=task-store.js.map

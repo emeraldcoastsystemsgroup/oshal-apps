@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register readiness and isolated source checks; deployed acceptance remains separate.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register attention source/asset admission and actual owned browser behavior in the existing executable cases.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register surface-labels: every composed surface has its own tab label (sweep 9: three tabs were labelled Home).
 version: 1
 cases:
   - id: package-readiness
@@ -101,4 +102,24 @@ cases:
     limits:
       timeoutMs: 90000
       maxMemoryMb: 512
+    installation: never
+  - id: surface-labels
+    name: Each composed tab has its own label
+    purpose: Read every composed surface's label from its component's real manifest and compare them.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-labels.test.cjs
+    expected:
+      - No composed surface is labelled Home, the experience's own label, and no two share a label.
+      - Smart Home's device dashboard reads Smart Home and Little Monsters' dashboard reads Classroom.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

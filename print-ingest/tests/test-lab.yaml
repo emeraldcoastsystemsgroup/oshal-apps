@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries (0.3.2): the static kit contract of the page, and the company view's behaviour over the package's real routes (two owner-scoped reads, the stats, the documents table, the failures list, the route's notes, every named failure) plus the gate on the Print Inbox body script. Dependency-free node-test, no framework checkout.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.3.3: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register description (sweep 11): the manifest, catalog and README describe an inbound virtual printer that cannot print to a printer.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -28,6 +29,26 @@ cases:
       - Fed by the package's real routes, the inbox reads as four stats (awaiting approval, failed or partial, received in 5 days, fully filed), a title ladder, a table of the newest ten with state, origin, characters, the machine's proposal or where each copy went and the receipt time, a failed-or-partly-filed list with the route's reasons and the route's notes; the declared user, client address and document text never reach the view.
       - A full 200-row list, odd rows, counts the summary could not check, signed out, refused (the catalog-less admin-only admission named), the route's own failure, an unreadable answer and an unreachable server each read as what they are; the one action opens the full Print Inbox in the frame without the audience.
       - Under the company view the body script binds no approve, reject or tab listener and reads nothing; the full page, and a core without the kit, still run the inbox read and every listener, and the full page keeps its own colour scheme under the theme bootstrap.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: description
+    name: The package says what it is
+    purpose: Read the shipped manifest, marketplace.json and README so Jarvis's catalog never describes Print Ingest as a way to print on paper.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/description.test.cjs
+    expected:
+      - The description begins "An inbound virtual printer for the swarm", says documents are never printed on paper and that it cannot print to a home or office printer, and keeps the approval rule.
+      - marketplace.json carries the same description and the README no longer opens with "Print a document to the swarm".
     prerequisites:
       - runner:node-test
     sideEffects: none

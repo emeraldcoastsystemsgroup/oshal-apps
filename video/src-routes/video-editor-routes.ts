@@ -9,6 +9,8 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05d: serve the editor screen at GET /editor and its modules and stylesheet from a fixed allowlist at GET /editor/assets/:asset, behind editor.view; no path from the request ever reaches the filesystem.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05d: DELETE /editor/media/:id removes one owned upload no retained revision uses (editor.delete), so a person can take back a mistaken import and an acceptance run can remove exactly what it created.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Preserve legacy routes while enabling bounded original-owner native media transport.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  */
 import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import multer from 'multer';
@@ -18,8 +20,8 @@ import { randomUUID } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { EditorError, EDITOR_LIMITS, type EditorContext } from './video-editor-types';
 import { VideoEditorStore } from './video-editor-store';
-import { editorPermissions, registerVideoAuthorization } from './video-authorization';
-import { baseRevision, editorId, exactFields, loadTimelineValidator, mediaKind, projectInput, revisionParam } from './video-editor-validation';
+import { editorPermissions, registerVideoAuthorization, requireEditorAccess } from './video-authorization';
+import { baseRevision, editorId, exactFields, loadTimelineValidator, loadTimelineAgent, mediaKind, projectInput, revisionParam } from './video-editor-validation';
 import { discardUpload, exportPath, incomingDirectory, mediaRoot, openMedia, probeWithFfprobe, publishMedia, removeMediaFile, type MediaProber } from './video-editor-media';
 import { unlink } from 'node:fs/promises';
 import { createChildLogger } from '@/shared/logger';
@@ -27,6 +29,7 @@ import { admit, bodyParser, confirm, handler, requestLog, sendError, sendFile, t
 import { ExportRunner, type ExportRunnerOptions } from './video-edit-export-jobs';
 import { registerExportRoutes } from './video-editor-export-routes';
 import { VideoExportStore } from './video-editor-export-store';
+import { motionRoutes } from './video-editor-motion';
 import { nativeMediaRoutes, nativeMedia, nativeDeletedExports } from './video-editor-native';
 
 const logger = createChildLogger({ module: 'video-editor-routes' });
@@ -39,7 +42,10 @@ const EDITOR_ASSETS: Readonly<Record<string, string>> = Object.freeze({
   'editor.css': 'text/css; charset=utf-8', 'editor.mjs': 'text/javascript; charset=utf-8', 'editor-api.mjs': 'text/javascript; charset=utf-8',
   'editor-player.mjs': 'text/javascript; charset=utf-8', 'editor-export.mjs': 'text/javascript; charset=utf-8',
   'timeline-view.mjs': 'text/javascript; charset=utf-8', 'timeline-model.mjs': 'text/javascript; charset=utf-8',
-  'timeline-validation.mjs': 'text/javascript; charset=utf-8', 'timeline-history.mjs': 'text/javascript; charset=utf-8',
+  'timeline-validation.mjs': 'text/javascript; charset=utf-8', 'multitrack-model.mjs': 'text/javascript; charset=utf-8', 'multitrack-editor.mjs': 'text/javascript; charset=utf-8',
+  'multitrack-validation.mjs': 'text/javascript; charset=utf-8',
+  'motion-source.mjs': 'text/javascript; charset=utf-8',
+  'timeline-history.mjs': 'text/javascript; charset=utf-8',
 });
 
 function sendBundled(res: Response, file: string, type: string): void {
@@ -110,6 +116,32 @@ function projectReads(router: Router, env: RouteEnvironment): void {
 }
 
 function projectWrites(router: Router, env: RouteEnvironment): void {
+  const agent = loadTimelineAgent(env.ctx.appPackageDir ?? resolve(__dirname, '..'));
+  router.get('/editor/editing-contract', admit(env, 'view'), handler(env, 'view', async (_req, res) => {
+    res.json((await agent).editingContract());
+  }));
+  router.post('/editor/agent-projects', admit(env, 'create'), bodyParser, handler(env, 'create', async (req, res, owner) => {
+    exactFields(req.body, ['title']);
+    let document; try { document = (await agent).blankProject(req.body); } catch { throw new EditorError(400, 'invalid_video_edit_document'); }
+    const project = await env.store.create(owner, projectInput({ title: req.body.title, document }, await env.validator), confirm(env, 'create', owner));
+    res.status(201).json({ project });
+  }));
+  router.post('/editor/projects/:id/operations', admit(env, 'change'), admit(env, 'read'), bodyParser, handler(env, 'change', async (req, res, owner) => {
+    exactFields(req.body, ['id', 'baseRevision', 'operations']);
+    const id = editorId(req.params.id), expected = baseRevision(req.body.baseRevision);
+    if (req.body.id !== undefined && editorId(req.body.id) !== id) throw new EditorError(400, 'invalid_video_edit_id');
+    if (Buffer.byteLength(JSON.stringify(req.body)) > 16384) throw new EditorError(413, 'video_edit_operations_too_large');
+    await requireEditorAccess(env.ctx, 'read', owner);
+    const current = await env.store.get(owner, id);
+    if (current.revision !== expected) throw new EditorError(409, 'video_edit_revision_conflict');
+    let document; try { document = (await agent).applyAgentOperations(current.document, req.body.operations); }
+    catch { throw new EditorError(400, 'invalid_video_edit_operations'); }
+    const input = projectInput({ title: document.name, document }, await env.validator);
+    const project = await env.store.save(owner, id, expected, input, async () => {
+      await requireEditorAccess(env.ctx, 'read', owner); await requireEditorAccess(env.ctx, 'change', owner);
+    });
+    res.status(201).json({ project });
+  }));
   router.post('/editor/projects', admit(env, 'create'), bodyParser, handler(env, 'create', async (req, res, owner) => {
     const project = await env.store.create(owner, projectInput(req.body, await env.validator), confirm(env, 'create', owner));
     res.status(201).json({ project });
@@ -171,7 +203,7 @@ export function createVideoEditorRoutes(ctx: EditorContext, options: VideoEditor
   router.use('/editor', requestLog);
   router.get('/editor/capabilities', admit(env, 'view'), handler(env, 'view', async (_req, res) => { res.json(capabilities()); }));
   router.get('/editor/permissions', admit(env, 'view'), handler(env, 'view', async (_req, res) => { res.json({ permissions: await editorPermissions(ctx), nativeMedia: await nativeMedia(env) }); }));
-  pageRoutes(router, env); mediaRoutes(router, env); projectReads(router, env); projectWrites(router, env); registerExportRoutes(router, env);
+  motionRoutes(router, env); pageRoutes(router, env); mediaRoutes(router, env); projectReads(router, env); projectWrites(router, env); registerExportRoutes(router, env);
   router.use('/editor', (error: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (error instanceof multer.MulterError) return sendError(res, new EditorError(error.code === 'LIMIT_FILE_SIZE' ? 413 : 400, error.code === 'LIMIT_FILE_SIZE' ? 'video_edit_media_too_large' : 'invalid_video_edit_upload'));
     if (error && typeof error === 'object' && 'status' in error && (error.status === 400 || error.status === 413)) return sendError(res, new EditorError(error.status, 'invalid_video_edit_body'));

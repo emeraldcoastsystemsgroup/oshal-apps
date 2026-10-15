@@ -15,6 +15,8 @@
  * -----------------------------------------------------------------------------
  * 2026-07-31 23:45:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — no-confirm 428 zero-query proof, paid-run immutability, 401 gate, company auto-create, vm.Script parse guard.
  * 2026-08-01 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | v1.1 — void-run gates (no confirm → 428 untouched; a draft cannot be voided; a void cannot be voided; a duplicate void surfaces 409 not 500), the approval audit trail is recorded, run-creation date validation, and a BLANKET tenant-isolation sweep that fails if any payroll query anywhere reaches the database without a user_sub predicate.
+ * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | The personal-data stub is asynchronous, as the native kernel's personal_data intents are (PDATA-01), so every seal and open on these paths is proven awaited: a missed await would store or return a Promise, not the envelope or the digits.
+ * 2026-10-13 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 1: the Finance hand-off notes carried the run's time as a raw UTC instant ('Last updated: 2026-10-13T12:25:22.142Z'). The surface's own fmtStamp runs here: a saved instant reads in the viewer's zone with its zone name, and the hand-off note uses it.
  */
 
 import { test } from 'node:test';
@@ -45,8 +47,8 @@ const STUBS = {
   // any route except the audited one.
   '@/features/personal-data': {
     isEncrypted: (v) => typeof v === 'string' && v.startsWith('enc:'),
-    encryptField: (_sub, v) => (v === null || v === undefined ? null : `enc:${v}`),
-    decryptField: (_sub, v) => (typeof v === 'string' && v.startsWith('enc:') ? v.slice(4) : v),
+    encryptField: async (_sub, v) => (v === null || v === undefined ? null : `enc:${v}`),
+    decryptField: async (_sub, v) => (typeof v === 'string' && v.startsWith('enc:') ? v.slice(4) : v),
   },
   '@/shared/security/explicit-write-confirmation': {
     hasExplicitWriteConfirmation: (b) => !!b && typeof b === 'object' && b.confirm === true,
@@ -373,4 +375,16 @@ test('surface inline scripts parse (vm.Script — the world 1.0.1 lesson)', () =
   for (const [i, src] of blocks.entries()) {
     assert.doesNotThrow(() => new vm.Script(src), `inline script #${i + 1} must parse`);
   }
+});
+
+test('the Finance hand-off note gives the run time in the viewer\'s zone, not a raw UTC instant', () => {
+  const html = readFileSync(path.join(here, '..', 'tools', 'payroll.html'), 'utf8');
+  const line = html.split('\n').find((l) => l.startsWith('const fmtStamp = '));
+  assert.ok(line, 'the surface has fmtStamp');
+  const fmtStamp = new vm.Script(`${line}\nfmtStamp;`).runInNewContext({ Date, Number, String });
+  const shown = fmtStamp('2026-10-13T12:25:22.142Z');
+  assert.doesNotMatch(shown, /T12:25:22|\.142Z/);
+  assert.match(shown, /2026/);
+  assert.equal(shown, new Date('2026-10-13T12:25:22.142Z').toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }));
+  assert.match(html, /'Last updated: '\+fmtStamp\(r\.run\.updated_at\)/);
 });

@@ -28,6 +28,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial - the facts are produced, labelled live vs paper with no leakage between the books, computed for the ticket's owner and not the asker, delivered inside the kernel's 2000 ms deadline even when the store wedges, and honest (null, not 0) when no equity was recorded today.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | The fixture becomes the operator's REAL four-book layout, and the suite gains the case the kind-grouped shape could not pass: with three live books and two siblings last snapshotted the previous session, the engine book must still report its own recorded equity. Also pins one book per slot (nothing summed across live books), the live slots against paper money, and the honest overflow when an owner has more books than slots.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | The declaration under test is BOTH halves. The registered fact set is now TRADING_SPECIALIST_FACT_KEYS, so the kernel-cap and exact-key assertions moved onto the composed set - checking only the book half would let the market half push the real declaration past 64 keys and be refused wholesale on a live box while this suite stayed green. Adds the regression itself: the append the BotNodeClient makes must carry the market keys, because the bot was reporting equity to the cent while answering that it could not access index or market-mover data. Every Alpaca env var is scrubbed for the file so the composed read can never reach a live vendor from a developer shell.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Every bot the manifest declares has a registered reader, because the kernel refuses a selected bot of a specialist-context package that has none.
  */
 import { readFileSync } from 'node:fs';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -46,7 +47,7 @@ import { getApplicationAuthorizationActor, runWithApplicationAuthorizationActor 
 import { configureApplicationExecutionPolicy } from '@/shared/application-authorization-execution';
 import { runWithRequestIdentity } from '@/shared/services/database/request-identity';
 import { SpecialistContextRegistry, configureSpecialistContextRegistry } from '@/shared/specialist-context';
-import { createTradingRoutes, TRADING_ANALYST_AGENT_ID, TRADING_FACTS_TOOL } from '../src-routes/trading-routes';
+import { createTradingRoutes, TRADING_ANALYST_AGENT_ID, TRADING_FACT_BOT_IDS, TRADING_FACTS_TOOL } from '../src-routes/trading-routes';
 import { TRADING_BOOK_SLOTS, TRADING_FACT_KEYS, easternDay, readTradingBookFacts } from '../src-routes/trading-book-facts';
 import { MARKET_FACT_KEYS, TRADING_SPECIALIST_FACT_KEYS, resetMarketFactsCache } from '../src-routes/trading-market-facts';
 
@@ -317,6 +318,12 @@ describe('the manifest is what makes the registration legal', () => {
     expect((MANIFEST.tools ?? []).map((tool) => tool.name)).toContain(TRADING_FACTS_TOOL);
     // An older kernel must REFUSE this package rather than install it with the channel dropped.
     expect(MANIFEST.uses ?? []).toContain('specialist-context');
+  });
+
+  it('registers a reader for every bot the manifest declares', () => {
+    const declared = (MANIFEST.bots ?? []).map((bot) => bot.agentId).sort();
+    expect([...TRADING_FACT_BOT_IDS].sort()).toEqual(declared);
+    for (const agentId of declared) expect(registry.requires(agentId as string)).toBe(true);
   });
 
   it('the real mounter published a reader for the trading bot', () => {

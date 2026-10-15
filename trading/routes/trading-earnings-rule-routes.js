@@ -40,6 +40,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — the three earnings-rule routes (list/arm/cancel) over the kernel rule store: arm is 428 confirm-gated and ensures the per-user trading-events leg BEFORE the insert (503 changes nothing), the book is resolved query-first on every handler, both executor gates are reported as one `enabled` with the reason named, the view-only warning states that a BUY is refused and a SELL still runs, and the classification basis rides every response so no surface can imply a consensus feed oshal does not have.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Sweep 14: the Earnings rules panel showed an environment-variable name to the person ("TRADING_EVENT_PLANS is off on this server ..."). The watcher notes say in words what is off and who turns it on. Guard: tests/trading-off-notes.test.js.
  *
  * @module trading-earnings-rule-routes
  */
@@ -55,9 +56,9 @@ const logger = (0, logger_1.createChildLogger)({ module: 'trading-earnings-rule-
 /** Why arming needs the leg — said in the 503 so the operator knows nothing was stored. */
 const SCHEDULER_UNAVAILABLE = 'The agent scheduler is not running (ENABLE_AGENT_SCHEDULER) — an earnings rule rides the trading-events leg, and without it the rule would never be looked at.';
 /** The note an armed rule carries while the watcher flag is off. */
-const WATCHER_OFF_NOTE = 'TRADING_EARNINGS_RULES is off on this server — the rule is stored and armed, but nothing will read EDGAR for it until it is enabled.';
+const WATCHER_OFF_NOTE = 'Earnings rules are switched off on this installation: the rule is saved and armed, but nothing reads SEC filings for it until an administrator turns earnings rules on.';
 /** The note an armed rule carries while the LEG itself is off (the watcher never gets a tick). */
-const LEG_OFF_NOTE = 'TRADING_EVENT_PLANS is off on this server — the trading-events leg does not act, so the earnings watcher never runs.';
+const LEG_OFF_NOTE = 'Event trading is switched off on this installation, so the earnings watcher never runs. An administrator turns event trading on.';
 /**
  * The view-only consequence, stated as the engine actually behaves. A rule's decisions are authored
  * by `event-rule`, which is not in the engine's operator-authored set, so a BUY is refused 409

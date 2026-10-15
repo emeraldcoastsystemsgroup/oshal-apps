@@ -7,6 +7,12 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05c: register the real-FFmpeg export proof (decoded frames, order, offsets, title and audio; cancel, timeout, revocation and cleanup) and the export routes over PostgreSQL; the API and catalog cases now also cover the five export routes.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05d: register the real-Chromium editor proof (native picker, keyboard trim/split/reorder, titles, volume, undo, save, reopen, export and preview, draft survival, every palette, phone width and permission gating); the API and catalog cases now also cover the screen and its module allowlist. Also register deleting one unused upload, the committed acceptance clip under real ffprobe, the installed-box acceptance walk and its loopback proof.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.9.1: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | The editor browser case also proves Delete project: confirmation first, the open project deleted, and disabled with its reason without delete access.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Register the catalog binding guard: the video-editor concierge turn and every route tool are bound to named permissions a workspace member holds, an unbound bot stays refused, and owners delete only their own records.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Register render-readiness (tests/video-render-readiness.test.cjs): without a render executor Generate is off with the installation's reason, and the subtitle says so from the first paint and names what Storyboard it offers (sweep 9: the concierge promised a rendered .mp4).
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Register editor-persona-grounding (tests/video-editor-persona.test.cjs): the editor concierge names no tool and offers a render only for clips on a saved revision, never prompted generation (sweep 10).
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Register video-storyboard-words: a one-scene storyboard and video say 1 scene, and the subtitle says the storyboard is not saved (sweep 13).
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Register closed owned-job discovery and approved internal typed mint source checks.
 version: 1
 cases:
   - id: package-readiness
@@ -330,6 +336,7 @@ cases:
       - The unsaved draft survives a live theme change, a failed save, a reload and a conflict, and can be saved as a new project without touching the other save.
       - Every portal palette keeps readable heading, status and button contrast, and a 390 px phone layout has no horizontal scrolling with every control in reach.
       - Without export, or without create and change, exactly those controls are disabled and nothing is sent.
+      - Delete project asks first and sends nothing when declined; accepting deletes the open project (gone from the list and the route) and opens a new project; without delete access the button is disabled with its reason and no DELETE is sent.
     prerequisites:
       - runner:playwright
       - browser:chromium
@@ -411,4 +418,124 @@ cases:
     limits:
       timeoutMs: 240000
       maxMemoryMb: 256
+    installation: never
+
+  - id: agent-editing-contract
+    name: Agent editing operations
+    purpose: Verify immutable batch edits, declared fields, locks and the shipped editing contracts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/agent-tools.test.mjs]
+    expected:
+      - Valid edits use the editor model and rejected batches never mutate the source.
+      - Locked layers or tracks are refused and source geometry or linked timing is retained.
+      - The editing contract gives exact units and bounds and marks unbuilt domains unsupported.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 10000, maxMemoryMb: 256 }
+    installation: never
+  - id: authorization-catalog
+    name: Concierge, tool and owner-delete bindings
+    purpose: Read the shipped catalog, manifest and studio-experience role template the way the native kernel resolves bot, tool and HTTP permissions.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/authorization-catalog.test.mjs]
+    expected:
+      - The video-editor concierge has an explicit bots binding of read permissions only, admitted for a workspace member's Video roles.
+      - Every bot the package declares is bound; an undeclared bot has no binding and is refused.
+      - Each route-backed tool's binding equals the permissions of the HTTP route it calls.
+      - Workspace members delete their own editor projects and uploads; viewer, reader and exporter roles alone cannot, and every grant stays own-scoped.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 10000, maxMemoryMb: 256 }
+    installation: never
+  - id: render-readiness
+    name: The studio says when rendering is not configured, from the first paint
+    purpose: >-
+      Run the page's main script against a stub DOM whose /pump/status reports the render executor unconfigured, busy
+      or available. Sweep 9: the screen promised "render a real short" before any storyboard, and the concierge reading
+      it promised a rendered .mp4 on an installation that cannot render.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/video-render-readiness.test.cjs
+    expected:
+      - Unconfigured, Generate is disabled and its hint and title carry "Video rendering is not configured on this installation" with the reason.
+      - Unconfigured, the subtitle under the title says the same from the first paint and names what Storyboard it offers; it no longer promises a rendered short.
+      - A busy render node leaves Generate on and the subtitle as written.
+      - A 503 native_executor_unavailable refusal is worded with the kernel's detail.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 10000, maxMemoryMb: 256 }
+    installation: never
+  - id: editor-persona-grounding
+    name: The editor concierge offers only what the project and installation support
+    purpose: >-
+      Read the persona the manifest binds to video-editor, parsed as the kernel parses it, and the render tool it may offer.
+      Sweep 10: after creating an empty project it offered "start a render" while generation was not configured and named
+      the internal tool video-read-project to the person.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/video-editor-persona.test.cjs
+    expected:
+      - "After a create the persona names the project by title and the Video editor tab's saved-project list, with no project id, revision number, link or path; video-new-project and video-apply-edits carry people-facing names and cardText (sweep 13)."
+      - The persona forbids naming a tool, endpoint or id field to the person.
+      - A render is offered only when a fresh read shows a saved revision with at least one clip, never for an empty timeline.
+      - Prompted footage generation and episode writing are never offered; an unavailable feature is said plainly and not offered again.
+      - video-render-project stays declared and held for approval.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 10000, maxMemoryMb: 256 }
+    installation: never
+  - id: video-storyboard-words
+    name: "The storyboard counts its scenes and says it is not saved"
+    purpose: "Run the Video Studio page's shipped main script over a stub DOM - no browser, network or render."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/video-storyboard-words.test.cjs
+    expected:
+      - "A one-scene storyboard reads 1 scene and two read 2 scenes, in the storyboard heading and in My videos."
+      - "The subtitle says the storyboard is read and edited here and is not saved, and no longer promises saving it as a project."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+
+  - id: editor-motion-lineage
+    name: Editable Motion source and verified Video render cache
+    purpose: Prove original-owned immutable Motion lineage over actual compiled Video routes and forced-RLS shared disposable PostgreSQL, with genuine ffprobe-checked H264 media and a real phone-width browser. Artifact/native upload ports are named fixtures; installed kernel exchange is a separate acceptance requirement.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/video-editor-motion.test.mjs] }
+    expected:
+      - Native graph project/revision/comp/hash identities persist across edits, reopen and refresh.
+      - Foreign, stripped, forged, revoked, corrupt and incompatible locked source changes refuse.
+      - Bounded source chunks become genuine uploaded cache bytes and retries recover one immutable owned import.
+      - Human selection, save, reopen, undo and refresh work at phone width without losing drafts.
+      - Agent discovery lists complete protected owned ready jobs; closed approved job import mints typed handles internally and refuses malformed selection or withdrawn grants.
+      - Named native acknowledgement loss reuses the sealed upload and odd source frames keep verified even encoded dimensions.
+    prerequisites: [runner:node, runner:playwright, browser:chromium, harness:oshal-core-root, engine:ffprobe, engine:ffmpeg, harness:shared-disposable-postgres]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, fixtures: [tests/video-editor-postgres.fixture.mjs], cleanup: Close browsers and pools; drop only each uniquely owned fixture database and role on127.0.0.1:35689; never remove its shared container. }
+    limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
     installation: never

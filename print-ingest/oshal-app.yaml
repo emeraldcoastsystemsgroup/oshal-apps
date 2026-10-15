@@ -3,6 +3,7 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare explicit Print roles and optional existing Jarvis bot authority without inferring kernel operator admission.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Sweep 11: the description began "Print a document to the swarm" and Jarvis offered home printing ("choose your home printer as the destination", "queue it for printing"). It now says what the package is: an inbound virtual printer whose documents are filed into the swarm's inbox, never printed on paper, and that it cannot print to a home or office printer. Wording only; no capability, version or authorization change. Guarded by print-ingest/tests/description.test.cjs.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — Print Ingest
 #
@@ -30,9 +31,11 @@ rating:
       degrade: template
 displayName: Print Ingest
 description: >-
-  Print a document to the swarm and decide where it belongs. Everything lands in
-  one inbox with a recommended filing — a bot's corpus, the swarm's shared
-  knowledge, or private to you — and nothing is written until you approve it.
+  An inbound virtual printer for the swarm: a document printed to the oshal virtual
+  printer, or sent to its inbox, is filed into the swarm's knowledge, never printed on
+  paper. Everything lands in one inbox with a recommended filing — a bot's corpus, the
+  swarm's shared knowledge, or private to you — and nothing is written until you
+  approve it. It cannot print to a home or office printer.
 version: 0.3.6
 
 # ADR-139 wave 1 — "Send to…" destination: any document becomes a print-inbox intake

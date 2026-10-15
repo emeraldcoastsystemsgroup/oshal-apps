@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-15 18:46:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial: in-memory pumpkin projector "rooms" for the paired-remote topology (mirrors the Jarvis TV-room pattern). A projector registers a room + gets a pairing token; a phone/control remote lists the owner's rooms and pushes speak/preset/mode events, which fan out to the room's live SSE listeners. TTL-swept (pairing-style volatility) and strictly scoped by OIDC sub.
  * 2026-08-01 12:00:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Swarm-driveable + truthful counts. (1) pushTrusted(): a TOKEN-FREE delivery path for the service-secret door — the 18-byte pairing token is minted at register() and only ever returned to the registering BROWSER, so no bot could ever obtain it and nothing in the swarm could make the prop speak. The browser path (push) keeps the constant-time token compare UNCHANGED and forever: the token is what stops a second signed-in tab, a stale device, or an XSS'd page under the same account from seizing a screen. (2) One fanout() delivery implementation that PRUNES listeners that throw or return false — res.write() on a destroyed socket does not throw synchronously in Node, so dead SSE connections were never removed and push() reported an inflated count ("spoken on 2 screens" with one screen dark). (3) ROOM_MAX_IDLE_MS hard ceiling + a background sweep timer: sweep() previously ran ONLY from register()/list(), and a half-open socket pinned a room and its token for the whole process lifetime. (4) list() now reports listeners so a caller can tell "registered" from "actually watching". (5) resolveSpeakTargets(): headless room resolution that never guesses and never silently succeeds. (6) roomSlug is now exported and trims dashes AFTER the length slice so slug(slug(x)) === slug(x) — three surfaces derive this key independently.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | A POLL transport beside SSE. The native kernel's bridge response buffers the whole body and has no writeHead, so GET /stream answered 500 on every try and a projector there never received a line. A room now keeps a short numbered event log for its pollers: poll() marks a screen as watching, returns the events after its cursor, and a screen that polled within POLL_LIVE_MS counts as a listener in fanout(), list() and the sweep, so "spoken on N screens" and the swarm door's projector_not_listening stay true for a polling projector.
  */
 
 import crypto from 'crypto';
@@ -26,6 +27,24 @@ export const ROOM_MAX_IDLE_MS = 15 * 60 * 1000;
 
 /** How often the background sweep runs; sweep() used to fire only from register()/list(). */
 const SWEEP_INTERVAL_MS = 30 * 1000;
+
+/** A polling screen counts as watching while it polled this recently (the projector polls every POLL_INTERVAL_MS). */
+export const POLL_LIVE_MS = 10 * 1000;
+
+/** How often a projector on the poll transport asks for new events. */
+export const POLL_INTERVAL_MS = 1500;
+
+/** Events a room keeps for its pollers; a screen further behind than this loses the oldest. */
+const POLL_LOG_MAX = 32;
+
+/** Distinct polling screens one room tracks; the least recently seen is forgotten past this. */
+const POLL_CLIENTS_MAX = 16;
+
+/** What one poll answers: the events after the caller's cursor and the cursor to send next time. */
+export interface PumpkinPollResult {
+  events: PumpkinEvent[];
+  cursor: number;
+}
 
 /** An event fanned out to a room's live projector listeners. */
 export type PumpkinEvent =
@@ -49,6 +68,12 @@ interface PumpkinRoom {
   token: string;
   lastSeen: number;
   listeners: Set<PumpkinRoomListener>;
+  /** Polling screens by client id → when each last polled. */
+  pollers: Map<string, number>;
+  /** Numbered events kept for pollers (pings are never logged). */
+  log: Array<{ seq: number; evt: PumpkinEvent }>;
+  /** The last event number handed out. */
+  seq: number;
 }
 
 /** Public (token-free) room descriptor the remote sees when picking a screen. */
@@ -122,7 +147,29 @@ export class PumpkinRoomRegistry {
       }
     }
     for (const l of dead) entry.listeners.delete(l);
-    return delivered;
+    return delivered + this.logForPollers(entry, evt);
+  }
+
+  /** Screens that polled within POLL_LIVE_MS; stale ones are forgotten here. */
+  private livePollers(entry: PumpkinRoom): number {
+    const now = Date.now();
+    for (const [client, at] of entry.pollers) if (now - at > POLL_LIVE_MS) entry.pollers.delete(client);
+    return entry.pollers.size;
+  }
+
+  /** SSE transports plus live polling screens: everything that would receive the next event. */
+  private watching(entry: PumpkinRoom): number {
+    return entry.listeners.size + this.livePollers(entry);
+  }
+
+  /** Append one event to the room's poll log when a screen is polling; returns how many will read it. */
+  private logForPollers(entry: PumpkinRoom, evt: PumpkinEvent): number {
+    const pollers = this.livePollers(entry);
+    if (pollers === 0 || evt.type === 'ping') return pollers;
+    entry.seq += 1;
+    entry.log.push({ seq: entry.seq, evt });
+    if (entry.log.length > POLL_LOG_MAX) entry.log.splice(0, entry.log.length - POLL_LOG_MAX);
+    return pollers;
   }
 
   /** Tell a room's listeners it is gone, then drop it. A client MUST re-register, not reconnect. */
@@ -148,7 +195,7 @@ export class PumpkinRoomRegistry {
     const now = Date.now();
     for (const [k, v] of this.rooms) {
       const idle = now - v.lastSeen;
-      if (idle > ROOM_TTL_MS && v.listeners.size === 0) {
+      if (idle > ROOM_TTL_MS && this.watching(v) === 0) {
         this.rooms.delete(k);
         continue;
       }
@@ -182,6 +229,9 @@ export class PumpkinRoomRegistry {
       token: crypto.randomBytes(18).toString('hex'),
       lastSeen: Date.now(),
       listeners: new Set(),
+      pollers: new Map(),
+      log: [],
+      seq: 0,
     };
     this.rooms.set(k, entry);
     logger.info({ sub, room }, 'pumpkin room registered');
@@ -238,7 +288,7 @@ export class PumpkinRoomRegistry {
     const out: PumpkinRoomInfo[] = [];
     for (const v of this.rooms.values()) {
       if (v.sub !== sub) continue;
-      out.push({ room: v.room, label: v.label, live: now - v.lastSeen <= ROOM_TTL_MS, listeners: v.listeners.size });
+      out.push({ room: v.room, label: v.label, live: now - v.lastSeen <= ROOM_TTL_MS, listeners: this.watching(v) });
     }
     return out;
   }
@@ -257,6 +307,28 @@ export class PumpkinRoomRegistry {
     entry.listeners.add(listener);
     entry.lastSeen = Date.now();
     return () => entry.listeners.delete(listener);
+  }
+
+  /**
+   * @description One poll from a projector on the poll transport (a runtime whose response cannot
+   * be held open). Marks the screen as watching and answers the events after its cursor. A first
+   * poll (no cursor) starts at the present: a screen never replays lines spoken before it arrived.
+   * Like subscribe(), it does not refresh lastSeen: liveness stays the heartbeat's to assert.
+   * @param sub - The owner's OIDC sub.
+   * @param room - Room slug or label.
+   * @param client - The screen's own id (random per page load), so two screens count as two.
+   * @param after - The cursor from the previous poll, or null on the first.
+   * @returns The events and the next cursor, or null when the room is unknown (re-register).
+   */
+  poll(sub: string, room: string, client: string, after: number | null): PumpkinPollResult | null {
+    const entry = this.rooms.get(key(sub, roomSlug(room)));
+    if (!entry) return null;
+    const id = String(client || '').slice(0, 64) || 'screen';
+    entry.pollers.delete(id);
+    entry.pollers.set(id, Date.now());
+    while (entry.pollers.size > POLL_CLIENTS_MAX) entry.pollers.delete(entry.pollers.keys().next().value as string);
+    if (after === null || !Number.isFinite(after) || after > entry.seq) return { events: [], cursor: entry.seq };
+    return { events: entry.log.filter((e) => e.seq > after).map((e) => e.evt), cursor: entry.seq };
   }
 
   /**

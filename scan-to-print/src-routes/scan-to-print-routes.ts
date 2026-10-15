@@ -31,6 +31,11 @@
  *                     |                             | the kernel's activation ports, once; the capabilities answer is
  *                     |                             | one function the route and the scan-to-print-capabilities tool
  *                     |                             | share.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | `/capabilities` (and so the scan-to-print-capabilities tool)
+ *                     |                             | states the upload ceilings that hold HERE: under the native
+ *                     |                             | kernel every per-file byte ceiling is its 10 MiB file cap and
+ *                     |                             | `requestBytes` bounds one request (upload-limits.ts); it used
+ *                     |                             | to advertise a 200 MiB .ply the kernel refuses at 10 MiB.
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -40,6 +45,7 @@ import type { AppContext } from '@/app/composition/app-context';
 import { serveSurfaceFile, surfaceFile } from './surface-files';
 import { resolveDataRoot } from './data-dir';
 import { type JobRouteDeps, UPLOAD_LIMITS, createJobRoutes } from './job-routes';
+import { effectiveUploadLimits } from './upload-limits';
 import { type PrintRouteDeps, createPrintRoutes } from './print-routes';
 import { createPrintServiceRouter } from './service-routes';
 import { registerScanToPrintAuthorization } from './scan-authorization';
@@ -128,7 +134,7 @@ export function capabilitiesOf(env: Record<string, string | undefined>, deps: Pr
   let slicerConfigured = false;
   try { slicerConfigured = resolveSlicerConfig(env) !== null; } catch { slicerConfigured = false; }
   return {
-    app: 'scan-to-print', views: VIEW_NAMES, lanes: ['silhouettes', 'pointcloud', 'depth'], limits: RECONSTRUCTION_LIMITS, upload: UPLOAD_LIMITS,
+    app: 'scan-to-print', views: VIEW_NAMES, lanes: ['silhouettes', 'pointcloud', 'depth'], limits: RECONSTRUCTION_LIMITS, upload: effectiveUploadLimits(UPLOAD_LIMITS, env),
     depth: DEPTH_UPLOAD_LIMITS, printers: { kinds: PRINTER_KINDS, slicerConfigured }, video: ffmpeg,
     printService: { mountPath: '/api/scan-to-print/service', startsOnlyWhenPrinterAutoStart: true },
     slicerEngine: { address: `${deps.slicer.host}:${deps.slicer.port}`, expectedBuildHash: deps.slicer.expectedBuildHash, installHint: deps.slicer.installHint },

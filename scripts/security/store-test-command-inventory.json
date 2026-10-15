@@ -24,6 +24,7 @@
     "bake-off|node --test \"tests/*.test.js\"",
     "cad-studio|node --test \"tests/*-*.test.js\"",
     "calendar|node --test tests/meeting-brief.test.js",
+    "calendar|node --test \"tests/personal-calendar*.test.*js\"",
     "career-hunter|node --test \"tests/*.test.mjs\"",
     "circuit-lab|node --test \"tests/*-*.test.js\"",
     "create|node --test \"tests/*.test.js\"",
@@ -39,6 +40,7 @@
     "marketing-engine|node --test \"tests/*.test.mjs\"",
     "payroll|node --test \"tests/*.test.mjs\"",
     "presentations|node --test \"tests/*.test.*\"",
+    "publishing-studio|node --test \"tests/*.test.mjs\"",
     "pumpkin|node --test \"tests/*.test.cjs\"",
     "purchasing|node --test \"tests/*-*.test.js\"",
     "rides|node --test \"tests/*.test.js\"",
@@ -61,6 +63,12 @@
     "orbit-experience|node --test \"tests/*.test.cjs\"",
     "commons-experience|node --test \"tests/*.test.cjs\"",
     ".|node --test scripts/security/run-package-audit.test.mjs scripts/security/security-ci-contract.test.mjs",
-    "scene-studio|node --test \"tests/*-*.test.js\""
+    "scene-studio|node --test \"tests/*-*.test.js\"",
+    ".|node --test scripts/check-store-bots.test.mjs",
+    ".|node --test scripts/check-connector-copy.test.mjs",
+    ".|node --test intelligent-operations/tests/package-contract.test.cjs intelligent-processing/tests/package-contract.test.cjs capability-ideation/tests/package-contract.test.cjs codex-packer/tests/package-contract.test.cjs codex-packer/tests/persona-template.test.cjs life/tests/home-summary.test.cjs",
+    "pdf-workbench|node --test \"tests/*tools.test.mjs\"",
+    ".|node --test presentations/tests/office-assets.test.mjs presentations/tests/office-assistant.test.mjs presentations/tests/office-workspace-browser.test.mjs presentations/tests/presentations-slide-workspace.test.mjs presentations/tests/presentations-slide-workspace-browser.test.mjs presentations/tests/presentations-sheet-workspace.test.mjs presentations/tests/presentations-sheet-workspace-browser.test.mjs presentations/tests/presentations-guide.test.mjs presentations/tests/presentations-surface-parse.test.js presentations/tests/presentations-record-before-answer.test.cjs",
+    "trading|node --test \"tests/native-schwab*.test.js\""
   ]
 }

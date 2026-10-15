@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | 0.2.0: the director's 22 in-process package tools through their real handlers (routes/scene-tools.js), the REAL engine client against the fake bridge and the owner-keyed in-memory pool (tests/scene.fixture.cjs): each tool registers once; a missing, inactive or issuer-less actor is refused before any query or engine request; identity is never an input and one owner never reaches another's project; inputs are closed (unknown, missing and mistyped keys, a bad UUID, projectPath and blend_file are refused); writes are revisions shaped like the route replies; godot-mcp gets only its own arguments and read-only tools never commit; Blender saves by default; run, preview, export, import and restore mirror the routes; replies stay inside the 192 KiB budget with honest counts and a 2 MB read is cut to 96 KiB on a character boundary; a stuck engine is refused at the deadline; a down engine answers with the install command; every failure class keeps the route's code, status and field; and no log line carries file text or code. Plain Node with the logger stubbed: it runs in the bare store CI.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | scene-get-project reports the engine's live status: a fresh process (no engine request yet) pings once and answers connected:true; a down engine answers connected:false with its reason. It said disconnected while the engine was up.
  */
 'use strict';
 const test = require('node:test');
@@ -22,7 +23,7 @@ Module._load = function patched(request, parent, isMain) {
 };
 const PKG = path.resolve(__dirname, '..');
 const routes = (name) => require(path.join(PKG, 'routes', name));
-const { createSceneToolHandlers, registerSceneStudioTools } = routes('scene-tools.js');
+const { createSceneToolHandlers, registerSceneStudioTools, ENGINE_PING_MS } = routes('scene-tools.js');
 const { capabilityCache, describeCapabilities } = routes('scene-capabilities.js');
 const { EngineClient, EngineFailure } = routes('engine-client.js');
 const result = routes('tool-result.js');
@@ -320,6 +321,26 @@ test('with the engine down, capabilities answers null with the install command a
       assert.match(error.message, /^capability_unavailable: .*install-engine\.sh/);
     }
     assert.ok((await call('scene-list-projects', undefined, handlers)).projects.length >= 3, 'reading projects needs no engine');
+  } finally { down.close(); }
+});
+
+test('scene-get-project reports the live engine: a fresh process pings once; a down engine says why', async () => {
+  const fresh = new EngineClient({ host: '127.0.0.1', port: bridge.port, expectedBuildHash: HASH, installHint: 'x' });
+  try {
+    assert.equal(fresh.status().connected, false, 'no request has run in this process yet');
+    const pings = bridge.requests.filter((r) => r.op === 'ping').length;
+    const detail = await call('scene-get-project', { projectId: gameId }, createSceneToolHandlers(depsFor(fresh), () => actor));
+    assert.equal(detail.engine.connected, true, 'the live engine is reported connected');
+    assert.equal(bridge.requests.filter((r) => r.op === 'ping').length, pings + 1, 'exactly one bounded ping');
+    await call('scene-get-project', { projectId: gameId }, createSceneToolHandlers(depsFor(fresh), () => actor));
+    assert.equal(bridge.requests.filter((r) => r.op === 'ping').length, pings + 1, 'a connected engine is not pinged again');
+    assert.ok(ENGINE_PING_MS <= 10_000);
+  } finally { fresh.close(); }
+  const down = new EngineClient({ host: '127.0.0.1', port: 1, expectedBuildHash: HASH, installHint: 'x', helloTimeoutMs: 300 });
+  try {
+    const detail = await call('scene-get-project', { projectId: gameId }, createSceneToolHandlers(depsFor(down), () => actor));
+    assert.equal(detail.engine.connected, false);
+    assert.match(String(detail.engine.lastError), /not running|refused|ECONNREFUSED/);
   } finally { down.close(); }
 });
 

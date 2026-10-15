@@ -4,6 +4,10 @@
 # -----------------------------------------------------------------------------
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries, and the company view's behaviour over the package's real fleet and catalog routes (the two reads, the stats, tables and states, and the gated full-page start).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register the pass-time contract: POST /passes answers ISO-8601 UTC beside every epoch-ms instant, and the Sat Operator persona quotes them.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register chat-screen: the Sat Operator chat carries the on-screen ground station and pass table and answers from them (it asked for coordinates while four passes were listed).
+# 5 | maintainer@emeraldcoastsystemsgroup.com | chat-screen also proves the prompt names the current UTC day and labels each pass today / tomorrow / its date.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register sat-register-form: the new-satellite id field starts empty under a label of its own, so the screen does not read a default as a satellite id (sweep 13).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -35,4 +39,71 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: pass-times-iso
+    name: Pass windows answer ISO-8601 times the concierge quotes
+    purpose: >-
+      The concierge converted epoch milliseconds itself and gave the wrong next-pass dates. Verify the real compiled POST /passes
+      route returns riseUtc, culminationUtc, setUtc and startUtc as ISO-8601 UTC beside the millisecond values, the TypeScript
+      source does the same, and the Sat Operator persona quotes them verbatim and never converts milliseconds.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sat-passes-iso.test.cjs
+    expected:
+      - A pass with riseUtcMs 1791720773730 answers riseUtc 2026-10-11T12:12:53.730Z, with culminationUtc and setUtc beside their ms values.
+      - startUtc is the ISO form of the request's start and the engine tag is kept.
+      - The persona names riseUtc, culminationUtc and setUtc and forbids converting milliseconds.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: chat-screen
+    name: Sat Operator chat answers from the screen
+    purpose: Drive the compiled POST /chat with framework stand-ins and a stub orchestrator, and read the page script - no network, database or model.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sat-chat-screen.test.cjs
+    expected:
+      - The ground station and the Pass windows table the page sends reach the prompt as GROUND STATION and PASS WINDOWS ON SCREEN lines, with the rule never to ask for coordinates the screen gives.
+      - A turn without screen state carries no screen lines; an empty prediction says none above the mask.
+      - Out-of-range or non-numeric input is dropped, at most 12 passes are kept and the sat id is stripped.
+      - The page sends its station and last prediction with every chat turn.
+      - The prompt carries a NOW (UTC) line and each pass on screen reads today, tomorrow or its UTC date against the current UTC day (sweep 8 called a same-day pass 'tomorrow').
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: sat-register-form
+    name: "The register form starts empty under its own label"
+    purpose: "Read the shipped page and run its Register TLE handler over a stub DOM - no browser, network or engine."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sat-register-form.test.cjs
+    expected:
+      - "The sat id field has no prefilled value and is labelled New satellite id; Register TLE with it empty refuses and sends nothing."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
     installation: never

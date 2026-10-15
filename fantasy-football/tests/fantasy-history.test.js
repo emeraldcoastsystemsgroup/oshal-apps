@@ -37,6 +37,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — completed-week extraction (prior season, projections and season totals all excluded), per-league scoring of the history, the roster join attaching it, the underdog/favourite matched pair each with a history-withheld companion, and the store statements' season/week/player scope.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Drive the REAL compiled GET /fantasy/lineup, because the route is what broke. Every case above exercises the chain one level below the defect: the shipped bug was a handler that never read a history, and reverting registerLineupRoute's three lines — or writePlayerWeeks from the refresh — left all twenty package tests green. The matched pair now runs through the registered handler, the real ESPN client, the real store statements and the real objective, with only the database round trip doubled; withholding the completed weeks from the feed must bring the highest-projected lineup back.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | The ESPN client these cases exercise is now the fantasy-leagues kernel skill (ADR-146 D2): it is loaded from the framework checkout through tests/fantasy-leagues-fixture.js instead of the deleted routes/sports-fantasy-espn.js, and every assertion is unchanged. The compiled lineup route now requires @/features/fantasy-leagues, so the route loader maps that one specifier to the same real module; the other framework doubles are unchanged.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The two route cases drive POST /lineup/record, the writer route that persists the completed weeks (GET /lineup is a reader request on the native kernel and writes nothing; tests/fantasy-lineup-readonly.test.js proves it still spends the fetched weeks in memory).
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Moved from sports-edge (sports-fantasy-history.test.js) with the modules it guards (ADR-146 D1). The store is per person now, so the statement-scope cases also assert the owner parameter (user_sub = $1, every player-week written in the caller's name, three parameters per row after the owner and season), and the route pair drives the fantasy-football router through tests/fantasy-routes-harness.js over an owner-keyed pool. The matched underdog/favourite assertions are unchanged.
  */
 
@@ -370,15 +371,15 @@ function routeFetch(feed) {
 }
 
 /**
- * @description Drive the real GET /lineup handler once, over a fresh owner-keyed pool.
+ * @description Drive the real POST /lineup/record handler once, over a fresh owner-keyed pool.
  * @param withWeeks - Whether the feed carries the completed weeks.
  * @returns The recorded response and the pool it ran against.
  */
 async function lineupRoute(withWeeks) {
   const pool = memPool();
   const { router } = loadRouter({ sub: 'sub-history-route-test', secret: SECRET }, pool);
-  const res = await drive(router, 'GET /lineup',
-    { query: { season: ROUTE_SEASON, leagueId: LEAGUE, week: ROUTE_WEEK } }, routeFetch(routeFeed(withWeeks)));
+  const res = await drive(router, 'POST /lineup/record',
+    { body: { season: ROUTE_SEASON, leagueId: LEAGUE, week: ROUTE_WEEK } }, routeFetch(routeFeed(withWeeks)));
   return { res, pool };
 }
 

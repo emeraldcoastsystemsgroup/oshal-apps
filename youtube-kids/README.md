@@ -34,7 +34,9 @@ without a kernel restart. Installation alone intentionally exposes no handler wh
 
 - **Ingest** is cheap and deterministic. It parses `watch-history.json` into a compact
   aggregate, then stores the aggregate by `user_sub` in `oshal_youtube_activity`; the raw
-  export is AES-256-GCM encrypted at rest. The table is created lazily at first use with
+  export is sealed at rest through `@/features/personal-data` (on the native kernel the key is
+  held by the kernel and bound to this application and the uploading person; the package never
+  sees it). The table is created lazily at first use with
   owner-scoped RLS applied at the same chokepoint, so there is no install-time migration.
 - **Reasoning** always runs on the accountable Kid Lens bot through `executeBotOrInline`.
   Cost lands in `chat_tasks` under the bot's agent id, and the prompt receives the compact
@@ -76,11 +78,13 @@ work belongs here, not as application literals or dispatch cases in the kernel:
 
 <!-- 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | Document package-driven whole-archive registration and make remaining privacy/product acceptance canonical here. -->
 
-## `SESSION_SECRET` Takeout recovery
+## Takeout recovery
 
-Set a nonblank `SESSION_SECRET` before uploading. A raw Takeout export encrypted under the retired
-public fallback cannot be authenticated with a newly provisioned secret; upload the original
-`watch-history.json` again. The app recomputes the aggregate and replaces the unreadable raw blob.
+A raw Takeout export stored under the earlier platform's `SESSION_SECRET` envelope is not
+readable on the native kernel, which never holds that secret. The app never reads the raw blob
+back; upload the original `watch-history.json` again to replace it under the kernel-held key.
+
+<!-- 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | The raw export is sealed by the kernel through @/features/personal-data (PDATA-01); SESSION_SECRET is no longer used. -->
 
 <!-- oshal-rating:start -->
 ## Models and requirements

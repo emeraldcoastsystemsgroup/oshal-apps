@@ -2,6 +2,7 @@
  * CHANGE LOG
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Normalize private immutable raster uploads outside the installed package and serve only exact-owner verified bytes.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Use the original transaction-bound native image port without an undeclared writable sandbox path.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -48,12 +49,14 @@ export async function normalizeProjectImage(bytes: Buffer): Promise<{ bytes: Buf
 export async function saveProjectImage(root: string, store: CreateProjectStore, owner: ProjectOwner, bytes: Buffer, confirm: ConfirmProjectAccess): Promise<ProjectAsset> {
   const image = await normalizeProjectImage(bytes);
   await confirm();
-  const id = randomUUID(), file = imagePath(root, owner, id), directory = ownerDirectory(root, owner);
+  const id = randomUUID();
+  const value = { id, src: PROJECT_ASSET_PREFIX + id, width: image.width, height: image.height,
+    bytes: image.bytes.length, sha256: createHash('sha256').update(image.bytes).digest('hex') };
+  if (store.nativeImageStorage) { await store.addAsset(owner, value, confirm, image.bytes); return value; }
+  const file = imagePath(root, owner, id), directory = ownerDirectory(root, owner);
   await mkdir(directory, { recursive: true, mode: 0o700 });
   if ((await lstat(directory)).isSymbolicLink()) throw new ProjectError(503, 'project_asset_storage_unavailable');
   await writeFile(file, image.bytes, { flag: 'wx', mode: 0o600 });
-  const value = { id, src: PROJECT_ASSET_PREFIX + id, width: image.width, height: image.height,
-    bytes: image.bytes.length, sha256: createHash('sha256').update(image.bytes).digest('hex') };
   try { await store.addAsset(owner, value, confirm); return value; }
   catch (error) { await unlink(file); throw error; }
 }
@@ -61,6 +64,13 @@ export async function saveProjectImage(root: string, store: CreateProjectStore, 
 /** The database owner check precedes filesystem reads; changed or linked bytes are never served as the immutable asset. */
 export async function readProjectImage(root: string, store: CreateProjectStore, owner: ProjectOwner, id: string): Promise<Buffer> {
   const value = await store.getAsset(owner, id), file = imagePath(root, owner, id);
+  if (store.nativeImageStorage) {
+    const bytes = await store.readNativeImage(owner, id);
+    if (bytes !== undefined) {
+      if (bytes.length !== value.bytes || createHash('sha256').update(bytes).digest('hex') !== value.sha256) throw new ProjectError(503, 'project_asset_storage_unavailable');
+      return bytes;
+    }
+  }
   try {
     const stat = await lstat(file);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== value.bytes) throw new Error('asset_integrity');

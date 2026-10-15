@@ -15,12 +15,17 @@
  *                     |                             | factory is injectable so the spec drives it with a fake
  *                     |                             | bridge on loopback. A refusal carries the worker's
  *                     |                             | `field` so the routes can name it in the 422 body.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The native kernel's sandbox has no network: with `exchange`
+ *                     |                             | set, each request goes through the kernel's engine.exchange
+ *                     |                             | intent, which hands back the engine's own hello and reply,
+ *                     |                             | judged by the same rules as on a socket. The build hash is
+ *                     |                             | recorded from the engine (the sandboxed copy has no sources).
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EngineClient = exports.LineSplitter = exports.EngineFailure = exports.DEFAULT_ENGINE_ADDR = exports.BRIDGE_PROTOCOL = void 0;
+exports.EngineClient = exports.LineSplitter = exports.EngineFailure = exports.NATIVE_MAX_MS = exports.DEFAULT_ENGINE_ADDR = exports.BRIDGE_PROTOCOL = void 0;
 exports.parseEngineAddr = parseEngineAddr;
 const node_net_1 = __importDefault(require("node:net"));
 const logger_1 = require("@/shared/logger");
@@ -28,6 +33,8 @@ const logger = (0, logger_1.createChildLogger)({ module: 'circuit-lab-engine-cli
 /** The bridge wire version this client speaks (PROTOCOL in circuit_engine_bridge.py and circuit_worker.py). */
 exports.BRIDGE_PROTOCOL = 1;
 exports.DEFAULT_ENGINE_ADDR = 'circuit-lab-engine:7413';
+/** The kernel relays one engine request within the 60 s process call; keep a margin. */
+exports.NATIVE_MAX_MS = 55_000;
 const UNREACHABLE = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH', 'ETIMEDOUT']);
 /** @description A typed engine failure; `reason` carries the honest explanation for a 503 body. */
 class EngineFailure extends Error {
@@ -74,12 +81,14 @@ class EngineClient {
     nextId = 1;
     helloHash = null;
     lastFailure = null;
+    nativeActive = 0;
     constructor(opts) {
         this.opts = opts;
     }
     /** @description What the surface shows about the engine. */
     status() {
-        return { connected: this.ready, buildHash: this.helloHash, expectedBuildHash: this.opts.expectedBuildHash, lastError: this.lastFailure ? this.lastFailure.reason || this.lastFailure.message : null, installHint: this.opts.installHint, address: `${this.opts.host}:${this.opts.port}` };
+        const native = Boolean(this.opts.exchange);
+        return { connected: this.ready, buildHash: this.helloHash, expectedBuildHash: native ? this.helloHash : this.opts.expectedBuildHash, lastError: this.lastFailure ? this.lastFailure.reason || this.lastFailure.message : null, installHint: this.opts.installHint, address: native ? 'native://engine.exchange' : `${this.opts.host}:${this.opts.port}` };
     }
     /**
      * @description Send one command and await its result.
@@ -89,6 +98,8 @@ class EngineClient {
      * @returns The worker's `result`.
      */
     request(cmd, args, timeoutMs) {
+        if (this.opts.exchange)
+            return this.requestNative(this.opts.exchange, cmd, args, timeoutMs);
         const max = this.opts.maxQueue ?? 8;
         if (this.queue.length >= max)
             return Promise.reject(new EngineFailure('engine_busy', `engine queue is full (${max} waiting)`));
@@ -197,6 +208,41 @@ class EngineClient {
         });
         return this.connecting;
     }
+    /** @description One request through the native kernel; its hello and reply are judged as on a socket. */
+    async requestNative(exchange, cmd, args, timeoutMs) {
+        const max = this.opts.maxQueue ?? 8;
+        if (this.nativeActive >= max)
+            throw new EngineFailure('engine_busy', `engine queue is full (${max} waiting)`);
+        this.nativeActive += 1;
+        try {
+            let answer;
+            try {
+                answer = await exchange({ cmd, args }, Math.min(timeoutMs ?? this.opts.requestTimeoutMs ?? exports.NATIVE_MAX_MS, exports.NATIVE_MAX_MS));
+            }
+            catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                throw /deadline/.test(message) ? new EngineFailure('engine_timeout', `engine did not answer within ${Math.round(exports.NATIVE_MAX_MS / 1000)} s`) : this.unavailable(`the kernel could not reach the engine container (${message})`);
+            }
+            const stale = this.verifyHello(JSON.stringify(answer?.hello ?? null));
+            if (stale)
+                throw stale;
+            const reply = (answer.reply ?? {});
+            this.ready = true;
+            if (reply.ok === true)
+                return reply.result;
+            throw new EngineFailure(reply.error?.code === 'refused' ? 'refused' : 'engine_error', String(reply.error?.message || 'engine error'), undefined, typeof reply.error?.field === 'string' ? reply.error.field : undefined);
+        }
+        catch (error) {
+            if (error instanceof EngineFailure && error.code !== 'refused' && error.code !== 'engine_error') {
+                this.ready = false;
+                this.lastFailure = error;
+            }
+            throw error;
+        }
+        finally {
+            this.nativeActive -= 1;
+        }
+    }
     verifyHello(line) {
         let msg;
         try {
@@ -210,6 +256,11 @@ class EngineClient {
         const hello = msg.bridge || {};
         if (hello.protocol !== exports.BRIDGE_PROTOCOL)
             return this.unavailable(`engine container speaks bridge protocol ${String(hello.protocol)}, this package needs ${exports.BRIDGE_PROTOCOL}`);
+        if (this.opts.exchange) {
+            this.helloHash = typeof hello.buildHash === 'string' ? hello.buildHash : null;
+            this.lastFailure = null;
+            return null;
+        }
         if (!this.opts.expectedBuildHash)
             return this.unavailable("this package's engine tree could not be read, so the engine container build cannot be verified");
         this.helloHash = typeof hello.buildHash === 'string' ? hello.buildHash : null;
@@ -264,7 +315,7 @@ class EngineClient {
         this.idleTimer = setTimeout(() => this.close('idle'), this.opts.idleMs ?? 600_000);
         this.idleTimer.unref();
     }
-    where() { return `${this.opts.host}:${this.opts.port}`; }
+    where() { return this.opts.exchange ? 'the native kernel engine link' : `${this.opts.host}:${this.opts.port}`; }
     unavailable(message) {
         return new EngineFailure('capability_unavailable', message, `${message} — install or rebuild it: ${this.opts.installHint}`);
     }

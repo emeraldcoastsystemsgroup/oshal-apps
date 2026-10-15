@@ -1,0 +1,26 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Keep Motion's engine in its own project, with no host ports or host volumes and a non-root bounded read-only runtime.
+name: oshal-motion-studio-engine
+services:
+  motion-studio-engine:
+    image: oshal-motion-studio-engine:local
+    container_name: oshal-motion-studio-engine
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: ${MOTION_ENGINE_MEM_LIMIT:-1g}
+    labels:
+      oshal.app: motion-studio
+    networks:
+      oshal:
+        aliases: [motion-studio-engine]
+networks:
+  oshal:
+    external: true
+    name: ${OSHAL_NETWORK:-oshal-local_oshal}

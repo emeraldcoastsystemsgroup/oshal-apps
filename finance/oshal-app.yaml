@@ -6,6 +6,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: declare the three apps the ribbon FRAMES (optional — an absent target leaves one tab empty, it does not break finance).
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Declare the three finance stores as a package migration so a native kernel provisions them before the first read; the status route had answered 500 on an unprovisioned scope.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | uses: specialist-context and the finance_facts read tool. Jarvis now hands "how is my finance doing?" to the finance-analyst, which had no data channel and asked the person to provide their data; routes/finance-routes.js registers a reader of the caller's saved finance state (routes/finance-facts.js) under finance_facts. Version unchanged.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — finance ("Finance")
@@ -123,6 +124,31 @@ uses:
   - test-catalog
   - payments
   - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
+  # ADR-090: the specialist-context channel. In a Jarvis hand-off the finance-analyst is tool-less;
+  # the reader createFinanceRoutes registers (routes/finance-facts.js) is its only data channel:
+  # the caller's linked-institution count, sync state and saved figures as scalar facts.
+  - specialist-context
+
+# The named read the specialist facts run under. A real read-only surface (the saved-evidence
+# summary: bank links, cached net worth, last sync), and the tool the kernel pins the reader to.
+tools:
+  - name: finance_facts
+    displayName: Finance Facts
+    type: api
+    category: finance
+    description: >-
+      The caller's saved finance evidence: how many banks and brokerages are linked, the cached
+      net worth and when accounts were last synced. Read-only and owner-scoped; it never links,
+      syncs, calls Plaid or moves money. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/finance/home-summary" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    usageInstructions: Call with {} to read what Finance holds for the caller before answering.
+    routingTags: [finance, net-worth, accounts]
+    tags: [finance]
 
 ticketType: finance-brief
 

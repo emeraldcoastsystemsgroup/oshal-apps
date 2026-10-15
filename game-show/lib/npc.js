@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-25 22:40:00 | roger.murphy@emeraldcoastsystemsgroup.com  | NPC contestants: AI-played podiums so one person can run a full show. The engine half — skill profiles, deterministic timing/rolls, and the poll-driven actuator (the sync poll IS the tick, same no-scheduler doctrine as the round clock). Shows supply the one thing the engine cannot know: what THIS seat would do right now (show.npcMove). Zero LLM calls — an NPC decides against the board the server already holds.
  * 2026-07-26 09:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Bots stay quiet while an interview is live — the interview window belongs to a human beat, and a turn-based bot (Wheel/Whammy now have brains) would otherwise act straight through it.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com    | An NPC podium's identity is its seat_key, not its user_sub: it is now the host's gameshow_podiums row (the native kernel admits only the caller as an owner). seatKeyOf(row) reads seat_key and falls back to user_sub for rows written before migration 002; isNpc and dueMove read it; newNpcKey mints the key (newNpcSub stays as its alias).
  */
 
 'use strict';
@@ -56,14 +57,21 @@ function skillOf(userSub) {
   return SKILLS.includes(skill) ? skill : null;
 }
 
+/**
+ * @description A seat row's podium identity: its seat_key (AI `npc:<skill>:<uuid>` or
+ *   house `house:<uuid>`), or for a row written before migration 002 its user_sub.
+ */
+function seatKeyOf(seatRow) { return String((seatRow && (seatRow.seat_key || seatRow.user_sub)) || ''); }
+
 /** @description Whether a raw seat row is an NPC podium. */
-function isNpc(seatRow) { return !!skillOf(seatRow && seatRow.user_sub); }
+function isNpc(seatRow) { return !!skillOf(seatKeyOf(seatRow)); }
 
 /** @description The behavior profile for a skill (defaults to casual). */
 function profile(skill) { return PROFILES[skill] || PROFILES.casual; }
 
-/** @description Mint the synthetic subject for a new NPC seat. */
-function newNpcSub(skill) { return `npc:${skill}:${crypto.randomUUID()}`; }
+/** @description Mint the seat_key for a new NPC podium. */
+function newNpcKey(skill) { return `npc:${skill}:${crypto.randomUUID()}`; }
+const newNpcSub = newNpcKey;
 
 /**
  * @description Pick a stage name for a new NPC, avoiding names already seated.
@@ -138,11 +146,11 @@ function dueMove(show, state, seatRows, now) {
   if (state.interview && state.interview.active) return null;   // bots don't talk over the interview
   // Rotate priority by the act counter so one eager bot doesn't hog every beat —
   // on a team the mic passes around, like people actually playing.
-  const bots = (seatRows || []).filter((s) => skillOf(s.user_sub) && s.role !== 'host');
+  const bots = (seatRows || []).filter((s) => skillOf(seatKeyOf(s)) && s.role !== 'host');
   const offset = Number(state.npcN) || 0;
   for (let k = 0; k < bots.length; k++) {
     const seat = bots[(k + offset) % bots.length];
-    const skill = skillOf(seat.user_sub);
+    const skill = skillOf(seatKeyOf(seat));
     const prof = profile(skill);
     const move = show.npcMove(state, actorOf(seat), { skill, profile: prof, roll: rollerFor(state, seat.seat_id), seats: seatRows });
     if (!move) continue;
@@ -191,4 +199,4 @@ async function drive(env, room, sub, state, seatRows, now = Date.now()) {
   return applied.ok ? { fired: true, rev: applied.rev, state: applied.state } : { fired: false };
 }
 
-module.exports = { skillOf, isNpc, profile, newNpcSub, npcName, dueMove, drive, SKILLS, PROFILES };
+module.exports = { skillOf, seatKeyOf, isNpc, profile, newNpcKey, newNpcSub, npcName, dueMove, drive, SKILLS, PROFILES };

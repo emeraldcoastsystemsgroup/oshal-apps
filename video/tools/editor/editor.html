@@ -23,6 +23,7 @@
       <button id="redo" type="button" disabled title="Redo (Ctrl+Shift+Z)">Redo</button>
       <button id="saveProject" type="button" class="primary" disabled title="Save (Ctrl+S)">Save</button>
       <button id="saveAsNew" type="button" disabled>Save as new</button>
+      <button id="deleteProject" type="button" disabled>Delete project</button>
     </div>
   </header>
   <div class="status-strip"><span id="status" role="status" aria-live="polite">Checking your access…</span> <span id="dirtyFlag" class="dirty" hidden>Unsaved changes</span></div>
@@ -36,6 +37,17 @@
       <label class="file-button">Add a clip (MP4) <input id="addClip" type="file" accept="video/mp4" disabled></label>
       <label class="file-button">Add music (WAV) <input id="addBed" type="file" accept="audio/wav,audio/x-wav,.wav" disabled></label>
       <p class="muted small">Up to two clips of 30 seconds and one music file; the video can be up to 60 seconds long.</p>
+      <details id="motionImportPanel"><summary>Link a Motion composition</summary>
+        <p class="muted small">Edit the native composition in Motion. Video keeps a rendered clip linked to its exact source revision; refreshing preserves your timeline edits.</p>
+        <button id="refreshMotionJobs" type="button">Find ready Motion renders</button>
+        <form id="motionImportForm">
+          <label>Rendered composition <select id="motionRender" required><option value="">Find ready renders first…</option></select></label>
+          <label>Use in this project <select id="motionReplace"><option value="">Add as a new source</option></select></label>
+          <button id="importMotion" type="submit" disabled>Link rendered composition</button>
+        </form>
+        <p id="motionImportStatus" class="muted small" role="status">Motion renders must be H.264 MP4, up to 30 seconds and 100 MB.</p>
+        <ul id="motionSources" class="list"></ul>
+      </details>
       <ul id="sources" class="list"></ul>
     </section>
     <section class="panel preview" aria-labelledby="previewHeading">
@@ -89,6 +101,27 @@
       <div class="row">
         <label>Music bed <select id="bedSource"><option value="">No music</option></select></label>
         <label>Music volume <input id="bedVolume" type="range" min="0" max="100" step="5" value="40"> <output id="bedVolumeValue">40%</output></label>
+      </div>
+    </section>
+    <section class="panel multitrack" aria-labelledby="multitrackHeading">
+      <h2 id="multitrackHeading">Multitrack editing</h2><button id="upgradeMultitrack" type="button">Upgrade this timeline to multitrack</button>
+      <p class="muted small">Four video and eight audio tracks, 60 seconds at 30 fps. Higher video tracks composite above lower tracks. Render preview uses the same effects as export.</p>
+      <div id="multitrackEditor" hidden>
+        <div class="row"><label>New track name<input id="multiTrackName" maxlength="120" value="New track"></label><label>Kind<select id="multiTrackKind"><option value="video">Video</option><option value="audio">Audio</option></select></label><button id="multiAddTrack" data-multi-edit type="button">Add track</button></div>
+        <label><input id="multiSnap" type="checkbox">Snap timeline movement</label><label>Snap spacing (frames)<input id="multiSnapFrames" type="number" min="1" max="300" value="30"></label>
+        <div id="multiTracks" aria-label="Video and audio tracks"></div>
+        <div class="row"><label>Source<select id="multiSource"></select></label><label>Track<select id="multiPlaceTrack"></select></label><label>Start frame<input id="multiPlaceStart" type="number" min="0" max="1799" value="0"></label><button id="multiPlaceSource" data-multi-edit type="button">Place source</button></div>
+        <fieldset id="multiClipControls" hidden><legend>Selected clip</legend><div class="row"><label>Timeline start frame<input id="multi-start" type="number" min="0" max="1799" step="1"></label><label>Source in frame<input id="multi-in" type="number" min="0" max="1799" step="1"></label><label>Source out frame<input id="multi-out" type="number" min="1" max="1800" step="1"></label><label>Volume %<input id="multi-volume" type="number" min="0" max="200" step="1"></label></div>
+          <label>Fade in frames<input id="multi-fadeIn" type="number" min="0" max="1800" step="1"></label>
+          <label>Fade out frames<input id="multi-fadeOut" type="number" min="0" max="1800" step="1"></label>
+          <div id="multiVideoEffects" class="row"><label>X %<input id="multi-x" type="number" min="-100" max="100" step="1"></label><label>Y %<input id="multi-y" type="number" min="-100" max="100" step="1"></label><label>Scale %<input id="multi-scale" type="number" min="10" max="200" step="1"></label><label>Opacity %<input id="multi-opacity" type="number" min="0" max="100" step="1"></label><label>Brightness<input id="multi-brightness" type="number" min="-100" max="100" step="1"></label><label>Contrast %<input id="multi-contrast" type="number" min="0" max="300" step="1"></label><label>Saturation %<input id="multi-saturation" type="number" min="0" max="300" step="1"></label><label>Fade style<select id="multi-transition"><option value="dissolve">Dissolve</option><option value="black">Fade through black</option></select></label><label><input id="multi-audioEnabled" type="checkbox">Include source sound</label></div>
+          <div class="row"><label>Split at timeline frame<input id="multiSplitFrame" type="number" min="1" max="1799" value="30"></label><button id="multiSplit" type="button">Split</button><button id="multiRemove" type="button">Remove</button><button id="multiRipple" type="button">Ripple delete</button></div>
+          <p class="muted small">Ripple removes the same time range across tracks. Split any other clips crossing that range first.</p>
+          <div class="row"><label>Linked audio track<select id="multiAudioTrack"></select></label><button id="multiExtractAudio" type="button">Extract linked audio</button><button id="multiUnlink" type="button">Unlink</button></div>
+          <div class="row"><label>Keyframe property<select id="multiKeyProperty"><option value="x">X %</option><option value="y">Y %</option><option value="scale">Scale %</option><option value="opacity">Opacity %</option><option value="volume">Volume %</option></select></label><label>Clip-local frame<input id="multiKeyFrame" type="number" min="0" max="1799" value="0"></label><label>Value<input id="multiKeyValue" type="number" value="100"></label><label>Interpolation<select id="multiKeyInterpolation"><option value="linear">Linear</option><option value="hold">Hold</option></select></label><button id="multiAddKey" type="button">Set keyframe</button></div><ul id="multiKeys" class="list"></ul>
+        </fieldset>
+        <div class="row"><label>Timed text<select id="multiTextKind"><option value="captions">Caption</option><option value="titles">Title</option></select></label><label>Text<input id="multiText" maxlength="240"></label><label>Start frame<input id="multiTextStart" type="number" min="0" value="0"></label><label>End frame<input id="multiTextEnd" type="number" min="1" value="30"></label><label>Position<select id="multiTextPosition"><option value="bottom">Bottom</option><option value="center">Center</option><option value="top">Top</option></select></label><label>Size<select id="multiTextSize"><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label><button id="multiAddText" data-multi-edit type="button">Add timed text</button></div><ul id="multiTextList" class="list"></ul>
+        <button id="multiShowWaveform" type="button">Measure source waveform</button><canvas id="multiWaveform" width="600" height="80" aria-label="Measured source waveform"></canvas><p id="multiWaveformStatus" role="status"></p>
       </div>
     </section>
     <section class="panel export" aria-labelledby="exportHeading">

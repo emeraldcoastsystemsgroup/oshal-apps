@@ -19,6 +19,7 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-02 04:45:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — return/NOC import matched on the stored ACH trace, the settlement view that names who was NOT paid, confirm-gated NOC application, the RT-6 and EFW2 artifacts, check-number allocation with rendered checks, and the two banking calendars exposed for the run screen.
+ * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | Await every sealIdentifier/openIdentifier (now asynchronous, PDATA-01): NOC correction sealing and application, the EFW2 employer EIN and each employee SSN.
  *
  * @module payroll-routes-settle
  */
@@ -74,16 +75,16 @@ async function owned(ctx, table, idCol, id, sub) {
     return r.rows[0] || null;
 }
 /** Seal the banking details out of a decoded correction. */
-function sealCorrection(sub, event) {
+async function sealCorrection(sub, event) {
     const c = event.correction;
     if (!c)
         return null;
     return {
         changeCode: c.changeCode,
         title: c.title,
-        routingSealed: c.routingNumber ? (0, payroll_identity_1.sealIdentifier)(sub, c.routingNumber) : null,
+        routingSealed: c.routingNumber ? await (0, payroll_identity_1.sealIdentifier)(sub, c.routingNumber) : null,
         routingLast4: c.routingNumber ? (0, payroll_identity_1.last4)(c.routingNumber) : '',
-        accountSealed: c.accountNumber ? (0, payroll_identity_1.sealIdentifier)(sub, c.accountNumber) : null,
+        accountSealed: c.accountNumber ? await (0, payroll_identity_1.sealIdentifier)(sub, c.accountNumber) : null,
         accountLast4: c.accountNumber ? (0, payroll_identity_1.last4)(c.accountNumber) : '',
         transactionCode: c.transactionCode,
         individualId: c.individualId,
@@ -113,7 +114,7 @@ async function applyEvent(ctx, sub, event) {
         ? (await ctx.pool.query(`SELECT payment_id, employee_id FROM payroll_payments
         WHERE user_sub = $1 AND ach_trace = $2 LIMIT 1`, [sub, event.originalTrace])).rows[0]
         : undefined;
-    const correction = sealCorrection(sub, event);
+    const correction = await sealCorrection(sub, event);
     const detail = JSON.stringify({
         reason: event.reason,
         correction,
@@ -255,8 +256,8 @@ function returnRoutes(router, ctx, guarded) {
             return;
         }
         const account = named[0] || accounts[0];
-        const correctedRouting = (0, payroll_identity_1.openIdentifier)(sub, correction.routingSealed);
-        const correctedAccount = (0, payroll_identity_1.openIdentifier)(sub, correction.accountSealed);
+        const correctedRouting = await (0, payroll_identity_1.openIdentifier)(sub, correction.routingSealed);
+        const correctedAccount = await (0, payroll_identity_1.openIdentifier)(sub, correction.accountSealed);
         const routing = correctedRouting ? (0, payroll_identity_1.normalizeRouting)(correctedRouting) : null;
         if (correctedRouting && !routing) {
             res.status(422).json({
@@ -272,8 +273,8 @@ function returnRoutes(router, ctx, guarded) {
               account_encrypted = COALESCE($5, account_encrypted),
               account_last4     = COALESCE($6, account_last4)
         WHERE account_id = $1 AND user_sub = $2`, [account.account_id, sub,
-            routing ? (0, payroll_identity_1.sealIdentifier)(sub, routing) : null, routing ? (0, payroll_identity_1.last4)(routing) : null,
-            acct ? (0, payroll_identity_1.sealIdentifier)(sub, acct) : null, acct ? (0, payroll_identity_1.last4)(acct) : null]);
+            routing ? await (0, payroll_identity_1.sealIdentifier)(sub, routing) : null, routing ? (0, payroll_identity_1.last4)(routing) : null,
+            acct ? await (0, payroll_identity_1.sealIdentifier)(sub, acct) : null, acct ? (0, payroll_identity_1.last4)(acct) : null]);
         await ctx.pool.query('UPDATE payroll_ach_events SET applied = true WHERE event_id = $1 AND user_sub = $2', [String(event.event_id), sub]);
         await (0, payroll_ledger_1.recordAudit)(ctx.pool, sub, 'bank_account', String(account.account_id), 'noc-applied', sub, { routing_last4: account.routing_last4, account_last4: account.account_last4 }, { change_code: event.code, routing_last4: routing ? (0, payroll_identity_1.last4)(routing) : account.routing_last4 });
         res.json({ ok: true, changeCode: event.code, note: 'Banking details updated and recorded on the audit trail.' });
@@ -352,7 +353,7 @@ function settlementArtifactRoutes(router, ctx, guarded) {
         }
         const year = Number(req.body.year || payroll_tax_tables_1.TAX_YEAR) || payroll_tax_tables_1.TAX_YEAR;
         const company = await (0, payroll_store_1.getCompany)(ctx.pool, sub);
-        const ein = (0, payroll_identity_1.openIdentifier)(sub, company.ein_encrypted) || '';
+        const ein = (await (0, payroll_identity_1.openIdentifier)(sub, company.ein_encrypted)) || '';
         const employees = await efw2Employees(ctx, sub, year);
         const file = (0, payroll_efw2_1.buildEfw2)(year, {
             ein,
@@ -462,8 +463,8 @@ async function efw2Employees(ctx, sub, year) {
       GROUP BY e.employee_id, e.first_name, e.last_name, e.ssn_encrypted,
                e.address_line1, e.city, e.state_code, e.postal_code
       ORDER BY e.last_name, e.first_name`, [sub, year])).rows;
-    return rows.map((r) => ({
-        ssn: (0, payroll_identity_1.openIdentifier)(sub, r.ssn_encrypted) || '',
+    return Promise.all(rows.map(async (r) => ({
+        ssn: (await (0, payroll_identity_1.openIdentifier)(sub, r.ssn_encrypted)) || '',
         firstName: String(r.first_name || ''),
         lastName: String(r.last_name || ''),
         deliveryAddress: String(r.address_line1 || ''),
@@ -475,7 +476,7 @@ async function efw2Employees(ctx, sub, year) {
             ssTax: Number(r.b4 || 0), medicareWages: Number(r.b5 || 0), medicareTax: Number(r.b6 || 0),
             ssTips: Number(r.b7 || 0), d401k: Number(r.d || 0), aaRoth401k: Number(r.aa || 0),
         },
-    }));
+    })));
 }
 /**
  * @description Mount the settlement routes onto the payroll router.

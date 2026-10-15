@@ -179,6 +179,21 @@
   .toast.ok { border-color: var(--an-ok); }
   .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; }
   .kv b { color: var(--an-muted); font-weight: 500; }
+  /* Phone width: one column (rigs, editor, controller) and a header that stays on screen, so E-STOP is
+     always reachable; wide tables scroll inside their own box instead of widening the page. */
+  @media (max-width: 760px) {
+    header { position: sticky; top: 0; z-index: 6; flex-wrap: wrap; padding: 8px 12px; }
+    header .spacer { flex: 1 1 0; min-width: 0; }
+    .layout { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+    aside, aside.right { border: 0; border-bottom: 1px solid var(--an-line); overflow: visible; }
+    main { overflow: visible; padding: 12px 12px 32px; }
+    main table, aside table { display: block; max-width: 100%; overflow-x: auto; }
+    .jog-row { grid-template-columns: minmax(0, 1fr) 64px; }
+    .jog-row > :first-child { grid-column: 1 / -1; }
+    #lookpad { width: 100%; max-width: 320px; }
+    #rig-title { width: 100% !important; max-width: 100%; }
+    .toast { left: 12px; right: 12px; max-width: none; }
+  }
 </style>
 </head>
 <body>
@@ -244,6 +259,13 @@
         <h2>Command log</h2>
         <ul id="runs"></ul>
       </section>
+      <!-- The declared hand-off (integrations.offers prepare-document "Prepare a build note" -> AI Office prepare-brief).
+           Inside the rig editor, so it is only on screen when a rig is open; the note is the rig's name, the last
+           rehearsal verdict and the supply budget as this page shows them, labelled as a rehearsal, not a bench test. -->
+      <section class="step" id="build-note">
+        <h2>Build note <small>this rig and its last rehearsal, as a brief in AI Office</small></h2>
+        <div id="buildActions" class="row"></div>
+      </section>
     </div>
   </main>
   <aside class="right">
@@ -270,5 +292,46 @@
 <script src="/api/animatronics/assets/animatronics-serial.js"></script>
 <script src="/api/animatronics/assets/animatronics-view.js"></script>
 <script src="/api/animatronics/assets/animatronics.js"></script>
+<script>
+(function () {
+  if (window.AppView && AppView.active && AppView.active()) return;
+  var el = document.getElementById('buildActions');
+  /* build-note-text:start */
+  /** One entry per line the reader sees: each block child, and a <b>label</b><span>value</span> grid as "label: value".
+      textContent alone ran the power panel's two lines together ("... headroom 89 % — okall servos stalled ..."). */
+  function lines(n) {
+    var kids = Array.prototype.slice.call(n.children || []);
+    if (!kids.length) return [n.textContent];
+    if (kids.every(function (k) { return k.tagName === 'B' || k.tagName === 'SPAN'; })) {
+      var out = [];
+      for (var i = 0; i < kids.length; i += 1) {
+        if (kids[i].tagName === 'B' && kids[i + 1] && kids[i + 1].tagName === 'SPAN') {
+          var label = kids[i].textContent.trim(); var value = kids[i + 1].textContent;
+          out.push(label ? label + ': ' + value : value); i += 1;
+        } else out.push(kids[i].textContent);
+      }
+      return out;
+    }
+    return kids.map(function (k) { return k.textContent; });
+  }
+  function txt(id) {
+    var n = document.getElementById(id);
+    if (!n) return '';
+    if (n.value !== undefined && n.tagName === 'INPUT') return n.value.replace(/\s+/g, ' ').trim();
+    return lines(n).map(function (l) { return String(l).replace(/\s+/g, ' ').trim(); }).filter(Boolean).join('; ');
+  }
+  /* build-note-text:end */
+  /** The open rig as a research-brief context, or null when no rig is open (the shell then says so). */
+  function buildNote() {
+    if (document.getElementById('editor').hidden || !txt('rig-title')) return null;
+    var lines = ['REHEARSAL in Animatronics (server-side servo model), not a bench test of the prop.', 'Rig: ' + txt('rig-title'),
+      'Rehearsal: ' + (txt('verdict') || 'none yet'), 'Power: ' + (txt('power') || 'not rehearsed'), 'Supply budget: ' + (txt('budget') || 'unknown')];
+    return { title: 'Build note: ' + txt('rig-title'), notes: lines.join('\n').slice(0, 2000) };
+  }
+  import('/cockpit/js/app-workflows.js')
+    .then(function (m) { return m.mountConnectedActions({ app: 'animatronics', element: el, contextForOffer: buildNote }); })
+    .catch(function () { el.textContent = 'Connected actions are unavailable on this screen.'; });
+})();
+</script>
 </body>
 </html>

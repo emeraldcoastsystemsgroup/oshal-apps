@@ -29,6 +29,9 @@
  * 2026-07-27 22:05:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Confirm a successful join on the join screen itself, report a failed table load instead of freezing on the code, and show a joined player their seat rather than the host's join-code instructions.
  * 2026-09-14 15:20:00 | maintainer@emeraldcoastsystemsgroup.com  | Move the dock to table-dock.js. This file had reached 811 executable lines against the package's own 800-line decomposition guard, and the dock was the one section that is a complete concern on its own.
  * 2026-09-28 23:05:00 | maintainer@emeraldcoastsystemsgroup.com  | Start the table only when no audience view renders (ADR-164 D6): the Jarvis shell opens this page with ?audience=family and the head block of table.html paints the family view from the shared kit, so the animation loop, the glitch banner, the narrator status and boot() (the /content, /campaigns and /characters reads and every screen after them) run only when AppView is absent or AppView.active() is null. The full table starts exactly as before.
+ * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Intro cards, villain chips and hero cards ask only for bundled art (tokenArtUrl / mapArtUrl); an id without it keeps the plain frame.
+ * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com     | My Games gives the host a Delete Campaign button (with a confirm screen) beside Resume/Playback; players keep Leave Campaign.
+ * 2026-10-12 05:30:00 | maintainer@emeraldcoastsystemsgroup.com     | K4: the TV lobby names the campaign the screen joined (showTvLobby in table-dock.js); it named only the scene, so a TV on 'write check' read 'Ambush on the Coast Road' and looked like a game missing from My Games.
  */
 
 'use strict';
@@ -48,18 +51,18 @@ function playIntro(onDone) {
   const partyToks = board.tokens.filter((t) => t.kind === 'pc');
   const villains = [...new Set(board.tokens.filter((t) => t.kind === 'monster').map((t) => t.ref))];
   const cards = [];
-  cards.push({ html: introCard(`<div class="intro-kicker">${esc(content.adventure.theme && content.adventure.theme.label || 'An OSHAL Dungeon Master adventure')}</div><h1 class="intro-title">${esc(content.adventure.title)}</h1><div class="intro-sub">${esc(scene.objective || '')}</div>`, `${API}/art/map/${scene.id}`), say: content.adventure.title });
+  cards.push({ html: introCard(`<div class="intro-kicker">${esc(content.adventure.theme && content.adventure.theme.label || 'An OSHAL Dungeon Master adventure')}</div><h1 class="intro-title">${esc(content.adventure.title)}</h1><div class="intro-sub">${esc(scene.objective || '')}</div>`, mapArtUrl(scene.id)), say: content.adventure.title });
   partyToks.forEach((t) => {
     const h = boardSheets[t.slug] || sheetOf(t) || {};
     const ab = h.abilities ? `<div class="intro-stats">${['str','dex','con','int','wis','cha'].map((k) => `<span><b>${k.toUpperCase()}</b> ${h.abilities[k]}</span>`).join('')}</div>` : '';
     const sig = (h.actions || []).slice(0, 3).map((a) => a.name).join(' · ');
-    cards.push({ html: introCard(`<div class="intro-portrait kb" style="background-image:url('${API}/art/token/${t.slug}')"></div>
+    cards.push({ html: introCard(`<div class="intro-portrait kb"${artStyle(tokenArtUrl(t.slug))}></div>
       <h1 class="intro-name" style="color:${t.color}">${esc(h.name || t.name)}</h1>
       <div class="intro-class">${esc(h.race || '')} ${esc(h.class || '')} · Level ${h.level || 1} · ❤${h.maxHp} 🛡${h.ac}</div>
       <div class="intro-epithet">“${esc(h.epithet || '')}”</div>${ab}<div class="intro-sig">${esc(sig)}</div>`), say: `${h.name}. ${h.epithet || ''}` });
   });
   if (villains.length) {
-    const vs = villains.map((ref) => `<div class="intro-villain"><span class="vp kb" style="background-image:url('${API}/art/token/${ref}')"></span><div class="vn">${esc((content.monsters[ref] || {}).name || ref)}</div><div class="ve">${esc((content.monsters[ref] || {}).epithet || '')}</div></div>`).join('');
+    const vs = villains.map((ref) => `<div class="intro-villain"><span class="vp kb"${artStyle(tokenArtUrl(ref))}></span><div class="vn">${esc((content.monsters[ref] || {}).name || ref)}</div><div class="ve">${esc((content.monsters[ref] || {}).epithet || '')}</div></div>`).join('');
     cards.push({ html: introCard(`<div class="intro-kicker" style="color:#ef5030">Standing in their way</div><div class="intro-villains">${vs}</div>`), say: 'But the road is watched. ' + villains.map((r) => (content.monsters[r] || {}).epithet || '').join(' ') });
   }
   const begins = scene.kind === 'exploration' ? 'The story begins' : 'Roll for initiative!';
@@ -135,7 +138,7 @@ function openStory() { setStoryOpen(true); }
 let partyDraft = [], importedHeroes = [];
 function heroCard(h, extra) {
   const inv = inventoryOf(h), actionNames = (h.actions || []).map((a) => esc(a.name)).join(' · ');
-  return `<div class="herocard"><span class="portrait" style="background-image:url('${API}/art/token/${encodeURIComponent(h.id)}')"></span>
+  return `<div class="herocard"><span class="portrait"${artStyle(tokenArtUrl(h.id))}></span>
     <div class="meta"><div class="hn" style="color:${(h.token && h.token.color) || 'var(--amber)'}">${esc(h.name)}</div>
     <div class="hr">${esc(h.race)} ${esc(h.class)} · ❤${h.maxHp} 🛡${h.ac}</div>
     <div class="ha">${actionNames}${inv.items.length ? ` · 🎒 ${inv.items.length}` : ''}</div>${extra || ''}</div></div>`;
@@ -197,7 +200,7 @@ async function showGameMenu() {
   const rows = campaigns.length ? campaigns.map((row) => {
     const role = row.is_owner ? 'Host' : row.my_character ? `Playing ${row.my_character}` : 'Joined';
     const primary = campaignPlaybackOnly(row) ? `<button data-playback="${esc(row.campaign_id)}">Playback</button>` : `<button data-resume="${esc(row.campaign_id)}">Resume</button>`;
-    return `<div class="campaign-row"><div><h2>${esc(row.name || 'Untitled campaign')}<span class="campaign-role">${esc(role)}</span></h2><p>${esc(campaignPlace(row))}${row.player_count ? ` · ${Number(row.player_count)} player${Number(row.player_count) === 1 ? '' : 's'}` : ''}</p></div><div class="campaign-actions">${primary}${row.is_owner ? '' : `<button class="leave" data-leave="${esc(row.campaign_id)}" data-name="${esc(row.name || 'this campaign')}">Leave Campaign</button>`}</div></div>`;
+    return `<div class="campaign-row"><div><h2>${esc(row.name || 'Untitled campaign')}<span class="campaign-role">${esc(role)}</span></h2><p>${esc(campaignPlace(row))}${row.player_count ? ` · ${Number(row.player_count)} player${Number(row.player_count) === 1 ? '' : 's'}` : ''}</p></div><div class="campaign-actions">${primary}${row.is_owner ? `<button class="leave" data-delete-campaign="${esc(row.campaign_id)}" data-name="${esc(row.name || 'this campaign')}">Delete Campaign</button>` : `<button class="leave" data-leave="${esc(row.campaign_id)}" data-name="${esc(row.name || 'this campaign')}">Leave Campaign</button>`}</div></div>`;
   }).join('') : '<div class="library-empty">No campaigns yet. Start one, or join a friend with their six-character code.</div>';
   overlay(`<h1>My Games</h1><p style="margin-top:0">Choose what to play. Signing in never drops you into a campaign automatically.</p>
     <div class="campaign-list">${rows}</div>
@@ -205,10 +208,21 @@ async function showGameMenu() {
   document.querySelectorAll('[data-resume]').forEach((button) => { button.onclick = async () => { button.disabled = true; button.textContent = 'Opening…'; if (!(await enterCampaign(button.dataset.resume))) { button.disabled = false; button.textContent = 'Resume'; banner('That campaign could not be opened.'); } }; });
   document.querySelectorAll('[data-playback]').forEach((button) => { button.onclick = () => showCampaignPlayback(button.dataset.playback, { back: showGameMenu, backLabel: 'Back to My Games' }); });
   document.querySelectorAll('[data-leave]').forEach((button) => { button.onclick = () => confirmLeaveCampaign(button.dataset.leave, button.dataset.name); });
+  document.querySelectorAll('[data-delete-campaign]').forEach((button) => { button.onclick = () => confirmDeleteCampaign(button.dataset.deleteCampaign, button.dataset.name); });
   $('menuNew').onclick = () => { partyDraft = []; importedHeroes = []; showAdventureLibrary(); };
   $('menuJoin').onclick = () => showJoin(''); $('menuCharacters').onclick = showCharacterLibrary; $('menuHelp').onclick = showHelp;
 }
 function showTitle() { void showGameMenu(); }
+function confirmDeleteCampaign(campaignId, name) {
+  overlay(`<h1>Delete ${esc(name)}?</h1><p>This removes the campaign for everyone at the table: its story, saved checkpoints, heroes seated in it and the board. It cannot be undone. Characters in My Characters are kept.</p><button class="big" id="deleteCampaignConfirm">Delete Campaign</button> <button class="big ghost" id="deleteCampaignCancel">Cancel</button>`);
+  $('deleteCampaignCancel').onclick = () => void showGameMenu();
+  $('deleteCampaignConfirm').onclick = async () => {
+    $('deleteCampaignConfirm').disabled = true;
+    const r = await api('/campaign/delete', { method: 'POST', body: JSON.stringify({ campaignId, confirm: true }) }).catch(() => null);
+    if (!r || !r.ok) { banner(r && r.error || 'Could not delete that campaign.'); void showGameMenu(); return; }
+    banner(`Deleted ${name}.`); void showGameMenu();
+  };
+}
 function confirmLeaveCampaign(campaignId, name) {
   overlay(`<h1>Leave ${esc(name)}?</h1><p>You will give up your seat and character claim. The campaign and its story stay with the host. Quitting to My Games does <b>not</b> leave a campaign.</p><button class="big" id="leaveConfirm">Leave Campaign</button> <button class="big ghost" id="leaveCancel">Cancel</button>`);
   $('leaveCancel').onclick = () => void showGameMenu();
@@ -576,7 +590,7 @@ async function enterCampaign(campaignId) {
   else if (presentationGatePending()) {
     setStoryOpen(false); void resumePendingPresentationGate();
   } else if (board.mode === 'setup') {
-    if (TV) overlay('<h1>The party is gathering…</h1><p class="read">Waiting for the host to start the quest.</p><p><span class="spin"></span></p>', 'tv-lobby');
+    if (TV) showTvLobby();
     else showLobby();
   } else if (board.mode === 'exploration') {
     resumeExploration();

@@ -45,6 +45,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial - the closed fact set the trading specialist reads: book-scoped by kind, owner-scoped, venue-free and bounded well inside the kernel's 2000 ms specialist deadline.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | One book per key, not one KIND per key. Grouping by kind put the operator's three live books behind a single freshness gate, so a sibling account that had not been snapshotted since the previous session withheld the engine book's real recorded equity and the answer came back unknown. Facts are now fixed per-book slots (paper, live, live2..live4) filled in listBooks order, each with its own present flag and its own equity and realized figures; books.live / books.paper / books.unreported carry the shape of the account set, and an owner with more books than slots reads incomplete rather than silently short.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | The native paper book fills the paper slot. On the native kernel the person's paper book lives in the package's trading_paper_* tables, which listBooks does not see, so the analyst read paper.present false and told the person they had no paper book while it held $100,000. When no listed book took the paper slot and the host is native, paper/facts.js reads that book (recorded equity today and at the prior close, today's realized sells) and books.paper counts it.
  *
  * @module trading-book-facts
  */
@@ -55,6 +56,8 @@ import { createChildLogger } from '@/shared/logger';
 import { listBooks } from '@/app/trading-books-store';
 import { loadDailyEquitySeries } from '@/app/trading-daily-equity-store';
 import { realizedReport } from './trading-realized';
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- plain-JavaScript paper engine module (routes/paper/facts.js)
+const { nativePaperFacts } = require('./paper/facts') as { nativePaperFacts: (ctx: unknown, sub: string, now: Date) => Promise<BookFacts | null> };
 
 const logger = createChildLogger({ module: 'trading-book-facts' });
 
@@ -322,6 +325,11 @@ export async function readTradingBookFacts(
     const { slots, unreported } = assignBookSlots(books);
     out['books.unreported'] = unreported;
     const filled = await fillSlots(ctx, input.sub, slots, out, spent, now);
+    // The native kernel's paper book lives in the package's own paper tables, not in listBooks.
+    if (out['paper.present'] === false && !spent()) {
+      const native = await nativePaperFacts(ctx, input.sub, new Date(now()));
+      if (native) { emit('paper', native, out); out['books.paper'] = 1; }
+    }
     // A book no slot could take is a number the bot cannot see, so the facts are not complete.
     out['facts.complete'] = filled && unreported === 0 && !spent();
   };

@@ -5,6 +5,8 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Return an unsubscribe callback so optional context observers release their owned state listener.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Hold the current region selection and region mode; opening another document clears both so a region never carries into a different project.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Explain the region-edit refusals in plain words: one at a time, the daily limit, a region or image that changed, a locked target and an unconfigured image service.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Integrate version 3 brush and arithmetic masks plus editable stack/clipped color adjustments with existing project history.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  */
 import { createProject, applyOperation, serializeProject } from './model.mjs';
 import { createHistory } from './history.mjs';
@@ -12,7 +14,7 @@ import { createHistory } from './history.mjs';
 export const $ = id => document.getElementById(id);
 export const state = { project: createProject(), history: null, selected: null, id: null, revision: 0,
   saved: '', permissions: {}, loading: true, saving: false, conflict: false, saveFailed: false, draw: false, images: new Map(),
-  region: null, regionMode: false };
+  region: null, regionMode: false, maskBrush: '', vectorMode: false, vectorDraft: [], arrangeIds: [] };
 state.history = createHistory(state.project);
 const listeners = new Set();
 export const dirty = () => serializeProject(state.project) !== state.saved;
@@ -28,6 +30,7 @@ const API_MESSAGES = {
   project_write_queue_full: 'Project storage is busy. Your edits are still here; please try saving again.',
   project_write_queue_timeout: 'Project storage is busy. Your edits are still here; please try saving again.',
   project_asset_limit_reached: 'Your image storage limit has been reached. Clean unused uploads in My projects.',
+  create_native_image_limit: 'This installation has a 32 MiB image storage limit. Clean unused uploads in My projects, then try again.',
   project_permission_denied: 'Your current role does not permit this action.',
   project_not_found: 'This project is unavailable to your account.',
   project_image_too_large: 'This image exceeds the 8 MB upload or normalized-image limit.',
@@ -56,7 +59,7 @@ export function openDocument(project, record = null) {
   state.project = state.history.reset(project); state.id = record?.id ?? null;
   state.revision = record?.revision ?? 0; state.saved = record ? serializeProject(state.project) : '';
   state.selected = null; state.conflict = false; state.saveFailed = false; state.draw = false;
-  state.region = null; state.regionMode = false; error(''); notify();
+  state.region = null; state.regionMode = false; state.maskBrush = ''; state.vectorMode = false; state.vectorDraft = []; state.arrangeIds = []; error(''); notify();
 }
 
 /** Keep event-handler failures visible without leaking a rejected promise. */

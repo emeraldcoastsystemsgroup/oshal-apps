@@ -1,11 +1,38 @@
 /**
  * CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Serialize owner-selected exports and explicit digest-bound publication against the completed job; read public tokens without owner or operator authority.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Hand each published token to the kernel's no-login link seam (ctx.publicLinks.publish, after the row commits, in the same request) and revoke the token an unpublish cleared (ctx.publicLinks.revoke). The native kernel serves the declared anonymous /api/vids-public/:token/video.mp4 read only for a token the package published for its owner, so every live link answered 404 "no such link". A refused publish rolls the row back to unpublished and answers 503 public_link_unavailable; a refused revoke after the row is cleared is logged, not fatal. The legacy core has no seam and serves the link itself: no seam, no call.
  */
 import { randomBytes } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import type { AppContext } from '@/app/composition/app-context';
+import { createChildLogger } from '@/shared/logger';
 import { runWithRequestIdentity } from '@/shared/services/database/request-identity';
+
+const logger = createChildLogger({ module: 'vids-artifacts' });
+
+/**
+ * @description The kernel's no-login link seam a process package receives on its context: the kernel keeps a
+ * digest of a published token against the admitted person and later runs the declared anonymous read over that
+ * person's data. Both calls reject under read admission, for a malformed token and for somebody else's token.
+ */
+export interface PublicLinkSeam {
+  publish(token: string): Promise<unknown>;
+  revoke(token: string): Promise<unknown>;
+}
+/** @description The package context, with the seam the native kernel adds and the legacy core lacks. */
+export type ArtifactContext = AppContext & { publicLinks?: Partial<PublicLinkSeam> | null };
+
+/**
+ * @description The no-login link seam when the installation offers one. The legacy core has none: it serves
+ * /api/vids-public itself from the row, so there is nothing to hand over.
+ * @param ctx - The package context.
+ * @returns The seam, or null when this installation serves the link from the row alone.
+ */
+export function publicLinkSeam(ctx: ArtifactContext): PublicLinkSeam | null {
+  const seam = ctx.publicLinks;
+  return seam && typeof seam.publish === 'function' && typeof seam.revoke === 'function' ? (seam as PublicLinkSeam) : null;
+}
 
 export class ArtifactRefusal extends Error {
   constructor(readonly status: number, readonly code: string) { super(code); }
@@ -57,26 +84,72 @@ export async function saveArtifact(ctx: AppContext, owner: string, job: string, 
   });
 }
 
-export async function publishArtifact(ctx: AppContext, owner: string, job: string, sha: string): Promise<ArtifactRow> {
-  return withJob(ctx, owner, job, async (client) => {
+/**
+ * @description Publish the owner's reviewed export: mint the row's token, commit it, then hand that exact token to
+ * the kernel's link seam so the declared anonymous read serves it. A token the row already carries is handed over
+ * again (one link, not two), which also repairs an export published before the package handed tokens over.
+ * @param ctx - The package context, with the seam when the native kernel supplies one.
+ * @param owner - The admitted owner.
+ * @param job - The finished job.
+ * @param sha - The digest the owner reviewed; it must still match the row.
+ * @returns The published row, whose token the kernel (or the legacy core itself) now serves.
+ * @throws ArtifactRefusal 503 public_link_unavailable when the kernel refused the token: the row is unpublished again.
+ */
+export async function publishArtifact(ctx: ArtifactContext, owner: string, job: string, sha: string): Promise<ArtifactRow> {
+  const row = await withJob(ctx, owner, job, async (client) => {
     const status = (await client.query('SELECT status FROM vids_jobs WHERE job_id=$1 AND user_sub=$2', [job, owner])).rows[0]?.status;
     if (status !== 'done') throw new ArtifactRefusal(409, 'finished_job_required');
-    const row = (await client.query('SELECT * FROM vids_artifacts WHERE job_id=$1 AND owner_sub=$2', [job, owner])).rows[0] as ArtifactRow | undefined;
-    if (!row) throw new ArtifactRefusal(409, 'finished_export_required');
-    if (row.sha256 !== sha) throw new ArtifactRefusal(409, 'export_changed_review_again');
-    if (row.public_token) return row;
+    const current = (await client.query('SELECT * FROM vids_artifacts WHERE job_id=$1 AND owner_sub=$2', [job, owner])).rows[0] as ArtifactRow | undefined;
+    if (!current) throw new ArtifactRefusal(409, 'finished_export_required');
+    if (current.sha256 !== sha) throw new ArtifactRefusal(409, 'export_changed_review_again');
+    if (current.public_token) return current;
     return (await client.query(`UPDATE vids_artifacts SET public_token=$3,published_at=now()
-      WHERE job_id=$1 AND owner_sub=$2 RETURNING *`, [job, owner, randomBytes(32).toString('hex')])).rows[0];
+      WHERE job_id=$1 AND owner_sub=$2 RETURNING *`, [job, owner, randomBytes(32).toString('hex')])).rows[0] as ArtifactRow;
   });
+  const seam = publicLinkSeam(ctx);
+  if (!seam || !row.public_token) return row;
+  try { await seam.publish(row.public_token); return row; }
+  catch (error) {
+    logger.error({ err: error, jobId: job }, 'Vids public link refused by the kernel; unpublishing the export again');
+    await rollBackPublish(ctx, owner, job, row.public_token);
+    throw new ArtifactRefusal(503, 'public_link_unavailable');
+  }
 }
 
-export async function unpublishArtifact(ctx: AppContext, owner: string, job: string): Promise<ArtifactRow> {
-  return withJob(ctx, owner, job, async (client) => {
-    const row = (await client.query(`UPDATE vids_artifacts SET public_token=NULL,published_at=NULL
-      WHERE job_id=$1 AND owner_sub=$2 RETURNING *`, [job, owner])).rows[0];
-    if (!row) throw new ArtifactRefusal(404, 'export_not_found');
-    return row;
+/** Restore the row the kernel will never serve to unpublished; only the token this request minted is cleared. */
+async function rollBackPublish(ctx: ArtifactContext, owner: string, job: string, token: string): Promise<void> {
+  try {
+    await ctx.pool.query(`UPDATE vids_artifacts SET public_token=NULL,published_at=NULL
+      WHERE job_id=$1 AND owner_sub=$2 AND public_token=$3`, [job, owner, token]);
+  } catch (error) {
+    logger.error({ err: error, jobId: job }, 'Vids export stayed published after the kernel refused its link');
+  }
+}
+
+/**
+ * @description Clear the owner's public token, then withdraw that token at the kernel's link seam. The row is
+ * cleared first: once it commits no read serves the bytes on either installation, so a refused withdrawal is
+ * logged rather than failing the owner's revoke.
+ * @param ctx - The package context, with the seam when the native kernel supplies one.
+ * @param owner - The admitted owner.
+ * @param job - The job whose export is revoked.
+ * @returns The unpublished row.
+ */
+export async function unpublishArtifact(ctx: ArtifactContext, owner: string, job: string): Promise<ArtifactRow> {
+  let cleared: string | null = null;
+  const row = await withJob(ctx, owner, job, async (client) => {
+    const before = (await client.query('SELECT public_token FROM vids_artifacts WHERE job_id=$1 AND owner_sub=$2', [job, owner])).rows[0];
+    if (!before) throw new ArtifactRefusal(404, 'export_not_found');
+    cleared = before.public_token ?? null;
+    return (await client.query(`UPDATE vids_artifacts SET public_token=NULL,published_at=NULL
+      WHERE job_id=$1 AND owner_sub=$2 RETURNING *`, [job, owner])).rows[0] as ArtifactRow;
   });
+  const seam = publicLinkSeam(ctx);
+  if (seam && cleared) {
+    try { await seam.revoke(cleared); }
+    catch (error) { logger.error({ err: error, jobId: job }, 'Vids public link withdrawal refused by the kernel; the export is already unpublished'); }
+  }
+  return row;
 }
 
 /** Remove only an explicitly confirmed private export; a published export must first be revoked. */

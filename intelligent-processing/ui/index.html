@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intelligent Processing</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  SEQ | AUTHOR                                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com   | The queue screen on the native kernel (served from this package's own assets at /apps/intelligent-processing/ui/index.html). The platform's /intelligent-processing page had no native route, so the cockpit rail item opened an empty 404. It lists the caller's tickets on this queue from GET /api/tickets, one row per alert with its count, newest status and a link that opens the newest ticket in the cockpit, and files a new alert with POST /api/v1/tickets (kind intelligent-processing), started now or held for a person. The grouping and filing rules are queue-model.js.
+-->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js"></script>
+<script src="queue-model.js"></script>
+<style>
+  body { margin: 0; background: var(--bg-primary, #0f141a); color: var(--text-primary, #dbe4ee); font: 13.5px system-ui, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px; box-sizing: border-box; }
+  h1 { margin: 0 0 4px; font-size: 18px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-secondary, #8fa1b3); margin: 20px 0 6px; }
+  .muted { color: var(--text-secondary, #8fa1b3); font-size: 12.5px; line-height: 1.5; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+  select, input, textarea, button { background: var(--bg-card, #151b23); border: 1px solid var(--border-color, #2a3644); color: inherit; border-radius: 8px; padding: 7px 10px; font: inherit; }
+  button { cursor: pointer; }
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border-color, #2a3644); vertical-align: top; overflow-wrap: anywhere; }
+  th { color: var(--text-secondary, #8fa1b3); font-weight: 500; font-size: 12px; }
+  a { color: var(--accent-primary, #4da3ff); }
+  form { display: grid; gap: 8px; max-width: 640px; }
+  textarea { min-height: 80px; }
+  .err { color: var(--status-error, #ff7a7a); }
+  .ok { color: var(--status-success, #4ade80); }
+  .empty { border: 1px dashed var(--border-color, #2a3644); border-radius: 10px; padding: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Intelligent Processing</h1>
+  <div class="muted">Alerts that need a root cause. Each alert you file becomes a ticket that runs Intelligent Operations' RCA pipeline (investigate, review, revise) and proposes a fix for a person to run. No alert source files these on this installation, so file them here with the alert text.</div>
+  <div class="bar">
+    <label class="muted">Show <select id="filter"><option value="open">Open alerts</option><option value="attention">Waiting on a person or failed</option><option value="all">All alerts</option></select></label>
+    <button id="refresh" type="button">Refresh</button>
+  </div>
+  <div id="status" class="muted" role="status" aria-live="polite">Reading the queue…</div>
+  <div id="rows"></div>
+  <h2>File an alert</h2>
+  <form id="file-form">
+    <input id="alert-title" maxlength="200" required placeholder="What fired, e.g. oshal-api 5xx rate above 2%" aria-label="Alert title">
+    <textarea id="alert-text" maxlength="8000" placeholder="The alert text: labels, values, when it started" aria-label="Alert text"></textarea>
+    <label class="muted"><input id="alert-start" type="checkbox" checked> Start the investigation now (otherwise it waits in the queue for a person)</label>
+    <button type="submit">File the alert</button>
+    <div id="file-result" class="muted" role="status"></div>
+  </form>
+</div>
+<script>
+(function () {
+  'use strict';
+  var Q = window.IntelligentProcessingQueue;
+  var $ = function (id) { return document.getElementById(id); };
+  var tickets = [];
+  function esc(text) {
+    return String(text == null ? '' : text).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function say(text, error) { var s = $('status'); s.textContent = text; s.className = error ? 'err' : 'muted'; }
+  function when(ms) { return ms > 0 ? new Date(ms).toLocaleString() : ''; }
+  function render() {
+    var list = Q.rows(tickets, $('filter').value);
+    if (!list.length) {
+      $('rows').innerHTML = '<div class="empty muted">No alert on this queue matches. File one below.</div>';
+      return;
+    }
+    $('rows').innerHTML = '<div class="table-scroll"><table><thead><tr><th>Alert</th><th>Tickets</th><th>Newest status</th><th>Newest filed</th><th></th></tr></thead><tbody>' +
+      list.map(function (row) {
+        var link = row.ticketId ? '<a target="_top" href="/cockpit/today?ticket=' + encodeURIComponent(row.ticketId) + '">Open</a>' : '';
+        return '<tr><td><b>' + esc(row.title) + '</b></td><td>' + row.count + (row.open ? ' (' + row.open + ' open)' : '') + '</td><td>' +
+          esc(row.status.replace(/_/g, ' ')) + '</td><td>' + esc(when(row.latest)) + '</td><td>' + link + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+  function load() {
+    say('Reading the queue…');
+    fetch('/api/tickets', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
+      .then(function (r) {
+        if (!r.ok) { say(r.status === 401 ? 'You are not signed in (HTTP 401).' : 'The queue could not be read (HTTP ' + r.status + ').', true); return null; }
+        return r.json();
+      })
+      .then(function (body) {
+        if (!body) return;
+        tickets = Array.isArray(body.tickets) ? body.tickets : [];
+        var mine = tickets.filter(function (t) { return (t.kind || t.ticketType) === Q.QUEUE; });
+        say(mine.length + ' ticket' + (mine.length === 1 ? '' : 's') + ' on this queue.');
+        render();
+      })
+      .catch(function () { say('The queue could not be reached (network failure).', true); });
+  }
+  $('file-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    var body = Q.filing($('alert-title').value, $('alert-text').value, $('alert-start').checked);
+    var out = $('file-result');
+    if (!body) return;
+    out.className = 'muted'; out.textContent = 'Filing…';
+    fetch('/api/v1/tickets', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (b) {
+          if (!r.ok) { out.className = 'err'; out.textContent = 'Not filed (HTTP ' + r.status + ')' + (b.detail ? ': ' + b.detail : '') + '.'; return; }
+          out.className = 'ok'; out.textContent = body.start ? 'Filed, and the investigation started.' : 'Filed. It waits in the queue for a person.';
+          $('alert-title').value = ''; $('alert-text').value = ''; load();
+        });
+      })
+      .catch(function () { out.className = 'err'; out.textContent = 'Not filed (network failure).'; });
+  });
+  $('filter').addEventListener('change', render);
+  $('refresh').addEventListener('click', load);
+  load();
+})();
+</script>
+</body>
+</html>

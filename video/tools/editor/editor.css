@@ -58,3 +58,13 @@ progress { width: 100%; }
   .workspace { grid-template-columns: minmax(0, 1fr); grid-template-areas: "preview" "timeline" "media" "inspector" "export"; padding: .6rem; }
   .title-form { grid-template-columns: minmax(0, 1fr); }
 }
+
+.multitrack{grid-column:1/-1}.multi-track{padding:10px;margin:8px 0;border:1px solid var(--border-color);border-radius:8px}.multi-track h3{margin:0 0 8px}.multi-track>button{margin-right:6px}.multi-clips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.multi-clips [aria-pressed=true]{outline:2px solid var(--accent-primary)}#multiWaveform{display:block;max-width:100%;height:80px}.multitrack fieldset{min-width:0}.multitrack .row{flex-wrap:wrap}.multitrack .row label{min-width:100px;max-width:220px}.multitrack .row input,.multitrack .row select{max-width:100%}
+
+.multi-clips{position:relative;min-height:56px;display:block;overflow:hidden}.multi-clips button{position:absolute;top:4px;min-width:20px;height:42px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.multi-clips button:focus{z-index:2}
+
+#motionImportPanel {margin: 1rem 0;}
+#motionImportForm {display:grid;gap:.7rem;min-width:0;}
+#motionImportForm label {display:grid;gap:.25rem;min-width:0;}
+#motionImportForm select {max-width:100%;width:100%;min-width:0;}
+#motionSources a {overflow-wrap:anywhere;}

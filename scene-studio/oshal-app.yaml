@@ -28,6 +28,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1 (from the first live test): the director's persona declares its tool authorizations (install seeded none, so every tool call was refused); create_scene refuses an existing scene instead of letting godot-mcp replace it; the studio's godot-mcp panel opens on add_node with per-tool examples, reports an outcome only after refreshing, and marks an older preview. The engine tree changed, so the engine build hash changes: re-run engine/install-engine.sh after updating.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: the director's 22 tools run in-process as package tools (executor builtin/package) instead of loopback HTTP calls that the package's oidc mount refused; an ADR-149 catalog (authorization.yaml: app.open, scene.read, scene.edit, scene.run, scene.export; one creator role) binds every route, tool and the director. Adopting a catalog over the app-admin fallback is a breaking catalog change: the install refuses with authorization_catalog_migration_required until an administrator approves the review, the migration removes the fallback @app-admin grant, and a person then needs the creator role. The director runs on its own bot node (bots[].container: scene-studio-bot, port 5000; the core compose service scene-studio-bot, profile scene-studio-node), where its turns are protected direct turns that use these brokered package tools. A protected node turn runs on the generic protected prompt, so the director's working rules (the Godot 4.7 .tscn guide, the Blender 5.1 API notes, read-before-you-claim) ride in the tools' usage text, which the node's tool bridge forwards to the model as description plus usage, up to 1024 characters per tool. Input schemas stay open: core passes tool input raw and readToolInput closes it server-side. Engine tree unchanged (no engine reinstall).
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.2.1: the director no longer declares its own node. Core's shared concierge node (concierge-bot, profile concierge-node) serves every inline app bot for a caller whose brain is a CLI login (the operator's Antigravity), so `container: scene-studio-bot` and `port` are dropped and the core scene-studio-bot service folds into it (the oshal_bot pool stays at 40 nodes x 3). Other callers keep the inline hosted path. Turns stay protected direct turns over the same package tools; the persona now rides in the controller-signed dispatch.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Tool usage only (no version, catalog or engine change): scene-get-project returns the live engine status, so scene-capabilities is read only when it reports the engine disconnected or an upstream schema is needed (a turn has six tool calls); a project is created only when asked; a scene is read before it is edited; meshes and materials stay BoxMesh/StandardMaterial3D sub_resources inside the .tscn.
 name: scene-studio
 suite: ai-creative   # ADR-097: primary catalog shelf — exactly one (games and models are creative deliverables)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -152,8 +153,10 @@ tools:
     defaultAuthMode: auto
     requiresApproval: false
     usageInstructions: >-
-      Read this FIRST in a conversation. If capabilities is null, tell the person the engine
-      container is down and quote installHint verbatim; do not retry edits until it is up.
+      Read only if scene-get-project shows the engine disconnected or for a tool schema. If
+      capabilities is null, say the engine is down and quote installHint verbatim. Create
+      projects only when asked; read a scene before editing; meshes: BoxMesh subresources
+      in the .tscn.
       Working rules: one logical change per call; read each reply (changed, delta, result.isError)
       before the next call, and when one fails say the error in one sentence and fix it. Never
       claim how a scene looks without scene-render-preview, and never invent a file, node or object
@@ -188,7 +191,7 @@ tools:
       required: [projectId]
     defaultAuthMode: auto
     requiresApproval: false
-    usageInstructions: Quote file paths and revision numbers from this reply; never invent one.
+    usageInstructions: Quote file paths and revision numbers from this reply; never invent one. Its engine field is the engine's live status.
     routingTags: [godot, blender, project, read]
     tags: [scene-studio, package-tool]
 
@@ -207,7 +210,7 @@ tools:
       required: [title, kind]
     defaultAuthMode: auto
     requiresApproval: false
-    usageInstructions: The reply carries the new projectId; keep using it.
+    usageInstructions: Only when the person asks for a new project. The reply carries the new projectId; keep using it.
     routingTags: [godot, blender, create, project]
     tags: [scene-studio, package-tool]
 

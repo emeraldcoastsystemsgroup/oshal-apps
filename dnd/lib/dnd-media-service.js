@@ -10,6 +10,8 @@
  * 2026-07-21 21:59:39 | roger.murphy@emeraldcoastsystemsgroup.com   | Prefer OpenAI Marin, safely fall back to Gemini Kore, report the actual natural narrator, and expire fallback audio so the primary can recover.
  * 2026-07-21 23:53:25 | roger.murphy@emeraldcoastsystemsgroup.com   | Add billed Google Cloud Chirp 3 HD narration ahead of quota-limited Gemini so a long game keeps a natural voice.
  * 2026-07-23 00:01:42 | roger.murphy@emeraldcoastsystemsgroup.com   | Deduplicate story-event illustrations across players and reconnects while returning completed art directly to the requesting table.
+ * 2026-10-12 05:10:00 | maintainer@emeraldcoastsystemsgroup.com   | K4: the seat check and the cutaway directory (mkdir under CLINE_WORKSPACE_ROOT or ./workspace-shared) ran outside the fail-soft path, so an unwritable workspace or a failed seat lookup threw up to the route as a 500 'server error' at quest start. Both now answer {ok:false, soft:true} with a plain message, and every cutaway failure is journaled through the AppContext logger or the framework logger when the context has none (the native kernel's context carries no logger). Raw error text no longer reaches the person.
+ * 2026-10-12 09:50:00 | maintainer@emeraldcoastsystemsgroup.com   | Native runtime: the cutaway directory fell back to <cwd>/workspace-shared when CLINE_WORKSPACE_ROOT was unset; the native package's cwd is the read-only /package, so every quest start journaled ENOENT mkdir '/package/workspace-shared/dnd-cutaways/...'. The fallback is now the process's temporary directory (os.tmpdir(), the sandbox's writable /tmp), never the package folder. An image provider that reports itself not configured (the native runtime's, configured:false) answers the plain 'not available on this swarm' before any directory is made, instead of reaching a blocked render.
  * 2026-07-23 00:41:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Direct Cedar as a slower, grave folk storyteller while preserving natural server-only failover.
  * 2026-07-23 02:35:01 | roger.murphy@emeraldcoastsystemsgroup.com   | Make the configured gravelly Algenib narrator primary and remove the unwanted bright Kore voice from every fallback.
  */
@@ -18,6 +20,7 @@
 
 const crypto = require('crypto');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { CharacterImportError } = require('./character-import');
 
@@ -205,9 +208,20 @@ async function synthesizeShared(deps, cache, pending, body) {
   return task;
 }
 
+/**
+ * @description Where cutaways are written: the operator's CLINE_WORKSPACE_ROOT, else the process's temporary directory.
+ * Never the working directory: under the native runtime that is the read-only package folder.
+ * @param {object} [env] - Process environment.
+ * @returns {string} Absolute base directory.
+ */
+function cutawayRoot(env = process.env) {
+  const configured = String(env.CLINE_WORKSPACE_ROOT || '').trim();
+  return configured ? path.resolve(configured) : path.join(os.tmpdir(), 'workspace-shared');
+}
+
 /** @description Resolve and create the campaign-scoped cutaway directory. */
 function cutawayDir(campaignId) {
-  const base = process.env.CLINE_WORKSPACE_ROOT || path.resolve(process.cwd(), 'workspace-shared');
+  const base = cutawayRoot();
   const safeId = String(campaignId || '').replace(/[^a-f0-9-]/gi, '');
   const directory = path.join(base, 'dnd-cutaways', safeId);
   fs.mkdirSync(directory, { recursive: true });
@@ -241,8 +255,7 @@ function cutawayIdentity(body) {
 }
 
 /** @description Render, store, archive, and cost one new cinematic cutaway. */
-async function createCutaway(deps, framework, sub, body, id, file) {
-  const provider = await framework.resolve();
+async function createCutaway(deps, framework, provider, sub, body, id, file) {
   const scene = String(body.prompt || '').slice(0, 700);
   const prompt = `Cinematic dark-fantasy illustration, painterly, dramatic torchlight, no text, no UI. Scene: ${scene}`;
   const meta = await renderCutaway(provider, prompt);
@@ -253,29 +266,67 @@ async function createCutaway(deps, framework, sub, body, id, file) {
   return { ok: true, url, eventKey: String(body.eventKey || '') || null };
 }
 
+/**
+ * @description The logger cutaway failures are journaled through: AppContext's when it supplied one,
+ * otherwise the framework logger (the native kernel's context carries none), otherwise nothing.
+ * @param {object} deps - Media dependencies.
+ * @returns {object|null} A logger with error(), or null.
+ */
+function mediaLogger(deps) {
+  if (deps.logger && typeof deps.logger.error === 'function') return deps.logger;
+  try {
+    const framework = require('@/shared/logger');
+    return framework.createChildLogger({ module: 'dnd-media' });
+  } catch (_error) {
+    return null;
+  }
+}
+
+/** @description Journal one fail-soft cutaway failure with its stage; never throws. */
+function logCutawayFailure(deps, stage, error, campaignId) {
+  const logger = mediaLogger(deps);
+  if (!logger) return;
+  try { logger.error({ err: error, code: error && error.code, stage, campaignId }, 'D&D cutaway failed (answered fail-soft)'); } catch (_error) { /* a logger failure never changes the answer */ }
+}
+
+/** @description The seat check, the illustrator and the campaign's art directory; any failure is fail-soft. */
+async function prepareCutaway(deps, sub, body) {
+  try {
+    if (!(await deps.campaign.access(sub, body.campaignId))) return { answer: { ok: false, error: 'No seat at this table.' } };
+    const framework = deps.imageFramework || imageFramework();
+    if (!framework.resolve) return { answer: { ok: false, soft: true, error: 'Cutaway art is not available on this swarm.' } };
+    const provider = await framework.resolve();
+    if (!provider || provider.configured === false) return { answer: { ok: false, soft: true, error: 'Cutaway art is not available on this swarm.' } };
+    const id = cutawayIdentity(body);
+    return { framework, provider, id, file: path.join(cutawayDir(body.campaignId), `${id}.png`) };
+  } catch (error) {
+    logCutawayFailure(deps, 'prepare', error, body && body.campaignId);
+    return { answer: { ok: false, soft: true, error: 'Cutaway art is not available right now.' } };
+  }
+}
+
 /** @description Generate and archive a fail-soft cinematic story cutaway. */
 async function generateCutaway(deps, sub, body) {
-  if (!(await deps.campaign.access(sub, body.campaignId))) return { ok: false, error: 'No seat at this table.' };
-  const framework = deps.imageFramework || imageFramework();
-  if (!framework.resolve) return { ok: false, soft: true, error: 'Cutaway art is not available on this swarm.' };
-  const id = cutawayIdentity(body), file = path.join(cutawayDir(body.campaignId), `${id}.png`);
+  const prepared = await prepareCutaway(deps, sub, body || {});
+  if (prepared.answer) return prepared.answer;
+  const { framework, provider, id, file } = prepared;
   const url = `/api/dnd/cutaway/${body.campaignId}/${id}.png`;
   if (fs.existsSync(file)) return { ok: true, url, deduplicated: true, eventKey: String(body.eventKey || '') || null };
   if (deps.pendingCutaways.has(id)) {
     return deps.pendingCutaways.get(id).then((result) => ({ ...result, deduplicated: true }));
   }
-  const task = createCutaway(deps, framework, sub, body, id, file)
+  const task = createCutaway(deps, framework, provider, sub, body, id, file)
     .catch((error) => {
-      const detail = String((error && error.message) || error).slice(0, 120);
-      return { ok: false, soft: true, error: `The illustrator is resting (${detail})` };
+      logCutawayFailure(deps, 'render', error, body.campaignId);
+      return { ok: false, soft: true, error: 'The illustrator is resting.' };
     })
     .finally(() => deps.pendingCutaways.delete(id));
   deps.pendingCutaways.set(id, task);
   try {
     return await task;
   } catch (error) {
-    const detail = String((error && error.message) || error).slice(0, 120);
-    return { ok: false, soft: true, error: `The illustrator is resting (${detail})` };
+    logCutawayFailure(deps, 'render', error, body.campaignId);
+    return { ok: false, soft: true, error: 'The illustrator is resting.' };
   }
 }
 
@@ -295,4 +346,4 @@ function createMediaService(deps) {
   };
 }
 
-module.exports = { createMediaService, _test: { cutawayIdentity } };
+module.exports = { createMediaService, _test: { cutawayIdentity, cutawayRoot } };

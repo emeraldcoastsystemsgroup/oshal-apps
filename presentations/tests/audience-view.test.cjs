@@ -191,8 +191,8 @@ test('under an audience view the starters boot, the relay and the connected acti
   assert.match(gate[0], /Promise\.all\(\[themesReady, brandReady\]\)\.then\(applyBrand\);/);
   assert.equal([...html.matchAll(/loadStarters\(\)(?!\s*\{)/g)].length, 1, 'the starters are loaded only from the gated block');
   const modules = [...html.matchAll(/<script type="module">([\s\S]*?)<\/script>/g)].map((m) => m[1]);
-  assert.equal(modules.length, 2, 'the relay module and the hand-off module');
-  for (const call of ['.attach()', 'receiveHandoff(', 'mountConnectedActions(', 'document.body.append(']) {
+  assert.equal(modules.length, 3, 'relay, hand-off and gated workspace modules');
+  for (const call of ['.attach()', 'receiveHandoff(', 'mountConnectedActions(', 'document.body.append(', 'const slides = createSlideWorkspace(', 'window.officeRefresh();']) {
     const owner = modules.find((m) => m.includes(call));
     assert.ok(owner, call + ' is made in a module');
     const at = owner.lastIndexOf(call);

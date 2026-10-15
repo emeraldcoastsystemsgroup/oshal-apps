@@ -18,6 +18,10 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial implementation — GET / (surface), GET /lanes (caller-scoped roster), job CRUD, POST /jobs/:id/run (202, single-flighted), GET /jobs/:id/report (the deterministic cost/quality table + recommendation), GET /jobs/:id/runs, GET /runs/:runId/output/:agentId, and POST /jobs/:id/verdict (explicit opt-in narrative on this app's analyst bot — never automatic, because it spends).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | GET /lanes returns the registry's availability marker beside the roster (laneAvailability), so the native runtime's empty roster says why it is empty instead of answering 503.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | PATCH /jobs/:id edits the caller's own job in place (same id, runs kept; another person's or an unknown id is 404). The console's Save could only POST, so editing a selected job created a duplicate.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | PATCH /jobs/:id refuses (409, code spec-has-runs) to change the prompt, rubric or reference of a job that already has a run. A run does not record the spec it was graded on, and the report and verdict pair the newest run with the job's current spec, so an in-place edit made the old run's scores and recommendation read as a measurement of the new prompt. Name, quality bar, volume and lane edits still save in place; the console offers Save as new.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | GET /jobs/:id/report answers `stale` when the job's prompt, rubric or reference changed after the run started (the job's updated_at, which now moves only on such a change, is later than the run's start): jobs edited in place before the 409 guard kept showing the old run's scores and recommendation as current. PATCH tells the store whether the measured spec changed.
  *
  * @module bake-off-routes
  */
@@ -55,6 +59,9 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.SPEC_HAS_RUNS = void 0;
+exports.measuredSpecChanged = measuredSpecChanged;
+exports.staleRun = staleRun;
 exports.createBakeOffRoutes = createBakeOffRoutes;
 const express_1 = require("express");
 const fs = __importStar(require("fs"));
@@ -116,7 +123,64 @@ function handleLanes() {
         if (!sub)
             return;
         const lanes = (0, bake_off_engine_1.discoverLanes)(req);
-        res.json({ lanes, maxLanes: bake_off_scoring_1.BAKE_OFF_DEFAULTS.maxLanes, limits: bake_off_scoring_1.BAKE_OFF_LIMITS, defaults: bake_off_scoring_1.BAKE_OFF_DEFAULTS });
+        res.json({ lanes, maxLanes: bake_off_scoring_1.BAKE_OFF_DEFAULTS.maxLanes, limits: bake_off_scoring_1.BAKE_OFF_LIMITS, defaults: bake_off_scoring_1.BAKE_OFF_DEFAULTS, ...(0, bake_off_engine_1.laneAvailability)() });
+    });
+}
+/** The 409 code PATCH answers when an edit would change what an existing run measured. */
+exports.SPEC_HAS_RUNS = 'spec-has-runs';
+/**
+ * @description Whether an edit changes what a run grades: the prompt raced, the rubric and the reference.
+ *
+ * Name, quality bar, volume and lane choice are not measured by a run (the report applies the bar to
+ * the scores it recorded), so changing them leaves a run's evidence true.
+ *
+ * @param current - The stored job.
+ * @param next - The validated replacement spec.
+ * @returns True when the replacement grades differently from the stored job.
+ */
+function measuredSpecChanged(current, next) {
+    return current.prompt !== next.prompt
+        || (current.reference ?? '') !== (next.reference ?? '')
+        || JSON.stringify(current.rubric) !== JSON.stringify(next.rubric);
+}
+/**
+ * PATCH /jobs/:id — replace the caller's own job spec, keeping its id and run history. A body that
+ * names no lanes keeps the job's current lane selection rather than silently resetting it. A job that
+ * already has a run keeps its prompt, rubric and reference: its runs were graded on them and do not
+ * record them, so the report would present the old scores as a measurement of the new spec.
+ */
+function handleUpdate(pool) {
+    return guarded('PATCH /jobs/:id', async (req, res) => {
+        const sub = requireSub(req, res);
+        if (!sub)
+            return;
+        const jobId = String(req.params.id);
+        const current = await (0, bake_off_store_1.getJob)(pool, sub, jobId);
+        if (!current) {
+            res.status(404).json({ error: 'not found' });
+            return;
+        }
+        const input = { ...(req.body ?? {}) };
+        if (input.laneAgentIds === undefined)
+            input.laneAgentIds = current.laneAgentIds;
+        const parsed = (0, bake_off_scoring_1.validateJobSpec)(input);
+        if (!parsed.ok) {
+            res.status(400).json({ error: parsed.error });
+            return;
+        }
+        if (measuredSpecChanged(current, parsed.spec) && await (0, bake_off_store_1.getRun)(pool, sub, jobId, null)) {
+            res.status(409).json({
+                code: exports.SPEC_HAS_RUNS,
+                error: 'This job already has a run graded on its current prompt, rubric and reference. Save your changes as a new job so that run stays a true measurement.',
+            });
+            return;
+        }
+        const job = await (0, bake_off_store_1.updateJob)(pool, sub, jobId, parsed.spec, measuredSpecChanged(current, parsed.spec));
+        if (!job) {
+            res.status(404).json({ error: 'not found' });
+            return;
+        }
+        res.json({ job });
     });
 }
 /** GET /jobs + POST /jobs — the caller's own jobs. */
@@ -180,6 +244,24 @@ function handleRun(ctx, pool) {
         res.status(202).json({ runId, lanes: lanes.length });
     });
 }
+/**
+ * @description Whether a run measured an earlier version of its job. The job's updated_at moves only when its
+ * prompt, rubric or reference changes, so a job updated after the run started was graded on something else.
+ * @param job - The stored job.
+ * @param run - The run the report shows.
+ * @returns The stale marker, or null when the run measured the job as it is now.
+ */
+function staleRun(job, run) {
+    const edited = Date.parse(job.updatedAt);
+    const started = Date.parse(run.startedAt);
+    if (!Number.isFinite(edited) || !Number.isFinite(started) || edited <= started)
+        return null;
+    return {
+        editedAt: job.updatedAt,
+        runStartedAt: run.startedAt,
+        message: 'This job was edited after this run started, so these results may not measure its current prompt, rubric or reference. Run it again for current results.',
+    };
+}
 /** GET /jobs/:id/report — the deterministic table + recommendation for one run. */
 function handleReport(pool) {
     return guarded('GET /jobs/:id/report', async (req, res) => {
@@ -193,12 +275,13 @@ function handleReport(pool) {
         }
         const run = await (0, bake_off_store_1.getRun)(pool, sub, job.id, req.query.runId ? String(req.query.runId) : null);
         if (!run) {
-            res.json({ job, run: null, report: null });
+            res.json({ job, run: null, stale: null, report: null });
             return;
         }
         const rows = await (0, bake_off_store_1.listResults)(pool, sub, run.id, false);
         res.json({
             job, run,
+            stale: staleRun(job, run),
             report: (0, bake_off_scoring_1.buildReport)(rows, { qualityBar: job.qualityBar, monthlyVolume: job.monthlyVolume }),
             // Per-lane run tracing is the framework's, not this app's — deep-link rather than re-derive.
             traceHint: '/api/trace/',
@@ -312,6 +395,7 @@ function createBakeOffRoutes(ctx) {
     router.get('/lanes', handleLanes());
     router.get('/jobs', jobs.list);
     router.post('/jobs', jobs.create);
+    router.patch('/jobs/:id', handleUpdate(pool));
     router.delete('/jobs/:id', jobs.remove);
     router.post('/jobs/:id/run', handleRun(ctx, pool));
     router.get('/jobs/:id/report', handleReport(pool));

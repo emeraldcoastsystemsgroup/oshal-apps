@@ -45,7 +45,8 @@ class FakePresetService {
 const remembered = [];
 class FakeResponseService {
   async ensureSchema() {}
-  async record(sub, candidate) { remembered.push({ sub, candidate }); return { id: 'saved-1', ...candidate }; }
+  // The save completes on a later turn, as a real INSERT does, so a route that answers before awaiting it is caught.
+  async record(sub, candidate) { await new Promise((r) => setImmediate(r)); remembered.push({ sub, candidate }); return { id: 'saved-1', ...candidate }; }
   async list() { return []; }
   async get(sub, id) { return id === 'saved-1' ? { id, say: 'A saved line.', expression: 'happy', intensity: 0.5 } : null; }
   async setPinned() { return null; }
@@ -127,6 +128,8 @@ const engineFacade = {
   roomSlug,
   ROOM_TTL_MS,
   ROOM_MAX_IDLE_MS,
+  POLL_INTERVAL_MS: registry.POLL_INTERVAL_MS,
+  POLL_LIVE_MS: registry.POLL_LIVE_MS,
   PumpkinRoomRegistry: registry.PumpkinRoomRegistry,
   parsePumpkinReply: reply.parsePumpkinReply,
   PumpkinPresetService: FakePresetService,
@@ -147,6 +150,7 @@ function makeRes() {
     json(body) { res.body = body; res.headersSent = true; res.calls.push(['json', body]); return res; },
     send(body) { res.body = body; res.headersSent = true; res.calls.push(['send', body]); return res; },
     writeHead(...args) { res.headersSent = true; res.calls.push(['writeHead', ...args]); return res; },
+    flushHeaders() {},
     write(chunk, cb) { res.writes.push(String(chunk)); if (typeof cb === 'function') res.writeCallbacks.push(cb); return true; },
     end() { res.writableEnded = true; res.calls.push(['end']); return res; },
     on(event, fn) { res.listeners.set(event, [...(res.listeners.get(event) || []), fn]); return res; },
@@ -785,4 +789,103 @@ test('resolveSpeakTargets refuses rather than guessing', () => {
 test.after(() => {
   pumpkinRooms.stop();
   Module._load = origLoad;
+});
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// THE NATIVE BRIDGE TRANSPORT — its response buffers the whole body and has no writeHead, so the
+// projector's room link must not depend on a held-open SSE response there (it answered 500
+// "res.writeHead is not a function" on every try and the projector never connected).
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * The native bridge's response shape (oshal-kernel crates/host-process/bridge/http_response.js):
+ * an Express-like Writable that buffers until end and resolves once. It has status/json/send/set/
+ * type/end and Writable's write/on, and NO writeHead or flushHeaders. This is a scoped double of
+ * that boundary; its real companion is the live GET /api/pumpkin/stream + /rooms/poll check.
+ */
+const { Writable } = require('node:stream');
+class BridgeResponse extends Writable {
+  constructor() { super(); this.statusCode = 200; this.body = undefined; this.headersSent = false; this.headers = {}; }
+  status(code) { this.statusCode = code; return this; }
+  setHeader(name, value) { this.headers[String(name).toLowerCase()] = String(value); return this; }
+  set(name, value) { return this.setHeader(name, value); }
+  type(value) { return this.setHeader('content-type', value); }
+  json(data) { if (!this.headersSent) { this.headersSent = true; this.body = data; } return this; }
+  send(data) { return this.json(data); }
+  _write(_chunk, _enc, cb) { cb(); }
+}
+async function bridgeCall(route, req) {
+  const res = new BridgeResponse();
+  await HANDLERS.get(route)(req, res);
+  return res;
+}
+const signedIn = (sub, extra = {}) => makeReq({ oidc: { isAuthenticated: () => true, user: { sub } }, ...extra });
+
+test('on the native bridge, register names the poll transport and /stream refuses honestly instead of a 500', async () => {
+  const sub = `owner-${++subSeq}`;
+  const reg = await bridgeCall('POST /rooms/register', signedIn(sub, { body: { label: 'Front Porch' } }));
+  assert.equal(reg.statusCode, 200);
+  assert.equal(reg.body.transport, 'poll', 'a runtime that cannot hold a stream open must tell the projector to poll');
+  assert.ok(reg.body.pollMs >= 500 && reg.body.pollMs <= 5000);
+
+  const stream = await bridgeCall('GET /stream', signedIn(sub, { query: { room: reg.body.room } }));
+  assert.equal(stream.statusCode, 501, 'never 500 internal_error');
+  assert.deepEqual(stream.body, { error: 'stream_unavailable', transport: 'poll' });
+
+  const node = await call('POST /rooms/register', signedIn(sub, { body: { label: 'Front Porch' } }));
+  assert.equal(node.body.transport, 'sse', 'a streaming runtime keeps the SSE transport');
+});
+
+test('a polling projector receives remote and swarm pushes in order, and counts as a listener', async () => {
+  const sub = `owner-${++subSeq}`;
+  const { room, token } = (await bridgeCall('POST /rooms/register', signedIn(sub, { body: { label: 'Porch' } }))).body;
+  const first = await bridgeCall('GET /rooms/poll', signedIn(sub, { query: { room, client: 'screen-a' } }));
+  assert.equal(first.statusCode, 200);
+  assert.deepEqual(first.body.events, [], 'a new poller starts at the present, never replays old lines');
+  assert.equal(pumpkinRooms.list(sub)[0].listeners, 1);
+
+  const said = await bridgeCall('POST /rooms/say', signedIn(sub, { body: { room, token, text: 'Boo!' } }));
+  assert.equal(said.body.listeners, 1, '"spoken on 1 screen" is true for a polling screen');
+  const spoke = await bridgeCall('POST /speak', serviceReq(sub, { text: 'Trick or treat', mode: 'say' }));
+  assert.equal(spoke.statusCode, 200);
+  assert.equal(spoke.body.listeners, 1, 'the swarm door sees a polling projector as listening');
+
+  const next = await bridgeCall('GET /rooms/poll', signedIn(sub, { query: { room, client: 'screen-a', after: String(first.body.cursor) } }));
+  assert.deepEqual(next.body.events.map((e) => e.say), ['Boo!', 'Trick or treat']);
+  const again = await bridgeCall('GET /rooms/poll', signedIn(sub, { query: { room, client: 'screen-a', after: String(next.body.cursor) } }));
+  assert.deepEqual(again.body.events, [], 'a line is delivered once per cursor');
+});
+
+test('a poller that stopped polling is not counted, and an unknown room tells the projector to re-register', async () => {
+  const sub = `owner-${++subSeq}`;
+  await withFakeNow(1_000_000, async (advance) => {
+    const { room } = pumpkinRooms.register(sub, 'Yard');
+    pumpkinRooms.poll(sub, room, 'screen-b', null);
+    assert.equal(pumpkinRooms.list(sub)[0].listeners, 1);
+    advance(registry.POLL_LIVE_MS + 1);
+    pumpkinRooms.heartbeat(sub, room);
+    assert.equal(pumpkinRooms.list(sub)[0].listeners, 0, 'a dark screen is not "listening"');
+  });
+  const gone = await bridgeCall('GET /rooms/poll', signedIn(sub, { query: { room: 'ghost', client: 'x' } }));
+  assert.equal(gone.statusCode, 409);
+  assert.equal(gone.body.error, 'unknown_room');
+});
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// Sweep 8: after 'Ask the pumpkin' the Saved responses list said 'Nothing saved yet' although the line was saved,
+// because the save was fire-and-forget and the page re-read the list as soon as the reply arrived. Every door that
+// saves a spoken line must have saved it by the time it answers.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+test('each speaking door has saved the line before it answers', async () => {
+  const atReply = [];
+  const watch = (res) => { const json = res.json; res.json = (body) => { atReply.push(remembered.length); return json(body); }; return res; };
+  const callWatched = async (route, req) => { const res = watch(makeRes()); await HANDLERS.get(route)(req, res); return res; };
+
+  const r = liveRoom('Front Porch');
+  await callWatched('POST /chat', signedIn(r.sub, { body: { text: 'Say hi' } }));
+  await callWatched('POST /rooms/say', signedIn(r.sub, { body: { room: r.room, token: r.token, text: 'Boo!' } }));
+  await callWatched('POST /rooms/ask', signedIn(r.sub, { body: { room: r.room, token: r.token, text: 'Greet them' } }));
+  await callWatched('POST /speak', serviceReq(r.sub, { text: 'Happy Halloween!', mode: 'say' }));
+  assert.deepEqual(atReply, [1, 2, 3, 4], 'the playlist already holds each line when its reply is sent');
+  r.unsub();
 });

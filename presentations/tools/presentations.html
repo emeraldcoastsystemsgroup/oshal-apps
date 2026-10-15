@@ -8,6 +8,7 @@
 <!-- 2.11.1: the making bar uses the starter's own article (a Budget, an Invoice), not the kind's. -->
 <!-- 2.12.0: your brand from Create's brand kit: the nearest built-in look is badged (and picked when nothing else chose one), the brand name fills an empty cover byline, and AI drafts can use the brand voice. -->
 <!-- 2.13.0: "Your brand" is a real look: the server builds it from the kit (its exact colors and faces on the nearest look's layout), it leads both galleries and is picked when nothing else chose a look, and every render and send carries the kit so the file is drawn in it. -->
+<!-- unreleased | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: a failed generate left every generate button disabled until a reload (the error path returned before the re-enable); the buttons now come back on every way out, and a draft whose outline was cut off says so beside the saved file. -->
 <!-- 2.11.0: the studio speaks the purpose — a starter folds the setup away behind one "making" bar, every label uses the kind's words (sections / sheets / slides), the AI-draft prompt is the purpose's own. -->
 <!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
      Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
@@ -473,13 +474,16 @@
   }
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<link rel="stylesheet" href="/api/presentations/sections/assets/office-workspace.css" />
+<link rel="stylesheet" href="/api/presentations/sections/assets/slide-workspace.css" />
+<link rel="stylesheet" href="/api/presentations/sections/assets/sheet-workspace.css" />
 </head>
 <body>
   <!-- ══ The front door: a three-step visual walkthrough. Every path the operator asked for is a
        first-class entry: CLICK (artifact → look → shape), TALK (the Guide), UPLOAD (open a file),
        or one typed line AI drafts end-to-end. Esc / Skip drops to the studio; ✨ Walkthrough in
        the studio header brings it back. ══ -->
-  <div id="wiz" class="on" role="dialog" aria-modal="true" aria-label="AI Office guided start">
+  <div id="wiz" role="dialog" aria-modal="true" aria-label="AI Office guided start">
     <div class="wzBg" aria-hidden="true"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>
     <div class="wzTop">
       <div class="wzBrand">🏢 AI Office</div>
@@ -583,9 +587,12 @@
   <div class="top">
     <div>
       <h1>🏢 AI Office</h1>
-      <div class="sub">Type a topic — AI drafts a themed <b>deck</b>, <b>document</b> or <b>spreadsheet</b> you can edit in Office, Google Workspace or LibreOffice.</div>
+      <div class="sub">Edit your slides, document or workbook with an AI partner. Export to Office, Google Workspace or LibreOffice.</div>
     </div>
-    <button class="btn ghost" id="wzReopen" title="Restart the guided walkthrough">✨ Walkthrough</button>
+    <div class="office-top-actions"><label class="office-format-label">Format <select id="officeFormat" aria-label="Office format"><option value="pptx">Presentation</option><option value="docx">Document</option><option value="xlsx">Spreadsheet</option></select></label><button class="btn ghost" id="officeSetup" type="button">Look &amp; setup</button>
+    <button class="btn ghost" id="openBtn" type="button">Open file</button>
+    <button class="btn ghost" id="officePartner" type="button" aria-controls="officePartnerPane" aria-expanded="false">AI partner</button>
+    <button class="btn ghost" id="wzReopen" title="Restart the guided walkthrough">✨ Walkthrough</button></div>
   </div>
   <div class="split">
     <div class="pane left">
@@ -594,7 +601,7 @@
         <span class="mk" id="makingText"></span>
         <button class="btn ghost sm" id="makingChange" type="button">Change ▸</button>
       </div>
-      <details class="fold setup" id="setupFold" open>
+      <details class="fold setup" id="setupFold">
       <summary id="setupSummary">Setup — what you are making, the look, the shape ▸</summary>
       <div class="lbl">1 · What are you making?</div>
       <div class="kinds" id="kinds"></div>
@@ -612,17 +619,30 @@
         <div class="grow"><label>…or start from a topic (AI drafts the whole outline)</label>
           <input id="topic" placeholder="e.g. Our 2026 go-to-market for agentic automation" /></div>
         <button class="btn ghost" id="aiBtn">✨ AI draft</button>
-        <button class="btn ghost" id="openBtn" title="Open an existing .docx / .pptx / .xlsx — its content loads into the editor for AI edits, then regenerate in any format">📂 Open a file</button>
         <input type="file" id="openFile" accept=".docx,.pptx,.xlsx" style="display:none" />
       </div>
       <label class="brandVoice" id="brandVoiceRow" hidden><input type="checkbox" id="useBrandVoice" checked> AI drafts in your brand voice <span id="brandVoiceText"></span></label>
       </details>
 
-      <div class="lbl" id="outlineStep">4 · Title + outline</div>
+      <div class="bar office-file-actions" aria-label="File actions">
+        <button class="btn" id="genBtn">Generate .pptx ▸</button>
+        <span class="hint" id="altHint">also as</span>
+        <button class="btn ghost" id="genAlt1"></button>
+        <button class="btn ghost" id="genAlt2"></button>
+        <button class="btn ghost" id="emailBtn" title="Email the current outline as a rendered attachment — sent from your own mailbox, only when you click Send">✉ Email</button>
+        <button class="destchip" type="button" id="destChip" title="Where this file will be saved — click to change">📁 <span id="destText">Checking where this saves…</span></button>
+        <span class="hint" id="status"></span>
+      </div>
+      <div class="lbl" id="outlineStep">Presentation title</div>
       <input id="title" data-bridge-field="title" placeholder="Deck title (e.g. Q3 Strategy Review)" />
+      <div id="slideWorkspace" class="office-workspace"></div>
+      <div id="sheetWorkspace" class="office-workspace" hidden></div>
+      <div id="documentWorkspace" class="office-workspace" hidden></div>
+      <details class="office-source" id="officeSource"><summary>Outline and advanced content</summary>
       <label id="outlineLabel">Slides — one block each: first line = slide title, following lines = the body, blank line between slides</label>
       <textarea id="outline" data-bridge-region="outline" placeholder="Pick a shape above, or write your own…"></textarea>
 
+      </details>
       <details class="syn">
         <summary id="synSummary">Slide syntax + the 20 layouts ▸</summary>
         <div class="grid">
@@ -657,15 +677,6 @@
         </div>
       </details>
 
-      <div class="bar">
-        <button class="btn" id="genBtn">Generate .pptx ▸</button>
-        <span class="hint" id="altHint">also as</span>
-        <button class="btn ghost" id="genAlt1"></button>
-        <button class="btn ghost" id="genAlt2"></button>
-        <button class="btn ghost" id="emailBtn" title="Email the current outline as a rendered attachment — sent from your own mailbox, only when you click Send">✉ Email</button>
-        <button class="destchip" type="button" id="destChip" title="Where this file will be saved — click to change">📁 <span id="destText">Checking where this saves…</span></button>
-        <span class="hint" id="status"></span>
-      </div>
       <div class="bar" id="emailRow" style="display:none">
         <input id="emailTo" type="email" placeholder="recipient@example.com" style="flex:1;min-width:180px" />
         <input id="emailNote" type="text" placeholder="Optional message…" style="flex:2;min-width:200px" />
@@ -674,7 +685,8 @@
       </div>
       <div class="result" id="result"></div>
     </div>
-    <div class="pane right">
+    <div class="pane right" id="officePartnerPane">
+      <button class="btn ghost" id="officePartnerClose" type="button">Back to editor</button>
       <div class="tabs">
         <button class="tab sel" id="tabGuide" data-t="guide">💬 Guide</button>
         <button class="tab" id="tabPreview" data-t="preview">✏ Draft</button>
@@ -685,11 +697,14 @@
         <div id="pvHost"></div>
       </div>
 
+      <div class="office-assistant-heading">AI partner</div>
+      <div id="officeSelection" aria-live="polite">Whole draft</div>
       <div class="tabpane" id="paneGuide">
-        <div id="chat" class="chat"><div class="msg bot">Hi — I’m your AI Office guide. Tell me what you’re making and who it’s for, and I’ll build the outline with you — then generate it as a deck, document or spreadsheet. I can pick the look or tweak any slide directly. ✨</div></div>
+        <div id="chat" class="chat"><div class="msg bot">Select a slide, section or cell and tell me what to change. I can help write, organize and explain your work. Review my suggestions before applying them.</div></div>
+        <div id="guideProposal" hidden aria-live="polite"></div>
         <div class="chips" id="chatChips"></div>
         <div class="chatbar">
-          <textarea id="chatIn" rows="1" placeholder="e.g. A pitch for our agentic-automation platform to enterprise buyers"></textarea>
+          <textarea id="chatIn" rows="1" placeholder="Ask about your selected slide, section or cell…"></textarea>
           <button class="btn ghost" id="micChat" title="Dictate" aria-label="Dictate a message">🎤</button>
           <button class="btn" id="chatSend">Send</button>
         </div>
@@ -704,7 +719,8 @@
 <script>
 const $ = (id) => document.getElementById(id);
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-function when(iso){ try { return new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'}); } catch(e){ return ''; } }
+// A deck with no recorded save time shows no date (new Date(null) is the 1970 epoch, which read as 'Dec 31').
+function when(iso){ if (!iso) return ''; try { const d = new Date(iso); return isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined,{month:'short',day:'numeric'}); } catch(e){ return ''; } }
 
 // ── Artifact kinds (the "what are you making?" choice) ─────────────────────
 const KINDS = [
@@ -728,17 +744,18 @@ function renderKinds(){
   $('genAlt2').textContent = others[1].icon + ' .' + others[1].id; $('genAlt2').dataset.fmt = others[1].id;
   $('emailSend').textContent = 'Send .' + KIND + ' ✉';
 }
-function pickKind(id){ KIND = id; renderKinds(); if (SEL && SEL !== 'blank' && !templatesFor(KIND).some(t => t.id === SEL)) SEL = null; renderTemplates(); applyKindVocabulary(); pvKick(); }
+function pickKind(id){ if(window.officeFlushDraft && !window.officeFlushDraft()){$('officeFormat').value=KIND;return;} KIND = id; renderChatChips(); renderKinds(); if (SEL && SEL !== 'blank' && !templatesFor(KIND).some(t => t.id === SEL)) SEL = null; renderTemplates(); applyKindVocabulary(); pvKick(); }
 
 // ── The kind's own words. A resume is a document with SECTIONS, a budget is a workbook with SHEETS,
 // a pitch is a deck with SLIDES — the studio must never talk slides to someone writing a resume.
 const VOCAB = {
-  pptx: { thing:'deck', unit:'Slides', step:'4 · Title + outline', label:'Slides — one block each: first line = slide title, following lines = the body, blank line between slides', syntax:'Slide syntax + the 20 layouts ▸', title:'Deck title (e.g. Q3 Strategy Review)', empty:'Pick a shape above, or write your own…', prompt:'e.g. Our 2026 go-to-market for agentic automation', article:'a' },
-  docx: { thing:'Word document', unit:'Sections', step:'4 · Title + sections', label:'Sections — one block each: first line = the heading, following lines = the text, blank line between sections', syntax:'Document syntax ▸', title:'Document title (e.g. Resume)', empty:'Pick a shape above, or write the sections yourself…', prompt:'e.g. a resume for a senior architect moving into AI platform work', article:'a' },
-  xlsx: { thing:'Excel workbook', unit:'Sheets', step:'4 · Title + sheets', label:'Sheets — one block each: first line = the sheet name, then its rows — | a | b | for a table, Label: 120 for a value with a live total — blank line between sheets', syntax:'Workbook syntax ▸', title:'Workbook title (e.g. Monthly Budget)', empty:'Pick a shape above, or write the sheets yourself…', prompt:'e.g. a monthly household budget for a family of four', article:'an' },
+  pptx: { thing:'deck', unit:'Slides', step:'Presentation title', label:'Slides — one block each: first line = slide title, following lines = the body, blank line between slides', syntax:'Slide syntax + the 20 layouts ▸', title:'Deck title (e.g. Q3 Strategy Review)', empty:'Pick a shape above, or write your own…', prompt:'e.g. Our 2026 go-to-market for agentic automation', article:'a' },
+  docx: { thing:'Word document', unit:'Sections', step:'Document title', label:'Sections — one block each: first line = the heading, following lines = the text, blank line between sections', syntax:'Document syntax ▸', title:'Document title (e.g. Resume)', empty:'Pick a shape above, or write the sections yourself…', prompt:'e.g. a resume for a senior architect moving into AI platform work', article:'a' },
+  xlsx: { thing:'Excel workbook', unit:'Sheets', step:'Workbook title', label:'Sheets — one block each: first line = the sheet name, then its rows — | a | b | for a table, Label: 120 for a value with a live total — blank line between sheets', syntax:'Workbook syntax ▸', title:'Workbook title (e.g. Monthly Budget)', empty:'Pick a shape above, or write the sheets yourself…', prompt:'e.g. a monthly household budget for a family of four', article:'an' },
 };
 function applyKindVocabulary(){
   const v = VOCAB[KIND] || VOCAB.pptx;
+  $('officeFormat').value=KIND;
   $('outlineStep').textContent = v.step; $('outlineLabel').textContent = v.label; $('synSummary').textContent = v.syntax;
   $('title').placeholder = v.title; $('outline').placeholder = v.empty;
   const st = SEL && SEL !== 'blank' ? allTemplates().find(t => t.id === SEL) : null;
@@ -749,12 +766,18 @@ function enterFocus(starter){
   const v = VOCAB[starter.kind] || VOCAB.pptx;
   const t = THEMES.find(x => x.id === THEME);
   const an = /^[aeiou]/i.test(starter.name) ? 'an' : 'a';   // the starter's own article: a Budget, an Invoice
-  $('makingText').innerHTML = 'Making ' + an + ' <b>' + esc(starter.name) + '</b> — ' + esc(v.article === 'an' ? 'an ' : 'a ') + esc(v.thing) + (t ? ' in the <b>' + esc(t.name) + '</b> look' : '') + '. Fill in the ' + v.unit.toLowerCase() + '; the draft on the right updates as you type.';
+  $('makingText').innerHTML = 'Making ' + an + ' <b>' + esc(starter.name) + '</b> — ' + esc(v.article === 'an' ? 'an ' : 'a ') + esc(v.thing) + (t ? ' in the <b>' + esc(t.name) + '</b> look' : '') + '. Edit the ' + v.unit.toLowerCase() + ' below or ask your AI partner.';
   $('makingBar').hidden = false; $('setupFold').open = false; $('setupSummary').hidden = false;
   document.body.classList.add('focused');
   applyKindVocabulary();
 }
 function leaveFocus(){ $('makingBar').hidden = true; $('setupFold').open = true; document.body.classList.remove('focused'); }
+$('officeFormat').onchange=()=>pickKind($('officeFormat').value);
+$('officeSetup').onclick=()=>{ $('setupFold').open=true;$('setupFold').scrollIntoView({behavior:'smooth',block:'start'}); };
+function closeOfficePartner(){ document.body.classList.remove('office-chat-open');$('officePartner').setAttribute('aria-expanded','false');$('officePartner').focus(); }
+$('officePartner').onclick=()=>{ showTab('guide'); document.body.classList.add('office-chat-open');$('officePartner').setAttribute('aria-expanded','true');$('chatIn').focus(); };
+$('officePartnerClose').onclick=closeOfficePartner;
+document.addEventListener('keydown',event=>{ if(event.key==='Escape' && document.body.classList.contains('office-chat-open'))closeOfficePartner(); });
 $('makingChange').onclick = () => { leaveFocus(); openWiz(); };
 $('setupSummary').onclick = () => { setTimeout(() => { if ($('setupFold').open) $('makingBar').hidden = true; }, 0); };
 
@@ -994,6 +1017,7 @@ function renderTemplates(){
 /** Load a starter's shape into the editor. `applyTheme` = also take its suggested look (deep links
  *  and the Create front door do; the walkthrough does not — the person already picked a look). */
 function pickTemplate(id, applyTheme){
+  if(window.officeFlushDraft && !window.officeFlushDraft())return;
   const t = allTemplates().find(x => x.id === id); if (!t) return;
   if (t.kind !== '*' && t.kind !== KIND) pickKind(t.kind);
   SEL = id; renderTemplates();
@@ -1006,11 +1030,36 @@ $('clearTpl').onclick = () => { SEL = null; renderTemplates(); $('outline').valu
 
 /** Parse the outline textarea into [{title, content}]. */
 function parseOutline(text){
+  text = String(text || '');
+  // This is local UI source, not a layout directive sent to an Office renderer.
+  if (text.trimStart().startsWith('{')) {
+    let stored;
+    try { stored = JSON.parse(text); } catch (_) {}
+    if ((typeof stored?.format === 'string' && stored.format.startsWith('oshal-office-outline/')) || text.includes('"oshal-office-outline/')) {
+      const valid = stored && text.length <= 1048576 && Object.keys(stored).length === 2 &&
+        stored.format === 'oshal-office-outline/1' && Array.isArray(stored.sections) && stored.sections.length <= 100 &&
+        stored.sections.every(section => section && typeof section === 'object' && !Array.isArray(section) &&
+          Object.keys(section).length === 2 && typeof section.title === 'string' && section.title.trim() &&
+          section.title.length <= 200 && !/[\r\n]/.test(section.title) &&
+          typeof section.content === 'string' && section.content.length <= 262144);
+      if (typeof document !== 'undefined') document.getElementById('outline')?.setCustomValidity(valid ? '' : 'The structured document source is invalid. Restore its format, title and content fields before exporting.');
+      return valid ? stored.sections.map(section => ({title:section.title,content:section.content})) : [];
+    }
+  }
+  if (typeof document !== 'undefined') document.getElementById('outline')?.setCustomValidity('');
   return text.split(/\n\s*\n/).map(block => {
     const lines = block.split('\n').filter(l => l.trim());
     if (!lines.length) return null;
     return { title: lines[0].trim(), content: lines.slice(1).join('\n') };
   }).filter(Boolean);
+}
+/** One serializer: retain ordinary outline text when it round-trips exactly. */
+function serializeOfficeSections(sections){
+  const plain = sections.map(section => section.title + (section.content ? '\n' + section.content : '')).join('\n\n');
+  if (JSON.stringify(parseOutline(plain)) === JSON.stringify(sections)) return plain;
+  const stored = JSON.stringify({format:'oshal-office-outline/1',sections});
+  if (JSON.stringify(parseOutline(stored)) !== JSON.stringify(sections)) throw new Error('This draft exceeds the supported document source bounds (100 sections, 200-character headings, 256 KiB per section, 1 MiB total).');
+  return stored;
 }
 
 // ADR-043 item A: "My default" must not be a black box. Resolve it before Generate and
@@ -1066,7 +1115,7 @@ async function generate(body, label, fmt){
   try {
     const r = await fetch('/api/presentations/sections/' + fmt, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ...body, ...deckOpts() }) });
     const j = await r.json().catch(()=>null);
-    if (!r.ok || (j && j.error)){ res('Failed: '+esc((j&&j.error)||('HTTP '+r.status)), false); return; }
+    if (!r.ok || (j && j.error)){ res('Failed: '+esc((j&&j.error)||('HTTP '+r.status)), false); return; }  // the finally below turns the buttons back on
     if (j && j.ok){
       // The result is a FILE CARD, not a thin status line — the fat Download button is the
       // whole point of clicking Generate (operator: "I click generate xlsx… I can't see it").
@@ -1075,18 +1124,38 @@ async function generate(body, label, fmt){
       const what = fmt === 'docx' ? 'document' : fmt === 'xlsx' ? 'workbook' : (j.slides||'') + '-slide deck';
       const dl = j.downloadUrl ? `<a class="btn" href="${esc(j.downloadUrl)}" target="_top">⬇ Download .${fmt}</a>` : '';
       const op = j.url ? `<a class="btn ghost" href="${esc(j.url)}" target="_blank" rel="noopener">↗ Open in ${esc(where)}</a>` : '';
-      res('✓ Your '+what+(th?' in <b>'+esc(th.name)+'</b>':'')+' is saved to '+esc(where)+'.<br>'+dl+op, true);
+      fillDrafted(j);
+      const note = j.note ? '<br>'+esc(j.note) : '';
+      res('✓ Your '+what+(th?' in <b>'+esc(th.name)+'</b>':'')+' is saved to '+esc(where)+'.'+note+'<br>'+dl+op, true);
       showTab('decks'); loadDecks();
     } else { res('Generated, but unexpected response.', false); }
   } catch(e){ res('Error: '+e.message, false); }
-  ['genBtn','genAlt1','genAlt2','aiBtn'].forEach(id => $(id).disabled = false);
-  $('status').textContent = '';
+  finally {
+    // Every way out of a generate turns the buttons back on: a failed draft left them disabled until a reload (sweep 10).
+    ['genBtn','genAlt1','genAlt2','aiBtn'].forEach(id => $(id).disabled = false);
+    $('status').textContent = '';
+  }
+}
+
+/**
+ * After an AI draft, show the Title and Outline the file was built from (the server returns the outline it drafted).
+ * Without this both stayed empty, so the studio could not edit the draft and every connected action answered
+ * "select or enter the work first". Only fills what is empty: a person's own title is never overwritten.
+ * @param {object} j - The /sections answer.
+ */
+function fillDrafted(j){
+  if (!j || !Array.isArray(j.outline) || !j.outline.length) return;
+  const set = (id, value) => { const el = $(id); if (el && !el.value.trim()) { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); } };
+  set('title', String(j.title || ''));
+  set('outline', serializeOfficeSections(j.outline.map(sl => ({title:String(sl.title || '').trim(),content:String(sl.content || '')}))));
 }
 
 /** Shared click path for the format buttons — same outline, different projection. */
 function genAs(fmt){
+  if(window.officeFlushDraft && !window.officeFlushDraft())return;
   const title = $('title').value.trim() || 'Presentation';
   const sections = parseOutline($('outline').value || '');
+  if (!$('outline').checkValidity()){ res(esc($('outline').validationMessage), false); return; }
   const topic = $('topic').value.trim();
   if (!sections.length && !topic){ res('Pick a shape, write an outline, or enter a topic.', false); return; }
   const label = 'Rendering .' + fmt + '…';
@@ -1191,12 +1260,13 @@ function openFileView(d){
       <div class="fSub">${[t ? t.name : null, prov, d.slides ? d.slides + ' ' + kindName + 's' : null, when(d.createdAt)].filter(Boolean).join(' · ')}</div>
     </div></div>
     <div class="fActions">${dl}${op}
-      ${blocks.length ? '<button class="btn ghost" id="fEdit">✎ Edit &amp; regenerate</button>' : ''}
+      ${blocks.length && d.outlineComplete ? '<button class="btn ghost" id="fEdit">✎ Edit &amp; regenerate</button>' : '<span class="hint">Full editable source is unavailable for this older record. Download the file and use Open a file.</span>'}
       ${d.fileName ? '<button class="btn ghost" id="fDel" style="color:#e06c6c">🗑 Delete</button>' : ''}
     </div>${look}`;
   $('fBack').onclick = renderFileList;
   const fe = $('fEdit');
   if (fe) fe.onclick = () => {
+    if(window.officeFlushDraft && !window.officeFlushDraft())return;
     if (d.format && KINDS.some(k => k.id === d.format)) pickKind(d.format);
     const saved = savedLook(d.theme); if (saved) pickTheme(saved);
     $('title').value = d.title || '';
@@ -1229,7 +1299,7 @@ function showTab(t){
   for (const [tab, pane] of [['tabGuide','paneGuide'],['tabPreview','panePreview'],['tabDecks','paneDecks']]){
     const on = { tabGuide:'guide', tabPreview:'preview', tabDecks:'decks' }[tab] === t;
     $(tab).classList.toggle('sel', on);
-    $(pane).style.display = on ? (pane === 'paneGuide' ? 'flex' : 'block') : 'none';
+    $(pane).style.display = pane === 'paneGuide' ? 'flex' : (on ? 'block' : 'none');
   }
   if (t === 'decks') loadDecks();
   if (t === 'preview') renderPreview();
@@ -1295,7 +1365,7 @@ function renderPreview(){
 }
 function lum(hex){ const p=[0,2,4].map(i=>{const s=parseInt(hex.slice(i,i+2),16)/255; return s<=0.03928?s/12.92:Math.pow((s+0.055)/1.055,2.4);}); return 0.2126*p[0]+0.7152*p[1]+0.0722*p[2]; }
 let pvTimer = null;
-function pvKick(){ if ($('panePreview').style.display !== 'none'){ clearTimeout(pvTimer); pvTimer = setTimeout(renderPreview, 250); } }
+function pvKick(){ window.officeRefresh?.(); if ($('panePreview').style.display !== 'none'){ clearTimeout(pvTimer); pvTimer = setTimeout(renderPreview, 250); } }
 $('outline').addEventListener('input', pvKick);
 $('title').addEventListener('input', pvKick);
 
@@ -1307,6 +1377,7 @@ $('openFile').addEventListener('change', async () => {
   $('openFile').value = '';
 });
 async function importOfficeBlob(blob, name){
+  if(window.officeFlushDraft && !window.officeFlushDraft())return;
   $('openBtn').disabled = true; $('status').textContent = 'Reading ' + name + '…';
   try {
     const r = await fetch('/api/presentations/sections/import?name=' + encodeURIComponent(name), {
@@ -1316,7 +1387,7 @@ async function importOfficeBlob(blob, name){
     if (!r.ok || j.error){ res('Couldn’t open it: ' + esc(j.error || ('HTTP ' + r.status)), false); }
     else {
       if (j.title) $('title').value = j.title;
-      writeOutline((j.sections||[]).map(s => ({ title: s.title, bullets: String(s.content||'').split('\n').filter(Boolean) })));
+      writeOutline((j.sections||[]).map(s => ({ title: s.title, bullets: String(s.content||'').split('\n') })));
       if (j.format && KINDS.some(k => k.id === j.format)) pickKind(j.format);
       SEL = null; renderTemplates();
       res('✓ Opened <b>' + esc(name) + '</b> — ' + (j.sections||[]).length + ' sections loaded. Edit here or ask the Guide, preview it, then Generate in any format.', true);
@@ -1349,12 +1420,13 @@ function addMsg(role, text, skipHistory){
 /** Read the outline editor into [{title, bullets[]}] — the live state we send the bot. */
 function readEditorSlides(){
   return parseOutline($('outline').value || '').map(b => ({
-    title: b.title, bullets: String(b.content || '').split('\n').map(x => x.trim()).filter(Boolean),
+    title: b.title, bullets: String(b.content || '').split('\n'),
   }));
 }
 /** Write [{title, bullets[]}] back into the outline editor's block format. */
 function writeOutline(slides){
-  $('outline').value = (slides || []).map(s => [s.title || '', ...(s.bullets || [])].filter(Boolean).join('\n')).join('\n\n');
+  $('outline').value = serializeSlides(slides);
+  pvKick();
 }
 /** Translate one legacy Guide action into surface-bridge contract events (the framework's
  *  oshal-surface-bridge vocabulary): set_field/set_content are the generic superset of the old
@@ -1366,6 +1438,7 @@ function toBridgeEvents(a){
   if (a.op === 'set_title')    return [{ op: 'set_field', field: 'title', value: String(a.title ?? '') }];
   if (a.op === 'set_theme')    return [{ op: 'set_field', field: 'theme', value: String(a.theme ?? '') }];
   if (a.op === 'set_outline')  return [{ op: 'set_content', region: 'outline', content: serializeSlides(a.slides) }];
+  if (a.op === 'update_cell') return [{op:'custom',name:'update_cell',data:{index:a.index,cell:a.cell,value:a.value}}];
   if (a.op === 'add_slide')    return [{ op: 'custom', name: 'add_slide', data: { title: a.title, bullets: a.bullets || [] } }];
   if (a.op === 'update_slide') return [{ op: 'custom', name: 'update_slide', data: { index: a.index, title: a.title, bullets: a.bullets } }];
   if (a.op === 'set_field' || a.op === 'set_content' || a.op === 'custom') return [a];
@@ -1373,7 +1446,7 @@ function toBridgeEvents(a){
 }
 /** Serialize [{title,bullets[]}] into the outline editor's block format (writeOutline's text). */
 function serializeSlides(slides){
-  return (slides || []).map(s => [s.title || '', ...(s.bullets || [])].filter(Boolean).join('\n')).join('\n\n');
+  return serializeOfficeSections((slides || []).map(s => ({title:s.title || '',content:(s.bullets || []).join('\n')})));
 }
 /** Apply ONE contract event to the editor; return a short note of what changed, or null. */
 function applyBridgeEvent(ev){
@@ -1386,14 +1459,14 @@ function applyBridgeEvent(ev){
     $('outline').value = String(ev.content ?? '');
     return 'wrote ' + parseOutline($('outline').value).length + ' slides';
   }
+  if (ev.op === 'custom' && ev.name === 'update_cell') return window.officeCellEdit?.(ev.data || {}) || null;
   if (ev.op === 'custom' && ev.name === 'add_slide'){
     const d = ev.data || {}; const s = readEditorSlides();
     s.push({ title: d.title, bullets: d.bullets || [] }); writeOutline(s); return 'added a slide';
   }
   if (ev.op === 'custom' && ev.name === 'update_slide'){
     const d = ev.data || {}; const s = readEditorSlides(); const i = (d.index | 0) - 1;
-    if (i < 0) return null;
-    if (!s[i]) s[i] = { title: '', bullets: [] };
+    if (i < 0 || !s[i]) return null;
     if (d.title != null) s[i].title = d.title;
     if (d.bullets) s[i].bullets = d.bullets;
     writeOutline(s); return 'updated slide ' + d.index;
@@ -1428,18 +1501,21 @@ document.addEventListener('surface-bridge:custom', (e) => {
 });
 
 async function sendChat(){
-  const text = $('chatIn').value.trim(); if (!text) return;
+  if(window.officeFlushDraft && !window.officeFlushDraft())return;
+  const text = $('chatIn').value.trim(); if (!text || $('chatSend').disabled) return;
+  if (!window.officeProposalReview){ addMsg('bot', 'The editor is still loading. Please try again shortly.'); return; }
+  const baseline = window.officeDraftSnapshot();
   const hist = CHAT.slice(-6);
   $('chatIn').value = ''; addMsg('you', text);
   $('chatSend').disabled = true;
   const typing = addMsg('bot', '…', true);
   try {
     const r = await fetch('/api/presentations/sections/guide', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: text, title: $('title').value.trim(), slides: readEditorSlides(), theme: THEME, history: hist }) });
+      body: JSON.stringify({ message: text, title: $('title').value.trim(), slides: readEditorSlides(), theme: THEME, kind: KIND, selection: window.officeSelection?.(), history: hist }) });
     const j = await r.json().catch(() => ({}));
     typing.remove();
     if (!r.ok || j.error){ addMsg('bot', '⚠ ' + ((j && j.error) || ('HTTP ' + r.status))); }
-    else { addMsg('bot', j.reply || '(no reply)'); const note = applyActions(j.actions); if (note) addMsg('note', note, true); }
+    else { addMsg('bot', j.reply || '(no reply)'); window.officeProposalReview.propose(j.actions, baseline); }
   } catch(e){ typing.remove(); addMsg('bot', '⚠ ' + e.message); }
   $('chatSend').disabled = false; $('chatIn').focus();
   renderChatChips();
@@ -1535,7 +1611,7 @@ function renderWizTpls(){
 function landOnPreview(){
   if (!window.matchMedia('(max-width: 640px)').matches) return;
   $('outline').blur();
-  $('panePreview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $(KIND === 'xlsx' ? 'sheetWorkspace' : KIND === 'docx' ? 'documentWorkspace' : 'slideWorkspace').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function closeWiz(remember){
   $('wiz').classList.remove('on');
@@ -1594,13 +1670,14 @@ function applyDeepLink(){
     res('✓ Started a <b>' + esc(starterT.name) + '</b> — fill in the outline, watch the themed preview, then Generate .' + esc(starterT.kind) + '.', true);
     return;
   }
+  if (p.get('workspace') === '1' && kindOk){ closeWiz(true); window.officeRefresh?.(); return; }
   if (kindOk && $('wiz').classList.contains('on')) wzStepGo(themeOk ? 3 : 2);
 }
 // ── Jump back in: the most recent files as one-tap resumes on the front door. Their outline
 // rides the list record (server-side), so resume loads the editor with NO file download.
 function renderWizRecent(decks){
   const host = $('wzRecent'); if (!host) return;
-  const recent = (decks || []).filter(d => Array.isArray(d.outline) && d.outline.length).slice(0, 3);
+  const recent = (decks || []).filter(d => d.outlineComplete && Array.isArray(d.outline) && d.outline.length).slice(0, 3);
   if (!recent.length){ host.classList.remove('on'); host.innerHTML = ''; return; }
   host.innerHTML = '<div class="wzRecH">Jump back in</div>' + recent.map((d, i) => {
     const icon = d.format === 'docx' ? '📄' : d.format === 'xlsx' ? '📈' : '📊';
@@ -1654,7 +1731,11 @@ attachMic('micChat', 'chatIn');
 function renderChatChips(){
   const host = $('chatChips'); if (!host) return;
   const has = readEditorSlides().length > 0;
-  const chips = has
+  const chips = KIND === 'xlsx'
+    ? (has ? ['Explain this cell', 'Suggest column headings', 'Add a summary sheet', 'Help structure this sheet'] : ['Draft a monthly budget', 'Build a project tracker', 'Interview me — one question at a time'])
+    : KIND === 'docx'
+    ? (has ? ['Tighten this section', 'Suggest a better heading', 'Add a conclusion', 'Review the tone'] : ['Draft a project report', 'Help write a proposal', 'Interview me — one question at a time'])
+    : has
     ? ['Punch up the wording', 'Tighten it to 5 slides', 'Add a timeline slide', 'Suggest a better look']
     : ['Draft a 6-slide pitch for my business', 'Build a project update', 'Interview me — one question at a time'];
   host.innerHTML = chips.map(c => `<button class="chip">${esc(c)}</button>`).join('');
@@ -1703,5 +1784,79 @@ document.body.append(element);
 void mountConnectedActions({ app:"presentations", element, contextForOffer:()=>{ const title=val('title'), notes=val('outline'); return title && notes ? {title,notes} : null; } });
 }
 </script>
+<script type="module">
+import {createSlideWorkspace} from '/api/presentations/sections/assets/slide-workspace.mjs';
+import {createSheetWorkspace,editSheetCell,readSheet} from '/api/presentations/sections/assets/sheet-workspace.mjs';
+import {createProposalReview,draftSnapshot} from '/api/presentations/sections/assets/office-assistant.mjs';
+if (!window.AppView || !AppView.active()) {
+const readSections = () => parseOutline($('outline').value || '');
+const writeSections = sections => { $('outline').value = serializeOfficeSections(sections); pvKick(); };
+const readDraft = () => ({kind:KIND,title:$('title').value,outline:$('outline').value,theme:THEME});
+const selectionChanged = () => {
+  const s = window.officeSelection();
+  $('officeSelection').textContent = s ? `${KIND === 'xlsx' ? 'Sheet' : KIND === 'docx' ? 'Section' : 'Slide'} ${s.index}: ${s.title}${s.cell ? ' · '+s.cell : ''}` : 'Whole draft';
+};
+const slides = createSlideWorkspace({host:$('slideWorkspace'),readSections,writeSections,getTheme:pvTheme,renderDraft:(section,index)=>slideCards([section],pvTheme(),'slide'),onChange:selectionChanged});
+const sheets = createSheetWorkspace({host:$('sheetWorkspace'),readSections,writeSections,onChange:selectionChanged});
+let documentIndex = 0;
+let documentStamp = '';
+let documentWriting = false;
+const documentUndo = [], documentRedo = [];
+function documentPublish(sections, nextIndex, remember = true){
+  const before = {sections:readSections(),index:documentIndex};
+  documentWriting = true;
+  try { writeSections(sections); } finally { documentWriting = false; }
+  if (remember) { documentUndo.push(before); if(documentUndo.length>100)documentUndo.shift(); documentRedo.length=0; }
+  documentIndex = nextIndex; documentStamp = JSON.stringify(readSections());
+  const undo=$('documentUndo'),redo=$('documentRedo');if(undo)undo.disabled=!documentUndo.length;if(redo)redo.disabled=!documentRedo.length;
+  selectionChanged();
+}
+function documentHistory(forward){
+  const from=forward?documentRedo:documentUndo,to=forward?documentUndo:documentRedo;
+  const target=from.at(-1);if(!target)return;
+  const current={sections:readSections(),index:documentIndex};
+  documentPublish(target.sections,target.index,false);from.pop();to.push(current);
+  documentStamp='';refreshDocument();selectionChanged();
+}
+function refreshDocument(){
+  if(documentWriting)return;
+  const sections = readSections(); documentIndex = Math.max(0,Math.min(documentIndex,sections.length-1));
+  const stamp = JSON.stringify(sections); if (stamp === documentStamp) return; documentStamp = stamp;
+  const host=$('documentWorkspace'); host.replaceChildren();
+  const nav=document.createElement('div'); nav.className='bar';
+  sections.forEach((section,index)=>{const b=document.createElement('button');b.type='button';b.className='btn ghost';b.textContent=section.title || `Section ${index+1}`;b.setAttribute('aria-pressed',String(index===documentIndex));b.onclick=()=>{if(window.officeFlushDraft && !window.officeFlushDraft())return;documentIndex=index;documentStamp='';refreshDocument();selectionChanged();};nav.append(b);});
+  const add=document.createElement('button');add.type='button';add.className='btn ghost';add.textContent='Add section';add.onclick=()=>{if(window.officeFlushDraft && !window.officeFlushDraft())return;documentPublish([...readSections(),{title:'New section',content:''}],sections.length);documentStamp='';refreshDocument();};nav.append(add);
+  for(const [id,label,forward] of [['documentUndo','Undo',false],['documentRedo','Redo',true]]){const b=document.createElement('button');b.id=id;b.type='button';b.className='btn ghost';b.textContent=label;b.disabled=!(forward?documentRedo:documentUndo).length;b.onclick=()=>documentHistory(forward);nav.append(b);}
+  host.append(nav);
+  const section=sections[documentIndex];if(!section){const note=document.createElement('p');note.textContent='Add a section to start writing, open an existing file, or ask your AI partner.';host.append(note);return;}
+  const page=document.createElement('div');page.className='office-page';
+  const title=document.createElement('input');title.setAttribute('aria-label','Section heading');title.value=section.title;
+  const text=document.createElement('textarea');text.setAttribute('aria-label','Section content');text.value=section.content;
+  const change=()=>{title.setCustomValidity(title.value.trim() && title.value.length<=200 ? '' : 'Give this section a heading of at most 200 characters.');if(!title.checkValidity())return;const current=readSections();current[documentIndex]={title:title.value.replace(/[\r\n]/g,' '),content:text.value};if(JSON.stringify(current)===documentStamp)return;try{documentPublish(current,documentIndex);text.setCustomValidity('');}catch(error){text.setCustomValidity(error.message);}};
+  title.oninput=change;text.oninput=change;page.append(title,text);host.append(page);
+  page.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z'){event.preventDefault();documentHistory(event.shiftKey);}});
+  const note=document.createElement('p');note.className='office-page-note';note.textContent='Write paragraphs normally. Export creates the paginated document.';host.append(note);
+}
+window.officeFlushDraft=()=>{
+  if(KIND==='xlsx')return sheets.commitPending();
+  if(KIND==='docx'){const invalid=$('documentWorkspace').querySelector('input:invalid,textarea:invalid');if(invalid){invalid.reportValidity();invalid.focus();return false;}}
+  return true;
+};
+window.officeCellEdit=({index,cell,value})=>{
+  if(KIND!=='xlsx'||!Number.isInteger(index)||!/^([A-Z]{1,2})([1-9][0-9]{0,2})$/.test(cell)||typeof value!=='string'||value.length>1000)return null;
+  const sections=readSections();if(!sections[index-1])return null;const [,letters,number]=cell.match(/^([A-Z]{1,2})([1-9][0-9]{0,2})$/);let column=0;for(const letter of letters)column=column*26+letter.charCodeAt(0)-64;
+  try{sections[index-1]=editSheetCell(sections[index-1],Number(number)-1,column-1,value);writeSections(sections);return `updated sheet ${index}, cell ${cell}`;}catch(error){addMsg('note',error.message,true);return null;}
+};
+window.officeSelection=()=>KIND==='pptx'?slides.getSelection():KIND==='xlsx'?(()=>{const selected=sheets.getSelection();if(!selected)return null;const [,letters,number]=selected.cell.match(/^([A-Z]+)([0-9]+)$/);let column=0;for(const letter of letters)column=column*26+letter.charCodeAt(0)-64;const parsed=readSheet(readSections()[selected.index-1]);return {...selected,value:parsed.rows[Number(number)-1]?.[column-1] || ''};})():readSections()[documentIndex]?{kind:'docx',index:documentIndex+1,title:readSections()[documentIndex].title}:null;
+window.officeDraftSnapshot=()=>draftSnapshot(readDraft());
+window.officeProposalReview=createProposalReview({host:$('guideProposal'),readDraft,applyActions,onMessage:text=>addMsg('note',text,true)});
+window.officeRefresh=()=>{
+  $('slideWorkspace').hidden=KIND!=='pptx';$('sheetWorkspace').hidden=KIND!=='xlsx';$('documentWorkspace').hidden=KIND!=='docx';
+  if(KIND==='pptx')slides.refresh();else if(KIND==='xlsx')sheets.refresh();else refreshDocument();selectionChanged();
+};
+window.officeRefresh();
+}
+</script>
+
 </body>
 </html>

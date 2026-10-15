@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The company view asserted as behaviour: the head block runs against a stub kit, a stub fetch and a stub DOM, so the tests prove what it reads on open (only GET /digest, with the mailbox the reader picked in My Day, and /summary/cached: never POST /summary, which spends a communications-bot run and rewrites the saved digest), that the counts say they are a sample of the newest 25 messages of the last day, what the tables, calendar and senders show, that a new digest is written only on a click (once, even on a double click) and a refused one is named, and that a mailbox not connected, a core without a Yahoo reader, a refusal and a failure each read as what they are. The page's own script is run with stubs too: under an audience view it binds no mailbox switch and reads nothing.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Yahoo is not offered: a saved Yahoo choice reads the server's pick instead of answering "Yahoo Mail is not available here", and the no-mailbox lede names Google and Outlook only, whatever the server's message says (this installation has no Yahoo connector).
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -167,7 +168,7 @@ test('the saved digest says when the bot wrote it, and a new one is written only
   assert.match(textOf(unreadable), /The saved digest could not be read \(HTTP 500\)\./);
 });
 
-test('no mailbox, no Yahoo reader, a refusal and a failure each read as what they are', async () => {
+test('no mailbox, a saved Yahoo choice, a refusal and a failure each read as what they are', async () => {
   const setup = loadCompany({ ...OK, '/api/email/digest?surface=1': { connected: false, provider: 'outlook', error: 'no_outlook_connection', message: 'Connect your Outlook / Microsoft 365 account at /utilities first.' } });
   const model = await setup.company({});
   assert.deepEqual([model.title, model.lede, model.actions[0].label, model.stats], ['No Outlook / Microsoft 365 account connected', 'Connect your Outlook / Microsoft 365 account at /utilities first.', 'Connect Outlook', undefined]);
@@ -178,8 +179,11 @@ test('no mailbox, no Yahoo reader, a refusal and a failure each read as what the
   assert.match(textOf(body), /Reply to the client about the contract\./, 'the saved digest still shows');
   const reconnect = await loadCompany({ ...OK, '/api/email/digest?surface=1': { connected: false, provider: 'google', error: 'reconnect_required', message: 'Reconnect your Google account at /utilities.' } }).company({});
   assert.equal(reconnect.title, 'This mailbox needs to be reconnected');
-  const noReader = await loadCompany({ ...OK, '/api/email/digest?surface=1&provider=yahoo': { http: 501, body: { error: 'provider_unavailable' } } }, 'yahoo').company({});
-  assert.equal(noReader.title, 'Yahoo Mail is not available here');
+  // Yahoo is not offered (no Yahoo connector here; the runtime answers a Yahoo read 501): a saved Yahoo choice reads the server's pick.
+  const savedYahoo = await loadCompany({ ...OK, '/api/email/digest?surface=1&provider=yahoo': { http: 501, body: { error: 'provider_unavailable' } } }, 'yahoo').company({});
+  assert.equal(savedYahoo.title, 'Inbox and today');
+  const none = await loadCompany({ ...OK, '/api/email/digest?surface=1': { connected: false, provider: null, error: 'no_mail_connection', message: 'Connect Google, Outlook / Microsoft 365 or Yahoo Mail at /utilities first.' } }).company({});
+  assert.equal(none.lede, 'Connect Google or Outlook / Microsoft 365 on the Connections page.', 'the no-mailbox lede never offers Yahoo');
   const signedOut = await loadCompany({ '/api/email/digest?surface=1': { http: 401, body: {} }, '/api/email/summary/cached': { http: 401, body: {} } }).company({});
   assert.equal(signedOut.title, 'Sign in to see your inbox');
   const denied = await loadCompany({ ...OK, '/api/email/digest?surface=1': { http: 403, body: {} } }).company({});

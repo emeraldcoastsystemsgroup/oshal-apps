@@ -13,6 +13,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Round-trip explicit source alerts through the real form and operator-owned schedule route.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Execute the shipped Strategies → Tuning renderer and prove its Futures controls wire to the owner-scoped save route.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Follow the engine's computeExits call after core #869 (ADR-052 addendum) added its trailing `parity` argument. The pinned base is unchanged: the trim base is still the capped account.equity.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | GET /exposure's not-connected answer is pinned inside its own handler as 409 broker_not_configured through railConfigured(broker). The old pin sliced to the end of the file, so it kept passing on the performance fallback's 503 after the exposure handler stopped answering it.
  *
  * Run from the package root with the framework checkout on the vitest alias path:
  *   OSHAL_FRAMEWORK=<oshal checkout> TRADING_MAX_NOTIONAL_USD=50000 TRADING_MAX_QTY=100000 \
@@ -257,10 +258,11 @@ describe('GET /exposure - the route contract', () => {
       .toContain("resolveBook(ctx.pool, s, (req.query.book as string | undefined) ?? (req.query.mode as string | undefined))");
   });
 
-  it('reads through the BOOK-BOUND reader and 503s when that book\'s broker is not connected', () => {
-    const handler = ROUTE.slice(ROUTE.indexOf("router.get('/exposure'"));
+  it('reads through the BOOK-BOUND reader and 409s when that book\'s broker is not connected', () => {
+    const start = ROUTE.indexOf("router.get('/exposure'");
+    const handler = ROUTE.slice(start, ROUTE.indexOf('\n  });', start));
     expect(handler).toContain('getBrokerReader(book.kind, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined)');
-    expect(handler).toContain("res.status(503).json({ error: 'broker_not_configured' })");
+    expect(handler).toContain("if (!railConfigured(broker)) { res.status(NO_BROKER_STATUS).json({ error: 'broker_not_configured', message: NO_BROKER_MESSAGE }); return; }");
   });
 
   it('is READ-ONLY: it places no order, arms no adapter and never persists a peak', () => {

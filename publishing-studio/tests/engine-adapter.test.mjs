@@ -1,0 +1,43 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {createConnection} from 'node:net';
+import {createInterface} from 'node:readline';
+import {mkdtempSync,rmSync,existsSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join,resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {engine,upload,output,namespace} from '../routes/engine-client.mjs';
+import {brochure} from './fixtures/brochure.mjs';
+import {digest} from '../routes/model.mjs';
+const python=process.env.OSHAL_PUBLISHING_PYTHON,typst=process.env.OSHAL_PUBLISHING_TYPST;
+assert.ok(python&&resolve(python)===python&&existsSync(python),'Actual hash-pinned OSHAL_PUBLISHING_PYTHON required, no skip');
+assert.ok(typst&&resolve(typst)===typst&&existsSync(typst),'Actual hash-pinned OSHAL_PUBLISHING_TYPST required, no skip');
+const owner={isActive:true,issuer:'publishing-fixture',sub:'original',principalId:'person-original',tenantIds:['tenant-original']};
+
+test('JS adapter uses actual pinned TCP producer with original actor/current fences and full output integrity',async t=>{
+ const root=mkdtempSync(join(tmpdir(),'publishing-adapter-'));
+ const child=spawn(python,[fileURLToPath(new URL('../engine/server.py',import.meta.url))],{env:{PATH:'/usr/bin:/bin',LANG:'C.UTF-8',PYTHONDONTWRITEBYTECODE:'1',TMPDIR:root,OSHAL_PUBLISHING_TYPST:typst,PUBLISHING_ENGINE_HOST:'127.0.0.1',PUBLISHING_ENGINE_PORT:'0'},stdio:['ignore','pipe','pipe']});
+ let stderr='';child.stderr.on('data',b=>{stderr=(stderr+b).slice(-2000);});
+ t.after(async()=>{child.kill('SIGTERM');await new Promise(done=>{if(child.exitCode!==null)return done();const timer=setTimeout(()=>{child.kill('SIGKILL');done();},5000);child.once('exit',()=>{clearTimeout(timer);done();});});rmSync(root,{recursive:true,force:true});});
+ const lines=createInterface({input:child.stdout});
+ const start=await new Promise((done,reject)=>{const timer=setTimeout(()=>reject(new Error('Actual relay startup deadline')),10000);lines.once('line',line=>{clearTimeout(timer);done(JSON.parse(line));});child.once('error',reject);child.once('exit',()=>{clearTimeout(timer);reject(new Error('Actual relay exited '+stderr));});});lines.close();
+ async function relay(input){return new Promise((done,reject)=>{const socket=createConnection({host:'127.0.0.1',port:start.port});let pending='',hello,finished=false;const timer=setTimeout(()=>end(new Error('Actual relay RPC deadline')),10000);function end(error,result){if(finished)return;finished=true;clearTimeout(timer);socket.destroy();error?reject(error):done(result);}socket.on('error',end);socket.on('end',()=>{if(!finished)end(new Error('Actual relay ended before reply'));});socket.on('data',bytes=>{try{pending+=bytes;assert.ok(pending.length<=1048576);for(;;){const n=pending.indexOf('\n');if(n<0)break;const value=JSON.parse(pending.slice(0,n));pending=pending.slice(n+1);if(!hello){hello=value;socket.write(JSON.stringify({id:1,...input})+'\n');}else end(null,{hello,reply:value});}}catch(e){end(e);}});});}
+ let actor=structuredClone(owner),allowed=true,afterReply=null,calls=[];
+ const ctx={authorization:{currentActor:()=>actor,authorize:async()=>({allowed})},intent:async(name,input)=>{assert.equal(name,'engine.exchange');assert.equal(input.timeoutMs,15000);calls.push(input.request.args.op);const result=await relay(input.request);if(afterReply)await afterReply(input.request.args,result);return result;}};
+ const {model,assets}=brochure();let checks=0;const current=async()=>{checks++;};
+ const token=await upload(ctx,'render',model.assets,assets,current);assert.equal(checks,2*model.assets.reduce((n,a)=>n+Math.ceil(a.bytes/65536),0),'Fresh current SQL/source fence before and after each upload reply');
+ const foreign={...ctx,authorization:{currentActor:()=>({...owner,sub:'foreign',principalId:'foreign'}),authorize:async()=>({allowed:true})}};
+ await assert.rejects(engine(foreign,'render',{op:'status',token}),e=>e.code==='publishing_stage_missing');
+ await engine(ctx,'render',{op:'render',token,model});let ready;const deadline=Date.now()+30000;while(Date.now()<deadline){const status=await engine(ctx,'render',{op:'status',token});if(status.state==='ready'){ready=status;break;}assert.equal(status.state,'rendering',JSON.stringify(status));await new Promise(r=>setTimeout(r,30));}assert.ok(ready,'Actual native producer reaches ready');
+ const descriptor=ready.receipt.outputs[0];checks=0;const bytes=await output(ctx,'render',token,descriptor,current);assert.equal(checks,2*Math.ceil(descriptor.bytes/65536)+1);assert.equal(digest(bytes),descriptor.sha256);assert.equal(bytes.subarray(0,5).toString(),'%PDF-');
+ await assert.rejects(output(ctx,'render',token,{...descriptor,mime:'image/png'},current),e=>e.code==='publishing_output_invalid');
+ afterReply=(args)=>{if(args.op==='read')allowed=false;};await assert.rejects(output(ctx,'render',token,descriptor,current),e=>e.code==='publishing_permission_denied');allowed=true;afterReply=null;
+ let fenceCalls=0;await assert.rejects(output(ctx,'render',token,descriptor,async()=>{if(++fenceCalls===2)throw Object.assign(new Error('current source changed after real reply'),{code:'fixture_source_changed'});}),e=>e.code==='fixture_source_changed');assert.equal(fenceCalls,2);
+ afterReply=(args,result)=>{if(args.op==='read')result.reply.result.dataBase64=Buffer.from('altered actual reply').toString('base64');};await assert.rejects(output(ctx,'render',token,descriptor,current),e=>e.code==='publishing_output_invalid');afterReply=null;
+ afterReply=(args,result)=>{if(args.op==='status')result.hello.bridge.buildHash='0'.repeat(64);};await assert.rejects(engine(ctx,'render',{op:'status',token}),e=>e.code==='publishing_engine_source_mismatch'&&e.installHint.includes('install-engine.sh')&&e.expectedBuildHash===start.identity.buildHash&&e.details===undefined);afterReply=null;
+ afterReply=(args)=>{if(args.op==='status')actor={...owner,sub:'changed'};};await assert.rejects(engine(ctx,'render',{op:'status',token}),e=>e.code==='publishing_identity_changed');actor=structuredClone(owner);afterReply=null;
+ await engine(ctx,'render',{op:'close',token});
+ let failedStage;afterReply=(args,result)=>{if(args.op==='open')failedStage=result.reply.result.token;};let uploadChecks=0;await assert.rejects(upload(ctx,'render',model.assets,assets,async()=>{if(++uploadChecks===2)throw Object.assign(new Error('current job cancelled after upload reply'),{code:'fixture_job_cancelled'});}),e=>e.code==='fixture_job_cancelled');afterReply=null;
+ assert.ok(failedStage);await assert.rejects(engine(ctx,'render',{op:'status',token:failedStage}),e=>e.code==='publishing_stage_missing');assert.equal(calls.at(-2),'close');assert.equal(namespace({issuer:owner.issuer,sub:owner.sub,principalId:owner.principalId,tenant:owner.tenantIds[0]}).length,64);
+});

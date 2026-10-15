@@ -123,7 +123,12 @@
 
   <script>
     const $ = (s) => document.querySelector(s);
-    const api = (p, opts) => fetch('/api/purchasing' + p, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts)).then((r) => r.json());
+    // The parsed body carries the HTTP status, so a refused provider call is never read as an empty result.
+    const api = (p, opts) => fetch('/api/purchasing' + p, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts))
+      .then((r) => r.json().catch(() => ({})).then((body) => Object.defineProperty(body && typeof body === 'object' ? body : {}, 'httpStatus', { value: r.status })));
+    // Products, deals and checkout come from Walmart; where the installation has no Walmart rail the server refuses them (HTTP 503).
+    const NOT_CONNECTED = 'Unavailable: this installation has no Walmart rail (it runs no Walmart operations), so products, deals and checkout links cannot be searched or opened here.';
+    const providerRefused = (r) => Boolean(r && (r.httpStatus === 503 || r.error === 'native_executor_unavailable'));
     let listId = null;
 
     function setStatus(msg) { $('#status').textContent = msg || ''; }
@@ -197,10 +202,12 @@
           ' <button id="add-usual" class="link">Add it</button>';
         $('#add-usual').addEventListener('click', () => addToList(resolved.item, 'your usual'));
       }
-      const { items, source } = await api('/search?q=' + encodeURIComponent(q));
-      setStatus(source === 'mock' ? 'Demo catalog (add Walmart key for live results)' : '');
+      const found = await api('/search?q=' + encodeURIComponent(q));
       const grid = $('#results');
       grid.innerHTML = '';
+      if (providerRefused(found)) { setStatus(NOT_CONNECTED); return; }
+      const { items, source } = found;
+      setStatus(source === 'mock' ? 'Demo catalog, not live Walmart results' : '');
       (items || []).forEach((it) => grid.appendChild(card(it, (item) => addToList(item))));
     });
 
@@ -248,6 +255,7 @@
       const r = await api('/checkout', { method: 'POST', body: JSON.stringify({ listId }) });
       const box = $('#checkout-result');
       box.classList.remove('hidden');
+      if (providerRefused(r)) { box.textContent = NOT_CONNECTED; setStatus(''); return; }
       if (r.error) { box.innerHTML = '<p>' + r.error + '</p>'; setStatus(''); return; }
       window.open(r.checkoutUrl, '_blank', 'noopener');
       box.innerHTML =
@@ -258,10 +266,12 @@
 
     async function loadDeals() {
       setStatus('Loading deals…');
-      const { items, source } = await api('/deals?feed=rollback');
-      setStatus(source === 'mock' ? 'Demo deals (add Walmart key for live rollbacks)' : '');
+      const found = await api('/deals?feed=rollback');
       const grid = $('#deals');
       grid.innerHTML = '';
+      if (providerRefused(found)) { setStatus(NOT_CONNECTED); return; }
+      const { items, source } = found;
+      setStatus(source === 'mock' ? 'Demo deals, not live Walmart rollbacks' : '');
       (items || []).forEach((it) => grid.appendChild(card(it, (item) => addToList(item, 'on rollback'))));
     }
 

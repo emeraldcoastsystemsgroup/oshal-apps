@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — load the COMPILED Rides route module (the bytes the framework mounts) with every framework import stubbed, an in-memory pool that answers the SQL the chat, request, history and profile routes issue, a recording Uber Rides provider whose estimate prices a fixed 10 km trip with the same per-type formula shape as the core helper, and a scripted concierge. Shared by the chat-proposal suite and the browser smoke's fixture (which passes the framework's real express); not a suite itself (no .test.js name, so the package glob never runs it).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The routes probe the provider's `status` to choose between the provider and the package's keyless rail: the double answers that probe (connected, or `overrides.status`) without recording it, and the route's own ./rides-keyless module loads for real.
  */
 'use strict';
 const fs = require('node:fs');
@@ -37,6 +38,9 @@ function rideOptions(km) {
 function fakeProvider(overrides = {}) {
   const calls = [];
   async function run(args) {
+    // The routes probe `status` before every operation to choose the rail; a probe is not an operation, so
+    // it is answered (connected unless overridden) and not recorded.
+    if (args[0] === 'status') return overrides.status ? overrides.status(args) : {};
     calls.push([...args]);
     if (overrides[args[0]]) return overrides[args[0]](args);
     if (args[0] === 'estimate') {
@@ -122,6 +126,8 @@ function loadRoutes(opts = {}) {
         return { response: JSON.stringify(reply || { say: 'ok' }) };
       },
     },
+    // The package's own keyless rail is real code, loaded as the route loads it.
+    './rides-keyless': require(path.join(__dirname, '..', 'routes', 'rides-keyless.js')),
   };
   const shimRequire = (request) => {
     if (Object.prototype.hasOwnProperty.call(stubs, request)) return stubs[request];

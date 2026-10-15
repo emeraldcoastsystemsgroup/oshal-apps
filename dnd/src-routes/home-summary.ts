@@ -4,12 +4,14 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add saved campaign evidence and a native review surface for explicit connected planning.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Saved times read as a date with its zone ("Oct 11, 2026, 10:50 AM UTC" in the package process zone), not a raw ISO timestamp, in the review evidence and every brief copied from it.
  */
 /** Saved dnd evidence. GET is owner-scoped, bounded, and side-effect free. */
 import { Router } from 'express';
 import type { AppContext } from '@/app/composition/app-context';
 const clip = (v: unknown, cap = 400) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0,cap);
-const date = (v: unknown) => { const d = new Date(String(v)); return Number.isFinite(d.getTime()) ? d.toISOString() : 'date unavailable'; };
+const DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+const date = (v: unknown) => { const d = new Date(String(v)); return Number.isFinite(d.getTime()) ? DATE_FORMAT.format(d) : 'date unavailable'; };
 export function createHomeSummaryRoutes(ctx: AppContext): Router {
  const router = Router();
  router.get('/', async (req, res) => {

@@ -34,6 +34,7 @@
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.8.3: declare the CAD Studio prerequisite the gear hand-off already had (optional — a 404 toasts and the lab is unaffected).
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 0.8.4 (core BACKLOG 2026-09-14, "one parts model"): the two brushless motors READ embodied's owned rows (routes/engine/design/parts-catalog.json) instead of restating name, mass, price and KV; this lab keeps its electrical block and derives noLoadRpm as KV x its operating point. embodied joins the optional apps: absent, those two rows are withheld naming it.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 0.8.6 (ADR-164 D6): the company audience view for the Business shells beside the classroom one — the surface's ?audience=company paints the saved circuits as a ledger (each one's last run, runs kept, parts and wires, warnings of the last solve, the failed runs named by their code) from GET /designs and GET /capabilities only; no solve, no write, no engine request, and the lab's own start paths stay off under it. No route, schema or manifest key changes beyond the version.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Sweep 13: the concierge listed the examples by id (led-switch, rc-charge, ...) and called the dropdown "unlabelled list under engine: idle". circuit-create-design pairs each example id with the title the Examples list shows and says to name an example by its title; the dropdown has a visible Examples label. Words only: no route, scope or binding change.
 name: circuit-lab
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -202,7 +203,7 @@ tools:
     displayName: Create a Circuit
     type: api
     category: engineering
-    description: Create a circuit — empty, from a starter example (led-switch, rc-charge, motor-gearbox, pwm-motor, crank-slider, arduino-blink) or from full part and wire lists; a non-empty circuit is solved immediately.
+    description: Create a circuit — empty, from a starter example or from full part and wire lists; a non-empty circuit is solved immediately. Example ids with the title the Examples list shows - led-switch (Switched LED), rc-charge (RC charge), motor-gearbox (Motor with a 3:1 gearbox), pwm-motor (PWM motor drive), crank-slider (Belt-driven crank-slider), arduino-blink (Arduino Blink).
     executor: { executorType: api, apiEndpoint: "POST /api/circuit-lab/designs" }
     inputSchema:
       type: object
@@ -215,7 +216,7 @@ tools:
       required: []
     defaultAuthMode: auto
     requiresApproval: false
-    usageInstructions: The reply carries the new designId; keep using it. Prefer an example when the person's request matches one, then edit it.
+    usageInstructions: The reply carries the new designId; keep using it. Prefer an example when the person's request matches one, then edit it. Name an example to the person by its title, the words in the Examples list; the id is only this call's input.
     routingTags: [circuit, create]
     tags: [circuit-lab, route-backed]
 

@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-22 03:05:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Regression guards for two defects found by LIVE play, not unit tests: (1) the host answering a "spoken" mode with a full markdown document (headings/tables/bullets/emoji) that would wreck the caption bar and blow the TTS limit; (2) host data replies needing tolerant JSON extraction. Plain `node tests/host-guards.test.js`.
+ * 2026-10-12 23:58:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 10 guard: a later round's start replaces the previous round's HOST caption with the show's own round milestone (Whammy and Family Feud through the REAL show modules), newer than the old line so the speaker voices it, with no host-bot call; the open is unchanged (the intro still narrates it).
  * 2026-07-31 23:10:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog #4 guard: the FIRST round start auto-dispatches exactly one 'intro' spoken line (applied as the room caption, so the speaker surface voices the open with the titles), a later round start never re-narrates it, and the ▶ response returns without waiting on the intro round-trip.
  */
 
@@ -159,7 +160,53 @@ async function autoIntroGuards() {
   check(!spy2.prompts.some((p) => /MODE: intro/.test(p)), 'a later round start never re-narrates the open');
 }
 
-autoIntroGuards().then(() => {
+const STALE_LINE = 'Here is your first question: Name something you do to your car before a long road trip.';
+
+/** @description A Family Feud room between rounds: round 1 played, its opening line still the caption. */
+function feudBetweenRoundsState() {
+  return {
+    showId: 'family-feud', phase: 'round-win', round: 1,
+    board: { question: 'Name something you do to your car before a long road trip.', answers: [], strikes: 0, control: null, bank: 0 },
+    scores: { A: 40, B: 0 }, host: { line: STALE_LINE, mode: 'intro', at: 5 }, shot: { type: 'lobby', focus: null, serial: 0, at: 1 },
+  };
+}
+
+const FEUD_ROUND_2 = { question: 'Name a reason you might be late to work.', answers: [
+  { text: 'Traffic', points: 40 }, { text: 'Overslept', points: 30 }, { text: 'Car trouble', points: 20 }, { text: 'Kids', points: 10 }] };
+
+async function laterRoundCaptionGuards() {
+  // Whammy: round 1 -> 2 from manual panels.
+  const world = makeRoomWorld({ ...whammyLobbyState(1), host: { line: STALE_LINE, mode: 'intro', at: 5 } });
+  const spy = makeOrchestratorSpy();
+  const host = createHostService({ pool: world.pool, orchestrator: spy.orchestrator, room: world.room, logger: null });
+  const started = await host.run('host', 'r1', 'manual', { content: WHAMMY_PANELS });
+  check(started.ok === true && world.state.round === 2, 'a later Whammy round starts');
+  check(world.state.host.line !== STALE_LINE && /^Round 2: /.test(world.state.host.line),
+    `a later round's caption is the new round's milestone, not round 1's line (got "${world.state.host.line}")`);
+  check(world.state.host.at > 5, 'the new caption is newer than the old one, so the speaker surface voices it');
+  check(spy.prompts.length === 0, 'the round caption costs no host-bot call');
+
+  // Family Feud (the show the sweep played): round 1 -> 2 through the real show module.
+  const feud = makeRoomWorld(feudBetweenRoundsState());
+  feud.room.access = async () => ({ room_id: 'r1', user_sub: 'host', show_id: 'family-feud' });
+  const feudSpy = makeOrchestratorSpy();
+  const feudHost = createHostService({ pool: feud.pool, orchestrator: feudSpy.orchestrator, room: feud.room, logger: null });
+  const next = await feudHost.run('host', 'r1', 'manual', { content: FEUD_ROUND_2 });
+  check(next.ok === true && feud.state.round === 2, `the second Feud round starts (${next.error || 'ok'})`);
+  check(feud.state.host.line === 'Round 2: Name a reason you might be late to work.',
+    `the Feud caption names round 2's question (got "${feud.state.host.line}")`);
+
+  // The open keeps its narrated intro: no milestone caption on round 0 -> 1.
+  const open = makeRoomWorld(whammyLobbyState(0));
+  const openSpy = makeOrchestratorSpy();
+  const openHost = createHostService({ pool: open.pool, orchestrator: openSpy.orchestrator, room: open.room, logger: null });
+  await openHost.run('host', 'r1', 'manual', { content: WHAMMY_PANELS });
+  await openSpy.introSeen;
+  await new Promise((resolve) => setImmediate(resolve));
+  check(!/^Round 1: /.test(open.state.host.line || ''), 'the open is captioned by the narrated intro, not a milestone');
+}
+
+autoIntroGuards().then(laterRoundCaptionGuards).then(() => {
   if (failures) { console.error(`\n✗ ${failures}/${checks} host guard checks failed`); process.exit(1); }
   console.log(`✓ Host output guards hold — ${checks} checks green (spoken-line sanitizing, tolerant json, auto-narrated open)`);
 }).catch((error) => {

@@ -5,6 +5,9 @@
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # 3   | maintainer@emeraldcoastsystemsgroup.com     | ADR-169 L6: register the position-scoping contract test (position and home only for the drone's group).
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register fleet-hint-native: the Fleet hint names no retired npm script or swarm secret and says no drone node ships with this installation.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | K4: register chat-no-drone - with no drone registered the operator chat answers a plain no-drone reply (never the raw native executor error), drafts nothing, and the surface keeps it off with the reason.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register battery-unknown: with no drone the header battery bar is empty beside "–%" (sweep 14: it read full and green).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -63,4 +66,68 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: fleet-hint-native
+    name: Fleet hint says what this installation sudroneorts
+    purpose: The Drone Ops page must not tell a person to run the retired platform's npm run drone:node; the native kernel ships no drone node.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fleet-hint-native.test.cjs
+    expected:
+      - The visible page names no npm script, drone:node or swarm secret.
+      - The Fleet hint says no drone node ships with this installation, so none can be added here.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: chat-no-drone
+    name: Operator chat with no drone registered
+    purpose: Drive the compiled POST /chat with a double of the native drone service (configured false, every read throws) and with an engine whose reads fail, and run the surface's own applyFleetAvailability.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/chat-no-drone.test.cjs
+    expected:
+      - Both answer 200 with noDrone true, draft null and a plain reply naming that no drone or simulator is registered; no raw executor text, no planner call, no mission row.
+      - The surface disables the chat input and Send with the reason while no drone is registered and enables them with one; a chat failure reads in plain words.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: battery-unknown
+    name: An unknown battery reads empty, never full
+    purpose: >-
+      In Chromium at 412x915 the shipped Drone Ops page opens over a fleet that reports no drone (sweep 14: the header
+      battery bar was full and green beside "–%").
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/battery-unknown.test.cjs
+    expected:
+      - The No drone connected banner shows, the percentage reads "–%" and the bar's fill is 0 px wide.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
     installation: never

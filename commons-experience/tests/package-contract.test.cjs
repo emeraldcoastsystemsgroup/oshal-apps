@@ -7,6 +7,8 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Verify the complete shared product, exact ordinary role unions, active component declarations and current required dependency coverage.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Scan to Print's member role is its catalog's `maker` (0.7.0 adopts an ADR-149 catalog); manifest 1.1.1 and template version 3.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Require the current named Jarvis chat-user and complete template4 rights across all four layouts.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The four role-closure cases read the old TypeScript platform checkout (its scripts/oshal-app-dependencies.js contract, swarm-apps/jarvis.yaml and workflow-studio.yaml, and its js-yaml). Without that checkout they report SKIPPED naming it instead of failing the whole file at load; the three owned-entry cases always run.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the page title is the application's display name alone (it read '<name> · your swarm', which the concierge repeated as the screen's name).
  */
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
@@ -18,37 +20,40 @@ test('entry handlers and display configuration parse',()=>{for(const file of ['r
 // The core checkout supplies the canonical YAML parser, just as the registered runtime proof does.
 const { createRequire } = require('node:module');
 const framework = path.resolve(process.env.OSHAL_FRAMEWORK || process.env.OSHAL_ROOT || path.join(root, '../../oshal-dev'));
-const yaml = createRequire(path.join(framework, 'package.json'))('js-yaml');
-const { readAppDependencies } = require(path.join(framework, 'scripts/oshal-app-dependencies.js'));
-const manifest = yaml.load(read('oshal-app.yaml'));
-const template = manifest.experience.roleTemplates[0];
-const components = 'home purchasing finance little-monsters movies spotify travel presentations calendar email-summarizer world switchboard social calling-assistant marketing-engine venture-plan private-app-1 payroll payments identity cad-studio circuit-lab create portrait-studio video lora vids creative-studio scan-to-print storage career-hunter dnd game-show games jarvis workflow-studio private-app-2 intelligent-sales private-app-3'.split(' ');
+const contract = path.join(framework, 'scripts/oshal-app-dependencies.js');
+const LEGACY = fs.existsSync(contract) ? false
+  : `LEGACY: needs the old TypeScript platform checkout (${contract}, swarm-apps/jarvis.yaml, js-yaml); set OSHAL_FRAMEWORK to one`;
+const yaml = LEGACY ? null : createRequire(path.join(framework, 'package.json'))('js-yaml');
+const { readAppDependencies } = LEGACY ? {} : require(contract);
+const manifest = LEGACY ? null : yaml.load(read('oshal-app.yaml'));
+const template = manifest?.experience.roleTemplates[0];
+const components = 'home purchasing finance little-monsters movies spotify travel presentations calendar email-summarizer world switchboard social calling-assistant marketing-engine venture-plan private-app-1 payroll payments identity cad-studio circuit-lab create portrait-studio video lora vids creative-studio scan-to-print brand-graphics motion-studio publishing-studio pdf-workbench scene-studio storage career-hunter dnd game-show games jarvis workflow-studio private-app-2 intelligent-sales private-app-3'.split(' ');
 const ordinaryRoles = {
   jarvis: ['chat-user'], 'scan-to-print': ['maker'],
   'little-monsters': ['student'], 'calling-assistant': ['caller'], 'venture-plan': ['member'], 'private-app-1': ['crm_representative'], 'intelligent-sales': ['sales_manager'], 'private-app-3': ['administrator'],
   create: ['creator', 'editor', 'exporter', 'generator'], 'portrait-studio': ['creator', 'editor', 'deleter', 'mailer', 'artist'],
-  video: ['producer', 'creator', 'editor', 'exporter'], lora: ['trainer'], 'career-hunter': ['member'],
+  video: ['producer', 'creator', 'editor', 'exporter'], lora: ['trainer'], 'motion-studio': ['creator', 'editor', 'exporter'], 'publishing-studio': ['creator', 'editor', 'exporter'], 'pdf-workbench': ['creator', 'editor', 'exporter', 'ocr'], 'scene-studio': ['creator'], 'career-hunter': ['member'],
 };
-const expectedMembers = [{ app: manifest.name, role: 'member' }, ...components.flatMap(app => (ordinaryRoles[app] || ['@app-admin']).map(role => ({ app, role })))];
+const expectedMembers = [{ app: manifest?.name, role: 'member' }, ...components.flatMap(app => (ordinaryRoles[app] || ['@app-admin']).map(role => ({ app, role })))];
 const componentManifest = name => {
   const file = name === 'jarvis' || name === 'workflow-studio' ? path.join(framework, 'swarm-apps', name + '.yaml') : path.join(root, '..', name, 'oshal-app.yaml');
   return { file, directory: ['jarvis', 'workflow-studio'].includes(name) ? framework : path.dirname(file), manifest: yaml.load(fs.readFileSync(file, 'utf8')) };
 };
-test('one complete product role includes every functional component, without optional setup', () => {
+test('one complete product role includes every functional component, without optional setup', { skip: LEGACY }, () => {
   assert.equal(manifest.version, '1.1.2'); assert.equal(template.version, 4);
   assert.deepEqual(manifest.dependencies.required.apps, components);
-  assert.deepEqual(manifest.dependencies.optional.apps, []); assert.equal(components.length, 39);
-  assert.deepEqual(template.members, expectedMembers); assert.equal(template.members.length, 50);
+  assert.deepEqual(manifest.dependencies.optional.apps, []); assert.equal(components.length, 44);
+  assert.deepEqual(template.members, expectedMembers); assert.equal(template.members.length, 62);
   assert.ok(template.members.every(({ role }) => !['@access-admin', '@access-auditor', 'admin', 'manager', 'teacher'].includes(role)));
 });
-test('four layouts share the same product rights instead of granting one empty shell', () => {
+test('four layouts share the same product rights instead of granting one empty shell', { skip: LEGACY }, () => {
   for (const skin of ['studio', 'jarvis', 'orbit', 'commons']) {
     const other = yaml.load(fs.readFileSync(path.join(root, '..', skin + '-experience', 'oshal-app.yaml'), 'utf8'));
     assert.deepEqual(other.dependencies.required.apps, components);
     assert.deepEqual(other.experience.roleTemplates[0].members.slice(1), expectedMembers.slice(1));
   }
 });
-test('public component roles exist and include their current required package closure', () => {
+test('public component roles exist and include their current required package closure', { skip: LEGACY }, () => {
   for (const name of components.filter(name => !['private-app-1', 'private-app-2', 'intelligent-sales', 'private-app-3'].includes(name))) {
     const source = componentManifest(name); assert.equal(source.manifest.name, name); assert.equal(source.manifest.status, 'active');
     assert.notEqual(source.manifest.scope, 'operator'); assert.notEqual(source.manifest.scope, 'deployment');
@@ -61,7 +66,7 @@ test('public component roles exist and include their current required package cl
     }
   }
 });
-test('ordinary creative roles cover creating, editing, generation and export as distinct permissions', () => {
+test('ordinary creative roles cover creating, editing, generation and export as distinct permissions', { skip: LEGACY }, () => {
   const needs = { create: ['project.create', 'project.change', 'project.export', 'project.generate', 'brand.read', 'brand.change'],
     'portrait-studio': ['portrait.create', 'portrait.change', 'portrait.delete', 'portrait.export', 'portrait.email', 'portrait.artist'],
     video: ['studio.generate', 'editor.create', 'editor.change', 'editor.export'] };
@@ -71,4 +76,12 @@ test('ordinary creative roles cover creating, editing, generation and export as 
     for (const permission of required) assert.ok(permissions.has(permission), name + ':' + permission);
     assert.ok(ordinaryRoles[name].flatMap(role => catalog.roles[role].grants).every(grant => grant.scope === 'own'));
   }
+});
+
+/** Sweep 12: the docked frame's title reaches the concierge as the screen's name, so it is the application's own name. */
+test('the page title is the application display name, nothing more', () => {
+  const fsx = require('node:fs'), px = require('node:path'), dir = px.resolve(__dirname, '..');
+  const name = fsx.readFileSync(px.join(dir, 'oshal-app.yaml'), 'utf8').match(/^displayName: *(.+)$/m)[1].trim();
+  const title = fsx.readFileSync(px.join(dir, 'ui', 'index.html'), 'utf8').match(/<title>([^<]*)<\/title>/)[1];
+  require('node:assert/strict').equal(title, name);
 });

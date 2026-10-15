@@ -20,6 +20,11 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — immutable model snapshot persistence with inputs hashing, latest/by-id reads scoped to the owner, and single-statement version allocation for document inserts so two concurrent regenerations cannot collide.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | insertDocumentVersions stores a run's whole document set in one statement after one version read. A native
+ *   run stored its 17 computed documents with 17 inserts inside its 60-second request; live under load the request ran out
+ *   (503 "package call timed out") after the model was stored and before the documents were, so they kept the earlier numbers.
+ *   insertDocumentVersion casts its repeated parameters: PostgreSQL refused it ("inconsistent types deduced for parameter
+ *   $2", owner_sub is VARCHAR in the WHERE and untyped in the SELECT list), so a narrated document was never stored there.
  *
  * @module venture-store-outputs
  */
@@ -206,9 +211,9 @@ export async function insertDocumentVersion(
     `INSERT INTO venture_documents (venture_id, owner_sub, doc_key, version, model_id, title,
        body_md, sections, prose_run_id, prose_status, unverified_numbers, assumptions_cited,
        estimate_pct)
-     SELECT $1, $2, $3,
+     SELECT $1::uuid, $2::text, $3::text,
        COALESCE((SELECT MAX(version) FROM venture_documents
-                 WHERE venture_id = $1 AND owner_sub = $2 AND doc_key = $3), 0) + 1,
+                 WHERE venture_id = $1::uuid AND owner_sub = $2::text AND doc_key = $3::text), 0) + 1,
        $4, $5, $6, $7::jsonb, $8, $9, $10::jsonb, $11::jsonb, $12
      RETURNING *`,
     [ventureId, ownerSub, d.docKey, d.modelId, d.title, d.bodyMd,
@@ -217,6 +222,76 @@ export async function insertDocumentVersion(
       d.estimatePct ?? 100],
   );
   return toDocument(rows[0]);
+}
+
+/** The largest JSON one batched document insert carries; a bigger set is split across statements. */
+const DOCUMENT_BATCH_BYTES = 2 * 1024 * 1024;
+
+/** One batch of documents as the recordset the INSERT reads, with each version allocated. */
+function documentRecords(docs: readonly DocumentInsert[], latest: Map<string, number>): Array<Record<string, unknown>> {
+  return docs.map((d) => ({
+    doc_key: d.docKey, version: (latest.get(d.docKey) ?? 0) + 1, model_id: d.modelId, title: d.title,
+    body_md: d.bodyMd, sections: d.sections, prose_run_id: d.proseRunId ?? null, prose_status: d.proseStatus ?? 'none',
+    unverified_numbers: d.unverifiedNumbers ?? [], assumptions_cited: d.assumptionsCited ?? [], estimate_pct: d.estimatePct ?? 100,
+  }));
+}
+
+/** Split records into batches no larger than DOCUMENT_BATCH_BYTES of JSON (one record always fits its own batch). */
+function documentBatches(records: Array<Record<string, unknown>>): Array<Array<Record<string, unknown>>> {
+  const batches: Array<Array<Record<string, unknown>>> = [];
+  let current: Array<Record<string, unknown>> = [];
+  let bytes = 0;
+  for (const r of records) {
+    const size = JSON.stringify(r).length;
+    if (current.length && bytes + size > DOCUMENT_BATCH_BYTES) { batches.push(current); current = []; bytes = 0; }
+    current.push(r);
+    bytes += size;
+  }
+  if (current.length) batches.push(current);
+  return batches;
+}
+
+/**
+ * @description Insert the next version of several documents in one statement per 2 MiB of documents.
+ *
+ * The current versions are read once and each document gets the next one; a document key appearing
+ * twice keeps only its last entry, because the (venture, document, version) unique index would refuse
+ * the pair. A concurrent writer of the same document is refused by that index rather than overwritten.
+ * Documents are never updated; earlier versions stay readable through `documentHistory`.
+ *
+ * @param pool - Shared pool.
+ * @param ownerSub - The authenticated caller's sub.
+ * @param ventureId - Venture id.
+ * @param docs - The rendered documents.
+ * @returns How many document versions were stored.
+ */
+export async function insertDocumentVersions(
+  pool: Pool, ownerSub: string, ventureId: string, docs: readonly DocumentInsert[],
+): Promise<number> {
+  const unique = [...new Map(docs.map((d) => [d.docKey, d])).values()];
+  if (!unique.length) return 0;
+  const { rows } = await pool.query(
+    `SELECT doc_key, MAX(version) AS version FROM venture_documents
+     WHERE venture_id = $1 AND owner_sub = $2 GROUP BY doc_key`,
+    [ventureId, ownerSub],
+  );
+  const latest = new Map<string, number>(rows.map((r: any) => [String(r.doc_key), Number(r.version)]));
+  let stored = 0;
+  for (const batch of documentBatches(documentRecords(unique, latest))) {
+    const result = await pool.query(
+      `INSERT INTO venture_documents (venture_id, owner_sub, doc_key, version, model_id, title,
+         body_md, sections, prose_run_id, prose_status, unverified_numbers, assumptions_cited, estimate_pct)
+       SELECT $1, $2, x.doc_key, x.version, x.model_id, x.title, x.body_md, x.sections, x.prose_run_id,
+         x.prose_status, x.unverified_numbers, x.assumptions_cited, x.estimate_pct
+       FROM jsonb_to_recordset($3::jsonb) AS x(doc_key text, version integer, model_id uuid, title text,
+         body_md text, sections jsonb, prose_run_id uuid, prose_status text, unverified_numbers jsonb,
+         assumptions_cited jsonb, estimate_pct numeric)
+       RETURNING doc_key`,
+      [ventureId, ownerSub, JSON.stringify(batch)],
+    );
+    stored += result.rows.length;
+  }
+  return stored;
 }
 
 /**

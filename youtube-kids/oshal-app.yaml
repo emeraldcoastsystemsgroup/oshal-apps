@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1   | maintainer@emeraldcoastsystemsgroup.com     | Declare migrations/001-youtube-activity.sql: on the native kernel GET /status 500'd "SQL schema is not provisioned" for everyone who had not uploaded, because a read cannot create the table. Register the package's Test Lab catalog.
+# -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — youtube-kids ("Kid Lens")
 # Carved out of OSHAL core 2026-07-17 (ADR-085 Wave 1 carve #2).
@@ -17,9 +23,9 @@
 # catalog 2026-07-16 but fully functional). Toggle active via the swarm-apps API
 # or cockpit to use it.
 #
-# Schema note: the app creates its own table lazily at first use
-# (oshal_youtube_activity, owner-scoped RLS applied at the same chokepoint) —
-# no migration files to run at install, nothing to drop unless you choose to.
+# Schema note: oshal_youtube_activity is a declared migration (the native kernel
+# provisions it per person) and the routes still declare it lazily at first use,
+# with the owner-scoped RLS applied at that chokepoint on PostgreSQL.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: youtube-kids
@@ -57,6 +63,9 @@ artifacts:
       mode: post
       endpoint: /api/youtube-kids/import-artifact
 status: inactive
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 
 # Playful per-app skin so the kid workspace reads distinct from the work apps.
 theme: sakura
@@ -98,6 +107,7 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - memory           # @/features/personal-data — the raw Takeout export is sealed at rest by the kernel
 
 ticketType: youtube-kids-brief
 
@@ -156,6 +166,12 @@ routes:
 
 # The shared kernel scans whole archives safely; this package owns the Google product path and
 # owner-keyed handler. Activation registers the contribution and toggle-off retracts it immediately.
+# The per-person activity store. The native kernel provisions declared migrations in a writer's own
+# scope (a read-only GET cannot create the table); the routes' runtime bootstrap still declares the
+# same table and, on PostgreSQL, its owner policy.
+migrations:
+  - migrations/001-youtube-activity.sql
+
 takeout:
   - kind: youtube-watch-history
     label: YouTube watch history
@@ -178,9 +194,6 @@ ui:
       icon: codicon codicon-device-camera-video
       iframeUrl: /api/youtube-kids/
       section: top
-
-# No migrations: schema is created lazily by the route at first use (see header).
-migrations: []
 
 ribbon:
   hideFrameworkItems:

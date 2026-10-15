@@ -31,6 +31,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — the four channel shapes (direct, marketplace, big-box, distributor) decomposed into an affine fee stack, the forward waterfall for all three pricing modes, the exact inverse for maximum affordable landed cost, the cost-dependent-fee rejection that keeps the inverse exact, and the blended contribution across a channel mix.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | A direct channel may carry `orderCostMicros`, one all-in cost per order (acquisition, payment, pick-pack and outbound shipping). When present it is the single fixed fee for those four and replaces the itemised payment, shipping, pick-pack and acquisition lines; returns stay itemised. The composed plan registers that figure as channel.dtc.terms, and before this field it had nowhere to go: the plan cited the registered $12 per order while charging the itemised defaults ($31.30 per order plus 2.9%), so a $19.99 product showed a -$33.24 contribution.
  *
  * @module venture-channels
  */
@@ -52,7 +53,7 @@ exports.MARKETING_FEE_KEYS = ['customer-acquisition', 'advertising', 'coop-adver
 /** Economics keys the four shapes legitimately carry. Anything else is inspected. */
 const KNOWN_ECONOMICS_KEYS = new Set([
     'kind', 'paymentBps', 'paymentFixedMicros', 'outboundShipMicros', 'shippingChargedToCustomerMicros',
-    'pickPackMicros', 'returnRateRatio', 'returnHandlingMicros', 'returnSalvageRatio', 'cacPerOrderMicros',
+    'pickPackMicros', 'returnRateRatio', 'returnHandlingMicros', 'returnSalvageRatio', 'cacPerOrderMicros', 'orderCostMicros',
     'referralBps', 'dims', 'shippingWeightOz', 'cubicFeet', 'storageMonths', 'inboundPerUnitMicros',
     'returnProcessingMicros', 'acosBps', 'feeTableDate', 'retailerMarginBps', 'markdownAllowanceBps',
     'coopAdvertisingBps', 'defectiveAllowanceBps', 'chargebackBps', 'earlyPaymentDiscountBps',
@@ -104,13 +105,19 @@ function decomposeDtc(e, refs) {
     const salvage = clampRatio(e.returnSalvageRatio);
     const pay = clampBps(e.paymentBps);
     const ship = e.shippingChargedToCustomerMicros;
-    return {
-        components: [
-            fee('returns-refund', 'Refunds on returned orders', (0, venture_primitives_1.roundHalfUp)(r * venture_primitives_1.BPS_ONE), (0, venture_primitives_1.scaleMicros)(ship, r), `${(r * 100).toFixed(1)}% of orders refunded`, refs),
+    const allIn = typeof e.orderCostMicros === 'number' && Number.isFinite(e.orderCostMicros);
+    const perOrder = allIn
+        ? [fee('order-cost', 'Cost per direct order', 0, Math.max(0, Math.round(e.orderCostMicros)), 'per order: acquisition, payment, pick-pack and outbound shipping', refs)]
+        : [
             fee('payment', 'Payment processing', pay, (0, venture_primitives_1.addMicros)((0, venture_primitives_1.applyBps)(ship, pay), e.paymentFixedMicros), `${pay} bps + fixed, on price and shipping collected`, refs),
             fee('outbound-shipping', 'Outbound shipping', 0, e.outboundShipMicros, 'per unit shipped', refs),
             fee('pick-pack', 'Pick and pack', 0, e.pickPackMicros, 'per unit shipped', refs),
             fee('customer-acquisition', 'Customer acquisition', 0, e.cacPerOrderMicros, 'per order', refs),
+        ];
+    return {
+        components: [
+            fee('returns-refund', 'Refunds on returned orders', (0, venture_primitives_1.roundHalfUp)(r * venture_primitives_1.BPS_ONE), (0, venture_primitives_1.scaleMicros)(ship, r), `${(r * 100).toFixed(1)}% of orders refunded`, refs),
+            ...perOrder,
             fee('returns-handling', 'Returns handling', 0, (0, venture_primitives_1.scaleMicros)(e.returnHandlingMicros, r), `${(r * 100).toFixed(1)}% of orders handled back`, refs),
         ],
         revVarBps: venture_primitives_1.BPS_ONE,

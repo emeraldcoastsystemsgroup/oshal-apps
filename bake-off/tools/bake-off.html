@@ -86,6 +86,8 @@
   .jobs button.ghost.sel { border-color: var(--blue); color: var(--blue); }
   .msg { font-size: .8rem; margin-top: .5rem; }
   .msg.err { color: var(--red); }
+  .msg.warn { color: var(--amber); margin: 0 0 .6rem; }
+  .scroll.stale { opacity: .65; }
   pre.out {
     white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg);
     border: 1px solid var(--border); border-radius: 6px; padding: .6rem;
@@ -145,6 +147,7 @@
 
     <div class="card" style="margin-top:1rem">
       <h2>Report</h2>
+      <p class="msg warn" id="edited" role="status" hidden><strong>Not run with your edits.</strong> You changed the prompt, rubric or reference above; the results below measure the saved job. Save the changes (as a new job when this one has a run) and run it to measure them.</p>
       <div id="report">No run yet. Save a job, then Run bake-off.</div>
     </div>
   </div>
@@ -158,13 +161,20 @@ let LANES = [];
 let JOBS = [];
 let SEL = null;      // selected job id
 let POLL = null;     // report poll timer
+let LANES_REASON = ''; // the server's reason this installation has no lanes, when it gives one
+let DEFAULT_RUBRIC = []; // the server's default rubric: a blank rubric field saves as this
+let SHOWN_RUN = null;    // the run the report shows, or null when it shows none
 
 /** Fetch JSON, surfacing the server's error text rather than a bare status code. */
 async function api(pathname, init) {
   const res = await fetch(API + pathname, Object.assign({ headers: { 'content-type': 'application/json' } }, init || {}));
   let body = null;
   try { body = await res.json(); } catch (_) { /* non-JSON error page */ }
-  if (!res.ok) throw new Error((body && (body.error || body.detail)) || ('HTTP ' + res.status));
+  if (!res.ok) {
+    const err = new Error((body && (body.detail || body.message || body.error)) || ('HTTP ' + res.status));
+    err.code = body && body.code;  // a closed refusal code the page can act on (spec-has-runs)
+    throw err;
+  }
   return body;
 }
 
@@ -189,7 +199,13 @@ async function loadLanes() {
   try {
     const d = await api('/lanes');
     LANES = d.lanes || [];
-    $('lanes').innerHTML = LANES.length
+    DEFAULT_RUBRIC = (d.defaults && d.defaults.rubric) || [];
+    // The server's own reason when this installation has no lanes to race ({configured:false, reason, detail}),
+    // instead of a generic "no lanes" hint, and Run stays off: a race needs at least two lanes.
+    LANES_REASON = d.configured === false ? (d.detail || d.reason || '') : '';
+    $('lanes').innerHTML = LANES_REASON
+      ? '<p class="msg err" style="margin:0"><strong>Not available here.</strong> ' + esc(LANES_REASON) + '</p>'
+      : LANES.length
       ? LANES.map((l) => '<div class="lane"><div><strong>' + esc(l.bot) + '</strong><br><code>'
           + esc(l.harness) + ' / ' + esc(l.provider) + '</code></div></div>').join('')
       : '<p class="sub" style="margin:0">No lanes available to you. A bake-off needs at least two.</p>';
@@ -220,7 +236,31 @@ function fillEditor(job) {
   $('f-ref').value = job && job.reference ? job.reference : '';
   $('f-bar').value = job ? job.qualityBar : 70;
   $('f-vol').value = job ? job.monthlyVolume : 100;
-  ['run', 'verdict', 'del'].forEach((id) => { $(id).disabled = !job; });
+  ['run', 'del'].forEach((id) => { $(id).disabled = !job; });
+  if (LANES.length < 2) $('run').disabled = true;
+  verdictReady(null);
+  markEdited();
+}
+// The report measures the SAVED job. When the editor's prompt, rubric or reference differs from it, the report says
+// so: after an edit (or a declined save-as-new) the old run's results otherwise read as a measurement of the edit.
+function specEdited() {
+  const job = JOBS.find((j) => j.id === SEL);
+  if (!job) return false;
+  const lines = $('f-rubric').value.split('\n').map((s) => s.trim()).filter(Boolean);
+  const rubric = lines.length ? lines : DEFAULT_RUBRIC;
+  return $('f-prompt').value.trim() !== job.prompt
+    || $('f-ref').value.trim() !== (job.reference || '')
+    || JSON.stringify(rubric) !== JSON.stringify(job.rubric || []);
+}
+function markEdited() { $('edited').hidden = !(SHOWN_RUN && specEdited()); }
+['f-prompt', 'f-rubric', 'f-ref'].forEach((id) => { $(id).addEventListener('input', markEdited); });
+
+// The analyst narrates a finished run's table, so "Ask the analyst" waits for one: with no run (or one still
+// running) the button was enabled and the route answered with an error after the click.
+function verdictReady(run) {
+  const ready = Boolean(run && run.status !== 'running');
+  $('verdict').disabled = !ready;
+  $('verdict').title = ready ? '' : (run ? 'Wait for this run to finish.' : 'Run this job first; the analyst reads a finished run.');
 }
 
 function select(id) {
@@ -275,14 +315,20 @@ function headline(rec, run) {
 }
 
 function renderReport(d) {
-  if (!d.run) { $('report').innerHTML = 'No run yet for this job.'; return; }
+  verdictReady(d.run || null);
+  SHOWN_RUN = d.run || null;
+  markEdited();
+  if (!d.run) { $('report').innerHTML = 'No run yet for this job. Run it, then the analyst can read the result.'; return; }
   const rep = d.report;
   const rec = rep.recommendation;
   const winnerKey = rec.winner ? rec.winner.laneKey : null;
   const rows = rep.qualifying.map((l) => laneRow(l, winnerKey, null))
     .concat(rep.rejected.map((l) => laneRow(l, winnerKey, l.reason))).join('');
-  $('report').innerHTML = headline(rec, d.run)
-    + '<div class="scroll"><table><thead><tr><th>Lane</th><th>Harness / provider</th><th>Model</th>'
+  // A run graded on an earlier prompt, rubric or reference is marked, never shown as the current measurement.
+  const stale = d.stale ? '<p class="msg warn" data-stale="1" role="status"><strong>Out of date.</strong> '
+    + esc(d.stale.message) + '</p>' : '';
+  $('report').innerHTML = stale + headline(rec, d.run)
+    + '<div class="scroll' + (d.stale ? ' stale' : '') + '"><table><thead><tr><th>Lane</th><th>Harness / provider</th><th>Model</th>'
     + '<th class="num">Score</th><th class="num">Cost/run</th><th class="num">Tokens</th>'
     + '<th class="num">Latency</th><th>Graded by</th></tr></thead><tbody>'
     + (rows || '<tr><td colspan="8">No lanes recorded yet.</td></tr>')
@@ -310,19 +356,31 @@ async function showOutput(runId, agentId) {
 
 async function loadReport() {
   if (POLL) { clearTimeout(POLL); POLL = null; }
-  if (!SEL) { $('report').innerHTML = 'Select or save a job.'; return; }
+  if (!SEL) { SHOWN_RUN = null; markEdited(); verdictReady(null); $('report').innerHTML = 'Select or save a job.'; return; }
   try { renderReport(await api('/jobs/' + encodeURIComponent(SEL) + '/report')); }
-  catch (e) { $('report').innerHTML = '<p class="msg err">' + esc(e.message) + '</p>'; }
+  catch (e) { SHOWN_RUN = null; markEdited(); verdictReady(null); $('report').innerHTML = '<p class="msg err">' + esc(e.message) + '</p>'; }
 }
 
 // ── Actions ──────────────────────────────────────────────────────────────────
 $('newJob').onclick = () => { SEL = null; fillEditor(null); loadJobs(); say(''); };
 
+// Save edits the selected job in place (PATCH keeps its id and runs); with no job selected it
+// creates one. Saving always POSTed before, so editing a job made a duplicate.
+// A job with a run keeps the prompt, rubric and reference that run was graded on (409 spec-has-runs):
+// the page offers to save the changes as a new job, so the old report never reads as the new prompt's.
+async function saveAsNewIfAsked(e) {
+  if (e.code !== 'spec-has-runs') throw e;
+  if (!confirm(e.message + '\n\nSave these changes as a new job?')) return null;
+  return api('/jobs', { method: 'POST', body: JSON.stringify(body()) });
+}
 $('save').onclick = async () => {
   try {
-    const created = await api('/jobs', { method: 'POST', body: JSON.stringify(body()) });
+    const saved = SEL
+      ? await api('/jobs/' + encodeURIComponent(SEL), { method: 'PATCH', body: JSON.stringify(body()) }).catch(saveAsNewIfAsked)
+      : await api('/jobs', { method: 'POST', body: JSON.stringify(body()) });
+    if (!saved) { say('Not saved. This job still has the prompt, rubric and reference its runs measured.'); return; }
     await loadJobs();
-    select(created.job.id);
+    select(saved.job.id);
     say('Saved.');
   } catch (e) { say(e.message, true); }
 };
@@ -344,7 +402,10 @@ $('verdict').onclick = async () => {
   } catch (e) { say(e.message, true); }
 };
 
+// Deleting a job also deletes its runs and results, so it asks first.
 $('del').onclick = async () => {
+  const job = JOBS.find((j) => j.id === SEL);
+  if (!SEL || !confirm('Delete the job "' + (job ? job.name : 'this job') + '" and all of its runs? This cannot be undone.')) return;
   try {
     await api('/jobs/' + encodeURIComponent(SEL), { method: 'DELETE' });
     SEL = null; fillEditor(null); await loadJobs(); loadReport(); say('Deleted.');

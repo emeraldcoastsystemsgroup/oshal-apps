@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Validate character command fields before persistence and serialize each owner's creation check/insert in a bounded transaction, preventing concurrent identity reuse without changing existing rows.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Open the transaction with plain BEGIN. The native kernel's SQL bridge accepts only BEGIN, BEGIN READ ONLY, START TRANSACTION [READ ONLY], COMMIT, END and ROLLBACK as transaction control; "BEGIN ISOLATION LEVEL READ COMMITTED" went to its SQL parser and was refused "unsupported SQL statement", so every character creation answered 502. READ COMMITTED is PostgreSQL's default, so plain BEGIN keeps the same isolation there; the transaction-local lock_timeout and the owner advisory lock are unchanged.
  */
 import type { PoolClient } from 'pg';
 import type { AppContext } from '@/app/composition/app-context';
@@ -74,7 +75,7 @@ export async function createLoraCharacter(ctx: AppContext, owner: string, body: 
   const client = await ctx.pool.connect();
   let destroy = false;
   try {
-    await client.query('BEGIN ISOLATION LEVEL READ COMMITTED');
+    await client.query('BEGIN');
     await client.query("SET LOCAL lock_timeout = '5s'");
     await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`lora-character-create:${owner}`]);
     const outcome = await insertCharacter(client, owner, fields);

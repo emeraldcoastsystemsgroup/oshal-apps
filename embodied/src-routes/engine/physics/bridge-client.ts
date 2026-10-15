@@ -7,6 +7,7 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Two links, one contract (B20): `lines` is the container's JSON-lines bridge we dial by address; `http` is the swarm node rail — a node that joined by heartbeat, commanded at the endpoint it declared under the swarm service secret, its hello the one it heartbeat in (checked exactly as a dialled hello is: protocol, and the build hash for a plant node). The bridge names the node it speaks for (nodeId, link, endpoint) so a world can say which node flies it.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | callAsync: the same request without blocking the event loop, for the ops that take seconds (the arm's physics check). One request at a time per bridge either way.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The node rail authenticates commands with the node's command key (x-node-command-key), not the swarm service secret (ADR-175 hardening).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | `native`: inside the native kernel's sandbox (no network) the bridge reaches the container through the kernel's engine.exchange intent, which is asynchronous: `callAsync` and `helloAsync` work (reports, status, the arm check), while the synchronous `call` a stepping physics world needs refuses with capability_unavailable naming why.
  */
 
 import path from 'node:path';
@@ -34,9 +35,17 @@ export interface BridgeHello { protocol: number; engine: string; version: string
 /** How the bridge reaches the node: the container we dial (`bridge`) or a node that dialled us by heartbeat (`rail`). */
 export type NodeLink = 'bridge' | 'rail';
 
+/** What the kernel's `engine.exchange` intent answers: the engine's own hello and its reply to the request. */
+export interface NativeExchange { hello: unknown; reply: unknown }
+
+/** The kernel relays one engine request within the 60 s process call; keep a margin. */
+export const NATIVE_MAX_MS = 55_000;
+
 export interface SyncBridgeOptions {
-  /** `lines` (default): the JSON-lines TCP bridge at host:port. `http`: the node rail — command envelopes POSTed to `endpoint`. */
-  transport?: 'lines' | 'http';
+  /** `lines` (default): the JSON-lines TCP bridge at host:port. `http`: the node rail — command envelopes POSTed to `endpoint`. `native`: the kernel's engine.exchange intent. */
+  transport?: 'lines' | 'http' | 'native';
+  /** Native kernel: send one request through the kernel's `engine.exchange` intent. */
+  exchange?: (request: Record<string, unknown>, timeoutMs: number) => Promise<NativeExchange>;
   host?: string;
   port?: number;
   /** Node rail: the base URL the node declared in its heartbeat. */
@@ -75,7 +84,7 @@ export class SyncBridge {
   private readonly sab: SharedArrayBuffer;
   private readonly status: Int32Array;
   private readonly bytes: Uint8Array;
-  private readonly worker: Worker;
+  private readonly worker: Worker | null;
   private readonly timeoutMs: number;
   private nextId = 1;
   private helloSeen: BridgeHello | null = null;
@@ -88,6 +97,12 @@ export class SyncBridge {
     this.bytes = new Uint8Array(this.sab, 8);
     this.timeoutMs = opts.timeoutMs ?? 15000;
     const workerFile = path.join(__dirname, 'bridge-worker.js');
+    if (opts.transport === 'native') {
+      if (!opts.exchange) throw new EngineFailure('engine_error', 'a native bridge needs the kernel exchange');
+      this.nodeId = BRIDGE_NODE_ID; this.link = 'bridge'; this.endpoint = 'native://engine.exchange';
+      this.worker = null;
+      return;
+    }
     if (opts.transport === 'http') {
       if (!opts.endpoint || !opts.hello || !opts.nodeId) throw new EngineFailure('engine_error', 'a node-rail bridge needs the node\'s endpoint, hello and id');
       if (!opts.commandKey) throw new EngineFailure('capability_unavailable', 'the node has no command key yet — wait for its next heartbeat', 'no command key');
@@ -104,7 +119,38 @@ export class SyncBridge {
   /** @description Block until the bridge's hello arrives and check it; cached afterwards. */
   hello(): BridgeHello {
     if (this.helloSeen) return this.helloSeen;
-    const text = this.awaitLine();
+    if (this.opts.transport === 'native') throw this.nativeSyncRefusal('hello');
+    return this.checkHello(this.awaitLine());
+  }
+
+  /** @description The hello without blocking: natively one `status` request through the kernel, otherwise {@link hello}. */
+  async helloAsync(): Promise<BridgeHello> {
+    if (this.helloSeen || this.opts.transport !== 'native') return this.hello();
+    await this.callAsync('status');
+    return this.hello();
+  }
+
+  /** The synchronous link a stepping world needs does not exist on the native kernel; say so instead of hanging. */
+  private nativeSyncRefusal(op: string): EngineFailure {
+    return new EngineFailure('capability_unavailable', `physics ${op} needs a synchronous engine link`,
+      'the native kernel relays engine requests asynchronously, so a physics world cannot step on it yet; reports, status and the arm check work');
+  }
+
+  /** One native request: the engine's hello is checked as on the socket, then its reply is parsed as request 1. */
+  private async callNative<T>(op: string, payload: Record<string, unknown>, timeoutMs: number): Promise<T> {
+    let answer: NativeExchange;
+    try {
+      answer = await (this.opts.exchange as NonNullable<SyncBridgeOptions['exchange']>)({ op, ...payload }, Math.min(timeoutMs, NATIVE_MAX_MS));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new EngineFailure(/deadline/.test(message) ? 'engine_timeout' : 'capability_unavailable', 'the physics engine is unavailable', message);
+    }
+    this.helloSeen = null;
+    this.checkHello(JSON.stringify(answer?.hello ?? null));
+    return this.parse<T>(op, 1, JSON.stringify(answer.reply ?? null));
+  }
+
+  private checkHello(text: string): BridgeHello {
     let parsed: Partial<BridgeHello> & WireReply;
     try { parsed = JSON.parse(text) as Partial<BridgeHello> & WireReply; } catch { throw this.die(new EngineFailure('engine_error', 'the engine bridge sent an unreadable hello')); }
     if (parsed.ok === false) throw this.die(new EngineFailure((parsed.error as EngineFailureCode) ?? 'capability_unavailable', 'the physics engine is unavailable', parsed.reason));
@@ -117,6 +163,7 @@ export class SyncBridge {
   /** @description Send one request and block for its result. */
   call<T = unknown>(op: string, payload: Record<string, unknown> = {}): T {
     if (this.dead) throw this.dead;
+    if (this.opts.transport === 'native') throw this.nativeSyncRefusal(op);
     this.hello();
     const id = this.send(op, payload);
     return this.parse<T>(op, id, this.awaitLine());
@@ -134,6 +181,7 @@ export class SyncBridge {
     if (this.busy) throw new EngineFailure('engine_error', `the physics bridge is busy with ${this.busy}`);
     this.busy = op;
     try {
+      if (this.opts.transport === 'native') return await this.callNative<T>(op, payload, timeoutMs);
       this.hello();
       const id = this.send(op, payload);
       return this.parse<T>(op, id, await this.awaitLineAsync(timeoutMs));
@@ -142,7 +190,7 @@ export class SyncBridge {
 
   private send(op: string, payload: Record<string, unknown>): number {
     const id = this.nextId; this.nextId += 1;
-    this.worker.postMessage(JSON.stringify({ id, op, ...payload }));
+    (this.worker as Worker).postMessage(JSON.stringify({ id, op, ...payload }));
     return id;
   }
 
@@ -162,12 +210,13 @@ export class SyncBridge {
   /** @description End the worker; every later call fails closed. */
   close(): void {
     this.dead = this.dead ?? new EngineFailure('capability_unavailable', 'the physics bridge was closed');
-    void this.worker.terminate();
+    void this.worker?.terminate();
   }
 
   private die(failure: EngineFailure): EngineFailure {
+    if (this.opts.transport === 'native') return failure;
     this.dead = failure;
-    void this.worker.terminate();
+    void this.worker?.terminate();
     return failure;
   }
 

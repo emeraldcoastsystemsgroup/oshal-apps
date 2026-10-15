@@ -16,6 +16,11 @@
  * 2026-09-25 22:00:00 | maintainer@emeraldcoastsystemsgroup.com | Approval-gated POST /slack uploads one rendered Office artifact through the caller's own Slack user token.
  * 2026-09-26 06:22:00 | maintainer@emeraldcoastsystemsgroup.com | Run the Guide's tool-less structured editor proposal as protected direct reasoning, not agentic execution.
  * 2026-10-01 15:40:00 | maintainer@emeraldcoastsystemsgroup.com | Brand looks (2.13.0): POST /pptx, /docx, /xlsx, /email and /slack take `brand` ({ base, colors, fonts }, the caller's Create kit as the studio read it in their own session); the kernel's brandTheme rebuilds and validates it and the file is drawn in the kit's exact colors and faces. The record and the response name the look `brand:<base>`. An invalid kit is a 400 with the engine's reason, checked before any outline draft, render, save or send. POST /brand-look returns the built look so the studio can show it beside the ten looks. Refusals are matched by the kernel's stable code, so on a framework without brand looks the catch blocks still answer (POST /brand-look fails there, and the studio keeps the nearest built-in look).
+ * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Native kernel egress (OSHAL_EGRESS=kernel): POST /email sends through gmail.googleapis.com (connector gmail) or graph.microsoft.com (connector outlook) with the package's own fenced MIME builder instead of the bridge's inert senders, which answered {} so a send read as delivered; POST /slack runs the external-upload sequence through slack.com (connector slack) and the pre-signed files.slack.com URL instead of the refused framework Slack client. Neither request carries an Authorization header: the kernel applies the caller's connection. Connection state comes from connectors.metadata (Gmail first, then Microsoft, as before), and a missing, lapsed or kernel-refused connection answers the same 409 no_mail_connection / no_slack_connection. Outside the kernel both routes are unchanged.
+ * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | The topic outline ("AI draft") runs on this package's own declared deck-builder bot (a0000000-0000-0000-0000-000000000042) instead of the platform comms bot b0000000-0000-0000-0000-000000000001, which the native kernel refuses as "requested bot is not declared by this application"; the draft spun and then failed. Guarded by scripts/check-store-bots.test.mjs.
+ * 2026-10-11 18:00:00 | maintainer@emeraldcoastsystemsgroup.com | A saved topic draft answers with the title and the outline it drafted (title + content per slide), so the studio fills its Title and Outline after "AI draft" instead of leaving both empty with every connected action refusing "select or enter the work first".
+ * 2026-10-11 20:00:00 | maintainer@emeraldcoastsystemsgroup.com | The "My decks" record of a saved Office file is awaited before the response: the native kernel refuses a package's SQL once its request has answered, so the fire-and-forget INSERT never ran (live: every deck listed with createdAt null, shown as 'Dec 31', no slide count, and Delete answered rows: 0). A failed record is still logged and never fails the saved file.
+ * 2026-10-12 23:30:00 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: the AI draft failed intermittently with the raw parser text "Unterminated string in JSON at position 4444": the deck-builder's outline stopped at the 2048-token default output budget (usage_out 2048). The draft now asks for 8192 output tokens, reads the outline with outline-json.ts (a cut-off array keeps its complete slides when at least half survived, said in the answer's `note`), and a draft that still fails answers 502 with plain words and a code (outline_cut_off / outline_missing), never a parser message.
  */
 
 import { Router, raw, type Request, type Response } from 'express';
@@ -32,11 +37,13 @@ import type { AppContext } from '@/app/composition/app-context';
 import type { DeckThemeId, PresentationRequest } from '@/shared/types';
 import { saveContent, listFolder, deleteStoredFile, resolveStorageTarget, type StorageTarget } from '@/app/routes/storage-target';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
+import { parseOutline, OutlineError } from './outline-json';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
 import { uploadSlackFile } from '@/app/routes/slack-client';
 import { sendGmail, sendOutlookMail } from '@/app/routes/email-routes';
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
 import { starterCatalog } from './office-starters';
+import { isNotConnected, kernelEgress, kernelSendMail, kernelSlackUsable, kernelUploadSlackFile } from './kernel-delivery';
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -44,13 +51,13 @@ const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 const logger = createChildLogger({ module: 'bot-presentation-routes' });
 const engine = new PresentationEngine();
 
-/** The comms bot (codex) drafts slide outlines — same bot the social/email swarms use. */
-const COMMS_BOT_AGENT_ID = 'b0000000-0000-0000-0000-000000000001';
 /** The Presentations app's own bot (deck-builder) — owns the deck store under oshal/{bot-id}/. */
 const DECK_BUILDER_AGENT_ID = 'a0000000-0000-0000-0000-000000000042';
 /** Bot-scoped store path for generated decks (ADR-043). */
 const DECK_SUBFOLDER = `oshal/${DECK_BUILDER_AGENT_ID}`;
 const botClient = new BotNodeClient(createRegistryEndpointResolver());
+/** The honest answer when the caller has no usable Slack connection. */
+const NO_SLACK = { error: 'no_slack_connection', message: 'Connect Slack with file-upload permission in /utilities before delivering an artifact.' };
 
 /** Signed-in caller's OIDC sub. */
 function callerSub(req: Request): string | null {
@@ -77,8 +84,11 @@ const SYNTAX_BRIEF = [
   'Never invent facts or metrics: if a number is a placeholder, write it as one (e.g. "TBD :: replace me").',
 ].join('\n');
 
-/** Ask the comms bot for a slide outline on a topic; parse its JSON into sections. */
-async function outlineFromTopic(ctx: AppContext, sub: string, topic: string, slideCount: number): Promise<RenderableSlide[]> {
+/** Output tokens one outline may use: the kernel's 2048 default cut a six-slide outline off mid-string. */
+const OUTLINE_MAX_OUTPUT_TOKENS = 8192;
+
+/** Ask this package's deck-builder bot for a slide outline on a topic; parse its JSON into sections (and say when its end was cut off). */
+async function outlineFromTopic(ctx: AppContext, sub: string, topic: string, slideCount: number): Promise<{ slides: RenderableSlide[]; cutOff: boolean }> {
   const prompt = [
     `Create a ${slideCount}-slide presentation outline on: ${topic}.`,
     'Output ONLY a valid JSON array (no prose, no markdown fences) of objects:',
@@ -88,14 +98,14 @@ async function outlineFromTopic(ctx: AppContext, sub: string, topic: string, sli
     'Vary the deck: open with the story, use a statement or quote to land the key idea, a chart or KPI tiles where',
     'there are numbers, and close with next steps. Each slide: a short title + 3-5 concise points.',
   ].join('\n');
-  const result = await executeBotOrInline(ctx, botClient, COMMS_BOT_AGENT_ID, {
+  // The native kernel reads max_output_tokens from the bot request; the framework's request type does not name it.
+  const request = {
     text: prompt, taskId: `pptx-${sub}`, workspaceFolderId: `pptx-${sub}`,
-    agentId: COMMS_BOT_AGENT_ID, agenticMode: true, direct: true, userSub: sub,
-  });
-  const m = String(result.response || '').match(/\[[\s\S]*\]/);
-  const parsed = JSON.parse(m ? m[0] : String(result.response)) as RenderableSlide[];
-  if (!Array.isArray(parsed) || !parsed.length) throw new Error('bot did not return a slide array');
-  return parsed;
+    agentId: DECK_BUILDER_AGENT_ID, agenticMode: true, direct: true, userSub: sub, max_output_tokens: OUTLINE_MAX_OUTPUT_TOKENS,
+  };
+  const result = await executeBotOrInline(ctx, botClient, DECK_BUILDER_AGENT_ID, request);
+  const { slides, cutOff } = parseOutline(String(result.response || ''), slideCount);
+  return { slides: slides as unknown as RenderableSlide[], cutOff };
 }
 
 /**
@@ -187,11 +197,12 @@ export async function ensurePresentationsSchema(pool: AppContext['pool']): Promi
   });
 }
 
-/** A compact outline for preview cards: slide title + the first couple of bullets. */
-function previewOutline(sections: RenderableSlide[]): Array<{ title: string; bullets: string[] }> {
-  return sections.slice(0, 12).map((s) => ({
-    title: String(s.title || '').slice(0, 120),
-    bullets: String(s.content ?? '').split(/\n+/).map((b) => b.trim()).filter(Boolean).slice(0, 2),
+/** Retain complete draft source for Edit & regenerate, not the old cropped preview. */
+function previewOutline(sections: RenderableSlide[]): Array<{ title: string; bullets: string[]; sourceVersion: number }> {
+  return sections.map((s) => ({
+    title: String(s.title || ''),
+    bullets: String(s.content ?? '').split('\n'),
+    sourceVersion: 2,
   }));
 }
 
@@ -203,7 +214,8 @@ type GuideAction =
   | { op: 'set_outline'; slides: GuideSlide[] }
   | { op: 'update_slide'; index: number; title?: string; bullets?: string[] }
   | { op: 'add_slide'; title: string; bullets: string[] }
-  | { op: 'set_theme'; theme: DeckThemeId };
+  | { op: 'set_theme'; theme: DeckThemeId }
+  | { op: 'update_cell'; index: number; cell: string; value: string };
 
 /** Sanitize slides the bot returned (cap counts + lengths so the editor stays sane). */
 function cleanSlides(raw: unknown): GuideSlide[] {
@@ -224,9 +236,10 @@ function cleanActions(raw: unknown): GuideAction[] {
     const op = String(o.op || '');
     if (op === 'set_title' && o.title) out.push({ op, title: String(o.title).slice(0, 200) });
     else if (op === 'set_theme' && isThemeId(o.theme)) out.push({ op, theme: o.theme });
+    else if (op === 'update_cell' && Number.isInteger(Number(o.index)) && Number(o.index) >= 1 && Number(o.index) <= 30 && /^[A-Z]{1,2}[1-9][0-9]{0,2}$/.test(String(o.cell || '')) && o.value != null && !/[|\r\n]/.test(String(o.value))) out.push({op, index: Number(o.index), cell: String(o.cell), value: String(o.value).slice(0, 1000)});
     else if (op === 'set_outline') out.push({ op, slides: cleanSlides(o.slides) });
     else if (op === 'add_slide' && o.title) out.push({ op, title: String(o.title).slice(0, 200), bullets: cleanSlides([{ title: 'x', bullets: o.bullets }])[0]?.bullets ?? [] });
-    else if (op === 'update_slide' && Number(o.index) >= 1) {
+    else if (op === 'update_slide' && Number.isInteger(Number(o.index)) && Number(o.index) >= 1 && Number(o.index) <= 30) {
       const upd: GuideAction = { op, index: Math.floor(Number(o.index)) };
       if (o.title != null) upd.title = String(o.title).slice(0, 200);
       if (Array.isArray(o.bullets)) upd.bullets = o.bullets.slice(0, 12).map((b) => String(b).slice(0, 300));
@@ -237,14 +250,18 @@ function cleanActions(raw: unknown): GuideAction[] {
 }
 
 /** Build the deck-builder turn: live editor state as context + the structured-output contract. */
-function guidePrompt(message: string, title: string, slides: GuideSlide[], history: string, theme: string): string {
+function guidePrompt(message: string, title: string, slides: GuideSlide[], history: string, theme: string, kind: string, selection: string): string {
   const state = slides.length
     ? slides.map((s, i) => `${i + 1}. ${s.title}${s.bullets.length ? '\n   - ' + s.bullets.join('\n   - ') : ''}`).join('\n')
     : '(empty)';
   const themes = themeCatalog().map((t) => `${t.id} (${t.mood})`).join(', ');
   return [
-    'You are guiding the user to build a slide outline in the OSHAL Presentation Studio.',
-    'You can BOTH reply conversationally AND directly edit the outline editor via actions.',
+    `You are the AI partner in OSHAL AI Office, editing a ${kind === 'xlsx' ? 'workbook' : kind === 'docx' ? 'document' : 'presentation'}.`,
+    'Reply conversationally and propose edits. The user reviews actions before applying them; do not claim they are already saved or applied.',
+    'The action vocabulary uses slides for compatibility: each slide means a workbook sheet, document section or presentation slide according to the kind.',
+    kind === 'xlsx' ? 'For sheets preserve pipe-table rows and numeric Label: value syntax. User-entered formulas are text in this exporter; do not claim they are evaluated. Preserve every unaffected row and cell when editing a sheet.' : '',
+    kind === 'docx' ? 'Preserve document section headings, body lines and structured table syntax.' : '',
+    `Selected editing context: ${selection || '(whole draft)'}. Use the selected section for requests like this slide or this sheet; do not edit other sections unless asked.`,
     'Respond with ONLY a JSON object (no prose, no code fences):',
     '{"reply":"<short conversational reply>","actions":[ ...zero or more... ]}',
     'Action types — include ONLY what the user asked for this turn (use [] when none):',
@@ -252,6 +269,7 @@ function guidePrompt(message: string, title: string, slides: GuideSlide[], histo
     '- {"op":"set_outline","slides":[{"title":"Slide title","bullets":["one idea","one idea"]}]}  // replaces the whole outline',
     '- {"op":"update_slide","index":2,"title":"New title","bullets":["..."]}  // 1-based; include title and/or bullets',
     '- {"op":"add_slide","title":"...","bullets":["..."]}',
+    kind === 'xlsx' ? '- {"op":"update_cell","index":1,"cell":"B2","value":"100"} // edits only this cell; prefer this for targeted changes, preserving all other rows' : '',
     '- {"op":"set_theme","theme":"executive"}  // only when the user describes a LOOK or an audience',
     `Themes: ${themes}`,
     'A "bullet" may be any line of the slide syntax below — that is how a slide becomes a chart, KPI tiles, a quote, or a table.',
@@ -284,6 +302,22 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
   router.get('/ui', (_req: Request, res: Response) => {
     res.sendFile(path.join(assetRoot, 'presentations.html'), (err) => {
       if (err) { logger.error({ err }, 'serve presentations UI failed'); res.status(404).send('Page not found'); }
+    });
+  });
+
+  /** Fixed package assets, protected by this router's existing OIDC mount. */
+  router.get('/assets/:name', (req: Request, res: Response) => {
+    const name = String(req.params.name || '');
+    const assets: Record<string, string> = {
+      'office-workspace.css': 'text/css', 'office-assistant.mjs': 'text/javascript',
+      'slide-workspace.css': 'text/css', 'slide-workspace.mjs': 'text/javascript',
+      'sheet-workspace.css': 'text/css', 'sheet-workspace.mjs': 'text/javascript',
+    };
+    if (!Object.prototype.hasOwnProperty.call(assets, name)) { res.status(404).send('Asset not found'); return; }
+    res.setHeader('Content-Type', assets[name]);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.sendFile(path.join(assetRoot, name), (err) => {
+      if (err && !res.headersSent) res.status(404).send('Asset not found');
     });
   });
 
@@ -371,7 +405,7 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
       const toDeck = (r: Record<string, unknown>, over?: { downloadUrl?: string; url?: string }) => ({
         title: r.title, fileName: r.file_name, provider: r.provider,
         downloadUrl: over?.downloadUrl ?? r.download_url, url: over?.url ?? r.url, slides: r.slides,
-        outline: r.outline ?? null, theme: r.theme ?? null, format: r.format ?? 'pptx',
+        outline: r.outline ?? null, outlineComplete: Array.isArray(r.outline) && r.outline.length > 0 && r.outline.every((s: { sourceVersion?: unknown }) => s?.sourceVersion === 2), theme: r.theme ?? null, format: r.format ?? 'pptx',
         createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at,
       });
 
@@ -408,15 +442,20 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
   router.post('/guide', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
-    const body = req.body as { message?: string; title?: string; slides?: GuideSlide[]; theme?: string; history?: Array<{ role?: string; text?: string }> };
+    const body = req.body as { message?: string; title?: string; slides?: GuideSlide[]; theme?: string; kind?: string; selection?: { index?: unknown; cell?: unknown; value?: unknown }; history?: Array<{ role?: string; text?: string }> };
     const message = String(body.message || '').trim();
     if (!message) { res.status(400).json({ error: 'message required' }); return; }
     try {
       const slides = cleanSlides(body.slides);
+      const kind = ['pptx', 'docx', 'xlsx'].includes(String(body.kind)) ? String(body.kind) : 'pptx';
+      const index = Number(body.selection?.index);
+      const cell = String(body.selection?.cell || '');
+      const selection = Number.isInteger(index) && index >= 1 && index <= slides.length
+        ? `section ${index}: ${slides[index - 1].title}` + (kind === 'xlsx' && /^[A-Z]{1,3}[1-9][0-9]{0,5}$/.test(cell) ? `, cell ${cell}, current value ${JSON.stringify(String(body.selection?.value || '').slice(0, 1000))}` : '') : '';
       const history = (Array.isArray(body.history) ? body.history : []).slice(-6)
         .map((h) => `${h.role === 'guide' ? 'Guide' : 'You'}: ${String(h.text || '').slice(0, 500)}`).join('\n');
       const result = await executeBotOrInline(ctx, botClient, DECK_BUILDER_AGENT_ID, {
-        text: guidePrompt(message, String(body.title || ''), slides, history, String(body.theme || '')),
+        text: guidePrompt(message, String(body.title || ''), slides, history, String(body.theme || ''), kind, selection),
         taskId: `deckguide-${sub}`, workspaceFolderId: `deckguide-${sub}`,
         agentId: DECK_BUILDER_AGENT_ID, agenticMode: false, direct: true, userSub: sub,
       });
@@ -472,8 +511,10 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
         const look = lookFrom(body);
         const theme = lookName(look);
         let sections = Array.isArray(body.sections) ? body.sections : null;
+        let drafted = false, cutOff = false;
         if ((!sections || !sections.length) && body.topic) {
-          sections = await outlineFromTopic(ctx, sub, body.topic, Math.min(Math.max(body.slideCount || 6, 1), 30));
+          ({ slides: sections, cutOff } = await outlineFromTopic(ctx, sub, body.topic, Math.min(Math.max(body.slideCount || 6, 1), 30)));
+          drafted = true;
         }
         if (!sections || !sections.length) { res.status(400).json({ error: 'provide sections[] or topic' }); return; }
 
@@ -493,16 +534,23 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
         });
         if (saved) {
           logger.info({ sub, kind, provider: saved.provider, location: saved.location, slides: sections.length, theme }, 'office artifact generated + saved');
-          // Record it for the studio's "My decks" list (best-effort — never block the response).
+          // Record it for the studio's "My decks" list (best-effort: a failed record never fails the
+          // file, but it is awaited, because the native kernel refuses a package's SQL once its
+          // request has answered, so a fire-and-forget INSERT never ran and every deck listed with
+          // no date, no slide count and a Delete that removed rows: 0).
           // Store the ACTUAL saved basename (Dropbox lowercases + may autorename on conflict) so
           // the store scan in /list can match this row by name; the outline feeds the preview.
           const savedName = (saved.location || '').split('/').pop() || fileName;
-          ctx.pool.query(
+          await ctx.pool.query(
             `INSERT INTO oshal_presentations (user_sub, title, file_name, provider, download_url, url, slides, outline, theme, format)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
             [sub, title, savedName, saved.provider, saved.downloadUrl ?? null, saved.url ?? null, sections.length, JSON.stringify(previewOutline(sections)), theme, kind],
           ).catch((err) => logger.warn({ err: err?.message }, 'record office artifact failed'));
-          res.json({ ok: true, format: kind, provider: saved.provider, savedTo: saved.location, slides: sections.length, theme, downloadUrl: saved.downloadUrl, url: saved.url });
+          // A topic draft hands back the outline it wrote, so the studio can show the Title and Outline the file
+          // was built from (they stayed empty, and every connected action then had no work to hand on).
+          const outline = drafted ? sections.map((s) => ({ title: String(s.title || ''), content: String(s.content ?? '') })) : undefined;
+          const note = cutOff ? `The outline came back cut off, so this file has the ${sections.length} complete slides.` : undefined;
+          res.json({ ok: true, format: kind, provider: saved.provider, savedTo: saved.location, slides: sections.length, theme, downloadUrl: saved.downloadUrl, url: saved.url, title, ...(outline ? { outline } : {}), ...(note ? { note } : {}) });
           return;
         }
         res.setHeader('Content-Type', fmt.mime);
@@ -511,6 +559,7 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
       } catch (err) {
         if (isLookRefusal(err)) { refuseLook(res, err, kind); return; }
         logger.error({ err, kind }, 'office generation failed');
+        if (err instanceof OutlineError) { res.status(502).json({ error: err.message, code: err.code }); return; }
         res.status(502).json({ error: (err as Error).message });
       }
     };
@@ -614,6 +663,13 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
         body: String(body.note || '').slice(0, 4000) || `${title} is attached.\n\nGenerated with OSHAL AI Office.`,
         attachment: { filename: fileName, contentBase64: buf.toString('base64'), mimeType: fmt.mime },
       };
+      if (kernelEgress()) {
+        const sent = await kernelSendMail(ctx, mail);
+        if (!sent) { res.status(409).json({ error: 'no_mail_connection', message: 'Connect Google (Gmail) or Microsoft 365 in /utilities to send email.' }); return; }
+        logger.info({ sub, kind, via: sent.via, id: sent.id, bytes: buf.length }, 'office artifact emailed');
+        res.json(sent.via === 'gmail' ? { ok: true, via: 'gmail', id: sent.id, to, format: kind, fileName } : { ok: true, via: 'outlook', to, format: kind, fileName });
+        return;
+      }
       const gtok = await getValidAccessToken(ctx.pool, sub, 'google');
       if (gtok) {
         const sent = await sendGmail(gtok, mail);
@@ -659,8 +715,8 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
     const title = String(body.title || 'Document').trim() || 'Document';
     try {
       const look = lookFrom(body);
-      const token = await getValidAccessToken(ctx.pool, sub, 'slack');
-      if (!token) { res.status(409).json({ error: 'no_slack_connection', message: 'Connect Slack with file-upload permission in /utilities before delivering an artifact.' }); return; }
+      const token = kernelEgress() ? ((await kernelSlackUsable(ctx)) ? 'kernel' : null) : await getValidAccessToken(ctx.pool, sub, 'slack');
+      if (!token) { res.status(409).json(NO_SLACK); return; }
       const fmt = OFFICE_FORMATS[kind];
       const buf = await fmt.render(title, sections, {
         theme: look,
@@ -670,18 +726,20 @@ export function createBotPresentationRoutes(ctx: AppContext): Router {
         slideNumbers: body.slideNumbers !== false,
       });
       const fileName = title.replace(/[^\w.\- ]/g, '_').slice(0, 80) + fmt.ext;
-      const uploaded = await uploadSlackFile(token, {
+      const upload = {
         channelId,
         filename: fileName,
         content: buf,
         mimeType: fmt.mime,
         title,
         initialComment: String(body.comment || '').slice(0, 4000),
-      });
+      };
+      const uploaded = kernelEgress() ? await kernelUploadSlackFile(upload) : await uploadSlackFile(token, upload);
       logger.info({ sub, kind, channelId, fileId: uploaded.fileId, bytes: buf.length }, 'office artifact uploaded to Slack');
       res.json({ ok: true, via: 'slack', channelId, fileId: uploaded.fileId, permalink: uploaded.permalink, format: kind, fileName });
     } catch (err) {
       if (isLookRefusal(err)) { refuseLook(res, err, 'slack'); return; }
+      if (isNotConnected(err)) { res.status(409).json(NO_SLACK); return; }
       logger.error({ err, kind }, 'office Slack delivery failed');
       res.status(502).json({ error: (err as Error).message });
     }

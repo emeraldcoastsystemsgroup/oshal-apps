@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Run the fantasy-football cross-user denial spec (forced exact-owner RLS on a disposable PostgreSQL owned by a NOBYPASSRLS runtime role, the real kernel connection lookup and broker, the packaged routes over loopback HTTP) from node:test so the framework-coupled gate and the Test Lab can drive it; a run that executes fewer than its twelve cases fails.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.2.0: the spec now also covers hand-typed leagues and the week ledger on the real store; a run that executes fewer than its fifteen cases fails.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | The spec drives the recording path through POST /lineup/record and adds the GET-writes-nothing case; a run that executes fewer than its sixteen cases fails.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The spec adds the per-league record and the hand-typed league delete of its weeks and calls on the real store; a run that executes fewer than its seventeen cases fails.
  */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -25,5 +27,5 @@ test('fantasy routes deny another user across forced RLS, the real broker and lo
   });
   assert.ifError(result.error);
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /Tests\s+15 passed \(15\)/);
+  assert.match(result.stdout, /Tests\s+17 passed \(17\)/);
 });

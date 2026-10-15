@@ -23,9 +23,66 @@
 # 19 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4 cost consent: extend HTTP, PostgreSQL and real-editor recipes with explicit cap validation, post-queue refusal, legacy compatibility and click-time disclosure snapshots; registration is not execution evidence.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | 1.9.5 command-line image rails: the HTTP and PostgreSQL recipes now also expect the operator-only antigravity-cli rail to serve the operator, a refused or unavailable caller to be reported not configured with no other provider tried, and codex-cli to stay refused.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 1.9.6 Brand Graphics: register the real Home, Quick start and New launchers, the access-gated owner summary and the exact handoffs on the existing isolated Create fixture.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | Register the catalog binding guard: the create-editor concierge turn and every route tool are bound to named permissions a workspace member holds, an unbound bot stays refused, and owners delete only their own records.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | Register real PSD format, forced-owner source transactions and desktop/phone original-preserving browser proof without container provisioning.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
+  - id: psd-parser
+    name: Bounded real PSD format and editable layer profile
+    purpose: Decode original raw/RLE binary PSD and licensed upstream corpus with independent pixels, native group geometry and explicit unsupported findings.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/editor/psd-reader.test.mjs, tests/psd-contract.test.mjs]
+    expected:
+      - Real raw/RLE planes, alpha, opacity, Unicode and normal folders become bounded editable layer data.
+      - Unsupported semantics refuse editable conversion and transparent merged caches refuse flattened fallback.
+      - Corrupt/truncated/oversized inputs refuse without expansion; original source and fresh grants remain separate contracts.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 30000, maxMemoryMb: 512 }
+    installation: never
+  - id: psd-source-transactions
+    name: Actual owned PSD original and image publication
+    purpose: Run the real compiled routes, PNG codec and forced-RLS migrations in one uniquely owned shared35689 database; never launch or remove a container.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/psd-api.test.mjs]
+    expected:
+      - Real imported PNG pixels, editable revisions and exact full4MiB original bytes survive reopening.
+      - Sealed replay is idempotent; source/image/project writes and current revocation roll back together.
+      - Foreign/inactive/Reader/export denial, original immutability and whole-pipeline quotas are enforced independently.
+    prerequisites: [runner:node-test, harness:oshal-core-root, core:dependencies]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close owned loopback endpoints/pools and drop only this case's unique database/role on127.0.0.1:35689; shared container untouched.
+    limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
+    installation: never
+  - id: psd-human-browser
+    name: Actual desktop and phone PSD review and editing
+    purpose: Drive current Create HTML/model/renderer and original download through the owned shared35689 fixture; manual operation needs no provider.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/psd-browser.test.mjs]
+    expected:
+      - Review cancellation saves nothing; editable import preserves real pixels/groups, undo/redo and immutable save/reopen.
+      - Original browser download is exact and unsupported text offers only explicit flattened conversion.
+      - Phone controls/dialogs remain within the viewport; uncertain transport retries preserve the sealed key.
+    prerequisites: [runner:node-test, browser:chromium, harness:oshal-core-root, core:dependencies]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close own browser/server/pools and drop only the case's unique database/role; no containers are provisioned or removed.
+    limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
+    installation: never
   - id: region-edit-browser
     name: Change a region in the real editor, twice
     purpose: Drive the real editor in Chromium through the real compiled Create routes over a disposable PostgreSQL with the named create-region-fixture-provider.
@@ -865,4 +922,44 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+
+# Create 1.10.0 mask coverage uses the existing editor-model, editor-renderer and
+# editor-workspace recipes: invalid/locked masks and v2 persistence; actual crop,
+# rotation, invert/feather/export pixels; real UI save/reopen/undo/source preservation.
+
+  - id: agent-editing-contract
+    name: Agent editing operations
+    purpose: Verify immutable batch edits, declared fields, locks and the shipped editing contracts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/editor/agent-tools.test.mjs]
+    expected:
+      - Valid edits use the editor model and rejected batches never mutate the source.
+      - Locked layers or tracks are refused and source geometry or linked timing is retained.
+      - The editing contract gives exact units and bounds and marks unbuilt domains unsupported.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 10000, maxMemoryMb: 256 }
+    installation: never
+  - id: authorization-catalog
+    name: Concierge, tool and owner-delete bindings
+    purpose: Read the shipped catalog, manifest and studio-experience role template the way the native kernel resolves bot, tool and HTTP permissions.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/authorization-catalog.test.mjs]
+    expected:
+      - The create-editor concierge has an explicit bots binding of read permissions only, admitted for a workspace member's Create roles.
+      - Every bot the package declares is bound; an undeclared bot has no binding and is refused.
+      - Each route-backed tool's binding equals the permissions of the HTTP route it calls.
+      - Workspace members delete their own projects; viewer, reader and exporter roles alone cannot, and every grant stays own-scoped.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 10000, maxMemoryMb: 256 }
     installation: never

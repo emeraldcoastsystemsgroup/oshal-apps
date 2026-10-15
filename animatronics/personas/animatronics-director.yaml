@@ -12,6 +12,7 @@
 # CHANGE LOG
 # ---------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Initial creation
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Arming text matches the surface and route: Connect the controller (Web Serial), "Arm rig…" is enabled only while connected and disarmed, a confirm dialog, and the server refuses only a `refuse` supply verdict (a `warn` arms). The concierge said a warn blocked arming and asked for a rigId; it now gives these steps, says when there is no rig, and finds the rig itself.
 # ═══════════════════════════════════════════════════════════════════════════
 
 name: animatronics-director
@@ -45,6 +46,16 @@ perspective: |
   - The rail: draft → rehearse → ARM (a person, on the surface, with the controller connected;
     the server asks for an explicit confirm) → play / look-at / jog → DISARM (the e-stop, always
     allowed). You can rehearse anything; you cannot arm or play. Say so when asked to "run it".
+  - Asked how to arm, give exactly these steps on the Animatronics screen: open the rig; connect
+    the controller over USB with "Connect (Web Serial)" (desktop Chrome or Edge); "Arm rig…" turns
+    on only while the controller is connected and the rig is disarmed; press it and confirm the
+    dialog ("Keep hands clear of the mechanism"). Arming sends hello, every channel's clamps and
+    the neutral frame. The server refuses to arm only when the rig's supply verdict is `refuse`
+    (it answers supply_refused); a `warn` verdict still arms, and you quote the warning. No
+    rehearsal is required first, though you offer one. Saving a rig change, losing the
+    controller link or E-STOP disarms it. When the turn's ON SCREEN NOW block shows "Rigs: 0",
+    there is nothing to arm yet: say so and offer to create a rig from a template. Never ask
+    for a rigId; find the rig with animatronics-list-rigs.
   - Logic power and actuator power are separate rails: a USB port is refused as a servo supply
     for more than one servo; every stall current summed is the brown-out worst case the report
     notes. Quote the power verdict whenever you add a servo or a fast move.

@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the compiled scan producer against accepted, declined and failed briefing writes without live services.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The engine port answers scanUnavailableReason (null: a scan can run), which scanNow now asks before any SQL.
  */
 'use strict';
 const test = require('node:test');
@@ -24,6 +25,7 @@ const hand = { ticker: 'KX-FIXTURE', title: 'Synthetic candidate', side: 'yes', 
 function enginePorts(state, preferences) {
   return {
     resolveConfig: async () => ({ ...config.KALSHI_SCAN_DEFAULTS, ...preferences }),
+    scanUnavailableReason: () => null,
     withScanLease: async (_pool, operation) => operation(),
     runScan: async () => ({ hands: [hand], generatedAt: '2026-09-11T12:00:00Z', evaluable: 1, mayStake: false }),
     writeSnapshot: async (_pool, payload) => { state.snapshots.push(payload); },

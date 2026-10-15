@@ -18,6 +18,8 @@
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 0.8.5: register the audience-view case (ADR-164 D6): the classroom view's static contract, its model and starter tap as behaviour, and the full lab's start paths off under a view.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 0.8.6: the audience-view case covers the company view for the Business shells beside the classroom one: its two reads and no write, the ledger, stats and failed-run list as behaviour, failure reasons named by code with only the solver refusal quoted, the named states, and the lab's start paths off under the company view too.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 0.8.7: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | Register example-names: the examples dropdown has a visible Examples label and circuit-create-design pairs each example id with its on-screen title (sweep 13).
+# 18 | maintainer@emeraldcoastsystemsgroup.com | Register engine-down-words: with no engine the page says once, in words, that the circuit engine is not answering on this installation, never the host's install command (demo sweep 1).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -315,6 +317,47 @@ cases:
       - The company view reads only /designs and /capabilities and writes nothing; its four stats, ledger rows (last run, runs kept, parts and wires, warnings of the last solve only) and failed-run list match the saved circuits, and a row opens that circuit in the full lab.
       - The company view names a failed run by its code, quotes only the solver's refusal and never the engine address or install command, and names the none-saved, signed-out, refused, unreadable, malformed and unreachable states, the simulator note and the row cap.
       - Under an audience view the lab's main script reads nothing and binds no assistant-rail listener, and the page attaches the rail only for the full lab.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: example-names
+    name: "Starter examples are named by the title on screen"
+    purpose: "Read the compiled examples module with the shipped page, manifest and persona - no browser, network or engine."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/example-names.test.js
+    expected:
+      - "The page has a label for the examples dropdown reading Examples."
+      - "circuit-create-design pairs every example id the routes serve with its title and says to name an example by its title; the persona says the same."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-down-words
+    name: "An engine that is not answering is told in words, not an install command"
+    purpose: "Run the shipped page's renderEngine and buildWords in a VM over the routes' no-engine answers - no browser, network or engine."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-down-words.test.js
+    expected:
+      - "The banner says once that the circuit engine is not answering on this installation, with no address, setting or install command."
+      - "A failed build toast names the engine in a short sentence; an engine's own refusal sentence is still shown."
     prerequisites:
       - runner:node-test
     sideEffects: none

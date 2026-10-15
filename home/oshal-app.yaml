@@ -1,5 +1,9 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the canonical Home concierge and retain its dedicated node so member groups resolve the same bot in both runtimes.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Declare the SmartThings API host for the native kernel's egress, with the caller's smartthings connection applied as a Bearer token by the kernel.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | home-bot runs inline (posture: inline, same enrolled UUID d0000000-0000-0000-0000-000000000001) with route-backed tools over /api/home: home-devices, home-scenes, home-refresh, and home-control / home-scene-run held for the person's approval. The in-app assistant (POST /api/home/assistant) and Home Workspace's borrowed concierge were refused "this bot requires an enrolled node", and the concierge answered `node /app/scripts/oshal-smartthings.js` because the persona still taught the retired CLI. Guarded by scripts/check-store-bots.test.mjs.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | The Hubs tab opens the Smart Home page in its hubs view (/api/home/ui?view=hubs: Connect SmartThings, Google Home set-up, the hubs that reported devices); it opened the generic Connections page with every connector declaration.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | The device dashboard tab (home-dashboard) is labelled Smart Home, the application's own name, not Home: the Home experience composes it beside its own Home tab and Little Monsters' dashboard, and sweep 9 found three tabs all labelled Home opening three different applications.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — home (Smart Home bundle, ADR-038)
@@ -115,9 +119,7 @@ workflow:
 bots:
   - agentId: d0000000-0000-0000-0000-000000000001
     name: home-bot
-    container: home-bot
-    port: 5000
-    requiresOwnNode: true
+    posture: inline   # native kernel: an application bot with the route-backed tools below; no dedicated node
     persona: personas/home-bot.yaml
     role: smart-home/device-control
     capabilities:
@@ -126,6 +128,80 @@ bots:
       - device-control
       - scene-execution
       - home-automation
+
+# Route-backed tools for home-bot (native kernel: executorType api, inside /api/home). Reads run
+# under the caller; device and scene actions are held for the person's approval and then sent with
+# confirm: true to the same deterministic routes the dashboard buttons use.
+tools:
+  - name: home-devices
+    displayName: Home Devices
+    type: api
+    category: smart-home
+    description: The person's indexed smart-home devices (name, room, hub, state) and when the index was built.
+    executor: { executorType: api, apiEndpoint: "GET /api/home/devices" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} before naming any device. "empty":true means nothing is indexed yet; call home-refresh to read the hub.
+    tags: [home, route-backed]
+  - name: home-scenes
+    displayName: Home Scenes
+    type: api
+    category: smart-home
+    description: The person's saved home scenes and their steps.
+    executor: { executorType: api, apiEndpoint: "GET /api/home/scenes" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} before naming or running a scene.
+    tags: [home, route-backed]
+  - name: home-refresh
+    displayName: Refresh Devices
+    type: api
+    category: smart-home
+    description: Read the person's devices from their connected SmartThings hub now.
+    executor: { executorType: api, apiEndpoint: "POST /api/home/refresh" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the index is empty or stale. A 409 "SmartThings not connected" means the hub is not connected under Connections.
+    tags: [home, smartthings, route-backed]
+  - name: home-control
+    displayName: Control a Device
+    type: api
+    category: smart-home
+    description: Turn a device on or off or set a level. Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/home/control" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        device: { type: string, description: the device key from home-devices }
+        cmd: { type: string, enum: ["on", "off", "set"] }
+        capability: { type: string }
+        command: { type: string }
+        arg: { type: number }
+        confirm: { type: boolean, const: true }
+      required: [device, cmd, confirm]
+    usageInstructions: Use a device key returned by home-devices, never a guess. Send confirm true; the person approves before it runs.
+    tags: [home, route-backed]
+  - name: home-scene-run
+    displayName: Run a Scene
+    type: api
+    category: smart-home
+    description: Run one of the person's saved scenes. Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/home/scene/run" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        name: { type: string }
+        confirm: { type: boolean, const: true }
+      required: [name, confirm]
+    usageInstructions: Use a scene name returned by home-scenes. Send confirm true; the person approves before it runs.
+    tags: [home, route-backed]
 
 # (toolsDir dropped at the carve: the field is inert — D12 — and the smart-home
 #  toolkit stays framework-resident with the home-bot's chain.)
@@ -138,7 +214,7 @@ ui:
     # A VIEW over the home-bot's store (GET /api/home/devices, cheap; no LLM). Reasoning
     # and scene creation go through the chat bar → the bot (fast loop, cost-tracked).
     - toolName: home-dashboard
-      label: Home
+      label: Smart Home
       icon: codicon codicon-home
       iframeUrl: /api/home/ui
       section: top
@@ -173,8 +249,15 @@ ui:
     - toolName: home-accounts
       label: Hubs
       icon: codicon codicon-plug
-      iframeUrl: /utilities   # core framework surface — stays kernel-mounted
+      iframeUrl: /api/home/ui?view=hubs   # the Smart Home hub connections (SmartThings, Google Home), not the whole connector catalog
       section: bottom
+
+# Native kernel egress: inside the kernel's package sandbox the device controls, scene runs and
+# live refresh call the SmartThings API through the kernel's fenced egress, which applies the
+# caller's own smartthings connection as the Authorization header. This package never holds the token.
+egress:
+  - host: api.smartthings.com
+    credential: { connector: smartthings, header: authorization, prefix: "Bearer " }
 
 routes:
   - module: routes/package-smoke.js

@@ -4,8 +4,10 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Map lasso, box and whole-image selections onto one image layer's SOURCE pixels, so zoom, move, resize, rotation and crop never shift the requested region; clip it to the visible crop and refuse stale, ambiguous, locked, hidden or too-small selections before use.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  */
 import { demand, number, identifier, objectKeys, validateProject } from './model-validation.mjs';
+import { worldLayer } from './group-geometry.mjs';
 import { worldToLayer } from './hit-test.mjs';
 
 /** @description Region selection ceilings: outline points, smallest usable area (source px²) and inward feather (source px).
@@ -133,7 +135,8 @@ export function validateSelection(value) {
 }
 
 function editableImage(project, layerId) {
-  const layer = project.layers.find(item => item.id === layerId);
+  const found = project.layers.find(item => item.id === layerId);
+  const layer = found ? worldLayer(project, found) : null;
   demand(layer, 'The selected image layer no longer exists; select the region again');
   demand(layer.type === 'image', 'Region selection works on image layers');
   demand(layer.visible, 'Show the image layer before selecting or editing a region of it');
@@ -154,7 +157,7 @@ function contains(layer, point) {
 export function targetImageLayer(project, selectedId, point) {
   const current = validateProject(project), selected = current.layers.find(layer => layer.id === selectedId);
   if (selected) return editableImage(current, selected.id).layer;
-  const candidates = current.layers.filter(layer => layer.type === 'image' && layer.visible && !layer.locked && contains(layer, point));
+  const candidates = current.layers.map(layer => worldLayer(current, layer)).filter(layer => layer.type === 'image' && layer.visible && !layer.locked && contains(layer, point));
   demand(candidates.length > 0, 'Select an image layer, then choose a region of it');
   demand(candidates.length === 1, 'More than one image is under this point; select the image layer first');
   return candidates[0];

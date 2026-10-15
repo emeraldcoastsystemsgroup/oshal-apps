@@ -1,0 +1,38 @@
+# Exact EffectCraft67434e9 render sources; standalone dependency manifest for the documented OSHAL derivative.
+[package]
+name = "effectcraft-render"
+description = "The CPU compositor: property evaluation, layer sources (solids, footage, text, shapes, precomps), masks, effects, track mattes, 2D/3D transforms, motion blur and blending"
+version = "0.8.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.95"
+repository = "https://github.com/storytold/effectcraft"
+[package.metadata.oshal]
+upstream = "git+https://github.com/storytold/effectcraft#67434e90388b6dca4417555346fa6850b6f96033"
+modified = true
+modifications = ["Standalone Cargo manifest", "src/text.rs full bounded2D/per-character3Dsurfaces, aggregate preflight and refusal tracker", "src/lib.rs skip overbudget source before masks/effects", "src/text/tests.rs full-surface and independent viewport proofs", "src/disk_cache.rs explicit synthetic u128 boundary fixture"]
+[dependencies]
+effectcraft-time = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+effectcraft-geom = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+effectcraft-color = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+effectcraft-keyframe = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+effectcraft-project = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+effectcraft-raster = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+effectcraft-path = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+effectcraft-text = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+effectcraft-effects = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+lz4_flex = { version = "0.11", default-features = false, features = ["std", "safe-encode", "safe-decode", "checked-decode"] }
+effectcraft-model = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+kurbo = { version = "0.13", features = ["serde"] }
+rayon = "1"
+web-time = "1"
+serde = { version = "1", features = ["derive", "rc"] }
+log = "0.4"
+[lints.rust]
+unsafe_code = "forbid"
+[lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+too_many_arguments = "allow"
+needless_range_loop = "allow"
+type_complexity = "allow"

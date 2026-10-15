@@ -14,6 +14,8 @@
  * 2026-07-23 01:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Persist an exact permanent checkpoint in the same transaction that advances into every combat round.
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Create new tables from an allowlisted adventure while preserving the selected story identity in encounter state.
  * 2026-08-06 02:43:35 | maintainer@emeraldcoastsystemsgroup.com     | Arm join-code admission as a validated transaction-local database capability before any RLS-protected campaign lookup.
+ * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com     | The host deletes their own campaign (deleteCampaign): its snapshots, archive, characters, encounter and seats, then the campaign row, in one transaction. The native kernel stores package rows without foreign-key cascades, so each child table is removed explicitly. Live, a host's test campaigns could only be resumed, never removed.
+ * 2026-10-10 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Write owner_sub explicitly on every INSERT: the native kernel skips migration 006, whose triggers stamp it on PostgreSQL (where they still override it from the parent campaign).
  */
 
 'use strict';
@@ -153,7 +155,7 @@ async function appendArchive(deps, db, sub, campaignId, kind, content, lock, raw
   if (existing) return existing;
   const seq = await nextSeq(deps, db, campaignId);
   await db.query(
-    'INSERT INTO dnd_archive (user_sub, campaign_id, seq, kind, content, payload) VALUES ($1,$2,$3,$4,$5,$6)',
+    'INSERT INTO dnd_archive (user_sub, campaign_id, seq, kind, content, payload, owner_sub) VALUES ($1,$2,$3,$4,$5,$6,$1)',
     [sub, campaignId, seq, kind, content, payload ? JSON.stringify(payload) : null]
   );
   return archiveEntry(seq, kind, content, payload);
@@ -198,8 +200,8 @@ async function loadSavedSheets(_deps, db, sub, savedIds) {
 async function insertCampaignCharacters(_deps, db, sub, campaignId, chosen) {
   for (const hero of chosen) {
     await db.query(
-      `INSERT INTO dnd_characters (user_sub, campaign_id, slug, name, sheet, xp, level)
-       VALUES ($1,$2,$3,$4,$5,0,$6)`,
+      `INSERT INTO dnd_characters (user_sub, campaign_id, slug, name, sheet, xp, level, owner_sub)
+       VALUES ($1,$2,$3,$4,$5,0,$6,$1)`,
       [sub, campaignId, hero.id, hero.name, JSON.stringify(hero), hero.level || 1]
     );
   }
@@ -216,8 +218,8 @@ async function createCampaignRows(deps, db, sub, body, savedIds) {
   const name = String(body.name || adventure.title || 'A New Adventure').slice(0, 120);
   const code = crypto.randomBytes(4).toString('hex').slice(0, 6).toUpperCase();
   const created = await db.query(
-    `INSERT INTO dnd_campaigns (user_sub, name, adventure_id, join_code)
-     VALUES ($1,$2,$3,$4)
+    `INSERT INTO dnd_campaigns (user_sub, name, adventure_id, join_code, owner_sub)
+     VALUES ($1,$2,$3,$4,$1)
      RETURNING campaign_id, name, adventure_id, status, join_code, created_at, updated_at`,
     [sub, name, adventure.id, code]
   );
@@ -226,7 +228,7 @@ async function createCampaignRows(deps, db, sub, body, savedIds) {
   const scene = (adventure.scenes || [])[0];
   const state = buildSceneState(scene, chosen, deps.bestiary, adventure.id);
   await db.query(
-    'INSERT INTO dnd_encounters (campaign_id, user_sub, adventure_id, state, round, rev) VALUES ($1,$2,$3,$4,0,1)',
+    'INSERT INTO dnd_encounters (campaign_id, user_sub, adventure_id, state, round, rev, owner_sub) VALUES ($1,$2,$3,$4,0,1,$2)',
     [campaign.campaign_id, sub, adventure.id, JSON.stringify(state)]
   );
   await appendArchive(deps, db, sub, campaign.campaign_id, 'milestone', `A new campaign begins: ${scene.title}. Join code: ${code}`, false);
@@ -265,8 +267,8 @@ async function saveCharacter(deps, sub, body) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new CharacterImportError('INVALID_INPUT', 'Character details are required.');
   const sheet = normalizeInternalSheet(raw);
   const result = await deps.pool.query(
-    `INSERT INTO dnd_characters (user_sub, campaign_id, slug, name, sheet, xp, level)
-     VALUES ($1,NULL,$2,$3,$4,0,$5)
+    `INSERT INTO dnd_characters (user_sub, campaign_id, slug, name, sheet, xp, level, owner_sub)
+     VALUES ($1,NULL,$2,$3,$4,0,$5,$1)
      RETURNING character_id, slug, name, sheet, xp, level, created_at, updated_at`,
     [sub, sheet.id, sheet.name, JSON.stringify(sheet), sheet.level || 1]
   );
@@ -327,6 +329,34 @@ async function leaveCampaign(deps, sub, body) {
   const campaignId = String((body && body.campaignId) || '');
   if (!campaignId) return { ok: false, code: 'CAMPAIGN_REQUIRED', error: 'Choose a campaign to leave.' };
   return withTransaction(deps.pool, (db, transactional) => leaveCampaignRows(deps, db, transactional, sub, campaignId));
+}
+
+/** Child tables removed before their campaign; the native kernel has no foreign-key cascade. */
+const CAMPAIGN_CHILDREN = ['dnd_snapshots', 'dnd_archive', 'dnd_characters', 'dnd_encounters', 'dnd_players'];
+
+/** @description Delete one campaign the caller hosts, with every row that belongs to it. */
+async function deleteCampaignRows(db, transactional, sub, campaignId) {
+  const found = await db.query(
+    `SELECT campaign_id, user_sub FROM dnd_campaigns WHERE campaign_id = $1${transactional ? ' FOR UPDATE' : ''}`,
+    [campaignId]
+  );
+  const campaign = found.rows[0];
+  if (!campaign) return { ok: false, code: 'CAMPAIGN_NOT_FOUND', error: 'That campaign no longer exists.' };
+  if (campaign.user_sub !== sub) {
+    return { ok: false, code: 'HOST_REQUIRED', error: 'Only the campaign host can delete it. Players can leave instead.' };
+  }
+  for (const table of CAMPAIGN_CHILDREN) await db.query(`DELETE FROM ${table} WHERE campaign_id = $1`, [campaignId]);
+  const removed = await db.query('DELETE FROM dnd_campaigns WHERE campaign_id = $1 AND user_sub = $2', [campaignId, sub]);
+  if (removed.rowCount !== 1) return { ok: false, code: 'CAMPAIGN_NOT_FOUND', error: 'That campaign no longer exists.' };
+  return { ok: true, campaignId, deleted: true };
+}
+
+/** @description Delete a hosted campaign permanently; requires an explicit confirm from the caller. */
+async function deleteCampaign(deps, sub, body) {
+  const campaignId = String((body && body.campaignId) || '');
+  if (!campaignId) return { ok: false, code: 'CAMPAIGN_REQUIRED', error: 'Choose a campaign to delete.' };
+  if (!body || body.confirm !== true) return { ok: false, code: 'CONFIRM_REQUIRED', error: 'Confirm the delete first.' };
+  return withTransaction(deps.pool, (db, transactional) => deleteCampaignRows(db, transactional, sub, campaignId));
 }
 
 /** @description Lock a campaign, encounter, and its seats before a host takeover. */
@@ -430,7 +460,7 @@ async function replaceSetupSeatRows(_deps, db, sub, displayName, body, sheet) {
   );
   if (!changed.rowCount) throw new CharacterImportError('CHARACTER_MISSING', 'The open character seat no longer exists.');
   await db.query(
-    `INSERT INTO dnd_players (campaign_id, user_sub, display_name, character_slug) VALUES ($1,$2,$3,$4)
+    `INSERT INTO dnd_players (campaign_id, user_sub, display_name, character_slug, owner_sub) VALUES ($1,$2,$3,$4,$2)
      ON CONFLICT (campaign_id, user_sub) DO UPDATE SET display_name=EXCLUDED.display_name, character_slug=EXCLUDED.character_slug`,
     [body.campaignId, sub, displayName, sheet.id]
   );
@@ -490,7 +520,7 @@ async function joinCampaignRows(_deps, db, transactional, sub, name, code) {
     return { ok: false, code: 'TABLE_FULL', error: 'All four player seats are already taken.' };
   }
   await db.query(
-    `INSERT INTO dnd_players (campaign_id, user_sub, display_name) VALUES ($1,$2,$3)
+    `INSERT INTO dnd_players (campaign_id, user_sub, display_name, owner_sub) VALUES ($1,$2,$3,$2)
      ON CONFLICT (campaign_id, user_sub) DO UPDATE SET display_name = EXCLUDED.display_name`,
     [campaign.campaign_id, sub, name]
   );
@@ -556,7 +586,7 @@ async function claimHeroRows(deps, db, transactional, sub, name, body, campaign)
     return { ok: false, error: 'That hero is not part of this campaign.' };
   }
   await db.query(
-    `INSERT INTO dnd_players (campaign_id, user_sub, display_name, character_slug) VALUES ($1,$2,$3,$4)
+    `INSERT INTO dnd_players (campaign_id, user_sub, display_name, character_slug, owner_sub) VALUES ($1,$2,$3,$4,$2)
      ON CONFLICT (campaign_id, user_sub) DO UPDATE SET character_slug = EXCLUDED.character_slug, display_name = EXCLUDED.display_name`,
     [body.campaignId, sub, name, context.slug || null]
   );
@@ -689,6 +719,7 @@ function createCampaignService(deps) {
     archive: (sub, id, kind, content, payload, timelineId) => archive(deps, sub, id, kind, content, payload, timelineId),
     claimHero: (sub, name, body) => claimHero(deps, sub, name, body),
     createCampaign: (sub, body) => createCampaign(deps, sub, body),
+    deleteCampaign: (sub, body) => deleteCampaign(deps, sub, body),
     deleteSavedCharacter: (sub, id) => deleteSavedCharacter(deps, sub, id),
     joinCampaign: (sub, name, body) => joinCampaign(deps, sub, name, body),
     leaveCampaign: (sub, body) => leaveCampaign(deps, sub, body),

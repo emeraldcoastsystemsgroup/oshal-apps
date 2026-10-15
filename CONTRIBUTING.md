@@ -82,12 +82,26 @@ pins both halves of this contract.
 
 ### Prerequisites, and what you lose without them
 
-- **A kernel checkout** — for a TypeScript compiler, `playwright`/`express`, and the real `multer`
-  (`little-monsters`, `career-hunter`, `kalshi`). Found automatically in the sibling `../oshal`
-  checkout, which is where it already is on an operator workstation; set `OSHAL_ROOT` if your layout
-  differs. Without it those checks report `SKIPPED`, never `PASS` — including the **little-monsters
-  security suite**. With it you run *two cases store-ci itself cannot*: the real-Multer resume cases
-  skip on a runner, which has no kernel checkout.
+- **The gate's own toolchain** — `scripts/toolchain` pins TypeScript, Vitest, Playwright, Express,
+  Multer, pg, better-sqlite3 and js-yaml in its own `package.json` + `package-lock.json`
+  (`node_modules` is gitignored). Install it once, plus Chromium for the browser contracts:
+
+  ```bash
+  npm ci --prefix scripts/toolchain
+  node scripts/toolchain/node_modules/playwright/cli.js install chromium
+  ```
+
+  Without it the checks that need it (`little-monsters`, `career-hunter`, `kalshi`, the
+  trading-gate self-test, `futures-research`, the intelligent-sports guard) report `SKIPPED`, never
+  `PASS` — including the **little-monsters security suite**. `STORE_CI_TOOLCHAIN` may name another
+  directory whose `node_modules` holds the same set. With Multer installed you also run *two cases
+  store-ci itself cannot*: the real-Multer resume cases skip on a runner.
+- **No old-platform checkout.** The gate never resolves the old TypeScript platform (`oshal/src`), and
+  it drops an inherited `OSHAL_ROOT`, `OSHAL_FRAMEWORK`, `OSHAL_CORE_DIR`, `OSHAL_CORE_ROOT`,
+  `KALSHI_BROWSER_DEPS`, `CAREER_LOADER_NODE_PATH` or `NODE_PATH` before any suite runs. A check
+  that needs that platform's *source* — its test-catalog, app-scope and dependency loaders, the
+  trading specs' `@/` tree, the Presentations renderer, the fantasy-leagues skill, the experience
+  role-closure cases — reports `SKIPPED` with a `LEGACY:` reason naming what it needs.
 - **Career engine Python pins** — activate an isolated venv installed from the package's exact
   requirements. The contracts execute `python`; a machine with only `python3`, or an interpreter
   without those dependencies, cannot run them. The local gate verifies the installed versions:
@@ -99,11 +113,10 @@ pins both halves of this contract.
   ```
 
   Keep this environment separate from the deployed engine and use only disposable fixture data.
-- **Presentations framework and Chromium** — the guide/artifact contracts compile the real framework
-  renderer source and the browser contract needs its locked Playwright dependency and Chromium.
-  Set `OSHAL_FRAMEWORK` explicitly when it differs from `OSHAL_ROOT`. The hosted job checks out the
-  reviewed framework revision, installs its lockfile and provisions Chromium before running these
-  contracts; a missing local fixture is a refusal.
+- **Presentations framework and Chromium** — the guide/artifact contracts compile the old platform's
+  renderer source, so locally the whole Presentations job is a `LEGACY` skip. The hosted job checks
+  out the reviewed framework revision, installs its lockfile and provisions Chromium before running
+  these contracts.
 - **A disposable PostgreSQL** for the Career storage contract. **store-ci runs this** — it declares a
   `pgvector/pgvector:pg16` service and `career-hunter/tests/career-storage-contract.test.mjs` asserts
   the URL is present when `CI` is set — so skipping it locally is a **real loss of coverage**, not a
@@ -125,7 +138,9 @@ Do not assume a skip is shared with CI. Checked against the workflow:
 
 | skip | also skipped in CI? |
 |---|---|
-| `career-hunter` — real-Multer resume cases (2) | **yes** — a runner has no kernel checkout |
+| `career-hunter` — real-Multer resume cases (2) | **yes** — a runner installs no Multer |
+| `LEGACY:` job skips (test-catalogs, app-scopes, presentations, fantasy-football, trading specs) | **no** — those hosted jobs check the framework out |
+| `LEGACY:` experience role-closure cases | **yes** — that hosted job has no framework checkout |
 | `career-hunter` — PostgreSQL storage contract | **no** — CI runs it with a service container |
 | `career-hunter` — symlink cases | **no** — these are `catch (EPERM/EACCES)` clauses, so they run on Linux and skip only on Windows |
 | `embodied` — `EMBODIED_PYTHON` / `EMBODIED_ENGINE_ADDR` (2) | **yes** — that job sets neither |

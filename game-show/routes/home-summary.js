@@ -1,10 +1,18 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createHomeSummaryRoutes = createHomeSummaryRoutes;
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Saved times read as a date with its zone ("Oct 11, 2026, 10:46 AM UTC" in the package process zone), not a raw ISO timestamp, in the review evidence and the brief a hand-off copies (live: Eats received 'updated 2026-10-11T10:46:17.088Z').
+ */
 /** Saved game-show evidence. GET is owner-scoped, bounded, and side-effect free. */
 const express_1 = require("express");
 const clip = (v, cap = 400) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, cap);
-const date = (v) => { const d = new Date(String(v)); return Number.isFinite(d.getTime()) ? d.toISOString() : 'date unavailable'; };
+const DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+const date = (v) => { const d = new Date(String(v)); return Number.isFinite(d.getTime()) ? DATE_FORMAT.format(d) : 'date unavailable'; };
 function createHomeSummaryRoutes(ctx) {
     const router = (0, express_1.Router)();
     router.get('/', async (req, res) => {

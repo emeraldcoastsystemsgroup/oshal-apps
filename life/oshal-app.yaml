@@ -7,6 +7,9 @@
 # the weekly bake-off. Each tile below routes straight to the installed sibling
 # app's own surface. Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
 # ─────────────────────────────────────────────────────────────────────────────
+# CHANGE LOG
+# SEQ | AUTHOR | DESCRIPTION
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: declare a Home summary (routes/home-summary.js) naming which parts work without a connection and what the rest need; the concierge on the Movies tab said no part of Life was usable. Version unchanged.
 
 name: life
 suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
@@ -36,6 +39,16 @@ source:
 # CORE-05 install readiness is service-authenticated and reads package metadata only. It never
 # touches user data, calls a provider, mutates state, or spends tokens.
 routes:
+  # Life's Home summary (sweep 10): which parts work without a connection and what the rest need, so the concierge
+  # answers for every tab, not only the one on screen. Static notes: no data, no provider, no model.
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/life/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: false
+    requiresAi: false
+
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
     mountPath: /api/life/_smoke
@@ -53,6 +66,14 @@ smoke:
       jsonPointer: /package
       rejectValues: [noop, stub, empty]
     requiresAi: false
+
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+summary:
+  path: /api/life/home-summary
+  itemsPointer: /items
 
 # No sibling is required: the launcher owns no runtime or data, so every one of them is OFFERED
 # at install as an unchecked choice and never installed unasked.

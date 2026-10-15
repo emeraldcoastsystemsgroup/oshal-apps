@@ -127,6 +127,17 @@
   .wspill .wd { width:9px; height:9px; border-radius:3px; }
   .wspill.all .wd { background:linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000)); }
 
+  /* ── top navigation bar ─────────────────────────────────────────────────────────────────── */
+  .sb-topnav { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin:0 0 18px; }
+  .sb-navlink {
+    appearance:none; display:inline-flex; align-items:center; gap:6px; padding:6px 13px;
+    border-radius:var(--pill); border:1px solid var(--line); background:var(--card); color:var(--text2);
+    font:inherit; font-size:12.5px; font-weight:560; text-decoration:none; cursor:pointer;
+    transition:all var(--ease) .15s;
+  }
+  .sb-navlink:hover { border-color:var(--accent); color:var(--text); }
+  .sb-navlink.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+
   /* ── header ───────────────────────────────────────────────────────────────────────────────── */
   .head { display:flex; align-items:flex-start; gap:16px; margin-bottom:24px; }
   .head .h-main { flex:1; min-width:0; }
@@ -293,6 +304,17 @@
 </defs></svg>
 
 <div class="wrap">
+  <nav class="sb-topnav" aria-label="Switchboard navigation">
+    <a class="sb-navlink" id="cockpitBack" href="/cockpit/">← Cockpit</a>
+    <a class="sb-navlink on" href="/api/switchboard/today" aria-current="page">Today</a>
+    <a class="sb-navlink" href="/api/switchboard/inbox">Inbox</a>
+    <a class="sb-navlink" href="/api/switchboard/threads">Threads</a>
+    <a class="sb-navlink" href="/api/switchboard/calendar">Calendar</a>
+    <a class="sb-navlink" href="/api/switchboard/compose">Compose</a>
+    <a class="sb-navlink" href="/api/switchboard/streams">Streams</a>
+    <a class="sb-navlink" href="/api/switchboard/organize">Workspaces</a>
+    <button type="button" class="sb-navlink" id="topRefreshBtn">Refresh</button>
+  </nav>
   <div class="previewpill" id="previewpill"><svg><use href="#i-eye"/></svg> Preview — connect your accounts to see your live board</div>
 
   <header class="head">
@@ -300,7 +322,7 @@
       <h1 class="greet" id="greet">Today</h1>
       <p class="subline" id="subline">Bringing every line onto one board…</p>
     </div>
-    <div class="asof" id="asof" hidden>
+    <div class="asof" id="asof">
       <span class="live"></span><span id="asoftime">just now</span>
       <button id="refreshBtn" title="Refresh"><svg><use href="#i-refresh"/></svg></button>
     </div>
@@ -493,26 +515,39 @@
       .catch(function(){ /* preview / not signed in — no switcher */ });
   }
 
+  var wsLoaded = false;
   function load(showSpinner){
     var btn=document.getElementById("refreshBtn"); if(btn&&showSpinner) btn.classList.add("spin");
     var ws=selectedWs();
-    fetch("/api/switchboard/feed?surface=1"+(ws?("&workspace="+encodeURIComponent(ws)):""),{headers:{Accept:"application/json"}})
-      .then(function(r){ return r.ok? r.json() : Promise.reject(r.status); })
+    var feedReq = fetch("/api/switchboard/feed?surface=1"+(ws?("&workspace="+encodeURIComponent(ws)):""),{headers:{Accept:"application/json"}})
+      .then(function(r){ return r.ok? r.json() : Promise.reject(r.status); });
+    var timeoutReq = new Promise(function(_, reject){ setTimeout(function(){ reject(new Error("timeout")); }, 2400); });
+    return Promise.race([feedReq, timeoutReq])
       .then(function(d){
         document.getElementById("previewpill").classList.remove("show");
         if(d && d.connected===false){ connectHero(); return; }
         render(d);
       })
       .catch(function(){
-        // API not reachable (opened standalone / not deployed yet) → labelled sample board
+        // API not reachable or timed out → labelled sample board
         document.getElementById("previewpill").classList.add("show");
         render(SAMPLE);
       })
-      .finally(function(){ if(btn) btn.classList.remove("spin"); });
+      .finally(function(){
+        if(btn) btn.classList.remove("spin");
+        if(!wsLoaded){ wsLoaded = true; loadWorkspaces(); }
+      });
   }
 
+  try {
+    if (window.self !== window.top) {
+      var cb = document.getElementById("cockpitBack");
+      if (cb) cb.hidden = true;
+    }
+  } catch (e) {}
+
   document.addEventListener("click",function(e){
-    var b=e.target.closest("#refreshBtn"); if(b){ load(true); return; }
+    var b=e.target.closest("#refreshBtn, #topRefreshBtn"); if(b){ load(true); return; }
     var p=e.target.closest(".wspill"); if(p){
       try{ localStorage.setItem("switchboard.ws", p.dataset.ws||""); }catch(err){}
       document.querySelectorAll(".wspill").forEach(function(x){ x.classList.toggle("on", x===p); });
@@ -520,7 +555,7 @@
     }
   });
   // The full page only: under an audience view the shared kit paints instead (see the head script).
-  if (!window.AppView || !AppView.active()) { loadWorkspaces(); load(false); }
+  if (!window.AppView || !AppView.active()) { load(false); }
 })();
 </script>
 </body>

@@ -1,0 +1,98 @@
+/** CHANGE LOG
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Fingerprint exactly the reviewed worker and bridge sources for native engine identity checks.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Include reproducible container/notice sources and normalize CRLF consistently with the compiled worker.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Include exact native keyframe adapters in the source identity.
+ */
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+export const RUNTIME_FILES = [
+  "Cargo.toml",
+  "Cargo.lock",
+  "build.rs",
+  "src/lib.rs",
+  "src/main.rs",
+  "src/owned_assets.rs",
+  "src/graph.rs",
+  "src/exact_keys.rs",
+        "src/exact_text.rs",
+        "src/exact_masks.rs",
+        "src/exact_properties.rs",
+  "bridge.mjs",
+  "package-identity.mjs",
+  "container/Dockerfile",
+  "container/compose.yaml",
+  "container/self-test.mjs",
+  "container/png.mjs",
+  "container/wire.mjs",
+  "container/dependency-notices.mjs",
+  "install-engine.sh",
+  ".dockerignore",
+  "NOTICE",
+  "licenses/EffectCraft-Apache-2.0.txt",
+  "licenses/EffectCraft-MIT.txt",
+  "licenses/OFL-Inter.txt",
+  "licenses/OFL-JetBrainsMono.txt",
+  "licenses/OFL-NotoSerif.txt",
+  "licenses/Inter-Regular.ttf.attribution",
+  "licenses/Inter-Medium.ttf.attribution",
+  "licenses/Inter-SemiBold.ttf.attribution",
+  "licenses/Inter-Bold.ttf.attribution",
+  "licenses/Inter-Italic.ttf.attribution",
+  "licenses/JetBrainsMono-Regular.ttf.attribution",
+  "licenses/NotoSerif-Regular.ttf.attribution",
+  "vendor/effectcraft-render/Cargo.toml",
+  "vendor/effectcraft-render/LICENSE-APACHE",
+  "vendor/effectcraft-render/LICENSE-MIT",
+  "vendor/effectcraft-render/UPSTREAM.md",
+  "vendor/effectcraft-render/src/audio.rs",
+  "vendor/effectcraft-render/src/auto.rs",
+  "vendor/effectcraft-render/src/cache/dependencies.rs",
+  "vendor/effectcraft-render/src/cache.rs",
+  "vendor/effectcraft-render/src/color.rs",
+  "vendor/effectcraft-render/src/disk_cache.rs",
+  "vendor/effectcraft-render/src/eval.rs",
+  "vendor/effectcraft-render/src/lib.rs",
+  "vendor/effectcraft-render/src/masks.rs",
+  "vendor/effectcraft-render/src/passes.rs",
+  "vendor/effectcraft-render/src/shapes/tests.rs",
+  "vendor/effectcraft-render/src/shapes.rs",
+  "vendor/effectcraft-render/src/styles.rs",
+  "vendor/effectcraft-render/src/tests.rs",
+  "vendor/effectcraft-render/src/tests_audio_fx.rs",
+  "vendor/effectcraft-render/src/tests_auto.rs",
+  "vendor/effectcraft-render/src/tests_aux.rs",
+  "vendor/effectcraft-render/src/tests_collapse.rs",
+  "vendor/effectcraft-render/src/tests_color.rs",
+  "vendor/effectcraft-render/src/tests_footage_size.rs",
+  "vendor/effectcraft-render/src/tests_frame_blend.rs",
+  "vendor/effectcraft-render/src/tests_mask_blur.rs",
+  "vendor/effectcraft-render/src/tests_nested.rs",
+  "vendor/effectcraft-render/src/tests_paint.rs",
+  "vendor/effectcraft-render/src/tests_remap.rs",
+  "vendor/effectcraft-render/src/tests_roi.rs",
+  "vendor/effectcraft-render/src/tests_styles.rs",
+  "vendor/effectcraft-render/src/tests_time.rs",
+  "vendor/effectcraft-render/src/text/tests.rs",
+  "vendor/effectcraft-render/src/text.rs",
+  "vendor/effectcraft-render/src/three_d/adv/dof.rs",
+  "vendor/effectcraft-render/src/three_d/adv/mod.rs",
+  "vendor/effectcraft-render/src/three_d/adv/raster.rs",
+  "vendor/effectcraft-render/src/three_d/adv/scene.rs",
+  "vendor/effectcraft-render/src/three_d/adv/shade.rs",
+  "vendor/effectcraft-render/src/three_d/adv/tests.rs",
+  "vendor/effectcraft-render/src/three_d/bokeh.rs",
+  "vendor/effectcraft-render/src/three_d/camera.rs",
+  "vendor/effectcraft-render/src/three_d/compose.rs",
+  "vendor/effectcraft-render/src/three_d/light.rs",
+  "vendor/effectcraft-render/src/three_d/mod.rs",
+  "vendor/effectcraft-render/src/three_d/tests.rs",
+  "vendor/effectcraft-render/src/three_d/tests_orient.rs"
+];
+export function sourceIdentity(root = import.meta.dirname) {
+  const hash = createHash('sha256');
+  for (const name of RUNTIME_FILES) { hash.update(name + '\0'); hash.update(readFileSync(resolve(root, name), 'utf8').replace(/\r\n/g, '\n')); hash.update('\0'); }
+  return { protocol: 1, buildHash: hash.digest('hex'), upstream: '67434e90388b6dca4417555346fa6850b6f96033' };
+}
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.stdout.write(JSON.stringify(sourceIdentity()) + '\n');

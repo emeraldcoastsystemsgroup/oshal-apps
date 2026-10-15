@@ -25,6 +25,12 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — moved from sports-edge (sports-fantasy-routes.ts SEQ 1-5: status, league link/unlink with the caller's own team resolved from their SWID, the P(win) lineup advisor registered before kickoff, the graded record) into the fantasy-football package (ADR-146 D1) under its own router factory and surface. Per-user ownership (Q2): the ESPN connection used is the caller's own personal one, never a household-shared one; the projection cache and completed weeks are per person; grading reads and writes only the caller's own ledger. The season default is this package's own rule instead of an import from sports-edge's refresh loop.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | The lineup reads its league through fantasy-context.ts, so a hand-typed league (?manualId=) gets the same P(win) lineup as a connected one with no connector consulted; the credential rule, the unreachable-ESPN answer and the feed cache moved to fantasy-context.ts and fantasy-feed.ts. The lineup now records the week's decision (ff_weeks) and grades the caller's completed weeks first; POST /grade grades weeks from stored actuals (ff_player_weeks) against the lineup actually started — ESPN's lineup for that week, or the one recorded for a hand-typed league — instead of from a projection cache that stops refreshing once its week has passed; GET /record adds the week ledger. The management routes (season value, waivers, trades, hand-typed leagues) mount from fantasy-manage-routes.ts.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | The stored player-week history read in the lineup builder now logs its error at ERROR before degrading, through historyRowsOrNone; the catch came over from sports-edge swallowing it. The fallback is unchanged: no history weighs the projections alone. (The schedule read it sat beside moved to fantasy-context.ts, which logs its own.)
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | GET /lineup is a pure read: it computes the advice, grades nothing, records nothing and does not write the projection cache (the native kernel admits a GET as a reader and refused the recording with 'SQL mutation requires original writer admission', so every lineup answered 502). The completed weeks the live feed carried are weighed in memory. POST /lineup/record grades the caller's due weeks, then serves the same lineup and records the week's decision and its start/sit calls. When no projection is available the body carries projectionFeed {ok:false, reason} and no lineup numbers, and nothing is recorded, instead of a lineup of zero-point projections. Guard: tests/fantasy-lineup-readonly.test.js.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Where the runtime cannot carry ESPN's sign-in cookies (credentialUnsupported() in fantasy-context.ts), /status names that limit as its connectHint with credentialSupported false (the field is absent where the skill reports nothing), a private league's link refusal says it instead of "Connect ESPN Fantasy first", and a link that matches no team carries teamNote saying why. Unchanged where a connection can help. Guard: tests/fantasy-native-credential.test.js.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | GET /record?leagueKey=<ESPN league id or manual:<id>> reads only that league's weeks for the 'Week by week' record (the board passes the league it shows). Sweep 8: a new league's record listed other leagues' rows. Guard: tests/fantasy-week-record-league.test.js.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | GET /record?leagueKey also splits the graded record and the call list by league, not only the week ledger: the record under a league counted and listed every league's start/sit calls. Guard: tests/fantasy-week-record-league.test.js and the real-PostgreSQL tests/fantasy-isolation.spec.ts.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | A league whose scoring gives every stat 0 points answers scoring {ok:false, reason} and no lineup numbers, and records nothing, instead of advising on all-0.0 projections (sweep 9: "Your lineup is already the best legal one"). Guard: tests/fantasy-zero-scoring.test.js.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com   | The lineup body carries openSlots: recommended starters for slots the lineup as set leaves empty (fantasy-scoring openSlotStarts), so the page can name them instead of calling the lineup the best legal one beside a positive gain (sweep 13). Not recorded as calls: a call is graded against the benched player. Guard: tests/fantasy-open-slot.test.js.
  *
  * @module fantasy-routes
  */
@@ -131,7 +137,10 @@ function registerAccountRoutes(router, pool) {
                 swid: cred?.swid || null,
                 season: (0, fantasy_feed_1.seasonOf)(req.query.season),
                 leagues: await (0, fantasy_store_1.listLeagues)(pool, sub),
-                connectHint: cred ? null : (sharedOnly
+                // Present (false) only where the runtime says it cannot carry ESPN's cookies; connecting cannot
+                // help there. Absent where the skill says nothing, rather than claiming support nobody reported.
+                ...((0, fantasy_context_1.credentialUnsupported)() ? { credentialSupported: false } : {}),
+                connectHint: cred ? null : (0, fantasy_context_1.credentialUnsupported)() || (sharedOnly
                     ? 'Only a household-shared ESPN connection is available, and this app uses your own account only. Connect your own ESPN Fantasy on the connectors page, or type your league in by hand.'
                     : 'Connect ESPN Fantasy on the connectors page (SWID in the account field, espn_s2 as the token), or type your league in by hand.'),
             });
@@ -184,7 +193,7 @@ async function linkHandler(pool, sub, req, res) {
             res.status(cred ? 404 : 403).json({
                 error: cred
                     ? 'ESPN would not return that league — check the id and season, and that this ESPN account is in it.'
-                    : 'That league is private. Connect ESPN Fantasy first, then link it — or type the league in by hand.',
+                    : (0, fantasy_context_1.credentialUnsupported)() || 'That league is private. Connect ESPN Fantasy first, then link it — or type the league in by hand.',
             });
             return;
         }
@@ -194,7 +203,12 @@ async function linkHandler(pool, sub, req, res) {
             season, leagueId, leagueName: settings.name, teamId: own?.teamId ?? null, teamName: own?.name ?? null,
         });
         log.info({ season, leagueId, teams: teams.length, ownTeam: own?.teamId ?? null }, 'fantasy league linked');
-        res.json({ ok: true, league: settings.name, teamName: own?.name || null, teams: teams.length, leagues: await (0, fantasy_store_1.listLeagues)(pool, sub) });
+        res.json({
+            ok: true, league: settings.name, teamName: own?.name || null, teams: teams.length,
+            // Linked, but no team could be matched: say why rather than leave a blank team.
+            teamNote: own ? null : (cred ? 'No team in that league belongs to this ESPN account.' : (0, fantasy_context_1.credentialUnsupported)()),
+            leagues: await (0, fantasy_store_1.listLeagues)(pool, sub),
+        });
     }
     catch (err) {
         log.error({ err, season, leagueId }, 'fantasy link failed');
@@ -203,7 +217,9 @@ async function linkHandler(pool, sub, req, res) {
 }
 /**
  * @description The lineup advisor: the P(win)-optimal lineup for the caller's own team — from their
- * ESPN league or their hand-typed one — the swaps that get there, and a record of having said so.
+ * ESPN league or their hand-typed one — and the swaps that get there. GET only computes it (a reader
+ * request writes nothing); POST /lineup/record grades the due weeks first and records the week's
+ * decision and calls, which is the forward test the record screen shows.
  * @param router - The package's router.
  * @param pool - Postgres pool.
  * @returns Nothing.
@@ -213,23 +229,41 @@ function registerLineupRoute(router, pool) {
         const sub = (0, fantasy_http_1.requireSub)(req, res);
         if (!sub)
             return;
-        const request = (0, fantasy_http_1.leagueRequestOf)(req.query);
-        try {
-            // Grade what is due first, so the ledger the surface shows beside the lineup is current. A
-            // grading failure is logged and never costs the caller the lineup.
-            await gradeDue(pool, sub, request.season).catch((err) => log.error({ err }, 'opportunistic grading failed'));
-            const result = await (0, fantasy_context_1.resolveLeagueContext)(pool, sub, request);
-            if (!result.ok) {
-                (0, fantasy_http_1.sendContextFailure)(res, result);
-                return;
-            }
-            res.json(await buildLineup(pool, sub, result.ctx));
-        }
-        catch (err) {
-            log.error({ err, season: request.season }, 'lineup failed');
-            res.status(502).json({ error: 'could not build the lineup' });
-        }
+        await serveLineup(res, pool, sub, (0, fantasy_http_1.leagueRequestOf)(req.query), false);
     });
+    router.post('/lineup/record', async (req, res) => {
+        const sub = (0, fantasy_http_1.requireSub)(req, res);
+        if (!sub)
+            return;
+        const request = (0, fantasy_http_1.leagueRequestOf)({ ...req.query, ...(req.body || {}) });
+        // Grade what is due first, so the ledger shown beside the lineup is current. A grading failure is
+        // logged and never costs the caller the lineup.
+        await gradeDue(pool, sub, request.season).catch((err) => log.error({ err }, 'opportunistic grading failed'));
+        await serveLineup(res, pool, sub, request, true);
+    });
+}
+/**
+ * @description Resolve the league and answer the lineup, recording it only when asked.
+ * @param res - Response.
+ * @param pool - Postgres pool.
+ * @param sub - Caller's subject.
+ * @param request - The league request.
+ * @param record - Whether to record the week's decision and calls (writer requests only).
+ * @returns Nothing.
+ */
+async function serveLineup(res, pool, sub, request, record) {
+    try {
+        const result = await (0, fantasy_context_1.resolveLeagueContext)(pool, sub, request);
+        if (!result.ok) {
+            (0, fantasy_http_1.sendContextFailure)(res, result);
+            return;
+        }
+        res.json(await buildLineup(pool, sub, result.ctx, record));
+    }
+    catch (err) {
+        log.error({ err, season: request.season, record }, 'lineup failed');
+        res.status(502).json({ error: 'could not build the lineup' });
+    }
 }
 /**
  * @description The opponent's own best lineup, as moments — deliberately THEIR optimal lineup, the
@@ -264,39 +298,108 @@ async function historyRowsOrNone(pool, sub, at, playerIds) {
 }
 /**
  * @description Build the lineup response: read the opponent, score both rosters with their
- * histories, optimise for P(win), register the calls and the week's decision before kickoff.
+ * histories and optimise for P(win). With no projection available it answers the feed's failure and
+ * no numbers. Only a recording request writes (the calls and the week's decision, before kickoff).
  * @param pool - Postgres pool.
  * @param sub - Caller's subject.
  * @param ctx - The league, from either source.
+ * @param record - Whether this request may write.
  * @returns The response body.
  */
-async function buildLineup(pool, sub, ctx) {
+async function buildLineup(pool, sub, ctx, record) {
     const { season, week, settings, teams, own } = ctx;
+    const zero = (0, fantasy_manual_1.zeroScoringReason)(settings.scoring);
+    if (zero) {
+        log.warn({ source: ctx.source, season, week }, 'lineup refused: the league scoring scores nothing');
+        return (0, fantasy_manual_1.scoringRefusedBody)(ctx, zero);
+    }
     const started = Date.now();
-    const { players, generatedAt } = await (0, fantasy_feed_1.projectionsFor)(pool, sub, season, week);
+    const read = await (0, fantasy_feed_1.projectionsFor)(pool, sub, season, week, { persist: record });
     const fixture = (0, fantasy_leagues_1.opponentOutcomeFor)(ctx.matchups, own.teamId, week);
     const opponent = fixture.opponentTeamId === null ? null : teams.find((t) => t.teamId === fixture.opponentTeamId) || null;
+    if (!Object.keys(read.players).length)
+        return unavailableBody(ctx, read.feed, opponent);
+    const ids = [...own.rosterPlayerIds, ...(opponent?.rosterPlayerIds || [])];
     // Strictly before the week being set: a player who has not kicked off would enter as a zero.
-    const history = (0, fantasy_roster_1.historyFor)(await historyRowsOrNone(pool, sub, { season, leagueKey: ctx.key, week }, [...own.rosterPlayerIds, ...(opponent?.rosterPlayerIds || [])]), settings.scoring);
-    const roster = (0, fantasy_roster_1.joinRoster)(own.entries, players, history);
-    const theirs = opponentMoments(opponent, players, settings, history);
+    const stored = await historyRowsOrNone(pool, sub, { season, leagueKey: ctx.key, week }, ids);
+    const history = (0, fantasy_roster_1.historyFor)(mergeWeeks(stored, read.weeks, week, ids), settings.scoring);
+    const roster = (0, fantasy_roster_1.joinRoster)(own.entries, read.players, history);
+    const theirs = opponentMoments(opponent, read.players, settings, history);
     const win = (0, fantasy_winprob_1.optimiseForWin)(roster, settings.slots, settings.scoring, theirs);
     const calls = (0, fantasy_scoring_1.startSitCalls)(own.startingPlayerIds, win.lineup, settings.scoring, roster);
-    const registered = await (0, fantasy_store_1.recordCalls)(pool, sub, season, ctx.key, week, calls);
     const currentTotal = currentLineupTotal(own.startingPlayerIds, roster, settings.scoring);
+    const registered = record ? await recordLineup(pool, sub, ctx, { win, theirs, calls, currentTotal }) : 0;
+    log.info({
+        source: ctx.source, season, week, roster: roster.length, calls: calls.length, registered, record,
+        playersWithHistory: roster.filter((p) => p.pointsHistory?.length).length,
+        posture: theirs ? win.posture : 'no-opponent', winProbability: theirs ? win.winProbability : null,
+        varianceSwaps: win.swaps.length, feed: read.feed.source, ms: Date.now() - started,
+    }, 'lineup served');
+    const openSlots = (0, fantasy_scoring_1.openSlotStarts)(own.startingPlayerIds, win.lineup);
+    const body = lineupBody(ctx, { players: read.players, generatedAt: read.generatedAt, opponent, theirs, win, calls, openSlots, currentTotal, schedule: fixture });
+    return { ...body, projectionFeed: read.feed, recorded: record };
+}
+/**
+ * @description Record the week's decision and its start/sit calls in the caller's own ledger.
+ * @param pool - Postgres pool.
+ * @param sub - Caller's subject.
+ * @param ctx - The league.
+ * @param r - The computed lineup.
+ * @returns How many calls were registered.
+ */
+async function recordLineup(pool, sub, ctx, r) {
+    const { season, week, own } = ctx;
+    const { win, theirs } = r;
+    const registered = await (0, fantasy_store_1.recordCalls)(pool, sub, season, ctx.key, week, r.calls);
     await (0, fantasy_grading_1.recordWeek)(pool, sub, {
         season, leagueKey: ctx.key, week, source: ctx.source,
         advised: win.lineup.starters.map((s) => s.player.playerId), meanLineup: win.meanLineup.starters.map((s) => s.player.playerId),
         started: own.startingPlayerIds, swaps: win.swaps, winProbability: theirs ? win.winProbability : null,
-        meanWinProbability: theirs ? win.meanWinProbability : null, projectedAdvised: win.lineup.total, projectedStarted: currentTotal,
+        meanWinProbability: theirs ? win.meanWinProbability : null, projectedAdvised: win.lineup.total, projectedStarted: r.currentTotal,
     });
-    log.info({
-        source: ctx.source, season, week, roster: roster.length, calls: calls.length, registered,
-        playersWithHistory: roster.filter((p) => p.pointsHistory?.length).length,
-        posture: theirs ? win.posture : 'no-opponent', winProbability: theirs ? win.winProbability : null,
-        varianceSwaps: win.swaps.length, ms: Date.now() - started,
-    }, 'lineup served');
-    return lineupBody(ctx, { players, generatedAt, opponent, theirs, win, calls, currentTotal, schedule: fixture });
+    return registered;
+}
+/**
+ * @description The stored completed weeks plus the ones the live feed just carried (not stored on a
+ * read), restricted to these players and to weeks before the one being set; a fetched line wins.
+ * @param stored - Lines read from the caller's store.
+ * @param fetched - Lines the live feed carried.
+ * @param week - The week being set.
+ * @param ids - Both rosters' player ids.
+ * @returns The merged lines.
+ */
+function mergeWeeks(stored, fetched, week, ids) {
+    const wanted = new Set(ids);
+    const byKey = new Map();
+    for (const line of [...stored, ...fetched]) {
+        if (line.week < week && wanted.has(line.playerId))
+            byKey.set(`${line.playerId}:${line.week}`, line);
+    }
+    return [...byKey.values()].sort((a, b) => a.week - b.week);
+}
+/**
+ * @description The answer when no projection exists for the week: the league, the team, who they
+ * play, and why there are no numbers. No lineup is built from zero-point projections.
+ * @param ctx - The league.
+ * @param feed - The feed state, carrying the reason.
+ * @param opponent - The opposing team, if scheduled.
+ * @returns The body.
+ */
+function unavailableBody(ctx, feed, opponent) {
+    log.warn({ season: ctx.season, week: ctx.week, reason: feed.reason }, 'lineup served without projections');
+    return {
+        source: ctx.source,
+        league: { name: ctx.settings.name, leagueId: ctx.key, season: ctx.season, week: ctx.week },
+        team: { teamId: ctx.own.teamId, name: ctx.own.name },
+        matchup: { opponentTeamId: opponent?.teamId ?? null, opponentName: opponent?.name ?? null },
+        projectionFeed: feed,
+        projectionsAvailable: 0,
+        optimal: null,
+        meanOptimal: null,
+        calls: [],
+        openSlots: [],
+        recorded: false,
+    };
 }
 /**
  * @description The lineup response body.
@@ -314,6 +417,8 @@ function lineupBody(ctx, r) {
         slots: ctx.settings.slots,
         optimal: win.lineup,
         calls: r.calls,
+        // Recommended starters for slots the lineup as set leaves empty (no one to sit, so not a call).
+        openSlots: r.openSlots,
         matchup: {
             opponentTeamId: opponent?.teamId ?? null,
             opponentName: opponent?.name ?? null,
@@ -365,11 +470,12 @@ function registerRecordRoutes(router, pool) {
         const sub = (0, fantasy_http_1.requireSub)(req, res);
         if (!sub)
             return;
+        const leagueKey = typeof req.query.leagueKey === 'string' && req.query.leagueKey ? req.query.leagueKey.slice(0, 80) : undefined;
         try {
             res.json({
-                record: await (0, fantasy_store_1.fantasyRecord)(pool, sub),
-                calls: await (0, fantasy_store_1.listCalls)(pool, sub, Math.min(Math.max(Number(req.query.limit) || 100, 1), 500)),
-                weeks: await (0, fantasy_grading_1.weekRecord)(pool, sub),
+                record: await (0, fantasy_store_1.fantasyRecord)(pool, sub, leagueKey),
+                calls: await (0, fantasy_store_1.listCalls)(pool, sub, Math.min(Math.max(Number(req.query.limit) || 100, 1), 500), leagueKey),
+                weeks: await (0, fantasy_grading_1.weekRecord)(pool, sub, leagueKey),
             });
         }
         catch (err) {

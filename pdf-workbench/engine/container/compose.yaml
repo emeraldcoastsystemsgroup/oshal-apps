@@ -1,0 +1,22 @@
+name: oshal-pdf-workbench-engine
+services:
+  pdf-workbench-engine:
+    image: oshal-pdf-workbench-engine:local
+    container_name: oshal-pdf-workbench-engine
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=256m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 32
+    mem_limit: 768m
+    labels: {oshal.app: pdf-workbench}
+    networks:
+      oshal:
+        aliases: [pdf-workbench-engine]
+networks:
+  oshal:
+    external: true
+    name: ${OSHAL_NETWORK:?Set the installation private network explicitly}

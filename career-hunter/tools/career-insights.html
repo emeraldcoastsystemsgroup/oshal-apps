@@ -5,6 +5,7 @@
   SEQ | AUTHOR | DESCRIPTION
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
+  2 | maintainer@emeraldcoastsystemsgroup.com | A refused read shows its reason instead of zeros. Live 2026-10-12 GET /analytics answered 503 {"detail":"unavailable: package response stalled ...","refused":"store_unavailable"} and the page parsed that body as data, so every figure read 0 and nothing said why.
 -->
 
 <!--
@@ -53,7 +54,12 @@ function funnelRow(lbl,n,max){ const w=max>0?Math.max(2,Math.round(n/max*100)):2
 async function load(){
   const el=document.getElementById('body');
   try {
-    const a = await (await fetch('/api/career-hunter/analytics')).json();
+    const res = await fetch('/api/career-hunter/analytics');
+    const a = await res.json().catch(()=>({}));
+    if(!res.ok){
+      const why = a.error || a.detail || ('HTTP '+res.status);
+      el.innerHTML='<div class="empty" role="alert">Insights could not be loaded: '+esc(why)+'</div>'; return;
+    }
     if(a.empty){ el.innerHTML='<div class="empty">No job data yet.</div>'; return; }
     const h=a.headline||{}, f=a.funnel||{};
     const stats=[[ (h.inlane||0).toLocaleString(),'In-lane roles'],[(h.fit70||0).toLocaleString(),'Fit ≥ 70'],[h.fit80||0,'Fit ≥ 80'],

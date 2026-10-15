@@ -28,6 +28,9 @@
  * 14 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 S1 "the boat falls": `GET /physics/media` (the three medium records, the force models' declared requirements and validity envelopes, the named refusals), `GET /physics/hull?medium=` (the explorer hull as one solid dropped in a chosen medium: the analytic fall the plant must reproduce, the MJCF it loads, and the flotation question refused by name in the same answer) and `GET /physics/hull/mjcf?medium=`. A medium this lab does not implement is 400 `unknown_medium` and is never substituted; a refusal is 422 carrying its own name (`model_not_valid_in_medium`, `medium_property_unavailable`, `medium_outside_validity`).
  * 15 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 D5: every run result carries its medium id and engine fingerprints, or it is not displayed. `GET /physics/hull` answers as `oshal.run-result/1` with `engine` — the installed package version read from the manifest, the compiled engine tree's build hash, which plant answered (analytic) and the MuJoCo tree the scene targets by its hash — beside the medium the run used. A package whose manifest version cannot be read answers 503 `run_unfingerprinted` rather than producing a run nothing may display. `GET /physics/media` publishes the same fingerprints so the tile can show which engine is answering before a run.
  * 16 | maintainer@emeraldcoastsystemsgroup.com  | ADR-175 hardening: a world flown on a rail node no longer hands the node SWARM_SERVICE_SECRET (the command key comes from the fleet record), and /physics/status describes the device-credential rail and the allowed endpoint hosts.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com  | Native kernel (no network in the sandbox): the physics bridge goes through the kernel's engine.exchange intent. `/physics/status`, `/physics/reports`, `/physics/certify` and the arm check read the engine without blocking (both links); a physics world, which steps synchronously, answers an honest 503 natively.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com  | Lost completion writes (K4): the native pool is bound to the admitted request and only a writer (non-GET) admission may mutate, so the execution timer's fire-and-forget status update, every command-log insert made between requests and any write from a GET read were refused: a finished task stayed `executing` at step 0 and Home counted 0 completed. The world's writes now queue on the session; every POST (draft, execute, abort, control, command, scan, certify and the new POST /writes/settle) persists them in order before it answers, the state read reports `control.pendingWrites` so the surface posts the settle, and GET /tasks, /tasks/:id and the Home summary overlay a queued outcome instead of answering a stale `executing`. E-stop closes the task through the same queue. Off the native kernel the timer still settles on its own.
+ * 19 | maintainer@emeraldcoastsystemsgroup.com  | K4 review: POST /tasks/:id/abort left the task `executing` at step 0 for good. The plan executor sets `aborted` inside abort(), so the advance that followed never saw running->aborted and nothing queued the final status (Home counted 0 stopped). The abort route now closes the task through finishTask with the executor's step and failure ("aborted by a human") before it settles, the same way e-stop does.
  */
 
 import path from 'node:path';
@@ -44,13 +47,13 @@ import {
 } from './engine/world/imported-scenes';
 import { DroneNodeFleet, NodeOffline, sharedNodeFleet } from './engine/node/node-fleet';
 import { RailDroneNode } from './engine/node/rail-node';
-import { getTask, insertLog, insertTask, listLog, listTasks, updateTaskStatus, type Pool, type TaskRow } from './task-store';
+import { getTask, insertLog, insertTask, listLog, listTasks, registerPendingTaskStatuses, updateTaskStatus, type PendingTaskStatus, type Pool, type TaskRow } from './task-store';
 import {
   ControlAuthority, DEFAULT_BASE_LIMITS, DEFAULT_DRONE_LIMITS, DRONE_NODE_ID, maxReach, planClearSurface, planExplore, planFetchFromAppliance, SIM_ARM_6, UNIT_NODE_ID, validateManifest, validatePlan, WorldSim,
   type CapabilityManifest, type CommandRecord, type Scene, type Sensor, type SkillPlan, DRONE_SENSOR_SETS, sensorSetById, buildDrone, designMarkdown, DRONE_FITS, fitById,
   armMountRefusal, armRoomMjcf, armPlant as armPlantSpec, buildArm, RemoteArmPlant, type ArmMount, type ArmSpec, type ArmPlant, DEFAULT_ENGINE_ADDR, DEFAULT_INSTALL_HINT, droneMjcf, EngineFailure, engineBuildHash, parseEngineAddr, RemotePlant, SyncBridge, certifyFlight, controllerName, type ControllerSpec, type DroneSensorSet, type FlightCertification, type PhysicsPlant, type SensedSolid,
   allMedia, dropExplorerHull, explorerHullMjcf, EXPLORER_HULL_PROVENANCE, HULL_FLOTATION, mediumById, MediumRefused, mediumView, MEDIUM_IDS, MEDIUM_PROPERTIES_SCHEMA, RIGID_BODY_PLANT,
-  fingerprintRun, readPackageVersion, routesEngineBuildHash, type EngineFingerprints } from './engine';
+  fingerprintRun, readPackageVersion, routesEngineBuildHash, type EngineFingerprints, type NativeExchange, type SyncBridgeOptions } from './engine';
 
 const logger = createChildLogger({ module: 'embodied-routes' });
 
@@ -137,10 +140,42 @@ interface Session {
   taskId: string | null;
   lastWallMs: number;
   timer: ReturnType<typeof setInterval> | null;
+  /** Writes the world produced (command-log rows, a finished task's status), persisted in order inside the next admitted request. */
+  writes: PendingWrite[];
+  /** The flush in progress, so two requests never write the same row twice. */
+  flushing: Promise<void> | null;
 }
+
+/** @description One store write the simulation produced, waiting for an admitted request to carry it. */
+interface PendingWrite {
+  label: 'command-log' | 'task-status';
+  taskId: string | null;
+  run: () => Promise<unknown>;
+  attempts: number;
+  /** For a task-status write: the outcome the world reached, shown by reads before it is stored. */
+  outcome?: PendingTaskStatus;
+}
+
+/** A write that keeps failing is dropped (and logged) after this many admitted attempts. */
+const MAX_WRITE_ATTEMPTS = 3;
+/** Command-log rows held for one owner between requests; a finished task's status is never dropped. */
+const MAX_PENDING_LOG_WRITES = 2000;
 
 /** @description Reads a plain string body field. */
 const str = (v: unknown, fallback: string): string => (typeof v === 'string' && v.trim() ? v.trim() : fallback);
+
+/**
+ * @description The native kernel's engine path, when this package runs in its sandbox: the pool is
+ * the kernel's scoped document store and the context carries the intent port.
+ * @param ctx - The package context.
+ * @returns The exchange function, or undefined off the native kernel.
+ */
+export function nativeExchange(ctx: unknown): SyncBridgeOptions['exchange'] {
+  const c = ctx as { pool?: { storageModel?: unknown }; intent?: (name: string, input: unknown) => Promise<unknown> } | undefined;
+  if (c?.pool?.storageModel !== 'kernel-scoped-documents' || typeof c.intent !== 'function') return undefined;
+  const intent = c.intent;
+  return async (request, timeoutMs) => (await intent('engine.exchange', { request, timeoutMs })) as NativeExchange;
+}
 
 /**
  * @description Build the `/api/embodied` router.
@@ -177,10 +212,15 @@ export function createEmbodiedRoutes(ctx: AppContext, opts: EmbodiedRouteOpts = 
   const engineFingerprints = (): EngineFingerprints | null => (packageVersion
     ? { package: 'embodied', packageVersion, routesBuildHash, plant: { kind: 'analytic', mujocoEngineTreeBuildHash: expectedBuildHash } }
     : null);
-  const engineAddr = opts.engineAddr ?? process.env.EMBODIED_ENGINE_ADDR ?? DEFAULT_ENGINE_ADDR;
+  const exchange = nativeExchange(ctx);
+  const engineAddr = exchange ? 'native://engine.exchange' : opts.engineAddr ?? process.env.EMBODIED_ENGINE_ADDR ?? DEFAULT_ENGINE_ADDR;
   let bridge: SyncBridge | null = null;
   const getBridge = (): SyncBridge => {
-    if (!bridge) bridge = new SyncBridge({ ...parseEngineAddr(engineAddr), expectedBuildHash, timeoutMs: 30000 });
+    if (!bridge) {
+      bridge = exchange
+        ? new SyncBridge({ transport: 'native', exchange, timeoutMs: 30000 })
+        : new SyncBridge({ ...parseEngineAddr(engineAddr), expectedBuildHash, timeoutMs: 30000 });
+    }
     return bridge;
   };
   const dropBridge = (): void => { if (bridge) { bridge.close(); bridge = null; } };
@@ -223,7 +263,7 @@ export function createEmbodiedRoutes(ctx: AppContext, opts: EmbodiedRouteOpts = 
     logger.warn({ code: e.code, reason: e.reason, node }, 'Rail node unavailable');
     return { status: 503, body: { error: 'node_unavailable', code: e.code, nodeId: node, message: e.message, reason: e.reason ?? null } };
   };
-  const readReports = (): ReportsListing => (opts.reportReader ? opts.reportReader() : getBridge().call<ReportsListing>('reports'));
+  const readReports = async (): Promise<ReportsListing> => (opts.reportReader ? opts.reportReader() : getBridge().callAsync<ReportsListing>('reports'));
   const certifiedOf = (sub: string): Map<string, Certified> => { let m = certifiedBySub.get(sub); if (!m) { m = new Map(); certifiedBySub.set(sub, m); } return m; };
   /** `pid`, or `policy:<file>` for a policy this owner has certified; anything else is refused with the reason. */
   const controllerFor = (sub: string, requested: unknown): { spec: ControllerSpec } | { error: string; message: string } => {
@@ -252,9 +292,11 @@ export function createEmbodiedRoutes(ctx: AppContext, opts: EmbodiedRouteOpts = 
     const holder: { current: Session | null } = { current: null };
     const sink = (record: CommandRecord): void => {
       const taskId = holder.current?.taskId ?? null;
-      void insertLog(pool, sub, taskId, record).catch((error) => logger.error({ err: error, sub, command: record.command }, 'Command log insert failed'));
+      const write = (): Promise<unknown> => insertLog(pool, sub, taskId, record);
+      if (holder.current) { queueWrite(sub, holder.current, 'command-log', taskId, write); return; }
+      void write().catch((error) => logger.error({ err: error, sub, command: record.command }, 'Command log insert failed'));
     };
-    s = { sim, control: new ControlAuthority(sim, sink), taskId: null, lastWallMs: now(), timer: null };
+    s = { sim, control: new ControlAuthority(sim, sink), taskId: null, lastWallMs: now(), timer: null, writes: [], flushing: null };
     holder.current = s;
     sessions.set(sub, s);
     return s;
@@ -271,18 +313,89 @@ export function createEmbodiedRoutes(ctx: AppContext, opts: EmbodiedRouteOpts = 
     const after = s.control.executor.state;
     if (before === 'running' && after !== 'running' && s.taskId) {
       const status = after === 'done' ? 'done' : after === 'failed' ? 'failed' : after === 'aborted' ? 'aborted' : 'executing';
-      if (status !== 'executing') {
-        void updateTaskStatus(pool, sub, s.taskId, status, s.control.executor.stepIndex, s.control.executor.failure).catch((error) => logger.error({ err: error, sub }, 'Task status update failed'));
-        s.taskId = null;
-        stopTimer(s);
-      }
+      if (status !== 'executing') finishTask(sub, s, status, s.control.executor.stepIndex, s.control.executor.failure);
     }
   };
+
+  /**
+   * Queue one store write the world produced. On the native kernel the pool is bound to the admitted
+   * request and only a writer (non-GET) admission may mutate: a write started by the execution timer,
+   * left running after a response, or issued from a GET read is refused, which is how a finished task
+   * stayed `executing` at step 0. Every write is therefore queued here and persisted, in order, by
+   * `settle` inside a POST; reads overlay the queued outcome so they never report a stale task.
+   */
+  const queueWrite = (sub: string, s: Session, label: PendingWrite['label'], taskId: string | null, run: () => Promise<unknown>, outcome?: PendingTaskStatus): void => {
+    if (label === 'command-log' && s.writes.filter((w) => w.label === 'command-log').length >= MAX_PENDING_LOG_WRITES) {
+      logger.error({ sub, taskId, pending: s.writes.length }, 'Command log backlog full; a log row was not kept');
+      return;
+    }
+    s.writes.push({ label, taskId, run, attempts: 0, outcome });
+  };
+
+  /** Close the session's task: queue its final status and step, and stop driving it. */
+  const finishTask = (sub: string, s: Session, status: 'done' | 'failed' | 'aborted', stepIndex: number, failure: string | null): void => {
+    const taskId = s.taskId;
+    if (!taskId) return;
+    queueWrite(sub, s, 'task-status', taskId, () => updateTaskStatus(pool, sub, taskId, status, stepIndex, failure), { taskId, status, stepIndex, failure });
+    s.taskId = null;
+    stopTimer(s);
+    logger.info({ sub, taskId, status, stepIndex }, 'Physical task finished; its status is queued for the store');
+  };
+
+  /** Persist the session's queued writes in order, inside the current admitted request. Never throws. */
+  const settle = async (sub: string, s: Session): Promise<void> => {
+    while (s.flushing) await s.flushing;
+    if (!s.writes.length) return;
+    const started = now();
+    s.flushing = (async () => {
+      while (s.writes.length) {
+        const w = s.writes[0];
+        try { await w.run(); s.writes.shift(); } catch (error) {
+          w.attempts += 1;
+          logger.error({ err: error, sub, taskId: w.taskId, write: w.label, attempts: w.attempts }, 'Embodied store write failed');
+          if (w.attempts < MAX_WRITE_ATTEMPTS) return;
+          s.writes.shift();
+          logger.error({ sub, taskId: w.taskId, write: w.label }, 'Embodied store write dropped after repeated failures');
+        }
+      }
+    })();
+    try { await s.flushing; } finally { s.flushing = null; }
+    logger.debug({ sub, pending: s.writes.length, durationMs: now() - started }, 'Embodied store writes settled');
+  };
+
+  /** Advance the owner's world and persist what it produced before the request answers. */
+  const advanceAndSettle = async (sub: string, s: Session): Promise<void> => {
+    advance(sub, s);
+    await settle(sub, s);
+  };
+  /** The owner's finished-but-not-yet-stored task outcomes (advancing the live world first), for reads that cannot write. */
+  const pendingOutcomes = (sub: string): PendingTaskStatus[] => {
+    const s = sessions.get(sub);
+    if (!s) return [];
+    advance(sub, s);
+    return s.writes.filter((w) => w.outcome).map((w) => w.outcome as PendingTaskStatus);
+  };
+  registerPendingTaskStatuses(pendingOutcomes);
+  /** A stored row with the world's queued outcome laid over it, so a read never reports a finished task as executing. */
+  const withOutcome = (row: TaskRow, outcomes: PendingTaskStatus[]): TaskRow => {
+    const o = outcomes.find((x) => x.taskId === row.task_id);
+    return o && row.status === 'executing' ? { ...row, status: o.status, current_step: o.stepIndex, failure: o.failure } : row;
+  };
+  /** A read advances the world; off the native kernel (a plain pool) it may also store what that produced. */
+  const advanceForRead = async (sub: string, s: Session): Promise<void> => {
+    advance(sub, s);
+    if (!requestBoundPool) await settle(sub, s);
+  };
+  /** The pool is the native kernel's request-bound store: only a request may carry a write. */
+  const requestBoundPool = (pool as { storageModel?: unknown } | undefined)?.storageModel === 'kernel-scoped-documents';
 
   const stopTimer = (s: Session): void => { if (s.timer) { clearInterval(s.timer); s.timer = null; } };
   const startTimer = (sub: string, s: Session): void => {
     if (opts.noTimer || s.timer) return;
-    s.timer = setInterval(() => { try { advance(sub, s); } catch (error) { logger.error({ err: error, sub }, 'Execution tick failed'); } }, TICK_MS);
+    s.timer = setInterval(() => {
+      try { advance(sub, s); } catch (error) { logger.error({ err: error, sub }, 'Execution tick failed'); }
+      if (!requestBoundPool) void settle(sub, s);
+    }, TICK_MS);
     if (typeof s.timer === 'object' && s.timer && 'unref' in s.timer) (s.timer as { unref(): void }).unref();
   };
 
@@ -290,6 +403,7 @@ export function createEmbodiedRoutes(ctx: AppContext, opts: EmbodiedRouteOpts = 
     mode: s.control.mode, holder: s.control.holder, executor: s.control.executor.state, taskId: s.taskId,
     stepIndex: s.control.executor.stepIndex, currentStep: s.control.executor.currentStep?.label ?? null, stepsTotal: s.control.executor.current?.steps.length ?? 0,
     failure: s.control.executor.failure, lastObservation: s.control.executor.lastObservation,
+    pendingWrites: s.writes.length,
   });
 
   const withSub = (req: Request, res: Response): string | null => {
@@ -317,26 +431,26 @@ export function createEmbodiedRoutes(ctx: AppContext, opts: EmbodiedRouteOpts = 
     });
   });
 
-  router.get('/state', (req: Request, res: Response) => {
+  router.get('/state', async (req: Request, res: Response) => {
     const sub = withSub(req, res); if (!sub) return;
     const s = session(sub);
-    advance(sub, s);
+    await advanceForRead(sub, s);
     res.setHeader('Cache-Control', 'no-store');
     res.json({ ...s.sim.snapshot(), control: controlView(s) });
   });
 
-  router.get('/camera', (req: Request, res: Response) => {
+  router.get('/camera', async (req: Request, res: Response) => {
     const sub = withSub(req, res); if (!sub) return;
     const s = session(sub);
-    advance(sub, s);
+    await advanceForRead(sub, s);
     res.setHeader('Cache-Control', 'no-store');
     res.json(s.sim.viewFrame());
   });
 
-  router.get('/world', (req: Request, res: Response) => {
+  router.get('/world', async (req: Request, res: Response) => {
     const sub = withSub(req, res); if (!sub) return;
     const s = session(sub);
-    advance(sub, s);
+    await advanceForRead(sub, s);
     s.sim.world.refresh();
     res.setHeader('Cache-Control', 'no-store');
     res.json({ simulated: true, ...s.sim.world.snapshot() });
@@ -371,28 +485,29 @@ export function createEmbodiedRoutes(ctx: AppContext, opts: EmbodiedRouteOpts = 
     res.json({ res: map.res, bounds: map.bounds, version: map.version, occupied: map.occupiedList(), stats: map.stats() });
   });
 
-  router.get('/picture', (req: Request, res: Response) => {
+  router.get('/picture', async (req: Request, res: Response) => {
     const sub = withSub(req, res); if (!sub) return;
     const sensor = String(req.query.sensor ?? 'drone') as Sensor;
     if (!SENSORS.includes(sensor)) { res.status(400).json({ error: 'unknown_sensor', sensors: SENSORS }); return; }
     const s = session(sub);
-    advance(sub, s);
+    await advanceForRead(sub, s);
     const pic = s.sim.picture(sensor);
     res.setHeader('Cache-Control', 'no-store');
     res.json({ simulated: true, sensor, width: pic.width, height: pic.height, rgb: Buffer.from(pic.rgb).toString('base64'), camera: pic.camera, returns: pic.sweep.hits.length });
   });
 
-  router.post('/scan', (req: Request, res: Response) => {
+  router.post('/scan', async (req: Request, res: Response) => {
     const sub = withSub(req, res); if (!sub) return;
     const body = (req.body ?? {}) as Record<string, unknown>;
     const sensor = str(body.sensor, 'rover') as Sensor;
     if (!SENSORS.includes(sensor)) { res.status(400).json({ error: 'unknown_sensor', sensors: SENSORS }); return; }
     const s = session(sub);
-    advance(sub, s);
+    await advanceAndSettle(sub, s);
     try {
       const result = s.control.manual({ nodeId: sensor === 'drone' ? DRONE_NODE_ID : UNIT_NODE_ID, command: 'scan', params: { sensor } }, sub);
+      await settle(sub, s);
       res.json({ ok: true, result, world: s.sim.world.snapshot() });
-    } catch (error) { res.status(409).json({ error: 'scan_refused', message: error instanceof Error ? error.message : String(error) }); }
+    } catch (error) { await settle(sub, s); res.status(409).json({ error: 'scan_refused', message: error instanceof Error ? error.message : String(error) }); }
   });
 
   router.post('/world/label', (req: Request, res: Response) => {
@@ -475,10 +590,10 @@ export function createEmbodiedRoutes(ctx: AppContext, opts: EmbodiedRouteOpts = 
     res.json({ ok: true, ...fresh.sim.snapshot(), control: controlView(fresh) });
   });
 
-  router.get('/physics/status', (req: Request, res: Response) => {
+  router.get('/physics/status', async (req: Request, res: Response) => {
     const sub = withSub(req, res); if (!sub) return;
     let engine: Record<string, unknown>;
-    try { engine = { connected: true, ...getBridge().hello() }; } catch (error) { const f = physicsFailure(error); engine = { connected: false, code: f.body.code, reason: f.body.reason }; }
+    try { engine = { connected: true, ...(await getBridge().helloAsync()) }; } catch (error) { const f = physicsFailure(error); engine = { connected: false, code: f.body.code, reason: f.body.reason }; }
     res.json({ backends: BACKENDS, engine: { ...engine, addr: engineAddr, expectedBuildHash, installHint: DEFAULT_INSTALL_HINT }, nodes: fleet.list(now(), expectedBuildHash, sub), rail: { heartbeat: 'POST /api/embodied/nodes/heartbeat (device credential, ADR-175)', command: 'POST <endpointUrl>/api/drone-node/command (x-node-command-key from the heartbeat reply)', endpointHosts: fleet.endpointHosts } });
   });
 
@@ -559,29 +674,29 @@ export function createEmbodiedRoutes(ctx: AppContext, opts: EmbodiedRouteOpts = 
       : getBridge().callAsync<ArmCheckReport>('arm-check', input as unknown as Record<string, unknown>, ARM_CHECK_TIMEOUT_MS)),
   });
 
-  router.get('/physics/reports', (req: Request, res: Response) => {
+  router.get('/physics/reports', async (req: Request, res: Response) => {
     const sub = withSub(req, res); if (!sub) return;
     try {
-      const listing = readReports();
+      const listing = await readReports();
       const certified = certifiedOf(sub);
       res.json({ ...listing, reports: listing.reports.map((r) => ({ ...r, certified: r.report?.policyFile ? (certified.get(r.report.policyFile)?.certification ?? null) : null })) });
     } catch (error) { const f = physicsFailure(error); res.status(f.status).json(f.body); }
   });
 
-  router.post('/physics/certify', (req: Request, res: Response) => {
+  router.post('/physics/certify', async (req: Request, res: Response) => {
     const sub = withSub(req, res); if (!sub) return;
     const body = (req.body ?? {}) as Record<string, unknown>;
     const file = str(body.file, '');
     if (!file) { res.status(400).json({ error: 'file_required', message: 'the report file to certify (from GET /physics/reports)' }); return; }
     const which = body.which === 'baseline' ? 'baseline' : 'policy';
     let listing: ReportsListing;
-    try { listing = readReports(); } catch (error) { const f = physicsFailure(error); res.status(f.status).json(f.body); return; }
+    try { listing = await readReports(); } catch (error) { const f = physicsFailure(error); res.status(f.status).json(f.body); return; }
     const entry = listing.reports.find((r) => r.file === file);
     if (!entry || !entry.report) { res.status(404).json({ error: 'report_not_found', file }); return; }
     const trajectory = entry.report[which]?.trajectory;
     if (!Array.isArray(trajectory) || !trajectory.length) { res.status(422).json({ error: 'no_trajectory', message: `the report has no ${which} flight path to replay` }); return; }
     const s = session(sub);
-    advance(sub, s);
+    await advanceAndSettle(sub, s);
     const certification = certifyFlight(s.sim, trajectory);
     const policyFile = which === 'policy' ? entry.report.policyFile : undefined;
     if (policyFile) certifiedOf(sub).set(policyFile, { certification, residual: entry.report.mode === 'residual', interface: entry.report.mode === 'ctbr' ? 'ctbr' : 'motors', reportFile: file });
@@ -595,7 +710,7 @@ export function createEmbodiedRoutes(ctx: AppContext, opts: EmbodiedRouteOpts = 
     const task = str(body.task, 'clear-surface');
     if (!TASKS.includes(task)) { res.status(400).json({ error: 'unknown_task', tasks: TASKS }); return; }
     const s = session(sub);
-    advance(sub, s);
+    await advanceAndSettle(sub, s);
     let plan: SkillPlan;
     try {
       plan = task === 'explore' ? planExplore(s.sim, Math.min(30, Math.max(1, Number(body.maxScans) || 12)), { droneFirst: body.droneFirst === true })
@@ -614,14 +729,16 @@ export function createEmbodiedRoutes(ctx: AppContext, opts: EmbodiedRouteOpts = 
 
   router.get('/tasks', async (req: Request, res: Response) => {
     const sub = withSub(req, res); if (!sub) return;
-    try { res.json(await listTasks(pool, sub)); } catch (error) { logger.error({ err: error, sub }, 'Task list failed'); res.status(500).json({ error: 'task_store_failed' }); }
+    const outcomes = pendingOutcomes(sub);
+    try { res.json((await listTasks(pool, sub)).map((row) => withOutcome(row, outcomes))); } catch (error) { logger.error({ err: error, sub }, 'Task list failed'); res.status(500).json({ error: 'task_store_failed' }); }
   });
 
   router.get('/tasks/:id', async (req: Request, res: Response) => {
     const sub = withSub(req, res); if (!sub) return;
+    const outcomes = pendingOutcomes(sub);
     const row = await getTask(pool, sub, String(req.params.id)).catch(() => null);
     if (!row) { res.status(404).json({ error: 'task_not_found' }); return; }
-    res.json(row);
+    res.json(withOutcome(row, outcomes));
   });
 
   router.post('/tasks/:id/execute', async (req: Request, res: Response) => {
@@ -631,12 +748,13 @@ export function createEmbodiedRoutes(ctx: AppContext, opts: EmbodiedRouteOpts = 
     if (!row) { res.status(404).json({ error: 'task_not_found' }); return; }
     if (row.status !== 'draft') { res.status(409).json({ error: 'task_not_draft', status: row.status }); return; }
     const s = session(sub);
-    advance(sub, s);
+    await advanceAndSettle(sub, s);
     const rehearsal = validatePlan(s.sim, row.plan);
     if (!rehearsal.ok) { res.status(409).json({ error: 'rehearsal_failed', rehearsal }); return; }
     try { s.control.execute(row.plan, sub); } catch (error) { res.status(409).json({ error: 'execute_refused', message: error instanceof Error ? error.message : String(error) }); return; }
     s.taskId = row.task_id;
     await updateTaskStatus(pool, sub, row.task_id, 'executing', 0, null).catch((error) => logger.error({ err: error, sub }, 'Task status update failed'));
+    await settle(sub, s);
     startTimer(sub, s);
     logger.info({ sub, taskId: row.task_id }, 'Executing a physical task after a fresh rehearsal');
     res.json({ ok: true, taskId: row.task_id, rehearsal, control: controlView(s) });
@@ -647,34 +765,47 @@ export function createEmbodiedRoutes(ctx: AppContext, opts: EmbodiedRouteOpts = 
     const s = session(sub);
     if (s.taskId !== String(req.params.id)) { res.status(409).json({ error: 'task_not_executing' }); return; }
     s.control.abort(sub);
-    advance(sub, s);
+    // abort() flips the executor to `aborted` itself, so advance() never sees running->aborted: close the task here, as e-stop does.
+    if (s.taskId && s.control.executor.state === 'aborted') finishTask(sub, s, 'aborted', s.control.executor.stepIndex, s.control.executor.failure);
+    await advanceAndSettle(sub, s);
     res.json({ ok: true, control: controlView(s) });
   });
 
-  const controlAction = (action: 'take' | 'release' | 'estop' | 'reset') => (req: Request, res: Response): void => {
+  const controlAction = (action: 'take' | 'release' | 'estop' | 'reset') => async (req: Request, res: Response): Promise<void> => {
     const sub = withSub(req, res); if (!sub) return;
     const s = session(sub);
-    advance(sub, s);
+    await advanceAndSettle(sub, s);
     try {
       s.control[action](sub);
-      if (action === 'estop' && s.taskId) { void updateTaskStatus(pool, sub, s.taskId, 'aborted', s.control.executor.stepIndex, 'e-stop').catch(() => undefined); s.taskId = null; stopTimer(s); }
+      if (action === 'estop' && s.taskId) finishTask(sub, s, 'aborted', s.control.executor.stepIndex, 'e-stop');
+      await settle(sub, s);
       res.json({ ok: true, control: controlView(s) });
-    } catch (error) { res.status(409).json({ error: `${action}_refused`, message: error instanceof Error ? error.message : String(error), control: controlView(s) }); }
+    } catch (error) { await settle(sub, s); res.status(409).json({ error: `${action}_refused`, message: error instanceof Error ? error.message : String(error), control: controlView(s) }); }
   };
   router.post('/control/take', controlAction('take'));
   router.post('/control/release', controlAction('release'));
   router.post('/control/estop', controlAction('estop'));
   router.post('/control/reset', controlAction('reset'));
 
-  router.post('/control/command', (req: Request, res: Response) => {
+  router.post('/control/command', async (req: Request, res: Response) => {
     const sub = withSub(req, res); if (!sub) return;
     const body = (req.body ?? {}) as Record<string, unknown>;
     const s = session(sub);
-    advance(sub, s);
+    await advanceAndSettle(sub, s);
     try {
       const result = s.control.manual({ nodeId: str(body.nodeId, ''), command: str(body.command, ''), params: (body.params && typeof body.params === 'object' ? body.params : {}) as Record<string, unknown> }, sub);
+      await settle(sub, s);
       res.json({ ok: true, result, control: controlView(s) });
-    } catch (error) { res.status(409).json({ error: 'command_refused', message: error instanceof Error ? error.message : String(error), control: controlView(s) }); }
+    } catch (error) { await settle(sub, s); res.status(409).json({ error: 'command_refused', message: error instanceof Error ? error.message : String(error), control: controlView(s) }); }
+  });
+
+  /** Persist what the world produced since the last write (finished task status, step log rows). A GET cannot write on the native kernel, so the surface posts here when a read reports pending writes. */
+  router.post('/writes/settle', async (req: Request, res: Response) => {
+    const sub = withSub(req, res); if (!sub) return;
+    const s = session(sub);
+    const before = s.writes.length;
+    await advanceAndSettle(sub, s);
+    res.json({ ok: s.writes.length === 0, persisted: Math.max(0, before - s.writes.length), pending: s.writes.length, control: controlView(s) });
   });
 
   router.get('/log', async (req: Request, res: Response) => {

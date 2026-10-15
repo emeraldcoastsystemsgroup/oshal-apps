@@ -8,12 +8,14 @@ exports.isRecord = isRecord;
 exports.exactFields = exactFields;
 exports.projectInput = projectInput;
 exports.mediaKind = mediaKind;
+exports.loadTimelineAgent = loadTimelineAgent;
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Validate editor request envelopes before any database or filesystem work: server-issued UUIDs, exact optimistic revisions, exact field sets, and timeline documents checked by the SAME shipped module the browser editor uses (tools/editor/timeline-validation.mjs), loaded once per installed revision.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  */
 const node_crypto_1 = require("node:crypto");
 const node_fs_1 = require("node:fs");
@@ -86,4 +88,11 @@ function mediaKind(value) {
     if (value !== 'video' && value !== 'audio')
         throw new video_editor_types_1.EditorError(400, 'invalid_video_edit_media_kind');
     return value;
+}
+/** Load only the installed trusted immutable editor adapter; no request selects executable code. */
+function loadTimelineAgent(packageDir) {
+    const file = (0, node_path_1.resolve)(packageDir, 'tools/editor/agent-tools.mjs');
+    const url = (0, node_url_1.pathToFileURL)(file);
+    url.searchParams.set('revision', (0, node_crypto_1.createHash)('sha256').update((0, node_fs_1.readFileSync)(file)).digest('hex'));
+    return import(url.href);
 }

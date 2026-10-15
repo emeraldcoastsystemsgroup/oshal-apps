@@ -2,6 +2,7 @@
 # OSHAL app package — fantasy-football ("Fantasy Football")
 # 0.1.0 | maintainer@emeraldcoastsystemsgroup.com | Initial — the fantasy management engine moved out of sports-edge into its own package (ADR-146 D1; operator decisions 2026-09-27: Q2 per-user ownership, Q4 package name, suite and group). Every table is user_sub-keyed under FORCED exact-owner row-level security with no operator arm; the ESPN connection used is the caller's own personal one, read through the fantasy-leagues kernel skill; the lineup optimiser is now exact (Hungarian assignment) where the moved greedy one lost points on 6 of 3,000 brute-force rosters.
 # 0.2.0 | maintainer@emeraldcoastsystemsgroup.com | The P0 residuals (ADR-146 Amendment A): rest-of-season value SV/MV over the weeks that remain, a waiver board ranked by swap value with a FAAB bid (scarcity premium, reserve cap) and a drop on every row plus a one-week streaming lane, a two-sided trade finder that never surfaces a trade the other manager loses on, leagues typed in by hand that run every board with no ESPN connection (migration 002, ff_manual_leagues), and the week ledger (ff_weeks) graded from stored actuals against the lineup actually started. gradeCall's subtraction is typed: PostgreSQL refused the statement moved from sports-edge ('operator is not unique: unknown - unknown'), so no call could ever have been graded. Read-only PAT smokes for the season value, waiver board and trade finder of the caller's own most recently linked league, and an own-lineup PAT smoke for that league's weekly P(win) lineup beside the mean-maximising one. A season-long board whose league shape (budget, last week, playoff start) could not be read answers 503 or 502 instead of pricing on an assumed shape.
+# 0.2.1 | maintainer@emeraldcoastsystemsgroup.com | Native provisioning: declare migrations/native/001-fantasy-football.sql (every table and index of 001-002) and skip 001 and 002 natively, whose pg_policy-guarded owner-policy loops and pg_class read-back DO blocks the native kernel refuses; the declared migrations stayed pending for every person. PostgreSQL still applies 001-002 and the native file is a no-op there.
 #
 # MANAGE THE TEAM YOU HAVE. The operator's draft went badly — "we picked up running backs first
 # round 2 times that were specifically left over by the other team owners" — so the first thing
@@ -156,6 +157,17 @@ dependencies:
     # The caller's OWN ESPN Fantasy cookies (SWID + espn_s2) for reading a private league.
     connectors: [espn-fantasy]
 
+# OUTBOUND HOSTS. A native package has no network of its own: the kernel's fenced egress carries
+# the fantasy-leagues reads and refuses any host not declared here. This is ESPN's fantasy read
+# host; with it the current week and a public league can be read. It does NOT bring back the
+# projection feed: ESPN serves the full feed only to a request carrying its x-fantasy-filter header
+# (without it ESPN answers 50 players), and the kernel's package egress does not admit that header,
+# so the feed stays unavailable until the kernel admits it: the Lineup board names that reason, and
+# Season, Waivers and Trades have no projections to price. A private league and your own team
+# cannot be read either: the egress carries no ESPN cookies.
+egress:
+  - host: lm-api-reads.fantasy.espn.com
+
 theme: midnight
 
 # ROUTES — every data route is oidc: a person's team is never reachable by a service identity.
@@ -189,6 +201,15 @@ routes:
 migrations:
   - migrations/001-fantasy-football.sql
   - migrations/002-fantasy-manual-and-weeks.sql
+  - migrations/native/001-fantasy-football.sql
+# The native kernel applies the native file above in place of 001 and 002, whose policy loops and catalog read-backs are PostgreSQL-only.
+nativeMigrations:
+  - id: migrations/001-fantasy-football.sql
+    native: skip
+    reason: "Its tables and indexes are in migrations/native/001-fantasy-football.sql; its RLS ENABLE/FORCE, pg_policy-guarded owner-policy loop and pg_class read-back are PostgreSQL-only, and the native per-person scope keeps each person's rows their own."
+  - id: migrations/002-fantasy-manual-and-weeks.sql
+    native: skip
+    reason: "Its tables and indexes are in migrations/native/001-fantasy-football.sql; its RLS ENABLE/FORCE, pg_policy-guarded owner-policy loop and pg_class read-back are PostgreSQL-only, and the native per-person scope keeps each person's rows their own."
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon icon opens your team.

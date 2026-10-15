@@ -15,6 +15,7 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-01 20:00:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — employer/employee legal identity with encrypted SSN + EIN and the single audited full-SSN read, direct-deposit accounts, effective-dated deduction elections, per-check earning rows with the v2 recompute, gross-up, payment records, the change-audit reader, and the GL journal / deposit schedule / deduction register / labor distribution reports.
+ * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | Await every sealIdentifier/openIdentifier (now asynchronous, PDATA-01): company EIN and employee SSN saves, the SSN reveal, bank accounts, the ACH entries and the W-2 document.
  *
  * @module payroll-routes-v2
  */
@@ -100,7 +101,7 @@ function identityRoutes(router: Router, ctx: AppContext, guarded: Guarded): void
         String(b.stateAccountNumber || '').slice(0, 40),
         b.depositorStatus === 'semiweekly' ? 'semiweekly' : 'monthly',
         Math.min(6, Math.max(0, Math.trunc(num(b.workweekStartDay)))),
-        ein ? sealIdentifier(sub, ein) : null, ein ? last4(ein) : null]);
+        ein ? await sealIdentifier(sub, ein) : null, ein ? last4(ein) : null]);
     await recordAudit(ctx.pool, sub, 'company', sub, 'update', sub, before, r.rows[0]);
     res.json({ company: scrubSecrets(r.rows[0]) });
   }));
@@ -127,7 +128,7 @@ function identityRoutes(router: Router, ctx: AppContext, guarded: Guarded): void
         String(b.department || '').slice(0, 80), String(b.costCenter || '').slice(0, 80),
         String(b.workLocation || '').slice(0, 80),
         b.payMethod === 'direct_deposit' ? 'direct_deposit' : 'check',
-        ssn ? sealIdentifier(sub, ssn) : null, ssn ? last4(ssn) : null]);
+        ssn ? await sealIdentifier(sub, ssn) : null, ssn ? last4(ssn) : null]);
     await recordAudit(ctx.pool, sub, 'employee', id, 'update', sub, before, r.rows[0]);
     const out = normalizeDates(r.rows[0]);
     out.ssn_masked = maskSsn(String(out.ssn_last4 || ''));
@@ -143,7 +144,7 @@ function identityRoutes(router: Router, ctx: AppContext, guarded: Guarded): void
     const id = String(req.params.id);
     const emp = await owned(ctx, 'payroll_employees', 'employee_id', id, sub);
     if (!emp) { res.status(404).json({ error: 'not_found' }); return; }
-    const ssn = openIdentifier(sub, emp.ssn_encrypted);
+    const ssn = await openIdentifier(sub, emp.ssn_encrypted);
     if (!ssn) { res.status(409).json({ error: 'no_ssn', message: 'No SSN is on file for this employee.' }); return; }
     // Audited BEFORE the value leaves — a read that is not recorded did not happen.
     await recordAudit(ctx.pool, sub, 'employee', id, 'ssn-reveal', sub, null,
@@ -176,8 +177,8 @@ function identityRoutes(router: Router, ctx: AppContext, guarded: Guarded): void
       `INSERT INTO payroll_bank_accounts (account_id, user_sub, employee_id, nickname, routing_encrypted,
           routing_last4, account_encrypted, account_last4, account_type, split_order, split_amount_cents, split_percent)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-      [accountId, sub, id, String(b.nickname || '').slice(0, 60), sealIdentifier(sub, routing), last4(routing),
-        sealIdentifier(sub, account), last4(account),
+      [accountId, sub, id, String(b.nickname || '').slice(0, 60), await sealIdentifier(sub, routing), last4(routing),
+        await sealIdentifier(sub, account), last4(account),
         b.accountType === 'savings' ? 'savings' : 'checking',
         Math.max(1, Math.trunc(num(b.splitOrder, 1))),
         b.splitAmountCents === undefined ? null : money(b.splitAmountCents),
@@ -397,9 +398,9 @@ function artifactRoutes(router: Router, ctx: AppContext, guarded: Guarded): void
       });
       return;
     }
-    const entries = rows.map((r: Row) => ({
-      routingNumber: openIdentifier(sub, r.routing_encrypted) || '',
-      accountNumber: openIdentifier(sub, r.account_encrypted) || '',
+    const entries = await Promise.all(rows.map(async (r: Row) => ({
+      routingNumber: (await openIdentifier(sub, r.routing_encrypted)) || '',
+      accountNumber: (await openIdentifier(sub, r.account_encrypted)) || '',
       accountType: r.account_type === 'savings' ? 'savings' as const : 'checking' as const,
       amountCents: money(r.amount_cents),
       name: `${r.last_name} ${r.first_name}`,
@@ -411,7 +412,7 @@ function artifactRoutes(router: Router, ctx: AppContext, guarded: Guarded): void
       // was permanently unmatchable — the exact failure this feature exists to
       // prevent, hidden because the guard used a two-character fixture id.
       employeeId: String(r.employee_id),
-    }));
+    })));
     const now = new Date();
     // Continue the trace sequence across files. Restarting at 1 would let two
     // runs mint identical traces, and since a return is matched on the trace
@@ -484,8 +485,8 @@ function artifactRoutes(router: Router, ctx: AppContext, guarded: Guarded): void
     if (!emp) { res.status(404).json({ error: 'not_found' }); return; }
     const company = await getCompany(ctx.pool, sub);
     const doc = await w2Document(ctx.pool, sub, emp, company, year, {
-      ssn: openIdentifier(sub, emp.ssn_encrypted),
-      ein: openIdentifier(sub, company.ein_encrypted),
+      ssn: await openIdentifier(sub, emp.ssn_encrypted),
+      ein: await openIdentifier(sub, company.ein_encrypted),
     });
     await recordAudit(ctx.pool, sub, 'employee', String(emp.employee_id), 'w2-produced', sub, null,
       { year, issuable: doc.issuable });

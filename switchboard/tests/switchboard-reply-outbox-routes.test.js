@@ -6,6 +6,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Exercise the compiled reply route and executor: confirmation-before-I/O, owned-source recipient binding, idempotency replay/conflict, encrypted persistence, owner-only status, atomic claims, and terminal uncertain outcomes.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Use the declared synthetic placeholder for the idempotency fixture, matching the sibling model spec. See that file's entry 2: the public-store gitleaks gate refused the cut on the previous value's entropy, and the store policy is to fix the fixture, not widen the allowlist.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Register the new Streams pane sibling in the parent-mount stub list (the parent now requires ./switchboard-streams-routes); the /replies exactly-once assertion is unchanged.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Register the native-kernel egress helper sibling in the parent-mount stub list as its real compiled module (the parent now requires ./switchboard-kernel-egress, which has no framework imports); the /replies exactly-once assertion is unchanged.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | The personal-data double is asynchronous, as the native kernel's personal_data intents are (PDATA-01), so a missed await (a Promise persisted or compared) fails the encrypted-persistence and integrity cases.
  */
 'use strict';
 
@@ -127,8 +129,8 @@ function loadRoute(options = {}) {
       runWithSystemIdentity: async (fn) => { systemRuns.push(true); return fn(); },
     },
     '@/features/personal-data': {
-      encryptField: encrypt,
-      decryptField: decrypt,
+      encryptField: async (owner, value) => encrypt(owner, value),
+      decryptField: async (owner, stored) => decrypt(owner, stored),
       isEncrypted: (value) => typeof value === 'string' && value.startsWith('v1:'),
     },
     './switchboard-reply-outbox-model': realModel,
@@ -172,6 +174,7 @@ function parentMounts() {
     './switchboard-stage-routes': { createStageRoutes: () => child('stage') },
     './switchboard-reply-outbox-routes': { createReplyOutboxRoutes: () => child('replies') },
     './switchboard-streams-routes': { createStreamsRoutes: () => child('streams') },
+    './switchboard-kernel-egress': require(path.join(PKG, 'routes', 'switchboard-kernel-egress.js')),
   };
   const code = fs.readFileSync(file, 'utf8');
   const mod = { exports: {} };

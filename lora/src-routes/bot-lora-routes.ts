@@ -15,6 +15,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Replace the fleet service secret on worker callbacks with per-dispatch callback grants: every train, validate, improve and overnight dispatch mints a grant bound to its owner, character, ticket and callback kinds (lora-callback-grants.ts), and the grant tables join the lazy schema. The callback mount moves to lora-ingest-routes.ts (this file had reached 801 code lines). The scheduled overnight dedupe now reads the character's NEWEST overnight ticket: the ticket service's active-by-metadata lookup returns the OLDEST non-cancelled ticket, so once one night had completed, a repeated tick while that character's next loop was still running found the completed ticket and dispatched a second concurrent loop.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Register the ADR-149 resource adapter the new authorization catalog names, and give every callback grant its owner's verified issuer, which the kernel's signed-package-callbacks rail needs to refresh and authorize the owner a worker callback runs as. Console dispatches take the issuer from the kernel's actor; enabling autonomous mode records the enabling owner's issuer (migration 106) so the nightly schedule can mint that character's grants, and a character enabled before 1.7.0 is skipped as not ready until its owner re-enables it.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | GET /characters is a pure read. It inserted the caller's starter character first, and the native host admits a GET read-only and refuses any SQL write, so the studio's first read answered 502 'SQL mutation requires original writer admission' for every account and listed nothing. The starter is now provisioned only by POST /characters/starter (lora.configure), which the studio offers when an account has no characters; it stays idempotent and owner-bound, and answers the same list GET /characters does.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | DELETE /characters/:subject (lora.configure): a character could not be deleted at all, so test characters stayed in every list. One owner-predicated delete; versions, scores, thumbnails, dataset rows and callback grants go with it through their cascade keys.
  */
 
 /**
@@ -554,6 +555,36 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
     } catch (err) {
       logger.error({ err }, 'get cell image failed');
       res.status(502).json({ error: (err as Error).message });
+    }
+  });
+
+  /**
+   * DELETE /characters/:subject — delete one of the caller's characters and everything stored for it:
+   * versions, scores, hosted thumbnails, dataset receipts and staged bytes, and its worker callback
+   * grants (a worker still running for it is refused at its next callback). One owner-predicated
+   * statement; the child rows go with it through their ON DELETE CASCADE keys, so a failure part way
+   * cannot leave a half-deleted character. Files already on the GPU box stay there.
+   */
+  router.delete('/characters/:subject', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    const subject = String(req.params.subject || '').trim();
+    if (!subject) { res.status(400).json({ error: 'subject required' }); return; }
+    try {
+      const id = await characterId(ctx, subject, sub);
+      if (!id) { res.status(404).json({ error: 'character not found' }); return; }
+      const versions = Number((await ctx.pool.query(
+        'SELECT count(*)::int AS n FROM oshal_lora_models WHERE character_id = $1', [id],
+      )).rows[0]?.n ?? 0);
+      const removed = await ctx.pool.query(
+        'DELETE FROM oshal_lora_characters WHERE id = $1 AND owner_sub = $2', [id, sub],
+      );
+      if (!removed.rowCount) { res.status(404).json({ error: 'character not found' }); return; }
+      logger.info({ subject, removedVersions: versions }, 'lora character deleted');
+      res.json({ ok: true, subject, removedVersions: versions });
+    } catch (err) {
+      logger.error({ err }, 'delete character failed');
+      res.status(502).json({ error: 'character_delete_failed', message: 'The character could not be deleted. Refresh the list before retrying.' });
     }
   });
 

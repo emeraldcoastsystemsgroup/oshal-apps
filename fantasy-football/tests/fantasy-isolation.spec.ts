@@ -25,6 +25,8 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Initial: owners A and B each with their own ESPN connection and league, owner C sharing an ESPN connection into a household A and a stranger belong to, and an operator. B cannot list, unlink, grade or read A's league, calls or cached projections, and B's league read carries only B's cookie; the operator sees none of A's rows over HTTP or SQL; the stranger's household-shared connection is refused and never spent; A's requests carry A's own cookie although the shared row sorts first; anonymous is 401.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: migration 002 applied by the runtime role too (ff_manual_leagues, ff_weeks forced with exact-owner policies); A's hand-typed league serves the lineup, season, waivers and trades on the real store with no cookie sent; B can neither read, list, replace, delete nor build on it; A's completed week is graded from A's stored actuals by the real grading statements, and B's grading pass grades nothing; the operator sees none of the new tables either (15 cases).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Recording moved off GET /lineup onto POST /lineup/record (the native kernel admits a GET as a reader), so the recording cases now drive POST /lineup/record with {leagueId|manualId, season} and assert body.recorded; a new case proves GET /lineup writes nothing under RLS (ff_calls, ff_weeks, ff_projections and ff_player_weeks stay empty, for A and for every owner); B's POST /lineup/record on A's ESPN or hand-typed league is 404 and writes nothing in A's name (16 cases). Before this the suite failed 5 of 15 against the post-split routes, leaving the new write path without a real-boundary guard.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Round 8 review: GET /record?leagueKey returns only that league's calls and graded record on the real store, and A deleting the hand-typed league removes its ff_weeks and ff_calls rows through the forced owner policy (FOR ALL) while the ESPN league's calls and weeks stay (17 cases).
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import express from 'express';
@@ -237,13 +239,26 @@ describe('each person reaches only their own league', () => {
     for (const s of sent) expect(s.cookie).toBe(`SWID=${SWID.a}; espn_s2=${S2.a}`);
   });
 
-  it('serves A a lineup for A\'s team and registers A\'s calls', async () => {
+  it('serves A a lineup on GET and writes nothing — the reader request leaves every ledger table empty', async () => {
     const lineup = await call('GET', `/lineup?leagueId=${LEAGUE_A}&season=${SEASON}`, A);
     expect(lineup.status).toBe(200);
+    expect(lineup.body.team.name).toBe(A_TEAM);
+    expect(lineup.body.recorded).toBe(false);
+    for (const table of ['ff_calls', 'ff_weeks', 'ff_projections', 'ff_player_weeks']) {
+      expect(await visible(table, A), table).toEqual([]);
+      expect((await owner.query(`SELECT count(*)::int AS n FROM ${table}`)).rows[0].n, table).toBe(0);
+    }
+  });
+
+  it('records A\'s lineup on POST /lineup/record and registers A\'s calls in A\'s name', async () => {
+    const lineup = await call('POST', '/lineup/record', A, { leagueId: LEAGUE_A, season: SEASON });
+    expect(lineup.status).toBe(200);
+    expect(lineup.body.recorded).toBe(true);
     expect(lineup.body.team.name).toBe(A_TEAM);
     expect(lineup.body.calls.map((c: any) => c.start.name)).toContain(A_PLAYER);
     expect((await visible('ff_calls', A)).length).toBeGreaterThan(0);
     expect((await visible('ff_projections', A)).map((r) => r.user_sub)).toEqual([A]);
+    expect(new Set((await visible('ff_weeks', A)).map((r) => r.user_sub))).toEqual(new Set([A]));
     // The refresh stored every completed week in A's name, across the insert chunk boundary.
     const weeks = await visible('ff_player_weeks', A);
     expect(weeks.length).toBe(PLAYER_WEEKS);
@@ -271,6 +286,17 @@ describe('each person reaches only their own league', () => {
     expect(lineup.status).toBe(404);
     expect(JSON.stringify(lineup.body)).not.toContain(A_TEAM);
     for (const s of sent) expect(s.cookie.includes(SWID.a) || s.cookie.includes(S2.a)).toBe(false);
+    // B's recording request on A's league is refused before anything is written in either name.
+    const aCalls = (await visible('ff_calls', A)).length;
+    sent.length = 0;
+    const recorded = await call('POST', '/lineup/record', B, { leagueId: LEAGUE_A, season: SEASON });
+    expect(recorded.status).toBe(404);
+    expect(JSON.stringify(recorded.body)).not.toContain(A_TEAM);
+    for (const s of sent) expect(s.cookie.includes(SWID.a) || s.cookie.includes(S2.a)).toBe(false);
+    expect((await visible('ff_calls', A)).length).toBe(aCalls);
+    for (const table of ['ff_calls', 'ff_weeks', 'ff_projections', 'ff_player_weeks']) {
+      expect(await visible(table, B), table).toEqual([]);
+    }
   });
 
   it('keeps B\'s own league B\'s, and A\'s list unchanged', async () => {
@@ -278,7 +304,7 @@ describe('each person reaches only their own league', () => {
     expect((await call('GET', '/status', B)).body.leagues.map((l: any) => l.leagueId)).toEqual([LEAGUE_B]);
     expect((await call('GET', '/status', A)).body.leagues.map((l: any) => l.leagueId)).toEqual([LEAGUE_A]);
     // B's own lineup refreshes B's own copy of the public feed; A's copy is untouched and unseen.
-    expect((await call('GET', `/lineup?leagueId=${LEAGUE_B}&season=${SEASON}`, B)).status).toBe(200);
+    expect((await call('POST', '/lineup/record', B, { leagueId: LEAGUE_B, season: SEASON })).status).toBe(200);
     expect((await visible('ff_player_weeks', B)).length).toBe(PLAYER_WEEKS);
     expect((await visible('ff_player_weeks', A)).length).toBe(PLAYER_WEEKS);
     expect((await owner.query('SELECT count(DISTINCT user_sub)::int AS n FROM ff_projections')).rows[0].n).toBe(2);
@@ -304,6 +330,9 @@ describe('a hand-typed league and the week ledger are their owner\'s alone', () 
     expect(created.status).toBe(201);
     manualId = created.body.id;
     sent.length = 0;
+    const recorded = await call('POST', '/lineup/record', A, { manualId, season: SEASON });
+    expect(recorded.status).toBe(200);
+    expect(recorded.body).toMatchObject({ source: 'manual', recorded: true });
     for (const board of ['lineup', 'season', 'waivers', 'trades']) {
       const res = await call('GET', `/${board}?manualId=${manualId}&season=${SEASON}`, A);
       expect(res.status, board).toBe(200);
@@ -320,6 +349,9 @@ describe('a hand-typed league and the week ledger are their owner\'s alone', () 
     expect((await call('PUT', `/manual-leagues/${manualId}`, B, { ...league, name: 'Taken' })).status).toBe(404);
     expect((await call('DELETE', `/manual-leagues/${manualId}`, B)).body.removed).toBe(0);
     expect((await call('GET', `/lineup?manualId=${manualId}&season=${SEASON}`, B)).status).toBe(404);
+    const aWeeks = (await visible('ff_weeks', A)).length;
+    expect((await call('POST', '/lineup/record', B, { manualId, season: SEASON })).status).toBe(404);
+    expect((await visible('ff_weeks', A)).length).toBe(aWeeks);
     expect(await visible('ff_manual_leagues', B)).toEqual([]);
     expect((await visible('ff_weeks', B)).filter((r) => r.user_sub !== B)).toEqual([]);
     expect((await call('GET', `/manual-leagues/${manualId}`, A)).body.league.name).toBe('Hand-typed');
@@ -328,8 +360,8 @@ describe('a hand-typed league and the week ledger are their owner\'s alone', () 
   it('grades A\'s completed week from A\'s stored actuals on the real store, and only A\'s', async () => {
     currentWeek = WEEK + 1;
     try {
-      // Week 5's lineup refreshes A's feed, which now carries week 4's actual lines; then grade.
-      expect((await call('GET', `/lineup?manualId=${manualId}&season=${SEASON}`, A)).status).toBe(200);
+      // Week 5's recorded lineup refreshes A's feed, which now carries week 4's actual lines; then grade.
+      expect((await call('POST', '/lineup/record', A, { manualId, season: SEASON })).status).toBe(200);
       const graded = await call('POST', '/grade', A, { season: SEASON });
       expect(graded.body.graded, JSON.stringify(graded.body)).toBeGreaterThanOrEqual(1);
       const rows = (await runWithRequestIdentity({ sub: A, isOperator: false }, () => runtimePool.query(
@@ -342,6 +374,30 @@ describe('a hand-typed league and the week ledger are their owner\'s alone', () 
     } finally {
       currentWeek = WEEK;
     }
+  });
+
+  it('splits A\'s record by league, and deleting the hand-typed league removes its weeks and calls under RLS', async () => {
+    const key = `manual:${manualId}`;
+    const ownCalls = async (league: string) => (await runWithRequestIdentity({ sub: A, isOperator: false }, () => runtimePool.query(
+      'SELECT league_id, settled FROM ff_calls WHERE league_id = $1', [league]))).rows as Array<{ league_id: string; settled: boolean }>;
+    const manualCalls = await ownCalls(key);
+    const espnCalls = await ownCalls(LEAGUE_A);
+    expect(manualCalls.length, 'the hand-typed lineup recorded its own calls').toBeGreaterThan(0);
+    expect(espnCalls.length).toBeGreaterThan(0);
+    const record = await call('GET', `/record?limit=500&leagueKey=${encodeURIComponent(key)}`, A);
+    expect(record.status).toBe(200);
+    expect(new Set(record.body.calls.map((c: any) => c.league_id))).toEqual(new Set([key]));
+    expect(record.body.calls).toHaveLength(manualCalls.length);
+    expect(record.body.record.graded).toBe(manualCalls.filter((c) => c.settled).length);
+    const espn = await call('GET', `/record?limit=500&leagueKey=${LEAGUE_A}`, A);
+    expect(new Set(espn.body.calls.map((c: any) => c.league_id))).toEqual(new Set([LEAGUE_A]));
+    expect((await call('DELETE', `/manual-leagues/${manualId}`, A)).body.removed).toBe(1);
+    expect(await ownCalls(key)).toEqual([]);
+    expect((await owner.query('SELECT count(*)::int AS n FROM ff_calls WHERE league_id = $1', [key])).rows[0].n).toBe(0);
+    expect((await owner.query('SELECT count(*)::int AS n FROM ff_weeks WHERE league_key = $1', [key])).rows[0].n).toBe(0);
+    expect(await ownCalls(LEAGUE_A), 'the ESPN league\'s calls stay').toHaveLength(espnCalls.length);
+    expect((await owner.query('SELECT count(*)::int AS n FROM ff_weeks WHERE user_sub = $1 AND league_key = $2', [A, LEAGUE_A])).rows[0].n)
+      .toBeGreaterThan(0);
   });
 });
 

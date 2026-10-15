@@ -4,6 +4,8 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-09-14 15:20:00 | maintainer@emeraldcoastsystemsgroup.com     | Carry the dock out of table-screens.js, which had grown past the package's own 800 executable-line decomposition guard. The dock is one concern - whose turn it is, what that actor may do right now, and why a control is locked - so it moves whole rather than being trimmed to fit: turn-button state, the identity and hero/downed/automated variants, action selection, and the initiative bar.
+ * 2026-10-12 05:30:00 | maintainer@emeraldcoastsystemsgroup.com     | K4: showTvLobby names the campaign (and join code) a TV joined, and on a TV the initiative bar names the campaign before the scene, so the TV reads as the game My Games lists rather than the scene's title.
+ * 2026-10-12 21:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 9: each initiative chip says which side it is on, for screen readers and the concierge's screen snapshot ("enemy" for a monster, "party" for a hero or AI companion; visually hidden). The bar listed Vesh / AMBUSH ARCHER beside Della / AI COMPANION with nothing telling sides apart, and the concierge called the enemy archer an AI-controlled hero.
  */
 
 'use strict';
@@ -123,10 +125,17 @@ function selectAction(a) {
   else if (selectedAction) banner(a.aoeShape ? `Aim ${a.name} — tap an enemy to sweep the ${a.aoeShape} toward them` : `Aim ${a.name} — tap a highlighted target`);
   renderDock();
 }
+/** @description The TV lobby, naming the campaign the screen joined as My Games lists it, with its join code. */
+function showTvLobby() {
+  const name = campaign && campaign.name ? esc(campaign.name) : 'Your game';
+  const code = campaign && campaign.join_code ? ` · join code <b>${esc(campaign.join_code)}</b>` : '';
+  overlay(`<h1>The party is gathering…</h1><p class="read"><b>${name}</b>${code}<br>Waiting for the host to start the quest.</p><p><span class="spin"></span></p>`, 'tv-lobby');
+}
 function updateInitiativeBar() {
   const bar = $('initiative');
   const code = campaign && campaign.join_code ? ` &nbsp;·&nbsp; join code <b style="color:var(--amber)">${esc(campaign.join_code)}</b>` : '';
-  const scene = SC() ? ` &nbsp;·&nbsp; ${esc(SC().title)}` : '';
+  const named = TV && campaign && campaign.name ? ` &nbsp;·&nbsp; ${esc(campaign.name)}` : '';
+  const scene = `${named}${SC() ? ` &nbsp;·&nbsp; ${esc(SC().title)}` : ''}`;
   const pcs = board.tokens.filter((t) => t.kind === 'pc' && !t.fled), foes = board.tokens.filter((t) => t.kind === 'monster' && !t.fled);
   const standing = pcs.filter(isConscious).length;
   const down = pcs.filter((t) => isDowned(t) && !t.stable).length;
@@ -150,7 +159,8 @@ function updateInitiativeBar() {
     const face = img && img.complete && img.naturalWidth ? `<span class="face" style="background-image:url('${img.src}')"></span>` : `<span class="glyph">${t.glyph || '@'}</span>`;
     const controller = t.kind === 'pc' ? controllerLabel(t) : tokenRoleLabel(t);
     const hpText = downed ? (t.stable ? 'Stable' : `Down S${score.successes}/F${score.failures}`) : defeated ? (t.fled ? 'Fled' : t.kind === 'pc' ? 'Fallen' : 'Defeated') : t.hp + '/' + t.maxHp;
-    chip.innerHTML = `${face}<span class="nm">${esc(shortTokenLabel(t))}</span>${controller ? `<span class="controller ${isAICompanion(t) ? 'ai' : ''}">${esc(controller)}</span>` : ''}<span class="hp ${cls}">${hpText}</span>`;
+    const side = t.kind === 'monster' ? 'enemy' : t.kind === 'pc' ? 'party' : '';
+    chip.innerHTML = `${face}<span class="nm">${esc(shortTokenLabel(t))}</span>${side ? `<span class="side">(${side})</span>` : ''}${controller ? `<span class="controller ${isAICompanion(t) ? 'ai' : ''}">${esc(controller)}</span>` : ''}<span class="hp ${cls}">${hpText}</span>`;
     if (t.kind === 'pc') {
       chip.classList.add('inspectable'); chip.tabIndex = 0; chip.title = `${controller}: open ${t.name}'s character sheet and inventory`;
       chip.onclick = () => showCharacterSheet(t);

@@ -18,6 +18,12 @@
  *                     |                             | closes the connection (the bridge kills its worker, freeing
  *                     |                             | the kernel mid-feature) and re-sends every OTHER queued
  *                     |                             | request on a fresh connection. A typed `cancelled` failure.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | The native kernel's sandbox has no network: with `exchange`
+ *                     |                             | set, each request goes through the kernel's engine.exchange
+ *                     |                             | intent, which hands back the engine's own hello and reply.
+ *                     |                             | The hello is checked exactly as on a socket (protocol, busy);
+ *                     |                             | the build hash is recorded from the engine, because the
+ *                     |                             | sandboxed copy of this package carries no engine sources.
  */
 
 import net from 'node:net';
@@ -28,6 +34,8 @@ const logger = createChildLogger({ module: 'cad-studio-engine-client' });
 /** The bridge wire version this client speaks (PROTOCOL in cad_engine_bridge.py and cad_worker.py). */
 export const BRIDGE_PROTOCOL = 1;
 export const DEFAULT_ENGINE_ADDR = 'cad-studio-engine:7412';
+/** The kernel relays one engine request within the 60 s process call; keep a margin. */
+export const NATIVE_MAX_MS = 55_000;
 const UNREACHABLE = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH', 'ETIMEDOUT']);
 
 export type EngineFailureCode = 'capability_unavailable' | 'engine_error' | 'engine_busy' | 'engine_timeout' | 'refused' | 'cancelled';
@@ -50,7 +58,12 @@ export interface EngineClientOptions {
   maxQueue?: number;
   /** Test seam: a socket factory. */
   connect?: (host: string, port: number) => net.Socket;
+  /** Native kernel: send one request through the kernel's `engine.exchange` intent instead of a socket. */
+  exchange?: (request: Record<string, unknown>, timeoutMs: number) => Promise<NativeExchange>;
 }
+
+/** What the kernel's `engine.exchange` intent answers: the engine's own hello and its reply to the request. */
+export interface NativeExchange { hello: unknown; reply: unknown }
 
 interface Pending { id: number; line: string; timeoutMs: number; tag?: string; resolve: (v: unknown) => void; reject: (e: Error) => void }
 interface BridgeHello { protocol?: unknown; buildHash?: unknown }
@@ -80,12 +93,14 @@ export class EngineClient {
   private nextId = 1;
   private helloHash: string | null = null;
   private lastFailure: EngineFailure | null = null;
+  private nativeActive = 0;
 
   constructor(private readonly opts: EngineClientOptions) {}
 
   /** @description What the surface shows about the engine. */
   status(): { connected: boolean; buildHash: string | null; expectedBuildHash: string | null; lastError: string | null; installHint: string; address: string } {
-    return { connected: this.ready, buildHash: this.helloHash, expectedBuildHash: this.opts.expectedBuildHash, lastError: this.lastFailure ? this.lastFailure.reason || this.lastFailure.message : null, installHint: this.opts.installHint, address: `${this.opts.host}:${this.opts.port}` };
+    const native = Boolean(this.opts.exchange);
+    return { connected: this.ready, buildHash: this.helloHash, expectedBuildHash: native ? this.helloHash : this.opts.expectedBuildHash, lastError: this.lastFailure ? this.lastFailure.reason || this.lastFailure.message : null, installHint: this.opts.installHint, address: native ? 'native://engine.exchange' : `${this.opts.host}:${this.opts.port}` };
   }
 
   /**
@@ -97,6 +112,7 @@ export class EngineClient {
    * @returns The worker's `result`.
    */
   request(cmd: string, args: unknown, timeoutMs?: number, tag?: string): Promise<unknown> {
+    if (this.opts.exchange) return this.requestNative(this.opts.exchange, cmd, args, timeoutMs);
     const max = this.opts.maxQueue ?? 8;
     if (this.queue.length >= max) return Promise.reject(new EngineFailure('engine_busy', `engine queue is full (${max} waiting)`));
     return new Promise<unknown>((resolve, reject) => {
@@ -200,12 +216,44 @@ export class EngineClient {
     return this.connecting;
   }
 
+  /**
+   * @description One request through the native kernel. The engine's hello and reply arrive together;
+   * both are judged by the same rules as on a socket. A native request cannot be recalled once sent,
+   * so {@link cancel} finds nothing to cancel and the kernel's deadline bounds it instead.
+   */
+  private async requestNative(exchange: NonNullable<EngineClientOptions['exchange']>, cmd: string, args: unknown, timeoutMs?: number): Promise<unknown> {
+    const max = this.opts.maxQueue ?? 8;
+    if (this.nativeActive >= max) throw new EngineFailure('engine_busy', `engine queue is full (${max} waiting)`);
+    this.nativeActive += 1;
+    try {
+      let answer: NativeExchange;
+      try {
+        answer = await exchange({ cmd, args }, Math.min(timeoutMs ?? this.opts.requestTimeoutMs ?? NATIVE_MAX_MS, NATIVE_MAX_MS));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw /deadline/.test(message) ? new EngineFailure('engine_timeout', `engine did not answer within ${Math.round(NATIVE_MAX_MS / 1000)} s`) : this.unavailable(`the kernel could not reach the engine container (${message})`);
+      }
+      const stale = this.verifyHello(JSON.stringify(answer?.hello ?? null));
+      if (stale) throw stale;
+      const reply = (answer.reply ?? {}) as { ok?: unknown; result?: unknown; error?: { code?: unknown; message?: unknown } };
+      this.ready = true;
+      if (reply.ok === true) return reply.result;
+      throw new EngineFailure(reply.error?.code === 'refused' ? 'refused' : 'engine_error', String(reply.error?.message || 'engine error'));
+    } catch (error) {
+      if (error instanceof EngineFailure && error.code !== 'refused' && error.code !== 'engine_error') { this.ready = false; this.lastFailure = error; }
+      throw error;
+    } finally {
+      this.nativeActive -= 1;
+    }
+  }
+
   private verifyHello(line: string): EngineFailure | null {
     let msg: { bridge?: BridgeHello; error?: { code?: string; message?: string } };
     try { msg = JSON.parse(line) as typeof msg; } catch { return this.unavailable(`${this.where()} did not answer the CAD engine bridge protocol`); }
     if (msg.error) return msg.error.code === 'engine_busy' ? new EngineFailure('engine_busy', String(msg.error.message || 'engine container has no free worker slot')) : this.unavailable(String(msg.error.message || 'engine container refused the connection'));
     const hello = msg.bridge || {};
     if (hello.protocol !== BRIDGE_PROTOCOL) return this.unavailable(`engine container speaks bridge protocol ${String(hello.protocol)}, this package needs ${BRIDGE_PROTOCOL}`);
+    if (this.opts.exchange) { this.helloHash = typeof hello.buildHash === 'string' ? hello.buildHash : null; this.lastFailure = null; return null; }
     if (!this.opts.expectedBuildHash) return this.unavailable("this package's engine tree could not be read, so the engine container build cannot be verified");
     this.helloHash = typeof hello.buildHash === 'string' ? hello.buildHash : null;
     if (hello.buildHash !== this.opts.expectedBuildHash) return this.unavailable(`engine container is out of date: it was built from engine ${String(hello.buildHash).slice(0, 12)}, this package ships ${this.opts.expectedBuildHash.slice(0, 12)}`);
@@ -241,7 +289,7 @@ export class EngineClient {
     this.idleTimer.unref();
   }
 
-  private where(): string { return `${this.opts.host}:${this.opts.port}`; }
+  private where(): string { return this.opts.exchange ? 'the native kernel engine link' : `${this.opts.host}:${this.opts.port}`; }
   private unavailable(message: string): EngineFailure {
     return new EngineFailure('capability_unavailable', message, `${message} — install or rebuild it: ${this.opts.installHint}`);
   }

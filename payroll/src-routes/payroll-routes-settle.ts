@@ -18,6 +18,7 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-02 04:45:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — return/NOC import matched on the stored ACH trace, the settlement view that names who was NOT paid, confirm-gated NOC application, the RT-6 and EFW2 artifacts, check-number allocation with rendered checks, and the two banking calendars exposed for the run screen.
+ * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | Await every sealIdentifier/openIdentifier (now asynchronous, PDATA-01): NOC correction sealing and application, the EFW2 employer EIN and each employee SSN.
  *
  * @module payroll-routes-settle
  */
@@ -69,15 +70,15 @@ interface StoredCorrection {
 }
 
 /** Seal the banking details out of a decoded correction. */
-function sealCorrection(sub: string, event: AchEvent): StoredCorrection | null {
+async function sealCorrection(sub: string, event: AchEvent): Promise<StoredCorrection | null> {
   const c = event.correction;
   if (!c) return null;
   return {
     changeCode: c.changeCode,
     title: c.title,
-    routingSealed: c.routingNumber ? sealIdentifier(sub, c.routingNumber) : null,
+    routingSealed: c.routingNumber ? await sealIdentifier(sub, c.routingNumber) : null,
     routingLast4: c.routingNumber ? last4(c.routingNumber) : '',
-    accountSealed: c.accountNumber ? sealIdentifier(sub, c.accountNumber) : null,
+    accountSealed: c.accountNumber ? await sealIdentifier(sub, c.accountNumber) : null,
     accountLast4: c.accountNumber ? last4(c.accountNumber) : '',
     transactionCode: c.transactionCode,
     individualId: c.individualId,
@@ -112,7 +113,7 @@ async function applyEvent(
         WHERE user_sub = $1 AND ach_trace = $2 LIMIT 1`, [sub, event.originalTrace])).rows[0]
     : undefined;
 
-  const correction = sealCorrection(sub, event);
+  const correction = await sealCorrection(sub, event);
   const detail = JSON.stringify({
     reason: event.reason,
     correction,
@@ -267,8 +268,8 @@ function returnRoutes(router: Router, ctx: AppContext, guarded: Guarded): void {
     }
     const account = named[0] || accounts[0];
 
-    const correctedRouting = openIdentifier(sub, correction.routingSealed);
-    const correctedAccount = openIdentifier(sub, correction.accountSealed);
+    const correctedRouting = await openIdentifier(sub, correction.routingSealed);
+    const correctedAccount = await openIdentifier(sub, correction.accountSealed);
     const routing = correctedRouting ? normalizeRouting(correctedRouting) : null;
     if (correctedRouting && !routing) {
       res.status(422).json({
@@ -286,8 +287,8 @@ function returnRoutes(router: Router, ctx: AppContext, guarded: Guarded): void {
               account_last4     = COALESCE($6, account_last4)
         WHERE account_id = $1 AND user_sub = $2`,
       [account.account_id, sub,
-        routing ? sealIdentifier(sub, routing) : null, routing ? last4(routing) : null,
-        acct ? sealIdentifier(sub, acct) : null, acct ? last4(acct) : null]);
+        routing ? await sealIdentifier(sub, routing) : null, routing ? last4(routing) : null,
+        acct ? await sealIdentifier(sub, acct) : null, acct ? last4(acct) : null]);
     await ctx.pool.query(
       'UPDATE payroll_ach_events SET applied = true WHERE event_id = $1 AND user_sub = $2',
       [String(event.event_id), sub]);
@@ -376,7 +377,7 @@ function settlementArtifactRoutes(router: Router, ctx: AppContext, guarded: Guar
     }
     const year = Number((req.body as Row).year || TAX_YEAR) || TAX_YEAR;
     const company = await getCompany(ctx.pool, sub);
-    const ein = openIdentifier(sub, company.ein_encrypted) || '';
+    const ein = (await openIdentifier(sub, company.ein_encrypted)) || '';
     const employees = await efw2Employees(ctx, sub, year);
     const file = buildEfw2(year, {
       ein,
@@ -494,8 +495,8 @@ async function efw2Employees(ctx: AppContext, sub: string, year: number): Promis
                e.address_line1, e.city, e.state_code, e.postal_code
       ORDER BY e.last_name, e.first_name`, [sub, year])).rows;
 
-  return rows.map((r: Row) => ({
-    ssn: openIdentifier(sub, r.ssn_encrypted) || '',
+  return Promise.all(rows.map(async (r: Row) => ({
+    ssn: (await openIdentifier(sub, r.ssn_encrypted)) || '',
     firstName: String(r.first_name || ''),
     lastName: String(r.last_name || ''),
     deliveryAddress: String(r.address_line1 || ''),
@@ -507,7 +508,7 @@ async function efw2Employees(ctx: AppContext, sub: string, year: number): Promis
       ssTax: Number(r.b4 || 0), medicareWages: Number(r.b5 || 0), medicareTax: Number(r.b6 || 0),
       ssTips: Number(r.b7 || 0), d401k: Number(r.d || 0), aaRoth401k: Number(r.aa || 0),
     },
-  }));
+  })));
 }
 
 /**

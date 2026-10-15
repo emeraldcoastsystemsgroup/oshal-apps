@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "typst": {
+    "version": "0.15.1",
+    "platform": "aarch64-unknown-linux-musl",
+    "archiveUrl": "https://github.com/typst/typst/releases/download/v0.15.1/typst-aarch64-unknown-linux-musl.tar.xz",
+    "archiveSha256": "5aa8d74a3d906e60ea12a66ac2f37f8eef1b14cbad7182a745e393a10c23dcee",
+    "binarySha256": "3088dd985a891d804a98c69db24dfca77a35878e45d40e38c79cf36d72bcd4c1",
+    "license": "Apache-2.0"
+  },
+  "fontSourceCommit": "94dcb990edb36311ef85162baa26e4a8205e0bf0",
+  "fonts": [
+    {
+      "file": "LibertinusSerif-Regular.otf",
+      "family": "Libertinus Serif",
+      "style": "Regular",
+      "bytes": 337132,
+      "sha256": "fcf06307a77367394fcb0ccb241e59eea70dba3d732be309647611224679c733",
+      "source": "https://raw.githubusercontent.com/typst/typst-assets/94dcb990edb36311ef85162baa26e4a8205e0bf0/files/fonts/LibertinusSerif-Regular.otf",
+      "license": "SIL-OFL-1.1"
+    },
+    {
+      "file": "LibertinusSerif-Bold.otf",
+      "family": "Libertinus Serif",
+      "style": "Bold",
+      "bytes": 293908,
+      "sha256": "0264914210ed51b3231ebc92ce529e9f2e166ba9eebf0cd4a579558690a27b64",
+      "source": "https://raw.githubusercontent.com/typst/typst-assets/94dcb990edb36311ef85162baa26e4a8205e0bf0/files/fonts/LibertinusSerif-Bold.otf",
+      "license": "SIL-OFL-1.1"
+    },
+    {
+      "file": "LibertinusSerif-Italic.otf",
+      "family": "Libertinus Serif",
+      "style": "Italic",
+      "bytes": 332312,
+      "sha256": "9a393d63d6e05f620d3dc0190dfd35a8ede58c0808cf0fc9de7fcb9c723e4c24",
+      "source": "https://raw.githubusercontent.com/typst/typst-assets/94dcb990edb36311ef85162baa26e4a8205e0bf0/files/fonts/LibertinusSerif-Italic.otf",
+      "license": "SIL-OFL-1.1"
+    },
+    {
+      "file": "LibertinusSerif-BoldItalic.otf",
+      "family": "Libertinus Serif",
+      "style": "BoldItalic",
+      "bytes": 259176,
+      "sha256": "47a665259f09f554f5d133d7718cdad43ff462c6a6b2328f38023465e62d57ce",
+      "source": "https://raw.githubusercontent.com/typst/typst-assets/94dcb990edb36311ef85162baa26e4a8205e0bf0/files/fonts/LibertinusSerif-BoldItalic.otf",
+      "license": "SIL-OFL-1.1"
+    }
+  ]
+}

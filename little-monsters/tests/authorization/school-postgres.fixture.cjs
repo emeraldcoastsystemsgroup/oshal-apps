@@ -1,6 +1,7 @@
 /**
  * CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Shared two-school fixture for the enterprise-authorization pilot: a disposable PostgreSQL 16 (core DisposablePostgres, machine-wide fixture slots) with every package migration applied AS a NOSUPERUSER NOBYPASSRLS runtime role, synthetic schools/classes/learners, and the compiled manifest entrypoint mounted behind core's real policy service and HTTP guard, in the order the manifest route mounter uses.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Also mount the compiled calendar entrypoint (routes/education-calendar-routes.js) behind the same guard at the same /api/education mount path, as the manifest's second route module is mounted, so calendar routes (personal event delete) are proven through the real guard and database.
  */
 /**
  * Isolated fixture, not live acceptance. Real: package migrations (all manifest migrations except 020,
@@ -115,7 +116,7 @@ function recording(pool) {
   return { recorder, statements };
 }
 
-/** Mount the compiled entrypoint the way the manifest route mounter does: session, guard, package router. */
+/** Mount the compiled entrypoints the way the manifest route mounter does: session, guard, package routers (both mount at /api/education). */
 async function mount(pool) {
   const store = new MemoryAuthorizationStore();
   const policy = new ApplicationAuthorizationService(store, { resolveActor: async (sub, issuer) => (issuer === ISSUER ? actorOf(sub) : null) });
@@ -123,7 +124,10 @@ async function mount(pool) {
   const record = { name: manifest.name, displayName: manifest.displayName, manifest, manifestPath: path.join(PKG, 'oshal-app.yaml') };
   await runtime.start(record);
   const { createEducationRoutes } = require(path.join(PKG, 'routes', 'education-routes.js'));
-  const router = createEducationRoutes({ pool, authorization: runtime.forPackage(manifest.name), appPackageDir: PKG });
+  const { createEducationCalendarRoutes } = require(path.join(PKG, 'routes', 'education-calendar-routes.js'));
+  const packageContext = { pool, authorization: runtime.forPackage(manifest.name), appPackageDir: PKG };
+  const router = createEducationRoutes(packageContext);
+  const calendarRouter = createEducationCalendarRoutes(packageContext);
   runtime.complete(record);
   const app = express();
   app.use(express.json({ limit: '64kb' }));
@@ -133,7 +137,7 @@ async function mount(pool) {
     requestScope.run(String(req.get('x-fixture-request') || ''), next);
   });
   app.use('/shared/ui', express.static(path.join(CORE, 'src', 'shared', 'ui')));
-  app.use('/api/education', (req, res, next) => runtime.guard(manifest.name, req, res, next), router);
+  app.use('/api/education', (req, res, next) => runtime.guard(manifest.name, req, res, next), router, calendarRouter);
   const server = await new Promise(resolve => { const value = app.listen(0, '127.0.0.1', () => resolve(value)); });
   const origin = `http://127.0.0.1:${server.address().port}`;
   return { policy, store, server, origin, base: `${origin}/api/education` };

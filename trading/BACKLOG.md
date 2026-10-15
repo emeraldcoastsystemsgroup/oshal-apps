@@ -46,6 +46,28 @@ tests under `RISK_POLICIES.active` (the policy where the path is live) and a rea
 
 ## T3 — Ledger drift keeps the wash-sale veto off ANET and MPC (operator action)
 
+**Progress (2026-10-14, new kernel):** the original owner-scoped ledger has been
+reconciled against current Schwab execution history, and the result mirrored into the
+native owner scope. Sixteen proved missing closes were appended with their decisions;
+original rejected orders remain unchanged. The native copy now has 963 live order rows.
+A repeat comparison proposes no additional bookings. The canonical engine's read-only
+basis attachment covers both ANET and MPC at the current venue quantities.
+
+The earlier zero-row database conclusion was wrong: `oshal_app` requires
+`SET LOCAL oshal.current_sub` for the verified original subject. With operator mode off,
+the fresh source contained 947 live orders before repair. The retained October 4 backup
+is preserved, but the repair used that fresh RLS-scoped source, not a stale backup alone.
+
+Trading 1.33.4 supplies authenticated, account-bound execution history and CSV export.
+The kernel handles Schwab compact-offset timestamps and overlapping booking windows.
+The pure planner and real PostgreSQL owner-context, atomicity, stale-source, repeatability
+and rollback cases are wired into kernel automation; the history routes and desktop/phone
+exports are registered in Test Lab. Ten other historical symbols remain explicit review
+exceptions (unbooked buys, ambiguous matches or opening-position changes); no manual
+buys were enrolled as engine-managed. Native paper data, book arming and order execution
+were not changed. A genuine subsequent scheduled evaluation and native self-service
+Reconcile acceptance remain open; no live fire was invoked for this verification.
+
 The veto applies only when the engine's replayed quantity equals the venue's. The live ledger
 records ANET sells on 2026-08-03 and 2026-08-18 and an MPC sell on 2026-08-03 as `rejected`
 (verified 2026-09-14). If, as in the rejected-twin incident, a twin order filled at the venue, the
@@ -80,3 +102,31 @@ actually loads it — `type="module"` parses as a module, everything else as a c
 the mapping asserted in both directions so a module added to the page and never loaded, or loaded
 as a module and written as a script, still fails; and the suite reports zero failures on a clean
 checkout.
+
+## T5 — A native market-data rail (needs core; priority: medium, added 2026-10-11)
+
+**Progress (1.33.1, 2026-10-14):** the kernel's caller-scoped Schwab adapter and native bridge supply
+account/position reads, exchange-time quotes, daily/intraday candles and symbol search; Accounts
+shows real holdings as view-only and retains the native paper book. Source, original-authority,
+withdrawal, concurrent-caller and desktop/phone contracts are covered. Genuine installed Schwab
+and original-user acceptance remain open. Live orders, financial-summary/news and whole-market
+screener support are separate from this read adapter.
+
+On the native kernel `@/features/trading` has no market-data or broker rail: there is no Alpaca
+connector in `/api/connect/list`, and nothing reads quotes, bars, fundamentals, news or the asset
+directory through the Schwab OAuth connector (crates/oshald/src/oauth_env.rs registers Schwab only
+for sign-in). Since the 2026-10-11 bridge change every such read refuses with
+`market_data_not_connected` and the page says so; Research prices the quote from the World
+archive's last stored price (Yahoo chart, `prices.latest`) and reads SEC filings over egress. The
+chart, fundamentals, news, symbol search, movers screener and algorithm scans stay unavailable.
+
+**Done when:**
+- A kernel connector (Alpaca market data with an operator-held key, or the Schwab Market Data API
+  over the person's existing Schwab connection) is listed in Settings → Connections and answers a
+  fixed, schema-bounded set of reads: latest trade, daily/intraday OHLCV bars, asset search.
+- `crates/host-process/bridge/trading_market.js` serves `getMarketData(...)` with `configured()`
+  true only while that connection is live, and every read goes through the kernel intent (no key in
+  the package process).
+- Research shows a live quote and a candle chart for NVDA on the phone page, the symbol search
+  lists matches, and `tests/research-native-market.test.js` gains the connected case.
+- With the connection removed, every surface returns to the not-connected sentence (guarded).

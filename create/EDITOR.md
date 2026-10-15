@@ -406,3 +406,111 @@ Final native acceptance passes import, save, reopen, JPEG/editable JSON export
 and deletion, followed by strict preservation and empty project tables. The
 [release record](README.md#image-editor-installation-status) retains the earlier
 native checkpoints and the scope of each evidence source.
+
+## Persistent image masks (1.10.0)
+
+An image's optional `mask` stores a source-pixel polygon plus `enabled`, `inverted`
+and `feather`. The shared browser/server validator accepts it only in document
+version 2, validates every point against the referenced source dimensions and
+counts mask points in the aggregate geometry budget. Adding a mask upgrades the
+document; removing it retains v2. No raster source is overwritten. Cropping and
+rotation apply after masking; feather is computed before transforms. Mask fill
+uses the nonzero winding rule. Self-intersecting regions whose signed area is
+less than one pixel are refused. The raster edges bound feather coverage.
+
+Masked source images are limited to 4 megapixels. The renderer keeps one latest
+masked buffer per decoded source and reuses it between preview/export calls; masks
+with distinct settings on the same source may recompute that buffer. Disabled
+masks bypass the buffer. History, source ownership and revision conflicts are
+those of the existing project workflow. PNG preserves alpha; JPEG flattens on white.
+
+## Brush masks and adjustment layers (1.11.0)
+
+Version 3 adds ordered mask edits. Reveal/Erase paint in source pixels with a
+1–512 px round brush and 0.01–1 strength; one completed pointer gesture is one
+undo step. Cancelled gestures do not save. An unmasked image starts with full
+coverage. Inverted masks reverse brush coverage so Reveal still reveals.
+Masks retain at most 128 edits, 2000 points per edit and the shared total-point
+budget. Polygon regions Add/Subtract/Intersect coverage. Ellipse selections are
+64-point outlines in canvas space mapped to the same source-space region model.
+
+Adjustment layers have editable exposure, black/white levels, gamma, a bounded
+piecewise-linear curve and saturation. Processing order is exposure → levels →
+gamma → curve → saturation, in 8-bit sRGB samples; opacity mixes the adjusted
+color with the previous color. Alpha is unchanged. A stack adjustment changes
+everything composited below its position; a clipped adjustment processes only
+its named lower paint layer, in adjustment order, before that paint layer is
+composited. Later layers remain unaffected. Deleting the target deletes its
+clipped adjustments in the same undoable edit; moving the adjustment below the
+target is refused. Missing/loading image previews omit dependent adjustments
+until the image has loaded. Adjustment canvases have a 4-megapixel limit.
+
+Native JSON preserves masks/adjustments; preview and PNG/JPEG share the renderer.
+Existing v1/v2 projects retain their normalization; using these features upgrades
+to v3. Older editors refuse v3. There is no new permission or database migration.
+Groups are the remaining first-delivery image capability. Installed acceptance
+is still pending.
+
+## Isolated groups (1.12.0)
+
+**Group with layer below** groups consecutive siblings, including intervening
+adjustments. A group stores ordered child IDs and a fixed local frame. Children
+remain independent layers in the project and layer list. Group opacity is applied
+once to its isolated composition, not separately to children. Rotate/move the
+group on the canvas; resizing preserves its aspect ratio. Child numeric coordinates
+are local to the frame. Child source regions and brush masks follow the composed
+world transform. Locked ancestors refuse child edits; hidden ancestors hide children.
+
+Groups are clipped to their source frame; expand/reframe work is separately scoped.
+A document supports 16 groups, four nesting levels, 4-megapixel group frames and a
+4-megapixel canvas. Uniform scaling avoids introducing unsupported skew to the
+existing image-source coordinate model. **Ungroup** bakes transforms into child
+geometry and is allowed only at group opacity 1 to preserve isolated blending.
+Group duplication is currently refused; ungroup, duplicate and regroup explicitly.
+Deleting a group deletes its descendants and dependent adjustments in one undo step.
+Earlier v3 readers refuse the unknown group layer rather than dropping its children.
+No database migration or permission is added. Installed acceptance remains pending.
+
+## Vector editing and SVG (1.13.0)
+
+**Vector pen** places corners with clicks and tangent handles with drags. Finish
+creates one editable cubic path; node controls move anchors/handles, insert a
+De Casteljau midpoint, remove nodes and convert corner/smooth tangents. Paths
+have bounded contours, nonzero/even-odd fill, dash/cap/join, linear gradient and
+polygon clipping. Browser hit testing uses the actual path fill/stroke/clip.
+Check root layers to align/distribute their bounds or snap pointer movement to a
+grid. Child/group transforms and private project/history behavior remain shared.
+
+Union/Subtract/Intersect/Exclude combine two visible, unlocked root paths. The
+first operand supplies paint/stroke style; both original operands remain hidden
+editable layers. One result is one undoable edit. Booleans operate on fill
+geometry (not expanded strokes), tessellate curves at 0.1 canvas-pixel tolerance,
+and retain source IDs. Mixed-winding nonzero multi-contours require an even-odd
+conversion; clipped paths refuse boolean conversion. A local worker terminates
+after five seconds; sweep/queue limits are 50,000 and geometry is bounded to
+10,000 points. Stale results cannot replace later edits. The permissively licensed
+local dependency is pinned/rebuildable under `vendor/`; runtime requests no CDN.
+
+### SVG format matrix
+
+| Feature | Export | Import |
+|---|---|---|
+| Cubic/straight paths | Editable M/C/Z | M/L/C/Z, absolute or relative |
+| Rectangle/ellipse/polygon/polyline | Geometry retained | Editable cubic/straight paths; ellipses use four cubic arcs |
+| Linear gradients | Local user-space definitions | User-space local definitions only |
+| Individual polygon/rectangular clips | Local definitions | One local polygon/rectangle per clip |
+| Stroke cap/join/dash and opacity | Retained | Retained; stroked transforms require uniform scale |
+| Native text | Editable text with original text/layout metadata | Original text/layout properties retained; fonts referenced by name |
+| External plain text | — | Plain unclipped text; font/baseline approximation reported |
+| Groups | Isolated opacity and frame clip retained | Unclipped opacity-1 groups flatten into editable geometry after an explicit warning |
+| Images/masks/adjustments | Refused; use native JSON or PNG | Refused |
+| Scripts, event handlers, external links, stylesheets, use/foreignObject/animation | Never emitted | Whole import refused |
+
+Import is limited to 2 MiB, 1000 XML elements, 200 layers and bounded geometry.
+Unknown elements/attributes, entities, unsupported path commands and external
+resources refuse the whole import before replacement. Existing projects stay
+intact on failure; hierarchy/font warnings require a deliberate continuation.
+SVG does not embed fonts; native JSON remains the lossless OSHAL project format.
+Six-decimal SVG coordinates are the interchange precision. Curve booleans are
+approximated; original cubic operands remain editable. Installed acceptance and
+additional SVG dialects are separate gates.

@@ -1,0 +1,1275 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Declare reviewed own-scoped Motion source contracts; installed acceptance remains open.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve exact native integer transport and bind an approval-held exact edit tool.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register private-byte isolation and full durable native photo-library proofs.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register real private-body full history and native revision lifecycle verification.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register exact owned process-crash boundaries and recovery invariants.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register full-capacity portable archive and recipient-owned editable-copy source verification.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register actual exact-tick PNG sequences and decoded MP4 source verification.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register human and native agent saved layer organization, nesting and timing evidence.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register actual effect schema and human/native rendered workflow evidence.
+version: 1
+cases:
+  - id: engine-core
+    name: Actual pinned motion graph and compositor
+    purpose: Render actual opacity and masked-footage pixels; reject graph/source/command violations.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/src/lib.rs
+    expected:
+      - Render actual opacity and masked-footage pixels; reject graph/source/command violations.
+    prerequisites:
+      - runner:cargo
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: No persisted effects.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: engine-wire
+    name: Framed compositor and lifecycle
+    purpose: >-
+      Real engine packets and rendering, source identity, slot admission and child lifecycle remain
+      bounded.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/engine-bridge.test.mjs
+    expected:
+      - >-
+        Real engine packets and rendering, source identity, slot admission and child lifecycle
+        remain bounded.
+    prerequisites:
+      - runner:node
+      - engine:motion-worker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - engine/bridge.mjs
+      cleanup: >-
+        Close only owned children/listeners and remove only the unique fixture database/schema/role;
+        preserve shared PG35689 and never use live data.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: project-store
+    name: Immutable owned PostgreSQL revisions
+    purpose: Own-only immutable persistence, retries, revoked grants and real photo/keyframe rendering.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/project-store.test.mjs
+    expected:
+      - Own-only immutable persistence, retries, revoked grants and real photo/keyframe rendering.
+    prerequisites:
+      - runner:node
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - migrations/001-motion-projects.sql
+      cleanup: >-
+        Close only owned children/listeners and remove only the unique fixture database/schema/role;
+        preserve shared PG35689 and never use live data.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: application-http
+    name: Real Motion HTTP application
+    purpose: >-
+      Production routes admit before bodies, preserve original actors, and render persisted owned
+      data.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/application.test.mjs
+    expected:
+      - >-
+        Production routes admit before bodies, preserve original actors, and render persisted owned
+        data.
+    prerequisites:
+      - runner:node
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/application-fixture.mjs
+      cleanup: >-
+        Close only owned children/listeners and remove only the unique fixture database/schema/role;
+        preserve shared PG35689 and never use live data.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: manual-workbench
+    name: Actual-page manual composition workflows
+    purpose: >-
+      Human layers/keys/scrub/undo/photo/reopen workflows use real rendered pixels and fence stale
+      frames.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/workbench.test.mjs
+    expected:
+      - >-
+        Human layers/keys/scrub/undo/photo/reopen workflows use real rendered pixels and fence stale
+        frames.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/application-fixture.mjs
+      cleanup: >-
+        Close only owned children/listeners and remove only the unique fixture database/schema/role;
+        preserve shared PG35689 and never use live data.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: native-runner
+    name: Kernel Node runner compatibility
+    purpose: Actual ESM factory/ports mount; explicit fixture proofs preserve the original admitted person.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/native-runner.test.mjs
+    expected:
+      - >-
+        Actual ESM factory/ports mount; explicit fixture proofs preserve the original admitted
+        person.
+    prerequisites:
+      - runner:node
+      - harness:oshal-kernel-root
+      - engine:motion-worker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Close only owned children/listeners and remove only the unique fixture database/schema/role;
+        preserve shared PG35689 and never use live data.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: native-sql
+    name: Genuine kernel SQL small-source workflows
+    purpose: >-
+      Real CtxHost/runner/compositor workflows isolate subject, issuer and package and refuse
+      unreadable native asset rows.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/native-sql.test.mjs
+    expected:
+      - >-
+        Real CtxHost/runner/compositor workflows isolate subject, issuer and package and refuse
+        unreadable native asset rows.
+      - >-
+        Fixture permissions and the unpinned kernel tree do not prove installed admission or
+        large-library/revision growth.
+    prerequisites:
+      - runner:node
+      - runner:cargo
+      - harness:oshal-kernel-root
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/native-host.rs
+        - tests/native-host-build.mjs
+        - tests/native-sql-fixture.mjs
+      cleanup: >-
+        Close only owned children/listeners and remove only the unique fixture database/schema/role;
+        preserve shared PG35689 and never use live data.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: bounded-fixture-frames
+    name: Bounded child JSON frames
+    purpose: >-
+      Reject oversized/malformed/primitive/incomplete frames before whole-line buffering; preserve
+      split UTF-8.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/bounded-json-wire.test.mjs
+    expected:
+      - >-
+        Reject oversized/malformed/primitive/incomplete frames before whole-line buffering; preserve
+        split UTF-8.
+    prerequisites:
+      - runner:node
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/bounded-json-wire.mjs
+      cleanup: No persisted effects.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: package-agent-contract
+    name: Actual package/agent permission contracts
+    purpose: >-
+      Kernel importer loads real roles/persona; tool permissions equal their HTTP routes and closed
+      schemas refuse foreign fields.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/package-contract.test.mjs
+    expected:
+      - >-
+        Kernel importer loads real roles/persona; tool permissions equal their HTTP routes and
+        closed schemas refuse foreign fields.
+      - >-
+        Declared tool workflows preserve editable keyframes/history and own-only route grants over
+        real native SQL.
+      - >-
+        This is source contract/workflow evidence; hosted agent turns, approval cards and installed
+        acceptance remain separate.
+    prerequisites:
+      - runner:node
+      - runner:cargo
+      - harness:oshal-kernel-root
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+      - harness:oshal-core-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/native-host.rs
+        - tests/native-host-build.mjs
+        - tests/native-sql-fixture.mjs
+      cleanup: >-
+        Close only owned children/listeners and remove only the unique fixture database/schema/role;
+        preserve shared PG35689 and never use live data.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: complete-project-inspection
+    name: Complete bounded immutable project inspection
+    purpose: >-
+      Reconstruct exact large native document fields and long keys/Unicode strings through bounded
+      pages, without missing entries.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/project-inspection.test.mjs
+    expected:
+      - >-
+        Every bounded page carries an immutable revision; all children and exact values are
+        recoverable, including long Unicode strings and keys.
+    prerequisites:
+      - runner:node
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: No persisted effects.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: source-engine-container
+    name: Real source-built Motion engine container
+    purpose: >-
+      Verify normalized source identity, genuine animated/masked/text pixels and isolated non-root
+      read-only container execution; installer mock tests control flow only.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/engine-container.test.mjs
+    expected:
+      - >-
+        The actual source-built image matches the admitted package identity and renders true
+        animation, owned masks and embedded fonts.
+      - >-
+        Review containers have no network, host ports or host volumes and cleanup removes only their
+        unique names.
+      - >-
+        Source/container proof does not establish installed package roles, production approvals or
+        complete creative parity.
+    prerequisites:
+      - runner:node
+      - service:docker-disposable-review
+      - engine:motion-worker
+      - engine:motion-source-review-image
+      - service:postgres-disposable-35689
+      - browser:chromium
+      - runner:playwright
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - engine/container/Dockerfile
+        - engine/container/self-test.mjs
+      cleanup: >-
+        Remove only the uniquely named disposable review container and private mock/identity
+        directories. Do not run the administrator installer or change live
+        containers/images/configuration.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: editable-document-exchange
+    name: Real native editable import and fork
+    purpose: >-
+      Preserve actual native layers/keys/masks/pixels through file import and immutable forks, with
+      original-owner sources, exact retries and withdrawn-grant rollback.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/document-exchange.test.mjs
+    expected:
+      - >-
+        Export/import/fork remains editable with actual keyframes, owned masks and pixel-identical
+        previews.
+      - >-
+        Foreign/digest-mismatched source references, invalid UTF8/JSON, owner selectors and
+        withdrawn grants refuse without creating a project.
+      - >-
+        Actual human file and duplicate controls work at narrow width; source fixture admission does
+        not prove installed roles or approval cards.
+    prerequisites:
+      - runner:node
+      - harness:oshal-kernel-root
+      - engine:motion-worker
+      - service:postgres-disposable-35689
+      - browser:chromium
+      - runner:playwright
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/application-fixture.mjs
+        - tests/native-sql-fixture.mjs
+      cleanup: >-
+        Close only owned workers/browser/listeners and remove only the unique fixture
+        schema/role/database on shared PG35689. Never remove its container or use live data.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: lossless-json
+    name: Exact native numeric codec
+    purpose: >-
+      Preserve actual u64 ids and i64 ticks across text transport, storage, editing, agent
+      inspection and human reopen/export.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/lossless-json.test.mjs
+    expected:
+      - >-
+        No native integer bits are lost in accepted import/save/edit/fork/history/export or exact
+        agent observations.
+      - >-
+        Original owner/grant/rollback protections remain; source fixtures do not prove installed
+        roles or approval cards.
+    prerequisites:
+      - runner:node
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: No persisted effects.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: lossless-native-workflows
+    name: Actual wide integer native workflows
+    purpose: >-
+      Preserve actual u64 ids and i64 ticks across text transport, storage, editing, agent
+      inspection and human reopen/export.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/lossless-documents.test.mjs
+    expected:
+      - >-
+        No native integer bits are lost in accepted import/save/edit/fork/history/export or exact
+        agent observations.
+      - >-
+        Original owner/grant/rollback protections remain; source fixtures do not prove installed
+        roles or approval cards.
+    prerequisites:
+      - runner:node
+      - harness:oshal-kernel-root
+      - engine:motion-worker
+      - service:postgres-disposable-35689
+      - runner:playwright
+      - browser:chromium
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Remove only unique fixture schema/role/database and owned worker/browser/listeners; preserve
+        shared PG35689.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: owned-blobs
+    name: Private owned filesystem bytes
+    purpose: Exercise 64 MiB exact bytes, original tenant and principal namespaces, fresh grants, rollback, unsafe links and corruption.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/owned-blobs.test.mjs
+    expected:
+      - Exercise 64 MiB exact bytes, original tenant and principal namespaces, fresh grants, rollback, unsafe links and corruption.
+    prerequisites:
+      - runner:node
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - routes/owned-blobs.mjs
+      cleanup: Remove only unique private fixture directories and own fixture database; preserve shared PG35689.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: durable-assets
+    name: Full native durable photo library
+    purpose: Exercise 64 large photos, metadata-only native rows, restarted process reads, owner isolation, revoked grants, SQL rollback and corruption.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/durable-assets.test.mjs
+    expected:
+      - Exercise 64 large photos, metadata-only native rows, restarted process reads, owner isolation, revoked grants, SQL rollback and corruption.
+    prerequisites:
+      - runner:node
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - routes/owned-blobs.mjs
+      cleanup: Remove only unique private fixture directories and own fixture database; preserve shared PG35689.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: durable-revisions
+    name: Full native immutable revision history
+    purpose: Keep 1000 real private document files readable through metadata-only native SQL and actual undo/edit/export workflows.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/durable-revisions.test.mjs
+    expected:
+      - Keep 1000 real private document files readable through metadata-only native SQL and actual undo/edit/export workflows.
+    prerequisites:
+      - runner:node
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - migrations/native/001-motion.sql
+      cleanup: Remove only unique private fixture directories and own fixture database; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: crash-recovery
+    name: Native process crash and private byte recovery
+    purpose: Kill only owned package children at actual file and SQL boundaries; preserve committed bytes and reconcile only original-owner orphans under a process lease.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/crash-recovery.test.mjs
+    expected:
+      - Kill only owned package children at actual file and SQL boundaries; preserve committed bytes and reconcile only original-owner orphans under a process lease.
+    prerequisites:
+      - runner:node
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/native-sql-fixture.mjs
+      cleanup: Stop only exact fixture children; rollback only the exact aborted fixture connection; remove only private fixture directories and database. Preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: portable-bundle
+    name: Portable archive format and full capacity
+    purpose: Verify exact native numbers, tar interoperability, closed schema/header attacks and full264MiB streaming envelope.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/portable-bundle.test.mjs
+    expected:
+      - Verify exact native numbers, tar interoperability, closed schema/header attacks and full264MiB streaming envelope.
+    prerequisites:
+      - runner:node
+      - runner:tar
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - routes/portable-bundle.mjs
+      cleanup: Remove only private temporary archive directories and exact fixture database; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: portable-store
+    name: Atomic recipient-owned editable archive copy
+    purpose: Transfer real editable masks/animation/wide identifiers and64large photos through genuine native SQL and trusted streaming services.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/portable-store.test.mjs
+    expected:
+      - Transfer real editable masks/animation/wide identifiers and64large photos through genuine native SQL and trusted streaming services.
+    prerequisites:
+      - runner:node
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - routes/portable-bundle.mjs
+      cleanup: Remove only private temporary archive directories and exact fixture database; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: render-producer
+    name: Exact-tick PNG sequence and real MP4 source producer
+    purpose: Render real five-second animation, masks and text with immutable source lineage; decode H264 timing and refuse cancellation, revocation and foreign source contexts.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/render-export.test.mjs
+    expected:
+      - Actual PNG alpha/mask/text pixels and decoded MP4 frame counts preserve precise rational schedules and pinned revision lineage.
+      - Fractional frame rates and explicit odd-dimension padding are verified with FFprobe.
+      - Source fixture authority does not prove installed routes, hosted approvals, durable jobs or Video ingestion.
+    prerequisites:
+      - runner:node
+      - runner:ffmpeg
+      - runner:ffprobe
+      - runner:tar
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/native-sql-fixture.mjs
+      cleanup: Remove only owned source projects, temporary outputs and fixture database/children; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: layer-workflows
+    name: Human and native agent layer organization and nesting
+    purpose: Verify stack pixels, rename/visibility, parent transforms and cycle refusal, multi-layer nested animation/timing, undo/reopen and Reader controls.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/layer-workflows.test.mjs
+    expected:
+      - Real manual controls change saved native layers, nested animation and decoded pixels on narrow screens without an AI provider.
+      - Declared approval-held native agent edits use the same model and reject foreign or withdrawn grants.
+      - Untouched native wide timing values remain exact; source fixture authority is not installed acceptance.
+    prerequisites:
+      - runner:node
+      - runner:playwright
+      - browser:chromium
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+      - harness:oshal-kernel-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/application-fixture.mjs
+        - tests/native-sql-fixture.mjs
+      cleanup: Close only owned browser/worker children and remove only unique fixture databases/schema/roles; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: effect-workflows
+    name: Actual effect schemas and saved manual/native workflows
+    purpose: Query the complete native registry and every bounded schema; render real gradient, blur, shadow and chroma-key pixels with original admission and editable parameters.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/effects.test.mjs
+    expected:
+      - Native effect metadata, stamp-pinned pages and schemas are complete bounded read-only queries without project writes.
+      - Saved manual gradient/blur/shadow/chroma-key outputs preserve alpha fringes and history; ordering/toggle/removal and Reader controls work on narrow screens.
+      - Declared native agent effect edits retain actual property UIDs and original owner/change approval boundaries.
+      - Catalog entries and fixture grants do not establish rendering completeness for every effect or installed product parity.
+    prerequisites:
+      - runner:node
+      - runner:playwright
+      - browser:chromium
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+      - harness:oshal-kernel-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/application-fixture.mjs
+        - tests/native-sql-fixture.mjs
+      cleanup: Close only owned browser/worker children and remove only unique fixture databases/schema/roles; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+  - id: exact-keyframes
+    name: Exact native keyframes and visual curve/path workflows
+    purpose: Preserve exact neighboring ticks/ids through native inspection and edits; render real cubic frames and save visual path drags with original grants and stale-workspace fencing.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/keyframe-workflows.test.mjs
+    expected:
+      - Actual scalar easing and spatial handles/dragging preserve native rendered pixels, key metadata, save/reopen and immutable undo.
+      - Native wide references/ticks, large-value inspection and Reader controls retain original read/change isolation.
+      - Held key reads and old drags cannot replace or mutate another workspace.
+      - Controlled source/role fixtures do not establish installed approval or complete product parity.
+    prerequisites:
+      - runner:node
+      - runner:playwright
+      - browser:chromium
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+      - harness:oshal-kernel-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/application-fixture.mjs
+        - tests/native-sql-fixture.mjs
+      cleanup: Close only owned browser/worker children and remove only unique fixture databases/schema/roles; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+
+  - id: work-area-playback
+    name: Saved native work areas and exact frame playback
+    purpose: Preview every frame of the saved work area through the native compositor with exact rational ticks, pause/loop/step and fresh original read admission.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/playback-workflows.test.mjs
+    expected:
+      - Work-area edits save, reopen and undo; transparent native pixels match the sampled frames.
+      - Wide ticks and nonintegral tick frame durations remain exact through stepping; unchanged work areas cause no save.
+      - One frame is requested at a time; pause, project changes and hidden tabs stop playback and reject held frames.
+      - Reader preview works without change or export grants; fresh read withdrawal stops the next frame.
+      - Narrow layout remains usable; source fixtures do not establish installed acceptance or real-time performance.
+    prerequisites:
+      - runner:node
+      - runner:playwright
+      - browser:chromium
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+      - harness:oshal-kernel-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/application-fixture.mjs
+        - tests/native-sql-fixture.mjs
+      cleanup: Close only owned browser/worker children and remove only unique fixture schema/roles; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1536
+    installation: never
+
+  - id: exact-source-text
+    name: Exact native captions and typography
+    purpose: Edit real multiline/Unicode text and native typography at exact composition ticks through manual and declared agent workflows.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/text-workflows.test.mjs
+    expected:
+      - Actual native font inventory is complete and stamp-pinned, without customer data or saved edits.
+      - Native rendered glyph colors/alpha and paragraph layout retain save/reopen/undo.
+      - Unicode scalar selections preserve unedited character/paragraph styles and exact neighboring keys/layer mapping.
+      - Full human text stays complete; bounded agent observations identify omitted large values with revision-pinned inspection.
+      - Reader text stays copyable with edits disabled; foreign/withdrawn grants and stale reads refuse.
+      - Controlled source fixtures do not establish installed font availability, hosted approvals or complete product parity.
+    prerequisites:
+      - runner:node
+      - runner:playwright
+      - browser:chromium
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+      - harness:oshal-kernel-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/application-fixture.mjs
+        - tests/native-sql-fixture.mjs
+      cleanup: Close only owned browser/worker children and remove only unique fixture schemas/roles/databases; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+
+  - id: full-point-text
+    name: Complete native point-text surfaces
+    purpose: Keep unbroken60000letter1px text and large native source coordinates visible without altering the document or silently clipping source surfaces.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/point-text.test.mjs
+    expected:
+      - The exact unbroken60000letter source renders actual visible glyph pixels and preserves native data/history.
+      - Source coordinates beyond20000 remain visible through native transforms, saved alpha edits, restore and export.
+      - Overbudget text reports a refusal without a completed frame and later valid renders remain usable.
+      - Reader preview and foreign/withdrawn original grants remain independent; source fixtures do not prove installed approval or full parity.
+    prerequisites:
+      - runner:node
+      - service:postgres-disposable-35689
+      - engine:motion-optimized-review-worker
+      - harness:oshal-kernel-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/native-sql-fixture.mjs
+      cleanup: Close only owned worker children and remove only unique fixture databases/roles; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+
+  - id: extracted-native-candidate
+    name: Complete extracted native Motion candidate
+    purpose: Prepare a complete private package candidate with genuine native manifest/contracts, deterministic source receipt and actual candidate-owned SQL/engine workflows.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/candidate-package.test.mjs
+    expected:
+      - The extracted oshal-app.yaml admits every existing route/tool/role/migration through the actual native importer.
+      - Every source digest/mode and engine byte is retained; repeated preparation is deterministic.
+      - Actual extracted routes save/reopen/render native captions and reject foreign/withdrawn/change-less callers.
+      - Existing output data and unsafe source links are refused; no installation/deploy/registration is performed.
+      - Candidate proof remains source-only and does not replace installed human/agent/approval/host-drop acceptance.
+    prerequisites:
+      - runner:node
+      - service:postgres-disposable-35689
+      - engine:motion-optimized-review-worker
+      - harness:oshal-kernel-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/native-sql-fixture.mjs
+      cleanup: Remove only owned private candidate directories, fixture database/roles and owned worker children; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1536
+    installation: never
+  - id: saved-mask-workflows
+    name: Saved native masks and manual Bezier vertices
+    purpose: Verify real static mask mode/inversion/enable/opacity/feather/expansion, path and tangent geometry, history and original human/agent isolation.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/mask-workflows.test.mjs
+    expected:
+      - Manual rectangle/ellipse mask controls change actual native alpha pixels and retain save/reopen/undo and stable wide references.
+      - Native Bezier edits, split/delete, duplicate/order/remove and lock controls preserve untouched geometry and history.
+      - Native exact-time observations fence mask mutations; unchanged fields preserve animated values without a fresh-session time-zero edit.
+      - Original Reader, foreign and withdrawn grants refuse writes or previews; fixture seams do not establish installed approval or complete parity.
+    prerequisites:
+      - runner:node
+      - runner:playwright
+      - browser:chromium
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+      - harness:oshal-kernel-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/application-fixture.mjs
+        - tests/native-sql-fixture.mjs
+      cleanup: Close only own browser/worker children and remove only unique fixture database/schema/roles; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+
+  - id: exact-animated-masks
+    name: Native animated mask geometry and exact-time edits
+    purpose: Verify evaluated native paths/properties, exact unsnapped and wide timing, original keys/history, complete paged agent observations and stale human reads.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/animated-mask-workflows.test.mjs
+    expected:
+      - Human and approval-held agent edits use the real native mask operations at exact composition ticks and native layer-time mapping.
+      - Native Bezier and opacity interpolation, first path keys, pixels and save/reopen/undo preserve untouched keys and exact wide neighbors.
+      - Large evaluated paths page actual vertices/tangents/feather points without inferred base values or silent truncation.
+      - Held/stale observations cannot replace another project or authorize an uninspected-time edit; Reader/foreign/withdrawn grants refuse.
+      - Native topology edits synchronize counts across keys by the reported preference; fixture seams do not establish installed acceptance.
+    prerequisites:
+      - runner:node
+      - runner:playwright
+      - browser:chromium
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+      - harness:oshal-kernel-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/application-fixture.mjs
+        - tests/native-sql-fixture.mjs
+      cleanup: Close only own browser/worker children and remove only unique fixture database/schema/roles; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+
+  - id: per-character-text-surfaces
+    name: Complete native per-character3Dglyph surfaces
+    purpose: Preserve full native glyph geometry within the explicit surface profile and refuse overbudget plane sets before publishing frames.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/per-character-text.test.mjs
+    expected:
+      - The actual6000px native glyph retains pixels beyond the former4096side clamp after transforms and matches a complete native plane reference.
+      - Individual and aggregate surface refusals publish no partial frame; the next normal request recovers.
+      - Human mode switch saves native data, reopens/undoes and remains disabled for Reader; failed current preview hides the preceding revision image.
+      - Original Reader/foreign/withdrawn checks retain isolation and actual per-character animation alpha.
+      - Source profile/fixtures do not establish installed approvals, unlimited font/hardware dimensions or complete3Dfidelity.
+    prerequisites:
+      - runner:node
+      - runner:playwright
+      - browser:chromium
+      - service:postgres-disposable-35689
+      - engine:motion-optimized-review-worker
+      - harness:oshal-kernel-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/application-fixture.mjs
+        - tests/native-sql-fixture.mjs
+      cleanup: Close only own browser/worker children and remove only unique fixture databases/schema/roles; preserve shared PG35689/container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+
+  - id: native-variable-feather
+    name: Human and agent native variable mask feather
+    purpose: Edit actual native feather-point positions, signed radii and tension at exact ticks with immutable history and original authority.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/variable-feather.test.mjs
+    expected:
+      - Human outer/inner feather changes real alpha fringes, preserves no-op/history/reopen/undo and exposes native tension percentages.
+      - Exact-time native actions preserve neighboring wide keys and complete70point observations through64point agent pages.
+      - Reader, mask/layer locks, stale-time and foreign/withdrawn grants refuse mutations through existing original authority.
+      - Source role/admission fixtures do not establish installed hosted approval or complete product fidelity.
+    prerequisites:
+      - runner:node
+      - runner:playwright
+      - browser:chromium
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+      - harness:oshal-kernel-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/application-fixture.mjs
+        - tests/native-sql-fixture.mjs
+      cleanup: Close only own browser/worker children and remove only unique fixture database/schema/roles; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+
+  - id: request-owned-bundle-transfers
+    name: Full-capacity private editable bundle staging
+    purpose: Stage bounded resumable chunks with fresh sealed original authority and durable offsets; confirm actual native recipient copies without claiming public or installed transport.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/bundle-transfers.test.mjs
+    expected:
+      - Fresh native SDK contexts copy actual editable captions and raster masks with remapped ownership and identical rendered pixels.
+      - Conflicting offsets, bytes, request keys, foreign owners, withdrawn grants, unsafe links and corrupted payloads refuse.
+      - A separate process lease, unpublished tail recovery and uncertain metadata or native COMMIT replies preserve safe exact retries.
+      - Complete 64-by-4MiB codec sources and an exact 2MiB document stage without a whole-archive buffer; actual large PNG exports use independently verified aligned chunks.
+      - Source services remain unbound to public human or agent transport and do not establish installed acceptance.
+    prerequisites:
+      - runner:node
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+      - harness:oshal-kernel-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/native-sql-fixture.mjs
+      cleanup: Close only owned processes and SDK pools, remove only unique fixture databases/roles/private files; preserve shared PG35689 and its container.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1536
+    installation: never
+
+  - id: native-portable-http
+    name: Genuine native portable transfer routes and agent declarations
+    purpose: Move bounded full-capacity chunks through actual native request/reply codecs under original grants and exact tool schemas.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/bundle-http.test.mjs
+    expected:
+      - Eight added tools bind to exact original import/export grants and preserve mutation approval ceilings.
+      - Actual native agent-shaped byte chunks create one editable recipient-owned snapshot with bounded receipts and exact retries.
+      - Foreign ids, missing grants, corrupt encodings, oversized chunks and deleted-source downloads refuse.
+      - Large valid PNG export uses complete1MiB JSON envelopes through the actual bridge without relying on discarded headers.
+      - Source role/admission seams do not replace installed hosted approval receipts.
+    prerequisites:
+      - runner:node
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+      - harness:oshal-kernel-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/native-sql-fixture.mjs
+        - tests/bundle-http-fixture.mjs
+      cleanup: Close only owned fixture HTTP/worker processes and remove unique fixture data/database/roles; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1536
+    installation: never
+
+  - id: human-portable-bundles
+    name: Human and agent editable portable bundle exchange
+    purpose: Export/import actual native captions and photos through production page controls, including the complete64large-photo library and human-to-agent staging.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/bundle-workbench.test.mjs
+    expected:
+      - Human export/import preserves native caption/masked-photo pixels, independent ownership, saved edits and reopen after sender deletion.
+      - Human Upload for agent supplies an actual own id; agent import is atomic and cancellation preserves the saved composition.
+      - Agent-prepared links download verified chunks for the original owner and refuse another owner.
+      - Lost settled upload replies retry exact bytes; Reader controls and revoked downloads publish no file.
+      - All64real near4MiB PNGs move through actual native export and human upload/import; no smaller envelope substitutes for full capacity.
+      - Source seeding and role/admission seams remain explicit and do not establish installation or complete Adobe/upstream fidelity.
+    prerequisites:
+      - runner:node
+      - runner:playwright
+      - browser:chromium
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+      - harness:oshal-kernel-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/native-sql-fixture.mjs
+        - tests/bundle-http-fixture.mjs
+      cleanup: Close only owned browser/HTTP/worker processes and remove unique private fixture downloads/data/database/roles; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 2048
+    installation: never
+
+  - id: incremental-archive-digests
+    name: Complete bounded browser archive checksums
+    purpose: Verify exact incremental SHA256 against native crypto without whole-file buffers or smaller archive capacity.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/sha256-stream.test.mjs
+    expected:
+      - Known vectors, random partitions, padding boundaries, typed views and million-byte input match native crypto.
+      - Blob hashing uses at most1MiB slices and cancellation stops before another slice.
+      - All264MiB bytes hash with fixed working buffers and the exact native digest.
+    prerequisites:
+      - runner:node
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: No persisted effects.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 512
+    installation: never
+
+  - id: transactional-browser-bundle-save
+    name: Verified browser file streaming and fallback
+    purpose: Save complete original-owner bundles with actual browser writable commit/abort and bounded digests through genuine native SDK HTTP.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/bundle-streaming.test.mjs
+    expected:
+      - Actual native browser writable commits only after complete segment and archive digest verification.
+      - Corruption, whole-digest mismatch, source withdrawal and cancellation abort temporary writes and preserve the existing file.
+      - Controlled picker cancellation starts no source export; the picker seam is explicit and not installed dialog acceptance.
+      - Upload hashes bounded slices and the ordinary verified Blob fallback retains identical bytes.
+      - Original source/role seams remain explicit and do not prove installation, job continuation or whole-product parity.
+    prerequisites:
+      - runner:node
+      - runner:playwright
+      - browser:chromium
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+      - harness:oshal-kernel-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/bundle-http-fixture.mjs
+        - tests/native-sql-fixture.mjs
+      cleanup: Remove only own browser filesystem test entries/private fixture data/database/roles and close own browser/HTTP/worker processes; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1536
+    installation: never
+
+  - id: exact-scene-properties
+    name: Exact native3Dtransform camera and light workflows
+    purpose: Preserve independent axes and native keys at exact ticks while humans and agents edit actual camera/light/3Dscene values.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/properties-workflows.test.mjs
+    expected:
+      - Human unrelated edits preserve nonuniformXYZscale; independent axis edits and no-op/reopen/undo retain native data.
+      - Actual camera zoom and native ambient intensity alter real3Dprojection/lighting pixels without a substitute renderer.
+      - Native decimal wide ids and adjacent ticks retain untouched key times/interpolation/handles.
+      - Reader, locks, stale observations, foreign and withdrawn original grants refuse writes through original route authority.
+      - Observations are native values before expressions; source fixtures do not establish installed/whole3Dparity.
+    prerequisites:
+      - runner:node
+      - runner:playwright
+      - browser:chromium
+      - service:postgres-disposable-35689
+      - engine:motion-worker
+      - harness:oshal-kernel-root
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/native-sql-fixture.mjs
+        - tests/bundle-http-fixture.mjs
+      cleanup: Close only own browser/HTTP/worker processes and remove unique private fixture data/database/roles; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+
+  - id: motion-exact-effect-time
+    name: Exact native effect values and animated edits
+    purpose: Verify native keyed values, real pixels, human editing and original effect-instance authority.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files: [tests/effect-time-workflows.test.mjs]
+    expected:
+      - Human controls read native interpolated values and preserve untouched effect parameters and keys.
+      - Exact decimal effect/property ids and neighboring wide ticks retain original easing and native timing.
+      - Original read/change grants, locks and stale effect/time selections refuse unintended writes.
+    prerequisites: [runner:node, runner:playwright, browser:chromium, service:postgres-disposable-35689, engine:motion-worker, harness:oshal-kernel-root]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/native-sql-fixture.mjs, tests/bundle-http-fixture.mjs]
+      cleanup: Close only owned children and fixture data; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+
+  - id: motion-native-large-string-edit
+    name: Native large effect string edits
+    purpose: Verify Unicode range diffs, original exact native setters and atomic full human replacements.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files: [tests/value-patch.test.mjs, tests/effect-time-workflows.test.mjs]
+    expected:
+      - Minimal diffs reconstruct exact Unicode strings without splitting surrogate pairs.
+      - Large native effect text saves through exact patches or one atomic protected human batch.
+      - Original authority, graph/source checks, locks, revision conflicts and history remain enforced.
+    prerequisites: [runner:node, runner:playwright, browser:chromium, service:postgres-disposable-35689, engine:motion-worker, harness:oshal-kernel-root]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/native-sql-fixture.mjs, tests/bundle-http-fixture.mjs]
+      cleanup: Close only owned children/data; preserve shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+
+  - id: motion-full-agent-value-upload
+    name: Full approved agent effect-value replacement
+    purpose: Verify bounded original-principal staging and one atomic native replacement with exact retries.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files: [tests/value-transfers.test.mjs]
+    expected:
+      - Full Unicode values upload through actual8192-byte arguments and save one editable native revision.
+      - Original owner/source/read-change/locks/expiry/conflict/digest/UTF8 and retry boundaries refuse invalid publication.
+      - Upload and cancel never modify projects; lost replies recover identical intents without duplicate revisions.
+    prerequisites: [runner:node, runner:playwright, browser:chromium, service:postgres-disposable-35689, engine:motion-worker, harness:oshal-kernel-root]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/native-sql-fixture.mjs, tests/bundle-http-fixture.mjs]
+      cleanup: Remove only own temporary stage data/database/roles/children; retain shared PG35689 and container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never
+
+  - id: motion-durable-render-jobs
+    name: Original-person native render continuations
+    purpose: Publish actual full native rendered files only after complete owner/source/grant verification.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files: [tests/render-jobs.test.mjs]
+    expected:
+      - Real native MP4 and transparent PNG output preserve source revision and exact ticks.
+      - Cancel, revoked grants, foreign owners, expiry, retries and unsafe files refuse publication.
+    prerequisites: [runner:node, service:postgres-disposable-35689, engine:motion-worker, harness:oshal-kernel-root]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/native-sql-fixture.mjs]
+      cleanup: Remove only own stages/database/children; retain shared PG35689 container.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1536
+    installation: never

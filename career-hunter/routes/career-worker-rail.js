@@ -146,6 +146,9 @@ function workerRequest(run, subject, input) {
 }
 /** Require a dedicated Career node and a fresh, online heartbeat before any model-bearing call. */
 async function workerPreflight(deps) {
+    // Native kernel: its bot turn resolves the declared bot and refuses when it cannot run.
+    if (process.env.OSHAL_EGRESS === 'kernel')
+        return { ok: true };
     if (!deps.botClient.hasEndpoint(CAREER_AGENT_ID))
         return { ok: false, detail: 'no-dedicated-node' };
     const registry = deps.ctx.swarm?.runtimeRegistryService;

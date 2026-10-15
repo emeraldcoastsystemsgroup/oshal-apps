@@ -1,5 +1,7 @@
 'use strict';
 // CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Keep selected-account compatibility bounded to real native metadata and legacy UUID identities.
+// 2 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the concierge persona names only the controls the screen lists; a hint sentence's words are never a link (it invented a "Cleanup" link).
+// 3 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 1: the kernel's not-configured speech refusal is speech_provider_unavailable (503), any other transcriber failure is still its own error.
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const P=require('../routes/policy'),{credentials,validSignature,Twilio}=require('../routes/twilio');
 const {createHmac}=require('node:crypto');
@@ -46,4 +48,20 @@ test('selected connection accepts real native metadata IDs without broadening ta
  for(const id of [native.toUpperCase(),native+'0',native.slice(1),[legacy],{id:legacy},'../'+native]) assert.throws(()=>P.config({connectionId:id}),/invalid_connection/);
  assert.equal(P.uuid.test(native),false);
  assert.throws(()=>P.plan({to:'+15555550101',objective:'Synthetic task',keywords:['claims'],idempotencyKey:native}),/idempotency_key_required/);
+});
+test('the concierge names only listed screen controls, never words from a hint sentence (sweep 12)',()=>{
+ const persona=require('node:fs').readFileSync(require('node:path').join(__dirname,'..','personas','calling-operator.yaml'),'utf8');
+ const served=persona.slice(persona.indexOf('\nperspective:'),persona.indexOf('\nallowed_tools:'));
+ assert.match(served,/name only the controls the screen lists \(a field, a\s+button, a link, a tab\) in its exact words/);
+ assert.match(served,/never call them a link or a button, and never add a control the screen does not\s+list/);
+ const html=require('node:fs').readFileSync(require('node:path').join(__dirname,'..','ui','index.html'),'utf8');
+ assert.match(html,/<small>[^<]*Cleanup failures remain visible in the report\.<\/small>/,'the Cleanup words are a hint sentence, not a control');
+});
+test('a speech provider the kernel reports as not configured is the named refusal, not a bare failure',async()=>{
+  const {interpretAudio}=require('../routes/service');
+  const wav=Buffer.alloc(64);
+  const refused=async()=>{throw new Error('unavailable: the selected speech provider is not configured');};
+  await assert.rejects(interpretAudio(wav,task,P.defaults,refused),e=>e.code==='speech_provider_unavailable'&&e.status===503);
+  const broken=async()=>{throw new Error('speech service answered 500');};
+  await assert.rejects(interpretAudio(wav,task,P.defaults,broken),e=>e.message==='speech service answered 500'&&!e.code);
 });

@@ -2,7 +2,7 @@
 
 0.3.3 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
 
-Print a document to the swarm and decide where it belongs.
+An inbound virtual printer for the swarm: a document printed to the oshal virtual printer, or sent to its inbox, is filed into the swarm's knowledge, never printed on paper. It cannot print to a home or office printer.
 
 Everything printed lands in **one inbox**. A `print-queue` ticket proposes where the document should
 be filed — a bot's corpus, the swarm's shared knowledge, or private to you — and **nothing is written

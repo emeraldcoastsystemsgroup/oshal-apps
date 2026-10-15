@@ -1,0 +1,32 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register home-summary (sweep 10): Life's Home summary says which parts work without a connection, for every Life tab, within what the concierge reads.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: home-summary
+    name: Life's summary says which parts work without a connection
+    purpose: >-
+      Sweep 10: on the Movies & TV tab the concierge said no part of Life was usable. Drive the compiled summary route
+      behind the manifest's real declaration - no data, network, provider or model.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/home-summary.test.cjs
+    expected:
+      - The manifest mounts the auth-gated summary route and declares it as the summary the kernel reads.
+      - Unauthenticated callers get 401 and no summary.
+      - The notes cover every Life tab, put Get a Ride under works without a connection, fit six notes of 280 characters,
+        claim no connection state and never tell a person to connect a provider this store has no rail for.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

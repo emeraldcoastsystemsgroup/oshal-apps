@@ -5,6 +5,12 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | The package's first Test Lab catalog (ADR-160 S4, 1.3.0): every shipped spec registered with its real runner and prerequisites, the readiness smoke retained under its existing identity, and the two new suites - the vehicle record over loopback HTTP and the migration's owner RLS against a real disposable PostgreSQL - declared with the fixtures they need rather than hidden. Registration does not execute a suite or certify a pass.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | The vehicle-record case expects the seed's D5 refusal: a package that cannot read a real version from its manifest, or has no engine tree to hash, answers 503 run_unfingerprinted and inserts nothing, and a stored evaluation whose fingerprint is not a real version and a 64-hex engine hash is withheld by name.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 real-chain certification: six engine suites registered as external pytest cases (they run under the engine venv, not the sealed Node runner) - the closed validity-reason set, the four presets certified on the real chain, the four named verification anchors, the physical build-certification gate, the pinned sweep driver's determinism, and the documented engine fingerprint - plus the live-engine certify round-trip and the surface/engine preset parity on the existing vitest cases.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register the Draft with AI contract: the surface sends its design, the route drafts only against it with declared directions, and the reply's deliberation is never shown.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | aero-designer-chat also expects the no-draft note (sweep 9: a reply claimed a draft it did not carry and nothing said so).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | aero-designer-chat also expects a withheld draft's change claims to be left out (sweep 11).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register aero-brief-labels: the analysis brief handed to AI Office labels its lines Verdict / Engine / Run status, not element ids (sweep 13); aero-designer-chat also expects the kept-latitude line.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register aero-engine-down-words: with no engine the page says, in words, that the engine is not answering on this installation, never the host's install command (demo sweep 1).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register aero-brief-verdict: in Chromium the brief's Verdict line separates each tile after a real energy-loop render (demo sweep 2: the tiles ran together).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -371,4 +377,118 @@ cases:
     limits:
       timeoutMs: 60000
       maxMemoryMb: 256
+    installation: never
+  - id: aero-designer-chat
+    name: Draft with AI drafts against the person's own design
+    purpose: >-
+      Through the real compiled POST /api/aero-lab/chat route and the real surface script: the sliders' design reaches the
+      prompt (never the defaults), a partial draft moves only its own fields, a draft is withheld without a design or when a
+      field moves against its declared direction, and deliberation around the JSON envelope is never shown.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/aero-designer-chat.test.cjs
+    expected:
+      - "A whole named degree the draft already sits in (47N on a 47.6 design) is stated: Latitude stays 47.6°N, inside the 47°N you named."
+      - The prompt's CURRENT DESIGN is the request's design; a {battery_mass_kg 0.5, up} draft over 0.4 kg returns one change and keeps every other field.
+      - With no design sent the prompt says so, no draft is offered and the reply says to ask from the design form.
+      - A draft lowering battery_mass_kg while declaring up, or one with no declared direction, is withheld with the reason.
+      - Text before the envelope, or an unparseable reply, never becomes the answer.
+      - The surface posts design with the message and renders only r.changes.
+      - A reply that claims a draft or change but carries none, or a draft that changes nothing, ends with "nothing changed on your sliders"; a draft outside the limits says why; plain advice gets no note.
+      - Whenever no draft is offered (withheld, refused, none sent), the reply's clauses claiming a change or speaking of the draft are left out and the advice before them is kept (sweep 11).
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: aero-chart-labels
+    name: State-of-charge chart labels never overprint
+    purpose: >-
+      The surface's own linePlot, run as shipped against a recording SVG stub on the sweep-6 energy loop: the y-axis title
+      sits clear of the top tick, and the min-SOC label is placed beside its dot where it crosses no part of the curve.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/aero-chart-labels.test.cjs
+    expected:
+      - At 362, 460 and 760 px no two chart labels overlap, including 'state of charge' and the '1' tick.
+      - The 'min SOC 0.0500' label box crosses no segment of the SOC curve; the old up-right spot did.
+      - A point at the plot's right edge keeps its label inside the plot, and a fully blocked spot is reported as not clear.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: aero-brief-labels
+    name: "The analysis brief labels its lines in words"
+    purpose: "Run the page's shipped Use visible results handler over a stub DOM - no browser or network."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/aero-brief-labels.test.cjs
+    expected:
+      - "The brief's lines read Verdict:, Engine: and Run status:, and no element id appears."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: aero-brief-verdict
+    name: "The brief's Verdict line separates each tile"
+    purpose: "In Chromium at 412x915 the shipped page runs a 24 h energy loop over a stubbed /evaluate, renders its verdict card, and the person's Use visible results click writes the brief."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/aero-brief-verdict.test.cjs
+    expected:
+      - "The Verdict line reads closed ✕ · admissible ✕ · certified ✓ · min SOC 0.0500 · usable margin 0.9269 · all-up mass 1.589 kg · span 2.50 m · pack 100.0 Wh, and the page raises no errors."
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: aero-engine-down-words
+    name: "A missing engine is told in words, not an install command"
+    purpose: "Run the page's shipped engineMissing and errText over the routes' no-engine answers - no browser, network or engine."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/aero-engine-down-words.test.cjs
+    expected:
+      - "A missing or unreachable engine reads as one sentence: Aero Lab's engine is not answering on this installation, with no address, setting, install command or README path."
+      - "A module mid-upgrade is still shown as the engine's own sentence."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

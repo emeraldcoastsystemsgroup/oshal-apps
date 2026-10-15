@@ -183,8 +183,8 @@
     </div>
   </div>
 
-  <script src="/pumpkin/pumpkin-face.js"></script>
-  <script src="/pumpkin/pumpkin-audio.js"></script>
+  <script src="/api/pumpkin/assets/pumpkin-face.js"></script>
+  <script src="/api/pumpkin/assets/pumpkin-audio.js"></script>
   <script>
   (function(){
     'use strict';
@@ -317,8 +317,10 @@
       return api('/api/pumpkin/rooms/register',{method:'POST',body:JSON.stringify({label:label})}).then(function(j){ S.room=j.room; S.token=j.token; return j; });
     }
 
+    /** The projector page this package serves (the framework's /pumpkin/ page is not served by the native kernel). */
+    var PROJECTOR_PATH='/api/pumpkin/projector';
     function openProjector(query,okMsg,extra){
-      var opened=window.open('/pumpkin/'+query,'_blank');
+      var opened=window.open(PROJECTOR_PATH+query,'_blank');
       $('#dispStatus').textContent=(opened?okMsg:'Your browser blocked the projector tab. Allow pop-ups and try again.')+(extra||'');
     }
     function launch(){
@@ -329,7 +331,7 @@
           openProjector('?preset='+encodeURIComponent(name)+'&mode='+S.mode+'&room='+encodeURIComponent(label)+'&demo=1&channel='+encodeURIComponent(S.demoChannel),'Browser-demo projector launched in a new tab.');
           return renderDemoLinks();
         }
-        // Save these as the defaults FIRST: the short-form projector URL ({origin}/pumpkin/ with no
+        // Save these as the defaults FIRST: the short-form projector URL ({origin}/api/pumpkin/projector with no
         // query at all) reads them back, which is what lets the awkward projector device be typed on
         // once instead of every time the look or room changes.
         var warn='';
@@ -396,11 +398,21 @@
     function withLiveRooms(baseMsg,sel){
       $(sel).textContent=baseMsg;
       return api('/api/pumpkin/rooms').then(function(j){
-        var live=(j.rooms||[]).filter(function(r){ return r.live; });
-        $(sel).textContent=baseMsg+(live.length
-          ? ' Live projector rooms right now: '+live.map(function(r){ return '“'+r.label+'” ('+r.room+')'; }).join(', ')+'.'
-          : ' No projector page is registered at all — open the Projector link on the projector device.');
+        $(sel).textContent=baseMsg+otherWatchedRoomsHint(j.rooms,S.room);
       }).catch(function(){ /* hint only; the base message already told the operator what happened */ });
+    }
+    /**
+     * The hint appended to a "nobody is listening" message. A room counts only when a screen is
+     * attached to it right now (listeners > 0): this remote registers its own room before every
+     * push, so "registered recently" (r.live) is true for the very room that just reported zero
+     * listeners, and listing it read as "no projector is listening on Main ... Live rooms: Main".
+     * The current room is never offered as the alternative.
+     */
+    function otherWatchedRoomsHint(rooms,currentRoom){
+      var watched=(Array.isArray(rooms)?rooms:[]).filter(function(r){ return r && Number(r.listeners)>0 && r.room!==currentRoom; });
+      return watched.length
+        ? ' A projector is watching a different room right now: '+watched.map(function(r){ return '“'+r.label+'” ('+r.room+')'; }).join(', ')+'. Match the room name here or on the projector.'
+        : ' No projector screen is connected to any room — open the Projector link on the projector device.';
     }
 
     // ── Saved responses playlist: click = instant replay (server remembers every spoken line). ──
@@ -427,7 +439,7 @@
         play.textContent='🎃 '+truncSaved(r.say);
         var src=document.createElement('span'); src.className='src'; src.textContent=(r.source||'')+(r.playCount?(' · played '+r.playCount+'×'):''); play.appendChild(src);
         play.onclick=function(){ replaySaved(r); };
-        var pin=document.createElement('button'); pin.className='pin'+(r.pinned?' on':''); pin.textContent=r.pinned?'★':'☆'; pin.title=r.pinned?'Unpin':'Pin (keep forever)';
+        var pin=document.createElement('button'); pin.className='pin'+(r.pinned?' on':''); pin.textContent=r.pinned?'★':'☆'; pin.title=r.pinned?'Pinned. Tap to unpin':'Not pinned. Tap to pin (keep forever)'; pin.setAttribute('aria-label',pin.title); pin.setAttribute('aria-pressed',r.pinned?'true':'false');
         pin.onclick=function(){ togglePinSaved(r); };
         var del=document.createElement('button'); del.className='del'; del.textContent='✕'; del.title='Delete saved line';
         del.onclick=function(){ deleteSaved(r); };
@@ -542,7 +554,7 @@
     function renderDemoLinks(){
       var demoTail='&demo=1&channel='+encodeURIComponent(S.demoChannel);
       $('#remoteUrl').value=absoluteFromHere('/api/pumpkin/remote?room='+encodeURIComponent(currentLabel())+demoTail);
-      $('#projectorUrl').value=absoluteFromHere('/pumpkin/?preset='+encodeURIComponent(currentPresetName())+'&mode='+S.mode+'&room='+encodeURIComponent(currentLabel())+demoTail);
+      $('#projectorUrl').value=absoluteFromHere(PROJECTOR_PATH+'?preset='+encodeURIComponent(currentPresetName())+'&mode='+S.mode+'&room='+encodeURIComponent(currentLabel())+demoTail);
       $('#projectorShort').textContent='Browser demo — these links only work in this browser, on this device. Sign in for real cross-device links and QR codes.';
       $('#remoteHint').textContent='Browser demo remote: open it in another tab here.';
       setQr('projectorQr',null); setQr('remoteQr',null);
@@ -551,7 +563,7 @@
     /** Degraded, but LOUD: a link built in this browser may be a localhost address a phone cannot reach. */
     function renderFallbackLinks(err){
       var room=S.room||roomSlug(currentLabel());
-      $('#projectorUrl').value=absoluteFromHere('/pumpkin/?preset='+encodeURIComponent(currentPresetName())+'&mode='+S.mode+'&room='+encodeURIComponent(room)+'&listen=ptt');
+      $('#projectorUrl').value=absoluteFromHere(PROJECTOR_PATH+'?preset='+encodeURIComponent(currentPresetName())+'&mode='+S.mode+'&room='+encodeURIComponent(room)+'&listen=ptt');
       $('#remoteUrl').value=absoluteFromHere('/api/pumpkin/remote?room='+encodeURIComponent(room));
       $('#projectorShort').textContent='';
       $('#remoteHint').textContent='';

@@ -12,6 +12,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove scheduled run cost gating, owner-scoped progress, free compute continuation, and slot replay behavior through the compiled orchestrator.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The venture-store double names retireAnalystRows, which a BOM phase calls after its redraft.
  */
 'use strict';
 
@@ -76,6 +77,7 @@ const STUBS = {
     getScenario: async () => null,
     coverageOf: () => ({ totalAssumptions: 0, bySourceKind: {}, byConfidence: {}, estimatePct: 0 }),
     bulkInsertAssumptions: async () => {},
+    retireAnalystRows: async () => [],
     openRun: async () => 'manual',
     advanceRun: async (...args) => { state.advances.push(args); },
     closeRun: async (...args) => {

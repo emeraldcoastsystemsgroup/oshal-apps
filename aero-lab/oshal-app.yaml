@@ -236,6 +236,14 @@ routes:
     requiresAuth: true
     requiresContext: true
 
+  # The Home summary: saved vehicles, how many are sized, recorded evaluations, and the newest
+  # vehicles with their stage. Concierge and Jarvis turns read it as ON SCREEN NOW.
+  - module: routes/home-summary.js
+    factory: createAeroHomeSummaryRoutes
+    mountPath: /api/aero-lab/home-summary
+    requiresAuth: true
+    requiresContext: true
+
 # The app's own schema (ADR-160 S4): a vehicle record and its evaluations, with FORCEd owner
 # RLS, applied on install. Engine runs (polar, evaluate, export) are still computed on demand
 # and their files live in a per-run temp dir under the package workdir.
@@ -254,6 +262,12 @@ ribbon:
     - operations
   hideChatPanel: true
   defaultView: aero-lab
+
+summary:
+  path: /api/aero-lab/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
 
 integrations:
   offers:

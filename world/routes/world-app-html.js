@@ -11,6 +11,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | The company audience view for the Business shell (ADR-164 D6): ?audience=company paints a coverage desk through the shared kit from /entities, /home-summary and /pulls for the most covered subject over 30 days (tracked subjects with a quiet-for-24-h status, the last day's coverage counts, headlines opening their source in a new tab, the next recorded event, the pull-rate), and the dashboard's window binding and load() run only when no audience view renders. The block is plain string concatenation because this page is a String.raw template. Guards: tests/audience-view.test.cjs, tests/surface-parse.test.js.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: the dashboard reads sentiment through oshal's own observed outlet ratings (core ADR-061, 2026-10-01; the seed table and its political/economic/kind axes are retired). The lean axis shows sources that usually read below, near and above the others; the by-source table shows each rating with its compared subject-days, subjects and date range, or insufficient data below the stated minimums; the note states the method with its own numbers. A server that reports no ratings gets a plain notice instead of numbers. Guard: tests/surface-ratings.test.js.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: a "Sources & schedules" header link to the operator page (/api/world/operations/app), shown only when its operator-only route answers /ping; the dashboard itself stays read-only.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Phone width: the stacked grid column is minmax(0,1fr) and main may shrink below its content, so the by-source table (nowrap, ~1224px) scrolls inside its own box instead of widening the whole page to 1290px. Guard: scripts/phone-screens.browser.cjs (world).
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WORLD_APP_HTML = void 0;
@@ -141,6 +142,11 @@ exports.WORLD_APP_HTML = String.raw `<!doctype html>
   header .ops { color:var(--accent); font-size:12px; text-decoration:none; white-space:nowrap; }
   header .win { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.5px; display:flex; align-items:center; gap:6px; }
   header .win select { background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:3px 6px; font:12px Inter,system-ui,sans-serif; text-transform:none; letter-spacing:0; }
+  .win-pills { display:inline-flex; flex-wrap:wrap; gap:4px; align-items:center; }
+  .win-pill { cursor:pointer; user-select:none; background:var(--panel2); color:var(--muted); font:600 11px Inter,system-ui,sans-serif; padding:3px 8px; border-radius:999px; border:1px solid var(--line); }
+  .win-pill:hover, .win-pill:focus-visible { border-color:var(--accent); color:var(--ink); outline:none; }
+  .win-pill.active { background:var(--panel); border-color:var(--accent); color:var(--accent); }
+  .subj:focus-visible { outline:1px solid var(--accent); outline-offset:-1px; }
   .wrap { display:grid; grid-template-columns:280px 1fr; height:calc(100vh - 52px); }
   .rail { border-right:1px solid var(--line); overflow:auto; background:var(--panel2); }
   .rail h2 { font:600 11px Inter; text-transform:uppercase; letter-spacing:1px; color:var(--muted); padding:14px 16px 6px; margin:0; }
@@ -177,19 +183,20 @@ exports.WORLD_APP_HTML = String.raw `<!doctype html>
   /* Mobile: the fixed 280px rail crushes the main pane on a phone. Stack them — the subject
      rail becomes a bounded, scrollable strip on top and the detail flows below (page scrolls). */
   @media (max-width: 700px) {
-    .wrap { grid-template-columns:1fr; height:auto; }
+    .wrap { grid-template-columns:minmax(0,1fr); height:auto; }
     .rail { border-right:none; border-bottom:1px solid var(--line); max-height:40vh; }
     header { flex-wrap:wrap; }
     header .sub { margin-left:0; flex-basis:100%; }
-    main { padding:14px; overflow:visible; }
+    main { padding:14px; overflow:visible; min-width:0; }
     .bar { grid-template-columns:88px 1fr 46px; gap:8px; }
     .stat { min-width:calc(50% - 5px); flex:1; }
-    table { display:block; overflow-x:auto; white-space:nowrap; }
+    table { display:block; max-width:100%; overflow-x:auto; white-space:nowrap; }
   }
 </style>
 </head>
 <body>
 <header>
+  <a id="cockpit-link" class="ops" href="/cockpit/">&larr; Cockpit</a>
   <span class="dot"></span>
   <h1>World Intelligence</h1>
   <label class="win">window
@@ -200,6 +207,12 @@ exports.WORLD_APP_HTML = String.raw `<!doctype html>
       <option value="3650">all history</option>
     </select>
   </label>
+  <div class="win-pills" role="group" aria-label="Time window">
+    <div class="pill win-pill" role="button" tabindex="0" data-win="30">30 days</div>
+    <div class="pill win-pill active" role="button" tabindex="0" data-win="90">90 days</div>
+    <div class="pill win-pill" role="button" tabindex="0" data-win="365">1 year</div>
+    <div class="pill win-pill" role="button" tabindex="0" data-win="3650">all history</div>
+  </div>
   <span class="sub">bias-aware sentiment &middot; entity graph &middot; pull-rate</span>
   <a id="ops-link" class="ops" href="/api/world/operations/app" hidden>Sources &amp; schedules</a>
 </header>
@@ -244,11 +257,30 @@ let win = 90;
 // "changed the window while a read was in flight" race with one guard.
 let gen = 0;
 
+function syncWinPills() {
+  document.querySelectorAll('.win-pill').forEach(p => {
+    const active = Number(p.dataset.win) === win;
+    p.classList.toggle('active', active);
+    if (p.setAttribute) p.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
+
+function setWin(w) {
+  win = Number(w) || 90;
+  const sel = document.getElementById('win');
+  if (sel) sel.value = String(win);
+  syncWinPills();
+  if (subjects.length) select(selected);
+}
+
 // Operators get a link to the Sources & schedules page: its route answers only for an operator, so everyone
 // else never sees the link. Full page only (load() never runs under an audience view); a probe that fails
 // leaves the link hidden and never stops the dashboard.
 function showOpsLink() {
   try {
+    if (window.self && window.top && window.self !== window.top) {
+      document.getElementById('cockpit-link').hidden = true;
+    }
     fetch('/api/world/operations/ping', { credentials: 'same-origin' })
       .then((r) => { if (r.ok) document.getElementById('ops-link').hidden = false; })
       .catch(() => {});
@@ -257,6 +289,12 @@ function showOpsLink() {
 
 async function load() {
   showOpsLink();
+  document.querySelectorAll('.win-pill').forEach(p => {
+    const pickWin = () => setWin(p.dataset.win);
+    p.onclick = pickWin;
+    p.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickWin(); } };
+  });
+  syncWinPills();
   const r = await api('/entities?limit=60');
   if (r && r.enabled === false) {
     const msg = esc(r.message || 'World Intelligence is not configured yet.');
@@ -268,9 +306,13 @@ async function load() {
   const el = document.getElementById('subjects');
   if (!subjects.length) { el.innerHTML = '<div class="note" style="padding:16px">No subjects tracked yet. Ask the World Analyst to ingest one, or run the <code>world_ingest</code> tool.</div>'; return; }
   el.innerHTML = subjects.map((s,i) =>
-    '<div class="subj" data-i="'+i+'"><div class="nm">'+esc(s.label)+'</div><div class="meta">'+s.items+' items &middot; '+s.entity+'</div></div>'
+    '<div class="subj" role="button" tabindex="0" data-i="'+i+'"><div class="nm">'+esc(s.label)+'</div><div class="meta">'+s.items+' items &middot; '+s.entity+'</div></div>'
   ).join('');
-  el.querySelectorAll('.subj').forEach(n => n.onclick = () => select(Number(n.dataset.i)));
+  el.querySelectorAll('.subj').forEach(n => {
+    const pick = () => select(Number(n.dataset.i));
+    n.onclick = pick;
+    n.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } };
+  });
   select(0);
 }
 function esc(s){ return String(s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
@@ -278,7 +320,10 @@ function esc(s){ return String(s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'
 function select(i) {
   selected = i;
   const g = ++gen;
-  document.querySelectorAll('.subj').forEach((n,j) => n.classList.toggle('active', j===i));
+  document.querySelectorAll('.subj').forEach((n,j) => {
+    n.classList.toggle('active', j===i);
+    if (n.setAttribute) n.setAttribute('aria-selected', j===i ? 'true' : 'false');
+  });
   const s = subjects[i]; if (!s) return;
   const main = document.getElementById('main');
   // Progressive load: paint the shell immediately and fill each card as its read lands. The three
@@ -374,7 +419,7 @@ function statBox(k,v){ return '<div class="stat"><div class="k">'+k+'</div><div 
 // The full page only: under an audience view the shared kit paints instead (see the head script), so the dashboard
 // neither binds its window control nor reads the subjects, sentiment, graph and pull ledger.
 if (!window.AppView || !AppView.active()) {
-  document.getElementById('win').onchange = (e) => { win = Number(e.target.value) || 90; if (subjects.length) select(selected); };
+  document.getElementById('win').onchange = (e) => { win = Number(e.target.value) || 90; syncWinPills(); if (subjects.length) select(selected); };
   load().catch(e => { document.getElementById('main').innerHTML = '<div class="empty">Failed to load: '+esc(String(e))+'</div>'; });
 }
 </script>

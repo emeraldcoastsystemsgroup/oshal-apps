@@ -2,6 +2,7 @@
  * CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Use original native owner ports for bounded media and durable real exports; keep legacy FFmpeg lifecycle unchanged.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Overlay one complete validated native success receipt instead of mixing fresh success with a stale SQL row.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  */
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -137,7 +138,9 @@ async function status(env, row) {
 }
 /** @description Canonical native export request records actual SQL revision then captures original durable work before202. */
 async function start(env, req, res, owner) {
-    (0, video_editor_validation_1.exactFields)(req.body ?? {}, ['revision', 'variant']);
+    (0, video_editor_validation_1.exactFields)(req.body ?? {}, ['id', 'revision', 'variant']);
+    if (req.body.id !== undefined && (0, video_editor_validation_1.editorId)(req.body.id) !== (0, video_editor_validation_1.editorId)(req.params.id))
+        throw new video_editor_types_1.EditorError(400, 'invalid_video_edit_id');
     const kind = req.body.variant ?? 'export';
     if (!['export', 'preview'].includes(kind))
         throw new video_editor_types_1.EditorError(400, 'invalid_video_edit_export_variant');
@@ -163,8 +166,10 @@ function nativeExportRoutes(router, env) {
         res.json({ export: await status(env, await env.exportStore.get(owner, (0, video_editor_validation_1.editorId)(req.params.id), String(epoch))) });
     }));
     router.post('/editor/exports/:id/cancel', (0, video_editor_http_1.admit)(env, 'export'), video_editor_http_1.bodyParser, (0, video_editor_http_1.handler)(env, 'export', async (req, res, owner) => {
-        (0, video_editor_validation_1.exactFields)(req.body ?? {}, []);
+        (0, video_editor_validation_1.exactFields)(req.body ?? {}, ['id']);
         const id = (0, video_editor_validation_1.editorId)(req.params.id);
+        if (req.body.id !== undefined && (0, video_editor_validation_1.editorId)(req.body.id) !== id)
+            throw new video_editor_types_1.EditorError(400, 'invalid_video_edit_id');
         const { epoch } = await call(env, { op: 'epoch' });
         const row = await env.exportStore.requestCancel(owner, id, String(epoch), (0, video_editor_http_1.confirm)(env, 'export', owner));
         await call(env, { op: 'export_cancel', id });

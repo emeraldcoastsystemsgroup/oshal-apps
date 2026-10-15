@@ -8,10 +8,12 @@ exports.exactFields = exactFields;
 exports.validateDocument = validateDocument;
 exports.projectInput = projectInput;
 exports.documentAssets = documentAssets;
+exports.loadProjectAgent = loadProjectAgent;
 /**
  * CHANGE LOG
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Validate bounded inert project JSON and canonical immutable raster asset references without trusting identity fields.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  */
 const create_project_types_1 = require("./create-project-types");
 const node_crypto_1 = require("node:crypto");
@@ -108,4 +110,10 @@ function documentAssets(document) {
         return { id, width: image.width, height: image.height };
     });
 }
-//# sourceMappingURL=create-project-validation.js.map
+/** Load only the installed trusted immutable editor adapter; no request selects executable code. */
+function loadProjectAgent(packageDir) {
+    const file = (0, node_path_1.resolve)(packageDir, 'tools/editor/agent-tools.mjs');
+    const url = (0, node_url_1.pathToFileURL)(file);
+    url.searchParams.set('revision', (0, node_crypto_1.createHash)('sha256').update((0, node_fs_1.readFileSync)(file)).digest('hex'));
+    return import(url.href);
+}

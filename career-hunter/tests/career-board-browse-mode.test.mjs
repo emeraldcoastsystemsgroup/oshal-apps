@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Drive the board surface's real onboarding gate to prove the pre-resume browse mode and the Apply-to-upload handoff.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: a full browse page is not the corpus: the header says the roles are shown and more match, and a last page keeps its plain count.
  */
 /**
  * Guards for the board's pre-resume BROWSE mode.
@@ -71,7 +72,7 @@ const hidden = (el) => el.style.display === 'none';
  * @param resumeState - What `/api/career-hunter/resume/state` answers.
  * @returns The VM context plus the request log and element registry.
  */
-function bootBoard(resumeState) {
+function bootBoard(resumeState, browse = {}) {
   const elements = new Map();
   const el = (id) => {
     if (!elements.has(id)) elements.set(id, makeElement(id));
@@ -96,6 +97,7 @@ function bootBoard(resumeState) {
           id: 42, title: "Rick's <b>Platform</b> Engineer", company: 'Northwind',
           url: 'https://example.test/42', location: 'Remote', remote: 1, salary_max: 210000,
         }],
+        ...browse,
       };
     }
     if (url.startsWith('/api/career-hunter/jobs')) return { jobs: [], pooled: false };
@@ -286,4 +288,13 @@ test('a failed ingest still takes the whole screen — it needs the user, not a 
   await settle();
   assert.equal(hidden(el('list')), true);
   assert.match(el('onboard').innerHTML, /Resume indexing failed/);
+});
+
+test('a full browse page says more roles match; a last page keeps its plain count (sweep 12)', async () => {
+  const full = bootBoard(NO_RESUME, { exhausted: false });
+  await settle();
+  assert.match(full.el('count').innerHTML, /^1 open role shown <span class="hint">· more roles match: search or filter to narrow<\/span>$/);
+  const last = bootBoard(NO_RESUME, { exhausted: true });
+  await settle();
+  assert.equal(last.el('count').innerHTML, '1 open role');
 });

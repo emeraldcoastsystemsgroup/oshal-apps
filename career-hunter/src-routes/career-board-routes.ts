@@ -10,6 +10,8 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Record every board-side applied assertion as a durable Apply V2 manual_mark before changing the SQLite projection.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | DELETE /jobs/:id/packet (1.26.0): discard the caller's own generated packet through the engine's `packet-remove` in the leased child that owns the store (the packet folder under the caller's applications directory and the caller's own per-posting row, returned to unworked). 404 when the caller has no packet for the posting, 409 once the posting is applied or later (its packet is the application record). Until now a packet could be regenerated but never discarded.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Expose native summary counters from actual applied and interview status buckets.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | The Insights BY STATE label for a posting with no state showed a twice-encoded em dash (its UTF-8 bytes saved again as Latin-1 text). The SQL now names the em dash as an ASCII escape, so the label is "(remote/—)" whatever the file encoding. Guard: tests/career-insights-state-label.test.mjs.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | GET /analytics reads through career-insights.ts (covering indexes, one pass of the caller's scores); live 2026-10-12 the five corpus-row aggregates stalled past the kernel's 10 s frame deadline on a cold page cache (503, Insights all zeros). A corpus without the Insights index answers 503 with a plain reason at once instead of scanning.
  */
 
 /**
@@ -31,6 +33,7 @@ import { runCareerCliAsync, runCareerCliAwait } from './career-engine-dispatch';
 import { rejectEngineStart } from './career-engine-response';
 import { parseEngineJson } from './career-targets';
 import { callerSub, openUserDb, userPaths } from './career-user-store';
+import { InsightsNotReady, readAnalytics } from './career-insights';
 
 const logger = createChildLogger({ module: 'career-board-routes' });
 const ALLOWED_STATUS = new Set([
@@ -94,48 +97,6 @@ function getJobStats(req: Request, res: Response): void {
   } finally { try { db.close(); } catch (err) { logger.warn({ err }, 'career stats database close failed'); } }
 }
 
-function readAnalytics(db: any): Record<string, unknown> {
-  const lane = 'FROM corpus.postings_corpus p LEFT JOIN user_signals s ON s.posting_id=p.id WHERE p.active=1 AND COALESCE(p.target_role,0)=1';
-  const score = 'COALESCE(s.ai_fit_score,s.fit_score,0)';
-  const pay = 'CASE WHEN p.salary_max>0 AND p.salary_max<=1000000 THEN p.salary_max END';
-  const headline = db.prepare(
-    `SELECT COUNT(*) AS inlane,
-            SUM(CASE WHEN ${score}>=70 THEN 1 ELSE 0 END) AS fit70,
-            SUM(CASE WHEN ${score}>=80 THEN 1 ELSE 0 END) AS fit80,
-            SUM(CASE WHEN p.posted_date>=date('now','-7 days') THEN 1 ELSE 0 END) AS fresh7d,
-            CAST(AVG(CASE WHEN ${score}>=70 THEN ${pay} END) AS INT) AS avg_pay_fit70,
-            COUNT(DISTINCT p.company_id) AS companies ${lane}`,
-  ).get();
-  const funnel = db.prepare(
-    `SELECT (SELECT COUNT(*) ${lane}) AS sourced,
-            (SELECT COUNT(*) ${lane} AND ${score}>=70) AS qualified,
-            (SELECT COUNT(*) FROM user_signals WHERE status='generated') AS generated,
-            (SELECT COUNT(*) FROM user_signals WHERE status='applied') AS applied,
-            (SELECT COUNT(*) FROM user_signals WHERE status='interview') AS interview,
-            (SELECT COUNT(*) FROM user_signals WHERE status='offer') AS offer,
-            (SELECT COUNT(*) FROM user_signals WHERE status='promoted') AS promoted`,
-  ).get();
-  const topCompanies = db.prepare(
-    `SELECT c.name AS company, COUNT(*) AS roles, CAST(AVG(${score}) AS INT) AS avg_fit,
-            MAX(COALESCE(c.referral,0)) AS referral
-       FROM corpus.postings_corpus p JOIN corpus.companies c ON c.id=p.company_id
-       LEFT JOIN user_signals s ON s.posting_id=p.id
-      WHERE p.active=1 AND COALESCE(p.target_role,0)=1
-      GROUP BY c.id ORDER BY roles DESC, avg_fit DESC LIMIT 12`,
-  ).all();
-  const states = db.prepare(
-    `SELECT COALESCE(NULLIF(p.state,''),'(remote/â€”)') AS state, COUNT(*) AS n
-       ${lane} GROUP BY 1 ORDER BY n DESC LIMIT 12`,
-  ).all();
-  const salaryBands = db.prepare(
-    `SELECT CASE WHEN ${pay} IS NULL THEN 'n/a' WHEN ${pay}<150000 THEN '<150k'
-                 WHEN ${pay}<200000 THEN '150-200k' WHEN ${pay}<250000 THEN '200-250k'
-                 WHEN ${pay}<350000 THEN '250-350k' ELSE '350k+' END AS band, COUNT(*) AS n
-       ${lane} AND ${score}>=70 GROUP BY band ORDER BY n DESC`,
-  ).all();
-  return { headline, funnel, topCompanies, states, salaryBands };
-}
-
 function getAnalytics(req: Request, res: Response): void {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
@@ -143,6 +104,11 @@ function getAnalytics(req: Request, res: Response): void {
   if (!db) { res.json({ empty: true }); return; }
   try { res.json(readAnalytics(db)); }
   catch (err) {
+    if (err instanceof InsightsNotReady) {
+      logger.warn({ userSub, reason: err.code }, 'career analytics refused: insights index missing');
+      res.status(503).json({ error: err.message, reason: err.code });
+      return;
+    }
     logger.error({ err, userSub }, 'career analytics failed');
     res.status(500).json({ error: 'analytics failed' });
   } finally { try { db.close(); } catch (err) { logger.warn({ err }, 'analytics database close failed'); } }

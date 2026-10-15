@@ -17,6 +17,8 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-06-17 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com | Initial — Plaid request helper (env-selectable sandbox/production), link-token + public_token exchange + sandbox-item helpers, and fetchFinanceAggregate (balances + investment holdings + transactions → compact net-worth/holdings/spend aggregate). Read-only; per-product try/catch so one unready product never fails the whole sync.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | T8: createLinkToken retries without PLAID_REDIRECT_URI when Plaid answers INVALID_FIELD (the return address is not registered yet), the same fallback the kernel adapter has, so Link still opens with Plaid's pop-up OAuth. removeItem answers whether Plaid was told ({providerDisconnected}); ITEM_NOT_FOUND counts as disconnected (nothing left at Plaid), INVALID_ACCESS_TOKEN no longer does: after a PLAID_ENV change the item stays live and billable, so it throws with the reconnect-or-dashboard message and the caller keeps the row.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Same Plaid contract as the native kernel adapter: Link asks for transactions with investments optional (banks without brokerage products are listed), sends PLAID_REDIRECT_URI for OAuth banks when set, balances come from /accounts/get, transactions page up to 2000 in the window, and removeItem disconnects an item at Plaid (an already-gone item counts as removed).
  *
  * @module finance-plaid
  */
@@ -116,14 +118,24 @@ export async function plaidRequest<T = Record<string, unknown>>(pathname: string
  * @returns The short-lived link_token the browser hands to Plaid.create({token}).
  */
 export async function createLinkToken(userSub: string): Promise<string> {
-  const j = await plaidRequest<{ link_token: string }>('/link/token/create', {
+  const body: Record<string, unknown> = {
     user: { client_user_id: userSub },
     client_name: 'OSHAL Finance',
-    products: ['transactions', 'investments'],
+    products: ['transactions'],
+    optional_products: ['investments'],
     country_codes: ['US'],
     language: 'en',
-  });
-  return j.link_token;
+  };
+  if (process.env.PLAID_REDIRECT_URI) {
+    try {
+      return (await plaidRequest<{ link_token: string }>('/link/token/create', { ...body, redirect_uri: process.env.PLAID_REDIRECT_URI })).link_token;
+    } catch (err) {
+      // The return address is not registered in the Plaid dashboard yet: Link still opens, and OAuth
+      // banks use Plaid's pop-up window instead of a redirect (the kernel adapter falls back the same way).
+      if ((err as PlaidError).plaidCode !== 'INVALID_FIELD') throw err;
+    }
+  }
+  return (await plaidRequest<{ link_token: string }>('/link/token/create', body)).link_token;
 }
 
 /** A linked Plaid Item (one institution login) ready to store. */
@@ -160,6 +172,29 @@ export async function createSandboxItem(institutionId?: string): Promise<Exchang
     initial_products: ['transactions', 'investments'],
   });
   return exchangePublicToken(pt.public_token);
+}
+
+/**
+ * @description Disconnect an item at Plaid so it stops sharing data and being billed. An item
+ * Plaid no longer knows is already disconnected.
+ * @param accessToken - The item's Plaid access token.
+ * @returns Whether Plaid was told (ITEM_NOT_FOUND counts: nothing is left at Plaid); throws a PlaidError when
+ * Plaid refuses, including INVALID_ACCESS_TOKEN, after which the item may still be live and billed.
+ */
+export async function removeItem(accessToken: string): Promise<{ providerDisconnected: boolean; reason?: string }> {
+  try {
+    await plaidRequest('/item/remove', { access_token: accessToken });
+    return { providerDisconnected: true };
+  } catch (err) {
+    const code = (err as PlaidError).plaidCode;
+    if (code === 'ITEM_NOT_FOUND') return { providerDisconnected: true, reason: code };
+    if (code === 'INVALID_ACCESS_TOKEN') {
+      const refusal: PlaidError = new Error("Plaid no longer accepts this connection's credential (often after a PLAID_ENV change), so the item may still be live and billed. Reconnect the bank, or remove the item in the Plaid dashboard; the connection stays listed here until then.");
+      refusal.plaidCode = code; refusal.status = (err as PlaidError).status;
+      throw refusal;
+    }
+    throw err;
+  }
 }
 
 /** Resolve an item's institution display name; falls back to a generic label. */
@@ -205,7 +240,7 @@ async function foldItem(
 /** Add an item's account balances to the aggregate. */
 async function foldBalances(accessToken: string, institution: string, acc: { accounts: FinanceAccount[]; notes: string[] }): Promise<void> {
   try {
-    const bal = await plaidRequest<{ accounts: PlaidApiAccount[] }>('/accounts/balance/get', { access_token: accessToken });
+    const bal = await plaidRequest<{ accounts: PlaidApiAccount[] }>('/accounts/get', { access_token: accessToken });
     for (const a of bal.accounts || []) {
       acc.accounts.push({
         name: a.name || a.official_name || 'Account',
@@ -255,10 +290,16 @@ async function foldTransactions(
   const start = new Date(end.getTime() - windowDays * 86_400_000);
   const fmt = (d: Date): string => d.toISOString().slice(0, 10);
   try {
-    const tx = await plaidRequest<{ transactions: PlaidApiTxn[] }>('/transactions/get', {
-      access_token: accessToken, start_date: fmt(start), end_date: fmt(end), options: { count: 250, offset: 0 },
-    });
-    for (const t of tx.transactions || []) {
+    const rows: PlaidApiTxn[] = [];
+    for (let page = 0; page < 4; page++) {
+      const tx = await plaidRequest<{ transactions: PlaidApiTxn[]; total_transactions?: number }>('/transactions/get', {
+        access_token: accessToken, start_date: fmt(start), end_date: fmt(end), options: { count: 500, offset: rows.length },
+      });
+      const batch = tx.transactions || [];
+      rows.push(...batch);
+      if (batch.length < 500 || rows.length >= Number(tx.total_transactions || 0)) break;
+    }
+    for (const t of rows) {
       acc.txns.push({
         date: t.date || '', name: t.merchant_name || t.name || 'Transaction',
         amount: Number(t.amount || 0),

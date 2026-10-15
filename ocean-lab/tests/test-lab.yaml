@@ -8,6 +8,10 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0, ADR-160 S3: register the explorer's parts model (engine-explorer-parts), its routes over loopback with the parts live-acceptance script driven against a CAD Studio double (vehicle-parts-routes), the parts section and Open in CAD Studio in the browser (explorer-surface gains an expectation), and the parts walk for after install (explorer-parts-live-acceptance), which builds every part through the real OCCT kernel in CAD Studio.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0, ADR-160 S3: register explorer-parts-occt, which feeds the six part programs to CAD Studio's own engine image in one isolated container and requires every feature accepted, a valid seated solid, the lab's volume or mass within 0.5 % and a watertight Euler-2 STL; a missing image fails it by name.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.3.1: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register harvest-console-crosscheck: the console's server cross-check POSTs its own design to /harvest/simulate (it asked a GET the package never served), and the server's verdict agrees with the console model.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register engine-explorer-delete: the Explorer tile's Delete asks first, a confirmed delete sends DELETE /vehicles/:id for the open record and returns to the create card, a refusal keeps the record and says why.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register harvest-console-crosscheck-refresh: a changed control drops the server's verdict for the previous design and asks about the current one once the controls settle; an older answer never lands.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Register analysis-brief-labels: Blade Studio's and Harvest Console's analysis briefs label every line in the words on screen, not element ids (sweep 13).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -86,6 +90,29 @@ cases:
       - "Rows 0.000 / 0.033 / 0.103 / 0.396 / 1.310 m/s with their knots and km/day, each within half a unit of the printed digit."
       - 0.46 knots mean, 65 % under way, 20.4 km/day and 7,444 km/year.
       - Every row under its kinematic ceiling and every reconstructed sea short of the 1/7 breaking steepness.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: engine-explorer-delete
+    name: The Explorer tile deletes its record
+    purpose: Run the shipped tools/explorer.js in a vm with stub elements and a fetch that serves one synthetic concept explorer; press Delete with the confirm declined and accepted, and with the server refusing.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-explorer-delete.test.js
+    expected:
+      - The tile carries "Delete this explorer" wired to its delete function.
+      - A declined confirm sends no request and leaves the record on screen.
+      - A confirmed delete sends DELETE /api/ocean-lab/vehicles/:id for the open record, hides the record and shows the create card.
+      - A refused delete keeps the record on screen and names the status and error.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -378,4 +405,67 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: harvest-console-crosscheck
+    name: Harvest console server cross-check request
+    purpose: Run the shipped Harvest Siting Console script and the compiled harvest router together in node, with an express stand-in - no browser, network or database.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/harvest-console-crosscheck.test.cjs
+    expected:
+      - The console never issues GET /api/ocean-lab/harvest/simulate; it POSTs serverSimulationRequest(state).
+      - The request is accepted (200) for every wiring, site and soil the console offers.
+      - The server's verdict matches the console's own model - perpetual exactly, margin within 1 %.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: harvest-console-crosscheck-refresh
+    name: Harvest console cross-check follows the current design
+    purpose: Boot the shipped Harvest Siting Console script in a VM over a minimal DOM, a recording fetch and a hand-driven clock - no browser, network or server.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/harvest-console-crosscheck-refresh.test.cjs
+    expected:
+      - Boot asks about the default design once.
+      - A changed control drops the old verdict at once (the row reads checking…) and nothing is asked until the controls settle.
+      - Once settled, the current design is POSTed and its verdict shown; an answer for an older design is discarded and a failed check shows no verdict.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+    installation: never
+  - id: analysis-brief-labels
+    name: "The analysis briefs label their lines in words"
+    purpose: "Run Blade Studio's and Harvest Console's shipped Use visible results handlers over a stub DOM - no browser or network."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/analysis-brief-labels.test.cjs
+    expected:
+      - "Each brief line carries the on-screen label (Harvest margin, Min store, Deepest charge, ...) and no element id."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
     installation: never

@@ -1,0 +1,9 @@
+/** CHANGE LOG
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Retain original actor and fresh named document authority across every awaited boundary.
+ */
+import {fail} from './model.mjs';
+export const ACTIONS=['view','read','create','change','delete','export','ocr','job.read','job.manage'];
+export function identity(ctx){const actor=ctx.authorization?.currentActor();if(!actor?.isActive||typeof actor.issuer!=='string'||typeof actor.sub!=='string'||!actor.issuer||!actor.sub)fail(401,'pdf_original_actor_required');return{issuer:actor.issuer,sub:actor.sub};}
+export function bindRequest(ctx){const original=identity(ctx);const current=()=>{const now=identity(ctx);if(now.issuer!==original.issuer||now.sub!==original.sub)fail(401,'pdf_identity_changed');return ctx.authorization.currentActor();};return{...ctx,authorization:{...ctx.authorization,currentActor:current,authorize:async query=>{current();const result=await ctx.authorization.authorize(query);current();return result;}},intent:async(name,input)=>{current();const result=await ctx.intent(name,input);current();return result;}};}
+export async function access(ctx,action,expected){const owner=identity(ctx);if(expected&&(owner.issuer!==expected.issuer||owner.sub!==expected.sub))fail(401,'pdf_identity_changed');const required=new Set(['view',...(['change','delete','export','ocr','job.manage'].includes(action)?['read',action]:[action])]);for(const name of required)if(!(await ctx.authorization.authorize({permission:'document.'+name})).allowed)fail(403,'pdf_permission_denied');const now=identity(ctx);if(now.issuer!==owner.issuer||now.sub!==owner.sub)fail(401,'pdf_identity_changed');return owner;}
+export async function permissions(ctx){const result={};for(const action of ACTIONS){try{await access(ctx,action);result[action]=true;}catch{result[action]=false;}}return result;}

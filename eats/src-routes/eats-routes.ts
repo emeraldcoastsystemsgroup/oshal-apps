@@ -32,6 +32,16 @@
  * 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove the final credential-bearing subprocess. Catalog/menu/handoff calls now use the import-safe core helper with the current request's explicit credential value.
  * 2026-09-26 | maintainer@emeraldcoastsystemsgroup.com | Commerce surfaces (backlog "Consumer commerce native surfaces"): (1) POST /cart/items no longer trusts the browser's price, title, store name or image — it reads the restaurant's menu (the provider 'menu' operation for storeId) and prices the line from the item whose productId matches exactly (menuItemFor), refusing an item the menu does not list with 422 unknown_item. (2) Every total (/cart, the order record, the chat proposal) is summed in integer cents by ./cart-totals; the cart responses keep items/total and add totalCents + unpricedLines. (3) A chat "checkout" no longer calls buildOrder (which wrote eats_orders) in the same request: it returns a `proposal` the surface shows as a confirm card, and only the diner's confirm calls POST /order. `checkout` stays in the reply (always null) for older surfaces.
  * 2026-10-08 | maintainer@emeraldcoastsystemsgroup.com | GET /cart is a pure read. loadCart created the diner's cart (INSERT INTO eats_carts) when none existed; the native host admits a GET read-only and refuses any SQL write, so every first visit answered 500 'SQL mutation requires original writer admission'. readCart answers the unchanged shape with cartId, storeId and storeName null and no lines when there is no active cart; POST /cart/items (and the other write routes) still create it through getOrCreateCart.
+ * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | No Uber Eats rail is said, not refused before the concierge speaks. The chat turn probes the runtime's Uber Eats `status` first; where it answers mode not_connected (the native kernel has no Uber Eats connector, and calling search or menu there refuses 503 and fails the whole call) the turn skips the catalog and the concierge answers with that fact. /config carries `rail` and the sentence. Guard: tests/eats-no-rail.test.js.
+ * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | Saved notes are not this request. Sweeps 5 and 6: asked for something vegetarian, the concierge answered 'vegetarian and spicy'; the diner's saved notes held 'wants spicy food' five times (one earlier 'something spicy for dinner', then re-saved every turn). The prompt now calls them SAVED PREFERENCES from earlier conversations that are never restated as the current request, "remember" takes only a new preference stated in this message, and newNotes() drops a note already saved. Guard: tests/eats-saved-notes.test.js.
+ * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | Live re-drive still folded "spicy food desire" into the reply: a note saved many times is now shown once in the prompt (newNotes over the loaded notes), and a saved preference is asked about as its own question, never folded into the summary of the request. Guard: tests/eats-saved-notes.test.js.
+ * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | A search that never ran is not reported as empty. With no Uber Eats rail the chat skips the catalog, yet the prompt still headed CANDIDATES 'real, from search' over '(no results for this message ... or that nothing matched)', and the concierge told the diner there were no vegetarian restaurants in the search results. With no rail the block now says no search ran and forbids calling it an empty result. Guard: tests/eats-no-rail.test.js.
+ *
+ * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | Sweep 8: the concierge's reply was shown as the raw object ('{ "say": ... "remember": [...] }') because the model left out the commas between fields and the parse fallback returned the whole text. parseEnvelope repairs missing field commas and, for an envelope still unparsable, shows only its "say" text. A remember entry is saved only when it shares a word with the diner's message (statedNotes): the turn had remembered 'spicy preference', 'address: pending' and 'not on boarded' for a vegetarian request. Guard: tests/eats-envelope.test.js.
+ * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | A stated allergy is always saved. statedNotes matched whole words, so for "I'm allergic to peanuts, hold the onion, I eat vegan" it kept only 'vegan' and dropped 'peanut allergy' and 'no onions'. Words now match by stem ("allergic"/"allergy", "peanuts"/"peanut"), short food words such as egg, soy and nut count, and an allergy, intolerance or diet note is kept whenever the message states one. A "say" holding a raw newline is parsed instead of falling back to the route's default text, and that default names options only when cards are shown with it. A parsed envelope with an empty say gets that default too: the say fell back to the whole raw text, and the native kernel's cleanConciergeReply returns its fallback unchanged, so the diner saw the object. Guard: tests/eats-stated-notes.test.js.
+ * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | Sweep 9: GET /profile also answers "remembered", the concierge's saved notes once each and marked when they record an allergy, an intolerance or a diet, so the Dietary preferences card shows a remembered allergy (it read "No diet set") and the page lists what is remembered; POST /notes/forget removes every saved copy of one of the caller's notes (the concierge kept using "wants spicy food", invented and saved before the remember filter, and nothing could remove it). See remembered-notes.ts.
+ * 2026-10-13 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the in-app concierge bubble showed '1. **Mushroom Risotto** ...' with its asterisks (the surface writes the reply as text). plainProse() takes chat bold/italic and heading marks out of the reply before it is saved and returned; the words and list lines stay. Guard: tests/eats-plain-reply.test.js.
+ * 2026-10-13 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 2: after "I have noted your peanut allergy" the concierge suggested a Vegetarian Pad Thai (usually made with peanuts) with no warning. allergyGuard() reads the diner's restrictions from the message, the saved notes and the profile's dietary list (./allergen-check); a search dish that names an allergen or is usually made with it is held back from the prompt, the cards and the cart, the prompt states the restrictions and the held dishes as facts, and a dish the reply names that usually carries one, in a sentence that does not name the risk, gets its own allergy-check line (response `allergy.check`, saved with the reply). The bot dispatch moved to askConcierge(). Guard: tests/eats-allergens.test.js.
  *
  * @module eats-routes
  */
@@ -49,6 +59,8 @@ import { resolveServerOperationCreds } from '@/app/routes/connector-token-broker
 import { runUberEatsProviderOperation } from '@/app/routes/provider-operation-clients';
 import { ConciergeStore } from '@/app/routes/concierge-store';
 import { cleanConciergeReply } from '@/app/routes/concierge-reply';
+import { forgetNote, rememberedList } from './remembered-notes';
+import { allergyCheckLine, dinerRestrictions, holdConflicting, restrictionPrompt, unwarnedMentions, type Conflict, type Restriction } from './allergen-check';
 import { BotNodeClient, createRegistryEndpointResolver } from '@/features/agent-management';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 
@@ -98,6 +110,23 @@ async function uberEatsProviderOperation(pool: Pool, sub: string, args: string[]
     'fixed-server-operation',
   );
   return runUberEatsProviderOperation(creds.OSHAL_CRED_UBER, args);
+}
+
+/** What a diner is told where the installation has no Uber Eats rail at all. */
+export const EATS_NO_RAIL = 'This installation has no Uber Eats rail (no Uber Eats connector exists here), so restaurants, menus and checkout links cannot be searched or opened from here.';
+
+/**
+ * @description Whether the runtime has an Uber Eats rail. The native kernel's `status` answers mode
+ * not_connected and refuses every other operation with 503 (failing the whole call), so a route that
+ * only wants to know must ask `status`, never search.
+ * @param pool - The package pool.
+ * @param sub - The caller.
+ * @returns absent=true where there is no rail, with the runtime's reason.
+ */
+async function uberEatsRail(pool: Pool, sub: string): Promise<{ absent: boolean; reason: string | null }> {
+  const st = await uberEatsProviderOperation(pool, sub, ['status']);
+  const absent = !!st && st.mode === 'not_connected';
+  return { absent, reason: absent ? String(st.reason || EATS_NO_RAIL) : null };
 }
 
 // ── Schema ───────────────────────────────────────────────────────────────────
@@ -323,9 +352,42 @@ async function buildOrder(pool: Pool, sub: string): Promise<{ checkoutUrl: strin
 
 interface ChatEnvelope { say: string; show: string[]; add: Array<{ productId: string; quantity: number; reason?: string }>; remember: string[]; checkout: boolean; }
 
+/** Up to 12 dishes from the first three restaurants' menus (the concierge's only addable items). */
+async function menuCandidates(run: (args: string[]) => Promise<any>, restaurants: any[]): Promise<any[]> {
+  const menus = await Promise.all(restaurants.slice(0, 3).map(async (restaurant) => {
+    if (!restaurant?.productId) return [];
+    const menu = await run(['menu', String(restaurant.productId)]);
+    return menu.items || [];
+  }));
+  return menus.flat().slice(0, 12);
+}
+
+/**
+ * @description The concierge's "remember" entries worth saving: trimmed, non-empty, not already saved and not repeated
+ * in the same turn (case and spacing ignored). The concierge re-saved "wants spicy food" on every turn after one
+ * earlier "something spicy for dinner", and the growing notes then read as part of each new request.
+ * @param remember - The envelope's remember list.
+ * @param saved - The diner's saved notes.
+ * @returns The notes to save, in order.
+ */
+export function newNotes(remember: string[], saved: string[]): string[] {
+  const key = (n: unknown) => String(n ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const seen = new Set((saved || []).map(key));
+  const out: string[] = [];
+  for (const note of remember || []) {
+    const k = key(note);
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(String(note).trim());
+  }
+  return out;
+}
+
+/** With no rail no search ran: the concierge must not report an empty result for a search that never happened. */
+const NO_SEARCH_CANDIDATES = '(no search ran: this installation has no Uber Eats rail, so there are no restaurants or dishes to offer. Never say a search came back empty, found nothing, or that nothing matched.)';
 function buildConciergePrompt(o: {
   message: string; history: Array<{ role: string; content: string }>;
-  candidates: any[]; cart: any[]; profile: any; notes: string[];
+  candidates: any[]; cart: any[]; profile: any; notes: string[]; railNote?: string; restrictions?: string;
 }): string {
   const p = o.profile || {};
   const profileLine = p.onboarded
@@ -333,19 +395,22 @@ function buildConciergePrompt(o: {
     : 'NOT ONBOARDED — warmly ask one or two questions first (dietary needs, favorite cuisines, delivery address, per-order budget), then save the profile.';
   const prods = (o.candidates || [])
     .map((c) => `- id:${c.productId} | ${c.title}${c.cuisine ? ` (${c.cuisine})` : ''}${typeof c.price === 'number' ? ` | $${c.price.toFixed(2)}` : c.priceFrom != null ? ` | from $${Number(c.priceFrom).toFixed(2)}` : ''}${c.etaMinutes ? ` | ~${c.etaMinutes}min` : ''}`)
-    .join('\n') || '(no results for this message — ask what they\'re hungry for, or that nothing matched)';
+    .join('\n') || (o.railNote ? NO_SEARCH_CANDIDATES : '(no results for this message — ask what they\'re hungry for, or that nothing matched)');
   const cart = (o.cart || []).map((c) => `- ${c.title} ×${c.quantity}${c.store_name ? ` @ ${c.store_name}` : ''}`).join('\n') || '(empty)';
-  const notes = (o.notes || []).map((n) => `- ${n}`).join('\n') || '(none yet)';
+  const notes = newNotes(o.notes || [], []).map((n) => `- ${n}`).join('\n') || '(none yet)';
   const convo = (o.history || []).map((h) => `${h.role === 'assistant' ? 'You' : 'Diner'}: ${h.content}`).join('\n');
   return [
     'You are the Eats Concierge — a warm, fast food-ordering assistant on Uber Eats. Help the diner find a restaurant + dishes, build ONE order, then hand off a checkout. Never take payment, never invent a restaurant/dish/price.',
     'Be conversational and brief. Ask ONE good question when it helps (cuisine? budget? how many?). Only show or add items from CANDIDATES below, by id. Keep ONE restaurant per order; if they pick another, confirm it\'s a new order. Set "checkout": true only when they ask to order.',
+    '"remember" only a NEW food preference the diner states in THIS message: not one already under SAVED PREFERENCES, not a guess, and never a status such as onboarding or a missing address.',
     '',
-    `CANDIDATES (real, from search — the ONLY items you may show or add):\n${prods}`,
+    o.railNote ? `CANDIDATES (none: search is not available on this installation):\n${prods}` : `CANDIDATES (real, from search — the ONLY items you may show or add):\n${prods}`,
+    o.railNote ? `THIS INSTALLATION: ${o.railNote} Say so plainly when the diner wants a restaurant, a menu or an order, and help with what to eat, dietary needs and saved preferences instead. Never tell the diner to connect Uber Eats or add an Uber Eats connection: there is no Uber Eats connector to add here.` : '',
     '',
     `DINER PROFILE: ${profileLine}`,
+    o.restrictions || '',
     `CURRENT ORDER:\n${cart}`,
-    `THINGS THE DINER TAUGHT YOU:\n${notes}`,
+    `SAVED PREFERENCES (from earlier conversations, NOT part of this request: never fold one into your summary of what the diner asked; if one matters, ask about it as its own question, e.g. "Last time you wanted spicy food. Still want that?"):\n${notes}`,
     '',
     convo ? `CONVERSATION SO FAR:\n${convo}` : '',
     '',
@@ -356,7 +421,68 @@ function buildConciergePrompt(o: {
   ].filter(Boolean).join('\n');
 }
 
-function parseEnvelope(text: string): ChatEnvelope {
+/**
+ * @description Repair the one malformation a local model was seen to emit: an object whose fields are not separated by
+ * commas (a value's closing quote, bracket or literal, a newline, then the next "key"). Only that shape is touched.
+ * @param s - The candidate object text.
+ * @returns The text with the missing field commas inserted.
+ */
+function insertMissingFieldCommas(s: string): string {
+  return s.replace(/("|\]|\}|true|false|null|\d)(\s*\n\s*)("[A-Za-z_]+"\s*:)/g, '$1,$2$3');
+}
+
+/**
+ * @description The "say" string of an envelope whose JSON cannot be parsed even after repair, read as a JSON string literal.
+ * @param s - The candidate object text.
+ * @returns The decoded say text, or '' when none is present.
+ */
+function sayFromBrokenEnvelope(s: string): string {
+  const m = s.match(/"say"\s*:\s*("(?:[^"\\]|\\.)*")/);
+  if (!m) return '';
+  try { return String(JSON.parse(escapeRawControls(m[1]))); } catch { return ''; }
+}
+
+/**
+ * @description Escape the raw control characters (a newline, a tab) a model writes inside a JSON string literal, which
+ * JSON.parse refuses. Round 8: a reply whose "say" held a raw newline lost its whole text and the diner saw the route's
+ * fallback instead. Only characters inside string literals are touched; the layout between fields is left as it is.
+ * @param s - The candidate object (or string literal) text.
+ * @returns The same text with every control character inside a string literal written as its JSON escape.
+ */
+function escapeRawControls(s: string): string {
+  let out = '';
+  let inString = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inString && c === '\\') { out += c + (s[i + 1] ?? ''); i++; continue; }
+    if (c === '"') inString = !inString;
+    const code = c.charCodeAt(0);
+    out += inString && code < 0x20 ? `\\u${code.toString(16).padStart(4, '0')}` : c;
+  }
+  return out;
+}
+
+function envelopeFrom(o: any, fallbackSay: string): ChatEnvelope {
+  return {
+    say: cleanConciergeReply(o.say, fallbackSay),
+    show: Array.isArray(o.show) ? o.show.map(String) : [],
+    add: Array.isArray(o.add)
+      ? o.add.filter((a: any) => a && a.productId).map((a: any) => ({ productId: String(a.productId), quantity: Number(a.quantity) || 1, reason: a.reason ? String(a.reason) : undefined }))
+      : [],
+    remember: Array.isArray(o.remember) ? o.remember.map(String).filter(Boolean) : [],
+    checkout: !!o.checkout,
+  };
+}
+
+/**
+ * @description The concierge's reply envelope. Sweep 8: the model answered an object with no commas between its fields,
+ * JSON.parse failed and the whole raw object was shown to the diner as the reply. A missing-comma object is repaired;
+ * anything still unparsable that is shaped like the envelope shows only its "say" text (nothing is added, saved or
+ * checked out), and never the raw object. Plain prose with no object is still the reply.
+ * @param text - The concierge's raw answer.
+ * @returns The envelope to act on.
+ */
+export function parseEnvelope(text: string): ChatEnvelope {
   const fallback: ChatEnvelope = { say: cleanConciergeReply(text), show: [], add: [], remember: [], checkout: false };
   if (!text) return fallback;
   let s = text.trim();
@@ -364,18 +490,76 @@ function parseEnvelope(text: string): ChatEnvelope {
   if (fence) s = fence[1].trim();
   const start = s.indexOf('{'), end = s.lastIndexOf('}');
   if (start === -1 || end === -1) return fallback;
-  try {
-    const o = JSON.parse(s.slice(start, end + 1));
-    return {
-      say: cleanConciergeReply(o.say, fallback.say),
-      show: Array.isArray(o.show) ? o.show.map(String) : [],
-      add: Array.isArray(o.add)
-        ? o.add.filter((a: any) => a && a.productId).map((a: any) => ({ productId: String(a.productId), quantity: Number(a.quantity) || 1, reason: a.reason ? String(a.reason) : undefined }))
-        : [],
-      remember: Array.isArray(o.remember) ? o.remember.map(String).filter(Boolean) : [],
-      checkout: !!o.checkout,
-    };
-  } catch { return fallback; }
+  const body = s.slice(start, end + 1);
+  for (const candidate of [body, insertMissingFieldCommas(body), insertMissingFieldCommas(escapeRawControls(body))]) {
+    // A parsed envelope's empty say stays empty (the route then answers its own default), never the raw object.
+    try { return envelopeFrom(JSON.parse(candidate), ''); } catch { /* try the next form */ }
+  }
+  if (!/"say"\s*:/.test(body)) return fallback;
+  return { say: sayFromBrokenEnvelope(body), show: [], add: [], remember: [], checkout: false };
+}
+
+/**
+ * @description The concierge's words without chat Markdown marks. The in-app bubble shows text as written, so
+ * "1. **Mushroom Risotto**" reached the diner with its asterisks (sweep 12). Bold and italic marks around words and
+ * heading marks at a line start are taken out; the words, numbers and list lines stay.
+ * @param text - The reply text.
+ * @returns The same words with those marks left out.
+ */
+export function plainProse(text: string): string {
+  return String(text || '')
+    .replace(/(\*\*|__)(?=\S)([^\n]*?\S)\1/g, '$2')
+    .replace(/(^|[\s(])\*(?=[^\s*])([^*\n]*?[^\s*])\*(?=[\s).,!?;:]|$)/gm, '$1$2')
+    .replace(/^[ \t]*#{1,6}[ \t]+/gm, '');
+}
+
+const NOTE_FILLER = new Set(['want', 'wants', 'wanted', 'like', 'likes', 'food', 'foods', 'meal', 'meals', 'something', 'prefer', 'prefers', 'preference', 'preferences', 'please', 'would', 'some', 'order', 'orders', 'with', 'that', 'this', 'from', 'have', 'just'].map(stemWord));
+/** Food words under four letters that still name what a person eats or must not eat. */
+const SHORT_FOOD = new Set(['egg', 'soy', 'nut', 'oat', 'rye', 'pea', 'fig', 'ham', 'yam', 'tea', 'gum']);
+/** A note that records an allergy, an intolerance or a diet: one the diner states is never dropped. */
+const RESTRICTION_NOTE = /allerg|intoleran|celiac|coeliac|anaphyla|vegan|vegetarian|pescatarian|halal|kosher|gluten|dairy|lactose/;
+/** A message that states an allergy, an intolerance, a diet or a food the person cannot eat. */
+const RESTRICTION_SAID = /allerg|intoleran|celiac|coeliac|anaphyla|epi-?pen|can'?t (?:eat|have)|cannot (?:eat|have)|don'?t eat|do not eat|avoid|sensitiv|vegan|vegetarian|pescatarian|halal|kosher|gluten|dairy|lactose/;
+
+/**
+ * @description A word's stem, so a paraphrase still matches: "allergic", "allergy" and "allergies" are all "allerg";
+ * "peanuts" is "peanut"; "onions" is "onion"; "spicy" and "spice" are "spic". Deliberately light: one suffix removed.
+ * @param word - One lower-case word.
+ * @returns The stem.
+ */
+function stemWord(word: string): string {
+  const w = String(word || '').toLowerCase().replace(/'s$/, '');
+  if (w.length > 4 && w.endsWith('ies')) return w.slice(0, -3);
+  for (const suffix of ['ically', 'ical', 'ic', 'es', 's', 'y', 'e']) {
+    if (w.length - suffix.length >= 3 && w.endsWith(suffix)) return w.slice(0, -suffix.length);
+  }
+  return w;
+}
+
+function noteWords(text: string): string[] {
+  return String(text || '').toLowerCase().replace(/[\u2018\u2019]/g, "'").split(/[^a-z0-9']+/)
+    .map((w) => w.replace(/^'+|'+$/g, ''))
+    .filter((w) => /^\d+$/.test(w) || w.length >= 4 || SHORT_FOOD.has(stemWord(w)))
+    .map(stemWord)
+    .filter((w) => w && !NOTE_FILLER.has(w));
+}
+
+/**
+ * @description The remember entries the diner actually stated in THIS message: each must share a word stem with the
+ * message (filler such as "food" or "want" does not count), and an allergy, intolerance or diet note is always kept when
+ * the message states one. Sweep 8: asked "something vegetarian for two people under 30 dollars", the concierge's
+ * remember list held "spicy preference", "address: pending", "budget: cheap" and "not on boarded" - none of which the
+ * diner said - and the prompt rule alone did not stop it. Round 8 review: matching whole words dropped "peanut allergy"
+ * and "no onions" for "I'm allergic to peanuts, hold the onion", so a stated allergy was never saved.
+ * @param remember - The envelope's remember list.
+ * @param message - The diner's message this turn.
+ * @returns The entries grounded in the message, in order.
+ */
+export function statedNotes(remember: string[], message: string): string[] {
+  const said = new Set(noteWords(message));
+  const restrictionSaid = RESTRICTION_SAID.test(String(message || '').toLowerCase().replace(/[\u2018\u2019]/g, "'"));
+  return (remember || []).filter((note) =>
+    noteWords(note).some((w) => said.has(w)) || (restrictionSaid && RESTRICTION_NOTE.test(String(note || '').toLowerCase())));
 }
 
 async function loadProfile(pool: Pool, sub: string): Promise<any> {
@@ -384,6 +568,48 @@ async function loadProfile(pool: Pool, sub: string): Promise<any> {
 }
 
 // ── Router ─────────────────────────────────────────────────────────────────--
+
+/** The diner's allergies and diet for one chat turn, and the search's dishes split by them. */
+interface AllergyGuard { restrictions: Restriction[]; safe: any[]; held: Conflict[]; block: string }
+
+/**
+ * @description Check this turn's dishes against the diner's allergies and diet before the concierge sees them. Demo
+ * sweep 2: after "I have noted your peanut allergy" the concierge suggested a Vegetarian Pad Thai with no warning. The
+ * restrictions come from the message, the saved notes and the profile's dietary list; a dish that names an allergen or
+ * is usually made with it is held back (never offered, shown or added), and the prompt states the restrictions as facts.
+ * @param message - The diner's message.
+ * @param notes - The saved concierge notes.
+ * @param profile - The diner's profile row.
+ * @param candidates - The menu dishes search returned.
+ * @returns The restrictions, the safe and held dishes, and the prompt block.
+ */
+export function allergyGuard(message: string, notes: string[], profile: any, candidates: any[]): AllergyGuard {
+  const restrictions = dinerRestrictions([message, ...(notes || []), ...((profile && profile.dietary) || [])]);
+  const { safe, held } = holdConflicting(candidates, restrictions);
+  return { restrictions, safe, held, block: restrictionPrompt(restrictions, held) };
+}
+
+/**
+ * @description One concierge reasoning turn through the accountable bot (cost and audit stay on eats-concierge).
+ * @param ctx - The app context.
+ * @param sub - The verified diner.
+ * @param prompt - The assembled prompt.
+ * @returns The concierge's raw text, or '' when the dispatch failed (logged).
+ */
+async function askConcierge(ctx: AppContext, sub: string, prompt: string): Promise<string> {
+  try {
+    const result = await executeBotOrInline(ctx, botClient, CONCIERGE_AGENT_ID, {
+      text: prompt,
+      taskId: `eats-${sub}-${randomUUID()}`,
+      workspaceFolderId: `eats-${sub}`,
+      agentId: CONCIERGE_AGENT_ID,
+      agenticMode: false,
+      direct: true,
+      userSub: sub,
+    });
+    return String(result?.response || '').trim();
+  } catch (e) { logger.error({ e }, 'eats concierge dispatch failed'); return ''; }
+}
 
 export function createEatsRoutes(ctx: AppContext): Router {
   const router = Router();
@@ -408,8 +634,10 @@ export function createEatsRoutes(ctx: AppContext): Router {
   router.get('/chat', serveFile(surfaceDir, 'eats-app.html')); // alias (parity with purchasing's /chat surface)
 
   router.get('/config', diner(async (_req, res, sub) => {
+    const rail = await uberEatsRail(pool, sub);
+    if (rail.absent) { res.json({ uberConnected: false, rail: 'absent', railNote: EATS_NO_RAIL }); return; }
     const r = await pool.query(`SELECT 1 FROM oshal_connections WHERE provider='uber' AND (user_sub=$1 OR tenant_id IS NOT NULL) LIMIT 1`, [sub]);
-    res.json({ uberConnected: !!r.rowCount });
+    res.json({ uberConnected: !!r.rowCount, rail: 'provider' });
   }));
 
   // ── Catalog (via the request-scoped provider helper) ────────────────────────
@@ -481,7 +709,18 @@ export function createEatsRoutes(ctx: AppContext): Router {
   }));
 
   // ── Profile ────────────────────────────────────────────────────────────────
-  router.get('/profile', diner(async (_req, res, sub) => { res.json({ profile: await loadProfile(pool, sub) }); }));
+  router.get('/profile', diner(async (_req, res, sub) => {
+    res.json({ profile: await loadProfile(pool, sub), remembered: rememberedList(await store.loadNotes(sub, 100)) });
+  }));
+
+  // Forget one remembered note, every saved copy of it. Body: { note }.
+  router.post('/notes/forget', diner(async (req, res, sub) => {
+    const note = String(req.body?.note || '').trim();
+    if (!note || note.length > 2000) { res.status(400).json({ error: 'note is required' }); return; }
+    const forgotten = await forgetNote(pool, store, sub, note);
+    if (!forgotten) { res.status(404).json({ error: 'Nothing remembered matches that note.' }); return; }
+    res.json({ ok: true, note, forgotten });
+  }));
 
   router.post('/profile', diner(async (req, res, sub) => {
     const b = req.body || {};
@@ -512,32 +751,22 @@ export function createEatsRoutes(ctx: AppContext): Router {
     await store.addMessage(conversationId, sub, 'user', message);
     const history = await store.loadHistory(conversationId);
     const [profile, notes, currentCart] = await Promise.all([loadProfile(pool, sub), store.loadNotes(sub), loadCart(pool, sub)]);
-    const searchRes = await uberEatsProviderOperation(pool, sub, ['search', message, '6']);
-    const restaurants: any[] = searchRes.items || [];
-    const menus = await Promise.all(restaurants.slice(0, 3).map(async (restaurant) => {
-      if (!restaurant?.productId) return [];
-      const menu = await uberEatsProviderOperation(pool, sub, ['menu', String(restaurant.productId)]);
-      return menu.items || [];
-    }));
-    const candidates: any[] = menus.flat().slice(0, 12);
-    const candById = new Map<string, any>(candidates.map((item) => [String(item.productId), item]));
+    const rail = await uberEatsRail(pool, sub);
+    const searchRes = rail.absent ? { items: [], source: 'unavailable' } : await uberEatsProviderOperation(pool, sub, ['search', message, '6']);
+    const candidates = await menuCandidates((args) => uberEatsProviderOperation(pool, sub, args), searchRes.items || []);
+    // Every dish is checked against the diner's allergies and diet first: a held dish is never offered, shown or added.
+    const allergy = allergyGuard(message, notes, profile, candidates);
+    const candById = new Map<string, any>(allergy.safe.map((item) => [String(item.productId), item]));
 
-    const prompt = buildConciergePrompt({ message, history, candidates, cart: currentCart.items, profile, notes });
-    let raw = '';
-    try {
-      const result = await executeBotOrInline(ctx, botClient, CONCIERGE_AGENT_ID, {
-        text: prompt,
-        taskId: `eats-${sub}-${randomUUID()}`,
-        workspaceFolderId: `eats-${sub}`,
-        agentId: CONCIERGE_AGENT_ID,
-        agenticMode: false,
-        direct: true,
-        userSub: sub,
-      });
-      raw = String(result?.response || '').trim();
-    } catch (e) { logger.error({ e }, 'eats concierge dispatch failed'); }
-    const env = parseEnvelope(raw);
-    if (!env.say) env.say = candidates.length
+    const prompt = buildConciergePrompt({ message, history, candidates: allergy.safe, cart: currentCart.items, profile, notes, railNote: rail.absent ? EATS_NO_RAIL : '', restrictions: allergy.block });
+    const env = parseEnvelope(await askConcierge(ctx, sub, prompt));
+    env.say = plainProse(env.say);
+    const shown = env.show.length
+      ? env.show.map((id) => candById.get(id)).filter(Boolean)
+      : allergy.safe.slice(0, 6);
+    // The fallback names options only when cards really go out with it (round 8: it claimed options that the
+    // diner never saw).
+    if (!env.say) env.say = shown.length
       ? 'I found a few options. Pick one or tell me what to add.'
       : "I'm having trouble reaching my assistant right now — give me a moment and try again.";
 
@@ -548,18 +777,19 @@ export function createEatsRoutes(ctx: AppContext): Router {
       const { row } = await addToCart(pool, sub, product, request.quantity);
       added.push({ ...product, rowId: row.row_id, quantity: lineQuantity(request.quantity), reason: request.reason });
     }
-    for (const note of env.remember) await store.saveNote(sub, note);
+    const remembered = newNotes(statedNotes(env.remember, message), notes);
+    for (const note of remembered) await store.saveNote(sub, note);
 
     const nextCart = await loadCart(pool, sub);
     // The concierge may decide the diner wants to order; it may not hand off on its own. A
     // proposal is returned for the surface's confirm card and NOTHING outward-facing happens
     // (no deep link, no eats_orders row) until the diner confirms, which calls POST /order.
     const proposal = env.checkout ? orderProposal(nextCart) : null;
-    const shown = env.show.length
-      ? env.show.map((id) => candById.get(id)).filter(Boolean)
-      : candidates.slice(0, 6);
 
-    await store.addMessage(conversationId, sub, 'assistant', env.say);
+    // A dish the reply names that usually carries one of the diner's restrictions, in a sentence that does not name the
+    // risk, gets its own allergy-check line; the concierge's words stay as written.
+    const check = allergyCheckLine(unwarnedMentions(env.say, allergy.restrictions));
+    await store.addMessage(conversationId, sub, 'assistant', check ? `${env.say}\n${check}` : env.say);
     await store.touch(conversationId);
 
     res.json({
@@ -567,7 +797,8 @@ export function createEatsRoutes(ctx: AppContext): Router {
       reply: env.say,
       cards: shown,
       added,
-      remembered: env.remember,
+      remembered,
+      allergy: { restrictions: allergy.restrictions.map((r) => r.label), heldBack: allergy.held, check },
       // `checkout` is kept for response-shape compatibility and is always null now: a hand-off is
       // created only by the diner's confirm (POST /order), never by the chat turn.
       checkout: null,

@@ -79,7 +79,9 @@ test('daily-trade-recap: nothing recorded reads 0 everywhere and claims no succe
  const r=await route('daily-trade-recap',recapRows())();
  assert.deepEqual(r.body.metrics.map(m=>m.value),['0','0','0','0']);
  assert.equal(r.body.items.some(i=>i.tone==='warn'),false);
- assert.ok(r.body.items.some(i=>/No recorded trading session/.test(i.text)));});
+ // The empty line names where sessions come from; 'Open the app to begin' was wrong on the app's only screen.
+ assert.ok(r.body.items.some(i=>/^No trading session recorded in the last 7 days\. Sessions come from Intelligent Trades' schedule/.test(i.text)));
+ assert.equal(r.body.items.some(i=>/Open the app to begin/.test(i.text)),false);});
 test('daily-trade-recap: a ticket parked at its approval gate is counted and listed',async()=>{
  const r=await route('daily-trade-recap',recapRows({review:'3',parked:[{title:'Daily trade recap 2026-06-11',status:'approval_required',created_at:'2026-06-11T20:15:00.000Z'}]}))();
  assert.equal(r.body.metrics[3].value,'3');

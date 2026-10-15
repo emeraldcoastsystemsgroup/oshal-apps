@@ -19,6 +19,12 @@
  *                     |                             | again on a fresh connection and answered; cancelling a
  *                     |                             | queued request leaves the in-flight one and its connection
  *                     |                             | alone; an unknown tag touches nothing.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Native kernel: with `exchange` set the request goes through
+ *                     |                             | the kernel intent's {hello, reply}; a good reply resolves and
+ *                     |                             | records the engine's build, a wrong protocol and a busy hello
+ *                     |                             | are the same typed failures as on a socket, a refused reply
+ *                     |                             | stays a refusal, a kernel that cannot reach the engine is
+ *                     |                             | capability_unavailable and its deadline is engine_timeout.
  */
 'use strict';
 const test = require('node:test');
@@ -195,4 +201,26 @@ test('the queue is bounded and the address parser is strict', async () => {
   assert.deepEqual(parseEngineAddr(undefined), { host: 'cad-studio-engine', port: 7412 });
   assert.deepEqual(parseEngineAddr('10.0.0.5:7000'), { host: '10.0.0.5', port: 7000 });
   assert.throws(() => parseEngineAddr('nope'), /host:port/);
+});
+
+test('native kernel: requests travel through the exchange intent and are judged like the socket wire', async () => {
+  const sent = [];
+  const native = (answer) => new EngineClient({ host: 'cad-studio-engine', port: 7412, expectedBuildHash: null, installHint: 'pin the engine', exchange: async (request, timeoutMs) => { sent.push({ request, timeoutMs }); return answer(request); } });
+  const good = native((r) => ({ hello: { bridge: { protocol: BRIDGE_PROTOCOL, buildHash: HASH } }, reply: { id: 1, ok: true, result: { echo: r.args } } }));
+  assert.deepEqual(await good.request('rebuild', { n: 1 }, 120_000), { echo: { n: 1 } });
+  assert.deepEqual(sent[0], { request: { cmd: 'rebuild', args: { n: 1 } }, timeoutMs: 55_000 });
+  assert.equal(good.status().connected, true); assert.equal(good.status().buildHash, HASH); assert.equal(good.status().expectedBuildHash, HASH);
+  assert.equal(good.status().address, 'native://engine.exchange');
+  const refused = native(() => ({ hello: { bridge: { protocol: BRIDGE_PROTOCOL, buildHash: HASH } }, reply: { id: 1, ok: false, error: { code: 'refused', message: 'bad base' } } }));
+  await assert.rejects(refused.request('rebuild', {}), (e) => e instanceof EngineFailure && e.code === 'refused' && /bad base/.test(e.message));
+  const stale = native(() => ({ hello: { bridge: { protocol: 99, buildHash: HASH } }, reply: null }));
+  await assert.rejects(stale.request('rebuild', {}), (e) => e.code === 'capability_unavailable' && /protocol 99/.test(e.message));
+  const busy = native(() => ({ hello: { error: { code: 'engine_busy', message: 'no free worker slot' } }, reply: null }));
+  await assert.rejects(busy.request('rebuild', {}), (e) => e.code === 'engine_busy');
+  const down = native(() => { throw new Error('engine container is not reachable or broke its line protocol'); });
+  await assert.rejects(down.request('rebuild', {}), (e) => e.code === 'capability_unavailable' && /pin the engine/.test(e.reason));
+  assert.equal(down.status().connected, false); assert.match(down.status().lastError, /not reachable/);
+  const slow = native(() => { throw new Error('engine did not answer within the request deadline'); });
+  await assert.rejects(slow.request('rebuild', {}), (e) => e.code === 'engine_timeout');
+  assert.equal(good.cancel('anything'), null);
 });

@@ -18,6 +18,10 @@
  *            | broker's getValidAccessToken. The feeds-indexing engine + cron, scripts/oshal-feeds.js,
  *            | 045-feeds-platform.sql, the feeds-curator inline node, and the 'slack' connector
  *            | stay framework-resident (ADR-093).
+ * 2026-10-11 21:00:00 | maintainer@emeraldcoastsystemsgroup.com | POST /sync answers an unconnected Slack
+ *            | with 409 {error:'not connected', detail, connectUrl} instead of a 404 (the route exists; the
+ *            | account has not connected Slack), so the dashboard's Sync now can say so. Guard:
+ *            | feeds/tests/feeds-sync-not-connected.test.js.
  * ---------------------------------------------------------------------------
  * @module feeds-routes
  */
@@ -33,6 +37,8 @@ import { getFeedSettings, updateFeedSettings, indexUserFeed, maybeSyncOnView } f
 const logger = createChildLogger({ module: 'feeds-routes' });
 const MSG_DEFAULT = 200;
 const MSG_MAX = 500;
+/** What Sync now says when this account has no Slack connection. */
+const SLACK_NOT_CONNECTED = 'Slack is not connected for this account: connect Slack, then sync again.';
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -160,7 +166,8 @@ export function createFeedsRoutes(ctx: AppContext): Router {
     if (!sub) { res.status(401).json({ error: 'not authenticated' }); return; }
     try {
       const token = await getValidAccessToken(ctx.pool, sub, 'slack');
-      if (!token) { res.status(404).json({ error: 'not connected' }); return; }
+      // 409, not 404: the route exists; this account has not connected Slack yet.
+      if (!token) { res.status(409).json({ error: 'not connected', detail: SLACK_NOT_CONNECTED, connectUrl: '/api/connect/slack/start' }); return; }
       const stored = await indexUserFeed(ctx, sub);
       const settings = await getFeedSettings(ctx.pool, sub);
       res.json({ ok: true, stored, lastSyncedAt: settings.lastSyncedAt });

@@ -30,6 +30,9 @@
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — venture CRUD with a synchronous scoping call, the append-only assumption endpoints, BOM/vendor/quote/scenario CRUD, the free recompute and sensitivity endpoints, the 202 run endpoint, and the concierge chat door. Every handler 401s before any query.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Add owner-scoped immutable FX endpoints, fail-closed foreign-quote errors, and integer-micro scenario inputs.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Add owner-scoped default-deny rebaseline policy management and a mutation-free UTC preview endpoint.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | GET /ventures/:id, GET /ventures/:id/runs and GET /runs/:runId answer a native run whose request was abandoned as interrupted (presentRun, no write on a read), so a page closed mid-run is not shown "running" for ever.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | GET /ventures/:id/inversion also answers plannedRunUnits (the model's run quantity), so the console can compare the smallest break-even run with the planned run; the stored snapshot carries no run figure.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | GET /ventures/:id/assumptions and the history answer each row's `grade`, the engine's confidence ladder (quoted .. guessed) for that row (engineConfidence, the same mapping the model computes with). The console tallied the ledger in that ladder while rows carried the store's low/medium/high, so its banner read "0 of 36 registered assumptions are an estimate or an outright placeholder" with 34 model guesses.
  *
  * @module venture-routes
  */
@@ -245,7 +248,7 @@ function handleVentureRead(pool) {
                 id: model.id, computedAt: model.computedAt, posture: model.posture,
                 canPublish: model.canPublish, warnings: model.warnings.length,
             } : null,
-            latestRun: run,
+            latestRun: run ? (0, venture_run_1.presentRun)(run) : null,
             fxAssumptions,
             documentCatalog: venture_doc_catalog_1.DOC_CATALOG.map((d) => ({ key: d.key, title: d.title, decision: d.decision })),
         });
@@ -294,6 +297,15 @@ function parseAssumptionBody(body, key) {
         },
     };
 }
+/**
+ * @description An assumption row with its engine grade: where it stands on the ladder the model and the console
+ * use (quoted, observed, benchmarked, estimated, guessed), next to the store's own low/medium/high.
+ * @param a - A stored row.
+ * @returns The row plus `grade`.
+ */
+function graded(a) {
+    return { ...a, grade: (0, venture_store_compose_1.engineConfidence)(a) };
+}
 /** The assumption endpoints. Writes are append-only; there is no update path. */
 function handleAssumptions(pool) {
     const write = (0, venture_http_1.guarded)('write assumption', async (req, res) => {
@@ -328,7 +340,7 @@ function handleAssumptions(pool) {
             const all = await (0, venture_store_1.liveAssumptions)(pool, sub, id);
             const domain = req.query.domain ? String(req.query.domain) : null;
             const rows = domain ? all.filter((a) => a.domain === domain) : all;
-            res.json({ assumptions: rows, summary: (0, venture_store_1.coverageOf)(all) });
+            res.json({ assumptions: rows.map(graded), summary: (0, venture_store_1.coverageOf)(all) });
         }),
         create: write,
         update: write,
@@ -341,7 +353,7 @@ function handleAssumptions(pool) {
                 res.status(404).json({ error: 'not found' });
                 return;
             }
-            res.json({ revisions: await (0, venture_store_1.assumptionHistory)(pool, sub, id, String(req.params.key)) });
+            res.json({ revisions: (await (0, venture_store_1.assumptionHistory)(pool, sub, id, String(req.params.key))).map(graded) });
         }),
     };
 }
@@ -751,6 +763,9 @@ function handleInversion(pool) {
                 model: built.model, modelInput: built.input,
                 requiredContributionBps: Number(req.query.requiredContributionBps ?? 3000),
             }),
+            // The plan's own run, beside the smallest run that breaks even: the stored model snapshot does not carry it
+            // (it is an input, not a figure), and the console showed "no plan value to compare" for that row.
+            plannedRunUnits: built.model.bom.runQtyUnits,
             posture: built.model.posture,
             canPublish: built.model.canPublish,
         });
@@ -910,7 +925,7 @@ function handleRuns(ctx, pool) {
                 res.status(404).json({ error: 'not found' });
                 return;
             }
-            res.json({ runs: await (0, venture_store_1.listRuns)(pool, sub, id) });
+            res.json({ runs: (await (0, venture_store_1.listRuns)(pool, sub, id)).map((run) => (0, venture_run_1.presentRun)(run)) });
         }),
         read: (0, venture_http_1.guarded)('GET /runs/:runId', async (req, res) => {
             const sub = (0, venture_http_1.requireSub)(req, res);
@@ -921,7 +936,7 @@ function handleRuns(ctx, pool) {
                 res.status(404).json({ error: 'not found' });
                 return;
             }
-            res.json({ run });
+            res.json({ run: (0, venture_run_1.presentRun)(run) });
         }),
     };
 }

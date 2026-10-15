@@ -1,6 +1,9 @@
 /**
  * CHANGE LOG
  * 2026-10-07 | maintainer@emeraldcoastsystemsgroup.com | Await native durable registry and orbital ports; preserve scoped simulator provenance.
+ * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | POST /passes returns riseUtc, culminationUtc, setUtc (and startUtc) as ISO-8601 UTC strings next to the epoch-ms values. The concierge converted riseUtcMs 1791720773730 (2026-10-11 12:12:53 UTC) itself and answered 2026-09-10 and 2026-11-28; the persona now quotes the ISO strings verbatim. Guarded by sat-ops/tests/sat-passes-iso.test.cjs.
+ * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | POST /chat reads the page's screen state (the ground station typed on screen and the Pass windows table) into GROUND STATION and PASS WINDOWS ON SCREEN prompt lines (screenContextLines, bounded and validated). The Sat Operator asked for ground-station coordinates while four passes were listed on the same screen.
+ * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | The chat prompt carries the current UTC date and time (NOW line), and each pass on screen is labelled today / tomorrow / its UTC date against it. Sweep 8: on 2026-10-12 at 16:3x UTC the concierge called the 10-12 18:38 pass 'tomorrow'. Guard: tests/sat-chat-screen.test.cjs.
  * -----------------------------------------------------------------------------
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -97,6 +100,27 @@ function serveFile(filePath: string): RequestHandler {
   };
 }
 
+/** One instant as ISO-8601 UTC, or null when the engine gave none. */
+function isoUtc(ms: unknown): string | null {
+  return typeof ms === 'number' && Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
+/**
+ * @description Add ISO-8601 UTC strings beside every epoch-ms instant of a pass prediction, so a
+ * reader (a person, or the concierge quoting a tool result) never converts milliseconds itself.
+ * @param prediction - The engine's pass prediction.
+ * @returns The same prediction with startUtc and per-pass riseUtc / culminationUtc / setUtc.
+ */
+export function withIsoTimes<T extends { startUtcMs?: number; passes?: Array<Record<string, unknown>> }>(prediction: T): T & { startUtc: string | null } {
+  const passes = (prediction.passes || []).map((p) => ({
+    ...p,
+    riseUtc: isoUtc(p.riseUtcMs),
+    culminationUtc: isoUtc(p.culminationUtcMs),
+    setUtc: isoUtc(p.setUtcMs),
+  }));
+  return { ...prediction, startUtc: isoUtc(prediction.startUtcMs), passes };
+}
+
 /**
  * @description Resolve a request's start time: absent → now; number → epoch ms; string →
  * ISO WITH explicit zone (ambiguous local times rejected). The routes' one impure boundary.
@@ -126,6 +150,63 @@ interface SatCommandDraft {
   angleDeg?: number;
 }
 
+/** What the operator's screen shows that the concierge must answer from: the station and the last prediction. */
+interface SatScreenState {
+  station?: { latDeg?: unknown; lonDeg?: unknown; altKm?: unknown } | null;
+  passes?: { satId?: unknown; passes?: unknown } | null;
+}
+
+/** UTC "MM-DD HH:MM", the same form the Pass windows table shows. */
+function utcShort(ms: number): string {
+  return new Date(ms).toISOString().slice(5, 16).replace('T', ' ');
+}
+
+/** 'today', 'tomorrow' or the UTC date of a pass, judged against the UTC day of `nowMs`. */
+function utcDayWord(ms: number, nowMs: number): string {
+  const day = (t: number) => Math.floor(t / 86_400_000);
+  const diff = day(ms) - day(nowMs);
+  if (diff === 0) return 'today';
+  if (diff === 1) return 'tomorrow';
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/** The prompt line naming the current UTC date and time, so a pass is never called 'tomorrow' on its own day. */
+export function nowLine(nowMs: number): string {
+  const iso = new Date(nowMs).toISOString();
+  return `NOW (UTC): ${iso.slice(0, 10)} ${iso.slice(11, 16)}. Today is ${iso.slice(0, 10)} UTC; call a pass today or tomorrow only from its label below.`;
+}
+
+/**
+ * @description Turn the screen state the page sends with a chat turn into prompt lines: the ground
+ * station typed on screen and the pass prediction the Pass windows table shows. Without them the
+ * concierge asked for ground-station coordinates while four passes were listed on the same screen.
+ * Untrusted page input: every number must be finite and in range, at most 12 passes are kept, and the
+ * sat id is bounded and stripped to safe characters.
+ * @param screen - The `screen` object from the chat request body, or anything else.
+ * @param nowMs - The current time; each pass is labelled today / tomorrow / its date against its UTC day.
+ * @returns Zero, one or two prompt lines.
+ */
+export function screenContextLines(screen: unknown, nowMs: number = Date.now()): string[] {
+  const lines: string[] = [];
+  const s = (screen && typeof screen === 'object' ? screen : {}) as SatScreenState;
+  const st = s.station && typeof s.station === 'object' ? s.station : null;
+  const lat = Number(st?.latDeg), lon = Number(st?.lonDeg), alt = Number(st?.altKm);
+  if (st && Number.isFinite(lat) && Math.abs(lat) <= 90 && Number.isFinite(lon) && Math.abs(lon) <= 180) {
+    lines.push(`GROUND STATION (on the operator's screen): lat ${lat.toFixed(2)}°, lon ${lon.toFixed(2)}°${Number.isFinite(alt) ? `, alt ${alt.toFixed(3)} km` : ''}`);
+  }
+  const p = s.passes && typeof s.passes === 'object' ? s.passes : null;
+  const satId = String(p?.satId ?? '').replace(/[^A-Za-z0-9._-]/g, '').slice(0, 64);
+  const list = Array.isArray(p?.passes) ? (p?.passes as Array<Record<string, unknown>>) : null;
+  if (p && satId && list) {
+    const rows = list.slice(0, 12).map((x) => ({ rise: Number(x?.riseUtcMs), dur: Number(x?.durationS), el: Number(x?.maxElevationDeg) }))
+      .filter((x) => Number.isFinite(x.rise) && Number.isFinite(x.dur) && x.dur >= 0 && Number.isFinite(x.el));
+    lines.push(rows.length
+      ? `PASS WINDOWS ON SCREEN for ${satId} from that station (next 24 h, UTC): ${rows.map((x) => `rise ${utcShort(x.rise)} (${utcDayWord(x.rise, nowMs)}), ${Math.round(x.dur / 60)} min, max el ${x.el.toFixed(0)}°`).join('; ')}`
+      : `PASS WINDOWS ON SCREEN for ${satId} from that station: none above the mask in the next 24 h`);
+  }
+  return lines;
+}
+
 /**
  * @description Assemble the sat-operator turn prompt: live fleet + catalog context, the
  * short client-side history, and the strict say+draft output contract (the persona rides
@@ -133,13 +214,15 @@ interface SatCommandDraft {
  * @param o - Message, history, and the context lines.
  * @returns The prompt string.
  */
-function buildSatOperatorPrompt(o: { message: string; history: Array<{ role: string; content: string }>; fleetLine: string; catalogLine: string }): string {
+function buildSatOperatorPrompt(o: { message: string; history: Array<{ role: string; content: string }>; fleetLine: string; catalogLine: string; screenLines?: string[]; nowMs?: number }): string {
   const convo = o.history.slice(-8).map((h) => `${h.role === 'assistant' ? 'You' : 'Operator'}: ${h.content}`).join('\n');
   return [
     'You are the Sat Operator — the operations-planning brain of a satellite fleet plane. You DRAFT ADCS commands; you never send one. Every draft is validated by the route, pre-filled into the console, and only sent after the human presses Approve. Every engine is a simulator.',
     '',
+    nowLine(o.nowMs ?? Date.now()),
     `FLEET: ${o.fleetLine || '(no sats heartbeating)'}`,
     `ORBIT CATALOG: ${o.catalogLine || '(empty)'}`,
+    ...(o.screenLines || []),
     '',
     convo ? `CONVERSATION SO FAR:\n${convo}\n` : '',
     `Operator: ${o.message}`,
@@ -148,6 +231,7 @@ function buildSatOperatorPrompt(o: { message: string; history: Array<{ role: str
     '{ "say": "your reply", "draft": { "satId": "...", "command": "point", "axis": { "x": 1, "y": 1, "z": 0 }, "angleDeg": 30 } }',
     'Mode drafts: { "satId": "...", "command": "detumble" } (or "desat" / "safe") — no axis/angle. No command to suggest → "draft": null.',
     'Only draft for ONLINE sats. Never invent satIds. point: 0 < angleDeg ≤ 60, finite axis numbers.',
+    'GROUND STATION and PASS WINDOWS ON SCREEN come from the operator\'s own screen. Answer pass-window questions from them, quoting their UTC times; never ask for ground-station coordinates or a prediction the screen already gives. Without them, say to run Predict passes (24 h) on the Pass windows panel.',
   ].join('\n');
 }
 
@@ -306,7 +390,7 @@ export function createSatRoutes(arg: SatRouteOpts | Record<string, unknown> = {}
         stepSeconds: b.stepSeconds === undefined ? undefined : Number(b.stepSeconds),
       });
       logger.info({ satnum: prediction.satnum, passes: prediction.passes.length, durationMs: Date.now() - started }, 'POST /passes done');
-      res.json({ ...prediction, engine: 'sgp4/satellite.js' });
+      res.json({ ...withIsoTimes(prediction), engine: 'sgp4/satellite.js' });
     } catch (err) {
       if (err instanceof TleParseError) { res.status(400).json({ error: err.message }); return; }
       if (err instanceof PropagationError) { res.status(422).json({ error: err.message }); return; }
@@ -403,7 +487,8 @@ export function createSatRoutes(arg: SatRouteOpts | Record<string, unknown> = {}
         return `${r.satId} (${r.engine}, ${r.online ? 'online' : 'OFFLINE'}, mode ${t.mode}, err ${t.pointingErrorDeg == null ? '—' : t.pointingErrorDeg.toFixed(2) + '°'}, momentum ${t.adcs ? Math.round(t.adcs.momentumFrac * 100) + '%' : '?'}${t.estimator ? `, MEKF σ ${(Math.hypot(t.estimator.attitudeSigmaDeg.x, t.estimator.attitudeSigmaDeg.y, t.estimator.attitudeSigmaDeg.z)).toFixed(3)}°` : ''})`;
       }).join('; ');
       const catalogLine = (await catalog.list()).map((c) => `${c.satId} (#${c.satnum}${c.name ? ` ${c.name}` : ''})`).join('; ');
-      const prompt = buildSatOperatorPrompt({ message, history, fleetLine, catalogLine });
+      const screenLines = screenContextLines((req.body || {}).screen, started);
+      const prompt = buildSatOperatorPrompt({ message, history, fleetLine, catalogLine, screenLines, nowMs: started });
       const sub = String((req as unknown as { oidc?: { user?: { sub?: string } } }).oidc?.user?.sub || 'operator');
       let raw = '';
       try {

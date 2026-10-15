@@ -3,6 +3,12 @@
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register all shipped package tests with explicit runner and fixture boundaries; retain readiness smoke identity.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register finance-facts: the analyst's specialist-context facts and its Jarvis routing words.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register plaid-link: real Plaid Link request shape, paged sync, Plaid-side disconnect and the page's add/disconnect/OAuth-return controls.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register brief-refresh: Re-analyze is POST /brief/refresh (GET /brief never writes or asks the analyst), exact totals in the brief and review prompts, and person-facing payment-rail copy.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register accounts-phone: at 412 px the Accounts table fits its card with every Balance whole (sweep 8 cut it at the card edge).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register brief-figures (sweep 11): the brief's figures are written in code from the stored accounts; the analyst's commentary may quote only listed amounts.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | brief-figures also expects a sentence left out after "Inc." to go whole, never leaving its tail (sweep 14).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -67,4 +73,159 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: finance-facts
+    name: Analyst facts and Jarvis routing words
+    purpose: >-
+      Read the compiled specialist-context reader against an in-memory pool and the shipped manifest and
+      persona: the finance-analyst answers a Jarvis question from the caller's saved finance state, and a
+      question about the person's own money carries a declared Finance word. No model, Plaid or database
+      is reached; the live hand-off is checked separately with POST /api/jarvis/ask.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/finance-facts.test.cjs
+    expected:
+      - The reader returns exactly the declared scalar keys, owner-scoped by the principal sub, for no link, linked but unsynced, a synced snapshot and a mixed-currency snapshot.
+      - A failed read returns every fact null with facts.complete false and reports the error, never throwing.
+      - The manifest declares uses specialist-context, the finance_facts tool and the finance-analyst bot, and the route factory registers the reader.
+      - The persona authorizes finance_facts, answers a conversation from the facts without asking for data, and declares finance, my finances, my money, my accounts, my spending and my budget.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: plaid-link
+    name: Plaid Link, sync and disconnect
+    purpose: >-
+      Exercise the compiled Plaid module and finance routes against recorded doubles shaped like Plaid's
+      documented responses: the Link request, a paged transaction sync, the Plaid-side disconnect and the
+      per-person linked-institution list. No credential, network or database is used; the live link-token
+      creation against the installation's configured Plaid environment is checked separately with POST /api/finance/link-token.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/plaid-link.test.cjs
+    expected:
+      - Link asks for transactions with investments optional and sends PLAID_REDIRECT_URI only when it is set.
+      - Sync reads /accounts/get and pages /transactions/get until the window's total is read.
+      - removeItem treats an already-gone item as removed and surfaces any other Plaid refusal.
+      - GET /status lists only the caller's linked institutions with their item ids.
+      - DELETE /items/:itemId disconnects at Plaid before deleting the row, clears the saved snapshot, keeps the row on a Plaid refusal, removes an unreadable legacy link locally and does not find another person's link.
+      - The page offers Add account, Disconnect per institution and resumes an OAuth redirect with the saved link token.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: hand-on-notice
+    name: The hand-on notice clears once the review draft is filled
+    purpose: >-
+      Run the shipped settleHandOnNotice from the Finance page: the 'Nothing on this screen to hand on yet' notice is
+      replaced once the review title and evidence are both filled (it stayed on screen), and no other status changes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/hand-on-notice.test.cjs
+    expected:
+      - With title and evidence the notice reads 'Ready to hand on. Choose the action again.'; with one missing it stays.
+      - A different status, or no status element, is left alone.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: brief-refresh
+    name: Re-analyze writes on POST; reads never write
+    purpose: >-
+      Exercise the compiled finance routes with a pool double that refuses any mutation during a GET using the native
+      kernel's own refusal text: GET /brief only reads the saved brief, POST /brief/refresh runs the analyst and saves it.
+      The analyst double records the prompt so the exact totals it is given can be checked. The live re-drive on the
+      installed kernel (Re-analyze at 412x915) is the companion proof for the kernel's read admission.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/brief-refresh.test.cjs
+    expected:
+      - GET /brief, with or without ?refresh=1, returns the saved brief or 404 no_saved_brief and never asks the analyst or issues a mutation.
+      - POST /brief/refresh runs the analyst once, saves the brief with one UPDATE and the next GET returns it; before any sync it answers 409 no_data.
+      - Totals are summed in cents by account group (Plaid Sandbox accounts give cash and deposits 62589 and total assets 86541.74); the saved brief opens with them written in code and the review prompt carries them as VERIFIED TOTALS.
+      - A missing payment rail names Connections and Payments and never an environment variable.
+      - The page reads with GET /brief?cached=1, re-analyzes with POST /brief/refresh and shows no saved brief as a notice.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: brief-figures
+    name: The brief's figures come from the accounts, never the model
+    purpose: >-
+      Drive the compiled POST /brief/refresh with the real finance-brief module and a recorded analyst answering the
+      sweep-11 commentary (a misread loan balance, invented totals and its own working). The kernel and the model are
+      doubled; the figure check itself is the code under test.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/brief-figures.test.cjs
+    expected:
+      - The saved brief opens with net worth, total assets, total owed and every account's balance written in code from the stored accounts (Plaid Student Loan $65,262.00 owed).
+      - A commentary that states an amount not listed ($6,526.20, $99,540.09, ~$105k) or narrates its working is asked once to rewrite, and a clean rewrite is saved after the figures.
+      - When it repeats them, each offending sentence is left out with a visible note while correct sentences stay.
+      - A sentence left out after an abbreviation ("Inc.") goes whole; its tail is never kept as a fragment (sweep 14).
+      - A commentary quoting listed amounts, whole dollars or a listed amount at its scale is saved as written; mixed currencies are never summed.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: accounts-phone
+    name: Accounts table at phone width in Chromium
+    purpose: Render the page's own stylesheet and renderAccounts in headless Chromium at 412 x 915 and at 1280 px - no server, database or provider.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/accounts-phone.core.spec.mjs
+    expected:
+      - At 412 px the Accounts table fits inside its card and every Balance cell shows whole ($110, $210, $410, $43,200, $1,000).
+      - At 412 px the Institution column is hidden and each institution reads under its account name.
+      - At 1280 px the Institution column shows as before.
+    prerequisites:
+      - runner:playwright
+      - harness:oshal-core-root
+      - browser:chromium
+      - core:dependencies
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close the owned Chromium process; the page is set from the packaged file with no network.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
     installation: never

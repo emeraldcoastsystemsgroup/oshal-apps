@@ -1,0 +1,371 @@
+# CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Keep original-owned read/export/asset/job grants distinct.
+version: 1
+resources:
+  documents:
+    scopes:
+      - own
+  assets:
+    scopes:
+      - own
+permissions:
+  document.view:
+    resource: documents
+    effect: read
+    minimumTier: viewer
+  document.read:
+    resource: documents
+    effect: read
+    minimumTier: viewer
+  document.create:
+    resource: documents
+    effect: write
+    minimumTier: editor
+  document.change:
+    resource: documents
+    effect: write
+    minimumTier: editor
+  document.delete:
+    resource: documents
+    effect: write
+    minimumTier: editor
+  document.render:
+    resource: documents
+    effect: write
+    minimumTier: editor
+  document.export:
+    resource: documents
+    effect: export
+    minimumTier: editor
+  asset.read:
+    resource: assets
+    effect: read
+    minimumTier: viewer
+  asset.import:
+    resource: assets
+    effect: write
+    minimumTier: editor
+  asset.delete:
+    resource: assets
+    effect: write
+    minimumTier: editor
+  job.read:
+    resource: documents
+    effect: read
+    minimumTier: viewer
+  job.manage:
+    resource: documents
+    effect: write
+    minimumTier: editor
+roles:
+  viewer:
+    tier: viewer
+    grants:
+      - permission: document.view
+        scope: own
+      - permission: job.read
+        scope: own
+  reader:
+    tier: viewer
+    grants:
+      - permission: document.view
+        scope: own
+      - permission: document.read
+        scope: own
+      - permission: asset.read
+        scope: own
+      - permission: job.read
+        scope: own
+  creator:
+    tier: editor
+    grants:
+      - permission: document.view
+        scope: own
+      - permission: document.read
+        scope: own
+      - permission: document.create
+        scope: own
+      - permission: asset.read
+        scope: own
+      - permission: asset.import
+        scope: own
+      - permission: job.read
+        scope: own
+  editor:
+    tier: editor
+    grants:
+      - permission: document.view
+        scope: own
+      - permission: document.read
+        scope: own
+      - permission: document.change
+        scope: own
+      - permission: document.render
+        scope: own
+      - permission: asset.read
+        scope: own
+      - permission: job.read
+        scope: own
+      - permission: job.manage
+        scope: own
+  exporter:
+    tier: editor
+    grants:
+      - permission: document.view
+        scope: own
+      - permission: document.read
+        scope: own
+      - permission: asset.read
+        scope: own
+      - permission: document.export
+        scope: own
+      - permission: job.read
+        scope: own
+  administrator:
+    tier: admin
+    grants:
+      - permission: document.view
+        scope: own
+      - permission: document.read
+        scope: own
+      - permission: document.create
+        scope: own
+      - permission: document.change
+        scope: own
+      - permission: document.delete
+        scope: own
+      - permission: document.render
+        scope: own
+      - permission: document.export
+        scope: own
+      - permission: asset.read
+        scope: own
+      - permission: asset.import
+        scope: own
+      - permission: asset.delete
+        scope: own
+      - permission: job.read
+        scope: own
+      - permission: job.manage
+        scope: own
+bindings:
+  http:
+    - id: publishing-route-0
+      method: GET
+      path: /app
+      allOf:
+        - document.view
+    - id: publishing-route-1
+      method: GET
+      path: /ui/:asset
+      allOf:
+        - document.view
+    - id: publishing-route-2
+      method: GET
+      path: /permissions
+      allOf:
+        - document.view
+    - id: publishing-route-3
+      method: GET
+      path: /editing-contract
+      allOf:
+        - document.view
+    - id: publishing-route-4
+      method: GET
+      path: /_smoke
+      allOf:
+        - document.view
+    - id: publishing-route-5
+      method: GET
+      path: /home-summary
+      allOf:
+        - document.view
+        - document.read
+    - id: publishing-route-6
+      method: GET
+      path: /assets
+      allOf:
+        - document.view
+        - asset.read
+    - id: publishing-route-7
+      method: POST
+      path: /assets/upload
+      allOf:
+        - document.view
+        - asset.import
+    - id: publishing-route-8
+      method: POST
+      path: /assets/import-artifact
+      allOf:
+        - document.view
+        - asset.import
+    - id: publishing-route-9
+      method: GET
+      path: /assets/:asset/content
+      allOf:
+        - document.view
+        - asset.read
+    - id: publishing-route-10
+      method: DELETE
+      path: /assets/:asset
+      allOf:
+        - document.view
+        - asset.delete
+    - id: publishing-route-11
+      method: GET
+      path: /documents
+      allOf:
+        - document.view
+        - document.read
+    - id: publishing-route-12
+      method: POST
+      path: /documents
+      allOf:
+        - document.view
+        - document.create
+        - asset.read
+    - id: publishing-route-13
+      method: GET
+      path: /documents/:document
+      allOf:
+        - document.view
+        - document.read
+    - id: publishing-route-14
+      method: GET
+      path: /documents/:document/model/:part/:offset
+      allOf:
+        - document.view
+        - document.read
+    - id: publishing-route-15
+      method: POST
+      path: /documents/:document/revisions
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+        - asset.read
+    - id: publishing-route-16
+      method: POST
+      path: /documents/:document/edits
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+        - asset.read
+    - id: publishing-route-17
+      method: POST
+      path: /documents/:document/render
+      allOf:
+        - document.view
+        - document.read
+        - document.render
+        - asset.read
+    - id: publishing-route-18
+      method: GET
+      path: /jobs/:job
+      allOf:
+        - document.view
+        - job.read
+    - id: publishing-route-19
+      method: POST
+      path: /jobs/:job/cancel
+      allOf:
+        - document.view
+        - document.read
+        - job.manage
+    - id: publishing-route-20
+      method: GET
+      path: /documents/:document/revisions/:revision/preview/:page
+      allOf:
+        - document.view
+        - document.read
+    - id: publishing-route-21
+      method: GET
+      path: /documents/:document/revisions/:revision/content
+      allOf:
+        - document.view
+        - document.read
+        - document.export
+    - id: publishing-route-22
+      method: POST
+      path: /documents/:document/export
+      allOf:
+        - document.view
+        - document.read
+        - document.export
+    - id: publishing-route-23
+      method: DELETE
+      path: /documents/:document
+      allOf:
+        - document.view
+        - document.read
+        - document.delete
+  tools:
+    - id: publishing-editing-contract
+      allOf:
+        - document.view
+    - id: publishing-list-documents
+      allOf:
+        - document.view
+        - document.read
+    - id: publishing-list-assets
+      allOf:
+        - document.view
+        - asset.read
+    - id: publishing-read-document
+      allOf:
+        - document.view
+        - document.read
+    - id: publishing-read-model-part
+      allOf:
+        - document.view
+        - document.read
+    - id: publishing-import-artifact
+      allOf:
+        - document.view
+        - asset.import
+    - id: publishing-create-document
+      allOf:
+        - document.view
+        - document.create
+        - asset.read
+    - id: publishing-apply-edits
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+        - asset.read
+    - id: publishing-restore-revision
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+        - asset.read
+    - id: publishing-start-render
+      allOf:
+        - document.view
+        - document.read
+        - document.render
+        - asset.read
+    - id: publishing-job-status
+      allOf:
+        - document.view
+        - job.read
+    - id: publishing-cancel-render
+      allOf:
+        - document.view
+        - document.read
+        - job.manage
+    - id: publishing-export
+      allOf:
+        - document.view
+        - document.read
+        - document.export
+    - id: publishing-delete-document
+      allOf:
+        - document.view
+        - document.read
+        - document.delete
+  bots:
+    - id: 04b8a632-2b12-43f2-914b-10d7d6a0c891
+      allOf:
+        - document.view

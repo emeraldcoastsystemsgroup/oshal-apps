@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-31 23:15:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog #11 guard: the hall-of-fame read is CALLER-SCOPED (the sub is bound into the query — owner or seated member only, never a global read), reads only ENDED games' non-host seats with a real score, orders best-first, and maps rows into the shape the lobby renders. The scoping assertions inspect the one parameterized query the service issues — the security property is that $1 is the caller and appears in both the owner and the member arm.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com    | AI and house podiums keep their scores in gameshow_podiums (migrations/003), so the read is two queries, people's seats and podiums, each caller-scoped exactly as before; the entries merge best-first and an AI champion still charts.
  */
 
 'use strict';
@@ -19,25 +20,33 @@ async function main() {
     { display_name: '🤖 Nova', team: null, score: 4200, show_id: 'whammy', updated_at: '2026-07-30T01:00:00Z' },
     { display_name: 'Ana', team: 'A', score: 180, show_id: 'family-feud', updated_at: '2026-07-29T01:00:00Z' },
   ];
-  const pool = { query: async (sql, params) => { calls.push({ sql, params }); return { rowCount: rows.length, rows }; } };
+  // People's seats answer Ana; the host's AI podiums (gameshow_podiums) answer Nova.
+  const pool = { query: async (sql, params) => {
+    calls.push({ sql, params });
+    const mine = /FROM gameshow_podiums s/.test(sql) ? [rows[0]] : [rows[1]];
+    return { rowCount: mine.length, rows: mine };
+  } };
   const room = createRoomService({ pool });
 
   const result = await room.leaderboard('me-sub');
   check(result.ok === true, 'the read succeeds');
-  check(calls.length === 1, 'exactly one query is issued');
+  check(calls.length === 2, 'one query per seat table');
+  check(/FROM gameshow_seats s/.test(calls[0].sql) && /FROM gameshow_podiums s/.test(calls[1].sql), 'people and podiums are both read');
 
-  const sql = calls[0].sql;
-  // Caller scoping is the security property: the ONLY parameter is the caller,
-  // and it gates BOTH arms (rooms I own, rooms I sat in). A query that drops
-  // either arm or binds anything else would leak other tables' games.
-  check(calls[0].params.length === 1 && calls[0].params[0] === 'me-sub', 'the caller sub is the only bound parameter');
-  check(/r\.user_sub\s*=\s*\$1/.test(sql), 'the owner arm is bound to the caller');
-  check(/m\.user_sub\s*=\s*\$1/.test(sql), 'the member arm is bound to the caller');
-  check(/status\s*=\s*'ended'/.test(sql), 'only ENDED games are read (live scores stay in state jsonb)');
-  check(/role\s*<>\s*'host'/.test(sql), 'host seats never chart');
-  check(/score\s*>\s*0/.test(sql), 'zero scores are noise, not fame');
-  check(/ORDER BY s\.score DESC/.test(sql), 'best first');
-  check(/LIMIT 10/.test(sql), 'the panel is a top list, not a dump');
+  for (const call of calls) {
+    const sql = call.sql;
+    // Caller scoping is the security property: the ONLY parameter is the caller,
+    // and it gates BOTH arms (rooms I own, rooms I sat in). A query that drops
+    // either arm or binds anything else would leak other tables' games.
+    check(call.params.length === 1 && call.params[0] === 'me-sub', 'the caller sub is the only bound parameter');
+    check(/r\.user_sub\s*=\s*\$1/.test(sql), 'the owner arm is bound to the caller');
+    check(/m\.user_sub\s*=\s*\$1/.test(sql), 'the member arm is bound to the caller');
+    check(/status\s*=\s*'ended'/.test(sql), 'only ENDED games are read (live scores stay in state jsonb)');
+    check(/role\s*<>\s*'host'/.test(sql), 'host seats never chart');
+    check(/score\s*>\s*0/.test(sql), 'zero scores are noise, not fame');
+    check(/ORDER BY s\.score DESC/.test(sql), 'best first');
+    check(/LIMIT 10/.test(sql), 'the panel is a top list, not a dump');
+  }
 
   // Row mapping: the lobby renders exactly this shape.
   check(result.entries.length === 2, 'every row maps to an entry');

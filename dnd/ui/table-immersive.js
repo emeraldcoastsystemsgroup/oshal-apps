@@ -7,6 +7,7 @@
  * 2026-07-23 00:12:33 | roger.murphy@emeraldcoastsystemsgroup.com  | Add direct quick questions that ask the contextual Dungeon Master for known facts, searchable leads, or three non-repeating ways forward.
  * 2026-07-23 00:31:18 | roger.murphy@emeraldcoastsystemsgroup.com  | Present recurring NPC names, roles, and player-visible personality cues in the active-character rail.
  * 2026-09-28 23:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Wire the full-screen, Dungeon Master panel, Escape and quick-question controls only when no audience view renders (ADR-164 D6): under the family view of table.html the table is hidden and never starts. The full table wires them exactly as before.
+ * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | The rail portrait asks only for bundled art (tokenArtUrl); a token without it shows the plain portrait frame.
  */
 
 'use strict';
@@ -38,9 +39,9 @@ function renderGameplayRail() {
   const inventory = inventoryOf(sheet), role = tokenRoleLabel(token);
   const controller = token.kind === 'pc' ? controllerLabel(token) : `${role || 'NPC'} · Dungeon Master`;
   const personality = token.kind === 'monster' ? tokenPersonality(token) : '';
-  const portrait = token.kind === 'pc' ? `${API}/art/token/${encodeURIComponent(token.slug)}` : `${API}/art/token/${encodeURIComponent(token.ref)}`;
+  const portrait = tokenArtUrl(token.kind === 'pc' ? token.slug : token.ref);
   root.innerHTML = `<button type="button" class="rail-character-head" id="railSheetBtn">
-      <span class="rail-portrait" style="background-image:url('${portrait}')"></span>
+      <span class="rail-portrait"${artStyle(portrait)}></span>
       <span><small>ACTIVE · ${esc(controller)}</small><b>${esc(tokenDisplayName(token))}</b><em>❤ ${token.hp}/${token.maxHp} · 🛡 ${token.ac} · 👟 ${movementLeft(token)}ft</em></span>
       <i>${token.kind === 'pc' ? 'View full sheet' : esc(role)}</i>
     </button>

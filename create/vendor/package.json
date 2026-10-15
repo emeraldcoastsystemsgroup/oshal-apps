@@ -1,0 +1,13 @@
+{
+  "name": "oshal-create-vector-vendor",
+  "private": true,
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "polygon-clipping": "0.15.7"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
+  }
+}

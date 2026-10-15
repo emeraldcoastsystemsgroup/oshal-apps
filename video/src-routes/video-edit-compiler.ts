@@ -4,14 +4,18 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Compile a validated manual timeline into one fixed FFmpeg argument array and filter graph. The only document values that reach the graph are range-checked integers; title text is written to server-named files read with drawtext expansion off, media are server-resolved local files forced through the file protocol and an explicit demuxer, and nothing is ever run through a shell.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  */
 
+import { compileMultitrack, type TimelineTrack } from './video-edit-multitrack-compiler';
+
 /** @description The persisted timeline shape (validated by tools/editor/timeline-validation.mjs before it reaches here). */
-export interface TimelineSource { kind: 'video' | 'audio'; asset: string; name: string; frames: number; width?: number; height?: number; audio?: boolean }
+export interface MotionSource { project: string; revision: number; compId: string; documentSha256: string; renderJob: string; renderSha256: string; startTick: string; endTick: string; frameRate: {num:number;den:number} }
+export interface TimelineSource { kind: 'video' | 'audio'; asset: string; name: string; frames: number; width?: number; height?: number; audio?: boolean; motion?: MotionSource }
 export interface TimelineSegment { id: string; source: string; in: number; out: number; volume: number }
 export interface TimelineTitle { id: string; text: string; start: number; end: number; position: 'top' | 'center' | 'bottom'; size: 'small' | 'medium' | 'large' }
 export interface TimelineDocument {
-  version: 1; name: string; profile: 'hd720p30'; sources: Record<string, TimelineSource>;
+  version: 1 | 2; tracks?: TimelineTrack[]; captions?: TimelineTitle[]; name: string; profile: 'hd720p30'; sources: Record<string, TimelineSource>;
   segments: TimelineSegment[]; titles: TimelineTitle[]; audioBed: { source: string; volume: number } | null;
 }
 
@@ -152,6 +156,7 @@ function audioChain(graph: Graph, input: CompileInput, total: number): void {
  */
 export function compileTimeline(input: CompileInput): CompiledTimeline {
   const document = input.document;
+  if (document?.version === 2 && document.profile === 'hd720p30') return compileMultitrack(input);
   if (!document || document.version !== 1 || document.profile !== 'hd720p30' || !Array.isArray(document.segments)) throw new TimelineCompileError('timeline_invalid');
   if (!document.segments.length) throw new TimelineCompileError('timeline_empty');
   const profile = PROFILES[input.variant];

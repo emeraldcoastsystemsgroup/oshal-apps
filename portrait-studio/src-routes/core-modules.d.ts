@@ -49,6 +49,8 @@ declare module '@/features/video-generation' {
   export interface StoryboardImageProvider {
     readonly id: string;
     readonly costClass: 'free' | 'paid';
+    /** True for the native kernel's own provider (its generation must finish inside the request). */
+    readonly native?: boolean;
     available(): Promise<boolean>;
     generate(prompt: string, anchor: Buffer | null): Promise<Buffer>;
     generateWithMeta?(prompt: string, anchor: Buffer | null): Promise<StoryboardImageResult>;

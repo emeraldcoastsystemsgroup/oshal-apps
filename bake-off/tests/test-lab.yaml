@@ -5,6 +5,11 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register all shipped package tests with explicit runner and fixture boundaries; retain readiness smoke identity.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.3: register the company audience view contract and behaviour test (ADR-164 D6) for the Business shells.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.4: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register the says-what-exists suite: the home summary never says "No saved work" beside a saved benchmark, and "Ask the analyst" waits for a finished run.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register the job-edit suite: Save edits the selected job through PATCH /jobs/:id (owner only) instead of creating a duplicate, and Delete asks first.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | job-edit also covers the run-spec guard: a job with a run refuses a changed prompt, rubric or reference (409 spec-has-runs) so its report keeps pairing the run with the prompt it raced, and Save offers to save the changes as a new job.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register the stale-report suite: a report whose run started before the job's prompt, rubric or reference last changed is marked out of date, and the console marks unsaved edits to them as not yet run.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register the review-eyebrow suite: the Review page's eyebrow names the manifest suite's room (sweep 8 read 'Learning and recreation' on an Engineering app).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -66,6 +71,98 @@ cases:
       - The stats are the route's four counts with their tones; the runs table reads status and start from the route's detail and the lanes recorded, best scored lane, score, judge and observed cost from its lane sentence, with a zero or missing cost kept unknown; the saved benchmarks table shows quality bar, monthly volume and lane choice.
       - The title names the account's state (in progress, latest failed, completed in 5 days, none completed in 5 days, saved but never run, nothing saved); an unchecked source, an unreadable saved-benchmarks list, a 401, a 403, a 503 with the route's body, a non-JSON failure and a failure with its own error each read as what they are.
       - Under an audience view the page's module script mounts no connected actions, binds no Refresh handler and reads nothing; without the audience it still runs every start step.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: says-what-exists
+    name: Summary and analyst button agree with saved work
+    purpose: >-
+      Drive the compiled home summary with saved jobs and no run, and run the shipped verdictReady from the page: the summary names the
+      saved benchmarks as not run (never "No saved work yet" beside the metric), and "Ask the analyst" is enabled only for a finished run.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/home-summary-agrees.test.js
+    expected:
+      - One saved job and no run reads "1 saved benchmark, none run yet"; no job at all still reads "No saved work yet".
+      - The analyst button is disabled with no run and while a run is running, and enabled for a finished run.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: job-edit
+    name: Editing a job updates it and deleting asks first
+    purpose: >-
+      Drive the compiled PATCH /jobs/:id over an owner-scoped job table and run the shipped Save and Delete handlers from the page:
+      editing a selected job keeps its id and lane choice instead of creating a second job, and deleting a job asks for confirmation.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/bake-off-job-edit.test.js
+    expected:
+      - The owner's PATCH updates the job in place (same id, one row, lane choice kept); another person's id and an unknown id are 404 and change nothing; no caller is 401; an invalid edit is 400.
+      - Save PATCHes the selected job and POSTs only with no job selected.
+      - Delete asks first, names the job, and sends nothing when the person declines.
+      - A job with a run refuses a changed prompt, rubric or reference with 409 spec-has-runs and keeps its row, so the report still pairs that run with the prompt it raced; name, quality bar and volume still edit in place, and a job with no run takes any edit.
+      - On that refusal Save asks and saves the changes as a new job, sends nothing more when declined, and shows any other refusal as an error.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: stale-report
+    name: A report graded on an earlier prompt is marked out of date
+    purpose: >-
+      Drive the compiled GET /jobs/:id/report and PATCH /jobs/:id over a jobs and runs table that applies the store's own UPDATE,
+      and run the page's report renderer and edit marker: a run graded before the job's prompt, rubric or reference changed is never shown as current.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/bake-off-stale-report.test.js
+    expected:
+      - A job whose updated_at is later than its newest run's start answers a stale marker (editedAt, runStartedAt, a message to run it again); a run started after the last spec change answers stale null.
+      - A name, quality bar or volume edit leaves updated_at, so the run stays current; a prompt change on a job with no run moves it; a job with a run still refuses an in-place prompt change (409).
+      - The console shows a stale report as "Out of date." with the table dimmed, and a current one unmarked.
+      - Editing the prompt, rubric or reference shows "Not run with your edits." above a report that shows a run; the saved job, trimmed whitespace, a job with no run and a new unsaved job do not; selecting a job resets it.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: review-eyebrow
+    name: The Review page names its own room
+    purpose: >-
+      Read the served Review page and the manifest: the eyebrow names the room of the package's suite (ai-engineering is
+      Engineering), the same room as the page's audience-view kicker. Sweep 8 found 'Learning and recreation' there.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/review-eyebrow.test.js
+    expected:
+      - tools/review.html has exactly one eyebrow, 'Engineering', matching suite ai-engineering and the kicker 'Engineering · AI Bake-Off'.
     prerequisites:
       - runner:node-test
     sideEffects: none

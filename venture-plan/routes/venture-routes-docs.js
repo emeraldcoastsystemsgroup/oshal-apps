@@ -27,11 +27,20 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — the document list/read/history/regenerate endpoints with live rendering from the latest snapshot, the print view, and the .docx/.xlsx/.pptx/.zip exports through the deck-generation kernel skill with a lazy jszip require so a missing dependency costs one button rather than the route module.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | A stored document rendered from an earlier computation says so: the list and the read answer `stale` (with the
+ *   latest computation's time) when its model is not the latest snapshot, and the print view and every export render such a
+ *   document from the current numbers instead of handing on the old ones. Live, the Executive summary said "Landed cost per
+ *   unit $25.12" while the Numbers tile showed $23.52. Office exports get one section per document heading in the Office
+ *   renderer's plain-text grammar (officeSlides): the whole Markdown body was passed through, so plan.docx printed
+ *   "**Decision this supports:**", merged every table of a document into one, and stripped one star of "**name**".
  *
  * @module venture-routes-docs
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.staleMarker = staleMarker;
 exports.markdownToHtml = markdownToHtml;
+exports.plainInline = plainInline;
+exports.officeSlides = officeSlides;
 exports.registerDocumentRoutes = registerDocumentRoutes;
 const logger_1 = require("@/shared/logger");
 const venture_documents_1 = require("./venture-documents");
@@ -67,6 +76,41 @@ async function renderLive(pool, sub, ctx, docKey) {
         canPublish: ctx.snapshot.canPublish, warnings: ctx.snapshot.warnings,
         assumptions, prose: {}, ventureName: ctx.venture.name, computedAt: ctx.snapshot.computedAt,
     });
+}
+/**
+ * @description Whether a stored document was rendered from a computation other than the latest one.
+ * @param doc - The stored document.
+ * @param snapshot - The latest computed snapshot.
+ * @returns The stale marker the surface shows, or null when the document is current.
+ */
+function staleMarker(doc, snapshot) {
+    return doc.modelId === snapshot.id ? null : { latestModelId: snapshot.id, latestComputedAt: snapshot.computedAt };
+}
+/** A live render as a stored-document shape (version 0), for export and print. */
+function liveAsStored(r, ctx) {
+    return {
+        id: '', ventureId: ctx.venture.id, docKey: r.docKey, version: 0, modelId: ctx.snapshot.id,
+        title: r.title, bodyMd: r.bodyMd, sections: r.sections, proseRunId: null,
+        proseStatus: 'none', unverifiedNumbers: r.unverifiedNumbers,
+        assumptionsCited: r.assumptionsCited, estimatePct: r.estimatePct, createdAt: ctx.snapshot.computedAt,
+    };
+}
+/**
+ * @description The document as it travels (print, export): the stored version when it was rendered
+ * from the latest computation, else a render from the current numbers. A stale stored version is never
+ * handed on, because an exported number that disagrees with the model is the failure this package exists
+ * to prevent.
+ * @param pool - Shared pool.
+ * @param sub - The caller's sub.
+ * @param ctx - Venture and latest snapshot.
+ * @param docKey - The document.
+ * @param stored - The stored newest version, if any.
+ * @returns The document to hand on.
+ */
+async function currentDocument(pool, sub, ctx, docKey, stored) {
+    if (stored && !staleMarker(stored, ctx.snapshot))
+        return stored;
+    return liveAsStored(await renderLive(pool, sub, ctx, docKey), ctx);
 }
 /** Escape text for HTML. Applied before any markdown structure is added back. */
 function esc(s) {
@@ -158,25 +202,57 @@ th{background:#f2f3f5}code{background:#f2f3f5;padding:1px 4px;border-radius:3px}
 @media print{body{padding:0;max-width:none}h2{page-break-after:avoid}table{page-break-inside:avoid}}
 </style></head><body>${bodyHtml}</body></html>`;
 }
-/** Map documents onto the deck-generation slide shape the kernel skill renders. */
-function slidesFor(docs) {
-    return docs.map((d) => ({ title: d.title, content: d.bodyMd.replace(/^#\s+.*$/m, '').trim().slice(0, 20000) }));
+/**
+ * @description Inline Markdown as plain text for the Office renderer, which prints every character it
+ * is given: bold, emphasis and code markers are dropped, a link keeps its address in brackets, and an
+ * escaped table pipe becomes a slash so a cell cannot split.
+ * @param s - One line of a document body.
+ * @returns The line without inline Markdown.
+ */
+function plainInline(s) {
+    return String(s)
+        .replace(/\\\|/g, '/')
+        .replace(/\*\*(.+?)\*\*/g, '$1')
+        .replace(/(^|[\s(])\*(?=\S)([^*]*?\S)\*(?=$|[\s.,;:)])/g, '$1$2')
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)');
 }
-/** Every stored document, falling back to a live render of the whole catalogue. */
+/** One document body as plain-grammar lines: the title heading dropped, quote markers removed. */
+function officeLines(lines) {
+    return lines
+        .filter((line) => !/^#\s/.test(line) && !/^>\s*$/.test(line) && line.trim() !== '')
+        .map((line) => plainInline(line.replace(/^>\s?/, '')));
+}
+/**
+ * @description Map documents onto the deck-generation slide shape, one slide per document heading.
+ *
+ * The Office renderer reads a slide's content as its own small grammar (a line is a bullet, `|` rows
+ * are ONE table, `> ` lines are ONE quote, `## ` starts a group), so a whole Markdown body printed its
+ * markers and merged every table of a document into one. Each `## ` section is its own slide here,
+ * with the posture header as the document's first slide, and every line is plain text.
+ *
+ * @param docs - The documents to export.
+ * @returns The slides, in document order.
+ */
+function officeSlides(docs) {
+    const slides = [];
+    for (const d of docs) {
+        const sections = d.bodyMd.split(/^## /m);
+        slides.push({ title: d.title, content: officeLines(sections[0].split('\n')).join('\n').slice(0, 20000) });
+        for (const section of sections.slice(1)) {
+            const [heading, ...rest] = section.split('\n');
+            slides.push({ title: `${d.title} · ${plainInline(heading.trim())}`, content: officeLines(rest).join('\n').slice(0, 20000) });
+        }
+    }
+    return slides;
+}
+/** Every catalogue document as it travels: stored when current, else rendered from the current numbers. */
 async function documentsForExport(pool, sub, ctx) {
-    const stored = await (0, venture_store_outputs_1.listDocuments)(pool, sub, ctx.venture.id, true);
-    if (stored.length)
-        return stored;
+    const stored = new Map((await (0, venture_store_outputs_1.listDocuments)(pool, sub, ctx.venture.id, true)).map((d) => [d.docKey, d]));
     const out = [];
     for (const spec of venture_doc_catalog_1.DOC_CATALOG) {
         try {
-            const r = await renderLive(pool, sub, ctx, spec.key);
-            out.push({
-                id: '', ventureId: ctx.venture.id, docKey: r.docKey, version: 0, modelId: ctx.snapshot.id,
-                title: r.title, bodyMd: r.bodyMd, sections: r.sections, proseRunId: null,
-                proseStatus: 'none', unverifiedNumbers: r.unverifiedNumbers,
-                assumptionsCited: r.assumptionsCited, estimatePct: r.estimatePct, createdAt: ctx.snapshot.computedAt,
-            });
+            out.push(await currentDocument(pool, sub, ctx, spec.key, stored.get(spec.key) ?? null));
         }
         catch (err) {
             log.error({ err, stack: err?.stack, docKey: spec.key }, 'document skipped from export');
@@ -195,9 +271,11 @@ function registerReadRoutes(router, pool) {
             res.status(404).json({ error: 'not found' });
             return;
         }
+        const latest = await (0, venture_store_outputs_1.latestModel)(pool, sub, id, null);
+        const documents = await (0, venture_store_outputs_1.listDocuments)(pool, sub, id, false);
         res.json({
             catalog: venture_doc_catalog_1.DOC_CATALOG.map((d) => ({ key: d.key, title: d.title, audience: d.audience, decision: d.decision })),
-            documents: await (0, venture_store_outputs_1.listDocuments)(pool, sub, id, false),
+            documents: documents.map((d) => ({ ...d, stale: latest ? staleMarker(d, latest) : null })),
         });
     }));
     router.get('/ventures/:id/documents/:docKey', (0, venture_http_1.guarded)('GET document', async (req, res) => {
@@ -214,7 +292,7 @@ function registerReadRoutes(router, pool) {
             return;
         const stored = await (0, venture_store_outputs_1.getDocument)(pool, sub, c.venture.id, docKey, null);
         if (stored) {
-            res.json({ document: stored, live: false });
+            res.json({ document: { ...stored, stale: staleMarker(stored, c.snapshot) }, live: false });
             return;
         }
         try {
@@ -271,7 +349,7 @@ function registerDocActionRoutes(router, ctx, pool) {
             return;
         const stored = await (0, venture_store_outputs_1.getDocument)(pool, sub, c.venture.id, docKey, null);
         try {
-            const body = stored ? stored.bodyMd : (await renderLive(pool, sub, c, docKey)).bodyMd;
+            const body = (await currentDocument(pool, sub, c, docKey, stored)).bodyMd;
             res.type('html').send(printPage(`${c.venture.name} — ${docKey}`, markdownToHtml(body)));
         }
         catch (err) {
@@ -311,7 +389,7 @@ function officeExport(pool, format, mime) {
             // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
             const gen = require('@/features/presentation-generation');
             const render = format === 'docx' ? gen.renderDocx : format === 'xlsx' ? gen.renderXlsx : gen.renderPptx;
-            const buffer = await render(`${c.venture.name} — venture plan`, slidesFor(docs), {
+            const buffer = await render(`${c.venture.name} — venture plan`, officeSlides(docs), {
                 subtitle: `posture: ${c.snapshot.posture} · ${c.snapshot.coverage.estimatePct}% of assumptions are model estimates`,
             });
             res.setHeader('Content-Type', mime);

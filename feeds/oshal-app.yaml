@@ -1,3 +1,7 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Give feeds-curator route-backed reads over this package's own /api/feeds routes (feeds-status, feeds-messages). Its only declared tool is the legacy slack_feed CLI, which the native kernel does not run, so the concierge asked the person to paste their Slack data. Guarded by scripts/check-store-bots.test.mjs.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | The legacy slack_feed usageInstructions no longer say "never ask them to connect Slack": when Slack is not connected the person is told to connect it under Connections (/utilities), matching feeds-status/feeds-messages and the feeds-curator persona.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Name the button, not the path. Sweep 8: the concierge told the person to go to 'Connections (/utilities)'. Every not-connected instruction now says to press Connect Slack on the Feeds page (or connect Slack on the Connections page). Guard: tests/feeds-connect-copy.test.js.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — feeds ("Feeds")
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -125,10 +129,40 @@ tools:
       activeChannels, peopleTalking, overallMood, mentionsOfYou, followSuggestions
       (ranked channels to follow — each with channel/messages/mentionsOfYou/reason),
       hotChannels, topVoices, and recent[] (channel/from/text/at/mood). It is already scoped
-      to the signed-in user — never ask them to connect Slack or for a channel list; you
-      already have it. To answer "what should I follow / pay attention to", read
+      to the signed-in user — never ask them for a channel list or to paste messages. If
+      Slack is not connected, tell them to press Connect Slack on the Feeds page (or connect Slack on the Connections page). To answer "what should I follow / pay attention to", read
       followSuggestions in order (top = highest signal; mentions of the user rank first). If
       totalIndexed is 0, tell them to open Feeds and hit "Sync now".
+
+  # Native kernel: route-backed reads (executorType api, inside /api/feeds) under the caller.
+  - name: feeds-status
+    displayName: Feed Status
+    type: api
+    category: communication
+    description: Whether the person's Slack is connected for Feeds, and their feed settings.
+    executor: { executorType: api, apiEndpoint: "GET /api/feeds/status" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: >-
+      Call with {}. "connected":false means Slack is not connected: tell them to press Connect Slack on
+      the Feeds page (or connect Slack on the Connections page), then use Sync now. Never ask them to paste messages
+      and never give a path such as /utilities.
+    tags: [feeds, route-backed]
+  - name: feeds-messages
+    displayName: Feed Messages
+    type: api
+    category: communication
+    description: The person's indexed feed messages, newest first (channel, author, text, time, mood when enabled).
+    executor: { executorType: api, apiEndpoint: "GET /api/feeds/messages" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: >-
+      Call with {} to summarize, spot hot channels or answer "what did I miss". Use only these messages.
+      An empty list with an error "not connected" means Slack is not connected; an empty list otherwise
+      means nothing is indexed yet (open Feeds and use Sync now).
+    tags: [feeds, route-backed]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon icon opens the Feeds dashboard, self-served by
@@ -175,9 +209,10 @@ routes:
     requiresAuth: true
     requiresContext: true
 
-# No migrations: the feed_messages schema + feeds-curator seed are created by the
-# kernel-resident engine (045-feeds-platform.sql + feeds-indexing.ensureFeedsSchema),
-# which stays framework-resident with the indexing cron. This surface only reads them.
+# The package owns feed_messages and feed_settings: the native kernel has no boot bootstrap,
+# so the settings the Feeds page saves persist only in tables this migration declares.
+migrations:
+  - migrations/045-feeds-platform.sql
 
 # ─────────────────────────────────────────────────────────────────────────────
 # WORKFLOW — tickets of type 'feeds' route to the curator (queue == app name).

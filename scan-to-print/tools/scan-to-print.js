@@ -53,6 +53,21 @@
  *                     |                             | object list. They used to sit inside the print step, which stays hidden
  *                     |                             | until an object is reconstructed, so a printer for the print service
  *                     |                             | could not be added from a fresh page.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com   | A refusal reads as a sentence. A server answer with no
+ *                     |                             | message (the native kernel's bare `application_route_failed`
+ *                     |                             | when a request fails after the route ran) showed the raw code in
+ *                     |                             | the toast; it now says the request did not finish and nothing
+ *                     |                             | was saved, keeping the code in brackets. A refusal's `detail` is
+ *                     |                             | used when it has no message. Guard: tests/surface-errors.test.js.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com   | The page states and enforces the upload limit that holds on this
+ *                     |                             | installation (/capabilities `upload`, the native kernel's 10 MiB
+ *                     |                             | per file): a note under Capture names it, an oversized video or
+ *                     |                             | .ply is refused before anything is sent (and before the outputs
+ *                     |                             | are cleared) with its size, the limit and how to make it fit, and
+ *                     |                             | photos go in requests that fit (planUpload), oversized ones named
+ *                     |                             | and skipped. Guard: tests/surface-upload-limits.test.js.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com   | K4: a refused point-cloud import left the report on 'Processing the new point cloud. Previous outputs are unavailable.' indefinitely, the reason only a passing toast. The catch now reloads the object as the server holds it and keeps the refusal in the report (role alert), saying the earlier outputs were retired when the import started.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com   | Demo sweep 1: a failed Open in CAD Studio toasted CAD Studio's build.reason, which carries the kernel's failure and the host's install command ('on the kernel host run cad-studio/engine/install-engine.sh ...'). cadRefusal says the CAD engine is not answering on this installation instead; any other refusal is CAD Studio's own sentence.
  */
 (function () {
   'use strict';
@@ -60,6 +75,86 @@
   const $ = (id) => document.getElementById(id);
   const state = { jobs: [], job: null, detail: null, capabilities: null, printers: [], profiles: null, viewer: null, showMask: false,
     outputEpoch: 0, outputsFresh: false, scaleDirty: false, suggestions: [] };
+
+  /** Codes a server may answer with no message, in words (the code stays in brackets for support). */
+  const READABLE = Object.freeze({
+    application_route_failed: 'The server could not finish this request, so nothing was saved. Try again; if it repeats, lower the resolution.',
+    native_executor_unavailable: 'This installation cannot run that step.',
+    reconstruction_failed: 'Reconstruction failed on the server, so nothing was saved.',
+  });
+
+  /**
+   * @description The sentence a failed request shows: the server's message, else its detail, else a known code
+   * in words, else the code itself made readable. Never a bare snake_case code.
+   * @param {object|null} body - The parsed answer.
+   * @param {number} status - The HTTP status.
+   * @returns {string} The toast text.
+   */
+  function failureText(body, status) {
+    if (body && typeof body.message === 'string' && body.message) return body.message;
+    const code = body && typeof body.error === 'string' ? body.error : '';
+    if (body && typeof body.detail === 'string' && body.detail) return body.detail + (code ? ' (' + code + ')' : '');
+    if (READABLE[code]) return READABLE[code] + ' (' + code + ')';
+    if (/^[a-z0-9_]+$/.test(code)) return 'The server refused this request: ' + code.replace(/_/g, ' ') + ' (HTTP ' + status + ').';
+    return code || ('The server answered HTTP ' + status + '.');
+  }
+
+  /**
+   * @description A byte count in MiB the way the limit note and refusals say it ("10 MiB", "23.4 MiB").
+   * @param {number} bytes - Size in bytes.
+   * @returns {string} The size in words.
+   */
+  function sizeText(bytes) {
+    const mib = bytes / (1024 * 1024);
+    return (Number.isInteger(mib) ? String(mib) : mib.toFixed(1)) + ' MiB';
+  }
+
+  /**
+   * @description Split chosen files into upload requests this installation accepts: a file over its per-file
+   * limit is refused (named, never sent); the rest go at most `perRequest` to a request and, when the host bounds
+   * a request (`requestBytes`), no more file bytes per request than that.
+   * @param {{name:string,size:number}[]} files - The chosen files, in order.
+   * @param {number} maxFileBytes - The per-file limit.
+   * @param {number|null} requestBytes - The most file bytes one request may carry, or null for no bound.
+   * @param {number} perRequest - The most files one request may carry.
+   * @returns {{batches:object[][], refused:object[]}} The requests to send and the files refused.
+   */
+  function planUpload(files, maxFileBytes, requestBytes, perRequest) {
+    const batches = [], refused = [];
+    let batch = [], bytes = 0;
+    for (const file of files) {
+      if (file.size > maxFileBytes) { refused.push(file); continue; }
+      if (batch.length && (batch.length >= perRequest || (requestBytes && bytes + file.size > requestBytes))) { batches.push(batch); batch = []; bytes = 0; }
+      batch.push(file); bytes += file.size;
+    }
+    if (batch.length) batches.push(batch);
+    return { batches, refused };
+  }
+
+  /**
+   * @description The refusal for one file over the limit: its size, the limit, and how to make it fit.
+   * @param {{name:string,size:number}} file - The refused file.
+   * @param {number} maxBytes - The limit it exceeded.
+   * @param {string} hint - What to do instead.
+   * @returns {string} The toast text.
+   */
+  function tooLargeText(file, maxBytes, hint) {
+    return file.name + ' is ' + sizeText(file.size) + '; this installation accepts files up to ' + sizeText(maxBytes) + '. ' + hint;
+  }
+
+  /**
+   * @description The note under Capture naming the upload limits that hold here (from /capabilities `upload`).
+   * @param {object|null} upload - The capabilities' upload section.
+   * @returns {string} The note, or '' when the limits are unknown.
+   */
+  function uploadNote(upload) {
+    if (!upload || !Number.isFinite(upload.plyBytes)) return '';
+    if (upload.host === 'native') return 'Uploads on this installation: at most ' + sizeText(upload.plyBytes) + ' per file (photo, video or .ply).';
+    return 'Upload limits: photos ' + sizeText(upload.imageBytes) + ', video ' + sizeText(upload.videoBytes) + ', .ply ' + sizeText(upload.plyBytes) + ' each.';
+  }
+
+  /** The current upload limits, or null before /capabilities answered (the server still enforces its own). */
+  function uploadLimits() { return state.capabilities && state.capabilities.upload ? state.capabilities.upload : null; }
 
   /** One fetch helper: JSON in, JSON out, errors as Error with the server's message. */
   async function api(path, opts) {
@@ -69,7 +164,7 @@
     const text = await res.text();
     let body = null;
     try { body = text ? JSON.parse(text) : null; } catch (_) { body = { raw: text }; }
-    if (!res.ok) { const err = new Error((body && (body.message || body.error)) || ('HTTP ' + res.status)); err.status = res.status; err.body = body; throw err; }
+    if (!res.ok) { const err = new Error(failureText(body, res.status)); err.status = res.status; err.body = body; throw err; }
     return body;
   }
 
@@ -209,18 +304,29 @@
   }
   async function uploadPhotos(files) {
     if (!files.length) return;
+    const limits = uploadLimits();
+    const chosen = Array.from(files).slice(0, limits ? limits.imagesPerJob : 24);
+    const plan = limits ? planUpload(chosen, limits.imageBytes, limits.requestBytes, limits.imagesPerRequest) : { batches: [chosen.slice(0, 12)], refused: [] };
+    const skipped = plan.refused.length ? ' Not sent (over ' + sizeText(limits.imageBytes) + '): ' + plan.refused.map((f) => f.name).join(', ') + '.' : '';
+    if (!plan.batches.length) { toast(plan.refused.length === 1 ? tooLargeText(plan.refused[0], limits.imageBytes, 'Use the camera here, or a smaller photo.') : 'No photo was sent.' + skipped, 'error'); return; }
     clearOutputs('Photos changed. Assign the views, then reconstruct.');
-    const form = new FormData();
-    Array.from(files).slice(0, 12).forEach((f) => form.append('images', f, f.name));
+    let markers = 0;
     try {
       toast('Extracting silhouettes…');
-      const out = await api('/jobs/' + state.job.job_id + '/images', { method: 'POST', body: form });
+      for (const batch of plan.batches) {
+        const form = new FormData();
+        batch.forEach((f) => form.append('images', f, f.name));
+        const out = await api('/jobs/' + state.job.job_id + '/images', { method: 'POST', body: form });
+        markers += out.viewsFromMarkers || 0;
+      }
       await openJob(state.job.job_id);
-      toast(out.viewsFromMarkers ? 'Photos added; ' + out.viewsFromMarkers + ' view' + (out.viewsFromMarkers === 1 ? '' : 's') + ' read from the orientation cube.' : 'Photos added.');
-    } catch (e) { toast(e.message, 'error'); }
+      toast((markers ? 'Photos added; ' + markers + ' view' + (markers === 1 ? '' : 's') + ' read from the orientation cube.' : 'Photos added.') + skipped, skipped ? 'error' : undefined);
+    } catch (e) { await openJob(state.job.job_id).catch(() => undefined); toast(e.message, 'error'); }
   }
   async function uploadVideo(file) {
     if (!file) return;
+    const limits = uploadLimits();
+    if (limits && file.size > limits.videoBytes) { toast(tooLargeText(file, limits.videoBytes, 'Trim the clip or record at a lower resolution, or take photos instead.'), 'error'); return; }
     clearOutputs('Capture changed. Assign the new views, then reconstruct.');
     const form = new FormData();
     form.append('video', file, file.name);
@@ -228,6 +334,8 @@
   }
   async function uploadPointCloud(file) {
     if (!file) return;
+    const limits = uploadLimits();
+    if (limits && file.size > limits.plyBytes) { toast(tooLargeText(file, limits.plyBytes, 'A binary .ply export, or a decimated or cropped scan, is smaller.'), 'error'); return; }
     clearOutputs('Processing the new point cloud. Previous outputs are unavailable.');
     const form = new FormData();
     form.append('model', file, file.name);
@@ -235,7 +343,15 @@
     form.append('unitScale', $('pc-units').value);
     form.append('up', $('pc-up').value);
     form.append('sealBase', $('pc-seal').checked ? 'true' : 'false');
-    try { toast('Voxelising point cloud…'); const out = await api('/jobs/' + state.job.job_id + '/pointcloud', { method: 'POST', body: form }); await openJob(state.job.job_id); toast(out.closed ? (out.sealedBase ? 'Point cloud closed and filled — base sealed, so the underside is assumed.' : 'Point cloud closed and filled.') : 'Surface did not close — see the report.', out.closed ? 'ok' : 'error'); } catch (e) { toast(e.message, 'error'); }
+    try { toast('Voxelising point cloud…'); const out = await api('/jobs/' + state.job.job_id + '/pointcloud', { method: 'POST', body: form }); await openJob(state.job.job_id); toast(out.closed ? (out.sealedBase ? 'Point cloud closed and filled — base sealed, so the underside is assumed.' : 'Point cloud closed and filled.') : 'Surface did not close — see the report.', out.closed ? 'ok' : 'error'); } catch (e) { await showImportRefusal(e); }
+  }
+  /** A refused import: reload the object as the server now holds it, and keep the reason in the report, not only a toast. */
+  async function showImportRefusal(e) {
+    const reason = (e && e.message) || 'The server refused the point cloud.';
+    await openJob(state.job.job_id).catch(() => undefined);
+    $('report').replaceChildren(el('p', { role: 'alert', text: 'The point cloud was not imported: ' + reason
+      + ' The earlier outputs were retired when the import started; change the import settings and import again, or reconstruct.' }));
+    toast(reason, 'error');
   }
 
   // ── Dimensions + settings ──────────────────────────────────────────────────
@@ -458,6 +574,14 @@
   }
 
   // ── Hand-off to CAD Studio: the outlines become a B-rep part ─────────────
+  /** CAD Studio's refusal in a person's words: an engine that is not answering is one sentence (never the
+   * kernel's address or the host's install command, which ride build.reason for the operator); any other
+   * refusal is CAD Studio's own sentence. */
+  function cadRefusal(out) {
+    const build = out.build || {};
+    if (build.code === 'capability_unavailable') return "CAD Studio's engine is not answering on this installation, so the part cannot be made there right now.";
+    return build.error || build.reason || out.message || out.error || '';
+  }
   async function openInCadStudio() {
     if (!state.job || !state.outputsFresh) return;
     const { job_id: jobId, title, updated_at: revision } = state.job, epoch = state.outputEpoch;
@@ -470,7 +594,7 @@
       if (res.status === 404 || res.status === 401 || res.status === 403) throw new Error('CAD Studio is not installed on this swarm, or you are not granted access to it.');
       const out = await res.json().catch(() => ({}));
       if (!current()) return;
-      if (!res.ok) throw new Error((out.build && (out.build.reason || out.build.error)) || out.message || out.error || ('HTTP ' + res.status));
+      if (!res.ok) throw new Error(cadRefusal(out) || ('HTTP ' + res.status));
       toast('Opened in CAD Studio as "' + out.model.title + '" (revision ' + out.model.revision + ').', 'ok');
       (window.top || window).location.assign('/cockpit/?app=cad-studio');
     } catch (e) { if (current()) toast(e.message, 'error'); }
@@ -588,6 +712,7 @@
   async function boot() {
     try { state.capabilities = await api('/capabilities'); } catch (e) { toast('Capabilities unavailable: ' + e.message, 'error'); }
     if (state.capabilities && state.capabilities.video && !state.capabilities.video.configured) $('video-note').textContent = 'Frame extraction is not configured: ' + state.capabilities.video.error;
+    $('upload-note').textContent = uploadNote(uploadLimits());
     $('new-job').addEventListener('click', () => createJob().catch((e) => toast(e.message, 'error')));
     $('delete-job').addEventListener('click', () => deleteJob().catch((e) => toast(e.message, 'error')));
     $('photos').addEventListener('change', (ev) => { uploadPhotos(ev.target.files); ev.target.value = ''; });

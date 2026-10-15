@@ -11,6 +11,8 @@ exports.registerCreateProjectRoutes = registerCreateProjectRoutes;
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Expose private project CRUD, immutable revision history, explicit document export and bounded owner-scoped raster uploads.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Mount the personal brand kit routes on this router, before its shared error handler, with the same personal-scope and error guards.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Mount region editing on this router with the same guards and the shared project validator; a test may name its fixture provider through options.regionEdits, production always uses the media-generation kernel skill.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Compose bounded PSD review/import and immutable original export without replacing existing project routes.
  */
 const express_1 = require("express");
 const multer_1 = __importDefault(require("multer"));
@@ -22,6 +24,7 @@ const create_project_store_1 = require("./create-project-store");
 const create_project_authorization_1 = require("./create-project-authorization");
 const create_project_assets_1 = require("./create-project-assets");
 const create_brand_kit_routes_1 = require("./create-brand-kit-routes");
+const create_psd_routes_1 = require("./create-psd-routes");
 const create_region_edit_routes_1 = require("./create-region-edit-routes");
 const bodyParser = (0, express_1.json)({ limit: create_project_types_1.PROJECT_LIMITS.documentBytes + 4096, strict: true });
 /** Personal projects never accept a caller-selected shared tenant or owner scope. */
@@ -90,6 +93,48 @@ function projectReads(router, env) {
 }
 /** Save/delete reject stale base revisions while holding the exact project row lock. */
 function projectWrites(router, env) {
+    const agent = (0, create_project_validation_1.loadProjectAgent)(env.ctx.appPackageDir ?? (0, node_path_1.resolve)(__dirname, '..'));
+    router.get('/editing-contract', admit(env, 'view'), handler(env, 'view', async (_req, res) => {
+        res.json((await agent).editingContract());
+    }));
+    router.post('/agent-projects', admit(env, 'create'), bodyParser, handler(env, 'create', async (req, res, owner) => {
+        (0, create_project_validation_1.exactFields)(req.body, ['title', 'width', 'height', 'background']);
+        let document;
+        try {
+            document = (await agent).blankProject(req.body);
+        }
+        catch {
+            throw new create_project_types_1.ProjectError(400, 'invalid_project_document');
+        }
+        const input = (0, create_project_validation_1.projectInput)({ title: req.body.title, document }, await env.validator);
+        const project = await env.store.create(owner, input, confirm(env, 'create', owner));
+        res.status(201).json({ project });
+    }));
+    router.post('/projects/:id/operations', admit(env, 'change'), admit(env, 'read'), bodyParser, handler(env, 'change', async (req, res, owner) => {
+        (0, create_project_validation_1.exactFields)(req.body, ['id', 'baseRevision', 'operations']);
+        const id = (0, create_project_validation_1.projectId)(req.params.id), expected = (0, create_project_validation_1.baseRevision)(req.body.baseRevision);
+        if (req.body.id !== undefined && (0, create_project_validation_1.projectId)(req.body.id) !== id)
+            throw new create_project_types_1.ProjectError(400, 'invalid_project_id');
+        if (Buffer.byteLength(JSON.stringify(req.body)) > 16384)
+            throw new create_project_types_1.ProjectError(413, 'project_operations_too_large');
+        await (0, create_project_authorization_1.requireProjectAccess)(env.ctx, 'read', owner);
+        const current = await env.store.get(owner, id);
+        if (current.revision !== expected)
+            throw new create_project_types_1.ProjectError(409, 'project_revision_conflict');
+        let document;
+        try {
+            document = (await agent).applyAgentOperations(current.document, req.body.operations);
+        }
+        catch {
+            throw new create_project_types_1.ProjectError(400, 'invalid_project_operations');
+        }
+        const input = (0, create_project_validation_1.projectInput)({ title: document.name, document }, await env.validator);
+        const project = await env.store.save(owner, id, expected, input, async () => {
+            await (0, create_project_authorization_1.requireProjectAccess)(env.ctx, 'read', owner);
+            await (0, create_project_authorization_1.requireProjectAccess)(env.ctx, 'change', owner);
+        });
+        res.status(201).json({ project });
+    }));
     router.post('/projects', admit(env, 'create'), bodyParser, handler(env, 'create', async (req, res, owner) => {
         const input = (0, create_project_validation_1.projectInput)(req.body, await env.validator);
         const project = await env.store.create(owner, input, confirm(env, 'create', owner));
@@ -136,6 +181,7 @@ function createCreateProjectRoutes(ctx, options = {}) {
     projectReads(router, env);
     projectWrites(router, env);
     projectAssets(router, env);
+    (0, create_psd_routes_1.registerPsdRoutes)(router, { ...env, ctx: { ...ctx, appPackageDir: ctx.appPackageDir ?? (0, node_path_1.resolve)(__dirname, '..') }, guards: { personalOnly, sendError } });
     (0, create_brand_kit_routes_1.registerBrandKitRoutes)(router, { ctx, projects: env.store, dataRoot: env.dataRoot, guards: { personalOnly, sendError } });
     (0, create_region_edit_routes_1.registerRegionEditRoutes)(router, { ctx, projects: env.store, dataRoot: env.dataRoot, guards: { personalOnly, sendError }, validator: env.validator,
         dependencies: options.regionEdits?.dependencies, settings: options.regionEdits?.settings });
@@ -150,4 +196,3 @@ function createCreateProjectRoutes(ctx, options = {}) {
 }
 /** Optional composition helper for an existing package router. */
 function registerCreateProjectRoutes(router, ctx) { router.use(createCreateProjectRoutes(ctx)); }
-//# sourceMappingURL=create-project-routes.js.map

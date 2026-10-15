@@ -14,6 +14,7 @@ const logger_1 = require("@/shared/logger");
 const career_user_store_1 = require("./career-user-store");
 const career_engine_dispatch_1 = require("./career-engine-dispatch");
 const career_engine_response_1 = require("./career-engine-response");
+const career_engine_runner_1 = require("./career-engine-runner");
 const logger = (0, logger_1.createChildLogger)({ module: 'career-strengthen-routes' });
 const CHANGELOG_PATH = '/api/career-hunter/strengthen/changelog';
 /** Read the engine child's JSON document out of its stdout tail, or null when it printed none. */
@@ -65,6 +66,13 @@ async function changelogStrengthen(ctx, req, res) {
     const userSub = (0, career_user_store_1.callerSub)(req);
     if (!userSub) {
         res.status(401).json({ error: 'unauthorized' });
+        return;
+    }
+    // Native kernel: a kept run holds the owner's write lock in its own sandbox, so this read sees
+    // only the last published files. The kernel's run list is the truthful "still weaving" signal.
+    const running = await (0, career_engine_runner_1.nativeRunInProgress)();
+    if (running) {
+        res.status(409).json({ ok: false, status: 'in-progress', entries: [], runId: running });
         return;
     }
     const result = await (0, career_engine_dispatch_1.runCareerCliAwait)(ctx.pool, userSub, ['strengthen', 'changelog']);

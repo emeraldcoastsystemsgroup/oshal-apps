@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05d: delete one owned upload that no retained revision uses (a mistaken import, or an acceptance run's own fixture), file first and then its row, under the owner lock; one a revision still uses is refused.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Use the explicitly declared native full-read-set revision CAS while retaining PostgreSQL advisory admission.
  */
+import type { MotionSource } from './video-edit-compiler';
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { acquireEditorWrite } from './video-editor-write-gate';
@@ -35,6 +36,12 @@ function sameMedia(source: EditorProjectInput['document']['sources'][string], ro
   if (!row || row.kind !== source.kind || row.frames !== source.frames) return false;
   if (source.kind === 'audio') return true;
   return row.width === source.width && row.height === source.height && row.has_audio === source.audio;
+}
+
+function sameLineage(left:MotionSource|undefined,right:MotionSource|undefined):boolean {
+  if (!left || !right) return left === right;
+  return ['project','revision','compId','documentSha256','renderJob','renderSha256','startTick','endTick'].every(key => left[key as keyof MotionSource] === right[key as keyof MotionSource])
+    && left.frameRate.num === right.frameRate.num && left.frameRate.den === right.frameRate.den;
 }
 
 /** One transaction scopes SQL and the forced policy to the verified owner; there is no system or admin path. */
@@ -92,6 +99,9 @@ export class VideoEditorStore {
     if (!ids.length) return [];
     const result = await client.query<MediaRow>(`SELECT ${MEDIA} FROM video_edit_assets WHERE owner_issuer=$1 AND owner_sub=$2 AND asset_id=ANY($3::uuid[])`, [owner.issuer, owner.sub, ids]);
     const rows = new Map(result.rows.map(row => [row.asset_id, row]));
+    const links = await client.query<{asset_id:string;source:MotionSource}>('SELECT asset_id,source FROM video_edit_motion_sources WHERE owner_issuer=$1 AND owner_sub=$2 AND asset_id=ANY($3::uuid[])', [owner.issuer,owner.sub,ids]);
+    const lineage = new Map(links.rows.map(row => [row.asset_id,row.source]));
+    if (sources.some(source => !sameLineage(source.motion,lineage.get(source.asset)))) throw new EditorError(400,'video_edit_motion_source_mismatch');
     if (sources.some(source => !sameMedia(source, rows.get(source.asset)))) throw new EditorError(400, 'video_edit_media_unavailable');
     if (result.rows.reduce((sum, row) => sum + Number(row.byte_length), 0) > EDITOR_LIMITS.projectMediaBytes) throw new EditorError(409, 'video_edit_project_media_limit');
     return ids;
@@ -191,14 +201,23 @@ export class VideoEditorStore {
     });
   }
 
+  /** @description Retry only the same original owned immutable Motion import. */
+  async motionImport(owner:EditorOwner, requestKey:string):Promise<{asset:string;source:MotionSource}|null> {
+    return this.transaction(owner,false,async client => {
+      const result = await client.query<{asset_id:string;source:MotionSource}>('SELECT asset_id,source FROM video_edit_motion_sources WHERE owner_issuer=$1 AND owner_sub=$2 AND request_key=$3',[owner.issuer,owner.sub,requestKey]);
+      return result.rows[0] ? {asset:result.rows[0].asset_id,source:result.rows[0].source} : null;
+    });
+  }
+
   /** @description Admit one verified upload under the per-owner count and byte quotas. @returns void */
-  async addMedia(owner: EditorOwner, value: EditorMedia, confirm: ConfirmEditorAccess): Promise<void> {
+  async addMedia(owner: EditorOwner, value: EditorMedia, confirm: ConfirmEditorAccess, motion?: {source:MotionSource;requestKey:string}): Promise<void> {
     await this.transaction(owner, true, async client => {
       await this.ownerLock(client, owner);
       const total = await client.query<{ count: number; bytes: string }>('SELECT COUNT(*)::int AS count,COALESCE(SUM(byte_length),0)::text AS bytes FROM video_edit_assets WHERE owner_issuer=$1 AND owner_sub=$2', [owner.issuer, owner.sub]);
       if (total.rows[0].count >= EDITOR_LIMITS.ownerMedia || Number(total.rows[0].bytes) + value.bytes > EDITOR_LIMITS.ownerMediaBytes) throw new EditorError(409, 'video_edit_media_limit');
       await client.query(`INSERT INTO video_edit_assets (${MEDIA},owner_issuer,owner_sub) VALUES ($3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$1,$2)`,
         [owner.issuer, owner.sub, value.id, value.kind, value.bytes, value.sha256, value.container, value.videoCodec, value.audioCodec, value.width, value.height, value.frames, value.durationMs, value.hasAudio]);
+      if (motion) await client.query('INSERT INTO video_edit_motion_sources (owner_issuer,owner_sub,asset_id,request_key,source) VALUES ($1,$2,$3,$4,$5::jsonb)',[owner.issuer,owner.sub,value.id,motion.requestKey,JSON.stringify(motion.source)]);
     }, confirm);
   }
 

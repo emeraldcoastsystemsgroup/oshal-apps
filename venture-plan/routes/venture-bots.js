@@ -28,11 +28,38 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — the four agent ids, the literal JSON contracts embedded in each prompt, the five authoring calls (scope, BOM, market, ops, narrate), and the executeBotOrInline chokepoint with per-call cost capture. No arithmetic anywhere in the module.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The three analyst replies are bounded so each fits one native request: on the native kernel a bot turn
+ *   defaults to 2048 output tokens and the request to 60 s, and the unbounded BOM reply (10 lines, 4 vendors, indented)
+ *   measured 3,142 tokens and the ops reply 2,869, so both were cut off before their JSON closed. Each analyst call now
+ *   passes an explicit max_output_tokens (ANALYST_MAX_OUTPUT_TOKENS) and its contract states item counts, text lengths
+ *   and minified JSON (ANALYST_LIMITS) whose worst case fits that cap.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | The market and ops analysts fill code-owned "required" slots for the inputs the model names by key
+ *   (venture-required-inputs): asked to "cover" market.demand.base-units and landed.freight.container-rate in a free list,
+ *   they named their own keys live and the model refused every document on model:traceability. The free lists shrink
+ *   (market 9 to 7, ops 8 to 6) so the worst-case reply with the slots still fits ANALYST_MAX_OUTPUT_TOKENS.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | One unit convention across each analyst prompt. The free assumption lists asked for "micros" money and
+ *   "bps" rates while the "required" block beside them asked for plain dollars and the personas for usd/pct, and live the
+ *   ledger held channel.amazon.fulfillment-pct as 550000 "usd_micros" and comparables at a tenth of their price. The
+ *   lists now ask for "usd" (plain dollars) and "pct" (percent), the units the personas and the slots already use, and
+ *   the contract parser converts them (venture-bot-contracts). Units per container and CBM per unit are ops slots now,
+ *   so the ops free list shrinks from 6 to 4.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The narrate prompt asks for {{fig:<id>}} tokens from the figure table, as the strategist persona does,
+ *   instead of "copy a figure exactly" over raw micro-dollar values: the persona wrote tokens and the document printed them
+ *   raw. The table shows each figure formatted the way the document prints it.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: the first Run the analysts failed "BOM analyst reply unusable: no JSON object in the reply" (1,070 tokens
+ *   that did not parse) and the next run succeeded. Each analyst call takes `strict`, which adds STRICT_JSON, so the run can
+ *   ask once more for the JSON object alone. The narrate prompt takes the document's figures the model could not reach and
+ *   tells the strategist never to write that the plan reaches them (it wrote "before the venture reaches break-even" over a
+ *   table reading break-even "not reachable").
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Round 14: the narrate prompt takes break-even as the model computed it
+ *   (breakEvenFacts: reached or not within the horizon, the month and run size when reached, the horizon net income as the
+ *   gap when not) under BREAK-EVEN AS COMPUTED, and tells the strategist to state break-even only that way; a condition for
+ *   breaking even may still be written as a condition. NOT REACHABLE no longer carries break-even.
  *
  * @module venture-bots
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AGENT_IDS = void 0;
+exports.STRICT_JSON = exports.ANALYST_LIMITS = exports.UNITS_LINE = exports.ANALYST_MAX_OUTPUT_TOKENS = exports.AGENT_IDS = void 0;
 exports.scopeIdea = scopeIdea;
 exports.authorBom = authorBom;
 exports.authorMarket = authorMarket;
@@ -41,6 +68,7 @@ exports.narrate = narrate;
 exports.chat = chat;
 const inline_bot_execution_1 = require("@/app/routes/inline-bot-execution");
 const logger_1 = require("@/shared/logger");
+const venture_required_inputs_1 = require("./venture-required-inputs");
 const log = (0, logger_1.createChildLogger)({ module: 'venture-bots' });
 /**
  * The four bots this package contributes, matching the `bots:` block of
@@ -53,6 +81,46 @@ exports.AGENT_IDS = Object.freeze({
     marketAnalyst: 'b7000000-0000-0000-0000-000000000003',
     opsAnalyst: 'b7000000-0000-0000-0000-000000000004',
 });
+/**
+ * The output budget of one analyst reply, in tokens. The native kernel serves one package request for 60 s and an
+ * analyst starts at most 10 s into it (venture-run NATIVE_ANALYST_WINDOW_MS); the local model wrote 2,048 tokens in
+ * 30.5 s live (journal, 2026-10-11) and 3,142 in 46.2 s, about 67 tokens/s, so 2,200 tokens take about 33 s, and
+ * about 42 s at the slowest rate seen on this host (52 tokens/s): started by 10 s, written by 52 s. Sent as max_output_tokens on every analyst
+ * turn: without it the kernel's default (2,048) applies on native and the platform's own default elsewhere.
+ */
+exports.ANALYST_MAX_OUTPUT_TOKENS = 2200;
+/**
+ * The unit rule for every free assumption list: the same plain dollars and percent the "required" slots and the
+ * personas use, converted by the contract parser (venture-bot-contracts normaliseUnit).
+ */
+exports.UNITS_LINE = 'Units there: "usd" for money in plain dollars (24.99 means $24.99), "pct" for rates in percent '
+    + '(15 means 15%), "ratio" for fractions 0 to 1, "units" or "count" for quantities, or weeks|days|months|oz|lb|cbm.';
+/**
+ * What each analyst contract allows: item counts and the longest text per field. They are stated in the prompt,
+ * and the contract test builds the largest reply these allow and proves it fits ANALYST_MAX_OUTPUT_TOKENS.
+ */
+exports.ANALYST_LIMITS = Object.freeze({
+    bom: Object.freeze({ lines: 6, vendors: 2 }),
+    market: Object.freeze({ assumptions: 7 }),
+    ops: Object.freeze({ assumptions: 4, tasks: 4, roles: 2 }),
+    /** Longest name-like text (partName, label, vendorName, role, task name). */
+    nameChars: 40,
+    /** Longest descriptive text (specText, sourceDetail, notes). */
+    detailChars: 80,
+    /** Longest short text (key, uom, material, process, kind, country, phase, ownerRole). */
+    shortChars: 30,
+    /** Longest URL. */
+    urlChars: 80,
+});
+/** The output rule every analyst contract ends with. Indentation alone made the BOM reply a third longer. */
+const MINIFIED = 'Write the JSON on ONE line, minified: no indentation, no line breaks, no code fence.';
+/** The retry's opening rule: the previous reply could not be read as JSON (venture-run parsedAnalystReply). */
+exports.STRICT_JSON = 'Your previous reply to this request could not be read as JSON. Reply with the JSON object ONLY: '
+    + 'start with { and end with }, double-quoted keys and strings, no trailing commas, no comments, nothing before or after it.';
+/** The text-length rule, in the contract's own words. */
+const TEXT_LIMITS = `Keep names and labels under ${exports.ANALYST_LIMITS.nameChars} characters, specText, sourceDetail and notes `
+    + `under ${exports.ANALYST_LIMITS.detailChars}, every other text under ${exports.ANALYST_LIMITS.shortChars}, and a URL under `
+    + `${exports.ANALYST_LIMITS.urlChars}. A reply longer than the contract is cut off and lost.`;
 /** The shared instruction every authoring bot gets, stated as a hard contract. */
 const HONESTY_CLAUSE = [
     'CONTRACT — this reply is machine-parsed and a violation is DROPPED, not corrected:',
@@ -66,12 +134,13 @@ const HONESTY_CLAUSE = [
     '- A number you cannot source is still useful AS AN HONEST BAND. Widen the band and say',
     '  confidence "low". Do not narrow a band to look more certain.',
 ].join('\n');
-/** Call one bot through the framework chokepoint and normalise the reply. */
-async function callBot(ctx, botClient, agentId, ownerSub, taskId, text) {
+/** Call one bot through the framework chokepoint and normalise the reply; an analyst passes its output cap. */
+async function callBot(ctx, botClient, agentId, ownerSub, taskId, text, maxOutputTokens) {
     const started = Date.now();
     const result = await (0, inline_bot_execution_1.executeBotOrInline)(ctx, botClient, agentId, {
         text, taskId, workspaceFolderId: 'venture-plan', agentId,
         userSub: ownerSub, direct: true, agenticMode: false,
+        ...(maxOutputTokens ? { max_output_tokens: maxOutputTokens } : {}),
     });
     const reply = {
         text: String(result.response ?? ''),
@@ -125,11 +194,13 @@ async function scopeIdea(ctx, botClient, ownerSub, idea) {
  * @param ownerSub - The accountable spend owner.
  * @param spec - The venture spec and idea, already scoped.
  * @param runQtyUnits - The quantity every price band must be stated at.
+ * @param strict - A retry after a reply that did not parse: ask for the JSON object alone (STRICT_JSON).
  * @returns The analyst's raw reply.
  */
-async function authorBom(ctx, botClient, ownerSub, spec, runQtyUnits) {
+async function authorBom(ctx, botClient, ownerSub, spec, runQtyUnits, strict = false) {
     const prompt = [
         `Draft the bill of materials for "${spec.name}".`,
+        ...(strict ? [exports.STRICT_JSON] : []),
         HONESTY_CLAUSE,
         '',
         'Schema:',
@@ -145,6 +216,11 @@ async function authorBom(ctx, botClient, ownerSub, spec, runQtyUnits) {
         '  "depositBps": number, "balanceNetDays": number, "notes": string,',
         '  "confidence": "low"|"medium"|"high"}]}',
         '',
+        `At most ${exports.ANALYST_LIMITS.bom.lines} bom_lines: the parts and subassemblies that drive cost. Fold fasteners,`,
+        'labels and other minor parts into ONE "Minor hardware and consumables" line with a wide band.',
+        `At most ${exports.ANALYST_LIMITS.bom.vendors} vendor_candidates.`,
+        TEXT_LIMITS,
+        MINIFIED,
         `Costs are MICRO-DOLLARS (1000000 = $1.00), stated at a run of ${runQtyUnits} units.`,
         'A line with no lowMicros/highMicros band is DROPPED. Do not emit a total: the roll-up,',
         'the scrap uplift, the minimum-order overbuy and the tooling amortisation are computed.',
@@ -154,7 +230,7 @@ async function authorBom(ctx, botClient, ownerSub, spec, runQtyUnits) {
         `IDEA: ${spec.ideaText.slice(0, 2000)}`,
         `SPEC: ${JSON.stringify(spec.spec).slice(0, 2000)}`,
     ].join('\n');
-    return callBot(ctx, botClient, exports.AGENT_IDS.bomAnalyst, ownerSub, `venture-bom-${Date.now()}`, prompt);
+    return callBot(ctx, botClient, exports.AGENT_IDS.bomAnalyst, ownerSub, `venture-bom-${Date.now()}`, prompt, exports.ANALYST_MAX_OUTPUT_TOKENS);
 }
 /**
  * @description Ask the market analyst for demand, price ladder and channel terms.
@@ -167,11 +243,13 @@ async function authorBom(ctx, botClient, ownerSub, spec, runQtyUnits) {
  * @param botClient - The framework bot-node client.
  * @param ownerSub - The accountable spend owner.
  * @param spec - The venture spec and idea.
+ * @param strict - A retry after a reply that did not parse: ask for the JSON object alone (STRICT_JSON).
  * @returns The analyst's raw reply.
  */
-async function authorMarket(ctx, botClient, ownerSub, spec) {
+async function authorMarket(ctx, botClient, ownerSub, spec, strict = false) {
     const prompt = [
         `Draft the market and channel assumptions for "${spec.name}".`,
+        ...(strict ? [exports.STRICT_JSON] : []),
         HONESTY_CLAUSE,
         '',
         'Schema:',
@@ -180,19 +258,21 @@ async function authorMarket(ctx, botClient, ownerSub, spec) {
         '  "sourceKind": "model-estimate"|"published-source", "sourceDetail": string,',
         '  "sourceUrl": string|null, "confidence": "low"|"medium"|"high"}]}',
         '',
-        'Cover at minimum: market.demand.base-units (annual sell-through at the assumed price),',
-        'channel.retail-price (micro-dollars), the retailer and distributor margins in basis',
-        'points, marketplace referral and fulfilment fees, the return rate, the acquisition cost',
-        'per order, and the seasonality window if the product has one.',
-        'Units: "micros" for money, "bps" for rates, "units" for volumes, "ratio" for fractions.',
+        ...(0, venture_required_inputs_1.requiredPromptLines)('market', exports.ANALYST_LIMITS.detailChars),
+        '',
+        'In "assumptions" add what else drives the plan: the retailer and distributor margins in percent,',
+        'marketplace referral and fulfilment fees, the return rate, and the seasonality window.',
+        exports.UNITS_LINE,
         'You may NOT name a part or a manufacturing cost — that is the BOM analyst\'s contract.',
         'Comparable retail prices you can actually cite are worth more than a confident guess:',
         'attach the sourceUrl and the observed price rather than rounding to a nicer number.',
+        `At most ${exports.ANALYST_LIMITS.market.assumptions} assumptions. ${TEXT_LIMITS}`,
+        MINIFIED,
         '',
         `IDEA: ${spec.ideaText.slice(0, 2000)}`,
         `SPEC: ${JSON.stringify(spec.spec).slice(0, 2000)}`,
     ].join('\n');
-    return callBot(ctx, botClient, exports.AGENT_IDS.marketAnalyst, ownerSub, `venture-market-${Date.now()}`, prompt);
+    return callBot(ctx, botClient, exports.AGENT_IDS.marketAnalyst, ownerSub, `venture-market-${Date.now()}`, prompt, exports.ANALYST_MAX_OUTPUT_TOKENS);
 }
 /**
  * @description Ask the ops analyst for manufacturing, logistics, compliance,
@@ -208,11 +288,13 @@ async function authorMarket(ctx, botClient, ownerSub, spec) {
  * @param ownerSub - The accountable spend owner.
  * @param spec - The venture spec and idea.
  * @param bomSummary - The frozen BOM, already rolled up in code.
+ * @param strict - A retry after a reply that did not parse: ask for the JSON object alone (STRICT_JSON).
  * @returns The analyst's raw reply.
  */
-async function authorOps(ctx, botClient, ownerSub, spec, bomSummary) {
+async function authorOps(ctx, botClient, ownerSub, spec, bomSummary, strict = false) {
     const prompt = [
         `Draft the operations plan for "${spec.name}".`,
+        ...(strict ? [exports.STRICT_JSON] : []),
         HONESTY_CLAUSE,
         '',
         'Schema:',
@@ -226,19 +308,24 @@ async function authorOps(ctx, botClient, ownerSub, spec, bomSummary) {
         '  "startMonth": number, "endMonth": number|null, "baseSalaryMicros": number,',
         '  "burdenBps": number, "confidence": "low"|"medium"|"high"}]}',
         '',
-        'Cover at minimum: landed.freight.container-rate, landed.duty.hts-rate (basis points),',
-        'units per container, cubic metres per unit, the certification path and its cost and',
-        'lead time, and the qualification/lead weeks for the long-lead components below.',
+        ...(0, venture_required_inputs_1.requiredPromptLines)('ops', exports.ANALYST_LIMITS.detailChars),
+        '',
+        'In "assumptions" add: the certification path and its cost and lead time, and the',
+        'qualification/lead weeks for the long-lead components below.',
+        exports.UNITS_LINE,
         'Months are OFFSETS from the plan start (0 = first month).',
         'The critical path, the cash trough and the schedule feasibility are COMPUTED — do not',
         'state them. A certification requirement you are unsure of is confidence "low" with the',
         'standard named in sourceDetail, never a claim that the product passes anything.',
+        `At most ${exports.ANALYST_LIMITS.ops.assumptions} assumptions, ${exports.ANALYST_LIMITS.ops.tasks} schedule_tasks (each depending on`,
+        `at most 2 others) and ${exports.ANALYST_LIMITS.ops.roles} headcount_roles; name the costliest items first. ${TEXT_LIMITS}`,
+        MINIFIED,
         '',
         `FROZEN BILL OF MATERIALS (already rolled up in code — treat as fact):`,
         JSON.stringify(bomSummary).slice(0, 6000),
         `IDEA: ${spec.ideaText.slice(0, 1500)}`,
     ].join('\n');
-    return callBot(ctx, botClient, exports.AGENT_IDS.opsAnalyst, ownerSub, `venture-ops-${Date.now()}`, prompt);
+    return callBot(ctx, botClient, exports.AGENT_IDS.opsAnalyst, ownerSub, `venture-ops-${Date.now()}`, prompt, exports.ANALYST_MAX_OUTPUT_TOKENS);
 }
 /**
  * @description Ask the strategist to narrate a document over a FROZEN model.
@@ -253,26 +340,35 @@ async function authorOps(ctx, botClient, ownerSub, spec, bomSummary) {
  * @param ownerSub - The accountable spend owner.
  * @param docTitle - The document being narrated.
  * @param sectionKeys - The prose sections this document asks for.
- * @param figureTable - The frozen figures, label -> formatted value.
+ * @param figureTable - The frozen figures, figure id -> label and the value as the document prints it.
+ * @param notReachable - The document's figures the model could not reach, as plain facts (venture-prose-claims).
+ * @param breakEven - Break-even as the model computed it, one fact per line (venture-prose-claims breakEvenFacts).
  * @returns The strategist's raw reply.
  */
-async function narrate(ctx, botClient, ownerSub, docTitle, sectionKeys, figureTable) {
+async function narrate(ctx, botClient, ownerSub, docTitle, sectionKeys, figureTable, notReachable = [], breakEven = []) {
     const prompt = [
         `Write the prose sections of "${docTitle}".`,
         '',
         'Reply with ONE JSON object: {"sections": {"<sectionKey>": "<prose>"}}',
         `Section keys, in order: ${sectionKeys.join(', ')}`,
         '',
-        'THE NUMBERS BELOW ARE FROZEN AND AUTHORITATIVE. Every numeral you write is checked',
-        'against them by code; one that matches nothing gets the document flagged as containing',
-        'unverified numbers, and a reader sees that badge. So: copy a figure exactly, or write',
-        'the sentence without a number. Do not round, do not annualise, do not recompute, do not',
-        'add a number that is not in the table — including one you think is obvious.',
+        'THE NUMBERS BELOW ARE FROZEN AND AUTHORITATIVE. Write every money amount, rate, quantity',
+        'or duration as a figure token {{fig:<id>}} naming an id from the table, for example',
+        '{{fig:landed.buyerUnitMicros}}; the document prints the value shown beside that id in its',
+        'place. A token naming an id that is not in the table rejects the whole section. A numeral',
+        'you type is checked against the model by code, and one that matches nothing gets the',
+        'document flagged as containing unverified numbers. Do not round, annualise or recompute,',
+        'and do not add a number that is not in the table; write the sentence without it instead.',
         'Say plainly where the plan rests on estimates rather than quotes. Under-claiming costs',
         'as much credibility as over-claiming; state what is known and what is not.',
         '',
         'FIGURES:',
         ...Object.entries(figureTable).slice(0, 200).map(([k, v]) => `  ${k} = ${v}`),
+        ...(notReachable.length ? ['', 'NOT REACHABLE IN THIS MODEL (no value: never write that the plan reaches one, and give no date,',
+            'month or volume for it; say plainly that the model does not reach it):', ...notReachable.map((fact) => `  ${fact}`)] : []),
+        ...(breakEven.length ? ['', 'BREAK-EVEN AS COMPUTED (state break-even only as computed here: never give it a month, year or',
+            'volume that is not below, and never write that the plan reaches it when it does not; what would have to change for it',
+            'to break even may be written as a condition, "would have to" or "if"):', ...breakEven.map((fact) => `  ${fact}`)] : []),
     ].join('\n');
     return callBot(ctx, botClient, exports.AGENT_IDS.strategist, ownerSub, `venture-narrate-${Date.now()}`, prompt);
 }

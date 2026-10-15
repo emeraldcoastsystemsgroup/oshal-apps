@@ -7,6 +7,26 @@ Signal-justified stock trading (ADR-052) — carved out of OSHAL core 2026-07-20
 `?app=intelligent-trades` URLs, the default tile, guest-tier records, and the
 `intelligent-trades` queue id survive unchanged.
 
+## Native Schwab reads (1.33.1)
+
+On the new Rust kernel, Accounts reads every current caller-visible Schwab login through
+kernel-held credentials. It shows real balances, masked account identifiers and holdings as
+view-only, alongside the existing native paper book. Failed account reads remain explicit;
+unknown daily changes are not reported as zero. No live book is created or armed by discovery.
+Version 1.33.2 also labels how many accounts contribute to the combined daily change.
+
+Research and watchlists read Schwab quotes with provider timestamps. Charts receive actual
+Schwab OHLCV candles, including aggregated hourly bars, and symbol search uses the same bounded
+read adapter. A disconnected caller keeps the World archive fallback, labelled as stored data.
+Movers retain the explicitly labelled World archive; no whole-market Schwab screener is claimed.
+Version 1.33.3 distinguishes missing archive prices from insufficient daily history for volatility.
+Schwab product permissions and renewed connection validity are still required at execution.
+Company financial summaries, news and real-money order execution remain outside this adapter.
+
+The source's native bridge route tests, caller/isolation/withdrawal guards, and desktop/phone
+holdings tests cover these contracts. Installation and genuine provider acceptance are separate
+and remain required before declaring the user's connected account verified.
+
 ## What this package is
 
 - The four route surfaces the kernel used to hard-mount, byte-identical bodies:
@@ -1018,3 +1038,15 @@ Container memory, MiB low / high: **64 / 256 (declared)**.
 | earnings-release-read | earnings release | T1 | none | disable | not yet measured | none recorded |
 | trading-decision-ticket | trading decision ticket | T4 | none | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->
+
+Native execution-history evidence (1.33.4): the authenticated read-only
+`GET /api/trading/reconciliation/history` takes an opaque `accountId`, its `connection`,
+and RFC3339 `from`/`to` timestamps (at most 55 days). The kernel resolves the exact
+current caller's account and returns normalized fills plus explicit unsupported records.
+Failed reads and ambiguous history cannot certify a clean ledger. This endpoint does
+not place orders, arm accounts or apply historical corrections.
+
+History status (1.33.5): a completed or failed history read replaces the loading sentence.
+The October 14 reconciliation appended only venue-proven missing closes and preserved
+original rejected records. The current ledger is mirrored into native owner scope; remaining
+historical exceptions are documented in `BACKLOG.md`. No live orders or arming were performed.

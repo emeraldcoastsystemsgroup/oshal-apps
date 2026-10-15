@@ -6,9 +6,31 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register the company audience view contract (ADR-164 D6, 0.5.2): kit placement and boot, both extra start paths gated, the view's four GETs and what it paints, and its named refusals.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Expect each refused or failed publish run to show its recorded cause instead of a fixed "daily cap reached" / "no consent" label.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.5.3: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register record-fields: the campaign card shows its ICP card and message map as labelled fields, not JSON, and Draft content starts from the campaign brief.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | home-summary also proves each recent campaign's real draft count and time (sweep 11: the concierge invented draft times).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | The home-summary case also expects RFC 3339 draft times and the persona's no-unlisted-campaigns and no-conversion rules (sweep 13).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
+  - id: record-fields
+    name: Campaign records read as fields; the draft starts from the brief
+    purpose: Run the page's own recordFieldsHtml and campaignBrief and read how the campaign card and Draft content dialog use them.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/record-fields.test.mjs
+    expected:
+      - A message map renders as labelled, escaped fields with lists as bullets and nested records indented; no JSON punctuation.
+      - The card renders the ICP card and the message map through it; Draft content starts from message_map.brief.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
   - id: package-readiness
     name: Installed package readiness
     purpose: Retain the existing metadata-only installation probe without running a business workflow.
@@ -35,8 +57,10 @@ cases:
       files:
         - tests/home-summary.test.mjs
     expected:
+      - "Each newest-draft time is an RFC 3339 instant with seconds, so the kernel writes it in the person's zone; the persona says nothing of other campaigns without the not-in-this-summary row and quotes times as written (sweep 13)."
       - Anonymous requests stop before SQL and reads retain owner predicates and bounded results.
       - Missing source data stays distinct from failure; returned summaries obey the core item limits.
+      - Each of the six most recently updated campaigns carries its real draft count and newest draft time or "No drafts", the rest are one "Other campaigns" metric, a failed draft read is Unavailable, and the concierge persona never extends a time or count to campaigns the summary does not list (sweep 11).
     prerequisites:
       - runner:node-test
     sideEffects: none

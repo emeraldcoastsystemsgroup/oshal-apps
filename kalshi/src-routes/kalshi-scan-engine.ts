@@ -27,6 +27,9 @@
  * 2026-07-30 03:35:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial — runScan (moved verbatim out of the request path in kalshi-routes, now cadence/bound-driven), the durable snapshot store, the manifest+DB config resolution (reads this package's OWN oshal-app.yaml for defaults), the settings store with per-scope allow-lists, and the alert ledger (first-seen dedup + rolling-day budget).
  * 2026-09-04 23:40:00 | roger.murphy@emeraldcoastsystemsgroup.com   | listAlerts joins each alert to its pre-registered prediction (same ticker, SCAN_STRATEGY) so the Alerts tab carries the settlement OUTCOME — settled, won, one-contract P&L — and alertRecord folds the whole ledger into a W-L line. The grades were always there (recordPredictions + the daily grader); the surface just never showed them per alert (operator, 2026-09-04: "where is the win/loss record").
  * 2026-09-04 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | recordContrarianPredictions — the zero-stake "contrarian-extreme" sibling of every extreme scan hand (rule in kalshi-scan-config.ts), inserted into the same immutable ledger right after the scan's own predictions so the daily grader and the Scorecard tab treat it like any strategy. Operator, 2026-09-04: "bet against ourselves at the extremes - forward test it".
+ * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | ensureScanSchema issues no DDL on the native kernel (OSHAL_EGRESS=kernel): the declared migrations 074-076 provision these tables there, and the runtime ALTER and DESC index made every read refuse with "SQL mutation requires original writer admission" (logged as "kalshi scan schema ensure failed" once per read). The runtime CREATE TABLE for kalshi_scan_alerts now declares batch_id itself, as migration 076 does.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The calibration table is read from this package's own directory (<appPackageDir>/data/kalshi-calibration.json) before the legacy <cwd>/config-seed copy; the native runtime has no config-seed, so every scan failed with "calibration table missing — run scripts/oshal-kalshi-calibration.ts", a script that does not exist there. A missing table now names both places it was looked for. scanUnavailableReason says, before any SQL or feed read, why a scan cannot run on this installation: no Kalshi market-feed reader in the runtime (the native runtime provides none) or no calibration table. Guard: tests/kalshi-scan-schedule.test.js.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | The package ships its calibration table (data/kalshi-calibration.json, the platform study's table generated 2026-07-13, with a provenance block), so the scan can run on the native runtime. A missing table's sentence is in words: the page printed it as the gate reason with /package/... file paths in it; the places looked are logged instead. Guard: tests/kalshi-calibration-shipped.test.js.
  *
  * @module kalshi-scan-engine
  */
@@ -84,19 +87,60 @@ export interface ScanPayload {
 
 /* ── calibration table ──────────────────────────────────────────────────────── */
 
-function calibrationPath(): string {
-  return path.resolve(process.cwd(), 'config-seed', 'kalshi-calibration.json');
+/**
+ * @description Where the calibration table may live, in the order they are read: this package's own copy, then
+ * the legacy platform's config-seed directory (which the native runtime does not have).
+ * @param appPackageDir - This package's directory (ctx.appPackageDir), when known.
+ * @returns Absolute candidate paths.
+ */
+export function calibrationPaths(appPackageDir?: string): string[] {
+  const own = appPackageDir ? [path.join(appPackageDir, 'data', 'kalshi-calibration.json')] : [];
+  return [...own, path.resolve(process.cwd(), 'config-seed', 'kalshi-calibration.json')];
 }
 
-/** @description Load the settled-tape calibration table + its file mtime (null when absent). */
-export function loadCalibration(): { table: CalibrationTable | null; mtime: string | null } {
-  try {
-    const p = calibrationPath();
-    const stat = fs.statSync(p);
-    return { table: JSON.parse(fs.readFileSync(p, 'utf8')) as CalibrationTable, mtime: stat.mtime.toISOString() };
-  } catch {
-    return { table: null, mtime: null };
+/**
+ * @description Load the settled-tape calibration table + its file mtime (null when absent).
+ * @param appPackageDir - This package's directory, searched first.
+ * @returns The table, its mtime and the path it came from; all null when no candidate is readable.
+ */
+export function loadCalibration(appPackageDir?: string): { table: CalibrationTable | null; mtime: string | null; path: string | null } {
+  for (const p of calibrationPaths(appPackageDir)) {
+    try {
+      const stat = fs.statSync(p);
+      return { table: JSON.parse(fs.readFileSync(p, 'utf8')) as CalibrationTable, mtime: stat.mtime.toISOString(), path: p };
+    } catch {
+      // not here (or unreadable): try the next place
+    }
   }
+  return { table: null, mtime: null, path: null };
+}
+
+/**
+ * @description The sentence for a missing calibration table, in words a person reads on the page: no file paths
+ * (the places looked are logged), and that a scan ranks nothing without it.
+ * @param appPackageDir - This package's directory.
+ * @returns The sentence.
+ */
+export function calibrationMissing(appPackageDir?: string): string {
+  log.warn({ looked: calibrationPaths(appPackageDir) }, 'kalshi calibration table not found');
+  return 'No calibration table is installed with Kalshi on this installation. The scan ranks markets against '
+    + 'that table of settled markets, so it cannot run without it.';
+}
+
+/**
+ * @description Why a scan cannot run on this installation, checked before any SQL or feed read; null when it can.
+ * The native runtime provides no Kalshi market-feed reader, and without the calibration table nothing can be ranked.
+ * @param appPackageDir - This package's directory.
+ * @returns The reason, or null.
+ */
+export function scanUnavailableReason(appPackageDir?: string): string | null {
+  const reader = { listMarketsFiltered, getSeriesMeta, rankHands, mayStrategyStake };
+  const missing = Object.entries(reader).filter(([, fn]) => typeof fn !== 'function').map(([name]) => name);
+  if (missing.length) {
+    return 'No Kalshi market feed is connected on this installation: the runtime provides no prediction-markets '
+      + `market reader (${missing.join(', ')}), so the background scan cannot walk Kalshi's open markets.`;
+  }
+  return loadCalibration(appPackageDir).table ? null : calibrationMissing(appPackageDir);
 }
 
 /** Evaluable = real single market with a two-sided book and at least one trade printed. */
@@ -110,11 +154,16 @@ let schemaReady: Promise<void> | null = null;
 
 /**
  * @description Create this app's scan tables if absent. Runs once per process, awaited by every
- * caller — the package must work whether or not APP_PACKAGE_MIGRATIONS applied migrations/.
+ * caller — the package must work whether or not APP_PACKAGE_MIGRATIONS applied migrations/. On the
+ * native kernel it issues nothing: the kernel provisions the declared migrations, and a read there
+ * may not declare or alter schema.
  * @param pool - Postgres pool.
  * @returns Resolves when the schema is present (or the attempt failed and was logged).
  */
 export function ensureScanSchema(pool: AppContext['pool']): Promise<void> {
+  // The native kernel provisions the declared migrations (074-076) itself, and a read there may not
+  // declare or alter schema: the runtime DDL below would make every read refuse.
+  if (process.env.OSHAL_EGRESS === 'kernel') return Promise.resolve();
   if (!schemaReady) {
     schemaReady = (async () => {
       await pool.query(`
@@ -130,6 +179,7 @@ export function ensureScanSchema(pool: AppContext['pool']): Promise<void> {
           id BIGSERIAL PRIMARY KEY, user_sub TEXT NOT NULL, ticker TEXT NOT NULL,
           strength TEXT, edge_net NUMERIC, channel TEXT, delivered BOOLEAN NOT NULL DEFAULT FALSE,
           detail JSONB, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          batch_id UUID,
           CONSTRAINT kalshi_scan_alerts_user_ticker UNIQUE (user_sub, ticker)
         );
         -- batch_id groups the hands announced TOGETHER; the daily budget counts batches, not rows.
@@ -412,12 +462,13 @@ async function recordScanPredictions(pool: AppContext['pool'], hands: BetHand[])
  * behaviour from the request-path version — only the bounds are configurable now.
  * @param pool - Postgres pool (prediction ledger + scorecard).
  * @param cfg - The resolved deployment config (feed-walk bounds).
+ * @param appPackageDir - This package's directory, where its calibration table is read first.
  * @returns The scan payload, ready to store and serve.
  */
-export async function runScan(pool: AppContext['pool'], cfg: KalshiScanConfig): Promise<ScanPayload> {
+export async function runScan(pool: AppContext['pool'], cfg: KalshiScanConfig, appPackageDir?: string): Promise<ScanPayload> {
   const started = Date.now();
-  const { table, mtime } = loadCalibration();
-  if (!table) throw new Error('calibration table missing — run scripts/oshal-kalshi-calibration.ts');
+  const { table, mtime } = loadCalibration(appPackageDir);
+  if (!table) throw new Error(calibrationMissing(appPackageDir));
   const [active, walk] = await Promise.all([
     exchangeTradingActive().catch(() => false),
     listMarketsFiltered({ status: 'open' }, evaluableMarket, {

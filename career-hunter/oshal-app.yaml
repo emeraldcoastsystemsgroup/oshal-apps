@@ -35,6 +35,7 @@
 # 31 | maintainer@emeraldcoastsystemsgroup.com | Release source-generated native board root routes, actual summary counters and explicit member/admin role templates as version 1.27.3; preserve observed resume lifecycle fields.
 # 32 | maintainer@emeraldcoastsystemsgroup.com | Release bounded candidate-first SQLite board lookups as version 1.27.4, preserving ranking, filters, pagination and exhaustive search while eliminating the foreground corpus scan.
 # 33 | maintainer@emeraldcoastsystemsgroup.com | Register owner-scoped native saved Career reads and required facts without enabling any engine mutation as version 1.27.5.
+# 34 | maintainer@emeraldcoastsystemsgroup.com | Native provisioning: declare migrations/native/001-career-hunter.sql (every table, column, index, view and pg_constraint-guarded CHECK of 090-107) and skip 090-107 natively, whose RLS DO loops, relkind/app-role DO guards and capture triggers the native kernel refuses; 031, 077 and 082 still apply natively. The declared migrations stayed pending for every person. PostgreSQL still applies 031-107.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -791,6 +792,57 @@ migrations:
   # Inert while SQLite is authoritative: nothing but the loader writes those tables, and the
   # loader's operator replay session is not captured.
   - migrations/106-career-store-change-log.sql
+  - migrations/native/001-career-hunter.sql
+# The native kernel applies 031, 077, 082 and the native file above in place of 090-107, whose DO blocks, GRANTs and triggers are PostgreSQL-only.
+nativeMigrations:
+  - id: migrations/090-career-rls.sql
+    native: skip
+    reason: "It only enables row security and installs owner-or-operator policies through a DO loop, which is PostgreSQL-only; the native per-person scope and its owner-field check keep each person's rows their own."
+  - id: migrations/091-career-automation.sql
+    native: skip
+    reason: "Its table is in migrations/native/001-career-hunter.sql; its RLS DO loop is PostgreSQL-only."
+  - id: migrations/100-career-user-targets.sql
+    native: skip
+    reason: "Its table and indexes are in migrations/native/001-career-hunter.sql; its RLS DO loop is PostgreSQL-only."
+  - id: migrations/104-career-remote-only.sql
+    native: skip
+    reason: "Its column is in migrations/native/001-career-hunter.sql; its column comment (two adjacent string literals) is documentation."
+  - id: migrations/095-career-corpus.sql
+    native: skip
+    reason: "Its tables and indexes are in migrations/native/001-career-hunter.sql; its RLS DO loop and REVOKE statements are PostgreSQL-only."
+  - id: migrations/096-career-corpus-complete.sql
+    native: skip
+    reason: "Its columns, tables and indexes are in migrations/native/001-career-hunter.sql; its RLS DO loop and REVOKE are PostgreSQL-only."
+  - id: migrations/097-career-postings-view.sql
+    native: skip
+    reason: "Its compatibility views are in migrations/native/001-career-hunter.sql; its relkind guard and GRANT are PostgreSQL-only."
+  - id: migrations/098-career-peruser-views.sql
+    native: skip
+    reason: "Its compatibility views are in migrations/native/001-career-hunter.sql; its relkind guard and GRANT are PostgreSQL-only."
+  - id: migrations/099-career-interview-bank.sql
+    native: skip
+    reason: "Its tables, indexes and views are in migrations/native/001-career-hunter.sql; its app-role GRANT and relkind DO guards are PostgreSQL-only."
+  - id: migrations/100-career-application-provenance.sql
+    native: skip
+    reason: "Its columns, backfills, source CHECKs (as DROP IF EXISTS + ADD) and postings view are in migrations/native/001-career-hunter.sql; its pg_constraint DO guard is PostgreSQL-only."
+  - id: migrations/101-career-apply-claim-lease.sql
+    native: skip
+    reason: "Its column, CHECK and index are in migrations/native/001-career-hunter.sql; its pg_constraint DO guard and comment are PostgreSQL-only."
+  - id: migrations/102-career-apply-run-binding.sql
+    native: skip
+    reason: "Its columns, CHECK and unique indexes are in migrations/native/001-career-hunter.sql; its pg_constraint DO guard and comments are PostgreSQL-only."
+  - id: migrations/103-career-interview-source-identity.sql
+    native: skip
+    reason: "Its column, CHECK and unique index are in migrations/native/001-career-hunter.sql; its pg_constraint DO guard and comment are PostgreSQL-only."
+  - id: migrations/105-career-home-evidence-indexes.sql
+    native: skip
+    reason: "Its indexes are in migrations/native/001-career-hunter.sql, after the tables they index."
+  - id: migrations/107-career-automation-owner-issuer.sql
+    native: skip
+    reason: "Its column is in migrations/native/001-career-hunter.sql, after the table it alters."
+  - id: migrations/106-career-store-change-log.sql
+    native: skip
+    reason: "Its change-log and checkpoint tables are in migrations/native/001-career-hunter.sql; its operator-only RLS policies, GRANTs and PL/pgSQL capture triggers belong to the PostgreSQL reverse-sync outbox and are PostgreSQL-only."
 
 # ─────────────────────────────────────────────────────────────────────────────
 # WORKFLOW — career-application tickets route to the career-hunter worker bot.

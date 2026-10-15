@@ -5,9 +5,12 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Serialize bounded writer admission before shared-pool checkout while retaining both current authorization checks.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Unused-upload cleanup keeps the image a brand kit uses as its logo.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Share the owner lock, the optimistic project lock and one revision-append step with region-edit acceptance, so an accepted candidate becomes a revision by exactly the same path a manual save does; unused-upload cleanup also keeps a candidate that is still generating or waiting for review.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Keep native normalized image bytes, immutable metadata and eligible cleanup on the same admitted SQL client transaction.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Reuse original-client admissions for atomic PSD source, image and project publication.
  */
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
+import { createHash } from 'node:crypto';
 import { documentAssets } from './create-project-validation';
 import { acquireProjectWrite } from './create-project-write-gate';
 import { ProjectError, PROJECT_LIMITS, PROJECT_ASSET_PREFIX, type ConfirmProjectAccess, type ProjectContext,
@@ -16,6 +19,15 @@ import { ProjectError, PROJECT_LIMITS, PROJECT_ASSET_PREFIX, type ConfirmProject
 interface ProjectRow { project_id: string; title: string; current_revision: number; created_at: Date | string; updated_at: Date | string; document?: ProjectInput['document'] }
 interface AssetRow { asset_id: string; width: number; height: number; byte_length: number; sha256: string }
 const METADATA = 'project_id,title,current_revision,created_at,updated_at';
+interface NativeImageClient extends PoolClient { nativeExecutor?: (name: string, input: Record<string, unknown>) => Promise<Record<string, unknown>> }
+async function nativeImage(client: PoolClient, name: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const port = (client as NativeImageClient).nativeExecutor;
+  if (typeof port !== 'function') throw new ProjectError(503, 'project_image_native_unavailable');
+  const result = await port(name, input);
+  if (result && Object.keys(result).length === 2 && result.error === 'create_native_image_limit' && result.status === 413) throw new ProjectError(413, 'create_native_image_limit');
+  if (!result || typeof result !== 'object' || Array.isArray(result)) throw new ProjectError(503, 'project_image_native_unavailable');
+  return result;
+}
 
 function metadata(row: ProjectRow): ProjectMetadata {
   return { id: row.project_id, title: row.title, revision: row.current_revision,
@@ -28,6 +40,7 @@ function asset(row: AssetRow): ProjectAsset {
 /** One transaction scopes both SQL and optional RLS to the verified principal; no system/admin escape hatch. */
 export class CreateProjectStore {
   constructor(private readonly pool: ProjectContext['pool']) {}
+  get nativeImageStorage(): boolean { return (this.pool as ProjectContext['pool'] & { storageModel?: string }).storageModel === 'kernel-scoped-documents'; }
 
   async transaction<T>(owner: ProjectOwner, write: boolean, work: (client: PoolClient) => Promise<T>, confirm?: ConfirmProjectAccess): Promise<T> {
     const release = write ? await acquireProjectWrite(this.pool) : () => undefined;
@@ -134,6 +147,12 @@ export class CreateProjectStore {
   async create(owner: ProjectOwner, input: ProjectInput, confirm: ConfirmProjectAccess): Promise<ProjectSnapshot> {
     return this.transaction(owner, true, async client => {
       await this.ownerLock(client, owner);
+      return this.createInTransaction(client, owner, input);
+    }, confirm);
+  }
+
+  /** Create inside the original admitted writer transaction; caller already holds the owner lock. */
+  async createInTransaction(client: PoolClient, owner: ProjectOwner, input: ProjectInput): Promise<ProjectSnapshot> {
       const total = await client.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM create_projects WHERE owner_issuer=$1 AND owner_sub=$2', [owner.issuer, owner.sub]);
       if (total.rows[0].count >= PROJECT_LIMITS.projects) throw new ProjectError(409, 'project_limit_reached');
       await this.checkAssets(client, owner, input);
@@ -142,7 +161,6 @@ export class CreateProjectStore {
       await client.query('INSERT INTO create_project_revisions (project_id,owner_issuer,owner_sub,revision,title,document) VALUES ($3,$1,$2,1,$4,$5::jsonb)', [owner.issuer, owner.sub, id, input.title, JSON.stringify(input.document)]);
       await this.recordAssets(client, owner, id, 1, input);
       return { ...metadata(result.rows[0]), document: input.document };
-    }, confirm);
   }
 
   /**
@@ -188,14 +206,43 @@ export class CreateProjectStore {
     });
   }
 
-  async addAsset(owner: ProjectOwner, value: ProjectAsset, confirm: ConfirmProjectAccess): Promise<void> {
+  async addAsset(owner: ProjectOwner, value: ProjectAsset, confirm: ConfirmProjectAccess, normalized?: Buffer): Promise<void> {
     await this.transaction(owner, true, async client => {
       await this.ownerLock(client, owner);
+      await this.addAssetInTransaction(client, owner, value, normalized);
+    }, confirm);
+  }
+
+  /** Add one immutable image on the same original client as its imported project/source. */
+  async addAssetInTransaction(client: PoolClient, owner: ProjectOwner, value: ProjectAsset, normalized?: Buffer): Promise<void> {
       const total = await client.query<{ count: number; bytes: number }>('SELECT COUNT(*)::int AS count,COALESCE(SUM(byte_length),0)::bigint AS bytes FROM create_project_assets WHERE owner_issuer=$1 AND owner_sub=$2', [owner.issuer, owner.sub]);
       if (total.rows[0].count >= PROJECT_LIMITS.assets || Number(total.rows[0].bytes) + value.bytes > PROJECT_LIMITS.assetBytes) throw new ProjectError(409, 'project_asset_limit_reached');
+      if (this.nativeImageStorage) {
+        if (!normalized || normalized.length !== value.bytes || createHash('sha256').update(normalized).digest('hex') !== value.sha256) throw new ProjectError(503, 'project_image_native_unavailable');
+        const saved = await nativeImage(client, 'create.image.save', { id: value.id, contentBase64: normalized.toString('base64'), width: value.width, height: value.height, sha256: value.sha256 });
+        if (Object.keys(saved).length !== 6 || !['id','src','width','height','bytes','sha256'].every(key => saved[key] === value[key as keyof ProjectAsset])) throw new ProjectError(503, 'project_image_native_unavailable');
+      }
       await client.query('INSERT INTO create_project_assets (asset_id,owner_issuer,owner_sub,width,height,byte_length,sha256) VALUES ($3,$1,$2,$4,$5,$6,$7)',
         [owner.issuer, owner.sub, value.id, value.width, value.height, value.bytes, value.sha256]);
-    }, confirm);
+  }
+
+  /** Native bytes are verified against the actual immutable owned asset in one original read transaction. */
+  async readNativeImage(owner: ProjectOwner, id: string): Promise<Buffer | undefined> {
+    if (!this.nativeImageStorage) throw new ProjectError(503, 'project_image_native_unavailable');
+    return this.transaction(owner, false, async client => {
+      const result = await nativeImage(client, 'create.image.read', { id });
+      if (Object.keys(result).length === 1 && result.legacyMissing === true) return undefined;
+      if (Object.keys(result).length !== 7 || result.id !== id || result.src !== PROJECT_ASSET_PREFIX + id || typeof result.contentBase64 !== 'string'
+        || result.contentBase64.length > Math.ceil(PROJECT_LIMITS.imageBytes / 3) * 4
+        || !Number.isSafeInteger(result.width) || !Number.isSafeInteger(result.height)
+        || Number(result.width) < 1 || Number(result.height) < 1 || Number(result.width) > PROJECT_LIMITS.dimension || Number(result.height) > PROJECT_LIMITS.dimension
+        || Number(result.width) * Number(result.height) > PROJECT_LIMITS.pixels
+        || typeof result.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(result.sha256)) throw new ProjectError(503, 'project_asset_storage_unavailable');
+      const bytes = Buffer.from(result.contentBase64, 'base64');
+      if (!bytes.length || bytes.length > PROJECT_LIMITS.imageBytes || bytes.toString('base64') !== result.contentBase64
+        || result.bytes !== bytes.length || createHash('sha256').update(bytes).digest('hex') !== result.sha256) throw new ProjectError(503, 'project_asset_storage_unavailable');
+      return bytes;
+    });
   }
 
   /** Retire only old assets referenced by no retained revision, no brand kit logo and no pending region candidate; serialize against new references. */
@@ -210,7 +257,12 @@ export class CreateProjectStore {
           AND e.status IN ('generating','ready'))
         ORDER BY a.created_at,a.asset_id LIMIT 25 FOR UPDATE`, [owner.issuer, owner.sub]);
       for (const row of result.rows) {
-        await confirm(); await removeFile(row.asset_id);
+        await confirm();
+        if (this.nativeImageStorage) {
+          const removed = await nativeImage(client, 'create.image.delete', { id: row.asset_id });
+          if (Object.keys(removed).length !== 1 || typeof removed.removed !== 'boolean') throw new ProjectError(503, 'project_image_native_unavailable');
+          if (!removed.removed) await removeFile(row.asset_id);
+        } else await removeFile(row.asset_id);
         await client.query('DELETE FROM create_project_assets WHERE owner_issuer=$1 AND owner_sub=$2 AND asset_id=$3', [owner.issuer, owner.sub, row.asset_id]);
       }
       return result.rows.map(row => row.asset_id);

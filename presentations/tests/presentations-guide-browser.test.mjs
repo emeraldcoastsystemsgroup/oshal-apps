@@ -76,6 +76,7 @@ async function fixture() {
   let deleteCalls = 0;
   const server = createServer(async (req, res) => {
     const url = new URL(req.url || '/', 'http://127.0.0.1');
+    if (req.method === 'GET' && /^\/api\/presentations\/sections\/assets\/(office-workspace\.css|office-assistant\.mjs|slide-workspace\.(mjs|css)|sheet-workspace\.(mjs|css))$/.test(url.pathname)) return serveStatic(res,path.join(packageRoot,'tools',path.basename(url.pathname)),url.pathname.endsWith('.css')?'text/css':'text/javascript');
     if (req.method === 'GET' && url.pathname === '/api/presentations/sections/ui') return serveStatic(res, html, 'text/html; charset=utf-8');
     if (req.method === 'GET' && url.pathname === '/api/presentations/sections/themes') return json(res, 200, { themes: [THEME], layouts: [], defaultTheme: THEME.id });
     if (req.method === 'GET' && url.pathname === '/api/presentations/sections/starters') return json(res, 200, { kinds: [{ id: 'pptx', groups: [] }], starters: [] });
@@ -121,12 +122,14 @@ test('Guide drives the shipped AI Office page into a visible owner-scoped receip
   page.setDefaultTimeout(20_000);
   try {
     await page.goto(`${app.origin}/api/presentations/sections/ui`, { waitUntil: 'domcontentloaded' });
+    await page.locator('#wzReopen').click();
     await page.locator('#wzTalk').click();
     await page.locator('#chatIn').fill('Build a quarterly review for the team');
     await Promise.all([
       page.waitForResponse((response) => response.url().endsWith('/api/presentations/sections/guide') && response.status() === 200),
       page.locator('#chatSend').click(),
     ]);
+    await page.getByRole('button',{name:'Apply changes',exact:true}).click();
     await page.locator('#title').waitFor({ state: 'attached' });
     await page.waitForFunction(() => document.querySelector('#title')?.value === 'Quarterly Review');
     assert.match(await page.locator('#outline').inputValue(), /What changed/);

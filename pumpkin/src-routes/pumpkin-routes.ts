@@ -37,6 +37,11 @@
  * 2026-07-24 07:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Saved-responses playlist (operator request): every spoken line (rooms/say mimic, rooms/ask + /chat autonomous replies) auto-saves per user (deduped, unpinned cap); new /responses CRUD (list/save/pin/delete) + POST /rooms/replay pushes a saved line to the projector in one tap — instant replay, no LLM regeneration.
  * 2026-08-01 12:05:00 | roger.murphy@emeraldcoastsystemsgroup.com   | THE SWARM DOOR (operator: "it needs to be controlled from the swarm"). Nothing in the swarm could make the prop speak: pumpkinRooms.push() demands the 18-byte pairing token, which register() only ever hands back to the registering BROWSER, so no bot, ticket, or Jarvis path could obtain one. New POST /speak is a service-secret-ONLY door — its FIRST statement is hasValidServiceSecret(req), deliberately NOT resolveSub/getTrustedServiceUserSub (resolveSub answers for any OIDC session and for MOCK_OIDC, which would have handed every signed-in browser a token-free hijack). The browser /rooms/* doors keep the pairing token unchanged and forever. /speak resolves the room itself and FAILS LOUD — no_live_pumpkin / ambiguous_room / projector_not_listening / unknown_room — and only writes the playlist on a real 200, because "the pumpkin said it" when no screen was listening is the worst answer this API can give. runPumpkin now leads its prompt with [[PUMPKIN:GUEST]] (a fence guest text cannot occupy, since guest text is interpolated later inside triple quotes) and holds a per-owner reentrancy lock, so the bot that HOLDS the speak tool and also answers mode:'ask' burns one turn instead of a budget. Server half of the resilience work too: GET /stream now answers 409 BEFORE writeHead for an unknown room (a 200-then-end reads to EventSource as a dropped connection it retries silently forever), the SSE transport reports unwritability so the registry can prune it (res.write on a destroyed socket does not throw, so the old empty catch was dead code), and /rooms/heartbeat tells a caller WHY it failed so a projector can re-register.
  * 2026-08-01 22:20:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Three defects the swarm-door change left behind. (1) GET /links + GET /qr NOW EXIST. Both were documented across a whole README section and both QR runbook steps, and the control surface has been calling /links since Design C — but no router ever registered them, so the Projector-link card and BOTH QR images sat permanently in their degraded fallback: a URL built from the cockpit browser's own address (http://localhost:35457 on the operator's laptop, which cannot open on a phone). The QR target is a closed whitelist of the two pages this app serves; encoding a caller-supplied URL would make a signed-in cockpit a phishing generator on this deployment's own domain. The encoder is required LAZILY so a core-image dependency cannot make this package's route module unloadable. (2) PUT /settings NO LONGER DROPS roomLabel. The surface always sent it; the route ignored it, so the short-form projector URL the runbook tells the operator to type could not restore the room and the projector came up in 'main' while the cockpit pushed to 'front-porch' — a silent prop, caused by the documentation. (3) THE SWARM DOOR IS GATED ON THE ACTOR, not only the target. gateInput evaluates `sub`, which on /speak is the trusted X-OSHAL-User-Sub — i.e. the OWNER, not the caller — so an allowlist naming an owner did not constrain who could drive that owner's screens. gateSwarmSpeak keeps that owner check and adds the operator's intent: with an allowlist configured, the swarm door additionally requires PUMPKIN_ALLOW_SWARM_SPEAK (outward-acting automation is opt-in). With no allowlist configured, nothing changes.
+ * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | GET /assets/pumpkin-face.js and /assets/pumpkin-audio.js serve the two surface scripts from this package's tools/. The control and remote pages loaded them from the framework's /pumpkin/ page directory, which the native kernel does not serve, so /api/pumpkin/app failed with 404s and "window.PumpkinFace is not a constructor".
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | GET /projector serves the full-screen projector page (ported from the framework's /pumpkin/ page into tools/pumpkin-projector.{html,js,css}; the native kernel never served /pumpkin/, so every projector link and Launch was a 404), its script and stylesheet join the /assets/ list, and device links keep the request's port and use http on loopback (requestOrigin) instead of https://<hostname>.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | The projector's room link works on the native kernel. Its bridge response buffers the whole body and has no writeHead, so GET /stream answered 500 "res.writeHead is not a function" on every try and the projector looped "Reconnecting to the room" without ever receiving a line. POST /rooms/register now names the transport this runtime can serve (sse where the response can stream, poll on the bridge) with the poll interval; GET /rooms/poll answers a screen's events after its cursor (409 unknown_room tells it to re-register); GET /stream on a non-streaming response answers 501 stream_unavailable instead of a 500.
+ * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | A spoken line is saved before the reply. remember() was fire-and-forget, so /chat, /rooms/say, /rooms/ask and /speak answered before the INSERT and the page's Saved responses re-read showed 'Nothing saved yet' (sweep 8). The save is now awaited (a failed save still only logs). Guard: tests/pumpkin-swarm-push.test.cjs ("each speaking door has saved the line before it answers").
+ * 2026-10-12 21:00:00 | maintainer@emeraldcoastsystemsgroup.com     | A reply the model could not give answers 503 model_unavailable with the cause in words. Sweep 9: while the model was unavailable, POST /rooms/ask answered 500 {"error":"internal_error"} although the kernel had refused the turn with its reason (every configured model failed). runPumpkin raises PumpkinModelError for a failed bot turn; withSub maps it to 503 with "message" (what the page shows) and "detail" (the kernel's reason, bounded); the swarm door keeps its 502 bot_failed contract with the reason as its detail. Guard: tests/pumpkin-model-unavailable.test.cjs.
  */
 
 import { Router, type Request, type Response, type RequestHandler } from 'express';
@@ -55,7 +60,9 @@ import {
   parsePumpkinReply,
   pumpkinQrTargetUrl,
   pumpkinRooms,
+  POLL_INTERVAL_MS,
   readQrTarget,
+  requestOrigin,
   resolvePublicOrigin,
   resolveSpeakTargets,
   roomSlug,
@@ -154,6 +161,9 @@ function surfaceHtml(appPackageDir: string | undefined, fileName: string): strin
   return candidates.find((p) => fs.existsSync(p)) || candidates[candidates.length - 1];
 }
 
+/** The surface scripts the control and remote pages load from /api/pumpkin/assets/. */
+export const SURFACE_SCRIPTS = ['pumpkin-face.js', 'pumpkin-audio.js', 'pumpkin-projector.js', 'pumpkin-projector.css'] as const;
+
 /** Serve one bundled surface file (resolved once per factory call). */
 function serveFile(filePath: string): RequestHandler {
   return (_req: Request, res: Response) => {
@@ -176,6 +186,33 @@ function resolveSub(req: Request): string {
   throw Object.assign(new Error('Not authenticated'), { status: 401 });
 }
 
+/**
+ * @description A pumpkin reply the model could not give: the bot turn was refused or failed (no model answered, a budget,
+ * a stopped provider). It carries the person-facing words and the runtime's own reason, bounded.
+ */
+export class PumpkinModelError extends Error {
+  /** HTTP status this maps to. */
+  readonly status = 503;
+  /** The runtime's reason, bounded and on one line. */
+  readonly detail: string;
+
+  constructor(cause: unknown) {
+    super("The pumpkin's voice model did not answer, so nothing was spoken. Try again in a minute.");
+    this.name = 'PumpkinModelError';
+    this.detail = String(cause instanceof Error ? cause.message : cause ?? 'no reason given').replace(/\s+/g, ' ').trim().slice(0, 300);
+  }
+}
+
+/**
+ * @description The answer for a failed pumpkin reply: 503 with the words the page shows and the runtime's reason.
+ * @param res - The response to write.
+ * @param err - The PumpkinModelError.
+ */
+function respondModelUnavailable(res: Response, err: PumpkinModelError): void {
+  logger.warn({ detail: err.detail }, 'pumpkin reply refused: the model did not answer');
+  if (!res.headersSent) res.status(503).json({ error: 'model_unavailable', message: `${err.message} (${err.detail})`, detail: err.detail });
+}
+
 type SubHandler = (req: Request, res: Response, sub: string) => Promise<void> | void;
 
 /** Wrap a handler: resolve the caller sub (401 on failure) and centralize error → 500 mapping. */
@@ -196,6 +233,7 @@ function withSub(fn: SubHandler): RequestHandler {
         if (!res.headersSent) res.status(409).json({ error: 'pumpkin_busy', detail: BUSY_DETAIL });
         return;
       }
+      if (err instanceof PumpkinModelError) { respondModelUnavailable(res, err); return; }
       logger.error({ err, path: req.path }, 'pumpkin route failed');
       if (!res.headersSent) res.status(500).json({ error: 'internal_error' });
     }
@@ -292,13 +330,14 @@ function linkRequest(req: Request): PumpkinLinkRequest {
  *
  * `req.protocol` is deliberately NOT used: behind the deployment's reverse proxy it reads `http`
  * unless trust-proxy is on, and a link that downgrades to http is worse than one that is merely
- * wrong. Configured origins win; the host fallback is https by construction, matching the
- * framework's own appOrigin().
+ * wrong. Configured origins win; the fallback is requestOrigin(): the Host header WITH its port,
+ * http on loopback and https elsewhere.
  * @param req - The request, for its Host header.
  * @returns The resolved public origin, no trailing slash.
  */
 function publicOrigin(req: Request): string {
-  return resolvePublicOrigin(process.env, `https://${req.hostname}`);
+  const host = typeof req.get === 'function' ? req.get('host') : undefined;
+  return resolvePublicOrigin(process.env, requestOrigin(host, req.hostname));
 }
 
 /**
@@ -331,15 +370,20 @@ async function renderQrPng(url: string): Promise<Buffer> {
 async function runPumpkin(ctx: AppContext, sub: string, text: string): Promise<PumpkinReply> {
   return withGuestReplyLock(sub, async () => {
     const prompt = `${GUEST_FRAME_MARKER}\nA guest at your porch just said to you:\n"""\n${text.slice(0, 600)}\n"""\n\nReply in character as the jack-o'-lantern, using ONLY the JSON contract { "say", "expression", "intensity" }.`;
-    const result = await executeBotOrInline(ctx, botClient, PUMPKIN_AGENT_ID, {
-      text: prompt,
-      taskId: `pumpkin-${sub}-${randomUUID()}`,
-      workspaceFolderId: `pumpkin-${sub}`,
-      agentId: PUMPKIN_AGENT_ID,
-      agenticMode: true,
-      direct: true,
-      userSub: sub,
-    });
+    let result: any;
+    try {
+      result = await executeBotOrInline(ctx, botClient, PUMPKIN_AGENT_ID, {
+        text: prompt,
+        taskId: `pumpkin-${sub}-${randomUUID()}`,
+        workspaceFolderId: `pumpkin-${sub}`,
+        agentId: PUMPKIN_AGENT_ID,
+        agenticMode: true,
+        direct: true,
+        userSub: sub,
+      });
+    } catch (err) {
+      throw new PumpkinModelError(err);
+    }
     return parsePumpkinReply(String(result?.response || ''));
   });
 }
@@ -421,7 +465,9 @@ function respondSpeakFailure(res: Response, err: unknown): void {
     return;
   }
   logger.error({ err }, 'pumpkin swarm speak failed inside the bot path');
-  res.status(502).json({ error: 'bot_failed', detail: String(err instanceof Error ? err.message : err).slice(0, 300) });
+  // The swarm door's contract stays 502 bot_failed; its detail is the runtime's own reason, as before.
+  const reason = err instanceof PumpkinModelError ? err.detail : String(err instanceof Error ? err.message : err);
+  res.status(502).json({ error: 'bot_failed', detail: reason.slice(0, 300) });
 }
 
 /**
@@ -500,6 +546,36 @@ function attachRoomStream(req: Request, res: Response, sub: string, room: string
 }
 
 /**
+ * @description Can this response hold an SSE stream open? Node's ServerResponse can; the native
+ * kernel's bridge response buffers the whole body until end and has neither writeHead nor
+ * flushHeaders, so a projector there must poll instead.
+ * @param res - The response the runtime handed this request.
+ * @returns True when the response streams.
+ */
+function canStream(res: Response): boolean {
+  const r = res as unknown as { writeHead?: unknown; flushHeaders?: unknown };
+  return typeof r.writeHead === 'function' && typeof r.flushHeaders === 'function';
+}
+
+/**
+ * @description GET /rooms/poll — one poll from a projector on the poll transport. Answers the
+ * events after its cursor; 409 unknown_room when the room is gone so the screen re-registers
+ * (the same contract /stream keeps).
+ * @param req - query room, client (the screen's id) and after (the previous cursor, absent on the first poll).
+ * @param res - The response.
+ * @param sub - The owner's sub.
+ * @returns Nothing.
+ */
+function pollRoom(req: Request, res: Response, sub: string): void {
+  const room = String(req.query.room || '').trim();
+  const raw = req.query.after;
+  const after = raw === undefined || raw === '' ? null : Number(raw);
+  const got = pumpkinRooms.poll(sub, room, String(req.query.client || ''), after);
+  if (!got) { res.status(409).json({ error: 'unknown_room', room }); return; }
+  res.json({ ok: true, events: got.events, cursor: got.cursor });
+}
+
+/**
  * @description Build the pumpkin prop router. Mounted at /api/pumpkin behind serviceSecretOr(requiresAuth).
  * @param ctx - App context (pool for presets, orchestrator for the inline bot).
  * @returns The configured Express router.
@@ -511,16 +587,24 @@ export function createPumpkinRoutes(ctx: AppContext): Router {
   const responseSvc = new PumpkinResponseService(ctx.pool);
   void responseSvc.ensureSchema();
 
-  /** Fire-and-forget auto-save of a spoken line into the playlist (never blocks the speak path). */
-  const remember = (sub: string, candidate: unknown): void => {
-    void responseSvc.record(sub, candidate).catch((err) => {
+  /**
+   * Auto-save a spoken line into the playlist. Called after the line reached the screens and awaited before the
+   * response, so the page's Saved responses re-read sees it (sweep 8: fire-and-forget left 'Nothing saved yet' after a
+   * save). A failed save is logged and never fails the speak.
+   */
+  const remember = async (sub: string, candidate: unknown): Promise<void> => {
+    try { await responseSvc.record(sub, candidate); } catch (err) {
       logger.error({ err, sub }, 'pumpkin auto-save response failed');
-    });
+    }
   };
 
   // ── Surfaces (bundled in this package's tools/) ───────────────────────────
   router.get('/app', serveFile(surfaceHtml(ctx.appPackageDir, 'pumpkin-app.html')));
   router.get('/remote', serveFile(surfaceHtml(ctx.appPackageDir, 'pumpkin-remote.html')));
+  // The full-screen projector page (ported from the framework's /pumpkin/ page, which the native kernel never served).
+  router.get('/projector', serveFile(surfaceHtml(ctx.appPackageDir, 'pumpkin-projector.html')));
+  // The face renderer and voice pipeline the two pages load, shipped beside them in tools/.
+  for (const script of SURFACE_SCRIPTS) router.get(`/assets/${script}`, serveFile(surfaceHtml(ctx.appPackageDir, script)));
 
   // ── Presets (built-ins + per-user saved customs) ──────────────────────────
   router.get('/presets', withSub(async (_req, res, sub) => {
@@ -602,14 +686,18 @@ export function createPumpkinRoutes(ctx: AppContext): Router {
     const text = String(req.body?.text || req.body?.message || '').trim();
     if (!text) { res.status(400).json({ error: 'text required' }); return; }
     const reply = await runPumpkin(ctx, sub, text);
-    remember(sub, { ...reply, source: 'autonomous' });
+    await remember(sub, { ...reply, source: 'autonomous' });
     res.json({ reply });
   }));
 
   // ── Rooms (PAIRED topology) ───────────────────────────────────────────────
+  // The transport is the one THIS runtime can serve: a held-open SSE response, or polling where the
+  // response is buffered until end (the native kernel's bridge).
   router.post('/rooms/register', withSub((req, res, sub) => {
-    res.json(pumpkinRooms.register(sub, String(req.body?.label || 'Main')));
+    const transport = canStream(res) ? 'sse' : 'poll';
+    res.json({ ...pumpkinRooms.register(sub, String(req.body?.label || 'Main')), transport, pollMs: POLL_INTERVAL_MS });
   }));
+  router.get('/rooms/poll', withSub(pollRoom));
   // Stays HTTP 200 on failure so the browser api() helper resolves; a caller that reads ok:false
   // MUST re-register (the projector used to discard this value entirely and go quietly deaf).
   router.post('/rooms/heartbeat', withSub((req, res, sub) => {
@@ -627,18 +715,19 @@ export function createPumpkinRoutes(ctx: AppContext): Router {
   router.get('/stream', withSub((req, res, sub) => {
     const room = String(req.query.room || '').trim();
     if (!pumpkinRooms.has(sub, room)) { res.status(409).json({ error: 'unknown_room', room }); return; }
+    if (!canStream(res)) { res.status(501).json({ error: 'stream_unavailable', transport: 'poll' }); return; }
     attachRoomStream(req, res, sub, room);
   }));
 
   // Remote → room pushes. speak(mimic)/ask(autonomous) are input-gated; preset/mode are display-only.
-  router.post('/rooms/say', withSub((req, res, sub) => {
+  router.post('/rooms/say', withSub(async (req, res, sub) => {
     if (!gateInput(req, res, sub)) return;
     const text = String(req.body?.text || '').trim();
     if (!text) { res.status(400).json({ error: 'text required' }); return; }
     const n = pumpkinRooms.push(sub, String(req.body?.room || ''), String(req.body?.token || ''),
       { type: 'speak', say: text.slice(0, 300), expression: 'neutral', intensity: 0.6, mimic: true });
     if (n < 0) { res.status(403).json({ error: 'invalid_room_or_token' }); return; }
-    remember(sub, { say: text, expression: 'neutral', intensity: 0.6, source: 'mimic' });
+    await remember(sub, { say: text, expression: 'neutral', intensity: 0.6, source: 'mimic' });
     res.json({ ok: true, listeners: n });
   }));
   router.post('/rooms/ask', withSub(async (req, res, sub) => {
@@ -648,7 +737,7 @@ export function createPumpkinRoutes(ctx: AppContext): Router {
     const reply = await runPumpkin(ctx, sub, text);
     const n = pumpkinRooms.push(sub, String(req.body?.room || ''), String(req.body?.token || ''), { type: 'speak', ...reply });
     if (n < 0) { res.status(403).json({ error: 'invalid_room_or_token' }); return; }
-    remember(sub, { ...reply, source: 'autonomous' });
+    await remember(sub, { ...reply, source: 'autonomous' });
     res.json({ ok: true, reply, listeners: n });
   }));
   // One-tap replay of a SAVED line — the playlist's fast path (no LLM, straight to the projector).
@@ -697,7 +786,7 @@ export function createPumpkinRoutes(ctx: AppContext): Router {
     // Zero listeners is a FAILURE, not a quiet success: the room can be inside its 90s TTL with the
     // projector window already closed, and a swarm caller must never be told the pumpkin spoke.
     if (fan.listeners === 0) { res.status(409).json({ error: 'projector_not_listening', rooms: fan.rooms }); return; }
-    remember(sub, { ...reply, source: mode === 'ask' ? 'autonomous' : 'mimic' });
+    await remember(sub, { ...reply, source: mode === 'ask' ? 'autonomous' : 'mimic' });
     res.json({
       ok: true,
       mode,

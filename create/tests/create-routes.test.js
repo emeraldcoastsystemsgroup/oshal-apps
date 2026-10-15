@@ -8,6 +8,7 @@
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Use the catalog-compatible fixed theme namespace and verify the editor module allowlist.
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | Verify exact editable-template modules and their missing-package responses.
  * 5   | maintainer@emeraldcoastsystemsgroup.com     | Serve the Brand Kit page and its shared brand modules through the exact allowlist, with the same missing-package 404.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Verify PSD browser modules byte/MIME through the actual compiled Express router rather than a raw-static browser fixture.
  *
  * Node built-ins only; ephemeral loopback listeners.
  */
@@ -123,7 +124,7 @@ test('a package dir without the bundled files answers 404 JSON, never a stack tr
   const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'create-empty-'));
   try {
     await fixture(createCreateRoutes({ appPackageDir: empty }), async (base) => {
-      for (const route of ['/home', '/new', '/theme/create.css', '/editor/templates.mjs', '/editor/editor-templates.mjs', '/brand', '/editor/brand-kit.mjs']) {
+      for (const route of ['/home', '/new', '/theme/create.css', '/editor/templates.mjs', '/editor/editor-templates.mjs', '/brand', '/editor/brand-kit.mjs', '/editor/editor-psd.mjs', '/editor/psd-reader.mjs', '/editor/psd-worker.mjs']) {
         const r = await fetch(base + route);
         assert.equal(r.status, 404, route);
         assert.deepEqual(await r.json(), { error: 'not_found' });
@@ -131,6 +132,37 @@ test('a package dir without the bundled files answers 404 JSON, never a stack tr
     });
   } finally {
     fs.rmSync(empty, { recursive: true, force: true });
+  }
+});
+
+test('the actual shipped Express factory serves every PSD module with exact bytes and JavaScript MIME', async () => {
+  const expressPath = require.resolve('express', { paths: [path.resolve(PKG, '../scripts/toolchain')] });
+  const express = require(expressPath), routePath = require.resolve('../routes/create-routes.js');
+  const previous = require.cache[routePath], stub = STUBS.express;
+  let actualFactory;
+  try {
+    STUBS.express = express; delete require.cache[routePath];
+    actualFactory = require(routePath).createCreateRoutes;
+  } finally {
+    STUBS.express = stub; require.cache[routePath] = previous;
+  }
+  const app = express(); app.use('/api/create', actualFactory({ appPackageDir: PKG }));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(done => server.once('listening', done));
+  try {
+    const base = `http://127.0.0.1:${server.address().port}/api/create/editor/`;
+    for (const file of ['editor-psd.mjs', 'psd-reader.mjs', 'psd-worker.mjs']) {
+      const response = await fetch(base + file);
+      assert.equal(response.status, 200, 'actual compiled router must expose ' + file);
+      assert.match(response.headers.get('content-type'), /^text\/javascript;\s*charset=utf-8/i);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.deepEqual(Buffer.from(await response.arrayBuffer()), fs.readFileSync(path.join(PKG, 'tools/editor', file)));
+    }
+    for (const file of ['psd-api.test.mjs', 'psd-reader.mjs.map', '%2e%2e%2fauthorization.yaml']) {
+      assert.equal((await fetch(base + file)).status, 404, 'fixed allowlist refuses ' + file);
+    }
+  } finally {
+    server.closeAllConnections(); await new Promise(done => server.close(done));
   }
 });
 

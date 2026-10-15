@@ -3,6 +3,8 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05c: bind the export routes. Requesting an export or preview, cancelling one and downloading one need editor.export (a render spends CPU and a download is an export); reading a job or a project's job list needs editor.read. No new permission or role.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05d: bind the editor screen (GET /editor) and its fixed module allowlist (GET /editor/assets/:asset) to editor.view, like the studio page to studio.view, and deleting one unused upload (DELETE /editor/media/:id) to editor.delete.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: bind the package's bots (video-director, screenplay-writer, vids-operator) to studio.generate. The catalog bound only HTTP routes, so every protected chat turn to those bots was refused authorization_operation_unbound (seen live 2026-10-06 when the operator's turn to screenplay-writer reached core's concierge node). studio.generate is the provider-spending execute permission the producer, showrunner and admin roles already hold; no new permission or role.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Bind the dock concierge video-editor (c504b2de) and its route tools. Change 4 bound the studio bots but not the manual editor's concierge, so every turn to it was refused 'operation has no explicit permission binding' (live 2026-10-12, POST /api/swarm/bots/c504b2de-.../ask 403). It edits by hand and spends no provider money, so it binds editor.view and editor.read, not studio.generate; each video-* tool carries exactly the permissions of the HTTP route it calls. Owners can now delete their own editor projects and uploads: editor.delete (own scope only, rows stay issuer-and-subject scoped) joins the creator and editor roles instead of being admin-only.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Bind protected Writer-only Motion discovery and approved job import to existing own editor permissions; no role or scope widening.
 version: 1
 resources:
   studio:
@@ -52,12 +54,14 @@ roles:
       - { permission: editor.view, scope: own }
       - { permission: editor.read, scope: own }
       - { permission: editor.create, scope: own }
+      - { permission: editor.delete, scope: own }
   editor:
     tier: editor
     grants:
       - { permission: editor.view, scope: own }
       - { permission: editor.read, scope: own }
       - { permission: editor.change, scope: own }
+      - { permission: editor.delete, scope: own }
   exporter:
     tier: editor
     grants:
@@ -79,6 +83,12 @@ roles:
       - { permission: editor.export, scope: own }
 bindings:
   http:
+    - { id: editor-motion-renders, method: POST, path: '/editor/motion-renders', allOf: [editor.view, editor.read, editor.change] }
+    - { id: editor-motion-job-import, method: POST, path: '/editor/motion-render-jobs/:id/import', allOf: [editor.view, editor.read, editor.change] }
+    - { id: editor-motion-import, method: POST, path: '/editor/motion-media', allOf: [editor.view, editor.read, editor.change] }
+    - { id: editing-contract, method: GET, path: '/editor/editing-contract', allOf: [editor.view] }
+    - { id: agent-project, method: POST, path: '/editor/agent-projects', allOf: [editor.view, editor.create] }
+    - { id: apply-operations, method: POST, path: '/editor/projects/:id/operations', allOf: [editor.view, editor.read, editor.change] }
     # The readiness smoke (/api/video/_smoke) and the home summary (/api/video/home-summary) are
     # both their mount's root, so one binding covers both; the summary is a read of saved work.
     - { id: root, method: GET, path: /, allOf: [studio.view, studio.read] }
@@ -128,3 +138,19 @@ bindings:
     - { id: a0000000-0000-0000-0000-000000000048, allOf: [studio.generate] }
     - { id: a0000000-0000-0000-0000-000000000052, allOf: [studio.generate] }
     - { id: b00e0000-0000-0000-0000-000000000001, allOf: [studio.generate] }
+    # The manual editor's concierge reads owned projects; it spends no provider money.
+    - { id: c504b2de-81f6-44c9-bad5-b4c042b7c4c6, allOf: [editor.view, editor.read] }
+  # Each route-backed tool carries exactly the permissions of the HTTP route it calls.
+  tools:
+    - { id: video-list-motion-renders, allOf: [editor.view, editor.read, editor.change] }
+    - { id: video-import-motion-render-job, allOf: [editor.view, editor.read, editor.change] }
+    - { id: video-import-motion-render, allOf: [editor.view, editor.read, editor.change] }
+    - { id: video-editing-contract, allOf: [editor.view] }
+    - { id: video-list-projects, allOf: [editor.view, editor.read] }
+    - { id: video-read-project, allOf: [editor.view, editor.read] }
+    - { id: video-new-project, allOf: [editor.view, editor.create] }
+    - { id: video-apply-edits, allOf: [editor.view, editor.read, editor.change] }
+    - { id: video-render-project, allOf: [editor.view, editor.read, editor.export] }
+    - { id: video-list-renders, allOf: [editor.view, editor.read] }
+    - { id: video-render-status, allOf: [editor.view, editor.read] }
+    - { id: video-cancel-render, allOf: [editor.view, editor.export] }

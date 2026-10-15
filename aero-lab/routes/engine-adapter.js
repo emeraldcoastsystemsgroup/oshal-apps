@@ -67,6 +67,11 @@
  *                     |                             | counted as a present local engine, so the
  *                     |                             | transport went local and every spawn failed
  *                     |                             | ENOEXEC while the engine container sat idle.
+ * 2026-10-10 16:00:00 | maintainer@emeraldcoastsystemsgroup.com | NATIVE KERNEL. The sandbox has no
+ *                     |                             | network; with `exchange` the container transport
+ *                     |                             | sends each request through the kernel's
+ *                     |                             | engine.exchange intent (one request per call,
+ *                     |                             | bounded by the kernel's 55 s relay).
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -253,6 +258,8 @@ function vendoredEngineDir(appPackageDir) {
  * @returns The transport choice.
  */
 function resolveTransport(opts, localPresent) {
+    if (opts.exchange)
+        return { transport: 'container', engineAddr: 'native://engine.exchange' };
     if (opts.engineAddr)
         return { transport: 'container', engineAddr: opts.engineAddr };
     const explicitLocal = opts.engineDir || opts.pythonPath || opts.workerPath
@@ -344,6 +351,7 @@ class AeroEngineAdapter {
     /** The package's own engine tree: what the container image bakes in and must match. */
     packageEngineDir;
     engineAddr;
+    exchange;
     pythonOverride;
     workerOverride;
     appPackageDir;
@@ -358,6 +366,7 @@ class AeroEngineAdapter {
     disposed = false;
     capsCache = null;
     constructor(opts = {}) {
+        this.exchange = opts.exchange;
         this.appPackageDir = opts.appPackageDir;
         this.engineDir = resolveEngineDir(opts.appPackageDir, opts.engineDir);
         this.pythonOverride = opts.pythonPath;
@@ -527,6 +536,10 @@ class AeroEngineAdapter {
     }
     /** Connect to the engine container's bridge; the channel verifies its build before any write. */
     openContainer(handlers) {
+        if (this.exchange) {
+            return (0, engine_channel_1.openNativeChannel)({ exchange: this.exchange, workDir: this.workDir,
+                installHint: 'on the kernel host run aero-lab/engine/install-engine.sh and pin the engine in OSHAL_PACKAGE_ENGINES' }, handlers);
+        }
         const addr = parseEngineAddr(this.engineAddr || exports.DEFAULT_ENGINE_ADDR);
         if (!addr) {
             logger.error({ engineAddr: this.engineAddr }, 'engine container address is not host:port');

@@ -30,6 +30,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — league-scoring application over ESPN's raw projected stats (no hardcoded stat dictionary), slot-eligibility lineup optimisation with pairwise improvement, and the start/sit diff against the lineup actually set.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Take ScoringItem, LineupSlot and FantasyPlayer from the fantasy-leagues kernel skill (ADR-146 D2), which reads them from ESPN, and re-export them so this package's modules import them from here unchanged. Type-only: no emitted code changes. One definition instead of a package copy that had to stay structurally identical to the client's.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Moved from sports-edge (sports-fantasy-scoring.ts, SEQ 1-2 above) into the fantasy-football package (ADR-146 D1, operator decision 2026-09-27). Scoring and start/sit are unchanged. optimiseLineup is now an EXACT assignment (Hungarian method over slot openings, fill-first then points) instead of greedy-by-scarcity plus bench swaps: a brute-force comparison over 3,000 random rosters found the greedy lineup short on 6 of them (up to 21 points) where a dual-position player met two flexible slots, and the rest-of-season value this package now computes is a sum of these weekly optima.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | openSlotStarts: a player the recommended lineup starts in a slot the lineup as set leaves empty, with nobody to sit for him. startSitCalls pairs a start with a sit, so a two-starter lineup in a three-slot league got no call while the board showed +18.4 on the table and "already the best legal one" (sweep 13). Both read the same lineup diff (lineupDiff). Guard: tests/fantasy-open-slot.test.js.
  *
  * @module fantasy-scoring
  */
@@ -241,13 +242,9 @@ export function startSitCalls(
   current: number[], optimal: OptimisedLineup, scoring: ScoringItem[],
   roster: FantasyPlayer[], minGain = 0.5,
 ): StartSitCall[] {
-  const currentSet = new Set(current);
   const byId = new Map(roster.map((p) => [p.playerId, p]));
-  // Players the optimiser starts who are currently benched, and vice versa.
-  const toStart = optimal.starters.filter((a) => !currentSet.has(a.player.playerId));
-  const startedIds = new Set(optimal.starters.map((a) => a.player.playerId));
-  const toSit = current
-    .filter((id) => !startedIds.has(id))
+  const { toStart, sitIds } = lineupDiff(current, optimal);
+  const toSit = sitIds
     .map((id) => {
       const p = byId.get(id);
       // An UNAVAILABLE player is priced at ZERO, not at his projection. A projection is not
@@ -279,4 +276,47 @@ export function startSitCalls(
     });
   }
   return calls.sort((a, b) => b.gain - a.gain);
+}
+
+/**
+ * @description The two sides of the lineup diff: who the recommended lineup starts that the lineup
+ * as set does not, and who is started now that it would not start.
+ * @param current - Player ids currently in the starting lineup.
+ * @param optimal - The optimised lineup.
+ * @returns The players to start (in lineup order) and the ids to sit.
+ */
+function lineupDiff(current: number[], optimal: OptimisedLineup): { toStart: LineupAssignment[]; sitIds: number[] } {
+  const currentSet = new Set(current);
+  const startedIds = new Set(optimal.starters.map((a) => a.player.playerId));
+  return {
+    toStart: optimal.starters.filter((a) => !currentSet.has(a.player.playerId)),
+    sitIds: current.filter((id) => !startedIds.has(id)),
+  };
+}
+
+/** A recommended starter for a slot the lineup as set leaves empty: nobody has to sit for him. */
+export interface OpenSlotStart {
+  start: { playerId: number; name: string; points: number };
+  slotId: number;
+  /** Projected points gained by filling the slot (his projection: the empty slot scores nothing). */
+  gain: number;
+}
+
+/**
+ * @description The recommended starters left over once every benched-for swap is paired: the lineup
+ * as set starts fewer players than the recommended one, so these fill slots that would score
+ * nothing. startSitCalls cannot name them (a call is a start AND a sit, graded against the benched
+ * player's score), and without them a lineup with an empty slot read as "already the best legal
+ * one" beside a positive "on the table".
+ * @param current - Player ids currently in the starting lineup.
+ * @param optimal - The optimised lineup.
+ * @param minGain - Minimum projected points worth recommending.
+ * @returns The fills, biggest gain first.
+ */
+export function openSlotStarts(current: number[], optimal: OptimisedLineup, minGain = 0.5): OpenSlotStart[] {
+  const { toStart, sitIds } = lineupDiff(current, optimal);
+  return toStart.slice(sitIds.length)
+    .map((a) => ({ start: { playerId: a.player.playerId, name: a.player.name, points: a.points }, slotId: a.slotId, gain: a.points }))
+    .filter((f) => f.gain >= minGain)
+    .sort((a, b) => b.gain - a.gain);
 }

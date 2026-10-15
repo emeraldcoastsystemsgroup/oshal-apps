@@ -12,8 +12,31 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register the family audience view contract (ADR-164 D6): the static kit contract of the studio page plus its behaviour against a stub kit and stub fetch (one home-summary read, never /characters, whose read provisions the starter character; plain-word stats, tiles and states) and the gated studio start. Node-only, no browser, no database, no GPU.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.7.3: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | GET /characters no longer provisions the starter character (a GET is admitted read-only on the native host); the character-console case now expects the studio's read to save nothing and the explicit starter action to save one owner-bound starter, once.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Register native-sql-admission: GET /dataset answers under the kernel's read admission without a SQL write (it used to expire staging first and was refused, 502 "dataset receipts unavailable"), and character creation uses only the native bridge's transaction forms (BEGIN ISOLATION LEVEL READ COMMITTED was refused "unsupported SQL statement", 502). The relay case now expects expired staged bytes to be removed by the next writer, not by the listing.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Register character-delete: DELETE /characters/:subject over real HTTP against disposable forced-RLS PostgreSQL as owner roles.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | Register character-required-fields: Save character names an empty required field instead of doing nothing.
 version: 1
 cases:
+  - id: character-required-fields
+    name: Save character names an empty required field
+    purpose: Run the page's own requiredGaps and saveCharacter over a labelled form double.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/character-required-fields.test.cjs
+    expected:
+      - An empty Hero image reads 'Fill in Hero image on the worker to save the character. Nothing was saved.', is focused, and no request is sent.
+      - A filled form posts /characters and reports the save.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
   - id: package-readiness
     name: LoRA package readiness
     purpose: Read package metadata without starting training or accessing user model data.
@@ -138,7 +161,7 @@ cases:
       - The owner's import stages exactly the source bytes and queues one worker write whose command targets the LoRA staging route.
       - A foreign owner, a second issuer, an expired handle and a service-rail-only request create no receipt and no dispatch.
       - Non-image, mislabelled and over-10-MiB sources are refused before storage.
-      - Only the worker holding that import's callback grant can download staged bytes (the fleet secret alone cannot); ready and failed callbacks delete them and revoke the grant, and expiry fails the receipt.
+      - Only the worker holding that import's callback grant can download staged bytes (the fleet secret alone cannot); ready and failed callbacks delete them and revoke the grant; the listing reports an expired receipt failed, and the next import removes the expired bytes.
       - Another owner can neither read nor write the staged bytes at the database.
       - The studio opened with ?artifact= shows the queued receipt after Import; no GPU worker, provider or deployment database is contacted.
     prerequisites: [runner:playwright, runner:vitest, browser:chromium, harness:oshal-core-root, harness:core-test-fixtures, engine-container:disposable-postgres]
@@ -243,4 +266,44 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: native-sql-admission
+    name: Dataset listing and character creation through the native SQL rules
+    purpose: >-
+      Run GET /dataset under a double of the native kernel's read admission (a GET may only query or
+      repeat idempotent table setup) with the character found, and character creation against a
+      connection that accepts exactly the native SQL bridge's transaction-control forms.
+    level: unit
+    runner:
+      kind: vitest
+      scope: package
+      files: [tests/lora-native-sql-admission.spec.ts]
+    expected:
+      - GET /dataset answers 200 with no SQL write attempted, reporting a queued receipt whose staged bytes are gone or expired as failed.
+      - Character creation opens with plain BEGIN, keeps its transaction-local lock_timeout and owner advisory lock, commits and answers 201.
+      - Every transaction-control literal in the package routes is one the native bridge accepts.
+    prerequisites: [runner:vitest, harness:oshal-core-root]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000, maxMemoryMb: 512 }
+    installation: never
+  - id: character-delete
+    name: Delete a character with everything stored for it
+    purpose: >-
+      Run DELETE /characters/:subject over real HTTP against a disposable PostgreSQL carrying the
+      package migrations and forced row-level security, as non-bypass owner roles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files: [tests/lora-character-delete.spec.ts]
+    expected:
+      - The owner's character goes with its versions, scores, thumbnails, dataset receipts, staged images, callback grants and nonces, and the answer counts the versions removed.
+      - The owner's other characters and another owner's character with the same subject keep every row.
+      - Another owner cannot delete it (404); an unknown subject answers 404 and no identity answers 401.
+      - The catalog binds the route to lora.configure and the studio offers a two-step Delete character control.
+    prerequisites: [runner:vitest, harness:oshal-core-root]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
     installation: never

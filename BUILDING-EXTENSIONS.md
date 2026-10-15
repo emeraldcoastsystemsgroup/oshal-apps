@@ -524,6 +524,9 @@ every engine package to it.
 | `embodied` | MuJoCo / Gymnasium | glibc-only wheels | `embodied-engine:7413` |
 | `scan-to-print` | OrcaSlicer CLI (STL → a Bambu Lab `.gcode.3mf`) | the slicer is a glibc AppImage linking GTK/WebKit/GL | `scan-to-print-engine:7414` |
 | `scene-studio` | Godot 4.7 + godot-mcp, Blender 5.1 + the Blender Lab MCP | native editors and their MCP servers; user code sandboxed per job | `scene-studio-engine:7414` |
+| `motion-studio` | Pinned native compositor and Node bridge | locked native rendering, embedded fonts and owned raster sources | `motion-studio-engine:7414` |
+| `pdf-workbench` | Hash-pinned pypdf, Poppler and Tesseract | bounded PDF derivative, page preview and explicit OCR workers | `pdf-workbench-engine:7415` |
+| `publishing-studio` | Hash-pinned Typst, pypdf and Poppler | native font shaping/linked-page flow and exact-PDF preview in a private bounded worker | `publishing-studio-engine:7419` |
 
 Read any one of them as a worked example; they agree. The port numbers need not be unique across
 packages — nothing is published to the host, and each container has its own network namespace.

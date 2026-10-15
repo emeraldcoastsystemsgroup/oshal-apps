@@ -3,13 +3,30 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Release independent native screen loading with lazy optional sync and briefing dependencies.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Declare the Google Calendar API host for the native kernel's egress, with the caller's google-calendar connection applied as a Bearer token by the kernel.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Native provisioning: declare migrations/native/001-calendar.sql (the snapshot and meeting-brief tables and indexes) and skip 001 and 002 natively, whose pg_policies-guarded DO blocks the native kernel refuses; the declared migrations stayed pending for every person. PostgreSQL still applies 001-002 and the native file is a no-op there.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Declare calendar-concierge (inline, personas/calendar-concierge.yaml) as the screen's concierge in place of the borrowed platform general-bot, which could not see the synced calendar and recommended Reclaim.ai and Motion; it reads the package's own routes through calendar-upcoming, calendar-briefs and an approval-held calendar-sync. The rating label names it as the package's one model-touching feature. Guarded by scripts/check-store-bots.test.mjs.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | List google-calendar in the optional connector catalog. The native kernel now places a person's connector credential only for a package that lists that connector, and this package's egress carries the caller's google-calendar grant; the list was empty, so Sync would be refused.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Events a person adds in OSHAL: migrations/003-calendar-own-events.sql, routes/own-events.js at /api/calendar/events (list, add, remove the caller's own rows), and the concierge tools calendar-my-events, calendar-add-event and calendar-remove-event, the two writes held for the person's approval. Jarvis routed "put it on my calendar" here and the concierge answered that it had only read tools. The rows stay in OSHAL; nothing is written to Google Calendar. The Home summary lists them beside synced events.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | migrations/004-calendar-own-events-rls.sql: forced exact-owner row security for calendar_own_events on PostgreSQL (003 created it without any, unlike 001 and 002). Skipped natively like 001 and 002, whose guarded policy blocks the native kernel refuses.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Sweep 9. calendar-add-event takes the person's IANA "timeZone" with a local start (the concierge demanded a UTC offset although the kernel names the zone on every turn), migrations/005-calendar-own-events-zone.sql keeps the zone so events are shown in the person's time, and the tool instructions say an approved event is never proposed again (a confirmation turn re-proposed one and its approval saved a duplicate; the route now refuses an identical event with 409).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: calendar-remove-event was proposed with the event's title as its id ({"id":"sweep10-dentist"}) and the approved card failed "An event id is required". Its id is now `format: uuid`, so the kernel refuses a title before any card is made, and the description says to read calendar-my-events for the id. Guarded by oshal-kernel crates/packages/tests/store_tool_contracts.rs and calendar/tests/own-events.test.cjs.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Sweep 11: an agreed trip (Friday 6 PM to Sunday 3 PM) was proposed as a start-only event and saved with no end: calendar-add-event's end now says to send it whenever the person gave an end or a length, one event per span. The removal card showed calendar-remove-event's model instruction ('Its id is the event's uuid ... call calendar-my-events first') as its sentence, because the kernel builds the card label from the tool description; the description is now the person-facing sentence and the read-first instruction lives on the id field, which the model sees. Guarded by calendar/tests/own-events.test.cjs.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | The three approval-held tools declare `cardText`, the people-facing sentence the kernel's approval card shows (with displayName as its name) once @jarvis-cards-r16's card label change is deployed; until then the card keeps using the person-facing description. Guarded by calendar/tests/own-events.test.cjs.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: a removal request was answered with a Google sync card (calendar-sync offered while Google was not connected), and an add reply said 'I have proposed five events for your Denver trip' beside one card, then 'I have also added the remaining four events' after approving it. calendar-sync is never a step of adding, finding or removing an OSHAL event; calendar-add-event says each call is one card for one event and a reply names only the events it made a card for. Words only; no route, schema or binding change. Guarded by calendar/tests/own-events.test.cjs.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 2: an Add Event card carried the delegating model's routing text as the event's Notes ("The user's calendar summary indicates it is 'Not synced' ... report back that the calendar needs to be synced via Identity"), which approving would save on the person's event; the notes field had no description. It now says it is optional, only the note the person asked to keep in their own words, never an explanation, a sync status or failure instructions.
 name: calendar
 suite: ai-home
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
 # After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
 rating:
   memoryMb: { low: 32, high: 128, basis: declared }
-  features: []   # no model in the loop (T0)
+  features:
+    - id: calendar-concierge
+      unit: concierge answer
+      tier: T1
+      generation: none
+      degrade: disable
 displayName: Calendar Preparation
 description: Sync your upcoming primary-calendar events explicitly, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting.
 version: 1.1.5
@@ -21,8 +38,8 @@ source:
   path: calendar
   ref: main
 theme: midnight
-# Calendar packages no bot of their own; the stable framework concierge owns the right rail.
-chatBot: general-bot
+# Calendar Preparation's own concierge reads the synced snapshot and briefs through the tools below.
+chatBot: calendar-concierge
 dependencies:
   required:
     apps: []
@@ -31,7 +48,7 @@ dependencies:
   optional:
     apps: []
     tools: []
-    connectors: []
+    connectors: [google-calendar]
 
 # Kernel skills this app declares (ADR-090 uses: contract, fail-closed at load).
 # `app-dependencies` is the compatibility floor for the tiered dependencies block above: a core
@@ -86,6 +103,115 @@ smoke:
       jsonPointer: /package
       rejectValues: [noop, stub, empty]
     requiresAi: false
+
+# Outbound hosts (native kernel): the sandbox has no network, so the explicit sync reads the primary
+# calendar through the kernel's fenced egress, which applies the caller's own Google grant (the
+# google-calendar connector) as the Authorization header. This package never holds the token.
+bots:
+  - agentId: ca1e0000-0000-0000-0000-000000000001
+    name: calendar-concierge
+    posture: inline
+    persona: personas/calendar-concierge.yaml
+    role: ai-home/calendar-concierge
+    capabilities:
+      - calendar-snapshot-reading
+      - meeting-preparation
+
+# Route-backed tools for calendar-concierge (native kernel: executorType api, inside this package's mounts).
+tools:
+  - name: calendar-upcoming
+    displayName: Upcoming Events
+    type: api
+    category: productivity
+    description: The synced calendar snapshot as the home summary - saved event counts for 5 and 30 days, the upcoming events with start times, and a note when nothing is synced or Google is not connected.
+    executor: { executorType: api, apiEndpoint: "GET /api/calendar/home-summary" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} before naming any event. "Not synced" means there is no snapshot yet; the item text says what to do.
+    tags: [calendar, route-backed]
+  - name: calendar-briefs
+    displayName: Meeting Briefs
+    type: api
+    category: productivity
+    description: The meeting briefs already delivered, each exactly as it was sent.
+    executor: { executorType: api, apiEndpoint: "GET /api/calendar/meeting-briefs" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks about a brief. Quote only what is returned.
+    tags: [calendar, route-backed]
+  - name: calendar-sync
+    displayName: Sync Calendar
+    type: api
+    category: productivity
+    description: Refresh the snapshot from the person's primary Google Calendar for the next 30 days. Held for the person's approval.
+    cardText: Refreshes this app's copy of your Google Calendar for the next 30 days. Nothing is written to Google.
+    executor: { executorType: api, apiEndpoint: "POST /api/calendar/sync" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        confirm: { type: boolean, const: true }
+      required: [confirm]
+    usageInstructions: Send {"confirm":true} only when the person asks to sync or refresh their Google Calendar. Never call it as a step of adding, finding or removing an event added in OSHAL (calendar-my-events lists those without a sync). A 409 answer means Google Calendar is not connected; relay its text.
+    tags: [calendar, route-backed]
+  - name: calendar-my-events
+    displayName: My OSHAL Events
+    type: api
+    category: productivity
+    description: The events the person added in OSHAL (not Google), from today on, soonest first, each with its id.
+    executor: { executorType: api, apiEndpoint: "GET /api/calendar/events" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} to list what the person added here, or to find an event's id before removing it.
+    tags: [calendar, route-backed]
+  - name: calendar-add-event
+    displayName: Add Event
+    type: api
+    category: productivity
+    description: Put an event on the person's OSHAL calendar in this app (not Google Calendar). Held for the person's approval.
+    cardText: Adds this event to your OSHAL calendar. It is not added to Google Calendar.
+    executor: { executorType: api, apiEndpoint: "POST /api/calendar/events" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        start: { type: string, description: "A date (2026-11-07) for an all-day event, or the person's local date-time (2026-11-06T18:00) with timeZone. A date-time with its own UTC offset (2026-11-06T18:00:00-06:00) is also accepted." }
+        end: { type: string, description: "When the event ends, in the same form as start and not before it. Send it whenever the person said when it ends (until 3 PM, to Sunday at 3 PM, for two hours): a trip from Friday 6 PM to Sunday 3 PM is ONE event with that start and this end, never a start-only event. Leave it out only when they gave no end or length." }
+        timeZone: { type: string, description: "The person's IANA time zone (America/Chicago), as named on the Current time line of this turn. Required for a local date-time start." }
+        allDay: { type: boolean }
+        location: { type: string, maxLength: 200 }
+        notes: { type: string, maxLength: 2000, description: "Optional. Only a note the person asked to keep on this event, in their own words (bring the tickets). Leave it out when they gave none. Never your own explanation, a sync or connection status, or instructions about what to do if the add fails: the note is saved on the person's event as written." }
+        confirm: { type: boolean, const: true }
+      required: [title, start, confirm]
+    usageInstructions: Call once per event the person asked to add, with {"confirm":true}. For a timed event send the local date-time the person said (2026-11-06T18:00) and "timeZone", the IANA zone on this turn's Current time line; ask only when no zone is given there. Never call it again for an event the conversation shows was already proposed or saved, and never because the person said yes, confirm or save it - the approval card is their confirmation. Each call makes one card for one event, so in the reply name only the events you called it for in that reply, with their count, and never say you proposed, added or saved any other event. After an approval, say an event is saved only when its result or calendar-my-events shows it. A 409 answer means it is already on their calendar; say so. A 400 answer says what to fix; relay it.
+    tags: [calendar, route-backed]
+  - name: calendar-remove-event
+    displayName: Remove Event
+    type: api
+    category: productivity
+    description: Remove one event the person added in OSHAL. Held for the person's approval.
+    cardText: Removes this event from your OSHAL calendar.
+    executor: { executorType: api, apiEndpoint: "DELETE /api/calendar/events/{input.id}" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, format: uuid, description: "Call calendar-my-events first: this is the event's id exactly as it lists it (a uuid such as 3f2b6c1e-8d4a-4f0e-9b1c-2a7d5e6f8a90), never its title." }
+      required: [id]
+    usageInstructions: Read calendar-my-events first and send the id of the event the person named. Synced Google events cannot be removed here.
+    tags: [calendar, route-backed]
+
+egress:
+  - host: www.googleapis.com
+    credential: { connector: google-calendar, header: authorization, prefix: "Bearer " }
+
 routes:
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
@@ -103,6 +229,13 @@ routes:
   - module: routes/review.js
     factory: createReviewRoutes
     mountPath: /api/calendar/review
+    auth: oidc
+    requiresContext: true
+    requiresAuth: true
+    requiresAi: false
+  - module: routes/own-events.js
+    factory: createOwnEventsRoutes
+    mountPath: /api/calendar/events
     auth: oidc
     requiresContext: true
     requiresAuth: true
@@ -168,3 +301,18 @@ integrations:
 migrations:
   - migrations/001-calendar-preparation.sql
   - migrations/002-meeting-briefs.sql
+  - migrations/native/001-calendar.sql
+  - migrations/003-calendar-own-events.sql
+  - migrations/004-calendar-own-events-rls.sql
+  - migrations/005-calendar-own-events-zone.sql
+# The native kernel applies the native file above in place of 001 and 002, whose pg_policies-guarded DO blocks are PostgreSQL-only.
+nativeMigrations:
+  - id: migrations/001-calendar-preparation.sql
+    native: skip
+    reason: "Its table is in migrations/native/001-calendar.sql; its RLS ENABLE/FORCE and pg_policies-guarded CREATE POLICY are PostgreSQL-only, and the native per-person scope keeps each person's snapshot their own."
+  - id: migrations/002-meeting-briefs.sql
+    native: skip
+    reason: "Its table and indexes are in migrations/native/001-calendar.sql; its RLS ENABLE/FORCE and pg_policies-guarded CREATE POLICY are PostgreSQL-only, and the native per-person scope keeps each person's briefs their own."
+  - id: migrations/004-calendar-own-events-rls.sql
+    native: skip
+    reason: "Row security for calendar_own_events: ENABLE/FORCE and a pg_policies-guarded CREATE POLICY, PostgreSQL-only; the native per-person scope keeps each person's own events their own."

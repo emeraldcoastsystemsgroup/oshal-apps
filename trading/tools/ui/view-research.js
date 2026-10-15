@@ -28,6 +28,9 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-143 D5: the movers meta line reports WHICH source produced the board and, when it was the vendor's screener, the vendor's OWN last_updated beside oshal's request time - the two are different claims and the surface must not merge them. mvSourceWords names the screener board in plain words instead of falling through to a bare "Source: ..." echo.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Show the watchlist's feed-backed congressional net and disclosure date, while rendering absent or unavailable world data as unavailable rather than a fabricated holding.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Congress disclosures panel on the stock tab (GET /reports/congress): the names the STOCK Act feed reported lately, each with "disclosed <report day>", and an explicit owner "Add to watchlist" that posts the symbol only through the existing POST /watchlist. The disclosure day is now printed as its UTC calendar day in both places (cgDay): the watchlist column passed the midnight-UTC timestamp through toLocaleDateString, which shows the previous day in any timezone west of UTC.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Each unavailable research section prints the report's reason (`reasons[name]`: no market-data source connected, an EDGAR failure) instead of a bare "unavailable" (Major events follow the filings read they are decoded from; they had read an 'events' state the report never sets, so they always said unavailable), and a quote from the World archive says it is the last stored price with its own time, not a live quote. The watchlist's Last column marks an archive price the same way.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | The hand-off to another app (Finance) carried the screen's control text ('Buy AAPL / + Watchlist / Chart / 5Min / 1Hour ...'). researchLoad keeps the painted report in RS_REPORT and researchSummaryText(j) states it in plain sentences (price, fundamentals, earnings, headlines, filings, events, or each section's unavailable reason); connected-actions.js hands that on. Guard: tests/research-handoff-summary.test.js.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | researchSummaryText ends an unavailable section's sentence once: a reason that already ends with a full stop read 'through the Schwab connection..'.
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.3 - this file predates the log and its earlier history is in git. Sub-tab race close-out (ADR-136 D2 tail): loadScoreboard and loadFeed now capture RENDER_TOKEN and tabGen() before their first await and bail after it, matching loadMovers and loadWatchlistPanel; loadAlgos is a plain function because it awaits nothing (its caller ignores the return). No handler attribute existed here and none is introduced - every action stays a delegated data-* listener.
  */
 
@@ -35,6 +38,8 @@ let PENDING_RESEARCH = null;
 let PENDING_TICKET = null;
 /* The last symbol researched this session — the stock tab re-opens on it after a sub-tab round trip. */
 let RS_SYM = '';
+/* The report researchLoad last painted — the hand-off to another app summarises THIS, never the screen text. */
+let RS_REPORT = null;
 /* The #rsSym element the symbol-search autocomplete is currently attached to (symbol-search.js), so a
    sub-tab switch can detach it before the tab body is discarded — no orphan timer/dropdown. */
 let RS_SEARCH = null;
@@ -88,15 +93,53 @@ async function researchLoad(sym) {
   try { j = await api('/research/' + encodeURIComponent(sym)); }
   catch (e) { if (!stale(token) && !tabStale(gen) && RS_SYM === sym) body.innerHTML = '<div class="err" style="font-size:13px">' + esc(e.message) + '</div>'; return; }
   if (stale(token) || tabStale(gen) || RS_SYM !== sym) return;
+  RS_REPORT = j;
   body.innerHTML = researchTopHtml(j) +
     '<div class="research-grid"><div>' + researchChartHtml() + researchFundHtml(j) + researchEarnHtml(j) + '</div>' +
     '<div>' + researchNewsHtml(j) + researchFilingsHtml(j) + researchEventsHtml(j) + '</div></div>';
   researchWire(j);
   drawFocusChart(j.symbol || sym);
 }
+/* The research report as plain sentences for a hand-off to another app (Finance, a concierge): what each section
+   found, or that it is unavailable and why. The screen's own text carries its controls (Buy, + Watchlist, Chart,
+   5Min/1Hour/1Day/1Week), which are not research. Bounded: five headlines, three 8-Ks, five events. */
+function researchSummaryText(j) {
+  if (!j || !j.symbol) return '';
+  const sym = String(j.symbol), out = [], why = (name) => (j.reasons && j.reasons[name] ? ': ' + j.reasons[name] : '');
+  const sentence = (t) => (/[.!?]$/.test(t) ? t : t + '.');
+  const usd = (v) => (Number(v) < 0 ? '-$' : '$') + Math.abs(Number(v)).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const q = j.quote;
+  out.push(q && q.price != null
+    ? 'Price ' + usd(q.price) + (q.source === 'world-archive' ? ' (last stored price)' : '') + (q.asOf ? ' as of ' + q.asOf : '') + '.'
+    : sentence('Quote unavailable' + why('quote')));
+  const f = j.fundamentals;
+  if (rsOk(j, 'fundamentals') && f) {
+    const parts = [];
+    if (f.revenue != null) parts.push('revenue ' + rsBig(f.revenue) + (f.revenueYoYPct != null ? ' (' + Number(f.revenueYoYPct).toFixed(1) + '% year on year)' : ''));
+    if (f.netIncome != null) parts.push('net income ' + rsBig(f.netIncome));
+    if (f.netMarginPct != null) parts.push('net margin ' + Number(f.netMarginPct).toFixed(1) + '%');
+    out.push('Fundamentals' + (f.fiscalYear ? ' FY' + f.fiscalYear : '') + ': ' + (parts.join(', ') || 'no figures') + '.' + (f.summary ? ' ' + f.summary : ''));
+  } else out.push(sentence('Fundamentals unavailable' + why('fundamentals')));
+  const e = j.earnings;
+  if (rsOk(j, 'earnings') && e) out.push(e.nextExpected ? 'Next earnings expected ' + rsDay(e.nextExpected) + (e.source === 'cadence-estimate' ? ' (estimated from cadence)' : '') + '.' : 'Next earnings date unknown.');
+  else out.push(sentence('Earnings unavailable' + why('earnings')));
+  if (rsOk(j, 'news')) {
+    const heads = (j.news || []).slice(0, 5).map((n) => n.headline).filter(Boolean);
+    out.push(heads.length ? 'Recent headlines: ' + heads.join('; ') + '.' : 'No recent headlines.');
+  } else out.push(sentence('News unavailable' + why('news')));
+  if (rsOk(j, 'filings')) {
+    const fl = j.filings || {}, eights = (fl.recent8K || []).slice(0, 3).map((k) => rsDay(k.date) + ' ' + ((k.itemsPlain && k.itemsPlain.length ? k.itemsPlain : k.items || []).join('; ') || '8-K'));
+    out.push('SEC filings: annual ' + (fl.latest10K ? rsDay(fl.latest10K.date) : 'none on file') + ', quarterly ' + (fl.latest10Q ? rsDay(fl.latest10Q.date) : 'none on file') + '.' +
+      (eights.length ? ' Recent 8-Ks: ' + eights.join(' | ') + '.' : ''));
+    const ev = (j.events || []).slice(0, 5).map((x) => rsDay(x.date) + ' ' + (x.label || x.kind || 'event'));
+    if (ev.length) out.push('Major events: ' + ev.join('; ') + '.');
+  } else out.push(sentence('SEC filings unavailable' + why('filings')));
+  return 'Stock research for ' + sym + '. ' + out.join(' ');
+}
 /* sections[name] === 'ok' is the ONLY thing that makes a section show data — anything else says so. */
 const rsOk = (j, name) => !!(j && j.sections && j.sections[name] === 'ok');
-const rsUnavail = () => '<div class="foot" style="margin:0">unavailable</div>';
+const rsUnavail = (j, name) => '<div class="foot" style="margin:0">unavailable' +
+  (j && j.reasons && j.reasons[name] ? ' &mdash; ' + esc(j.reasons[name]) : '') + '</div>';
 /* A date for a list: date-only strings stay as they are (no timezone drift), timestamps localize. */
 const rsDay = (s) => {
   if (s == null || s === '') return '—';
@@ -112,9 +155,12 @@ const rsBig = (v) => {
 };
 function researchTopHtml(j) {
   const q = j.quote, sym = esc(j.symbol);
+  const stored = q && q.source === 'world-archive';
   const quote = q && q.price != null
-    ? '<div class="det-price">' + money(q.price) + '</div><div class="det-meta"><span>as of ' + esc(fmtDate(q.asOf)) + '</span></div>'
-    : '<div class="det-meta"><span class="foot" style="margin:0">quote unavailable</span></div>';
+    ? '<div class="det-price">' + money(q.price) + '</div><div class="det-meta"><span>' + (stored ? 'last stored price, ' : '') + 'as of ' + esc(fmtDate(q.asOf)) + '</span></div>' +
+      (q.note ? '<div class="foot" style="margin:2px 0 0">' + esc(q.note) + '</div>' : '')
+    : '<div class="det-meta"><span class="foot" style="margin:0">quote unavailable' +
+      (j.reasons && j.reasons.quote ? ' &mdash; ' + esc(j.reasons.quote) : '') + '</span></div>';
   return '<div class="det-head" style="margin-top:12px"><div class="det-id"><h2>' + sym + (j.book ? ' <span class="pill">' + esc(bookLabel(j.book)) + '</span>' : '') + '</h2>' + quote + '</div>' +
     '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
     '<button class="btn buy" data-act="buy" data-sym="' + sym + '" title="Open the order ticket for ' + sym + ' on ' + esc(DISP) + '">Buy ' + sym + '</button>' +
@@ -129,7 +175,7 @@ function researchChartHtml() {
 function researchFundHtml(j) {
   const f = j.fundamentals;
   const head = '<div class="panel" style="margin-top:14px"><h2>Fundamentals' + (f && f.fiscalYear ? ' <span class="foot" style="margin:0">FY' + esc(f.fiscalYear) + '</span>' : '') + '</h2>';
-  if (!rsOk(j, 'fundamentals') || !f) return head + rsUnavail() + '</div>';
+  if (!rsOk(j, 'fundamentals') || !f) return head + rsUnavail(j, 'fundamentals') + '</div>';
   const p = (v) => v == null ? '—' : '<span class="' + (Number(v) >= 0 ? 'ok' : 'err') + '">' + pct(v) + '</span>';
   return head + (f.summary ? '<div class="sub" style="margin-bottom:10px">' + esc(f.summary) + '</div>' : '') +
     '<div class="det-stats" style="margin:0">' + st('Revenue', rsBig(f.revenue)) + st('Revenue YoY', p(f.revenueYoYPct)) +
@@ -139,7 +185,7 @@ function researchFundHtml(j) {
    said plainly — and the past result dates the estimate rests on. */
 function researchEarnHtml(j) {
   const e = j.earnings, head = '<div class="panel" style="margin-top:14px"><h2>Earnings</h2>';
-  if (!rsOk(j, 'earnings') || !e) return head + rsUnavail() + '</div>';
+  if (!rsOk(j, 'earnings') || !e) return head + rsUnavail(j, 'earnings') + '</div>';
   const src = e.source === 'world-calendar' ? 'calendar' : (e.source === 'cadence-estimate' ? 'estimated from cadence' : 'source unknown');
   const next = e.nextExpected
     ? '<div><span class="foot" style="margin:0">NEXT EXPECTED</span> <b>' + esc(rsDay(e.nextExpected)) + '</b> <span class="pill">' + esc(src) + '</span></div>'
@@ -151,7 +197,7 @@ function researchEarnHtml(j) {
 }
 function researchNewsHtml(j) {
   const items = j.news || [], head = '<div class="panel"><h2>News</h2>';
-  if (!rsOk(j, 'news')) return head + rsUnavail() + '</div>';
+  if (!rsOk(j, 'news')) return head + rsUnavail(j, 'news') + '</div>';
   if (!items.length) return head + '<div class="foot" style="margin:0">No recent headlines.</div></div>';
   return head + items.slice(0, 25).map(n =>
     '<div class="news-item"><div>' + (n.url ? '<a href="' + esc(n.url) + '" target="_blank" rel="noopener">' + esc(n.headline) + '</a>' : '<b>' + esc(n.headline) + '</b>') + '</div>' +
@@ -161,7 +207,7 @@ function researchNewsHtml(j) {
 /* 10-K / 10-Q links, then the recent 8-Ks with their items in plain words (itemsPlain, else the codes). */
 function researchFilingsHtml(j) {
   const f = j.filings || {}, head = '<div class="panel"><h2>SEC filings</h2>';
-  if (!rsOk(j, 'filings')) return head + rsUnavail() + '</div>';
+  if (!rsOk(j, 'filings')) return head + rsUnavail(j, 'filings') + '</div>';
   const row = (label, x) => '<div class="filing-row"><span class="foot" style="margin:0;min-width:64px">' + label + '</span>' +
     (x ? '<a href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.form || label) + '</a> <span class="sub">' + esc(rsDay(x.date)) + '</span>' : '<span class="foot" style="margin:0">none on file</span>') + '</div>';
   const eights = (f.recent8K || []).map(k => {
@@ -173,7 +219,8 @@ function researchFilingsHtml(j) {
 }
 function researchEventsHtml(j) {
   const ev = j.events || [], head = '<div class="panel"><h2>Major events</h2>';
-  if (!rsOk(j, 'events')) return head + rsUnavail() + '</div>';
+  /* Events are decoded from the filings read; the report has no separate 'events' section. */
+  if (!rsOk(j, 'filings')) return head + rsUnavail(j, 'filings') + '</div>';
   if (!ev.length) return head + '<div class="foot" style="margin:0">No major events on record.</div></div>';
   return head + ev.map(e => '<div class="filing-row"><span class="sub" style="min-width:86px">' + esc(rsDay(e.date)) + '</span><span class="pill">' + esc(e.kind || 'event') + '</span>' +
     (e.url ? '<a href="' + esc(e.url) + '" target="_blank" rel="noopener">' + esc(e.label) + '</a>' : '<span>' + esc(e.label) + '</span>') + '</div>').join('') + '</div>';
@@ -220,7 +267,7 @@ function wlRowsHtml(items) {
       ? '<span class="pill">' + (c.net == null ? 'feed' : (Number(c.net) >= 0 ? '+' : '') + Number(c.net)) + '</span><div class="foot" style="margin:2px 0 0">disclosed ' + esc(cgDay(c.disclosureDate)) + '</div>'
       : '<span class="foot" style="margin:0">unavailable</span>';
     return '<tr><td><a href="#" data-wl="research" data-sym="' + sym + '"><strong>' + sym + '</strong></a>' + (it.note ? ' <span class="foot" style="margin:0">' + esc(it.note) + '</span>' : '') + '</td>' +
-      '<td class="num">' + (q && q.price != null ? money(q.price) : '—') + '</td>' +
+      '<td class="num">' + (q && q.price != null ? money(q.price) + (q.source === 'world-archive' ? '<div class="foot" style="margin:0" title="' + esc(q.note || '') + '">stored ' + esc(rsDay(q.asOf)) + '</div>' : q.source === 'schwab' ? '<div class="foot" style="margin:0">' + esc(q.note || 'Schwab quote') + (q.asOf ? ' ' + esc(fmtDate(q.asOf)) : '') + '</div>' : '') : '—') + '</td>' +
       '<td class="num ' + (ch == null ? '' : (ch >= 0 ? 'ok' : 'err')) + '">' + (ch == null ? '—' : pct(ch)) + '</td>' +
       '<td>' + congress + '</td>' +
       '<td class="num foot" style="margin:0">' + (it.addedAt ? esc(rsDay(it.addedAt)) : '—') + '</td>' +

@@ -24,6 +24,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.3 - this file predates the log and its earlier history is in git. Strict-CSP cleanup (ADR-136 D2 tail): the account context bar is #acctCtxBar and its "Open this account" link is a delegated data-act listener wired in wireAcctContextBar(), so the shell carries no inline event-handler attribute; BOOK/MODE are read from state at click time. The esc() note now states the rule for the whole surface.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | wireAcctContextBar carries JSDoc (@description/@returns) rather than a prose block comment - the repo rule applies to the rewritten function, not only to the new ones.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | api() errors carry the HTTP status and the route's error code (err.status, err.code) beside the unchanged message, so the plan amend control can show a 428 confirm_required as the server's refusal - nothing changed, confirm to proceed - rather than as a failure.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | api() prints a refusal's `detail` (the native host's sentence, e.g. the symbol search naming the missing market-data connector) before its bare error code.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | api() errors carry person words: a server failure (5xx) or the native runtime's not-available refusal is one plain sentence, never its internal text. The paper book's Protected lots, Timed orders and Earnings rules panels had printed "(0 , trading_pinned_lots_1.pinnedQtyBySymbol) is not a function".
  */
 
 const $ = (id) => document.getElementById(id);
@@ -122,12 +124,21 @@ async function api(path, opts) {
   if (!r.ok) {
     // The status and the route's error code ride the Error, so a caller can tell a 428 confirm_required
     // (nothing happened, ask the operator) from a failure; the message is unchanged for every other caller.
-    const err = new Error(j.message || j.error || ('HTTP ' + r.status));
+    // Person words: a route's own refusal (4xx, or a 503 naming what is not connected) is shown as the
+    // route wrote it; a server failure (5xx) and the native runtime's not-available refusal never show
+    // their internal text (a TypeError such as "(0 , x.member) is not a function", a stack, a module
+    // name) - one plain sentence instead.
+    const said = j.message || j.detail || j.error || ('HTTP ' + r.status);
+    const words = j.error === 'native_executor_unavailable' ? 'this is not available on this installation yet.'
+      : r.status >= 500 && r.status !== 503 ? 'the server could not answer just now. Try again in a moment.'
+        : r.status === 503 && !j.message && !j.detail ? 'this is not available right now.' : said;
+    const err = new Error(words);
     err.status = r.status; err.code = j.error || null;
     throw err;
   }
   return j;
 }
+
 
 /* ── books ─────────────────────────────────────────────────────────────────── */
 function bookOf(ref) { return BOOKS.find(b => b.ref === ref) || null; }

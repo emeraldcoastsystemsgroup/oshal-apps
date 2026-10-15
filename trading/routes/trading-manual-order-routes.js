@@ -51,6 +51,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Review fix: the recent-buys read behind the good-faith advisory logs its failure at error (it swallowed it with a bare catch that returned [], so the advisory could vanish on a SELL with no trace); the advisory still degrades to none — a read failure never blocks a sell.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D4 follow-up (the store half of the minute-precision kernel): the ORDER SHAPE is passed to validateFireAt(fireAt, new Date(), { orderType, extendedHours, timeInForce }) and to createDatedOrder (extendedHours + timeInForce), so a pre/post-market fire time is judged against the venue's rule (LIMIT + extended hours + DAY) instead of being refused for want of the shape — the kernel fails closed without it. ensureEventSchedule now also compares the stored cron/timezone with EVENT_PLANS_CRON/EVENT_PLANS_TIMEZONE, so a leg left on the retired 5-minute cron is RE-CREATED (create-or-replace keeps id/status/executionCount) the first time an existing user schedules a protected or timed order — without it their timed orders would fire only every 5th minute. The createSchedule call itself is byte-identical. Consequence worth naming: a user whose leg is stale-but-active no longer short-circuits, so a TIMED order now refuses (503 scheduler_unavailable when the service is absent, 502 when the create itself fails) where 1.10.0 accepted it onto the retired cadence — nothing is at the venue yet and a timed order with no current leg would never fire. A PROTECTED order is unchanged: its leg is armed best-effort after the order and a failure there stays a warning.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | Export ensureEventSchedule, with the 503 message as an argument. ADR-136 D5 arms an earnings rule onto the SAME per-user trading-events leg, and a rule armed without it is never looked at again — so the earnings-rule route needs this exact function, staleness check included, not a second copy that would drift from it the way the event playbooks’ own arm already has. The message is a parameter because the existing sentence names a protected entry’s exits and a timed order’s fire, neither of which is why an earnings rule needs the leg; the default keeps both existing call sites byte-identical.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | Rail guard: the ticket's account and quote reads ask railConfigured(reader|md) instead of calling configured() directly, so a host whose broker reader or market-data source has no configured() probe (the native kernel bridge answers getMarketData with {}) takes the not-connected branch instead of a TypeError.
  *
  * @module trading-manual-order-routes
  */
@@ -100,6 +101,7 @@ const trading_schedule_dispatch_1 = require("@/app/trading-schedule-dispatch");
 const trading_event_plans_1 = require("@/app/trading-event-plans");
 const trading_pinned_lots_1 = require("@/app/trading-pinned-lots");
 const trading_dated_orders_1 = require("@/app/trading-dated-orders");
+const trading_rail_guard_1 = require("./trading-rail-guard");
 const logger = (0, logger_1.createChildLogger)({ module: 'trading-manual-order-routes' });
 const ORDER_TYPES = ['market', 'limit', 'stop', 'stop_limit', 'trailing_stop'];
 const SCHEDULER_UNAVAILABLE = 'The agent scheduler is not running (ENABLE_AGENT_SCHEDULER) — a protected entry needs it to place the exits, and a timed order needs it to fire.';
@@ -205,7 +207,7 @@ async function settlementCheck(pool, sub, book, v, qty, refPrice) {
     if (!(0, trading_settlement_1.settlementApplies)(book))
         return { warning: null, settlement: null };
     const reader = (0, trading_1.getBrokerReader)(book.kind, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
-    const account = reader.configured()
+    const account = (0, trading_rail_guard_1.railConfigured)(reader)
         ? await reader.getAccount().catch((err) => { logger.error({ err, book: book.ref }, 'settlement pre-check: account read failed — the engine decides at execution'); return null; })
         : null;
     const sells = await (0, trading_settlement_1.unsettledLedgerSells)(pool, sub, book).catch((err) => { logger.error({ err, book: book.ref }, 'settlement pre-check: ledger read failed'); return []; });
@@ -245,7 +247,7 @@ async function sizeManualOrder(b, v, book, sub, pool) {
     let latest = null;
     if (refPrice == null || notional != null) {
         const md = (0, trading_1.getMarketData)(book.kind, sub);
-        if (md.configured()) {
+        if ((0, trading_rail_guard_1.railConfigured)(md)) {
             latest = await md.latestPrice(symbol).catch((err) => { logger.error({ err, symbol, book: book.ref }, 'latest price read failed — sizing without a quote'); return null; });
         }
         if (refPrice == null)
@@ -369,7 +371,7 @@ function registerTradingManualOrderRoutes(router, ctx) {
         try {
             const book = await (0, trading_routes_helpers_1.resolveBook)(ctx.pool, sub, req.query.book ?? req.query.mode);
             const md = (0, trading_1.getMarketData)(book.kind, sub);
-            if (!md.configured()) {
+            if (!(0, trading_rail_guard_1.railConfigured)(md)) {
                 res.status(503).json({ error: 'market_data_not_configured', message: 'Market data is not connected for this account.' });
                 return;
             }

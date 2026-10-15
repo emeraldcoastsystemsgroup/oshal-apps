@@ -1,0 +1,622 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Declare reviewed own-scoped Motion source contracts; installed acceptance remains open.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve exact native integer transport and bind an approval-held exact edit tool.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Bind read-only native effect index/schema tools on existing view grants.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Bind original-read exact key metadata and tick previews.
+version: 1
+resources:
+  projects:
+    scopes:
+      - own
+permissions:
+  project.view:
+    resource: projects
+    effect: read
+    minimumTier: viewer
+  project.read:
+    resource: projects
+    effect: read
+    minimumTier: viewer
+  project.create:
+    resource: projects
+    effect: write
+    minimumTier: editor
+  project.change:
+    resource: projects
+    effect: write
+    minimumTier: editor
+  project.delete:
+    resource: projects
+    effect: write
+    minimumTier: editor
+  project.export:
+    resource: projects
+    effect: export
+    minimumTier: editor
+roles:
+  viewer:
+    tier: viewer
+    grants:
+      - permission: project.view
+        scope: own
+  reader:
+    tier: viewer
+    grants:
+      - permission: project.view
+        scope: own
+      - permission: project.read
+        scope: own
+  creator:
+    tier: editor
+    grants:
+      - permission: project.view
+        scope: own
+      - permission: project.read
+        scope: own
+      - permission: project.create
+        scope: own
+  editor:
+    tier: editor
+    grants:
+      - permission: project.view
+        scope: own
+      - permission: project.read
+        scope: own
+      - permission: project.change
+        scope: own
+  exporter:
+    tier: editor
+    grants:
+      - permission: project.view
+        scope: own
+      - permission: project.read
+        scope: own
+      - permission: project.export
+        scope: own
+  administrator:
+    tier: admin
+    grants:
+      - permission: project.view
+        scope: own
+      - permission: project.read
+        scope: own
+      - permission: project.create
+        scope: own
+      - permission: project.change
+        scope: own
+      - permission: project.delete
+        scope: own
+      - permission: project.export
+        scope: own
+bindings:
+  http:
+    - id: app
+      method: GET
+      path: /app
+      allOf:
+        - project.view
+    - id: ui
+      method: GET
+      path: /ui/:asset
+      allOf:
+        - project.view
+    - id: permissions
+      method: GET
+      path: /permissions
+      allOf:
+        - project.view
+    - id: contract
+      method: GET
+      path: /editing-contract
+      allOf:
+        - project.view
+    - id: summary
+      method: GET
+      path: /home-summary
+      allOf:
+        - project.view
+        - project.read
+    - id: projects
+      method: GET
+      path: /projects
+      allOf:
+        - project.view
+        - project.read
+    - id: project
+      method: GET
+      path: /projects/:id
+      allOf:
+        - project.view
+        - project.read
+    - id: create
+      method: POST
+      path: /projects
+      allOf:
+        - project.view
+        - project.create
+    - id: save
+      method: POST
+      path: /projects/:id/revisions
+      allOf:
+        - project.view
+        - project.read
+        - project.change
+    - id: operations
+      method: POST
+      path: /projects/:id/operations
+      allOf:
+        - project.view
+        - project.read
+        - project.change
+    - id: history
+      method: GET
+      path: /projects/:id/revisions
+      allOf:
+        - project.view
+        - project.read
+    - id: revision
+      method: GET
+      path: /projects/:id/revisions/:revision
+      allOf:
+        - project.view
+        - project.read
+    - id: restore
+      method: POST
+      path: /projects/:id/restore
+      allOf:
+        - project.view
+        - project.read
+        - project.change
+    - id: delete
+      method: DELETE
+      path: /projects/:id
+      allOf:
+        - project.view
+        - project.delete
+    - id: export
+      method: GET
+      path: /projects/:id/export
+      allOf:
+        - project.view
+        - project.read
+        - project.export
+    - id: preview
+      method: POST
+      path: /preview
+      allOf:
+        - project.view
+        - project.read
+    - id: assets
+      method: GET
+      path: /assets
+      allOf:
+        - project.view
+        - project.read
+    - id: upload
+      method: POST
+      path: /assets
+      allOf:
+        - project.view
+    - id: asset
+      method: GET
+      path: /assets/:id
+      allOf:
+        - project.view
+        - project.read
+    - id: delete-asset
+      method: DELETE
+      path: /assets/:id
+      allOf:
+        - project.view
+        - project.delete
+    - id: agent-contract
+      method: GET
+      path: /agent-contract
+      allOf:
+        - project.view
+    - id: command-schema
+      method: GET
+      path: /command-schema/:command
+      allOf:
+        - project.view
+    - id: project-receipt
+      method: GET
+      path: /projects/:id/receipt
+      allOf:
+        - project.view
+        - project.read
+    - id: revision-receipt
+      method: GET
+      path: /projects/:id/revisions/:revision/receipt
+      allOf:
+        - project.view
+        - project.read
+    - id: inspection
+      method: GET
+      path: /projects/:id/inspection/:revision/:part/:node/:offset
+      allOf:
+        - project.view
+        - project.read
+    - id: export-receipt
+      method: GET
+      path: /projects/:id/export-receipt
+      allOf:
+        - project.view
+        - project.read
+        - project.export
+    - id: immutable-export
+      method: GET
+      path: /projects/:id/revisions/:revision/export
+      allOf:
+        - project.view
+        - project.read
+        - project.export
+    - id: project-index
+      method: GET
+      path: /project-index/:stamp/:offset
+      allOf:
+        - project.view
+        - project.read
+    - id: revision-index
+      method: GET
+      path: /projects/:id/revision-index/:revision/:offset
+      allOf:
+        - project.view
+        - project.read
+    - id: import-document
+      method: POST
+      path: /projects/import
+      allOf:
+        - project.view
+        - project.read
+        - project.create
+    - id: fork-project
+      method: POST
+      path: /projects/:id/fork
+      allOf:
+        - project.view
+        - project.read
+        - project.create
+    - id: saved-preview
+      method: GET
+      path: /projects/:id/revisions/:revision/preview/:time/:compId/:maxSide/:transparent
+      allOf:
+        - project.view
+        - project.read
+    - id: effect-index
+      method: GET
+      path: /effect-index/:stamp/:offset
+      allOf:
+        - project.view
+    - id: effect-schema
+      method: GET
+      path: /effect-schema/:effect
+      allOf:
+        - project.view
+    - id: exact-keyframe
+      method: GET
+      path: /projects/:id/revisions/:revision/keyframes/:compId/:layer/:prop/:timeTicks
+      allOf:
+        - project.view
+        - project.read
+    - id: exact-preview
+      method: GET
+      path: /projects/:id/revisions/:revision/preview-ticks/:timeTicks/:compId/:maxSide/:transparent
+      allOf:
+        - project.view
+        - project.read
+    - id: font-index
+      method: GET
+      path: /font-index/:stamp/:offset
+      allOf:
+        - project.view
+    - id: exact-source-text
+      method: GET
+      path: /projects/:id/revisions/:revision/text/:compId/:layer/:compTimeTicks/:detail
+      allOf:
+        - project.view
+        - project.read
+    - id: exact-mask
+      method: GET
+      path: /projects/:id/revisions/:revision/masks/:compId/:layer/:mask/:compTimeTicks/:detail/:offset
+      allOf:
+        - project.view
+        - project.read
+    - id: bundle-import-begin
+      method: POST
+      path: /bundle-imports
+      allOf:
+        - project.view
+        - project.read
+        - project.create
+    - id: bundle-import-status
+      method: GET
+      path: /bundle-imports/:transfer
+      allOf:
+        - project.view
+        - project.read
+        - project.create
+    - id: bundle-import-raw
+      method: POST
+      path: /bundle-imports/:transfer/chunks/:offset
+      allOf:
+        - project.view
+        - project.read
+        - project.create
+    - id: bundle-import-chunk
+      method: POST
+      path: /bundle-imports/:transfer/chunks
+      allOf:
+        - project.view
+        - project.read
+        - project.create
+    - id: bundle-import-finish
+      method: POST
+      path: /bundle-imports/:transfer/finish
+      allOf:
+        - project.view
+        - project.read
+        - project.create
+    - id: bundle-import-cancel
+      method: POST
+      path: /bundle-imports/:transfer/cancel
+      allOf:
+        - project.view
+        - project.read
+        - project.create
+    - id: bundle-export-prepare
+      method: POST
+      path: /projects/:id/bundle-exports
+      allOf:
+        - project.view
+        - project.read
+        - project.export
+    - id: bundle-export-status
+      method: GET
+      path: /bundle-exports/:transfer
+      allOf:
+        - project.view
+        - project.read
+        - project.export
+    - id: bundle-export-chunk
+      method: GET
+      path: /bundle-exports/:transfer/chunks/:offset
+      allOf:
+        - project.view
+        - project.read
+        - project.export
+    - id: bundle-export-cancel
+      method: POST
+      path: /bundle-exports/:transfer/cancel
+      allOf:
+        - project.view
+        - project.read
+        - project.export
+    - id: exact-properties
+      method: GET
+      path: /projects/:id/revisions/:revision/properties/:compId/:layer/:compTimeTicks
+      allOf: [project.view, project.read]
+    - id: exact-effect-properties
+      method: GET
+      path: /projects/:id/revisions/:revision/effects/:compId/:layer/:effect/:compTimeTicks
+      allOf: [project.view, project.read]
+    - id: exact-effect-properties-full
+      method: GET
+      path: /projects/:id/revisions/:revision/effects/:compId/:layer/:effect/:compTimeTicks/full
+      allOf: [project.view, project.read]
+    - id: exact-effect-value
+      method: GET
+      path: /projects/:id/revisions/:revision/effects/:compId/:layer/:effect/:compTimeTicks/values/:prop/:offset
+      allOf: [project.view, project.read]
+    - id: full-effect-values
+      method: POST
+      path: /projects/:id/effect-values
+      allOf: [project.view, project.read, project.change]
+    - id: begin-value-upload
+      method: POST
+      path: /value-uploads
+      allOf: [project.view, project.read, project.change]
+    - id: value-upload-status
+      method: GET
+      path: /value-uploads/:transfer
+      allOf: [project.view, project.read, project.change]
+    - id: append-value-upload
+      method: POST
+      path: /value-uploads/:transfer/chunks
+      allOf: [project.view, project.read, project.change]
+    - id: finish-value-upload
+      method: POST
+      path: /value-uploads/:transfer/finish
+      allOf: [project.view, project.read, project.change]
+    - id: cancel-value-upload
+      method: POST
+      path: /value-uploads/:transfer/cancel
+      allOf: [project.view, project.read, project.change]
+    - id: render-start
+      method: POST
+      path: /render-jobs
+      allOf: [project.view, project.read, project.export]
+    - id: render-status
+      method: GET
+      path: /render-jobs/:job
+      allOf: [project.view, project.read, project.export]
+    - id: render-cancel
+      method: POST
+      path: /render-jobs/:job/cancel
+      allOf: [project.view, project.read, project.export]
+    - id: render-chunk
+      method: GET
+      path: /render-jobs/:job/chunks/:offset
+      allOf: [project.view, project.read, project.export]
+    - id: render-artifact-chunk
+      method: GET
+      path: /render-jobs/:job/artifact-chunks/:offset
+      allOf: [project.view, project.read, project.export]
+    - id: bundle-artifact-chunk
+      method: GET
+      path: /bundle-exports/:transfer/artifact-chunks/:offset
+      allOf: [project.view, project.read, project.export]
+    - id: render-list
+      method: GET
+      path: /render-jobs
+      allOf: [project.view, project.read, project.export]
+  tools:
+    - id: motion-editing-contract
+      allOf:
+        - project.view
+    - id: motion-command-schema
+      allOf:
+        - project.view
+    - id: motion-list-projects
+      allOf:
+        - project.view
+        - project.read
+    - id: motion-read-project
+      allOf:
+        - project.view
+        - project.read
+    - id: motion-new-project
+      allOf:
+        - project.view
+        - project.create
+    - id: motion-apply-edits
+      allOf:
+        - project.view
+        - project.read
+        - project.change
+    - id: motion-revision-history
+      allOf:
+        - project.view
+        - project.read
+    - id: motion-read-revision
+      allOf:
+        - project.view
+        - project.read
+    - id: motion-restore-revision
+      allOf:
+        - project.view
+        - project.read
+        - project.change
+    - id: motion-export-document
+      allOf:
+        - project.view
+        - project.read
+        - project.export
+    - id: motion-list-assets
+      allOf:
+        - project.view
+        - project.read
+    - id: motion-delete-project
+      allOf:
+        - project.view
+        - project.delete
+    - id: motion-delete-unused-asset
+      allOf:
+        - project.view
+        - project.delete
+    - id: motion-inspect-project
+      allOf:
+        - project.view
+        - project.read
+    - id: motion-fork-project
+      allOf:
+        - project.view
+        - project.read
+        - project.create
+    - id: motion-apply-exact-edits
+      allOf:
+        - project.view
+        - project.read
+        - project.change
+    - id: motion-list-effects
+      allOf:
+        - project.view
+    - id: motion-effect-schema
+      allOf:
+        - project.view
+    - id: motion-read-keyframe
+      allOf:
+        - project.view
+        - project.read
+    - id: motion-list-fonts
+      allOf:
+        - project.view
+    - id: motion-read-text
+      allOf:
+        - project.view
+        - project.read
+    - id: motion-read-mask
+      allOf:
+        - project.view
+        - project.read
+    - id: motion-export-bundle
+      allOf:
+        - project.view
+        - project.read
+        - project.export
+    - id: motion-begin-bundle-import
+      allOf:
+        - project.view
+        - project.read
+        - project.create
+    - id: motion-append-bundle-chunk
+      allOf:
+        - project.view
+        - project.read
+        - project.create
+    - id: motion-import-bundle
+      allOf:
+        - project.view
+        - project.read
+        - project.create
+    - id: motion-import-transfer-status
+      allOf:
+        - project.view
+        - project.read
+        - project.create
+    - id: motion-export-transfer-status
+      allOf:
+        - project.view
+        - project.read
+        - project.export
+    - id: motion-cancel-bundle-import
+      allOf:
+        - project.view
+        - project.read
+        - project.create
+    - id: motion-cancel-bundle-export
+      allOf:
+        - project.view
+        - project.read
+        - project.export
+    - id: motion-read-properties
+      allOf: [project.view, project.read]
+    - id: motion-read-effect-properties
+      allOf: [project.view, project.read]
+    - id: motion-read-effect-value
+      allOf: [project.view, project.read]
+    - id: motion-begin-value-upload
+      allOf: [project.view, project.read, project.change]
+    - id: motion-value-upload-status
+      allOf: [project.view, project.read, project.change]
+    - id: motion-append-value-chunk
+      allOf: [project.view, project.read, project.change]
+    - id: motion-finish-value-upload
+      allOf: [project.view, project.read, project.change]
+    - id: motion-cancel-value-upload
+      allOf: [project.view, project.read, project.change]
+    - id: motion-start-render
+      allOf: [project.view, project.read, project.export]
+    - id: motion-render-status
+      allOf: [project.view, project.read, project.export]
+    - id: motion-cancel-render
+      allOf: [project.view, project.read, project.export]
+    - id: motion-read-render-chunk
+      allOf: [project.view, project.read, project.export]
+    - id: motion-list-renders
+      allOf: [project.view, project.read, project.export]
+  bots:
+    - id: f14c20b6-15c5-4c5c-930d-2cc4b28c1d7f
+      allOf:
+        - project.view
+        - project.read

@@ -31,6 +31,7 @@
  * ---------------------------------------------------------------------------
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove Duffel credentials from generic orchestrator dispatch. Flight search resolves a fixed-server-operation credential only inside the deterministic CLI helper; the model receives bounded offers and price intelligence, never a credential map.
  * 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: replace the final credential-bearing Duffel subprocess. Travel operations now call the bounded import-safe provider helper with the current request's explicit token.
+ * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | The concierge knows the installation. The chat turn probes the Duffel `status`; where it answers mode not_connected (no Duffel connector exists on the native kernel) the turn runs no search (a search there refuses 503 and fails the call), opens no fare watch, and the prompt says fares cannot be searched or watched here and never tells the traveller to connect Duffel. Three-letter airport codes are read as IATA codes (VPS was taken for a server). Guard: tests/travel-chat-rail.test.js.
  *
  * @module travel-routes
  */
@@ -68,6 +69,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.TRAVEL_NO_RAIL = void 0;
 exports.createTravelRoutes = createTravelRoutes;
 const express_1 = require("express");
 const path = __importStar(require("path"));
@@ -127,6 +129,19 @@ async function duffelProviderOperation(pool, sub, args) {
     const creds = await (0, connector_token_broker_1.resolveServerOperationCreds)(pool, sub, ['duffel'], 'fixed-server-operation');
     return (0, provider_operation_clients_1.runDuffelProviderOperation)(creds.OSHAL_CRED_DUFFEL, args);
 }
+/** What a traveller is told where the installation has no Duffel rail at all. */
+exports.TRAVEL_NO_RAIL = 'This installation has no Duffel rail (no Duffel connector exists here), so flights, hotels and cars cannot be searched, priced or watched for fare drops here.';
+/**
+ * @description Whether the runtime has a Duffel rail: the native kernel's `status` answers mode not_connected
+ * and refuses every search with 503 (failing the whole call), so the chat asks `status` before it searches.
+ * @param pool - The package pool.
+ * @param sub - The caller.
+ * @returns True where there is no Duffel rail.
+ */
+async function duffelRailAbsent(pool, sub) {
+    const st = await duffelProviderOperation(pool, sub, ['status']);
+    return !!st && st.mode === 'not_connected';
+}
 async function loadProfile(pool, sub) {
     const r = await pool.query(`SELECT * FROM travel_profile WHERE user_sub = $1`, [sub]);
     return r.rows[0] || { user_sub: sub, onboarded: false, preferred_airlines: [], hotel_brands: [], avoid: [], preferred_cabin: 'economy' };
@@ -150,6 +165,8 @@ function buildConciergePrompt(o) {
         'Be conversational and brief. Ask ONE good question when it helps. To recommend, list candidate ids in "show". To track a route for a fare drop, put its id in "watch". Booking is a deep-link handoff the traveller opens — you never book or take payment, and never claim a loyalty balance you were not told.',
         '',
         `CANDIDATES (real/flagged-demo — the ONLY options you may show or watch, by id):\n${cands}`,
+        'Three-letter uppercase codes such as VPS, PNS, DCA or JFK are IATA airport codes (VPS is Destin–Fort Walton Beach, Florida); read them as airports, never as anything else.',
+        o.railNote ? `THIS INSTALLATION: ${o.railNote} Do not offer a fare watch or a live price, and never tell the traveller to connect Duffel or add a Duffel token: there is no Duffel connector to add here. Help plan the trip itself (airports, dates, timing, what to book first) and label any timing advice as general.` : '',
         '',
         price,
         `TRAVELLER PROFILE: ${profileLine}`,
@@ -342,7 +359,8 @@ function createTravelRoutes(ctx) {
         let price = { verdict: 'unknown' };
         const candById = new Map();
         const search = req.body?.search;
-        if (search && kind === 'flight' && search.origin && search.destination && search.departDate) {
+        const railAbsent = await duffelRailAbsent(pool, sub);
+        if (!railAbsent && search && kind === 'flight' && search.origin && search.destination && search.departDate) {
             const q = flightQuery(search);
             const args = ['flights', q.origin, q.destination, q.departDate];
             if (q.returnDate)
@@ -357,7 +375,7 @@ function createTravelRoutes(ctx) {
         candidates.forEach((c) => candById.set(String(c.id), c));
         const profile = await loadProfile(pool, sub);
         const notes = (await pool.query(`SELECT note FROM travel_feedback WHERE user_sub = $1 ORDER BY created_at DESC LIMIT 25`, [sub])).rows.map((r) => r.note);
-        const prompt = buildConciergePrompt({ message, history, candidates, kind, profile, notes, price });
+        const prompt = buildConciergePrompt({ message, history, candidates, kind, profile, notes, price, railNote: railAbsent ? exports.TRAVEL_NO_RAIL : '' });
         let raw = '';
         try {
             const orchestrator = ctx.orchestrator;

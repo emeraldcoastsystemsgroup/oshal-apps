@@ -30,6 +30,9 @@
  *                     |                             | answers "auto-start is off" with no failure recorded and no broker
  *                     |                             | session opened — and read again inside the start right before the
  *                     |                             | command.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Await `@/features/personal-data` decryptField (asynchronous on the
+ *                     |                             | native kernel, which holds the key, PDATA-01) before checking the
+ *                     |                             | printer key.
  */
 
 import { createChildLogger } from '@/shared/logger';
@@ -119,7 +122,7 @@ export async function evaluateStart(start: StartDecision): Promise<{ go: boolean
 export async function loadPrinter(pool: QueryablePool, sub: string, printerId: string): Promise<LoadedPrinter | null> {
   const row = await getPrinterWithKey(pool, sub, printerId);
   if (!row) return null;
-  const secret = decryptField(sub, row.api_key_ciphertext);
+  const secret = await decryptField(sub, row.api_key_ciphertext);
   if (!secret || isEncrypted(secret)) throw new Error('Printer key decryption failed closed');
   const { api_key_ciphertext: _ciphertext, ...printer } = row;
   return { row: printer, secret };

@@ -2,7 +2,9 @@
  * CHANGE LOG
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove migration, real PostgreSQL constraints/concurrency and HTTP owner boundaries in a disposable database with synthetic data only.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Persist masked v2 revisions through the actual HTTP router and PostgreSQL with owner isolation and immutable originals.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The migration case asserted relforcerowsecurity was FALSE, so it pinned the defect in place: the four tables are owned by the role the api connects as, PostgreSQL exempts a table owner from its own row security unless the table is FORCEd, and this suite recorded that missing FORCE as the expected state. It now requires the opposite. The fixture also migrates as the application role now, so the reader here is the OWNER, which is the installed condition and the only one under which the difference is observable.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  */
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -161,4 +163,56 @@ test('asset quota rejection removes only the newly uploaded bytes and admits no 
   assert.equal((await api.call('/project-assets', 'POST', await imageBody())).status, 409);
   assert.deepEqual(await readdir(ownerDirectory(api)), before);
   assert.equal((await db.admin.query('SELECT COUNT(*)::int AS count FROM create_project_assets')).rows[0].count, 128);
+});
+
+
+test('masked v2 documents save and reopen with private immutable source assets and optimistic revisions', async t => {
+  const api = await startApi(t, db.pool), asset = await uploaded(api), body = withImage(asset);
+  body.document.version = 2;
+  body.document.layers[0].mask = { points: [{ x: 0, y: 0 }, { x: asset.width / 2, y: 0 },
+    { x: asset.width / 2, y: asset.height }, { x: 0, y: asset.height }], enabled: true, inverted: false, feather: 1 };
+  const created = await api.call('/projects', 'POST', body);
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  const project = created.body.project, original = await api.call(`/project-assets/${asset.id}`);
+  const restarted = await startApi(t, db.pool);
+  assert.deepEqual((await restarted.call(`/projects/${project.id}`)).body.project.document, project.document);
+  for (const actor of ['bob', 'collision', 'admin']) {
+    assert.equal((await api.call(`/projects/${project.id}`, 'GET', undefined, actor)).status, 404);
+    assert.equal((await api.call(`/projects/${project.id}/export`, 'GET', undefined, actor)).status, 404);
+  }
+  const changed = structuredClone(body); changed.document.layers[0].mask.inverted = true;
+  const saved = await api.call(`/projects/${project.id}/revisions`, 'POST', { ...changed, baseRevision: 1 });
+  assert.equal(saved.status, 201, JSON.stringify(saved.body));
+  assert.equal(saved.body.project.document.layers[0].mask.inverted, true);
+  assert.equal((await api.call(`/projects/${project.id}/revisions`, 'POST', { ...body, baseRevision: 1 })).status, 409);
+  assert.deepEqual((await api.call(`/project-assets/${asset.id}`)).body, original.body);
+  const invalid = structuredClone(changed); invalid.document.layers[0].mask.feather = 65;
+  assert.equal((await api.call(`/projects/${project.id}/revisions`, 'POST', { ...invalid, baseRevision: 2 })).status, 400);
+  assert.equal((await api.call(`/projects/${project.id}`)).body.project.revision, 2);
+});
+
+test('agent edits persist one atomic revision, preserve history and refuse stale/foreign/locked batches', async t => {
+ const api=await startApi(t,db.pool),created=await api.call('/agent-projects','POST',{title:'Agent canvas',width:320,height:240});
+ assert.equal(created.status,201,JSON.stringify(created.body));const id=created.body.project.id;
+ const edit=(baseRevision,operations)=>({id,baseRevision,operations});const path=`/projects/${id}/operations`;
+ const add={type:'add',layer:{id:'title',type:'text',text:'Draft',x:10,y:10,w:100,h:50}};
+ const changed=await api.call(path,'POST',edit(1,[add,{type:'update',id:'title',patch:{text:'Final'}}]));
+ assert.equal(changed.status,201,JSON.stringify(changed.body));assert.equal(changed.body.project.revision,2);assert.equal(changed.body.project.document.layers[0].text,'Final');
+ assert.equal((await api.call(`/projects/${id}/revisions/1`)).body.project.document.layers.length,0);
+ assert.equal((await api.call(path,'POST',edit(1,[add]))).status,409);
+ for(const actor of ['bob','collision','admin'])assert.equal((await api.call(path,'POST',edit(2,[{type:'update',id:'title',patch:{text:'Leak'}}]),actor)).status,404);
+ const failed=await api.call(path,'POST',edit(2,[{type:'update',id:'title',patch:{text:'Must roll back'}},{type:'update',id:'missing',patch:{text:'Bad'}}]));assert.equal(failed.status,400);
+ assert.equal((await api.call(`/projects/${id}`)).body.project.revision,2);
+ assert.equal((await api.call(path,'POST',edit(2,[{type:'update',id:'title',patch:{locked:true}}]))).status,201);
+ assert.equal((await api.call(path,'POST',edit(3,[{type:'update',id:'title',patch:{x:50}}]))).status,400);
+ const concurrent=await Promise.all(['First','Second'].map(name=>api.call(path,'POST',edit(3,[{type:'project',patch:{name}}]))));
+ assert.deepEqual(concurrent.map(r=>r.status).sort(),[201,409]);assert.equal((await api.call(`/projects/${id}`)).body.project.revision,4);
+});
+
+test('agent edit permission revocation before commit rolls back the saved revision', async t => {
+ const api=await startApi(t,db.pool);const made=await api.call('/agent-projects','POST',{title:'Revoke edit'});const id=made.body.project.id;
+ const revoking={connect:async()=>{const client=await db.pool.connect();return{query:async(...args)=>{const result=await client.query(...args);if(/INSERT INTO create_project_revisions/.test(args[0]))protectedApi.state.denied.add('project.read');return result;},release:discard=>client.release(discard)};}};
+ const protectedApi=await startApi(t,revoking);
+ const result=await protectedApi.call(`/projects/${id}/operations`,'POST',{id,baseRevision:1,operations:[{type:'project',patch:{name:'Refused'}}]});
+ assert.equal(result.status,403);assert.equal((await api.call(`/projects/${id}`)).body.project.revision,1);
 });

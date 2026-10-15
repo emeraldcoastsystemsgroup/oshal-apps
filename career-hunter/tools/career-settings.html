@@ -29,7 +29,7 @@
 
   <div class="card">
     <h2>AI model</h2>
-    <p class="hint">Job scoring and résumé/cover writing use your <b>default OSHAL LLM</b> (Claude) — no separate key needed here. Manage the connection in <a href="/utilities" target="_top">Utilities &amp; Connectors</a>.</p>
+    <p class="hint">Job scoring and résumé/cover writing use your <b>default OSHAL LLM</b>, the AI model this installation runs — no separate key needed here. Manage the connection in <a href="/utilities" target="_top">Utilities &amp; Connectors</a>.</p>
     <div class="row">
       <span id="anthropicState" class="pill-no">Checking…</span>
     </div>
@@ -155,10 +155,25 @@ const API='/api/career-hunter', $=(s)=>document.querySelector(s);
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
 async function jpost(u,b){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});return r.json().catch(()=>({}));}
 
+/* model-state:start */
+// Scoring and writing run on the Career bot, which uses this installation's AI model; a per-person Claude connection is
+// optional. The pill used to say 'not connected' unless that per-person row existed, while the installation model was
+// answering every scoring run and the concierge. `access` is the kernel's GET /api/providers/access for this person.
+function modelState(s, access) {
+  if (s && s.anthropicConnected) return { ok: true, text: '● Default LLM ready (your Claude connection)' };
+  if (access && access.hasActive === true) return { ok: true, text: '● Default LLM ready: this installation\'s AI model' };
+  if (access && access.hasActive === false) return { ok: false, text: '○ No AI model is set up on this installation yet' };
+  return { ok: false, text: '○ Could not check the AI model right now' };
+}
+/* model-state:end */
 async function refreshState(){
-  const s = await fetch(API+'/settings/state').then(r=>r.json()).catch(()=>({}));
-  $('#anthropicState').className = s.anthropicConnected?'pill-ok':'pill-no';
-  $('#anthropicState').textContent = s.anthropicConnected?'● Default LLM ready':'○ Default LLM not connected';
+  const [s, access] = await Promise.all([
+    fetch(API+'/settings/state').then(r=>r.json()).catch(()=>({})),
+    fetch('/api/providers/access',{credentials:'same-origin'}).then(r=>r.ok?r.json():null).catch(()=>null),
+  ]);
+  const m = modelState(s, access);
+  $('#anthropicState').className = m.ok?'pill-ok':'pill-no';
+  $('#anthropicState').textContent = m.text;
   $('#firecrawlState').className = s.firecrawlSet?'pill-ok':'pill-no';
   $('#firecrawlState').textContent = s.firecrawlSet?'● Key set':'○ No key';
 }

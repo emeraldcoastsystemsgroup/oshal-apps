@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The family view asserted as behaviour over the package's REAL routes: the compiled GET /series handler (routes/video-routes.js, its framework imports and express replaced by inert seams, a stub pool) and the compiled GET /home-summary handler (only express stubbed) feed the head block run against a stub kit and a stub fetch. Proves the two reads on open (never /list, which scans the caller's connected storage, the joke pump, the render node, Create's brand kit or any write), the stats, title and lede, the series tiles with plain status words, episodes finished and season badges, the watch list of credential-free http(s) links only, opening in a new tab, and each named state (counts not checked, every summary source failed, no series, signed out, refused, a failed read, a non-JSON failure, an unreachable server). The page's three start paths (the main script's control listeners and its videos and series reads, the brand-kit read, the handoff listener and connected-actions mount) run under stubs: nothing starts under the view, everything still starts without it or without the kit.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | The full page also reads GET /pump/status at start (Generate is disabled with the reason when the installation has no render executor); the family view still reads nothing.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -344,8 +345,9 @@ function runModule(activeView) {
 test('under the family view no start path runs; without it, or without the kit, every one still does', async () => {
   const family = { active: () => 'family' }, full = { active: () => null };
   assert.deepEqual(await runMain(family), { bound: [], reads: [] }, 'no control listener, no videos list (a storage scan), no series read');
-  assert.deepEqual(await runMain(full), { bound: ['input', 'toggle'], reads: ['GET /api/video/list', 'GET /api/video/series'] });
-  assert.deepEqual(await runMain(undefined), { bound: ['input', 'toggle'], reads: ['GET /api/video/list', 'GET /api/video/series'] }, 'a core without the kit runs the full page');
+  const fullReads = ['GET /api/video/list', 'GET /api/video/series', 'GET /api/video/pump/status'];
+  assert.deepEqual(await runMain(full), { bound: ['input', 'toggle'], reads: fullReads });
+  assert.deepEqual(await runMain(undefined), { bound: ['input', 'toggle'], reads: fullReads }, 'a core without the kit runs the full page');
   assert.deepEqual(runBrand(family), [], 'Create\x27s brand kit is not read under the view');
   assert.deepEqual(runBrand(full), ['/api/create/brand-kit']);
   assert.deepEqual(runBrand(undefined), ['/api/create/brand-kit']);

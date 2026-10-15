@@ -9,6 +9,9 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Per-feature budget and cancel (BACKLOG B5): the worker orchestration suite with the kernel stubbed out, the client and route cancel cases, 28 real-kernel cases, and Stop rebuild in the editor.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Rename the drifted framework-checkout prerequisites to the Test Lab's own vocabulary so these cases can run: node-test cases declare fixture:core-checkout (the sealed Node profile runs on the oshal image, where /app is the checkout); browser cases declare harness:oshal-core-root and core:dependencies, as create does. A case that imports core's tests/fixtures, which the image does not ship, also declares harness:core-test-fixtures and stays pending with that exact reason instead of an unknown name.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 0.2.3: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register sql-declared-keys: the create path's INSERTs and every INSERT target in routes/ checked against the primary keys the listed migration declares, the rule the native kernel enforces on insert.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register part-list-names: parts sharing a title carry 'made <date>' in the list (sweep 8: two identical rows read as one model).
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Register engine-down-words: with no engine the page says once, in words, that the CAD engine is not answering on this installation, never the host's install command (demo sweep 1).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -64,6 +67,27 @@ cases:
     expected:
       - A stale build hash is capability_unavailable naming the install command; a timeout is engine_timeout and the next request reconnects.
       - Cancelling the in-flight request closes its connection while another caller's queued request is answered on a fresh one.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: sql-declared-keys
+    name: Create-path SQL against the declared primary keys
+    purpose: Prove the native kernel's insert rule holds for this package — the create path's actual INSERTs (a part, then the revision row a recorded build writes) and every INSERT target in routes/ name a table that a listed migration declares with a primary key, and every key column is supplied non-null or declared with a default.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sql-declared-keys.test.js
+    expected:
+      - cad_model is keyed by a defaulted model_id and cad_revision by (model_id, revision); the create path's INSERTs raise no problem.
+      - The checker refuses an undeclared table, a keyless table, an omitted key column and a null key value.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -188,6 +212,51 @@ cases:
       - The boot names this application and exactly the audiences the page provides, with an escape label.
       - The full page start runs only when the kit renders no audience, and when the kit is absent.
       - The head block parses, reads only this package's routes and builds no HTML from data.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: part-list-names
+    name: Parts that share a name read differently
+    purpose: >-
+      Run the served tools/cad-studio.js: in the parts list a title that another part repeats carries the date
+      it was made (and the short id on a same-minute tie); sweep 8 found two identical rows the concierge
+      called the same model.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/part-list-names.test.js
+    expected:
+      - >-
+        Two same-named parts made a day apart carry different 'made' notes; a unique title carries none.
+      - >-
+        Same-named parts made in the same minute add the short part id.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: engine-down-words
+    name: "An engine that is not answering is told in words, not an install command"
+    purpose: "Run the shipped page's renderEngine and buildWords in a VM over the routes' no-engine answers - no browser, network or engine."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-down-words.test.js
+    expected:
+      - "The banner says once that the CAD engine is not answering on this installation, with no address, setting or install command."
+      - "A failed build toast names the engine in a short sentence; an engine's own refusal sentence is still shown."
     prerequisites:
       - runner:node-test
     sideEffects: none

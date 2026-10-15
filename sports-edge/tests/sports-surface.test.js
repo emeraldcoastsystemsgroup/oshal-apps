@@ -16,6 +16,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — inline-script parse guard, the surface-to-router endpoint contract, the tab set, and the presence of the credential warning the fantasy tab must show before anyone pastes an account cookie.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | The fantasy half moved to the fantasy-football package (ADR-146 D1): the endpoint contract reads sports-routes.js alone, and the three fantasy-copy guards (credential warning, no credential payload, league scoring) moved with the page to fantasy-football/tests/fantasy-surface.test.js. In their place: the Fantasy tab names the new app, links to it, and calls no retired /fantasy route.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | The header reads the person's own refresh-pass job: when it is not active the page says background refresh is off and names the job's offer and the Jobs screen, when it is active it says so, and when the host lists no schedules it claims neither.
  */
 
 const test = require('node:test');
@@ -81,4 +82,39 @@ test('THE FANTASY TAB SAYS WHERE FANTASY WENT — and calls no fantasy route', (
   assert.match(HTML, /yours alone/);
   assert.equal(/API \+ '\/fantasy/.test(inlineScript()), false, 'the page must not call a retired fantasy route');
   assert.equal(inlineScript().includes('/api/connect/'), false, 'and never posts a credential');
+});
+
+/** @description One named top-level function from the inline script, by balanced braces. */
+function pageFunction(name) {
+  const src = inlineScript();
+  const start = src.indexOf(`function ${name}(`);
+  assert.ok(start >= 0, `the page defines ${name}`);
+  let depth = 0;
+  for (let i = src.indexOf('{', start); i < src.length; i += 1) {
+    if (src[i] === '{') depth += 1;
+    if (src[i] === '}') { depth -= 1; if (depth === 0) return src.slice(start, i + 1); }
+  }
+  throw new Error(`unbalanced ${name}`);
+}
+
+test('THE PAGE SAYS WHETHER BACKGROUND REFRESH IS ON — it runs only when the person activates the job', () => {
+  const ctx = {};
+  vm.runInNewContext(`${pageFunction('esc')}\n${pageFunction('backgroundRefreshState')}\nthis.state = backgroundRefreshState;`, ctx);
+  const offer = "Keep my followed teams' previews, lines and graded calls fresh every three hours.";
+  const off = ctx.state({ app: 'sports-edge', name: 'refresh-pass', status: 'not-activated', activation: null, offer }, true, 3);
+  assert.equal(off.on, false);
+  assert.match(off.banner, /Background refresh is off/);
+  assert.match(off.banner, /Jobs screen/);
+  assert.match(off.banner, /href="\/swarm-admin\/jobs"/);
+  assert.ok(off.banner.includes('Keep my followed teams&#39;') || off.banner.includes("Keep my followed teams'"), off.banner);
+  const suspended = ctx.state({ status: 'suspended', reason: 'budget', activation: { class: 'person' }, offer }, true, 3);
+  assert.equal(suspended.on, false);
+  assert.match(suspended.banner, /your job is suspended: budget/);
+  const on = ctx.state({ status: 'active', activation: { class: 'person' }, offer }, true, 3);
+  assert.equal(on.on, true);
+  assert.equal(on.banner, '');
+  const unknown = ctx.state(null, false, 3);
+  assert.equal(unknown.on, null);
+  assert.equal(unknown.banner, '');
+  assert.match(inlineScript(), /fetch\('\/api\/v1\/agent\/schedules'/, 'the state comes from the person\'s own schedule list');
 });

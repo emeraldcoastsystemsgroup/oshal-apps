@@ -63,3 +63,26 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
+  - id: review-copy
+    name: Recap Review says what it is and where sessions come from
+    purpose: >-
+      Run the compiled home summary with a pool that answers no session: the empty line names Intelligent Trades'
+      schedule instead of 'Open the app to begin.' (Recap Review is the only screen), and the page's eyebrow names the
+      recap instead of a creative workspace.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/review-copy.test.cjs
+    expected:
+      - The empty item starts 'No trading session recorded in the last 7 days.' and no item says 'Open the app to begin'.
+      - The eyebrow reads 'Trading recap review'.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

@@ -5,6 +5,13 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped Rides suite (TLAB-07 "adopt existing suites": the two map suites) plus the commerce-surface suites: the readiness smoke, the map route and surface contracts, the chat-proposal hand-off boundary, the assistant-rail contract, and the 390 px Chromium commerce smoke with its real prerequisites.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register the audience view contract (ADR-164 D6): the map page's family view for the Home shell over the shared kit, the reads it makes on open, its named states and the three gated start paths.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register the not-connected / honest-state surface test added with the native provider rails.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register the keyless rail (no Uber connector): pin-priced estimates, the Nominatim lookup and its refusal, the public hand-off link, the concierge turn and /config; not-connected also pins the surface sending its map pins.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register the first-tap race: a typed address's blur lookup and Show rides start on the same tap; the estimate settles the lookup, sends its pin, and a late lookup no longer retracts the fares it drew.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register persona-approval: the held ride hand-off is proposed, never said prepared before approval (sweep 9).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: keyless expects the hand-off answer to carry url and where (the approved card had no link); persona-approval expects the fixed proposing sentence with no proposal id and named places used as given.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | The persona-approval case also expects a named trip asked to be prepared to get its card and a done card to point to its link (sweep 13).
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Register recent-distinct: Recent trips and the destination suggestions list each trip once, newest copy first (sweep 14: one row per Show rides).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -166,4 +173,119 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: not-connected
+    name: Uber not connected
+    purpose: >-
+      A refused Uber Rides call (HTTP 503) reads as not connected on the Rides page, never as an address that did not resolve.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/rides-not-connected.test.js
+    expected:
+      - A refused estimate, hand-off and concierge turn say the installation has no Uber rail, never that a connection can be added.
+      - The estimate sends the pins whose fields still name them, and never prices a newly typed address from an old pin.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: keyless-rail
+    name: Rides with no Uber connector
+    purpose: >-
+      Where the runtime reports Uber not connected, the compiled routes price two map pins locally (haversine x 1.3 and the
+      fare model), resolve typed addresses through Nominatim, build Uber's public hand-off link, let the concierge answer,
+      and never call the refusing provider operation.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/rides-keyless.test.js
+    expected:
+      - Two pins give a distance and labelled modelled fares with no provider call and no lookup.
+      - A refused lookup says the lookup is unavailable here; no fare is invented.
+      - The concierge turn answers (no 503) and its prompt forbids telling the rider to connect Uber.
+      - The hand-off answer carries url (the https web link an approval card offers) and where (open it to see the price and request; also under Trips).
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: first-tap-geocode-race
+    name: Show rides keeps its fares when the field lookup answers late
+    purpose: >-
+      Execute the shipped setPoint, geocodeField, settleGeocodes and estimate with a network answered in a chosen order:
+      a blur lookup in flight at the tap lands its pin before /estimate and is sent with it, a lookup slower than the
+      bounded wait answers after /estimate without wiping the options, and a lookup started later still retracts the old fare.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/rides-geocode-race.test.js
+    expected:
+      - The first Show rides tap after typing an address leaves the priced options drawn and the hand-off enabled.
+      - A newly typed destination still moves the pin and retracts the fare for the old one.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: persona-approval
+    name: A held ride hand-off is only proposed until approved
+    purpose: Read the shipped manifest and the persona the kernel loads for rides-concierge.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/rides-persona-approval.test.js
+    expected:
+      - "A rider who names both places and asks to prepare, book or request gets the hand-off card (the map button does not gate it), and after a done card the reply points to the link on that card instead of asking for approval again (sweep 13)."
+      - prepare-ride-booking is held for approval.
+      - The persona says the hand-off is proposed and waiting on its card, never prepared or booked before the tool answers.
+      - The proposing reply has one fixed shape ("Approve the card to make the Uber link ..."), shows no proposal id, tool name or bracketed card, and uses a named pickup and drop-off as given.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: recent-distinct
+    name: Recent trips lists each trip once
+    purpose: >-
+      In Chromium at 412x915 the shipped Rides page opens over a history holding one trip four times and another once
+      (sweep 14: "Pensacola Beach / Pensacola International Airport" was listed four times).
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/rides-recent-distinct.test.js
+    expected:
+      - Recent trips lists Pensacola International Airport once and Downtown Library once, newest first; the suggestions list the airport once.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
     installation: never

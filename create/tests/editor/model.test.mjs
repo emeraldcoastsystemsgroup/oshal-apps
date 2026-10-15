@@ -5,6 +5,10 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify editable project round trips, immutable operations, resource refusals and bounded undo history.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Cover the four image filters: bounded values, neutral values omitted, Create v1 round trips in both asset modes, refusal on other layer kinds, and named looks that replace rather than stack.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Prove mask versioning, normalized persistence, source isolation and invalid/locked edit refusals.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Prove brush masks, mask combination and editable adjustment persistence with actual rendered pixels and UI gestures.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -74,7 +78,7 @@ test('canvas edits do not flatten, stretch or discard layer positions', () => {
 });
 
 for (const [name, change] of [
-  ['unknown version', project => { project.version = 2; }], ['excessive dimensions', project => { project.width = 8193; }],
+  ['unknown version', project => { project.version = 99; }], ['excessive dimensions', project => { project.width = 8193; }],
   ['pixel budget', project => { project.width = 8192; project.height = 8192; }], ['nonfinite values', project => { project.layers[0].opacity = NaN; }],
   ['duplicate IDs', project => { project.layers[1].id = project.layers[0].id; }], ['missing image', project => { delete project.images.photo; }],
   ['unknown fields', project => { project.ownerSub = 'not-part-of-document'; }], ['unsafe image reference', project => { project.images.photo.src = 'https://example.invalid/image.png'; }],
@@ -194,4 +198,145 @@ test('every named filter look is a valid edit that sets all four filters, so a n
   const none = applyOperation(mono, { type: 'update', id: 'photo-layer', patch: IMAGE_FILTER_LOOKS.none.patch });
   assert.equal(serializeProject(none), serializeProject(project));
   assert.throws(() => { IMAGE_FILTER_LOOKS.mono.patch.grayscale = 0; }); assert.throws(() => { IMAGE_FILTERS.blur.max = 1000; });
+});
+
+
+test('source-space masks upgrade documents, survive history and reject invalid geometry without mutation', () => {
+  const project = layersProject(), mask = { points: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 20 }, { x: 0, y: 20 }] };
+  const edited = applyOperation(project, { type: 'update', id: 'photo-layer', patch: { mask } });
+  assert.equal(project.version, 1); assert.equal(edited.version, 2);
+  assert.deepEqual(parseProject(serializeProject(edited)), edited);
+  assert.equal(edited.layers[0].mask.enabled, true);
+  mask.points[0].x = 99; assert.equal(edited.layers[0].mask.points[0].x, 0);
+  const removed = applyOperation(edited, { type: 'update', id: 'photo-layer', patch: { mask: null } });
+  assert.equal(removed.layers[0].mask, undefined);
+  for (const invalid of [{ points: [{ x: 0, y: 0 }] }, { ...edited.layers[0].mask, feather: 65 },
+    { ...edited.layers[0].mask, enabled: 'false' }, { points: [{ x: 0, y: 0 }, { x: 9999, y: 0 }, { x: 0, y: 20 }] },
+    { points: [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }] }]) {
+    assert.throws(() => applyOperation(project, { type: 'update', id: 'photo-layer', patch: { mask: invalid } }));
+    assert.equal(project.version, 1); assert.equal(project.layers[0].mask, undefined);
+  }
+  assert.throws(() => validateProject({ ...edited, version: 1 }), /version 2/);
+  const locked = applyOperation(edited, { type: 'update', id: 'photo-layer', patch: { locked: true } });
+  assert.throws(() => applyOperation(locked, { type: 'update', id: 'photo-layer', patch: { mask: null } }), /Unlock/);
+});
+
+
+test('mask edit lists are versioned, bounded, copied and source checked', () => {
+  const source = layersProject(), points = [{ x: 5, y: 5 }];
+  const mask = { points: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 20 }],
+    operations: [{ kind: 'brush', mode: 'subtract', size: 4, opacity: .5, points }] };
+  const next = applyOperation(source, { type: 'update', id: 'photo-layer', patch: { mask } });
+  assert.equal(next.version, 3); points[0].x = 100;
+  assert.equal(next.layers[0].mask.operations[0].points[0].x, 5);
+  assert.deepEqual(parseProject(serializeProject(next)), next);
+  for (const operation of [{ kind: 'brush', mode: 'intersect', points: [{ x: 0, y: 0 }] },
+    { kind: 'brush', mode: 'subtract', size: 0, points: [{ x: 0, y: 0 }] },
+    { kind: 'brush', mode: 'add', points: [{ x: 8000, y: 8000 }] }]) {
+    assert.throws(() => applyOperation(source, { type: 'update', id: 'photo-layer', patch: { mask: { ...mask, operations: [operation] } } }));
+  }
+  assert.throws(() => validateProject({ ...next, version: 2 }), /version 3/);
+});
+
+test('editable adjustment layers retain curves and refuse invalid scopes, targets and levels', () => {
+  const source = layersProject(), next = applyOperation(source, { type: 'add', layer: { id: 'grade', type: 'adjustment',
+    scope: 'layer', targetId: 'photo-layer', exposure: -1, black: 10, white: 245, gamma: 1.5,
+    curve: [{ x: 0, y: 0 }, { x: .5, y: .6 }, { x: 1, y: 1 }] } });
+  assert.equal(next.version, 3); assert.deepEqual(parseProject(serializeProject(next)), next);
+  for (const patch of [{ black: 245 }, { scope: 'bad' }, { targetId: 'missing' }, { exposure: 9 },
+    { curve: [{ x: 0, y: 0 }, { x: .5, y: 1 }, { x: .5, y: 0 }, { x: 1, y: 1 }] }]) {
+    assert.throws(() => applyOperation(next, { type: 'update', id: 'grade', patch }));
+  }
+  const removed = applyOperation(next, { type: 'remove', id: 'photo-layer' });
+  assert.ok(!removed.layers.some(layer => layer.id === 'grade')); assert.ok(removed.images.photo);
+  assert.throws(() => applyOperation(next, { type: 'reorder', id: 'grade', index: 0 }), /lower/);
+});
+
+
+test('isolated groups preserve child identity, nesting, uniform transforms and immutable undo', () => {
+  const original = createProject({ width: 100, height: 100 });
+  let project = applyOperation(original, { type: 'add', layer: { id: 'a', type: 'rect', x: 10, y: 10, w: 20, h: 20 } });
+  project = applyOperation(project, { type: 'add', layer: { id: 'b', type: 'rect', x: 20, y: 20, w: 20, h: 20 } });
+  const group = applyOperation(project, { type: 'group', ids: ['a', 'b'], id: 'g' });
+  assert.equal(group.version, 3); assert.deepEqual(group.layers.at(-1).children, ['a', 'b']);
+  assert.equal(project.layers[0].x, 10); assert.equal(group.layers[0].x, 0);
+  assert.deepEqual(parseProject(serializeProject(group)), group);
+  const transformed = applyOperation(group, { type: 'update', id: 'g', patch: { x: 30, w: 60, h: 60, rotation: 90 } });
+  const ungrouped = applyOperation(transformed, { type: 'ungroup', id: 'g' });
+  assert.ok(ungrouped.layers.every(layer => layer.rotation === 90)); assert.equal(ungrouped.layers[0].w, 40);
+  assert.throws(() => applyOperation(group, { type: 'update', id: 'g', patch: { w: 60 } }), /aspect ratio/);
+  assert.throws(() => applyOperation(group, { type: 'update', id: 'g', patch: { children: ['g'] } }), /child/);
+  const locked = applyOperation(group, { type: 'update', id: 'g', patch: { locked: true } });
+  assert.throws(() => applyOperation(locked, { type: 'update', id: 'a', patch: { x: 2 } }), /Unlock/);
+  assert.equal(applyOperation(group, { type: 'remove', id: 'g' }).layers.length, 0);
+});
+
+test('duplicating a nested group remaps children and clipped adjustments without changing owned assets', () => {
+  let project = layersProject();
+  project = applyOperation(project, { type: 'add', layer: { id: 'grade', type: 'adjustment', scope: 'layer', targetId: 'photo-layer', exposure: -1 } });
+  // Keep the clipped adjustment directly above its target before grouping.
+  project = applyOperation(project, { type: 'reorder', id: 'grade', index: 1 });
+  project = applyOperation(project, { type: 'group', ids: ['photo-layer', 'grade'], id: 'inner' });
+  project = applyOperation(project, { type: 'group', ids: ['inner', 'rect'], id: 'outer' });
+  project = applyOperation(project, { type: 'update', id: 'outer', patch: { opacity: .5, rotation: 30 } });
+  const before = serializeProject(project), duplicated = applyOperation(project, { type: 'duplicate', id: 'outer', newId: 'copy', offset: 40 });
+  const copied = duplicated.layers.find(layer => layer.id === 'copy');
+  const inner = duplicated.layers.find(layer => layer.id === copied.children.find(id => duplicated.layers.find(item => item.id === id).type === 'group'));
+  const photo = duplicated.layers.find(layer => layer.id === inner.children[0]), grade = duplicated.layers.find(layer => layer.id === inner.children[1]);
+  assert.equal(photo.assetId, 'photo'); assert.equal(grade.targetId, photo.id);
+  assert.equal(copied.x, project.layers.find(layer => layer.id === 'outer').x + 40);
+  assert.equal(copied.rotation, 30); assert.equal(copied.opacity, .5);
+  assert.deepEqual(duplicated.images, project.images); assert.equal(serializeProject(project), before);
+  assert.deepEqual(parseProject(serializeProject(duplicated)), duplicated);
+  assert.deepEqual(applyOperation(project, { type: 'duplicate', id: 'outer', newId: 'copy', offset: 40 }), duplicated);
+  const edited = applyOperation(duplicated, { type: 'update', id: grade.id, patch: { exposure: 1 } });
+  assert.equal(edited.layers.find(layer => layer.id === 'grade').exposure, -1);
+  assert.equal(duplicated.layers.find(layer => layer.id === grade.id).exposure, -1);
+});
+
+test('group duplication refuses descendant locks, identifier collisions and resource overflow atomically', () => {
+  let project = createProject({ width: 100, height: 100 });
+  for (const id of ['a', 'b']) project = applyOperation(project, { type: 'add', layer: { id, type: 'rect', w: 10, h: 10 } });
+  project = applyOperation(project, { type: 'group', ids: ['a', 'b'], id: 'g' });
+  const locked = applyOperation(project, { type: 'update', id: 'a', patch: { locked: true } });
+  assert.throws(() => applyOperation(locked, { type: 'duplicate', id: 'g', newId: 'copy' }), /Unlock/);
+  const collision = applyOperation(project, { type: 'add', layer: { id: 'copy:1', type: 'rect' } });
+  assert.throws(() => applyOperation(collision, { type: 'duplicate', id: 'g', newId: 'copy' }), /unique/);
+  const longId = 'c'.repeat(100), longCopy = applyOperation(project, { type: 'duplicate', id: 'g', newId: longId });
+  assert.ok(longCopy.layers.every(layer => layer.id.length <= 100));
+  assert.equal(longCopy.layers.find(layer => layer.id === longId).children.length, 2);
+  const capped = validateProject({ ...createProject({ width:100,height:100 }), version:3,
+    layers: Array.from({length:16}, (_,i) => [
+      {id:`a${i}`,type:'rect',w:10,h:10},{id:`b${i}`,type:'rect',w:10,h:10},
+      {id:`g${i}`,type:'group',w:10,h:10,baseWidth:10,baseHeight:10,children:[`a${i}`,`b${i}`]}]).flat() });
+  assert.throws(() => applyOperation(capped, { type:'duplicate',id:'g0',newId:'copy' }), /at most 16 groups/);
+  while (project.layers.length < LIMITS.layers - 1) project = applyOperation(project, { type: 'add', layer: { id: `filler-${project.layers.length}`, type: 'rect' } });
+  const before = serializeProject(project);
+  assert.throws(() => applyOperation(project, { type: 'duplicate', id: 'g', newId: 'copy' }), /Too many layers/);
+  assert.equal(serializeProject(project), before);
+});
+
+
+test('cubic vector geometry and styles survive private project serialization and reject malformed controls', () => {
+  const shape = { id: 'curve', type: 'path', contours: [{ closed: true, nodes: [{ x: 0, y: 0, out: { x: .4, y: .3 } }, { x: 1, y: 1, in: { x: -.4, y: -.3 } }] }],
+    cap: 'round', join: 'bevel', dash: [8, 4], gradient: { from: { x: 0, y: 0 }, to: { x: 1, y: 0 }, stops: [{ offset: 0, color: '#ff0000' }, { offset: 1, color: '#0000ff' }] } };
+  const project = applyOperation(createProject(), { type: 'add', layer: shape });
+  assert.equal(project.version, 3); assert.deepEqual(parseProject(serializeProject(project)), project);
+  for (const patch of [{ cap: 'bad' }, { dash: [-1] }, { contours: [{ closed: true, nodes: [{ x: -1, y: 0 }, { x: 1, y: 1 }] }] }]) assert.throws(() => applyOperation(project, { type: 'update', id: 'curve', patch }));
+});
+
+test('path booleans keep hidden editable operands and commit their result as one independent snapshot', async () => {
+  const { pathFromRings, combinePaths } = await import('../../tools/editor/vector-geometry.mjs');
+  let project = createProject({ width: 100, height: 100 });
+  for (const [id, points] of [['a', [[0, 0], [40, 0], [40, 40], [0, 40]]], ['b', [[20, 20], [60, 20], [60, 60], [20, 60]]]]) {
+    project = applyOperation(project, { type: 'add', layer: { ...pathFromRings([points]), id } });
+  }
+  for (const operation of ['union', 'difference', 'intersection', 'xor']) {
+    const result = combinePaths(project, ['a', 'b'], operation); result.id = 'result';
+    const next = applyOperation(project, { type: 'booleanResult', ids: ['a', 'b'], result });
+    assert.equal(next.layers.length, 3); assert.equal(next.layers[0].visible, false); assert.equal(project.layers[0].visible, true);
+    assert.deepEqual(next.layers[2].sourceIds, ['a', 'b']); assert.deepEqual(parseProject(serializeProject(next)), next);
+  }
+  const aligned = applyOperation(project, { type: 'arrange', ids: ['a', 'b'], mode: 'left' });
+  assert.equal(aligned.layers[0].x, aligned.layers[1].x); assert.equal(project.layers[1].x, 20);
 });

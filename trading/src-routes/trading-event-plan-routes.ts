@@ -26,6 +26,9 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — the seven event-plan routes (list/get/create/patch/arm/disarm/delete) over the kernel event-plan store, arm confirm-gated (428) + per-user 'trading-events:<sub>' schedule upsert in America/New_York (503 scheduler_unavailable before any state change), view-only books may hold a draft with a warning, TradingError → its status/code else logger.error + 502; and respondEventStudioTurn — the Studio's event branch (IPO research selection, equity read, eventPlanPrompt → parseEventPlanReply → normalizeEventPlanParams → create or refine-in-place, needsInput on a prose-only reply, notBacktestable + dryRun in the response).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The plan list reports the schedule as not active on the native kernel (OSHAL_EGRESS=kernel) without calling the legacy schedule service. The kernel bridge refuses every schedule-service call and a refusal fails the whole request, so GET /events/plans answered 503 "trading schedule service listSchedules is unavailable in this native runtime" and the event-plans screen could not load.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Rail guard: the event-plan account read asks railConfigured(reader) instead of calling reader.configured() directly, so a host whose broker reader has no configured() probe (the native kernel bridge) reads as not connected rather than failing the request.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Sweep 14: an armed plan's note named the environment variable ("TRADING_EVENT_PLANS is off on this server"); it now says in words that event trading is off and an administrator turns it on. Guard: tests/trading-off-notes.test.js.
  *
  * @module trading-event-plan-routes
  */
@@ -47,11 +50,12 @@ import {
 } from '@/app/trading-event-plans';
 import { selectResearch, type ResearchFinding } from './trading-strategy-research';
 import { eventPlanPrompt, parseEventPlanReply, stripBotFences } from './trading-strategy-studio-prompt';
+import { railConfigured } from './trading-rail-guard';
 
 const logger = createChildLogger({ module: 'trading-event-plan-routes' });
 
 /** The note the arm response carries while the server-side executor flag is off. */
-const EXECUTOR_OFF_NOTE = 'TRADING_EVENT_PLANS is off on this server — the plan is armed but the executor will not fire until it is enabled.';
+const EXECUTOR_OFF_NOTE = 'Event trading is switched off on this installation: the plan is armed, but it will not act until an administrator turns event trading on.';
 /** The warning a draft on a view-only account carries. */
 const VIEW_ONLY_WARNING = 'This account is view-only — the plan cannot buy until you Start trading on it.';
 /** Why an event playbook has no backtest — the Studio response says it every turn. */
@@ -115,7 +119,7 @@ export async function equityForBook(s: string, book: TradingBook | null): Promis
   try {
     const binding = book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined;
     const reader = getBrokerReader(book.kind, s, binding);
-    if (!reader.configured()) return null;
+    if (!railConfigured(reader)) return null;
     const equity = (await reader.getAccount()).equity;
     return Number.isFinite(equity) ? equity : null;
   } catch (err) {
@@ -141,11 +145,23 @@ async function planEquity(ctx: AppContext, s: string, plan: EventPlanRow): Promi
 }
 
 /**
+ * @description Whether this module runs inside the native kernel's package sandbox (the bridge sets
+ * OSHAL_EGRESS=kernel there). The native kernel has no legacy per-user scheduler: every call into the
+ * schedule service is refused, and a refusal fails the whole request even when the route catches it.
+ * @returns True inside the native kernel sandbox.
+ */
+function nativeKernel(): boolean {
+  return process.env.OSHAL_EGRESS === 'kernel';
+}
+
+/**
  * @description Whether the caller's 'trading-events:<sub>' schedule exists and is active.
  * @param s - Caller sub.
- * @returns True only for an active, owner-matching schedule; false when the scheduler is absent.
+ * @returns True only for an active, owner-matching schedule; false when the scheduler is absent,
+ *   including on the native kernel, where no legacy schedule exists and the service is never called.
  */
 async function eventScheduleActive(s: string): Promise<boolean> {
+  if (nativeKernel()) return false;
   const svc = getTradingScheduleService();
   if (!svc) return false;
   const taskType = eventPlanTaskType(s);

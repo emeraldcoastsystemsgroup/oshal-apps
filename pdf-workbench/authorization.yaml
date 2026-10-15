@@ -1,0 +1,353 @@
+# CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Own job status is read; cancellation retains held write management.
+version: 1
+resources:
+  documents:
+    scopes:
+      - own
+permissions:
+  document.view:
+    resource: documents
+    effect: read
+    minimumTier: viewer
+  document.read:
+    resource: documents
+    effect: read
+    minimumTier: viewer
+  document.create:
+    resource: documents
+    effect: write
+    minimumTier: editor
+  document.change:
+    resource: documents
+    effect: write
+    minimumTier: editor
+  document.delete:
+    resource: documents
+    effect: write
+    minimumTier: editor
+  document.export:
+    resource: documents
+    effect: export
+    minimumTier: editor
+  document.ocr:
+    resource: documents
+    effect: write
+    minimumTier: editor
+  document.job.manage:
+    resource: documents
+    effect: write
+    minimumTier: editor
+  document.job.read:
+    resource: documents
+    effect: read
+    minimumTier: viewer
+roles:
+  viewer:
+    tier: viewer
+    grants:
+      - permission: document.view
+        scope: own
+      - permission: document.job.read
+        scope: own
+  reader:
+    tier: viewer
+    grants:
+      - permission: document.view
+        scope: own
+      - permission: document.read
+        scope: own
+      - permission: document.job.read
+        scope: own
+  creator:
+    tier: editor
+    grants:
+      - permission: document.view
+        scope: own
+      - permission: document.read
+        scope: own
+      - permission: document.create
+        scope: own
+      - permission: document.job.read
+        scope: own
+  editor:
+    tier: editor
+    grants:
+      - permission: document.view
+        scope: own
+      - permission: document.read
+        scope: own
+      - permission: document.change
+        scope: own
+      - permission: document.job.manage
+        scope: own
+      - permission: document.job.read
+        scope: own
+  exporter:
+    tier: editor
+    grants:
+      - permission: document.view
+        scope: own
+      - permission: document.read
+        scope: own
+      - permission: document.export
+        scope: own
+      - permission: document.job.read
+        scope: own
+  ocr:
+    tier: editor
+    grants:
+      - permission: document.view
+        scope: own
+      - permission: document.read
+        scope: own
+      - permission: document.ocr
+        scope: own
+      - permission: document.job.manage
+        scope: own
+      - permission: document.job.read
+        scope: own
+  administrator:
+    tier: admin
+    grants:
+      - permission: document.view
+        scope: own
+      - permission: document.read
+        scope: own
+      - permission: document.create
+        scope: own
+      - permission: document.change
+        scope: own
+      - permission: document.delete
+        scope: own
+      - permission: document.export
+        scope: own
+      - permission: document.ocr
+        scope: own
+      - permission: document.job.manage
+        scope: own
+      - permission: document.job.read
+        scope: own
+bindings:
+  http:
+    - id: pdf-route-0
+      method: GET
+      path: /app
+      allOf:
+        - document.view
+    - id: pdf-route-1
+      method: GET
+      path: /ui/:asset
+      allOf:
+        - document.view
+    - id: pdf-route-2
+      method: GET
+      path: /permissions
+      allOf:
+        - document.view
+    - id: pdf-route-3
+      method: GET
+      path: /editing-contract
+      allOf:
+        - document.view
+    - id: pdf-route-4
+      method: GET
+      path: /home-summary
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-route-5
+      method: GET
+      path: /_smoke
+      allOf:
+        - document.view
+    - id: pdf-route-6
+      method: GET
+      path: /sources
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-route-7
+      method: POST
+      path: /sources/upload
+      allOf:
+        - document.view
+        - document.create
+    - id: pdf-route-8
+      method: POST
+      path: /sources/import-artifact
+      allOf:
+        - document.view
+        - document.create
+    - id: pdf-route-9
+      method: DELETE
+      path: /sources/:source
+      allOf:
+        - document.view
+        - document.read
+        - document.delete
+    - id: pdf-route-10
+      method: GET
+      path: /documents
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-route-11
+      method: POST
+      path: /documents
+      allOf:
+        - document.view
+        - document.create
+    - id: pdf-route-12
+      method: GET
+      path: /documents/:document
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-route-13
+      method: GET
+      path: /documents/:document/model/:part/:offset
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-route-14
+      method: GET
+      path: /documents/:document/text
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-route-15
+      method: GET
+      path: /documents/:document/text/:page/:offset
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-route-16
+      method: GET
+      path: /documents/:document/forms
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-route-17
+      method: GET
+      path: /documents/:document/pages/:page/preview
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-route-18
+      method: POST
+      path: /documents/:document/revisions
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+    - id: pdf-route-19
+      method: POST
+      path: /documents/:document/ocr
+      allOf:
+        - document.view
+        - document.read
+        - document.ocr
+    - id: pdf-route-20
+      method: GET
+      path: /jobs/:job
+      allOf:
+        - document.view
+        - document.job.read
+    - id: pdf-route-21
+      method: GET
+      path: /jobs/:job/ocr/:page/:offset
+      allOf:
+        - document.view
+        - document.read
+        - document.ocr
+    - id: pdf-route-22
+      method: POST
+      path: /jobs/:job/cancel
+      allOf:
+        - document.view
+        - document.read
+        - document.job.manage
+    - id: pdf-route-23
+      method: GET
+      path: /documents/:document/revisions/:revision/content
+      allOf:
+        - document.view
+        - document.read
+        - document.export
+    - id: pdf-route-24
+      method: DELETE
+      path: /documents/:document
+      allOf:
+        - document.view
+        - document.read
+        - document.delete
+  tools:
+    - id: pdf-editing-contract
+      allOf:
+        - document.view
+    - id: pdf-list-sources
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-list-documents
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-read-document
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-read-model-part
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-read-page-text
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-import-artifact
+      allOf:
+        - document.view
+        - document.create
+    - id: pdf-create-document
+      allOf:
+        - document.view
+        - document.create
+    - id: pdf-apply-operations
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+    - id: pdf-restore-revision
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+    - id: pdf-start-ocr
+      allOf:
+        - document.view
+        - document.read
+        - document.ocr
+    - id: pdf-job-status
+      allOf:
+        - document.view
+        - document.job.read
+    - id: pdf-read-ocr-text
+      allOf:
+        - document.view
+        - document.read
+        - document.ocr
+    - id: pdf-cancel-job
+      allOf:
+        - document.view
+        - document.read
+        - document.job.manage
+    - id: pdf-delete-document
+      allOf:
+        - document.view
+        - document.read
+        - document.delete
+  bots:
+    - id: b28df8cb-1a16-40a4-9b3e-3da4d8f1c129
+      allOf:
+        - document.view

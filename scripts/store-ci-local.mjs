@@ -20,6 +20,8 @@
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Drop --allow-unrated from ai-usage-ledger check policy now that all 67 store packages are rated.
  * 15 | maintainer@emeraldcoastsystemsgroup.com | Run the bot dependency gate beside the framework scope checks so canonical ownership errors block every push.
  * 16 | maintainer@emeraldcoastsystemsgroup.com | Mirror the explicit Presentations Chromium prerequisite and require the real Career engine pins and python alias rather than grading --version as provisioned dependencies.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | The gate owns its toolchain. Every capability used to resolve out of OSHAL_ROOT / OSHAL_CORE_DIR or a sibling ../oshal checkout, so on the operator's box each push borrowed TypeScript, Vitest, Playwright, Express, Multer, pg and better-sqlite3 from the old TypeScript platform (oshal/src), which nothing may depend on. They now come from scripts/toolchain only (package.json + package-lock.json pinning the versions that checkout resolved; install with `npm ci --prefix scripts/toolchain`, or name another node_modules root with STORE_CI_TOOLCHAIN). The sibling auto-detection is gone and the inherited OSHAL_ROOT / OSHAL_FRAMEWORK / OSHAL_CORE_DIR / OSHAL_CORE_ROOT / KALSHI_BROWSER_DEPS / CAREER_LOADER_NODE_PATH / NODE_PATH are dropped from every child, so no suite can reach that checkout through the environment either. Checks that need the platform's SOURCE rather than its node_modules (its catalog, scope and dependency loaders, the trading specs' @/ tree, the Presentations renderer, the fantasy-leagues skill) report SKIPPED with the legacy dependency named; the three framework-job steps that read only node_modules run on the toolchain.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com | Carry store-ci's store-bots job: a `check` policy entry for scripts/check-store-bots.mjs and a `provision` entry for its `npm ci --prefix scripts/toolchain`, whose STORE_TOOLCHAIN_YAML capability is the gate toolchain's own js-yaml (reported SKIPPED with the install command when absent, never green).
  */
 
 import { spawnSync } from 'node:child_process';
@@ -36,6 +38,23 @@ const ROOT = process.env.STORE_CI_LOCAL_ROOT
   : resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WORKFLOW = join(ROOT, '.github', 'workflows', 'store-ci.yml');
 const ALLOW_SKIPS = process.argv.includes('--allow-skips');
+
+// The gate's own pinned dev toolchain. Resolved against ROOT (not this file) so the guard spec's
+// fixture store, which has none, still proves the missing-prerequisite path. STORE_CI_TOOLCHAIN is
+// the one override: any directory whose node_modules carries the pinned set.
+const TOOLCHAIN = resolve(process.env.STORE_CI_TOOLCHAIN || join(ROOT, 'scripts', 'toolchain'));
+const INSTALL = process.env.STORE_CI_TOOLCHAIN
+  ? `STORE_CI_TOOLCHAIN=${TOOLCHAIN} has no such module`
+  : 'the gate toolchain is not installed - run: npm ci --prefix scripts/toolchain';
+
+// Variables that used to point this gate, and the suites it runs, at the old TypeScript platform
+// checkout (oshal/src). They are dropped from every child: the gate sets the ones a step needs from
+// the toolchain, and a suite that wants more than node_modules must report its skip, not find the
+// legacy tree through an inherited variable.
+const LEGACY_ENV = [
+  'OSHAL_ROOT', 'OSHAL_FRAMEWORK', 'OSHAL_FRAMEWORK_ROOT', 'OSHAL_CORE_DIR', 'OSHAL_CORE_ROOT',
+  'KALSHI_BROWSER_DEPS', 'CAREER_LOADER_NODE_PATH', 'NODE_PATH',
+];
 
 /**
  * @description Read a YAML block scalar (`|` or `>`) that begins on the line after `index`.
@@ -158,6 +177,7 @@ const POLICY = [
   { match: /^node\s+scripts\/check-test-catalogs\.mjs$/, kind: 'check' },
   { match: /^node\s+scripts\/check-app-scopes\.mjs$/, kind: 'check' },
   { match: /^node\s+scripts\/check-bot-dependencies\.mjs$/, kind: 'check' },
+  { match: /^node\s+scripts\/check-store-bots\.mjs$/, kind: 'check' },
   { match: /^node\s+scripts\/ai-usage-ledger\.mjs\s+--check$/, kind: 'check' },
   { match: /^node\s+scripts\/check-store-separation\.mjs\s+\.$/, kind: 'check' },
   { match: /^node\s+scripts\/check-no-public-secret-fallback\.mjs\s+\.$/, kind: 'check' },
@@ -174,6 +194,7 @@ const POLICY = [
   { match: /^mkdir[\s\S]*playwright[\s\S]*install --with-deps chromium$/, kind: 'provision', capability: 'KALSHI_BROWSER_DEPS' },
   { match: /^node framework\/node_modules\/playwright\/cli\.js install --with-deps chromium$/, kind: 'provision', capability: 'OSHAL_FRAMEWORK' },
   { match: /^python\s+-m\s+pip\s+install\b/, kind: 'provision', capability: 'CAREER_PYTHON' },
+  { match: /^npm\s+ci\b[\s\S]*--prefix\s+scripts\/toolchain$/, kind: 'provision', capability: 'STORE_TOOLCHAIN_YAML' },
 ];
 
 /**
@@ -195,16 +216,51 @@ function classify(step, jobId) {
 }
 
 /**
- * @description Find a checkout that can satisfy a capability the cloud runner installs.
+ * @description Steps whose job checks out the framework (the OSHAL_FRAMEWORK capability) but which
+ *   read only node_modules from it, never its source. Locally the gate toolchain supplies those
+ *   modules, so these run; every other step of a framework job is reported SKIPPED. Each entry names
+ *   the modules it reads, and its declared framework variables are pointed at the toolchain.
+ */
+const TOOLCHAIN_SUFFICES = [
+  { workingDirectory: 'trading', match: /^node\s+--test\s+"tests\/native-schwab\*\.test\.js"$/, modules: ['express', 'playwright'] },
+  { workingDirectory: '', match: /^node\s+--test\s+scripts\/run-trading-specs\.test\.mjs$/, modules: ['vitest'] },
+  { workingDirectory: 'futures-research', match: /^node\s+--test\s+"tests\/\*\.test\.cjs"$/, modules: ['express', 'js-yaml'] },
+  { workingDirectory: 'intelligent-sports', match: /^node\s+--test\s+tests\/toolbar\.test\.cjs$/, modules: ['js-yaml'] },
+];
+
+/**
+ * @description Why a step that needs the framework's SOURCE cannot run here. Matched on the command
+ *   and working directory; the last entry is the fallback for a framework step nobody described.
+ */
+const LEGACY_REASONS = [
+  { match: /check-test-catalogs/, what: 'its scripts/oshal-test-catalog.js loader and js-yaml' },
+  { match: /check-app-scopes/, what: 'its scripts/oshal-app-scope.js contract and js-yaml' },
+  { match: /check-bot-dependencies/, what: 'its scripts/oshal-app-dependencies.js contract and swarm-apps/*.yaml' },
+  { match: /run-trading-specs\.mjs$/, what: 'its src/ tree: the trading specs import @/features/trading, @/app/* and src-routes/*.ts' },
+  { match: /^presentations\b/, what: 'its src/features/presentation-generation renderer, compiled by the suites' },
+  { match: /^fantasy-football\b/, what: 'its src/features/fantasy-leagues skill, compiled by the suites' },
+  { match: /./, what: 'its source tree' },
+];
+
+/**
+ * @description The SKIPPED reason for a step that needs the legacy TypeScript platform's source.
+ * @param {object} step A parsed workflow step.
+ * @returns {string} The reason, naming the legacy dependency.
+ */
+function legacyReason(step) {
+  const key = `${step.workingDirectory ? `${step.workingDirectory} ` : ''}${step.run}`;
+  const { what } = LEGACY_REASONS.find(({ match }) => match.test(key));
+  return `LEGACY: needs the old TypeScript platform checkout (oshal/src) - ${what}. The native kernel `
+    + 'does not run that code and this gate no longer resolves it.';
+}
+
+/**
+ * @description Find the gate toolchain when it carries a module a capability needs.
  * @param {string} moduleName The node module the capability needs.
- * @returns {string} The root holding node_modules/<moduleName>, or '' when absent.
+ * @returns {string} The toolchain root holding node_modules/<moduleName>, or '' when absent.
  */
 function findModuleRoot(moduleName) {
-  const candidates = [
-    process.env.OSHAL_ROOT, process.env.OSHAL_CORE_DIR,
-    resolve(ROOT, '..', 'oshal'), resolve(ROOT, '..', '..', 'oshal'),
-  ].filter(Boolean);
-  return candidates.find((root) => existsSync(join(root, 'node_modules', moduleName, 'package.json'))) ?? '';
+  return existsSync(join(TOOLCHAIN, 'node_modules', moduleName, 'package.json')) ? TOOLCHAIN : '';
 }
 
 /** Verify the same Python alias and exact engine dependencies the cloud install provides. */
@@ -235,28 +291,31 @@ function resolveCapabilities() {
   return {
     OSHAL_ROOT: {
       value: typescriptRoot,
-      reason: 'no TypeScript compiler found — set OSHAL_ROOT to a checkout whose node_modules has one',
+      reason: `no TypeScript compiler found — ${INSTALL}`,
     },
-    // Not declared by any workflow step: the cloud runner has no kernel checkout, so the two
-    // real-Multer cases skip THERE. A workstation does have one, so exporting it lets this gate
+    // Not declared by any workflow step: the cloud runner installs no Multer, so the two
+    // real-Multer cases skip THERE. The toolchain carries it, so exporting it lets this gate
     // run two cases store-ci cannot.
     OSHAL_CORE_DIR: {
       value: findModuleRoot('multer'),
-      reason: 'no kernel checkout with Multer — the two real-Multer resume cases cannot run',
+      reason: `no Multer — ${INSTALL}`,
     },
-    // The framework checkout the trading Vitest specs resolve @/ (and express / js-yaml / acorn)
-    // against. store-ci provisions it by checking the framework out and running its `npm ci`; a
-    // workstation already has one beside this repository. Missing is a SKIP, which is non-zero —
-    // the package that places real orders is not one to report green about without running it.
+    // store-ci checks the old TypeScript platform out for these jobs and its suites read that
+    // checkout's SOURCE, not only its node_modules. This gate never resolves it: such a step is a
+    // SKIP naming the legacy dependency (legacyReason), which is non-zero without --allow-skips.
+    // The steps that need only node_modules are listed in TOOLCHAIN_SUFFICES and run.
     OSHAL_FRAMEWORK: {
-      value: findModuleRoot('vitest'),
-      reason: 'no framework checkout with Vitest — set OSHAL_FRAMEWORK to an oshal checkout whose '
-        + 'node_modules has one (the trading specs cannot run without it)',
+      value: '',
+      reason: 'LEGACY: needs the old TypeScript platform checkout (oshal/src), which this gate no longer resolves',
     },
     KALSHI_BROWSER_DEPS: {
       value: browserRoot,
-      reason: 'no checkout with playwright + express — set KALSHI_BROWSER_DEPS to one, '
-        + 'or run: npm install --no-save --prefix <dir> express playwright && playwright install chromium',
+      reason: `no playwright + express — ${INSTALL} (Chromium: node scripts/toolchain/node_modules/playwright/cli.js install chromium)`,
+    },
+    // The store bot contract reads manifests and personas with the gate toolchain's own js-yaml.
+    STORE_TOOLCHAIN_YAML: {
+      value: findModuleRoot('js-yaml'),
+      reason: `no js-yaml — ${INSTALL}`,
     },
     CAREER_PYTHON: {
       value: python,
@@ -266,7 +325,7 @@ function resolveCapabilities() {
     // database drivers from ONE node_modules (store-ci installs them into their own prefix).
     CAREER_LOADER_NODE_PATH: {
       value: loaderRoot ? join(loaderRoot, 'node_modules') : '',
-      reason: 'no checkout whose node_modules has both pg and better-sqlite3 — set OSHAL_ROOT to one',
+      reason: `no pg + better-sqlite3 — ${INSTALL}`,
     },
   };
 }
@@ -324,6 +383,7 @@ function runCheck(check) {
     'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_NAMESPACE',
     'GIT_SHALLOW_FILE', 'GIT_CEILING_DIRECTORIES',
   ]) delete cleanEnv[key];
+  for (const key of LEGACY_ENV) delete cleanEnv[key];
   const options = {
     cwd: join(ROOT, check.workingDirectory || '.'),
     env: { ...cleanEnv, ...check.env },
@@ -355,6 +415,37 @@ function runCheck(check) {
 }
 
 /**
+ * @description Work out what one step needs, the environment it gets, and why it cannot run.
+ * @param {object} step A parsed workflow step.
+ * @param {string[]} required Capabilities the step's job provisioned before it.
+ * @param {Record<string,{value:string,reason:string}>} capabilities Locally resolved capabilities.
+ * @returns {{env:Record<string,string>,skipReason:string}} The child environment and skip reason ('' when runnable).
+ */
+function resolveStep(step, required, capabilities) {
+  const envNeeds = step.env.filter((key) => key in capabilities || key === 'CAREER_TEST_POSTGRES_ADMIN_URL');
+  const needed = new Set([...required, ...envNeeds]);
+  const env = {};
+  let toolchainGap = '';
+  const suffices = TOOLCHAIN_SUFFICES.find((s) => s.workingDirectory === step.workingDirectory && s.match.test(step.run));
+  if (needed.has('OSHAL_FRAMEWORK') && suffices) {
+    // Only node_modules are read, so the toolchain stands in for the framework checkout.
+    needed.delete('OSHAL_FRAMEWORK');
+    const absent = suffices.modules.filter((name) => !findModuleRoot(name));
+    if (absent.length) toolchainGap = `no ${absent.join(' + ')} — ${INSTALL}`;
+    for (const key of step.env.filter((k) => k === 'OSHAL_FRAMEWORK' || k === 'OSHAL_CORE_ROOT')) env[key] = TOOLCHAIN;
+  }
+  const missing = [...needed].filter((key) => capabilities[key] && !capabilities[key].value);
+  for (const key of needed) {
+    if (capabilities[key]?.value) env[key] = capabilities[key].value;
+  }
+  // Always offered, never required: a suite that can use Multer from the toolchain should, and one
+  // that cannot simply ignores it. It is deliberately not part of `missing`.
+  if (capabilities.OSHAL_CORE_DIR.value) env.OSHAL_CORE_DIR = capabilities.OSHAL_CORE_DIR.value;
+  if (missing.includes('OSHAL_FRAMEWORK')) return { env, skipReason: legacyReason(step) };
+  return { env, skipReason: missing.length ? capabilities[missing[0]].reason : toolchainGap };
+}
+
+/**
  * @description Turn the parsed workflow into the ordered list of checks to run locally.
  * @param {Array<object>} jobs The parsed jobs.
  * @param {Record<string,{value:string,reason:string}>} capabilities Locally resolved capabilities.
@@ -372,16 +463,7 @@ function plan(jobs, capabilities) {
     for (const step of job.steps.filter((s) => s.run)) {
       const entry = classify(step, job.id);
       if (entry.kind === 'provision') { required.push(entry.capability); continue; }
-      const envNeeds = step.env.filter((key) => key in capabilities || key === 'CAREER_TEST_POSTGRES_ADMIN_URL');
-      const missing = [...new Set([...required, ...envNeeds])]
-        .filter((key) => capabilities[key] && !capabilities[key].value);
-      const env = {};
-      for (const key of new Set([...required, ...envNeeds])) {
-        if (capabilities[key]?.value) env[key] = capabilities[key].value;
-      }
-      // Always offered, never required: a suite that can use a kernel checkout should, and one
-      // that cannot simply ignores it. It is deliberately not part of `missing`.
-      if (capabilities.OSHAL_CORE_DIR.value) env.OSHAL_CORE_DIR = capabilities.OSHAL_CORE_DIR.value;
+      const { env, skipReason } = resolveStep(step, required, capabilities);
       checks.push({
         job: job.id,
         jobName: job.name,
@@ -390,7 +472,7 @@ function plan(jobs, capabilities) {
         workingDirectory: step.workingDirectory,
         needs: job.needs,
         env,
-        skipReason: missing.length ? capabilities[missing[0]].reason : '',
+        skipReason,
       });
     }
   }
@@ -417,6 +499,11 @@ function main() {
   console.log(`store-ci-local — ${checks.length} checks mirroring all ${jobs.length} store-ci jobs `
     + `(${WORKFLOW.replace(ROOT, '.')})`);
   console.log(`node ${process.versions.node} (store-ci declares ${[...new Set(declared)].sort().join(', ')})`);
+  console.log(`toolchain ${TOOLCHAIN}${capabilities.OSHAL_ROOT.value ? '' : ` — ${INSTALL}`}`);
+  const inherited = LEGACY_ENV.filter((key) => process.env[key]);
+  if (inherited.length) {
+    console.log(`ignoring inherited ${inherited.join(', ')}: no suite here resolves the old platform checkout`);
+  }
   if (local < highest) {
     console.error(`REFUSED: store-ci runs some jobs on node ${highest}; this is node ${local}. `
       + 'Running them on an older runtime would prove something the release does not.');

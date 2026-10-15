@@ -23,6 +23,10 @@
 # 19  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.6: the File into a class import hands its own request to core redeemArtifactViaRelay, so the loopback redeem carries the caller's session or PAT; the core relay refuses the service rail for a principal-bound handle, and 1.4.5 answered 404 "artifact handle not found" for a handle minted seconds earlier. Needs core with the request-carrying redeem. authorization.yaml, pages and migrations unchanged
 # 20  | maintainer@emeraldcoastsystemsgroup.com     | Include AI Office and Circuit Lab in native student, teacher and admin application composites while preserving school record authority and the empty child connector filter.
 # 21  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.8: honor native admitted identity and avoid hidden enrollment or reward writes during reads.
+# 22  | maintainer@emeraldcoastsystemsgroup.com     | Native schema: migrations/native/001-little-monsters.sql carries the native final shape of 020/031/032/033/035/036/037, which nativeMigrations skips on the native kernel (their DO guards and PL/pgSQL triggers refused the whole provisioning, so no person ever got lm_students and every screen answered "complete school setup").
+# 23  | maintainer@emeraldcoastsystemsgroup.com     | Name the concierge (chatBot: class-tutor): with none declared the cockpit panel opened on the first bot, lecture-scribe (lecture processing), which refused a practice quiz. The tutor answers questions and writes practice quizzes. Version unchanged.
+# 24  | maintainer@emeraldcoastsystemsgroup.com     | The dashboard tab (lm-dashboard) is labelled Classroom, not Home: the Home experience composes it beside its own Home tab and Smart Home's, and sweep 9 found three tabs all labelled Home opening three different applications.
+# 25  | maintainer@emeraldcoastsystemsgroup.com     | The dashboard tab (lm-dashboard) is labelled Class dashboard: sweep 10 found the Classroom experience showing two tabs both labelled Classroom (its own home, then this dashboard). Distinct in both the Home and the Classroom experiences. Version unchanged.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Little Monsters
@@ -69,6 +73,7 @@ description: >-
   grounded only in caller-owned or teacher/admin-approved class material through
   per-material RAG collections.
 version: 1.4.10
+chatBot: class-tutor # Concierge the cockpit offers beside this application's screens.
 
 authorization:
   version: 1
@@ -314,7 +319,7 @@ ui:
     iframeUrl: /api/education/tutor
     title: Little Monster Expert
   static:
-    - { toolName: lm-dashboard,     label: Home,              icon: codicon codicon-home,        iframeUrl: /api/education/dashboard,        section: top }
+    - { toolName: lm-dashboard,     label: Class dashboard,   icon: codicon codicon-home,        iframeUrl: /api/education/dashboard,        section: top }
     - { toolName: lm-myday,         label: My Day,            icon: codicon codicon-calendar,            iframeUrl: /api/education/my-day,           section: top }
     - { toolName: lm-tutor,         label: Tutor,             icon: codicon codicon-comment-discussion,  iframeUrl: /api/education/tutor,            section: top }
     - { toolName: lm-flashcards,    label: Flashcards,        icon: codicon codicon-versions,            iframeUrl: /api/education/flashcards-hub,   section: top }
@@ -402,6 +407,31 @@ migrations:
   - migrations/036-authoritative-progress.sql
   - migrations/037-authorization-audit.sql
   - migrations/038-rewards.sql
+  - migrations/native/001-little-monsters.sql
+# The native kernel applies the final-shape native file above in place of the PostgreSQL-only
+# forms below (it accepts no PL/pgSQL triggers, catalog-probing DO guards or platform tables).
+nativeMigrations:
+  - id: migrations/020-seed-education-bots.sql
+    native: skip
+    reason: "It seeds the platform's agents and persona_layers tables, which are not package tables; the native kernel registers the six bots from this manifest's bots: block."
+  - id: migrations/031-tenant-domain-uniqueness.sql
+    native: skip
+    reason: "Its unique lower(domain) index is in migrations/native/001-little-monsters.sql; the DO block that refuses duplicate historical domains is PostgreSQL-only and a fresh native scope has none."
+  - id: migrations/032-oidc-principal-binding.sql
+    native: skip
+    reason: "Its external_issuer column and (external_issuer, external_id) unique index are in migrations/native/001-little-monsters.sql; the native kernel has no DROP INDEX, and the retired subject-only index 026 created admits one learner per subject in a person's own native scope, which is that person."
+  - id: migrations/033-flashcard-set-ownership.sql
+    native: skip
+    reason: "Its owner_student_id column and private-owner index are in migrations/native/001-little-monsters.sql; its DO-guarded NOT VALID constraints are PostgreSQL-only."
+  - id: migrations/035-enrollment-tenant-invariant.sql
+    native: skip
+    reason: "Its enrollment tenant_id column and the (student_id, tenant_id) and (class_id, tenant_id) unique indexes are in migrations/native/001-little-monsters.sql; its cross-tenant DO check, PL/pgSQL tenant trigger and composite foreign keys are PostgreSQL-only, and one person's native scope holds only the seeded default school."
+  - id: migrations/036-authoritative-progress.sql
+    native: skip
+    reason: "Its XP dedupe key and lm_quiz_attempts table are in migrations/native/001-little-monsters.sql; its PL/pgSQL tenant trigger and composite foreign keys are PostgreSQL-only."
+  - id: migrations/037-authorization-audit.sql
+    native: skip
+    reason: "Its lm_authorization_audit table and indexes are in migrations/native/001-little-monsters.sql; its PL/pgSQL stamp and append-only triggers are PostgreSQL-only."
 
 # Voice channels (provider ids from the swarm voice-providers registry; swarm-default defers).
 voice:

@@ -21,6 +21,7 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-02 05:10:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — 428 zero-query proofs for NOC apply / EFW2 / check allocation, the deliberate absence of a gate on return import, trace persistence on ACH generation (and its absence on a prenote), return-vs-NOC payment transitions, NOC application refusing a non-applicable code and a bad check digit, and 401 before any query on every settlement route.
+ * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | The personal-data stub is asynchronous, as the native kernel's personal_data intents are (PDATA-01), so every seal and open on these paths is proven awaited: a missed await would store or return a Promise, not the envelope or the digits.
  */
 
 import { test } from 'node:test';
@@ -39,8 +40,8 @@ const STUBS = {
   '@/shared/services/database': { buildOwnerRlsPolicyStatements: () => [], runRuntimeSchemaBootstrap: async () => {} },
   '@/features/personal-data': {
     isEncrypted: (v) => typeof v === 'string' && v.startsWith('enc:'),
-    encryptField: (_sub, v) => (v === null || v === undefined ? null : `enc:${v}`),
-    decryptField: (_sub, v) => (typeof v === 'string' && v.startsWith('enc:') ? v.slice(4) : v),
+    encryptField: async (_sub, v) => (v === null || v === undefined ? null : `enc:${v}`),
+    decryptField: async (_sub, v) => (typeof v === 'string' && v.startsWith('enc:') ? v.slice(4) : v),
   },
   '@/shared/security/explicit-write-confirmation': {
     hasExplicitWriteConfirmation: (b) => !!b && typeof b === 'object' && b.confirm === true,

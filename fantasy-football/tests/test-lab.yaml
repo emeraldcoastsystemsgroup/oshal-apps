@@ -3,6 +3,13 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: register the season value, waiver board, trade finder, hand-typed league parity and week-ledger suites, the three read-only PAT smokes that read the caller's own real league from the installed package, and the isolation case's hand-typed league and grading expectations on the real store.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | fantasy-transport: a schedule read that throws and a failed player-week history read each keep their lineup fallback and are logged at ERROR.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | own-lineup: the PAT smoke for the caller's own real league's weekly P(win) lineup beside the mean-maximising one (the first P0 clause's automated acceptance); fantasy-transport and fantasy-grading gain the unread-league-shape refusals and the own-lineup smoke contract.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register fantasy-lineup-readonly: GET /lineup is a pure read (the native kernel admits a GET as a reader and refused its recording), POST /lineup/record grades and records, and an unavailable projection feed answers its reason with no lineup numbers. own-lineup's GET no longer registers the week.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register league-form: the hand-typed league is entered in labelled fields, not one raw-JSON text box.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register week-record-league: the record under a league lists its own weeks, and a deleted hand-typed league takes its weeks with it (sweep 8 listed other leagues' rows under a new league).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | week-record-league and fantasy-isolation also expect the record and call list split by league and a deleted hand-typed league's calls gone (the isolation case on the real PostgreSQL store).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register fantasy-zero-scoring: a scoring table that scores nothing is refused on save and, when saved earlier, every board answers the reason with no numbers and reads no feed; manual-form expects an empty scoring template that names its need.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Register fantasy-open-slot: a lineup as set that leaves a starting slot empty names the starter that fills it, and the Start / sit card never says "already the best" beside a positive gain (sweep 13).
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Register slot-names: the Projected starters Slot column names each ESPN slot (QB, WR, FLEX), never the raw id (sweep 14).
 version: 1
 cases:
   - id: package-readiness
@@ -45,8 +52,8 @@ cases:
     purpose: >-
       Read GET /api/fantasy-football/lineup on the installed package as the signed-in operator (PAT). Naming no
       league means the caller's most recently linked ESPN league, read with their own connection; read-only toward
-      ESPN. Serving the lineup registers that week's decision and start/sit calls in the caller's own ledger (one
-      week row, updated in place until graded), which is the behaviour under test.
+      ESPN and writes nothing: a GET is a reader request. Recording the week's decision and start/sit calls is
+      POST /api/fantasy-football/lineup/record, which the page calls when the Lineup board is opened.
     level: integration
     runner:
       kind: smoke
@@ -447,7 +454,7 @@ cases:
       - A completed week is graded from stored actuals, advised lineup against the lineup started, with its start/sit calls settled first.
       - An ESPN week is graded against the lineup ESPN holds for that week, not the one recorded at lineup time.
       - A request naming no league reads the caller's own most recently linked league, and a caller with none gets 400.
-      - The own-lineup smoke as the manifest declares it passes for a linked league (league name, P(win) lineup, mean-maximising lineup and both win probabilities), and a repeat run keeps one week row.
+      - The own-lineup smoke as the manifest declares it passes for a linked league (league name, P(win) lineup, mean-maximising lineup and both win probabilities) and records nothing; POST /lineup/record registers the week once however often it runs.
     prerequisites:
       - runner:node-test
       - fixture:core-checkout
@@ -483,6 +490,7 @@ cases:
       - The refresh writes 522 completed player-weeks across the 500-row insert chunk, each person their own copy.
       - A hand-typed league serves every board on the real store with no cookie sent, and nobody else can read, list, replace, delete or build on it.
       - A completed week is graded from its owner's stored actuals by the real grading statements; another person's grading pass grades nothing of it.
+      - GET /record with a league key returns only that league's calls and graded record, and deleting a hand-typed league removes its weeks and calls under the forced owner policy while the ESPN league's stay.
     prerequisites:
       - runner:vitest
       - harness:oshal-core-root
@@ -516,6 +524,218 @@ cases:
       - The boot names this application and exactly the audiences the page provides, with an escape label.
       - The full page start runs only when the kit renders no audience, and when the kit is absent.
       - The head block parses, reads only this package's routes and builds no HTML from data.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: fantasy-lineup-readonly
+    name: Lineup reads on GET, records on POST, and names a missing projection feed
+    purpose: Drive the compiled lineup routes over a store that refuses writes once the league exists, as the native kernel does for a GET.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-lineup-readonly.test.js
+    expected:
+      - GET /lineup answers 200 with no write issued, nothing recorded, and the completed weeks the feed carried weighed in memory.
+      - POST /lineup/record records the week and its start/sit calls.
+      - With no projection the lineup answers projectionFeed ok false with the client's reason and no lineup numbers, and nothing is recorded.
+      - The page posts the Lineup board to /lineup/record and renders the feed failure instead of numbers.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fantasy-leagues-fixture.js
+        - tests/fantasy-routes-harness.js
+        - tests/fantasy-manual-fixture.js
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-boards-no-projection
+    name: Season, Waivers and Trades name a missing projection feed instead of zero advice
+    purpose: Drive the compiled management routes for a hand-typed league with ESPN's player feed refused and answering, and render the boards in a DOM double.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-boards-no-projection.test.js
+    expected:
+      - With the feed refused, /season, /waivers and /trades answer projectionFeed ok false with the client's reason, projectionsAvailable 0 and no value, rows, proposals or week provenance.
+      - With the feed answering, the boards price the league and carry projectionFeed ok true.
+      - The page says the ESPN projection feed is unavailable on all three boards, with the reason, and shows no 0.0, no "Nobody on the wire" and no "priced from their own weekly projection".
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fantasy-leagues-fixture.js
+        - tests/fantasy-routes-harness.js
+        - tests/fantasy-manual-fixture.js
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-zero-scoring
+    name: A league whose scoring gives every stat 0 points is refused, not advised on
+    purpose: >-
+      Sweep 9: a league saved with the form's "0 = 0" scoring projected every player 0.0 and the boards still advised.
+      Drive the compiled manual-league and board routes for a hand-typed league, and render the page's refusal card.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-zero-scoring.test.js
+    expected:
+      - POST and PUT /manual-leagues refuse a table whose every rule is worth 0 points with 400 naming the reason; one rule worth points saves.
+      - For a league saved that way earlier, GET /lineup, POST /lineup/record, /season, /waivers and /trades answer scoring ok false with the reason, projectionsAvailable 0, no lineup or value, record nothing and read no projection feed.
+      - The same league with a rule worth points still answers a priced lineup.
+      - The page's lineup and boards show "No <board> can be advised" with the reason and no numbers.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fantasy-leagues-fixture.js
+        - tests/fantasy-routes-harness.js
+        - tests/fantasy-manual-fixture.js
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-open-slot
+    name: A lineup with an empty starting slot names the starter that fills it
+    purpose: >-
+      Sweep 13: a two-of-three lineup showed +18.4 on the table while the Start / sit card said the lineup was already
+      the best legal one. Drive the compiled scoring module and lineup route for a hand-typed league, and render the page's card.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-open-slot.test.js
+    expected:
+      - openSlotStarts names the recommended starter for a slot the lineup as set leaves empty, with his projection as the gain; a full lineup has none.
+      - POST /lineup/record for a two-of-three hand-typed lineup answers openSlots naming the filling starter and records no call for it.
+      - The Start / sit card lists the filling starter beside "Empty slot", and with no call or fill beside a positive gain it says what the recommended lineup projects instead of "already the best".
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fantasy-leagues-fixture.js
+        - tests/fantasy-routes-harness.js
+        - tests/fantasy-manual-fixture.js
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: league-delete
+    name: Deleting a hand-typed league asks first and clears its board
+    purpose: >-
+      Run the page's own script in a sandbox: delete asks for confirmation and sends nothing on Cancel (it deleted on one
+      click), clears that league's board on success (the deleted league's trade board stayed up), keeps another
+      league's board, and says so when the delete is refused.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-league-delete.test.js
+    expected:
+      - Cancel sends no DELETE; OK sends DELETE /manual-leagues/L1 and empties the board area.
+      - A 500 reads 'could not be deleted (500). Nothing was removed.' and the board stays.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: league-form
+    name: A hand-typed league is entered in labelled fields
+    purpose: >-
+      Run the page's own script in a sandbox: every league value has its own labelled field (it was one unlabelled
+      text box of raw JSON), the template and an edited league read back as the document the route validates, a line
+      the form cannot read is named before anything is sent, and adding or removing a team keeps what was typed.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-manual-form.test.js
+    expected:
+      - Every input and text box of the form has a label naming what goes in; no raw-JSON box is left.
+      - The template and an edited league (decimal and negative points, a bye game, byes, no FAAB) round-trip exactly.
+      - A bad scoring line and a non-numeric roster id are named; nothing is sent.
+      - A new league's scoring starts empty and names that it needs the league's rules; a table of only 0-point rules is named before anything is sent.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: week-record-league
+    name: A league's week-by-week record is its own
+    purpose: Through the compiled router over the owner-keyed ledger double, read the record under one league and delete a hand-typed league (sweep 8 listed other leagues' week rows under a new league).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-week-record-league.test.js
+    expected:
+      - GET /record with leagueKey manual:<id> answers that league's one week; without a key the caller's four weeks and never another owner's.
+      - The graded record and the call list under a league count and list that league's calls only; without a key every one of the caller's.
+      - Deleting a hand-typed league deletes its own weeks and calls and leaves the ESPN league's, the other hand-typed league's and another owner's.
+      - The page asks for the record of the league on screen.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fantasy-leagues-fixture.js
+        - tests/fantasy-routes-harness.js
+        - tests/fantasy-manual-fixture.js
+      cleanup: In-memory ledger double confined to the Node process; no database, ESPN or provider.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: slot-names
+    name: The Slot column names each lineup slot
+    purpose: >-
+      Run the page's own startersCard in a sandbox over an optimiser answer: each starter's slot reads as ESPN names it
+      (sweep 14 printed the raw ids "0 Patrick Mahomes", "4 CeeDee Lamb").
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-slot-names.test.js
+    expected:
+      - Slots 0, 4, 23, 16 and 17 read QB, WR, FLEX, D/ST and K; an unknown id reads "Slot 99".
     prerequisites:
       - runner:node-test
     sideEffects: none

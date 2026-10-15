@@ -6,6 +6,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify owned Home entry/configuration, exact references and deliberate member roles without deployment credentials.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Bind attention asset order, default priorities and package-scoped factory composition without treating source contracts as installed proof.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Pin every version-2 role to the complete functional component bundle without optional choices.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Guard that the entry loads the shared routine reader (live-views.js) before homebase-data.js; without it Routines answered routine_reader_missing.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the page title is the application's display name alone (it read '<name> · your swarm', which the concierge repeated as the screen's name).
  */
 'use strict';
 const test = require('node:test');
@@ -86,4 +88,22 @@ test('household guest receives the same learning components with the ordinary st
   assert.match(guest, /app: little-monsters\r?\n          role: student/);
   assert.match(guest, /app: circuit-lab\r?\n          role: '@app-admin'/);
   assert.doesNotMatch(guest, /role: (teacher|admin)\b/);
+});
+
+/** The Routines page reads schedules through window.OSHAL_LIVE_VIEWS; homebase-data.js refuses with routine_reader_missing without it. */
+test('entry loads the shared routine reader before the homebase data client', () => {
+  const scripts = [...read('ui/index.html').matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map(match => match[1]);
+  const reader = scripts.indexOf('/experience/live-views.js');
+  const data = scripts.indexOf('/experience/homebase-data.js');
+  assert.ok(data >= 0, 'the entry loads /experience/homebase-data.js');
+  assert.ok(reader >= 0, 'the entry loads /experience/live-views.js');
+  assert.ok(reader < data, 'live-views.js loads before homebase-data.js');
+});
+
+/** Sweep 12: the docked frame's title reaches the concierge as the screen's name, so it is the application's own name. */
+test('the page title is the application display name, nothing more', () => {
+  const fsx = require('node:fs'), px = require('node:path'), dir = px.resolve(__dirname, '..');
+  const name = fsx.readFileSync(px.join(dir, 'oshal-app.yaml'), 'utf8').match(/^displayName: *(.+)$/m)[1].trim();
+  const title = fsx.readFileSync(px.join(dir, 'ui', 'index.html'), 'utf8').match(/<title>([^<]*)<\/title>/)[1];
+  require('node:assert/strict').equal(title, name);
 });

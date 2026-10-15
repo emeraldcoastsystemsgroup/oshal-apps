@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Move the ADR-139 dataset destination out of bot-lora-routes.ts and redeem the Send-to handle as the signed-in caller. The previous import asked core for handle metadata over the service rail (secret + encoded sub), which core's exact-principal artifact check refuses, and the GPU worker fetched the handle content over the same refused rail after the 15-minute handle had usually expired. The controller now fetches the bytes through core's own handle routes with the caller's original cookie or PAT, checks size and magic bytes, stages them in an owner-RLS expiring table, and the worker downloads them from a LoRA-owned exact-owner service route.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The worker download needs the import's own callback grant instead of the fleet service secret: the grant's owner, character and dataset-download kind must match the staged image. Each import dispatch mints that grant with the staging lifetime, and the dataset callback reports whether it settled a receipt so the ingest route can revoke the grant afterwards.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Serve the staged image at POST /dataset-download/:imageId (an empty signed POST) instead of GET /dataset/:imageId. The kernel's signed-package-callbacks rail admits POST only, and the ADR-149 catalog cannot bind a path that overlaps the studio's POST /dataset/import. The live GET was refused authorization_identity_required before the grant check ever ran.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | GET /dataset only reads. It used to expire stale staged bytes first (a DELETE and an UPDATE), and the native kernel admits a GET as a reader and refuses any SQL mutation under it, so selecting a character answered 502 "dataset receipts unavailable". The listing now reports a queued receipt whose staged bytes are gone or past their expiry as failed, which is what the expiry would have written, and the writer paths (the import and the worker callbacks) still expire and delete.
  */
 
 /**
@@ -363,20 +364,36 @@ async function importDatasetImage(ctx: AppContext, deps: DatasetRouteDeps, req: 
     clientId: queued.clientId, taskId: queued.taskId, message: `Dataset image ${filename} queued for ${input.subject}.` });
 }
 
-/** GET /dataset?subject= — the owner's receipts, after expiring stale staged bytes. */
+/**
+ * @description Report a queued receipt as failed once its staged bytes are gone or expired: no worker
+ * can fetch them any more, which is exactly what expireDatasetStaging records on the next write. A
+ * read cannot record it (a GET is admitted read-only), so the listing derives it instead.
+ * @param rows - The character's receipts, each with its id.
+ * @param live - Receipt ids whose staged bytes are still present and unexpired.
+ * @returns The receipts without their ids, with the effective status.
+ */
+export function effectiveDatasetReceipts(rows: Array<Record<string, unknown>>, live: Set<string>): Array<Record<string, unknown>> {
+  return rows.map(({ id, ...row }) => (row.status === 'queued' && !live.has(String(id)) ? { ...row, status: 'failed' } : row));
+}
+
+/** GET /dataset?subject= — the owner's receipts. A pure read: it never expires or deletes anything. */
 async function listDatasetImages(ctx: AppContext, deps: DatasetRouteDeps, req: Request, res: Response): Promise<void> {
   const sub = deps.callerSub(req);
   if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
   const subject = String(req.query.subject || '').trim();
   const character = await deps.loadCharacter(ctx, subject, sub);
   if (!character) { res.status(404).json({ error: 'character not found' }); return; }
-  await expireDatasetStaging(ctx.pool, character.id);
   const rows = (await ctx.pool.query(
-    `SELECT filename, source_name, caption, byte_size, status, created_at, ingested_at
+    `SELECT id, filename, source_name, caption, byte_size, status, created_at, ingested_at
        FROM oshal_lora_dataset_images WHERE character_id = $1 ORDER BY created_at DESC LIMIT 200`,
     [character.id],
   )).rows;
-  res.set('Cache-Control', 'private, no-store').json({ subject, storageKey: `lora-${character.id.replace(/-/g, '')}`, images: rows });
+  const live = (await ctx.pool.query(
+    `SELECT s.image_id FROM oshal_lora_dataset_staging s JOIN oshal_lora_dataset_images d ON d.id = s.image_id
+      WHERE d.character_id = $1 AND s.expires_at > NOW()`, [character.id],
+  )).rows.map((row: { image_id: unknown }) => String(row.image_id));
+  res.set('Cache-Control', 'private, no-store').json({ subject, storageKey: `lora-${character.id.replace(/-/g, '')}`,
+    images: effectiveDatasetReceipts(rows, new Set(live)) });
 }
 
 /**

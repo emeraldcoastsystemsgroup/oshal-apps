@@ -16,6 +16,8 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — GET /season (SV, the drop candidate, replacement levels), GET /waivers (rest-of-season board with bid and drop, streaming lane), GET /trades (two-sided proposals, both gains shown), and owner-scoped hand-typed league CRUD (/manual-leagues).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | With no projection for the current week (the feed answered no players and there is no cached copy), /season, /waivers and /trades answer the league, the team and projectionFeed {ok:false, reason} with no numbers, instead of a season value of 0.0, an empty waiver board read as "nobody improves your lineup" and weeks claimed as priced from their own projection. Every board also carries projectionFeed so an older cached copy is named. Guard: tests/fantasy-boards-no-projection.test.js.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | /season, /waivers and /trades refuse a league whose scoring gives every stat 0 points with scoring {ok:false, reason} and no numbers, before any feed is read (sweep 9: "Nobody on the wire improves your starting lineup" on all-0.0 projections). Guard: tests/fantasy-zero-scoring.test.js.
  *
  * @module fantasy-manage-routes
  */
@@ -25,8 +27,9 @@ import type { Pool } from 'pg';
 import { createChildLogger } from '@/shared/logger';
 import type { FantasyPlayer } from './fantasy-scoring';
 import { resolveLeagueContext, type LeagueContext } from './fantasy-context';
+import { scoringRefusedBody, zeroScoringReason } from './fantasy-manual';
 import { leagueRequestOf, requireSub, sendContextFailure } from './fantasy-http';
-import { seasonFeeds } from './fantasy-feed';
+import { seasonFeeds, type FeedState } from './fantasy-feed';
 import { buildSeasonPlan, type BuiltPlan } from './fantasy-plan';
 import { dropCandidate, replacementLevel, seasonValue } from './fantasy-season';
 import { waiverBoard } from './fantasy-waivers';
@@ -42,6 +45,7 @@ interface Planned {
   built: BuiltPlan;
   pool: Record<number, FantasyPlayer>;
   generatedAt: string | null;
+  feed: FeedState;
 }
 
 /**
@@ -50,17 +54,17 @@ interface Planned {
  * @param sub - Caller's subject.
  * @param ctx - The league.
  * @param q - Query (playoffWeight).
- * @returns The plan, the current week's pool and its cache age.
+ * @returns The plan, the current week's pool, its cache age and the feed's state.
  */
 async function planFor(pool: Pool, sub: string, ctx: LeagueContext, q: Record<string, unknown>): Promise<Planned> {
-  const { feeds, generatedAt } = await seasonFeeds(pool, sub, ctx.season, ctx.week, ctx.lastWeek);
+  const { feeds, generatedAt, feed } = await seasonFeeds(pool, sub, ctx.season, ctx.week, ctx.lastWeek);
   const weight = Number(q.playoffWeight);
   const built = buildSeasonPlan({
     currentWeek: ctx.week, lastWeek: ctx.lastWeek, playoffStart: ctx.playoffStart,
     playoffWeight: Number.isFinite(weight) && weight > 0 && weight <= 5 ? weight : undefined,
     feeds, byes: ctx.byes, slots: ctx.settings.slots, scoring: ctx.settings.scoring,
   });
-  return { built, pool: feeds.get(ctx.week) || {}, generatedAt };
+  return { built, pool: feeds.get(ctx.week) || {}, generatedAt, feed };
 }
 
 /**
@@ -77,6 +81,28 @@ function header(ctx: LeagueContext, p: Planned): Record<string, unknown> {
     weeks: { fromFeed: p.built.fromFeed, fromRate: p.built.fromRate, lastWeek: ctx.lastWeek, playoffStart: ctx.playoffStart },
     byesKnown: Object.keys(ctx.byes).length > 0,
     projectionsGeneratedAt: p.generatedAt,
+    projectionFeed: p.feed,
+  };
+}
+
+/**
+ * @description The answer when the current week has no projection at all: the league, the team and why, and no
+ * numbers. Every board prices from projections, so an empty feed would read as a season value of zero and a
+ * waiver wire that improves nothing.
+ * @param ctx - The league.
+ * @param p - The plan (its feed state).
+ * @param what - The board, for the log.
+ * @returns The body.
+ */
+function unavailableBoard(ctx: LeagueContext, p: Planned, what: string): Record<string, unknown> {
+  log.warn({ what, season: ctx.season, week: ctx.week, reason: p.feed.reason }, 'management board served without projections');
+  return {
+    source: ctx.source,
+    league: { name: ctx.settings.name, leagueId: ctx.key, season: ctx.season, week: ctx.week },
+    team: { teamId: ctx.own.teamId, name: ctx.own.name },
+    projectionFeed: p.feed,
+    projectionsAvailable: 0,
+    projectionsGeneratedAt: null,
   };
 }
 
@@ -112,7 +138,14 @@ function leagueRoute(pool: Pool, what: string, build: (ctx: LeagueContext, p: Pl
     try {
       const result = await resolveLeagueContext(pool, sub, { ...leagueRequestOf(q), withShape: true });
       if (!result.ok) { sendContextFailure(res, result); return; }
+      const zero = zeroScoringReason(result.ctx.settings.scoring);
+      if (zero) {
+        log.warn({ what, source: result.ctx.source }, 'management board refused: the league scoring scores nothing');
+        res.json(scoringRefusedBody(result.ctx, zero));
+        return;
+      }
       const planned = await planFor(pool, sub, result.ctx, q);
+      if (!planned.feed.ok) { res.json(unavailableBoard(result.ctx, planned, what)); return; }
       const body = await build(result.ctx, planned);
       log.info({ what, source: result.ctx.source, weeks: planned.built.plan.weeks.length, ms: Date.now() - started }, 'management board served');
       res.json({ ...header(result.ctx, planned), ...body });

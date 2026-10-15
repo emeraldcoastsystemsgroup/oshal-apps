@@ -401,7 +401,10 @@ window.AERO_LAB_DATA = {
 <script src="/api/aero-lab/geometry.js"></script>
 <script src="/api/aero-lab/app.js"></script>
 
-<details id="labReview" style="position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px));max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box">
+<style>/* The hand-off panel floats beside a wide screen; on a phone it sits in the page flow after the content, so it never covers the rows above it. */
+.handoff-dock{position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px))}
+@media (max-width:760px){.handoff-dock{position:static;width:auto;margin:16px}}</style>
+<details id="labReview" class="handoff-dock" style="max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box">
  <summary>Prepare an analysis document</summary>
  <p>Capture the visible simulation verdict, then edit the brief. These are modeled results, not measured performance.</p>
  <button type="button" id="captureLabEvidence">Use visible results</button>
@@ -410,7 +413,10 @@ window.AERO_LAB_DATA = {
 </details>
 <script>
 (async()=>{const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');const notes=document.getElementById('labNotes');
-document.getElementById('captureLabEvidence').addEventListener('click',()=>{notes.value=('SIMULATION REVIEW. Illustrative inputs; no field measurements or hardware validation. Snapshot '+new Date().toISOString()+'\n'+["verdictCard","fingerprint","runStatus"].map(id=>id+': '+(document.getElementById(id)?.textContent.trim()||'Not available')).join('\n')+'\nReview assumptions, source revision and convergence before drawing conclusions. Visible results can belong to a previous input configuration; check the run status.').slice(0,2000);});
+// One tile per separated part: the verdict card's chips and its label/value pairs are separate elements, and their joined
+// textContent ran together ("closed ✕admissible ✕certified ✓min SOC0.0500usable margin0.9269"). A label (.k) keeps its value (.v).
+const tileText=(el)=>{if(!el)return '';const flat=(n)=>String(n.textContent||'').trim().replace(/\s+/g,' ');const leaves=el.querySelectorAll?[...el.querySelectorAll('*')].filter((n)=>!n.children.length&&flat(n)):[];if(!leaves.length)return flat(el);const parts=[];for(const n of leaves){if(n.classList.contains('v')&&n.previousElementSibling?.classList.contains('k')&&parts.length)parts[parts.length-1]+=' '+flat(n);else parts.push(flat(n));}return parts.join(' · ');};
+document.getElementById('captureLabEvidence').addEventListener('click',()=>{notes.value=('SIMULATION REVIEW. Illustrative inputs; no field measurements or hardware validation. Snapshot '+new Date().toISOString()+'\n'+[["verdictCard","Verdict"],["fingerprint","Engine"],["runStatus","Run status"]].map(([id,label])=>label+': '+(tileText(document.getElementById(id))||'Not available')).join('\n')+'\nReview assumptions, source revision and convergence before drawing conclusions. Visible results can belong to a previous input configuration; check the run status.').slice(0,2000);});
 await mountConnectedActions({element:document.getElementById('labActions'),app:"aero-lab",contextForOffer:()=>({title:"aero-lab simulation review",notes:notes.value})});
 })().catch(()=>{document.getElementById('labReviewState').textContent='Connected actions are unavailable.';});
 </script>

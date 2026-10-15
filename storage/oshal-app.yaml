@@ -1,3 +1,15 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the GitHub and Dropbox API hosts for the native kernel's egress, with the caller's github and dropbox connections applied as Bearer tokens by the kernel.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Give storage-assistant route-backed tools over this package's own routes (storage-prefs, storage-local-files, storage-github-repos, and storage-set-targets held for the person's approval). With no tools the concierge answered from its persona alone and told an all-OSHAL-local person their buckets were on GitHub and Dropbox. Guarded by scripts/check-store-bots.test.mjs.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Notes: storage-save-note (POST /api/storage/local/save, held for the person's approval) saves a text note in the person's OSHAL-local store and storage-read-file (GET /api/storage/local/read) reads it back. Jarvis handed "save that note somewhere I can find it again" to Storage and the assistant answered that it could not create files. Guarded by storage/tests/notes.test.cjs.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | storage-delete-note (DELETE /api/storage/local/note, held for the person's approval) removes a saved note; on the native kernel Storage had no way to take an OSHAL-local file out again. Guarded by storage/tests/notes.test.cjs.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: a .txt note is saved as plain text. storage-save-note's text says so, and routes/local-notes.js takes chat Markdown out of a .txt note before saving (a saved note kept "**Sweep10 Budget Note**"). Words and route only; no schema type, permission or binding change. Guarded by storage/tests/notes.test.cjs.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Review of sweep 10: storage-save-note's text says only ** bold is taken out of a .txt note and everything else is saved exactly as sent (routes/local-notes.js no longer rewrites #, *, _, ticks or links, which changed approved code and commands). Words only; no schema type, permission or binding change. Guarded by storage/tests/notes.test.cjs.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the approval-held note tools declare `cardText`, the people-facing sentence the kernel's approval card shows under its heading (the delete card read 'Delete note' then 'Remove Note', one action named twice in different words). Words only; no route, schema or binding change. Guarded by storage/tests/notes.test.cjs.
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — storage (Storage hub: targets + assistant)
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 2). "Skills with a surface":
@@ -93,6 +105,115 @@ bots:
       - storage-backend-routing
       - storage-management
 
+# Route-backed tools for storage-assistant (native kernel: executorType api, inside /api/storage).
+# Reads run under the caller; the target change is held for the person's approval.
+tools:
+  - name: storage-prefs
+    displayName: Storage Targets
+    type: api
+    category: storage
+    description: Where the person's CODE and FILES buckets save now (github, dropbox or oshal-local, with repo/folder) and which storage connections are usable.
+    executor: { executorType: api, apiEndpoint: "GET /api/storage/prefs" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} before describing where anything saves. "connected" lists the usable storage connections; an empty list means none is connected.
+    tags: [storage, route-backed]
+  - name: storage-local-files
+    displayName: OSHAL-local Files
+    type: api
+    category: storage
+    description: The files saved in the person's OSHAL-local store.
+    executor: { executorType: api, apiEndpoint: "GET /api/storage/local/list" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} to list saved files. An empty "files" list means nothing is saved yet.
+    tags: [storage, route-backed]
+  - name: storage-github-repos
+    displayName: GitHub Repositories
+    type: api
+    category: storage
+    description: The person's GitHub repositories, through their own GitHub connection.
+    executor: { executorType: api, apiEndpoint: "GET /api/storage/github/repos" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} only when the person asks about GitHub repositories. A not-connected answer means GitHub is not connected in Connections.
+    tags: [storage, github, route-backed]
+  - name: storage-set-targets
+    displayName: Set Storage Targets
+    type: api
+    category: storage
+    description: Change where the CODE and FILES buckets save. Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "PUT /api/storage/prefs" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        code:
+          type: object
+          properties: { provider: { type: string, enum: [github, dropbox, oshal-local] }, repo: { type: string }, folder: { type: string } }
+          required: [provider]
+        files:
+          type: object
+          properties: { provider: { type: string, enum: [github, dropbox, oshal-local] }, repo: { type: string }, folder: { type: string } }
+          required: [provider]
+      required: [code, files]
+    usageInstructions: Read storage-prefs first and send BOTH buckets, keeping the one the person did not ask to change. Only choose github or dropbox when storage-prefs lists it as connected.
+    tags: [storage, route-backed]
+  - name: storage-save-note
+    displayName: Save Note
+    cardText: Saves this note as a file in your OSHAL storage.
+    type: api
+    category: storage
+    description: Save a text note as a .txt or .md file in the person's OSHAL-local store, where Storage lists it. Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/storage/local/save" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        name: { type: string, maxLength: 120, description: "The file name the person asked for, like sweep8-budget-note.txt; .txt is added when there is no extension." }
+        text: { type: string, description: "The whole note, exactly as agreed with the person. Plain text for a .txt note (** bold is taken out on saving; everything else is saved exactly as sent); Markdown only for a .md note." }
+        replace: { type: boolean, description: "true only when the person asked to replace a file of the same name." }
+        confirm: { type: boolean, const: true }
+      required: [name, text, confirm]
+    usageInstructions: Send the note the person agreed to, with {"confirm":true}. A 409 answer means a file of that name exists; ask before sending replace true. Say it is saved only after the tool answers ok.
+    tags: [storage, route-backed]
+  - name: storage-read-file
+    displayName: Read Note
+    type: api
+    category: storage
+    description: Read a saved .txt or .md note from the person's OSHAL-local store as text.
+    executor: { executorType: api, apiEndpoint: "GET /api/storage/local/read?name={input.name}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        name: { type: string, maxLength: 120 }
+      required: [name]
+    usageInstructions: Call with the exact file name from storage-local-files when the person asks to read a note back. Quote only what it returns.
+    tags: [storage, route-backed]
+  - name: storage-delete-note
+    displayName: Remove Note
+    cardText: Deletes this note from your OSHAL storage.
+    type: api
+    category: storage
+    description: Remove a saved .txt or .md note from the person's OSHAL-local store. Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "DELETE /api/storage/local/note?name={input.name}" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        name: { type: string, maxLength: 120 }
+      required: [name]
+    usageInstructions: Only when the person asks to remove a note; send its exact file name from storage-local-files.
+    tags: [storage, route-backed]
+
 ui:
   static:
     - toolName: storage-assistant
@@ -110,6 +231,16 @@ ui:
       icon: codicon codicon-folder
       iframeUrl: /api/files   # core framework surface — stays kernel-mounted
       section: top
+
+# Native kernel egress: inside the kernel's package sandbox the GitHub repo picker and repo
+# creation, and the Dropbox folder picker and file listing, call these hosts through the kernel's
+# fenced egress, which applies the caller's own github / dropbox connection as the Authorization
+# header. This package never holds the token.
+egress:
+  - host: api.github.com
+    credential: { connector: github, header: authorization, prefix: "Bearer " }
+  - host: api.dropboxapi.com
+    credential: { connector: dropbox, header: authorization, prefix: "Bearer " }
 
 routes:
   - module: routes/home-summary.js

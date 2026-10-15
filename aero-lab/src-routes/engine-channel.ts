@@ -12,6 +12,13 @@
  *   |                                           | (protocol + build hash) before any request
  *   |                                           | leaves, and unpacks inline export files into
  *   |                                           | the api-side workDir the download route reads.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The native kernel's sandbox has no network: a
+ *   |                                           | native channel sends each request line through
+ *   |                                           | the kernel's engine.exchange intent and hands the
+ *   |                                           | adapter the reply under the request's own id; the
+ *   |                                           | engine's hello is checked for protocol and busy as
+ *   |                                           | on a socket (the sandboxed copy carries no engine
+ *   |                                           | sources, so its build is the engine's own).
  */
 
 import * as fs from 'fs';
@@ -260,6 +267,103 @@ export function unpackExport(line: string, workDir: string): string {
   }
   delete result.bridgeFiles;
   return JSON.stringify(msg);
+}
+
+/** What the kernel's `engine.exchange` intent answers: the engine's own hello and its reply. */
+export interface NativeExchange { hello: unknown; reply: unknown }
+
+/** The kernel relays one engine request within the 60 s process call; keep a margin. */
+export const NATIVE_MAX_MS = 55_000;
+
+/** The native kernel's engine path: the intent, the api-side workDir and the hint to show. */
+export interface NativeChannelOptions {
+  exchange: (request: Record<string, unknown>, timeoutMs: number) => Promise<NativeExchange>;
+  workDir: string;
+  installHint: string;
+}
+
+/**
+ * @description Each written line is one engine request sent through the kernel; requests run
+ * independently and their replies come back under their own ids, as on the socket.
+ */
+class NativeChannel implements EngineChannel {
+  private ended = false;
+
+  constructor(private readonly opts: NativeChannelOptions, private readonly handlers: ChannelHandlers) {}
+
+  get alive(): boolean {
+    return !this.ended;
+  }
+
+  write(line: string): boolean {
+    if (this.ended) return false;
+    let msg: Record<string, unknown>;
+    try {
+      msg = JSON.parse(line) as Record<string, unknown>;
+    } catch {
+      return false;
+    }
+    const { id, ...request } = msg;
+    void this.send(id, request);
+    return true;
+  }
+
+  end(): void {
+    this.ended = true;
+  }
+
+  kill(why: string): void {
+    if (this.ended) return;
+    this.ended = true;
+    logger.info({ why }, 'native engine channel closed; requests already sent finish in the kernel');
+  }
+
+  private async send(id: unknown, request: Record<string, unknown>): Promise<void> {
+    let answer: NativeExchange;
+    try {
+      answer = await this.opts.exchange(request, NATIVE_MAX_MS);
+    } catch (err) {
+      const message = (err as Error).message || String(err);
+      logger.error({ err, stack: (err as Error).stack }, 'the kernel could not relay the engine request');
+      this.gone(/deadline/.test(message)
+        ? { code: 'engine_error', message: `engine did not answer within ${Math.round(NATIVE_MAX_MS / 1000)} s` }
+        : this.unavailable(`the kernel could not reach the aerosim engine container (${message})`));
+      return;
+    }
+    const hello = (answer?.hello ?? {}) as { bridge?: BridgeHello; error?: { code?: string; message?: string } };
+    if (hello.error) {
+      const text = String(hello.error.message || 'engine container refused the connection');
+      this.gone(hello.error.code === 'engine_busy' ? { code: 'engine_busy', message: text } : this.unavailable(text));
+      return;
+    }
+    if (hello.bridge?.protocol !== BRIDGE_PROTOCOL) {
+      this.gone(this.unavailable(`aerosim engine container speaks bridge protocol ${String(hello.bridge?.protocol)}, this package needs ${BRIDGE_PROTOCOL}`));
+      return;
+    }
+    if (this.ended) return;
+    const line = JSON.stringify({ ...(answer.reply as Record<string, unknown>), id });
+    this.handlers.onLine(line.includes('"bridgeFiles"') ? unpackExport(line, this.opts.workDir) : line);
+  }
+
+  private unavailable(message: string): ChannelFailure {
+    return { code: 'capability_unavailable', message, reason: `${message} — ${this.opts.installHint}` };
+  }
+
+  private gone(failure: ChannelFailure): void {
+    if (this.ended) return;
+    this.ended = true;
+    this.handlers.onGone(failure);
+  }
+}
+
+/**
+ * @description Open the native kernel's engine channel.
+ * @param opts - The exchange intent, workDir and install hint.
+ * @param handlers - Line + gone callbacks.
+ * @returns The channel (each write is one kernel request).
+ */
+export function openNativeChannel(opts: NativeChannelOptions, handlers: ChannelHandlers): EngineChannel {
+  return new NativeChannel(opts, handlers);
 }
 
 /**

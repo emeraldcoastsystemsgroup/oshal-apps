@@ -5,6 +5,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Style the Your brand panel, its swatches and the gallery's Show in my brand switch.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Region tool group in the canvas toolbar, pressed state and a wrapping status line.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Change a region panel and the side-by-side compare dialog, stacking on narrow screens.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Keep reviewed PSD losses, source digests and form controls inside narrow-screen dialogs.
  */
 :root{color-scheme:light dark;--editor-paper:var(--bg-secondary);--editor-line:var(--border-color)}
 *{box-sizing:border-box}body{margin:0;background:var(--bg-primary);color:var(--text-primary);font:14px/1.5 var(--font-family,system-ui,sans-serif)}
@@ -35,3 +36,6 @@ dialog{width:min(680px,calc(100vw - 32px));max-height:80vh;padding:24px;border:1
 .region-edit-panel{margin:18px 0 0;padding:14px 0 0;border-top:1px solid var(--editor-line)}.region-edit-panel textarea{min-height:64px}.region-edit-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 #regionCompareDialog{width:min(1040px,calc(100vw - 32px));max-height:90vh;overflow:auto}.region-compare{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:14px}.region-compare figure{margin:0;padding:10px;background:var(--bg-secondary);border-radius:12px}.region-compare img{display:block;width:100%;height:auto;max-height:60vh;object-fit:contain}.region-compare figcaption{margin-top:6px;font-size:12px;color:var(--text-secondary);text-align:center}
 @media(max-width:720px){.region-compare{grid-template-columns:minmax(0,1fr)}}
+
+/* Reviewed PSD conversion keeps long reports and source digests inside phone dialogs. */
+#psdReview,#psdSourceDetails{overflow:auto;overflow-wrap:anywhere}#psdReview form{display:grid;gap:12px}#psdReview input,#psdReview select{width:100%;min-width:0;max-width:100%}#psdReview ul,#psdSourceDetails ul{padding-left:20px}#psdSourceDetails button{margin:6px 6px 0 0}

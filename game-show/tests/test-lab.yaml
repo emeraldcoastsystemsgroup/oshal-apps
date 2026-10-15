@@ -4,6 +4,15 @@
 # -----------------------------------------------------------------------------
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.11.4: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register native-reads: the lobby reads issue only SELECTs (no retention DELETE on GET /rooms), the hall of fame is bounded to the retention window, and creating a room still sweeps.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register native-writes: AI and house podiums insert a NULL owner with their identity in seat_key, GET /sync writes nothing even with a lapsed clock, POST /sync resolves it, and the surface polls with POST.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | native-writes: podiums are the host's gameshow_podiums rows (migrations/003); the double fills a NULL owner with the caller and keeps uq_gameshow_seat, as the native kernel does.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register end-game-status (the host desk End game ends the room) and home-summary-dates (saved times read as local dates).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | K4: register feud-intro-context - the Family Feud open names the scoreboard teams and the drawn question instead of inviting the host to invent them.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register host-desk-screen: the Host Desk names the current round's question and the show posters are buttons, read by the kernel's screen snapshot (sweep 9).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register round-caption (host-guards): a later round's start captions the show's own round milestone instead of keeping round 1's host line (sweep 10), with no host-bot call; the open keeps its narrated intro.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Register play-phone-layout: at 412x915 the BUZZ IN bar stays inside its dock and the round clock leaves the question readable (demo sweep 1).
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Register repeat-question: a generated round whose question was already played is asked for again, and a second repeat is refused (sweep 14).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -28,6 +37,202 @@ cases:
       - The stats are the three room counts in plain words plus the top score; rooms carry their plain status and update time; an unnamed room and each hall-of-fame score are named from the show catalog.
       - Failed scores or show names keep the rooms; a partly unreadable record, no game nights, a refusal and a failure each read as what they are.
       - Under an audience view the module script mounts no connected actions and reads nothing; the full page still does both.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: native-reads
+    name: Side-effect-free lobby reads
+    purpose: Drive the room service's lobby reads and room creation against a recording pool - no database, network or provider.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/native-reads.test.js
+    expected:
+      - listRooms, leaderboard and loadState issue only SELECT statements, so GET /rooms is admissible as a read on the native kernel.
+      - The hall of fame reads only games that ended within the seven-day retention window.
+      - Creating a room still runs the ended-room retention sweep.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: native-writes
+    name: Podium owners and the sync tick under native admission
+    purpose: Drive the room service against a pool that applies the native kernel's reader-admission and owner-field rules - no database, network or provider.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/native-writes.test.js
+    expected:
+      - AI and house podiums are the host's gameshow_podiums rows identified by seat_key, several beside the host's seat, under a double that fills a NULL owner with the caller and keeps uq_gameshow_seat as the native kernel does.
+      - The host resolves to their own seat, never to one of their podiums.
+      - GET /sync issues no write even when the round clock has lapsed.
+      - POST /sync resolves the lapsed clock and answers the poll with the new rev.
+      - An AI podium is read from its seat_key as an NPC and never as the caller's own seat; a row written before migration 002 still reads.
+      - The surface polls with POST /sync, the route serves it, and migration 003 is declared.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: end-game-status
+    name: The host desk End game ends the room
+    purpose: Drive the real override route handler and room service against an in-memory room - no database, network or provider.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/end-game-status.test.js
+    expected:
+      - End game saves the outro and sets the room status to ended.
+      - A clock override leaves the room live, and only the host can end the game.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: home-summary-dates
+    name: Saved times read as local dates
+    purpose: Run the home-summary route with a stubbed router and pool - no database or network.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/home-summary-dates.test.js
+    expected:
+      - The review evidence and the handed-off brief carry a local date with its zone and never an ISO timestamp.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: feud-intro-context
+    name: The Family Feud open names the real teams and question
+    purpose: Build the intro host prompt from a fresh room and from a room with a drawn survey - no database, network or provider.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/feud-intro-context.test.js
+    expected:
+      - The intro names Team A and Team B as the scoreboard does, forbids invented names, quotes the drawn question and carries the board context.
+      - Before a question is drawn it says none is drawn and not to name a topic.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: host-desk-screen
+    name: The Host Desk names the current question; posters are buttons
+    purpose: >-
+      Load the shipped stage.html and ui scripts in the shell's application frame in Chromium at 412x915 over a stub game API
+      and read them with the kernel's real screen snapshot (crates/api/src/shell_screen_state.js).
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/host-desk-screen.test.js
+    expected:
+      - During round 2 of Family Feud the Host Desk reads "Round 2 question" with that round's question, above the answer key.
+      - Each show poster in the lobby is a button the snapshot names with Host this show.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+      - fixture:kernel-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+    installation: never
+  - id: round-caption
+    name: Each round's host caption is that round's
+    purpose: Drive the REAL host service and the real Whammy and Family Feud show modules over an in-memory room and a recording host bot - no database, network or provider.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/host-guards.test.js
+    expected:
+      - A later round's start replaces round 1's HOST line with the new round's milestone ("Round 2 - the question"), newer than the old caption so the speaker surface voices it.
+      - The round caption makes no host-bot call; the open (round 0 to 1) is still captioned by the narrated intro.
+      - Spoken lines are sanitized and host JSON is extracted tolerantly, as before.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: play-phone-layout
+    name: On a phone the buzzer bar fits and the clock leaves the question readable
+    purpose: >-
+      Load the shipped stage.html, ui scripts and CSS in the shell's application frame in Chromium at 412x915 over a stub
+      game API during a face-off with the buzzer open and the round clock running.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/play-phone-layout.test.js
+    expected:
+      - The BUZZ IN bar ends inside its dock and inside the 412 px screen.
+      - The round clock does not overlap the question.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+    installation: never
+  - id: repeat-question
+    name: A played survey question is never played again
+    purpose: >-
+      Through the real host service and the real Family Feud show module with an in-memory room: round 3's start when the
+      model repeats round 2's question (sweep 14: "Name something people often find stuck in their hair." twice).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/repeat-question.test.js
+    expected:
+      - A repeat is asked for once more and the fresh question is played as round 3.
+      - Two repeats are refused with 502 and the board stays on round 2; a fresh question first time costs one host call.
     prerequisites:
       - runner:node-test
     sideEffects: none

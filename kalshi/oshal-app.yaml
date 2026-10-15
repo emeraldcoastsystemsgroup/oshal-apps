@@ -118,6 +118,12 @@ dependencies:
     tools: []
     connectors: []
 
+# OUTBOUND HOSTS. A native package has no network of its own: the kernel's fenced egress carries
+# the prediction-markets reads (open markets, series fee models, candles, the exchange state) and
+# refuses any host not declared here. Kalshi's market data is public; no credential is attached.
+egress:
+  - host: api.elections.kalshi.com
+
 theme: midnight
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -216,6 +222,22 @@ settings:
       max: 48
       scope: user
       label: Maximum alerts per day
+
+# The background scan runs only inside an admitted request: this schedule fires POST /scan/tick as the
+# person who activated it, and the tick scans only when the stored snapshot is older than the configured
+# scanIntervalMinutes (so a fifteen-minute fire is cheap when nothing is due). It replaces the one-minute
+# in-process timer, whose ticks ran outside any request and were refused their SQL by the native kernel.
+schedules:
+  - id: background-scan
+    cron: "*/15 * * * *"
+    runsAs: user
+    target: service-route
+    route: /api/kalshi/scan/tick
+    method: POST
+    body: {}
+    timeoutSeconds: 300
+    description: Scan Kalshi's open markets when the snapshot is due and alert you about new playable hands.
+    offer: Keep my Kalshi edge scan fresh and tell Jarvis about new playable hands.
 
 # ROUTES — the packaged surface router, mounted /api/kalshi on activation. (In
 # core server.ts this was createKalshiRoutes behind serviceSecretOr(requiresAuth),

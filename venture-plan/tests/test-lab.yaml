@@ -8,6 +8,21 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.4: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0, the authorization catalog: catalog-bindings (every route bound once under the kernel's segment rule, the tick and bots pinned), kernel-catalog-activation (the real kernel loader, enforce-mode authorization runtime, route mounter, ADR-157 activation and tick runner over the package), rebaseline-live-acceptance-doubles (the live walk against a loopback api and scheduler double) and rebaseline-live-acceptance (the dated live walk itself, run after install as the operator automation identity and a second caller).
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: schema-bootstrap-postgres, the two schema bootstraps one api boot starts (console and rebaseline-tick routers) against a uniquely labelled disposable PostgreSQL, round after round from a fresh schema; an external case like the other disposable-PostgreSQL suites in the store.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | venture-run-native: on the native kernel an authoring run is driven and closed inside its request (host calls after the response are refused there); a cut-off reply fails its phase with that reason, analysts one request cannot fit are deferred and the next run continues from them, and a run an earlier request left running is closed as interrupted.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | venture-run-native also reads a run whose request was abandoned as interrupted once past the request deadline, writing nothing (venture-routes asserts the same against a pool that refuses writes, as the kernel does on a read); new venture-analyst-budget (each analyst contract's largest reply fits the explicit output cap, which fits one native request) and venture-run-ui (the console's running banner before the POST answers and each phase's reason after a run closes).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | venture-numbers-ui: the Numbers tab groups the stored flat waterfall rows into one card per channel with the engine's contribution figure, the sensitivity table shows the sweep's own baseline and each assumption in its unit and names a stale saved model, and Delete removes a venture only after a confirm.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | venture-verdicts-ui: the "What would have to be true" rows compare each threshold with the plan values the tiles show (sell-through headroom read higher-is-better, the planned run from the inversion answer), and the publish banner, stage strip and posture strip agree with the stored "[severity] where: message" issues and the guessed chips.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | venture-verdicts-ui: the sell-through row compares the threshold with the share the plan's demand sells (not a fixed 100%), checked against the compiled engine on a money-losing plan; above 100% reads impossible.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | New venture-required-inputs (fixture analyst replies register every input the model names and the real composed model traces with no unsourced figure, computing with the registered values); venture-run-native adds resume from a failed or gap-left analyst, a named unsupplied slot, and documents stored from the computed numbers on a native full run; venture-analyst-budget counts the required slots.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | New analyst-run-keeps-evidence (disposable PostgreSQL): an ops run keeps a recorded vendor quote and a person's own entry on its required slots, the composed freight and duty are the quoted and entered values, a held slot is no gap, and the analyst still revises its own estimate.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | New venture-registered-terms: the registered cost per direct order and container fill are what the plan computes with (the live -$33.24 contribution reproduced on the parent shape), analyst units are converted or refused, GET /assumptions answers each row's grade and the console tallies and edits in the server's vocabulary. analyst-run-keeps-evidence adds the BOM redraft case: the BOM analyst's estimates for lines and vendors a redraft no longer has are closed, a person's entry stays.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | venture-required-inputs expects one range for the shipped volume per unit (slot and compose agree).
+# 16 | maintainer@emeraldcoastsystemsgroup.com | New documents-carry-current-numbers (disposable PostgreSQL + the kernel runtime's Office renderer): narrated figure tokens render, an unknown token rejects only its section, the computed document set is one batched INSERT, a document from an earlier computation is marked stale and print/export use the current numbers, and plan.docx has no Markdown markers. venture-run-native adds the batched write and the document deadline; venture-run-ui and venture-verdicts-ui the Documents banner line and Step 4 with documents stored.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: venture-run-native adds the strict retry of an analyst reply that did not parse (once, only when it fits the request, never for a cut-off reply) and Regenerate prose with an unreachable break-even; new venture-prose-claims (real catalogue: unreachable figures named to the strategist, a sentence claiming one removed, STRICT_JSON on the retry only).
+# 18 | maintainer@emeraldcoastsystemsgroup.com | Review of sweep 10: venture-prose-claims expects conditional sentences ("would have to", "need", "if", "to reach") kept and only assertions that break-even is reached removed, and an emptied section kept with a note; venture-run-native stores those conditions through Regenerate prose.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | Round 14: no narrated sentence is deleted. venture-prose-claims expects break-even facts from the real engine (reached month and run size, or not reached with the horizon net income as the gap) in the narrate prompt, conditions kept with no note, claims (including the round-13 modal forms) kept with the visible check note, and no note on a reached model; venture-run-native stores them that way through Regenerate prose.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | Register venture-landed-label: the landed figures' labels say the BOM cost is included, so a summary no longer adds the landed cost on top of the factory cost (sweep 13).
+# 21 | maintainer@emeraldcoastsystemsgroup.com | Register venture-figure-units: narrated figures read with their unit words, a ratio as a rounded percent, and a rejected section names no machine id (sweep 14); venture-numbers-ui also expects Delete to clear the deleted venture's banners.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -415,6 +430,186 @@ cases:
       timeoutMs: 60000
       maxMemoryMb: 256
     installation: never
+  - id: venture-run-native
+    name: Analyst runs finish on the native kernel
+    purpose: >-
+      Run the compiled orchestrator against store and bot doubles that refuse every call once the request has
+      answered, as the native kernel does.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-run-native.test.js
+    expected:
+      - A run is closed inside its request and nothing is attempted after the response.
+      - A BOM reply cut off before its JSON closed fails the phase with that reason, never leaving it running.
+      - Analysts that one 60-second request cannot fit are deferred, and the next run continues from them.
+      - A run an earlier request left running is closed as interrupted before a new run opens.
+      - A run whose request was abandoned mid-call is read as interrupted once it is past the request deadline plus a
+        margin, without any write; a fresh run, a run this process drives and any run off the native kernel read as stored.
+      - Run continues from the first analyst the latest full run deferred, failed or left with an unsupplied input, and
+        starts over only after a clean cycle.
+      - A market reply that leaves a required slot empty finishes the phase with that slot named on the phase and run.
+      - A native full run stores every catalogue document rendered from the computed numbers with no narration call.
+      - A BOM reply that does not parse is asked for once more with the strict JSON rule and the run goes on with it; a slow
+        reply that leaves no room, or a cut-off reply, is not retried and fails with its reason.
+      - Regenerate prose gives the strategist break-even as computed and stores a sentence claiming it is reached as written,
+        with the visible check note after its section.
+      - Regenerate prose stores the conditions for breaking even exactly as written with no note, and a section whose only
+        sentence claimed break-even is kept with the check note.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All records are synthetic in-memory fixtures; nothing is written outside the test process.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-required-inputs
+    name: The analysts register every input the model names
+    purpose: >-
+      Turn fixture analyst replies in the stated contract into stored assumption rows through the package's own parsers
+      and phase helpers, then compose and build the real model from them. Live, after bom, market and ops ran, the model
+      refused on model:traceability because the analysts named their own keys and nothing registered the rest.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-required-inputs.test.js
+    expected:
+      - After the analysts, no input the model names is missing and no figure is unsourced.
+      - Without those rows the same plan names each missing key (the live failure shape).
+      - Registered freight, duty, demand, shelf price and final-assembly values are what the model computes with, in the
+        ledger unit; a scenario's own retail price still wins.
+      - An empty, wrongly banded or out-of-range slot is named and never registered.
+      - The market and ops prompts ask for exactly their own slots.
+      - A shipped volume per unit the slot accepts is the volume the freight computes with; slot and compose share one range.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All records are synthetic in-memory fixtures; nothing is written outside the test process.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-analyst-budget
+    name: Analyst replies fit one native request
+    purpose: >-
+      Build the largest reply each analyst prompt's contract allows, from the compiled prompts themselves, and measure
+      it against the explicit output cap and the cap against the native request deadline.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-analyst-budget.test.js
+    expected:
+      - Every analyst call sends max_output_tokens equal to the package's cap and asks for minified JSON.
+      - The largest BOM, market and ops replies the contracts allow parse with no rejected rows and fit the cap.
+      - The cap is written within a native request even at the slowest output rate seen, starting as late as allowed.
+      - The unbounded 10-line, 4-vendor BOM shape that was cut off live does not fit.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All records are synthetic in-memory fixtures; nothing is written outside the test process.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-run-ui
+    name: The console says what an analyst run did
+    purpose: >-
+      Run the console's own run-status block against stub elements and a stub API, step by step.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-run-ui.test.js
+    expected:
+      - Pressing Run shows the running banner and disables the button before the POST answers.
+      - A closed run names each failed, skipped and deferred phase with its reason and the run-again note, never a
+        plain "Run finished", and says so again when the venture is reopened.
+      - A run that finished every phase still says finished; a refused start clears the banner and names the refusal.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All records are synthetic in-memory fixtures; nothing is written outside the test process.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-numbers-ui
+    name: The Numbers tab reads the stored model, and a venture can be deleted
+    purpose: >-
+      Run the page's own waterfall grouping, sensitivity formatting and Delete functions (extracted from
+      tools/venture.html) against stub elements, the live snapshot's flat waterfall shape and a recording API.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-numbers-ui.test.js
+    expected:
+      - Flat stored waterfall rows become one card per channel, each with the engine's contribution per unit and rate;
+        a channel without the figure states the gap and draws no closing bar.
+      - The sensitivity table shows the outcome at the plan values, reads each assumption in its unit (bps as a
+        percentage), and names a saved model whose net income differs from the sweep's baseline.
+      - Delete calls DELETE /ventures/:id only after the person confirms, then returns to the empty state and reloads
+        the list, with the deleted venture's run banner, posture tiles and publish banner cleared (sweep 14).
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All records are synthetic in-memory fixtures; nothing is written outside the test process.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-verdicts-ui
+    name: The inversion verdicts and the publish state agree with the engine
+    purpose: >-
+      Run the page's own invRow, renderInversionCard, renderHeader and renderStages (extracted from tools/venture.html)
+      against stub elements with figure values, warnings and inversions copied from a live reproduction.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-verdicts-ui.test.js
+    expected:
+      - >-
+        The sell-through row's plan side is the share the plan's demand sells, min(demand.units, planned run) / run:
+        needing 85.2% while demand covers the run is +14.8% headroom; the engine fixture with demand 400 on a 1,000 run
+        (loses money, needs 51.1%, sells 40%) is breached, never headroom; above 100% is impossible; a missing demand
+        or run shows no plan value instead of 100%.
+      - The landed-cost, factory-price and run rows read the plan side from the figure registry and the inversion
+        answer's plannedRunUnits, never "no plan value to compare" while the tiles show the value.
+      - >-
+        Stored "[severity] where: message" warnings are issues, so a refused model names its blocker in the banner and
+        the stage strip and never prints "0 blocking issue(s)".
+      - The posture strip counts the figures whose chip says guessed or estimated, and the inputs no assumption registers.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All records are synthetic in-memory fixtures; nothing is written outside the test process.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
   - id: venture-schedule
     name: Manufacturing and cash timing
     purpose: Calculate synthetic critical paths, production and inventory timelines.
@@ -688,4 +883,179 @@ cases:
     limits:
       timeoutMs: 300000
       maxMemoryMb: 1024
+    installation: never
+  - id: analyst-run-keeps-evidence
+    name: An analyst run keeps a vendor quote and a person's entry on its slots, against a disposable PostgreSQL
+    purpose: >-
+      Record a vendor quote on landed.freight.container-rate and a person's own landed.duty.hts-rate, then drive an ops
+      run (native, in-request) whose fixture analyst fills every ops slot, with the compiled run, store, quote and compose
+      modules over the package's forced owner RLS on the api's pool shape. Only the analysts' bot calls and the logger are
+      seams; no provider is reached.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/venture-run-evidence-slots.test.mjs
+    expected:
+      - After the ops run the live freight row is still the quote and the live duty row is still the person's entry; the final-assembly slot nobody held takes the analyst's value.
+      - The ops phase finishes done with no gap named, and the run would not repeat the analyst over the held slots.
+      - The composed engine input computes with the quoted container freight and the entered duty rate.
+      - A second ops run that leaves the quoted slot empty names no gap for it and still replaces the analyst's own earlier estimate.
+      - The composed freight ships the registered units per container and CBM per unit.
+      - A second BOM run with different line refs closes the BOM analyst's live estimates for the first draft's lines and vendor terms (kept in each key's history), leaves a person's entry on an old line live, and the plan rolls up only the redrafted lines.
+    prerequisites:
+      - runner:node
+      - core:dependencies
+      - harness:oshal-core-root
+      - service:docker
+      - image:postgres-16-alpine-local
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/venture-schema-postgres.fixture.mjs
+        - tests/helpers/venture-schema-boot.cjs
+      cleanup: Remove the uniquely labelled fixture container and its tmpfs storage; never connect to the installed database or a provider.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: venture-registered-terms
+    name: The plan computes with the registered channel and freight terms, in their units, and the ledger is graded
+    purpose: >-
+      Live (sweep 8) a reading light at $19.99 refused to publish with a -$33.24 contribution while $12 per order was
+      registered: the default direct channel charged its itemised stack and every product shipped 400 units of 0.05 CBM
+      to a container. The analyst ledger held percentages as money, and the Assumptions tab said 0 of 36 assumptions
+      were estimates beside 34 model guesses. Runs the compiled compose, channel engine, model, contract parser and
+      routes, and the page's own functions.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-registered-terms.test.js
+    expected:
+      - The parent shape (no order cost) reproduces the live contribution, -33,238,730 micros, to the micro.
+      - A registered channel.dtc.terms is the single per-order charge in the direct waterfall, bound so the sweep moves it.
+      - Registered units per container and CBM per unit decide the containers shipped; an unregistered fill is named missing.
+      - An analyst's usd and pct convert to micros and basis points; a percentage key stated as money and an unknown unit are refused.
+      - GET /assumptions and the history answer each row's grade on the engine ladder.
+      - The ledger banner counts the graded estimates and guesses, and the editor offers only the confidences and sources PATCH accepts.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All records are synthetic in-memory fixtures; nothing is written outside the test process.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: documents-carry-current-numbers
+    name: Documents and exports carry the computed numbers in words, from the current model
+    purpose: >-
+      Sweep 9 (2026-10-12): the Executive summary printed {{fig:demand.priceMicros}}, plan.docx printed
+      "**Decision this supports:**", a document showed an earlier computation's landed cost with no note, and a native
+      run timed out storing 17 documents one insert at a time. Drives the compiled run, store and document routes over
+      the package's forced owner RLS on the api's pool shape, and exports plan.docx through @oshal/office-runtime, the
+      renderer the native kernel's office port wraps. Seams: the analysts' and narrator's bot calls, the caller sub, the router.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/venture-prose-export.test.mjs
+    expected:
+      - A native full run stores the whole computed document set with exactly one INSERT INTO venture_documents; a key given twice gets one next version and the last entry.
+      - A narrated section's {{fig:id}} tokens print the engine's formatted values, no token reaches the reader, and a token naming an uncomputed figure replaces only its own section with a rejection naming that id.
+      - After a recompute every stored document is listed with stale naming the latest model, the read keeps the stored version with stale.latestComputedAt, and the print view renders from the latest computation.
+      - plan.docx's document.xml has no "**", no "{{fig:" and no "> " quote marker, and one slide per document heading keeps each table separate with escaped pipes inside a cell.
+    prerequisites:
+      - runner:node
+      - core:dependencies
+      - core:runtime-dependencies
+      - harness:oshal-core-root
+      - service:docker
+      - image:postgres-16-alpine-local
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/venture-schema-postgres.fixture.mjs
+        - tests/helpers/venture-schema-boot.cjs
+      cleanup: Remove the uniquely labelled fixture container and its tmpfs storage; never connect to the installed database or a provider.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: venture-prose-claims
+    name: Narration states break-even as computed and a contradicting claim carries a check note
+    purpose: >-
+      Sweep 10: the narrated "What would have to be true" said the venture reaches break-even while the figure table read
+      it not reachable. Round 14: nothing is deleted; the narrator gets break-even as computed and one check attaches a
+      visible note. Read the real document catalogue and engine, and drive the compiled venture-bots over a recording bot rail.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-prose-claims.test.js
+    expected:
+      - Break-even is not a NOT REACHABLE figure; other unreachable figures are still named.
+      - Over the real engine, break-even facts give the reached month and run size, or say it is not reached with the horizon net income as the gap.
+      - The narrate prompt carries those facts under BREAK-EVEN AS COMPUTED and adds nothing without them.
+      - Conditional, hypothetical and scenario sentences (would have to, need, if, to reach, at $2.10 per lid, with demand tripled) are kept with no note.
+      - A sentence asserting break-even is reached (including a modal in another clause, as in would cover ... before the venture reaches break-even) is kept as written and its section gets the visible check note; no section is dropped.
+      - A plan whose computed model reaches break-even gets no note.
+      - The strict analyst retry carries STRICT_JSON and the first call does not.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: venture-landed-label
+    name: "The landed cost reads as including the BOM cost"
+    purpose: "Build the compiled model over the fixture venture and read its landed figures as the narration table carries them - no network, database or model."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-landed-label.test.js
+    expected:
+      - "The landed unit and run figures are labelled as including the BOM cost and carry it, and the narration's figure table pairs each label with its value."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: venture-figure-units
+    name: Narrated figures read with their units
+    purpose: >-
+      Over a model the compiled engine computes from the fixture venture, the compiled proseSection renders the sweep's
+      own sentences (sweep 14: "requiring 2 of ocean freight to achieve a fill ratio of 0.8333333333333334").
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-figure-units.test.js
+    expected:
+      - Containers and weeks carry their unit word, the fill reads as a rounded percent, and a token already followed by its unit is not given it twice.
+      - A misnamed figure is said by its label, an unknown one as "a figure the model did not compute", with no id shown.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

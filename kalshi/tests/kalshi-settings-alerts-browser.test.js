@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Add APP-05 real-Chromium coverage for the compiled Kalshi Settings/Alerts route and surface through a signed local-session boundary, including caller-scoped persistence, operator-only deployment settings, cross-user isolation, and fail-closed anonymous/forged requests.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | The engine seam learns alertRecord (folded through the real summarizeAlertRecord), matching the /alerts route that now answers with the caller's W-L record beside the rows.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | The engine seam answers scanUnavailableReason (null) and calibrationMissing, which GET /scan and /status now read; the cron seam drops the retired startKalshiScanCron.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Sweep 14: the Settings labels showed raw configuration keys ("scanIntervalMinutes · allowed 5–1440"). The fixture serves the manifest's own settings.schema (it built a hand-labelled copy whose labels fell back to keys), and the operator's Settings tab shows each label with its allowed range only; no label carries a configuration key.
  */
 
 'use strict';
@@ -52,21 +54,11 @@ function resolveDependency(name, explicitEnv) {
   );
 }
 
-/** Build the manifest-shaped schema needed by the real surface from the package's pure config. */
+/** The manifest's own settings.schema, the one the installed route serves (labels and bounds included). */
 function buildSettingsSchema() {
-  const labels = {
-    scanIntervalMinutes: 'Scan every (minutes)',
-    notifyOutward: 'Also send to my notification channel',
-    alertMaxPerDay: 'Maximum alerts per day',
-  };
-  return Object.fromEntries(Object.entries(scanConfig.SCOPE_OF).map(([key, scope]) => {
-    const value = scanConfig.KALSHI_SCAN_DEFAULTS[key];
-    const spec = { default: value, label: labels[key] || key, scope };
-    if (key === 'alertMinStrength') return [key, { ...spec, type: 'string', enum: ['monster', 'strong', 'playable'] }];
-    if (typeof value === 'boolean') return [key, { ...spec, type: 'boolean' }];
-    if (typeof value === 'number') return [key, { ...spec, type: key === 'alertMinEdgeCents' ? 'number' : 'integer' }];
-    return [key, { ...spec, type: 'string' }];
-  }));
+  const yaml = resolveDependency('js-yaml', process.env.JS_YAML_MODULE);
+  const manifest = yaml.load(require('node:fs').readFileSync(path.join(PACKAGE_DIR, 'oshal-app.yaml'), 'utf8'));
+  return manifest.settings.schema;
 }
 
 /** Create deterministic collaborators outside the route/UI/auth boundary under test. */
@@ -114,10 +106,11 @@ function buildRouteCollaborators(state) {
     alertRecord: async (_pool, sub) => scanConfig.summarizeAlertRecord(state.alerts.get(sub) || []),
     readSnapshot: async () => null,
     loadCalibration: () => ({ table: null, mtime: null }),
+    scanUnavailableReason: () => null,
+    calibrationMissing: () => 'calibration not loaded (fixture)',
   };
   const cron = {
     ALERT_TOPIC: 'kalshi-edge',
-    startKalshiScanCron: () => undefined,
     scanRuntimeStatus: () => ({ running: false, startedAt: null, lastError: null, lastMs: null, lastSource: null, cyclesRun: 0 }),
     manualRunAllowed: () => ({ allowed: true, retryAfterSeconds: 0 }),
     scanNow: async () => undefined,
@@ -363,6 +356,13 @@ async function exerciseOperatorBrowser(browser, base) {
     await page.locator('[data-tab="settings"]').click();
     await page.locator('#set-f-scanIntervalMinutes').waitFor();
     assert.equal(await page.locator('#set-f-scanIntervalMinutes').isEnabled(), true);
+    // Sweep 14: each label carried its raw configuration key ("scanIntervalMinutes · allowed 5–1440").
+    const labels = await page.locator('#set-deployment label, #set-user label').allTextContents();
+    assert.ok(labels.length > 0);
+    for (const key of Object.keys(scanConfig.KALSHI_SCAN_DEFAULTS)) {
+      assert.ok(!labels.some((text) => text.includes(key)), `no label shows the key ${key}: ${labels.join(' | ')}`);
+    }
+    assert.equal(await page.locator('label[for="set-f-scanIntervalMinutes"] small').textContent(), 'allowed 5–1440');
     await page.locator('#set-f-scanIntervalMinutes').fill('15');
     await page.locator('#set-save').click();
     await page.locator('#set-msg').filter({ hasText: 'Saved' }).waitFor();

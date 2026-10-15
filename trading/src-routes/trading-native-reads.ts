@@ -1,0 +1,61 @@
+/** CHANGE LOG
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Read the native caller's Schwab roster, balances and charts without legacy credentials, imported account bindings or live-order activation.
+ */
+import * as runtime from '@/features/trading';
+import type { AppContext } from '@/app/composition/app-context';
+
+/** The native bridge explicitly declares this read contract; legacy runtimes keep their own paths. */
+export function nativeSchwabReads(): boolean {
+  return (runtime as unknown as { nativeSchwabReads?: boolean }).nativeSchwabReads === true;
+}
+
+export interface NativeAccount {
+  accountId: string; connectionKey: string; accountMasked: string; accountType: string | null;
+  equity: number; cash: number; buyingPower: number; kind: string; notTrading: boolean;
+  positions: Array<{ symbol: string; qty: number; marketValue: number }>;
+}
+export interface NativeAccounts {
+  accounts: NativeAccount[]; errors: Array<{ connection: string; message: string }>; readAt: string;
+}
+
+/** A native-only host port, checked at its use rather than weakening the legacy AppContext type. */
+async function intent(ctx: AppContext, name: string, input: Record<string,unknown>): Promise<unknown> {
+  const host = ctx as AppContext & {intent?: (name:string,input:Record<string,unknown>) => Promise<unknown>};
+  if (typeof host.intent !== 'function') throw new Error('Native Trading reads are unavailable on this host.');
+  return host.intent(name,input);
+}
+
+/** The kernel resolves the real current caller; no route-supplied subject or raw account number is sent. */
+export async function readNativeAccounts(ctx: AppContext): Promise<NativeAccounts> {
+  return await intent(ctx,'trading.accounts', {}) as unknown as NativeAccounts;
+}
+
+/** Read candles through the same named, kernel-owned market-data adapter. */
+export async function readNativeChart(ctx: AppContext, symbol: string, timeframe: string, connection?: string): Promise<unknown | null> {
+  const config = await intent(ctx,'trading.config', {}) as unknown as {configured:boolean};
+  if (!config.configured) return null;
+  return intent(ctx,'trading.bars', {symbol, timeframe, ...(connection ? {connection} : {})});
+}
+
+/** Add every real account to the landing summary exactly once; unknown daily changes stay unknown. */
+export function appendNativeSummary(accounts: NativeAccounts, rows: Array<Record<string, unknown>>, rollup: Map<string, {symbol:string; qty:number; marketValue:number; perBook:Array<{ref:string; qty:number; marketValue:number}>}>): number {
+  let total = 0;
+  for (const account of accounts.accounts) {
+    total += account.equity;
+    rows.push({...account, nativeReadOnly:true, dayChange:null, dayChangePct:null});
+    for (const p of account.positions) {
+      const key = p.symbol.toUpperCase();
+      const current = rollup.get(key) || {symbol:key,qty:0,marketValue:0,perBook:[]};
+      current.qty += p.qty; current.marketValue += p.marketValue;
+      current.perBook.push({ref:`Schwab ${account.accountMasked}`,qty:p.qty,marketValue:p.marketValue});
+      rollup.set(key,current);
+    }
+  }
+  for (const error of accounts.errors) rows.push({kind:'live',notTrading:true,nativeReadOnly:true,label:'Schwab account unavailable',error:error.message});
+  return total;
+}
+
+/** Execution history stays account-bound and read-only; the kernel validates owner and dates. */
+export async function readNativeHistory(ctx: AppContext, input: {accountId:string; connection:string; from:string; to:string}): Promise<unknown> {
+  return intent(ctx,'trading.transactions',input);
+}

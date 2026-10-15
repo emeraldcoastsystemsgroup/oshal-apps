@@ -1,18 +1,21 @@
 <!-- CHANGE LOG
 1 | maintainer@emeraldcoastsystemsgroup.com | Package-owned Business entry over established shared engines.
+2 | maintainer@emeraldcoastsystemsgroup.com | Load the shared routine reader (/experience/live-views.js) before homebase-data.js, in the kernel homebase.html order; without it the Routines page answered routine_reader_missing.
+3 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the page title is the application's name alone. It read '<name> · your swarm', words the person never sees on the screen, and the concierge, handed the docked frame's title, called the screen by them.
 -->
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Business · your swarm</title>
+  <title>Business</title>
   <link rel="stylesheet" href="/api/business-experience/assets/homebase.css">
   <link rel="stylesheet" href="/experience/experience-live.css">
   <script src="/experience/live-data.js" defer></script>
   <script src="/experience/style-switcher.js" defer></script>
   <script src="/experience/shell.js" defer></script>
   <script src="/api/business-experience/assets/config.js" defer></script>
+  <script src="/experience/live-views.js" defer></script>
   <script src="/experience/homebase-data.js" defer></script>
   <script src="/experience/homebase-modules.js" defer></script>
   <script src="/experience/experience-hosts.js" defer></script>

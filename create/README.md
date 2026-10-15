@@ -1,5 +1,17 @@
 # Create (create) — OSHAL app package
 
+Native image storage uses the original person's transaction to commit normalized
+PNG bytes and immutable image metadata together. Cleanup removes eligible bytes
+and metadata in the same transaction; a failed or uncertain commit never deletes
+an image as compensation. Existing imported images keep their protected file
+read boundary.
+
+The initial native profile accepts images up to 8 MiB, at most 128 images, and
+32 MiB of retained PNG bytes per person. It refuses additional uploads before
+publication and shows the limit in the editor and brand page. PostgreSQL keeps
+its existing private filesystem and 512 MiB quota. Full native storage capacity
+and installed image acceptance remain open until independently verified.
+
 The design-tool front door for everything you make with oshal. One rail, one skin,
 one home page — "What will you create today?" — over the creative studios that are
 already installed: **AI Office** (deck / document / workbook), **Portrait Studio**,
@@ -573,9 +585,154 @@ the catalog. See [EDITOR.md](EDITOR.md) for supported formats and limits.
 Generated from this package's `rating:` block by `node scripts/ai-usage-ledger.mjs --write`; do not edit by hand.
 The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core ADR-170.
 
-Container memory, MiB low / high: **32 / 128 (declared)**.
+Container memory, MiB low / high: **32 / 512 (declared)**.
 
 | Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
 |---|---|---|---|---|---|---|
+| create-editing-command | editing command | T1 | none | disable | not yet measured | none recorded |
 | region-regenerate | region regeneration | T0 | hosted | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->
+
+## Image masks (1.10.0, source delivery)
+
+Select an image region, then use **Image mask → Mask from selected region**.
+Invert keeps the outside; Feather softens the boundary in original source pixels;
+Disable restores the unmasked view; Remove deletes the mask. All are undoable
+project edits and survive existing save/reopen and portable JSON. PNG/JPEG export
+uses the same masked composition as preview. Original raster assets stay unchanged.
+
+Masked projects use document version 2. Existing unmasked v1 documents retain their
+normalization. Earlier editors refuse v2 instead of discarding masks. The first
+slice is a polygon mask with up to 2000 points, 0–64 source-pixel feather and a
+4-megapixel source ceiling. Brush painting, mask arithmetic, adjustment layers and
+groups remain open under CREATIVE-GAP-01. Image selection still uses the image
+rectangle; select a fully hidden image from the layer stack. No new route, catalog
+permission, asset type or database migration is introduced. Installation acceptance
+is pending; this release does not change the installed application automatically.
+
+Source verification (2026-10-11): 84 Create/model/region/template cases, 15 real
+Canvas renderer cases and 26 actual editor browser cases pass, with no skipped
+cases in those runs. Browser proof uses the native kernel's platform assets and
+a disposable dependency/HTTP fixture; it does not touch installed user projects.
+Catalog parity and diff whitespace checks pass. The repository-wide push gate
+separately reports unrelated legacy/toolchain/live-engine prerequisite skips.
+
+Additional integration proof: 26 existing project HTTP/region-edit regression
+cases and 11 real PostgreSQL cases pass. The new masked-v2 database case verifies
+save/reopen through a fresh actual router, cross-owner read/export isolation,
+immutable raster assets, stale revision rejection and invalid-mask refusal. The
+database is a uniquely named disposable container; fixture cleanup is verified.
+
+## Image depth (1.11.0, source delivery)
+
+Create adds Reveal/Erase mask brushes, Add/Subtract/Intersect region combinations
+and an ellipse region tool. **Adjustment layer** adds editable exposure, levels,
+gamma, curves and saturation with whole-stack or named lower-layer scope. All
+are retained in v3 projects and existing private revisions, history and exports.
+See [the editor contract](EDITOR.md#brush-masks-and-adjustment-layers-1110).
+Groups remain open; this is source delivery, not installed acceptance.
+
+## Group layers (1.12.0, source delivery)
+
+Group/ungroup controls add isolated opacity, move/rotate/uniform resize and bounded
+nesting without flattening child layers. Image regions retain their source pixels
+through group transforms. [Group contract](EDITOR.md#isolated-groups-1120). This
+completes the source feature set of CREATIVE-GAP-01's first delivery; installed
+acceptance, production performance/memory measurements and broader image features
+remain separate work. It does not claim professional image-editor parity.
+
+## Vector illustration (1.13.0, source delivery)
+
+The image editor now has a cubic vector pen, node/handle controls, editable
+stroke/gradient/clip styles, four path booleans, alignment/distribution and grid
+snapping. Import vector SVG creates a private editable project; Vector SVG export
+uses fresh existing export admission. Native text remains editable in the supported
+SVG round trip. [Formats and limits](EDITOR.md#vector-editing-and-svg-1130).
+Unimplemented SVG dialects refuse explicitly. Native JSON preserves the full
+project; this is not a claim of Illustrator/AI compatibility or installed parity.
+
+
+## Agent editing — 1.14.0 source delivery
+
+`create-editor` is the package's inline editing concierge, reachable through
+the shell's Concierge control. Its manifest declares six
+original-caller API tools: editing-contract, list/read projects, create a blank
+project and apply bounded edits plus editable JSON export. Raster and SVG rendering
+remain the editor's explicit controls.
+
+An edit uses the actual saved project id and `baseRevision`. At most 16 operations
+and 16 KiB produce one immutable revision; a failed batch saves nothing. Existing
+model validation, owner/source checks, layer/track locks and optimistic concurrency
+apply. Agent booleans permit one operation per batch and 256 total operand nodes;
+larger booleans use the editor worker. Both read and change permissions are rechecked before commit. The kernel's
+existing write approval cards show the exact proposed input; the agent reports
+success only after the real route response. Open browser drafts need a deliberate
+reload; no agent operation changes or discards an unsaved browser draft.
+
+The installed `/api/create/editing-contract` returns the supported forms, examples, units and limits.
+No shell, arbitrary code, remote fetching or new provider pipeline is exposed.
+The separate RAW, publishing, audio and PDF domains remain outside this editor; bounded PSD import source delivery is described below.
+Catalog bindings and the new personas require a reviewed reload/install and native
+acceptance; source proof does not claim that these agents are live. No deployment
+or service restart is part of this delivery.
+
+
+## Bounded editable PSD import (1.15.0 source delivery)
+
+Use **Import PSD** or **PSD from OSHAL files** in the Image editor. Inspection
+saves nothing. Review the conversion findings, choose editable layers/groups or
+an explicitly flattened merged image, then **Import and save**. The original
+canvas is protected while reading/reviewing; cancelled reviews publish nothing.
+The resulting project uses existing image references, layer properties, group
+transforms, undo/redo and immutable save/reopen. **PSD original and report** opens
+its import lineage; **Download PSD original** requires a separate current export
+grant and returns exact original bytes. Later edits never rewrite that original.
+
+This subset accepts RGB8 PSDv1 raw/PackBits:4MiB input,2048 pixels/side,4M canvas
+pixels,32 pixel layers/64 records,4 normal isolated group levels,8M total decoded
+pixels. Retained originals total4MiB per person independently of the native32MiB
+PNG profile; each import permits at most16MiB normalized PNGs. Two whole request
+pipelines and two10s parser workers are admitted, with explicit busy refusals.
+Normal groups become fixed-frame groups: later child movement outside the frame
+clips it, reported before import. Transparency locks become deliberate whole-layer
+locks with a report. [Format matrix](specs/functional-gaps/psd-format-matrix.md)
+lists unsupported semantics and transparent merged-cache limitations. PSD export,
+PSB/high bit depth, ZIP, other blends, masks, text/effect/smart-object editing and
+full Photoshop fidelity are not delivered. Opaque unsupported semantic payloads
+remain in the original; this profile does not decode their descriptors.
+
+Agents inspect a real protected artifact with `create-inspect-psd`, explain losses
+and the chosen mode, then propose `create-import-psd` through the held approval
+card using that actual inspected SHA. No paths/URLs/owners or arbitrary code are
+accepted. One UUID4 request key seals bytes, mode and title; uncertain transport
+retries preserve that key and do not duplicate projects/assets. A replay returns
+the immutable first import, so subsequent edits always read the current project.
+`create-psd-source` reads the source report; native Create JSON/raster exports
+remain their existing formats.
+
+Source proof: genuine binary spec fixtures plus licensed immutable Pillow10.2.0
+corpus, exact independent raster-plane decoding, real Sharp PNG/forced-RLS
+PostgreSQL transactions on owned35689 databases, full4MiB original/64part byte
+comparison, current role/export/foreign denials and named post-write rollback
+faults. Real Chromium desktop/phone review, cancellation, rendered group pixels,
+undo/redo/save/reopen/original download and discarded-response replay pass.
+Raw layer/original bytes are exact; Canvas isolated opacity uses a published
+reference tolerance of1RGB byte per channel per group level (alpha exact).
+The largest source fixture admits two8M decoded pipelines, refuses a third,
+and observed335944KiB process peak onarm64 including fixture/Node/Sharp/PG;
+native FFmpeg, browser and installed traffic are outside that measurement.
+Declared memory is512MiB. Reproduce with pinned toolchain/private dependency
+fixture through `tests/editor/psd-reader.test.mjs`, `tests/psd-contract.test.mjs`,
+`tests/psd-api.test.mjs` and `tests/psd-browser.test.mjs`; DB suites refuse any DSN
+outside127.0.0.1:35689 and never provision/remove containers.
+
+Genuine native acceptance passed with source `915b3a55`, reviewed core `36922b94`
+and the published kernel fixture `1446506`: canonical manifest/all three native
+schemas, real Node worker/Sharp/owned PNG and original SQL storage, uploaded
+artifact SHA/chunks, held original-owner import/edit, exact raster pixels, sealed
+retry, immutable revision save/reopen, original downloads/export handles, actual
+source reload invalidation and independent Reader/exporter/foreign/revoke checks.
+The supervised case passed in13.97s; strict fixture lint passed with warnings denied.
+Its sole model seam is deterministic tool choice. This exercises the bounded
+profile above; it does not certify installed capacity. Installed browser and
+natural-provider acceptance remain open, as does full PSD fidelity/parity.

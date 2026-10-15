@@ -8,6 +8,7 @@
  * 2026-09-23 01:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Match YAML value semantics at the projection boundary: booleans, nulls, numbers and timestamps cannot masquerade as bot names; anchors, aliases, merge keys, tags and duplicate relevant keys fail closed at any nesting depth because this dependency-free reader cannot safely resolve them.
  * 2026-09-23 02:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Align surface classification with the runtime contract: toolbar is a cockpit surface only for kind group, while empty ui.dynamic remains headless and a non-empty dynamic declaration remains covered.
  * 2026-09-23 03:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Close parser-parity edges without rejecting ordinary prose: recognize structural indicators only at YAML node boundaries, mirror js-yaml implicit scalar resolution, refuse complex/undecodable keys and ambiguous flow bot maps, and fail closed on unsupported root shapes.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | A workflow.workerBot rail counts only when the package declares bots of its own. The native shell's concierge panel offers a package's own bots or its chatBot; a workerBot imported from another package (creative-studio, daily-trade-recap, job-apply) left those screens with no concierge while this gate reported them covered. Such a package must declare chatBot.
  *
  * Usage: node scripts/check-concierge-coverage.mjs
  */
@@ -454,7 +455,7 @@ export function parseConciergeProjection(source, label = 'oshal-app.yaml') {
   const rail = candidates.find(({ name }) => name)?.rail ?? '';
   return {
     name: stringScalar(top('name')?.value ?? ''), surfaces, concierge, rail,
-    problems,
+    ownsBots: Boolean(firstBot.name), problems,
   };
 }
 
@@ -476,6 +477,14 @@ export function conciergeCoverage(repositoryRoot = REPOSITORY_ROOT) {
     problems.push(...projection.problems);
     if (!projection.surfaces.length) continue;
     surfaceCount += 1;
+    if (projection.rail === 'workflow.workerBot' && !projection.ownsBots) {
+      problems.push(
+        `${label}: its only concierge is workflow.workerBot ${projection.concierge}, a bot this `
+        + 'package does not declare under top-level `bots`. The shell offers a package\'s own bots '
+        + 'or its `chatBot`, so this screen would have no concierge; declare top-level `chatBot`.',
+      );
+      continue;
+    }
     if (projection.concierge) {
       coveredCount += 1;
       continue;

@@ -8,6 +8,7 @@
  * 2026-07-22 01:05:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Expose authenticated read-only playback from exact snapshots and archive facts, label missing board revisions honestly, and reactivate only a confirmed rewind branch.
  * 2026-07-23 01:55:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Retain every play mark permanently and share image-free exact-state checkpoint persistence with round transitions.
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Preserve the campaign adventure identity when building its next authored scene.
+ * 2026-10-10 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Write owner_sub explicitly on every INSERT: the native kernel skips migration 006, whose triggers stamp it on PostgreSQL (where they still override it from the parent campaign).
  */
 
 'use strict';
@@ -139,8 +140,8 @@ async function reconcileCharacter(deps, db, campaign, campaignId, slug, characte
        UPDATE dnd_characters SET sheet=$1, xp=$2, level=$3, updated_at=now()
         WHERE campaign_id=$4 AND slug=$5 RETURNING slug
      ), inserted AS (
-       INSERT INTO dnd_characters (user_sub, campaign_id, slug, name, sheet, xp, level)
-       SELECT $7,$4,$5,$8,$1,$2,$3 WHERE NOT EXISTS (SELECT 1 FROM updated)
+       INSERT INTO dnd_characters (user_sub, campaign_id, slug, name, sheet, xp, level, owner_sub)
+       SELECT $7,$4,$5,$8,$1,$2,$3,$7 WHERE NOT EXISTS (SELECT 1 FROM updated)
        ON CONFLICT (campaign_id, slug) DO UPDATE
          SET name=EXCLUDED.name, sheet=EXCLUDED.sheet, xp=EXCLUDED.xp,
              level=EXCLUDED.level, updated_at=now() RETURNING slug

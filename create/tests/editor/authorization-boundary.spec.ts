@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify role-specific permissions and exact HTTP/asset admission through the real core mounter without business persistence.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Seven roles now: generator carries view, read and the new project.generate; admin carries it too; every other role keeps its exact earlier meaning. The six region-edit routes admit exactly the roles their bindings name, before any business database work.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  */
 import { beforeEach, afterEach, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -26,6 +27,9 @@ for (const [role, actions] of Object.entries(ROLES)) it(`reports only the ${role
   const permissions = await fixture.call('/permissions'); expect(permissions.status).toBe(200);
   expect((await permissions.json()).permissions).toEqual(Object.fromEntries(ACTIONS.map(action => [action, actions.includes(action)])));
   expect((await fixture.call('/editor')).status).toBe(200);
+  expect((await fixture.call('/editing-contract')).status).toBe(200);
+  expect((await fixture.call('/agent-projects', 'alice', 'POST', {})).status).toBe(actions.includes('create') ? 400 : 403);
+  expect((await fixture.call(`/projects/${RECORD}/operations`, 'alice', 'POST', {})).status).toBe(actions.includes('read') && actions.includes('change') ? 400 : 403);
   const create = await fixture.call('/projects', 'alice', 'POST', {});
   expect(create.status).toBe(actions.includes('create') ? 400 : 403);
   const save = await fixture.call(`/projects/${RECORD}/revisions`, 'alice', 'POST', {});

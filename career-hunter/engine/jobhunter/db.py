@@ -8,6 +8,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Seed PostgreSQL recruiter rows with stable source ids matching their declared composite key.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Make fresh SQLite schemas include every indexed corpus and lifecycle column before indexes and writes use them.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Index the corpus for the pre-resume title browse so its keyword search is covered rather than scanning descriptions.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | INSIGHTS_INDEX_SQL: idx_corpus_insights covers every column Career Insights reads from the lane (company, posted date, state, maximum pay). Without it Insights read each posting row past its inline description: 44.3 s on a cold page cache over a copy of the live corpus, past the native kernel's 10 s package deadline. It is kept out of CORPUS_SCHEMA because the native kernel binds the corpus read-only into every request sandbox, where a CREATE of a missing index would fail the whole schema step; _ensure_insights_index creates it on a writable corpus (the nightly ingest's private copy) and leaves a read-only one as it is.
 
 """Storage layer. Two backends, selected by JOBHUNTER_STORE (see config.STORE).
 
@@ -881,11 +882,36 @@ def _ensure_multiuser(conn) -> None:
     key = (str(config.CORPUS_DB), str(config.USER_DB))
     if key not in _multiuser_inited:
         conn.executescript(CORPUS_SCHEMA)
+        _ensure_insights_index(conn)
         conn.executescript(USER_SCHEMA)
         _ensure_user_columns(conn)   # backfill new columns onto pre-existing user DBs
         _ensure_planner_stats(conn)
         _multiuser_inited.add(key)
     conn.executescript(_POSTINGS_VIEW_SQL)
+
+
+# Career Insights (src-routes/career-insights.ts) reads the whole in-lane set: company, posted
+# date, state and maximum pay. Those columns sit after the inline description, so reading them
+# from the rows pulls the descriptions through the page cache (44.3 s cold on a copy of the live
+# corpus); from this covering index the lane read is 0.16 s cold.
+INSIGHTS_INDEX_SQL = (
+    "CREATE INDEX IF NOT EXISTS corpus.idx_corpus_insights "
+    "ON postings_corpus(active, target_role, company_id, posted_date, state, salary_max)"
+)
+
+
+def _ensure_insights_index(conn) -> None:
+    """Create the Insights covering index where the corpus is writable.
+
+    The nightly ingest runs on a private writable copy, so the index lands in the next published
+    corpus. A request sandbox binds the published corpus read-only: there a missing index is left
+    missing (Insights answers "not ready" until the ingest publishes one), and nothing else fails.
+    """
+    try:
+        conn.execute(INSIGHTS_INDEX_SQL)
+    except sqlite3.OperationalError as err:
+        if "readonly" not in str(err).lower():
+            raise
 
 
 def _ensure_planner_stats(conn) -> None:

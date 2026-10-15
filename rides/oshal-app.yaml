@@ -3,6 +3,8 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Rides works with no Uber connector. The routes run a keyless rail (routes/rides-keyless.js) where the runtime reports Uber not connected: addresses resolve through OpenStreetMap Nominatim, declared below as this package's one outbound host, and the distance and modelled fare come from the two map pins. rides-concierge runs inline (same UUID b0090000-0000-0000-0000-000000000001): bound to enrolled node 9a367ce4 it refused every chat turn ("this request cannot run it here"), so the page and Life > Get a Ride answered "I'm having trouble reaching my assistant". Guards: tests/rides-keyless.test.js, scripts/check-store-bots.mjs (the two rides PENDING entries leave).
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Sweep 13: prepare-ride-booking's usageInstructions say a request to prepare a hand-off counts (with the places the rider named; the map button need not be on). Words only: no route, scope, schema or binding change.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — rides ("Get a Ride" Uber Rides Concierge)
@@ -158,7 +160,8 @@ tools:
         rideType: { type: string }
       required: [pickup, dropoff]
     usageInstructions: >-
-      Call only after the rider asks to book/request the ride. It returns a handoff URL, not an in-app charge.
+      Call when the rider asks to prepare a hand-off, book or request the ride, with the pickup and drop-off
+      they named (the screen's map button need not be on). It returns a handoff URL, not an in-app charge.
     routingTags: [rides, transportation, handoff]
     skills: [ride-handoff, trip-planning]
     tags: [rides, route-backed, approval-required]
@@ -207,6 +210,13 @@ ui:
 # Confirm); notify = it can confirm in the surface.
 surface:
   ops: [context, set_field, field_change, custom, propose, submit, notify]
+
+# OUTBOUND HOSTS. A native package has no network of its own: the kernel's fenced egress carries the
+# keyless rail's address lookups (geocode a typed address, name a dropped pin) and refuses any host not
+# declared here. Nominatim's data is public; no credential is attached. The rail keeps to its usage
+# policy: one request a second, a real User-Agent, cached answers.
+egress:
+  - host: nominatim.openstreetmap.org
 
 routes:
   - module: routes/home-summary.js
@@ -289,13 +299,12 @@ summary:
   metricsPointer: /metrics
   itemsPointer: /items
 
-# Preserve the existing worker UUID and dedicated-node posture in the package contract.
+# The worker keeps its UUID. It runs inline: the native kernel answers it with this package's route-backed
+# tools, and a node binding refused every chat turn here.
 bots:
   - agentId: b0090000-0000-0000-0000-000000000001
     name: rides-concierge
     persona: personas/rides-concierge.yaml
-    container: rides-bot
-    port: 5000
-    requiresOwnNode: true
+    posture: inline   # native kernel: an application bot with the route-backed tools above; no dedicated node
     role: transportation/rides
     capabilities: ['ride-fare-estimate', 'ride-options-comparison', 'rideshare-trip-planning', 'uber-ride-handoff', 'ride-preference-learning']

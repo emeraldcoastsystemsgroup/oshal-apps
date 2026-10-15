@@ -20,11 +20,23 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Stop rebuild (BACKLOG B5): every write that rebuilds the part counts as in flight for
  *                     |                             | that part; while one is, the header offers Stop, which POSTs the part's cancel and says
  *                     |                             | which revision the part stays at. The control follows the selected part only.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | A feature's parameters read as one line of words ("depth 10 · diameter 5 · through yes"
+ *                     |                             | , a point list as "3 points", a vector as "40 × 20 × 10") instead of
+ *                     |                             | the raw JSON object the feature list printed.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | Parts that share a name are told apart in the list. Sweep 8: two
+ *                     |                             | 'Centre plate (top and bottom) - recon-mini' rows, made a day apart,
+ *                     |                             | both read 'r1', and the concierge called them the same model. Each
+ *                     |                             | row whose title another row repeats now carries 'made <date>' (and
+ *                     |                             | the part's short id when even that repeats). partNotes() is pure and
+ *                     |                             | exposed as window.CadStudioParts for tests/part-list-names.test.js.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | Demo sweep 1: the engine-down banner and toasts showed the person the kernel's failure text three times with the host's install command ('on the kernel host run cad-studio/engine/install-engine.sh ...'). They now say the CAD engine is not answering on this installation (banner once, a short toast), never the address or install command; a modelling refusal is still the engine's own sentence.
  */
 (function () {
   'use strict';
   const BASE = '/api/cad-studio';
   const $ = (id) => document.getElementById(id);
+  const ENGINE_DOWN = 'The CAD engine is not answering on this installation, so parts cannot be built right now. If this keeps happening, an administrator needs to set the engine up.';
+  const ENGINE_SHORT = 'The CAD engine is not answering on this installation.';
   const state = { models: [], model: null, revisions: [], caps: null, viewer: null, editing: null, lastSeen: '', pollTimer: null, selection: 0, listRequest: 0, previewRequest: 0, building: {} };
 
   /** Capture user selection without reconstructing or changing server authority. */
@@ -64,7 +76,7 @@
       const text = await res.text();
       let body = null;
       try { body = text ? JSON.parse(text) : null; } catch (_) { body = { raw: text }; }
-      if (!res.ok) { const err = new Error((body && (body.message || (body.build && (body.build.reason || body.build.error)) || body.error)) || ('HTTP ' + res.status)); err.status = res.status; err.body = body; throw err; }
+      if (!res.ok) { const err = new Error((body && (body.message || (body.build && buildWords(body.build)) || body.error)) || ('HTTP ' + res.status)); err.status = res.status; err.body = body; throw err; }
       return body;
     } finally { if (rebuilds) trackRebuild(rebuilds, -1); }
   }
@@ -88,17 +100,35 @@
     pill.textContent = engine.connected ? 'engine: connected' : (engine.lastError ? 'engine: down' : 'engine: idle');
     pill.className = 'badge ' + (engine.connected ? 'built' : engine.lastError ? 'failed' : '');
     $('engine-banner').hidden = !engine.lastError;
-    $('engine-reason').textContent = engine.lastError || '';
-    $('engine-hint').textContent = engine.installHint || '';
+    $('engine-reason').textContent = engine.lastError ? ENGINE_DOWN : '';
+  }
+  /** A person's words for a failed build: an engine that is not answering is one plain sentence (never the
+   * kernel's address or the host's install command); any other refusal is the engine's own sentence. */
+  function buildWords(build) {
+    return build.code === 'capability_unavailable' ? ENGINE_SHORT : (build.reason || build.error || build.code);
   }
   function showBuild(build) {
     if (!build) return;
     if (build.ok) return;
-    if (build.code === 'capability_unavailable' || build.code === 'engine_busy' || build.code === 'engine_timeout') renderEngine({ connected: false, lastError: build.reason || build.error, installHint: state.caps && state.caps.engine && state.caps.engine.installHint });
-    toast('Rebuild failed: ' + (build.reason || build.error || build.code), 'error');
+    if (build.code === 'capability_unavailable' || build.code === 'engine_busy' || build.code === 'engine_timeout') renderEngine({ connected: false, lastError: buildWords(build) });
+    toast('Rebuild failed: ' + buildWords(build), 'error');
   }
 
   // ── Models ─────────────────────────────────────────────────────────────────
+  /**
+   * The note that tells apart parts sharing a title: '' for a unique title, else 'made <date>', plus the part's short
+   * id when two same-named parts were also made in the same minute.
+   */
+  function partNotes(models) {
+    const key = (t) => String(t || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    const made = (m) => { const t = Date.parse(m.created_at); return Number.isFinite(t) ? 'made ' + new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'made at an unknown time'; };
+    const count = (list, f) => list.reduce((acc, m) => acc.set(f(m), (acc.get(f(m)) || 0) + 1), new Map());
+    const byTitle = count(models, (m) => key(m.title));
+    const notes = models.map((m) => (byTitle.get(key(m.title)) > 1 ? made(m) : ''));
+    const byNote = count(models.map((m, i) => ({ m, i })), (x) => key(x.m.title) + '|' + notes[x.i]);
+    return notes.map((n, i) => (n && byNote.get(key(models[i].title) + '|' + n) > 1 ? n + ' · #' + String(models[i].model_id || '').slice(0, 8) : n));
+  }
+  window.CadStudioParts = { partNotes };
   async function loadModels() {
     const request = ++state.listRequest, out = await api('/models');
     if (request !== state.listRequest) return;
@@ -106,8 +136,10 @@
     const list = $('model-list');
     list.replaceChildren();
     if (!state.models.length) list.appendChild(el('p', { class: 'muted small', text: 'No parts yet.' }));
-    state.models.forEach((m) => list.appendChild(el('button', { class: 'model-item' + (state.model && state.model.model_id === m.model_id ? ' active' : ''), onclick: () => openModel(m.model_id) }, [
-      el('span', { class: 'model-title', text: m.title }), el('span', { class: 'badge ' + m.state, text: 'r' + m.revision }),
+    const notes = partNotes(state.models);
+    state.models.forEach((m, i) => list.appendChild(el('button', { class: 'model-item' + (state.model && state.model.model_id === m.model_id ? ' active' : ''), onclick: () => openModel(m.model_id) }, [
+      el('span', { class: 'model-name' }, [el('span', { class: 'model-title', text: m.title })].concat(notes[i] ? [el('span', { class: 'model-note', text: notes[i] })] : [])),
+      el('span', { class: 'badge ' + m.state, text: 'r' + m.revision }),
     ])));
   }
   async function openModel(modelId) {
@@ -228,6 +260,25 @@
       $('viewer-info').textContent = info.triangles + ' facets · ' + fmt(info.size[0]) + ' × ' + fmt(info.size[1]) + ' × ' + fmt(info.size[2]) + ' mm · revision ' + m.revision;
     } catch (e) { if (current()) $('viewer-info').textContent = e.message; }
   }
+  /** A parameter name as words: `pathPlane` -> "path plane", `size_mm` -> "size mm". */
+  function words(name) { return String(name).replace(/[_-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase(); }
+  /** One parameter value in plain terms: a point list counts its points, a vector reads x × y × z. */
+  function valueText(v) {
+    if (typeof v === 'boolean') return v ? 'yes' : 'no';
+    if (typeof v === 'number') return String(Math.round(v * 1000) / 1000);
+    if (Array.isArray(v)) {
+      if (v.length && v.every(Array.isArray)) return v.length + (v.length === 1 ? ' point' : ' points');
+      if (v.every((n) => typeof n === 'number')) return v.map(valueText).join(' × ');
+      return v.length + (v.length === 1 ? ' item' : ' items');
+    }
+    if (v && typeof v === 'object') return Object.keys(v).map((k) => words(k) + ' ' + valueText(v[k])).join(', ');
+    return v === null || v === undefined || v === '' ? '—' : String(v);
+  }
+  /** A feature's parameters as one readable line, never raw JSON. */
+  function paramsText(params) {
+    const keys = params && typeof params === 'object' ? Object.keys(params) : [];
+    return keys.length ? keys.map((k) => words(k) + ' ' + valueText(params[k])).join(' · ') : 'no parameters';
+  }
   function statusOf(m, id) { return ((m.feature_status || []).find((s) => s.id === id)) || null; }
   function renderFeatures(m) {
     const list = $('feature-list'); list.replaceChildren();
@@ -244,7 +295,7 @@
           el('button', { class: 'link', text: f.enabled ? 'disable' : 'enable', onclick: () => updateFeature(f.id, { enabled: !f.enabled }) }),
           el('button', { class: 'link danger', text: 'remove', onclick: () => removeFeature(f.id) }),
         ]),
-        el('div', { class: 'feature-params', text: JSON.stringify(f.params) }),
+        el('div', { class: 'feature-params', text: paramsText(f.params) }),
       ]);
       if (failed) item.appendChild(el('div', { class: 'feature-error', text: 'skipped: ' + st.error }));
       list.appendChild(item);

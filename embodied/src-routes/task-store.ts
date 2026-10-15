@@ -8,6 +8,7 @@
  *                     |                             | it stopped) and the COMMAND LOG (every command any actor issued
  *                     |                             | to any node, with its outcome). Owner-scoped SQL only; the
  *                     |                             | world itself is in memory and is not stored here.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | registerPendingTaskStatuses / pendingTaskStatuses: a GET reader on another mount (the Home summary) overlays the owner's queued task outcomes, because the native kernel only lets a writer (non-GET) request mutate and a task finished between requests is stored on the owner's next POST.
  */
 
 import type { AppContext } from '@/app/composition/app-context';
@@ -101,4 +102,39 @@ export async function listLog(pool: Pool, sub: string, limit = 100): Promise<Rec
     [sub, limit],
   );
   return r.rows as Record<string, unknown>[];
+}
+
+/** @description A task outcome the live world reached that the store has not recorded yet. */
+export interface PendingTaskStatus {
+  taskId: string;
+  status: 'done' | 'failed' | 'aborted';
+  stepIndex: number;
+  failure: string | null;
+}
+
+/** The live worlds' pending-outcome readers in this process (one per mounted embodied router). */
+const pendingReaders = new Set<(sub: string) => PendingTaskStatus[]>();
+
+/**
+ * @description Register a reader of one owner's queued task outcomes. The native kernel lets only a
+ * writer (non-GET) request mutate, so a task the timer finished stays `executing` in the store until
+ * the owner's next POST; a GET reader on another mount (the Home summary) overlays these instead of
+ * reporting the stale row.
+ * @param read - Returns the owner's queued outcomes; must not throw.
+ * @returns A function that removes the registration.
+ */
+export function registerPendingTaskStatuses(read: (sub: string) => PendingTaskStatus[]): () => void {
+  pendingReaders.add(read);
+  return () => { pendingReaders.delete(read); };
+}
+
+/**
+ * @description The owner's task outcomes every live router has queued but not stored.
+ * @param sub - Owner.
+ * @returns The queued outcomes; a failing reader contributes none.
+ */
+export function pendingTaskStatuses(sub: string): PendingTaskStatus[] {
+  const out: PendingTaskStatus[] = [];
+  for (const read of pendingReaders) { try { out.push(...read(sub)); } catch (_) { /* a reader that fails reports nothing */ } }
+  return out;
 }

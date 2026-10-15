@@ -32,6 +32,7 @@
  *            | oshal-spotify.js) stays core per ADR-093 interim. Logic unchanged.
  * ---------------------------------------------------------------------------
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove Spotify credentials from generic orchestrator dispatch. Spotify Web API calls stay controller-side through getValidAccessToken and the model receives only bounded profile, track, playlist, and playback records.
+ * 2026-10-10 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: with OSHAL_EGRESS=kernel there is no token broker and the framework spotify-client is an inert stand-in, so every route said not connected. There the routes use the package-local client in kernel-spotify.ts (same six helpers and shapes, requests to api.spotify.com through the kernel egress with no Authorization; the manifest declares the host with the caller's spotify connection as a Bearer credential), and whether Spotify is connected comes from the connectors.metadata intent. A missing, revoked or lapsed connection, or a kernel "not connected" refusal, gets each route's existing not-connected answer (now named once in NOT_CONNECTED and reused for both). The legacy broker path is unchanged.
  *
  * @module spotify-routes
  */
@@ -82,6 +83,8 @@ const connectors_routes_1 = require("@/app/routes/connectors-routes");
 const spotify_client_1 = require("@/app/routes/spotify-client");
 const concierge_envelope_1 = require("@/app/routes/concierge-envelope");
 const concierge_store_1 = require("@/app/routes/concierge-store");
+const kernelClient = __importStar(require("./kernel-spotify"));
+const kernel_spotify_1 = require("./kernel-spotify");
 const logger = (0, logger_1.createChildLogger)({ module: 'spotify-routes' });
 /** The spotify-concierge agent (seeded by migration 047; inline bot run via the orchestrator). */
 const CONCIERGE_AGENT_ID = 'b00a0000-0000-0000-0000-000000000001';
@@ -113,16 +116,38 @@ function resolveListenerSub(req) {
         return 'demo-listener';
     throw Object.assign(new Error('Not authenticated'), { status: 401 });
 }
-/** The caller's Spotify access token, or null when they haven't connected Spotify. */
-async function token(pool, sub) {
+/** The framework Spotify client: the legacy broker path. */
+const frameworkClient = { spotifyMe: spotify_client_1.spotifyMe, spotifySearchTracks: spotify_client_1.spotifySearchTracks, spotifyNowPlaying: spotify_client_1.spotifyNowPlaying, spotifyMyPlaylists: spotify_client_1.spotifyMyPlaylists, spotifyTopTracks: spotify_client_1.spotifyTopTracks, spotifyCreatePlaylist: spotify_client_1.spotifyCreatePlaylist };
+/** Under the native kernel the package-local egress client (the framework one is inert there); elsewhere the framework client. */
+function api() {
+    return (0, kernel_spotify_1.kernelEgress)() ? kernelClient : frameworkClient;
+}
+/**
+ * The caller's Spotify access token, or null when they haven't connected Spotify. Under the native kernel the token is a
+ * sentinel the kernel egress replaces with the caller's own connection, and the connection metadata decides null.
+ */
+async function token(ctx, sub) {
+    if ((0, kernel_spotify_1.kernelEgress)()) {
+        return (0, kernel_spotify_1.kernelSpotifyToken)(await (0, kernel_spotify_1.readConnections)(ctx, (err) => logger.error({ err }, 'Spotify connection metadata unavailable; the Spotify request decides')));
+    }
     try {
-        return await (0, connectors_routes_1.getValidAccessToken)(pool, sub, 'spotify');
+        return await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'spotify');
     }
     catch (err) {
         logger.warn({ err }, 'spotify token resolve failed');
         return null;
     }
 }
+/** Each route's answer when the caller has no usable Spotify connection (no token, or a kernel "not connected" refusal). */
+const NOT_CONNECTED = {
+    config: (res) => { res.json({ connected: false, status: 'not_connected', me: null }); },
+    search: (res) => { res.status(409).json({ error: 'not_connected', items: [] }); },
+    nowPlaying: (res) => { res.json({ nowPlaying: null }); },
+    playlists: (res) => { res.json({ playlists: [] }); },
+    topTracks: (res) => { res.json({ items: [] }); },
+    playlist: (res) => { res.status(409).json({ error: 'not_connected' }); },
+    chat: (res) => { res.status(409).json({ error: 'not_connected', reply: 'Connect your Spotify first (the Cloud / Connections page), then I can find tracks and build playlists for you.' }); },
+};
 // ── Schema ───────────────────────────────────────────────────────────────────
 /** Create tables if a fresh deploy hasn't run the migrations yet. Idempotent. */
 async function ensureSpotifySchema(pool) {
@@ -219,7 +244,7 @@ function createSpotifyRoutes(ctx) {
     const store = new concierge_store_1.ConciergeStore(pool, 'spotify');
     const surfaceDir = ctx.appPackageDir ? path.join(ctx.appPackageDir, 'tools') : path.resolve(process.cwd(), 'tools');
     ensureSpotifySchema(pool).catch((err) => logger.warn({ err }, 'Spotify schema bootstrap deferred — tables may not exist yet'));
-    const listener = (fn) => async (req, res) => {
+    const listener = (fn, notConnected) => async (req, res) => {
         let sub;
         try {
             sub = resolveListenerSub(req);
@@ -232,6 +257,10 @@ function createSpotifyRoutes(ctx) {
             await fn(req, res, sub);
         }
         catch (err) {
+            if (notConnected && err instanceof kernel_spotify_1.SpotifyNotConnected) {
+                notConnected(res);
+                return;
+            }
             logger.error({ err, path: req.path }, 'spotify route error');
             res.status(500).json({ error: err.message || 'internal error' });
         }
@@ -240,16 +269,18 @@ function createSpotifyRoutes(ctx) {
     router.get('/app', serveFile(surfaceDir, 'spotify-app.html'));
     router.get('/chat', serveFile(surfaceDir, 'spotify-app.html')); // alias (parity with eats)
     router.get('/config', listener(async (_req, res, sub) => {
-        const t = await token(pool, sub);
+        const t = await token(ctx, sub);
         if (!t) {
-            res.json({ connected: false, status: 'not_connected', me: null });
+            NOT_CONNECTED.config(res);
             return;
         }
         try {
-            const me = await (0, spotify_client_1.spotifyMe)(t);
+            const me = await api().spotifyMe(t);
             res.json({ connected: true, status: 'ok', me });
         }
         catch (e) {
+            if (e instanceof kernel_spotify_1.SpotifyNotConnected)
+                throw e;
             // 403 here is almost always Spotify "Development Mode" — the authorized account isn't on
             // the app's User Management allowlist, so the token is valid but every call is blocked.
             // Surface it distinctly so the UI can explain the fix instead of looking empty.
@@ -259,48 +290,48 @@ function createSpotifyRoutes(ctx) {
             }
             res.json({ connected: true, status: 'error', me: null, error: e?.message || 'spotify error' });
         }
-    }));
+    }, NOT_CONNECTED.config));
     // ── Discovery (live Spotify Web API) ─────────────────────────────────────────
     router.get('/search', listener(async (req, res, sub) => {
-        const t = await token(pool, sub);
+        const t = await token(ctx, sub);
         if (!t) {
-            res.status(409).json({ error: 'not_connected', items: [] });
+            NOT_CONNECTED.search(res);
             return;
         }
         const q = String(req.query.q || req.query.query || '');
-        const items = await (0, spotify_client_1.spotifySearchTracks)(t, q, Number(req.query.limit) || 12);
+        const items = await api().spotifySearchTracks(t, q, Number(req.query.limit) || 12);
         res.json({ items });
-    }));
+    }, NOT_CONNECTED.search));
     router.get('/now-playing', listener(async (_req, res, sub) => {
-        const t = await token(pool, sub);
+        const t = await token(ctx, sub);
         if (!t) {
-            res.json({ nowPlaying: null });
+            NOT_CONNECTED.nowPlaying(res);
             return;
         }
-        const np = await (0, spotify_client_1.spotifyNowPlaying)(t);
+        const np = await api().spotifyNowPlaying(t);
         res.json({ nowPlaying: np });
-    }));
+    }, NOT_CONNECTED.nowPlaying));
     router.get('/playlists', listener(async (_req, res, sub) => {
-        const t = await token(pool, sub);
+        const t = await token(ctx, sub);
         if (!t) {
-            res.json({ playlists: [] });
+            NOT_CONNECTED.playlists(res);
             return;
         }
-        res.json({ playlists: await (0, spotify_client_1.spotifyMyPlaylists)(t) });
-    }));
+        res.json({ playlists: await api().spotifyMyPlaylists(t) });
+    }, NOT_CONNECTED.playlists));
     router.get('/top-tracks', listener(async (_req, res, sub) => {
-        const t = await token(pool, sub);
+        const t = await token(ctx, sub);
         if (!t) {
-            res.json({ items: [] });
+            NOT_CONNECTED.topTracks(res);
             return;
         }
-        res.json({ items: await (0, spotify_client_1.spotifyTopTracks)(t) });
-    }));
+        res.json({ items: await api().spotifyTopTracks(t) });
+    }, NOT_CONNECTED.topTracks));
     // ── Build a playlist (real action on the user's account) ─────────────────────
     router.post('/playlist', listener(async (req, res, sub) => {
-        const t = await token(pool, sub);
+        const t = await token(ctx, sub);
         if (!t) {
-            res.status(409).json({ error: 'not_connected' });
+            NOT_CONNECTED.playlist(res);
             return;
         }
         const b = req.body || {};
@@ -315,8 +346,8 @@ function createSpotifyRoutes(ctx) {
             return;
         }
         try {
-            const me = await (0, spotify_client_1.spotifyMe)(t);
-            const playlist = await (0, spotify_client_1.spotifyCreatePlaylist)(t, me.id, name, trackUris, { description: b.description, isPublic: !!b.isPublic });
+            const me = await api().spotifyMe(t);
+            const playlist = await api().spotifyCreatePlaylist(t, me.id, name, trackUris, { description: b.description, isPublic: !!b.isPublic });
             res.json({ playlist, note: 'Created on your Spotify — open it to listen, reorder, or share.' });
         }
         catch (err) {
@@ -326,7 +357,7 @@ function createSpotifyRoutes(ctx) {
             }
             throw err;
         }
-    }));
+    }, NOT_CONNECTED.playlist));
     // ── Profile ────────────────────────────────────────────────────────────────
     router.get('/profile', listener(async (_req, res, sub) => { res.json({ profile: await loadProfile(pool, sub) }); }));
     router.post('/profile', listener(async (req, res, sub) => {
@@ -349,20 +380,20 @@ function createSpotifyRoutes(ctx) {
             res.status(400).json({ error: 'message is required' });
             return;
         }
-        const t = await token(pool, sub);
+        const t = await token(ctx, sub);
         if (!t) {
-            res.status(409).json({ error: 'not_connected', reply: 'Connect your Spotify first (the Cloud / Connections page), then I can find tracks and build playlists for you.' });
+            NOT_CONNECTED.chat(res);
             return;
         }
         // Conversation + message + feedback persistence (durable resume, IDOR guard) is shared — ConciergeStore.
         const conversationId = await store.ensureConversation(sub, req.body?.conversationId || undefined, message);
         await store.addMessage(conversationId, sub, 'user', message);
         const history = await store.loadHistory(conversationId);
-        const candidates = await (0, spotify_client_1.spotifySearchTracks)(t, message, 12);
+        const candidates = await api().spotifySearchTracks(t, message, 12);
         const candById = new Map(candidates.map((c) => [c.id, c]));
         const [topTracks, nowPlayingRes, profile, notes] = await Promise.all([
-            (0, spotify_client_1.spotifyTopTracks)(t, 8),
-            (0, spotify_client_1.spotifyNowPlaying)(t).catch(() => null),
+            api().spotifyTopTracks(t, 8),
+            api().spotifyNowPlaying(t).catch(() => null),
             loadProfile(pool, sub),
             store.loadNotes(sub),
         ]);
@@ -387,8 +418,8 @@ function createSpotifyRoutes(ctx) {
             const uris = env.playlist.trackIds.map((id) => candById.get(id)?.uri).filter(Boolean);
             if (uris.length) {
                 try {
-                    const me = await (0, spotify_client_1.spotifyMe)(t);
-                    createdPlaylist = await (0, spotify_client_1.spotifyCreatePlaylist)(t, me.id, env.playlist.name, uris, { description: `Built by the OSHAL Spotify concierge — "${message.slice(0, 120)}"` });
+                    const me = await api().spotifyMe(t);
+                    createdPlaylist = await api().spotifyCreatePlaylist(t, me.id, env.playlist.name, uris, { description: `Built by the OSHAL Spotify concierge — "${message.slice(0, 120)}"` });
                 }
                 catch (e) {
                     logger.warn({ e }, 'concierge playlist build failed');
@@ -406,7 +437,7 @@ function createSpotifyRoutes(ctx) {
             playlist: createdPlaylist,
             remembered: env.remember,
         });
-    }));
+    }, NOT_CONNECTED.chat));
     router.get('/conversation', listener(async (req, res, sub) => {
         // Durable resume by id (else latest), user-scoped — shared ConciergeStore.
         res.json(await store.resume(sub, String(req.query.id || '')));

@@ -1,10 +1,35 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.plainBrief = plainBrief;
 exports.createHomeSummaryRoutes = createHomeSummaryRoutes;
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Sweep 7: the gift hand-off draft carried the saved brief's raw Markdown flattened into one line ('## Top interests - **Aerospace & Physics**: ...'). plainBrief() states the brief as plain sentences (a heading ends with a colon, a list item or line with a full stop, emphasis, code marks and link targets dropped) before it is clipped. Guard: tests/home-summary-dates.test.cjs.
+ */
 /** Saved youtube-kids evidence. GET is owner-scoped, bounded, and side-effect free. */
 const express_1 = require("express");
 const clip = (v, cap = 400) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, cap);
-const date = (v) => { const d = new Date(String(v)); return Number.isFinite(d.getTime()) ? d.toISOString() : 'date unavailable'; };
+/** Inline Markdown as text: link labels kept, code and emphasis marks dropped. */
+const plainInline = (t) => t.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/`+/g, '').replace(/(\*\*|__)(.+?)\1/g, '$2').replace(/(^|[^\w*])[*_]([^*_\n]+)[*_](?![\w*])/g, '$1$2').trim();
+/** A sentence ends with one mark; a heading reads as a label with a colon. */
+const ended = (t, mark) => (/[.!?:]$/.test(t) ? t : t + mark);
+/** The saved brief (Markdown from the brief bot) as plain sentences for a hand-off draft a person reads and edits. */
+function plainBrief(md) {
+    return String(md ?? '').split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !/^([-*_]\s*){3,}$/.test(line)).map((line) => {
+        const heading = /^#{1,6}\s+(.*)$/.exec(line);
+        if (heading)
+            return ended(plainInline(heading[1]), ':');
+        const item = /^(?:[-*+•]|\d+[.)])\s+(.*)$/.exec(line);
+        return ended(plainInline((item ? item[1] : line).replace(/^>\s*/, '')), '.');
+    }).filter((t) => t && t !== '.' && t !== ':').join(' ');
+}
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const pad2 = (n) => String(n).padStart(2, '0');
+/** A date a person reads in a hand-off draft ("Oct 12, 2026 00:05 UTC"), never a raw ISO stamp. */
+const date = (v) => { const d = new Date(String(v)); return Number.isFinite(d.getTime()) ? MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear() + ' ' + pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes()) + ' UTC' : 'date unavailable'; };
 function createHomeSummaryRoutes(ctx) {
     const router = (0, express_1.Router)();
     router.get('/', async (req, res) => {
@@ -26,7 +51,7 @@ function createHomeSummaryRoutes(ctx) {
             const text = clip(title, 120), notes = clip(detail + '\n' + body, 2000);
             items.push({ text, detail: clip(detail), tone, fix: "youtube-kids", actions: actions.map(integration => ({ integration, context: { title: text, notes } })) });
         };
-        rows(1).forEach(r => item('Kid Lens history', 'Imported ' + date(r.uploaded_at), r.brief_at && new Date(r.brief_at) <= now && r.excerpt ? 'Saved AI parent brief from ' + date(r.brief_at) + ': ' + clip(r.excerpt, 1400) + ' Review interests and choose a gift budget/age range yourself.' : 'No saved parent brief. Open Kid Lens to request one explicitly.', r.brief_at && new Date(r.brief_at) <= now && r.excerpt ? ['plan-gift', 'prepare-document'] : []));
+        rows(1).forEach(r => item('Kid Lens history', 'Imported ' + date(r.uploaded_at), r.brief_at && new Date(r.brief_at) <= now && r.excerpt ? 'Saved AI parent brief from ' + date(r.brief_at) + ': ' + clip(plainBrief(r.excerpt), 1400) + ' Review interests and choose a gift budget/age range yourself.' : 'No saved parent brief. Open Kid Lens to request one explicitly.', r.brief_at && new Date(r.brief_at) <= now && r.excerpt ? ['plan-gift', 'prepare-document'] : []));
         const failed = result.filter(r => r.status === 'rejected').length;
         if (failed)
             items.push({ text: 'Some saved sources cannot be checked.', tone: 'warn', fix: "youtube-kids" });

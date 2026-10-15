@@ -30,8 +30,8 @@ function createHomeSummaryRoutes(ctx) {
         if (failed)
             items.push({ text: 'Some saved sources cannot be checked.', tone: 'warn', fix: "storage-settings" });
         else if (!items.length)
-            items.push({ text: 'No saved work yet. Open the app to begin.', tone: 'neutral', fix: "storage-settings" });
-        items.push({ text: "Shows explicitly saved target preferences. Automatic means the Files service chooses its configured fallback at use time. A saved target is not evidence of a live connection, a successful export or provider free space. Browse and export through the existing Files surface.", tone: 'neutral', fix: "storage-settings" });
+            items.push({ text: 'No storage target saved; the default target is in use. Storage Settings shows it.', tone: 'neutral', fix: "storage-settings" });
+        items.push({ text: "Shows explicitly saved target preferences. Automatic means nothing is saved, so the default target is in use: OSHAL (local), unless GitHub is connected (code) or Dropbox or Google Drive is connected (files). Storage Settings and the Storage assistant show that default as the current target. A saved target is not evidence of a live connection, a successful export or provider free space. Browse and export through the existing Files surface.", tone: 'neutral', fix: "storage-settings" });
         res.status(failed === result.length ? 503 : 200).json({ metrics, tiles: metrics, items, asOf: now.toISOString(), partial: failed > 0 });
     });
     return router;

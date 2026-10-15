@@ -7,6 +7,7 @@ exports.VideoExportStore = void 0;
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Owner-scoped persistence for export jobs (CREATE-EDIT-05c): a job row captures one saved revision and the hash of exactly the document text it will render; one active job per owner in this process epoch, older-epoch rows are reported and recorded as interrupted rather than replayed; every state change is a compare-and-set on status, epoch and cancellation, so a cancelled or stale job can never record a success; a project keeps at most three exports (a new job and its two newest finished predecessors).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  */
 const node_crypto_1 = require("node:crypto");
 const video_editor_types_1 = require("./video-editor-types");
@@ -53,7 +54,8 @@ class VideoExportStore {
             if (busy.rows.length)
                 throw new video_editor_types_1.EditorError(409, 'video_edit_export_in_progress');
             const snapshot = await this.snapshot(client, owner, projectId, revision);
-            const frames = snapshot.document.segments.reduce((sum, segment) => sum + segment.out - segment.in, 0);
+            const frames = snapshot.document.version === 2 ? Math.max(0, ...(snapshot.document.tracks ?? []).flatMap(track => track.clips.map(clip => clip.start + clip.out - clip.in)))
+                : snapshot.document.segments.reduce((sum, segment) => sum + segment.out - segment.in, 0);
             if (frames < 1)
                 throw new video_editor_types_1.EditorError(400, 'video_edit_export_empty');
             const id = (0, node_crypto_1.randomUUID)();

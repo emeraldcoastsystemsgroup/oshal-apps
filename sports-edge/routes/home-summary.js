@@ -7,6 +7,7 @@ exports.createHomeSummaryRoutes = createHomeSummaryRoutes;
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Drop the three fantasy metrics (linked leagues, ungraded and recently graded calls): the fantasy half moved to the fantasy-football package (ADR-146 D1), whose own summary reports them from its per-person tables. The legacy sports_fantasy_* rows this read are no longer written, so the tiles would have frozen at whatever they last said.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Name the followed teams ("Following: Miami Dolphins (NFL)") and, with teams followed but no preview built for their next 7 days, say that instead of "No saved work yet". The Review screen and the concierge reported no saved work, and the concierge could not name the team, while one team was followed.
  */
 /** Saved sports-edge evidence. GET is owner-scoped, bounded, and side-effect free. */
 const express_1 = require("express");
@@ -24,7 +25,8 @@ function createHomeSummaryRoutes(ctx) {
         const now = new Date();
         const result = await Promise.allSettled([
             "SELECT count(*)::text AS teams FROM sports_followed_teams WHERE user_sub = $1 AND created_at<=$2",
-            "SELECT p.league,p.home_team,p.away_team,p.game_date,p.generated_at FROM sports_previews p WHERE p.generated_at<=$2 AND p.game_date>=$2 AND p.game_date<=$2::timestamptz+interval '7 days' AND EXISTS(SELECT 1 FROM sports_followed_teams f WHERE f.user_sub = $1 AND f.created_at<=$2 AND f.league=p.league AND f.team IN (p.home_team,p.away_team)) ORDER BY p.game_date,p.event_id LIMIT 3"
+            "SELECT p.league,p.home_team,p.away_team,p.game_date,p.generated_at FROM sports_previews p WHERE p.generated_at<=$2 AND p.game_date>=$2 AND p.game_date<=$2::timestamptz+interval '7 days' AND EXISTS(SELECT 1 FROM sports_followed_teams f WHERE f.user_sub = $1 AND f.created_at<=$2 AND f.league=p.league AND f.team IN (p.home_team,p.away_team)) ORDER BY p.game_date,p.event_id LIMIT 3",
+            "SELECT league,team,display_name FROM sports_followed_teams WHERE user_sub = $1 AND created_at<=$2 ORDER BY created_at,team LIMIT 10"
         ].map(text => ctx.pool.query({ text, values: [String(sub), now], query_timeout: 1800 })));
         const rows = (i) => { const r = result[i]; return r.status === 'fulfilled' ? r.value.rows : []; };
         const metrics = [[0, "teams", "followed-teams", "Followed teams"]].map(([i, key, id, label]) => ({ id, label, value: result[Number(i)].status === 'fulfilled' ? String(rows(Number(i))[0]?.[key] ?? '0') : 'Unavailable' }));
@@ -34,11 +36,16 @@ function createHomeSummaryRoutes(ctx) {
             items.push({ text, detail: clip(detail), tone, fix: "sports-edge-home", actions: actions.map(integration => ({ integration, context: { title: text, notes } })) });
         };
         rows(1).forEach(r => item(clip(r.away_team) + ' at ' + clip(r.home_team), clip(r.league) + ' / scheduled ' + date(r.game_date), 'Cached preview built ' + date(r.generated_at) + '. Confirm the current schedule, venue, availability and travel needs before making plans. This is a saved sports preview, not a betting recommendation or a ticket booking.', ['plan-meal', 'plan-trip']));
+        const previews = items.length, teams = rows(2);
+        if (teams.length)
+            items.push({ text: clip('Following: ' + teams.map(t => clip(t.display_name || t.team, 60) + ' (' + clip(t.league, 10).toUpperCase() + ')').join(', '), 400), tone: 'neutral', fix: "sports-edge-home" });
         const failed = result.filter(r => r.status === 'rejected').length;
         if (failed)
             items.push({ text: 'Some saved sources cannot be checked.', tone: 'warn', fix: "sports-edge-home" });
-        else if (!items.length)
-            items.push({ text: 'No saved work yet. Open the app to begin.', tone: 'neutral', fix: "sports-edge-home" });
+        else if (!previews && teams.length)
+            items.push({ text: 'No preview has been built yet for your teams\' games in the next 7 days. The Games tab lists their schedule.', tone: 'neutral', fix: "sports-edge-home" });
+        else if (!previews)
+            items.push({ text: 'No followed team yet. Follow a team on the Teams tab to begin.', tone: 'neutral', fix: "sports-edge-home" });
         items.push({ text: "Shows the caller's followed teams and upcoming cached previews, which must match a followed team; preview time remains visible because schedules can change. Prepare a watch-party meal or trip discussion, without refreshing odds, placing bets or booking travel. Fantasy leagues moved to the Fantasy Football app.", tone: 'neutral', fix: "sports-edge-home" });
         res.status(failed === result.length ? 503 : 200).json({ metrics, tiles: metrics, items, asOf: now.toISOString(), partial: failed > 0 });
     });

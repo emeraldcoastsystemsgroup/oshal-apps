@@ -37,6 +37,8 @@
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial guards — the blanket 401-before-any-query sweep, cross-sub 404s, the LLM-free proof for every compute and read path, the exactly-one-call proof for the two paid paths, run single-flight, export 409 without a snapshot, and a classic-script parse of every inline script in the served surface.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Guard immutable FX route ownership/idempotency, foreign-quote refusal, and retired scenario-cent input.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Guard owner-scoped rebaseline policy CRUD and mutation-free forced-dry-run preview behavior.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | On the native kernel GET /runs/:runId, GET /ventures/:id/runs and GET /ventures/:id answer a run whose request was abandoned as interrupted without any write (the kernel refuses SQL mutations on a read request: the first version wrote and every such read answered 500), and a fresh one as running.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | GET /ventures/:id/inversion answers plannedRunUnits beside the thresholds without a bot call (the console's "smallest run that breaks even" row had no plan side).
  */
 'use strict';
 
@@ -374,6 +376,17 @@ test('GET /sensitivity sweeps in code, spends nothing, and excludes unbanded inp
     'an assumption with no stated band is EXCLUDED, never swung over an invented range');
 });
 
+test('GET /inversion answers the planned run beside the thresholds, so the console has the plan side of every row', async () => {
+  const pool = ownedBy('alice');
+  const before = bot.calls.length;
+  const res = await call(pool, 'get', '/ventures/:id/inversion', Object.assign({ params: { id: 'v1' } }, AUTHED));
+  assert.equal(res.statusCode, 200);
+  assert.equal(bot.calls.length, before, 'an inversion is closed-form arithmetic, never a bot call');
+  assert.ok(res.body.inversions && 'minViableVolumeUnits' in res.body.inversions);
+  assert.equal(typeof res.body.plannedRunUnits, 'number', 'the stored snapshot has no run figure; the answer carries it');
+  assert.ok(res.body.plannedRunUnits > 0);
+});
+
 test('reading a document renders from the snapshot without a bot call', async () => {
   const pool = ownedBy('alice', (sql) => {
     if (/FROM venture_models/.test(sql)) {
@@ -445,6 +458,46 @@ test('an unknown run kind falls back to a full run rather than being coerced int
   const res = await call(pool, 'post', '/ventures/:id/runs',
     Object.assign({ params: { id: 'v2' }, body: { kind: 'DROP TABLE' } }, AUTHED));
   assert.equal(res.body.kind, 'full');
+});
+
+/** A pool owning venture v1 and one run row that, like the native kernel on a read request, refuses any write. */
+function runPool(run) {
+  return ownedBy('alice', (sql, params) => {
+    if (/^\s*(UPDATE|INSERT|DELETE)/i.test(sql)) throw new Error('refused: SQL mutation requires original writer admission');
+    if (/FROM venture_runs/.test(sql) && params.includes('alice')) return { rows: [run], rowCount: 1 };
+    return null;
+  });
+}
+function runRow(startedAgoMs) {
+  return { id: 'run-x', venture_id: 'v1', owner_sub: 'alice', kind: 'full', status: 'running', phase: 'bom',
+    phases: [{ name: 'bom', agentId: 'b', status: 'running', durationMs: null, error: null },
+      { name: 'compute', agentId: null, status: 'pending', durationMs: null, error: null }],
+    bots_requested: 1, bots_completed: 0, error: null, started_at: new Date(Date.now() - startedAgoMs), finished_at: null };
+}
+
+test('on native, reads answer a run whose request was abandoned as interrupted, writing nothing; a fresh one stays running', async () => {
+  const saved = process.env.OSHAL_EGRESS;
+  process.env.OSHAL_EGRESS = 'kernel';
+  try {
+    const read = await call(runPool(runRow(2 * 60_000)), 'get', '/runs/:runId', Object.assign({ params: { runId: 'run-x' } }, AUTHED));
+    assert.equal(read.statusCode, 200);
+    assert.equal(read.body.run.status, 'failed', 'a page closed mid-run is not shown running for ever');
+    assert.match(read.body.run.error, /^interrupted: .*Press Run the analysts again/);
+    assert.deepEqual(read.body.run.phases.map((p) => p.status), ['failed', 'failed']);
+
+    const list = await call(runPool(runRow(2 * 60_000)), 'get', '/ventures/:id/runs', Object.assign({ params: { id: 'v1' } }, AUTHED));
+    assert.equal(list.statusCode, 200);
+    assert.deepEqual(list.body.runs.map((r) => r.status), ['failed']);
+
+    const venture = await call(runPool(runRow(5 * 60_000)), 'get', '/ventures/:id', Object.assign({ params: { id: 'v1' } }, AUTHED));
+    assert.equal(venture.statusCode, 200);
+    assert.equal(venture.body.latestRun.status, 'failed', 'the console header and the home tile read it closed');
+
+    const live = await call(runPool(runRow(15_000)), 'get', '/runs/:runId', Object.assign({ params: { runId: 'run-x' } }, AUTHED));
+    assert.equal(live.body.run.status, 'running', 'a run inside its request deadline may still be driven');
+  } finally {
+    if (saved === undefined) delete process.env.OSHAL_EGRESS; else process.env.OSHAL_EGRESS = saved;
+  }
 });
 
 /* ══ 5. exports refuse without a computed model ══════════════════════════ */

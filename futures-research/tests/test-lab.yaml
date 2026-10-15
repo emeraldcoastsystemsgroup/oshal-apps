@@ -1,4 +1,6 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Register bounded readiness and package contracts without claiming live inference or nightly acceptance.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register persona-direct-question: a direct question is answered before the where-reviews-start sentence.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | The direct-question case also expects a set length to cover the whole reply (sweep 13).
 version: 1
 cases:
   - id: package-readiness
@@ -27,4 +29,18 @@ cases:
       fixtures: [tests/package-contract.test.cjs]
       cleanup: Temporary manifest directories and loopback servers are removed in finally blocks; no live database or provider is used.
     limits: { timeoutMs: 30000 }
+    installation: never
+  - id: persona-direct-question
+    name: A direct question is answered before the pointer to the queue
+    purpose: Read the worker persona and verify a question with no study evidence is answered first, the where-reviews-start sentence comes last and is never the whole reply, and no quoted sample reply is left to repeat.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/persona-direct-question.test.cjs] }
+    expected:
+      - "A set number of sentences is the whole reply's length, and the closing sentence is left out then (sweep 13)."
+      - The answer part precedes the closing pointer and the pointer alone is named as not an answer.
+      - No quoted sample reply remains; the strict JSON contract for a controller review is unchanged.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
     installation: never

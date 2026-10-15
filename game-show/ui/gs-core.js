@@ -7,6 +7,7 @@
  * 2026-07-24 14:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog burn-down: ?as=<seatId> pins a surface to a hotseat podium (the rehearsal view's clickers; owner-only server-side); exactly ONE device per room synthesizes TTS (lease claimed on the poll, lines queue instead of overlapping — #8); incoming 'react' events invoke GS.onReact so every surface shows the room's reactions (#16).
  * 2026-07-25 23:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | GS.wantLobby (?lobby=1) so the bootstrap can skip the resume-last-room path and show the lobby's show picker on demand.
  * 2026-07-26 19:12:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Every incoming event is also handed to GS.onBeat (next to the GS.onReact dispatch) so the broadcast chrome can score reveals/strikes/wins as sound cues.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com    | The sync poll is a POST: it is the tick that resolves a lapsed round clock and plays the AI podiums, which writes, and the native kernel admits a GET only as a reader (every poll after a show started answered 500).
  */
 
 /* global window, document, navigator */
@@ -178,7 +179,7 @@
 
   GS.poll = function () {
     if (!GS.roomId) return Promise.resolve();
-    return GS.api.get('/sync?roomId=' + GS.roomId + '&rev=' + GS.rev + '&seq=' + GS.seq).then(function (r) {
+    return GS.api.post('/sync', { roomId: GS.roomId, rev: GS.rev, seq: GS.seq }).then(function (r) {
       if (!r.body || r.body.ok === false) return;
       if (GS.ingest(r.body) && typeof GS.render === 'function') GS.render();
     }).catch(function () {});

@@ -59,23 +59,25 @@
   }
   function prices(cfg) {
     if (!cfg) return { id: 'prices', label: 'Prices', value: '—', hint: 'Could not check' };
+    if (cfg.mode === 'not_connected') return { id: 'prices', label: 'Prices', value: 'None here', hint: 'No Duffel connector on this installation', tone: 'warn' };
     if (cfg.mode !== 'live') return { id: 'prices', label: 'Prices', value: 'Demo', hint: 'No Duffel token', tone: 'warn' };
     return cfg.live ? { id: 'prices', label: 'Prices', value: 'Live' } : { id: 'prices', label: 'Prices', value: 'Test', hint: 'Duffel test token', tone: 'warn' };
   }
-  function hero(watches, next, drops, watching, demo) {
+  // `connectable`: demo prices on an installation that HAS a Duffel connector to connect (never where it has none).
+  function hero(watches, next, drops, watching, demo, connectable) {
     var d = next ? tripDay(next) : '', rel = d ? A.when(d) : '', day = d ? A.day(d) : '';
     return {
       kicker: 'Trips',
       title: drops ? (drops === 1 ? 'A watched fare dropped' : drops + ' watched fares dropped') : watching ? 'Watching ' + watching + (watching === 1 ? ' fare' : ' fares') : watches.length ? watches.length + ' saved fare watches' : 'No trips on the radar',
       lede: (next ? 'Next: ' + place(next) + ' on ' + day + (rel !== day ? ' (' + rel + ')' : '') : watches.length ? 'None of the saved watches has an upcoming date.' : 'Search a trip in Travel and tap Watch to follow its fare here.') + (demo ? ' · demo prices' : ''),
-      actions: [{ label: 'Plan a trip', primary: true, onClick: function () { A.open(FULL); } }].concat(demo ? [{ label: 'Connect live prices', onClick: function () { A.open('/utilities'); } }] : [])
+      actions: [{ label: 'Plan a trip', primary: true, onClick: function () { A.open(FULL); } }].concat(connectable ? [{ label: 'Connect live prices', onClick: function () { A.open('/utilities'); } }] : [])
     };
   }
   function model(cfg, watches) {
     var now = today(), byDay = function (a, b) { return tripDay(a) < tripDay(b) ? -1 : tripDay(a) > tripDay(b) ? 1 : 0; };
     var soon = watches.filter(function (w) { var d = tripDay(w); return d && d >= now; }).sort(byDay), demo = !!cfg && cfg.mode !== 'live';
     var drops = watches.filter(function (w) { return w.status === 'tripped'; }).length, watching = watches.filter(function (w) { return w.status === 'active'; }).length;
-    var m = hero(watches, soon[0], drops, watching, demo);
+    var m = hero(watches, soon[0], drops, watching, demo, demo && cfg.mode !== 'not_connected');
     m.stats = [
       { id: 'watching', label: 'Watching', value: watching },
       { id: 'drops', label: 'Price drops', value: drops, tone: drops ? 'ok' : null },
@@ -86,7 +88,7 @@
       { kind: 'timeline', id: 'upcoming', title: 'Coming up', empty: watches.length ? 'None of the saved watches has an upcoming date.' : NO_WATCHES,
         items: soon.map(function (w) { var s = status(w, now); return { when: A.day(tripDay(w)), title: place(w), text: detail(w) + (s.tone === 'ok' ? ' · ' + s.badge : ''), tone: s.tone }; }) },
       { kind: 'list', id: 'watches', title: 'Fare watches', empty: NO_WATCHES, items: watches.map(function (w) { return row(w, now); }),
-        note: demo ? 'Prices are demo data until a Duffel token is connected on the Connections page.' : cfg && !cfg.live ? 'Prices come from a Duffel test token.' : null }
+        note: cfg && cfg.mode === 'not_connected' ? 'Fares cannot be searched or re-checked here: this installation has no Duffel rail (no Duffel connector exists here).' : demo ? 'Prices are demo data, not live fares.' : cfg && !cfg.live ? 'Prices come from a Duffel test token.' : null }
     ];
     return m;
   }
@@ -158,7 +160,17 @@
   .chatin input { flex:1; }
   .chathead { padding:12px 16px; border-bottom:1px solid var(--line); font-size:13px; font-weight:600; }
   ::-webkit-scrollbar { width:10px; height:10px; } ::-webkit-scrollbar-thumb { background:var(--scrollbar-thumb); border-radius:8px; }
-  @media (max-width:820px){ main{grid-template-columns:1fr;} .right{border-left:none;border-top:1px solid var(--line);} }
+  /* The connected-actions section is appended after <main>. A fixed-height flex body squeezed <main> under it
+     at phone size (the 337px section covered the search form and the concierge in a 641px frame), so on
+     narrow screens the page flows: form, concierge, then the section, and the page itself scrolls. */
+  .connected-app-actions { flex:none; }
+  @media (max-width:820px){
+    html,body{height:auto;min-height:100%;}
+    body{display:block;}
+    main{display:block;}
+    .right{border-left:none;border-top:1px solid var(--line);}
+    .chatlog{flex:none;max-height:55vh;min-height:160px;}
+  }
   @media (max-width:640px){
     header { padding:12px 14px 8px; }
     .tabs { padding:8px 14px 0; gap:4px; overflow-x:auto; flex-wrap:nowrap; }
@@ -181,14 +193,15 @@
     .chatin input { font-size:16px; }
   }
 </style>
-<!-- Framework theme-sync: copy the cockpit's active theme tokens onto our locals (light/dark
+<!-- Framework theme-sync: copy the cockpit's active theme tokens onto our locals ONLY as a matched set (the parent
+     must name both --bg-primary and --text-primary; otherwise this page keeps the palette surface-theme.js gave it) (light/dark
      aware, reacts to data-theme + cockpit-theme). Same script every in-cockpit surface uses. -->
-<script>(function(){const M={'--bg':'--bg-primary','--panel':'--bg-secondary','--panel2':'--bg-tertiary','--line':'--border-color','--text':'--text-primary','--muted':'--text-secondary','--accent':'--accent-primary','--accent2':'--status-success','--scrollbar-thumb':'--scrollbar-thumb'};function m(){try{const p=(window.parent&&window.parent!==window)?window.parent:null;if(!p)return;const cs=p.getComputedStyle(p.document.documentElement);for(const k in M){const v=cs.getPropertyValue(M[k]).trim();if(v)document.documentElement.style.setProperty(k,v);}}catch(e){}}m();window.addEventListener('storage',e=>{if(e.key==='cockpit-theme')setTimeout(m,30);});try{const p=window.parent;if(p&&p!==window)new MutationObserver(m).observe(p.document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch(e){}document.addEventListener('DOMContentLoaded',m);})();</script>
+<script>(function(){const M={'--bg':'--bg-primary','--panel':'--bg-secondary','--panel2':'--bg-tertiary','--line':'--border-color','--text':'--text-primary','--muted':'--text-secondary','--accent':'--accent-primary','--accent2':'--status-success','--scrollbar-thumb':'--scrollbar-thumb'};function m(){try{const p=(window.parent&&window.parent!==window)?window.parent:null;if(!p)return;const cs=p.getComputedStyle(p.document.documentElement);const ds=document.documentElement.style;if(!cs.getPropertyValue('--bg-primary').trim()||!cs.getPropertyValue('--text-primary').trim()){for(const k in M)ds.removeProperty(k);return;}for(const k in M){const v=cs.getPropertyValue(M[k]).trim();if(v)document.documentElement.style.setProperty(k,v);}}catch(e){}}m();window.addEventListener('storage',e=>{if(e.key==='cockpit-theme')setTimeout(m,30);});try{const p=window.parent;if(p&&p!==window)new MutationObserver(m).observe(p.document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch(e){}document.addEventListener('DOMContentLoaded',m);})();</script>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
 <header>
-  <h1>Travel <span id="mode" class="badge">demo</span></h1>
+  <h1>Travel <span id="mode" class="badge">…</span></h1>
   <div class="sub">Real flight search, an honest price read from the swarm, and a one-click booking handoff.</div>
 </header>
 <div class="tabs">
@@ -200,13 +213,13 @@
   <div class="left">
     <form id="searchForm" onsubmit="return doSearch(event)"></form>
     <div id="priceband" class="priceband"></div>
-    <div id="demoflag" class="demoflag" style="display:none">Showing demo data — connect a Duffel token on the Connections page for live prices.</div>
+    <div id="demoflag" class="demoflag" style="display:none">Showing demo data, not live prices.</div>
     <div id="results"><div class="empty">Search to see options.</div></div>
   </div>
   <div class="right">
     <div class="chathead">Travel concierge</div>
     <div id="chatlog" class="chatlog">
-      <div class="bubble bot">Hi — tell me where and when you want to go (e.g. "VPS to DCA on 2026-08-01"), or ask me to find a good fare. I'll tell you honestly if the price is good and can watch a route for a drop.</div>
+      <div class="bubble bot" id="greeting">Hi — tell me where and when you want to go (e.g. "VPS to DCA on 2026-08-01"), or ask me to find a good fare. I'll tell you honestly if the price is good and can watch a route for a drop.</div>
     </div>
     <div class="chatin">
       <input id="chatbox" placeholder="Ask the concierge…" onkeydown="if(event.key==='Enter')sendChat()" />
@@ -221,36 +234,77 @@ let LAST = { search:null, items:[], deepLink:null };
 let convId = null;
 
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-async function api(path, opts){ const r = await fetch(API+path, opts); if(!r.ok && r.status!==409) throw new Error('HTTP '+r.status); return r.json(); }
+async function api(path, opts){ const r = await fetch(API+path, opts); if(!r.ok && r.status!==409) throw Object.assign(new Error('HTTP '+r.status), { status: r.status }); return r.json(); }
+// Flight, hotel and car fares come from Duffel. Without a Duffel connection the server refuses those searches
+// (HTTP 503); the page says so instead of "No options found".
+const NOT_CONNECTED = 'Unavailable: this installation has no Duffel rail (no Duffel connector exists here), so flights, hotels and cars cannot be searched or watched. The concierge can still talk through a trip.';
+const NO_RAIL_GREETING = 'Hi — tell me where and when you want to go (e.g. "VPS to DCA in late October"). This installation has no Duffel rail, so I cannot search, price or watch fares here, but I can help plan the trip: airports, dates, timing and what to book first.';
+function showNotConnected(){
+  RAIL_MISSING = true;
+  LAST.search = null; LAST.items = []; // a refused search leaves nothing for the concierge to quote
+  document.getElementById('results').innerHTML = '<div class="empty" role="status">'+esc(NOT_CONNECTED)+'</div>';
+  const mode = document.getElementById('mode'); mode.textContent = 'not connected'; mode.className = 'badge';
+}
 
 function todayPlus(days){ const d=new Date(); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
 
+// Every place field is EMPTY with an example placeholder: a prefilled "JFK -> LHR" was handed to other apps as the
+// person's trip. Dates keep a default (a date input has no placeholder), and a trip needs its places typed first.
 const FORMS = {
   flight: () => `
-    <div class="field"><label>From</label><input class="iata" id="f_origin" placeholder="JFK" value="JFK"></div>
-    <div class="field"><label>To</label><input class="iata" id="f_dest" placeholder="LHR" value="LHR"></div>
+    <div class="field"><label>From</label><input class="iata" id="f_origin" placeholder="e.g. VPS"></div>
+    <div class="field"><label>To</label><input class="iata" id="f_dest" placeholder="e.g. DCA"></div>
     <div class="field"><label>Depart</label><input type="date" id="f_depart" value="${todayPlus(30)}"></div>
     <div class="field"><label>Return (opt)</label><input type="date" id="f_return"></div>
     <div class="field"><label>Cabin</label><select id="f_cabin"><option>economy</option><option>premium_economy</option><option>business</option><option>first</option></select></div>
     <div class="field"><label>&nbsp;</label><button type="submit">Search flights</button></div>`,
   hotel: () => `
-    <div class="field"><label>City</label><input id="h_city" placeholder="Paris" value="Paris"></div>
+    <div class="field"><label>City</label><input id="h_city" placeholder="e.g. Washington"></div>
     <div class="field"><label>Check-in</label><input type="date" id="h_in" value="${todayPlus(30)}"></div>
     <div class="field"><label>Check-out</label><input type="date" id="h_out" value="${todayPlus(33)}"></div>
     <div class="field"><label>&nbsp;</label><button type="submit">Search hotels</button></div>`,
   car: () => `
-    <div class="field"><label>City</label><input id="c_city" placeholder="Miami" value="Miami"></div>
+    <div class="field"><label>City</label><input id="c_city" placeholder="e.g. Washington"></div>
     <div class="field"><label>Pickup</label><input type="date" id="c_in" value="${todayPlus(30)}"></div>
     <div class="field"><label>Dropoff</label><input type="date" id="c_out" value="${todayPlus(33)}"></div>
     <div class="field"><label>Class</label><select id="c_class"><option>economy</option><option>midsize</option><option>suv</option><option>luxury</option></select></div>
     <div class="field"><label>&nbsp;</label><button type="submit">Search cars</button></div>`,
 };
+// Each tab's fields as the person left them. switchTab() rebuilds the form, so without this a Hotels -> Flights round
+// trip threw away the typed trip.
+const FIELDS = { flight:['f_origin','f_dest','f_depart','f_return','f_cabin'], hotel:['h_city','h_in','h_out'], car:['c_city','c_in','c_out','c_class'] };
+const FORM_STATE = { flight:{}, hotel:{}, car:{} };
+// Set from /config or a refused search: with no Duffel rail every tab keeps the unavailable notice.
+let RAIL_MISSING = false;
+
+/** Keep the open tab's field values, so switching back restores them. */
+function saveForm(){
+  for(const id of FIELDS[KIND]||[]){ const el=document.getElementById(id); if(el) FORM_STATE[KIND][id]=el.value; }
+}
+/** Put a tab's kept values back into its freshly built fields. */
+function restoreForm(kind){
+  const kept = FORM_STATE[kind]||{};
+  for(const id of FIELDS[kind]||[]){ const el=document.getElementById(id); if(el && kept[id]!==undefined) el.value=kept[id]; }
+}
+/** What the results area says before a search: the unavailable notice where nothing can be searched. */
+function idleResults(){
+  return RAIL_MISSING ? '<div class="empty" role="status">'+esc(NOT_CONNECTED)+'</div>' : '<div class="empty">Search to see options.</div>';
+}
 
 function switchTab(kind){
+  if(document.getElementById(FIELDS[KIND][0])) saveForm();
+  showTab(kind);
+}
+/** Build a tab's form from its kept values (switchTab() keeps the open tab's values first). */
+function showTab(kind){
   KIND = kind;
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on', t.dataset.kind===kind));
   document.getElementById('searchForm').innerHTML = FORMS[kind]();
-  document.getElementById('results').innerHTML = '<div class="empty">Search to see options.</div>';
+  restoreForm(kind);
+  // The results on screen belong to the tab that searched; a tab switch clears them, so nothing of that search is
+  // offered to other apps under this tab's name.
+  LAST.search = null; LAST.items = []; LAST.deepLink = null;
+  document.getElementById('results').innerHTML = idleResults();
   document.getElementById('priceband').style.display='none';
 }
 
@@ -316,10 +370,50 @@ async function doSearch(e){
       data = await api('/cars?'+qs.toString());
     }
     render(data);
-  } catch(err){ document.getElementById('results').innerHTML = '<div class="empty">'+esc(err.message)+'</div>'; }
+  } catch(err){
+    if(err.status===503) showNotConnected();
+    else document.getElementById('results').innerHTML = '<div class="empty">'+esc(err.message)+'</div>';
+  }
   return false;
 }
 function val(id){ const el=document.getElementById(id); return el?el.value.trim():''; }
+/** The trip as typed in the form (no search needed): what another app can plan around before, or without, a search. */
+function typedTrip(){
+  if(KIND==='flight'){ const t={ origin:val('f_origin').toUpperCase(), destination:val('f_dest').toUpperCase(), departDate:val('f_depart'), returnDate:val('f_return')||undefined, cabin:val('f_cabin') }; return t.origin&&t.destination ? t : null; }
+  if(KIND==='hotel'){ const t={ city:val('h_city'), checkIn:val('h_in'), checkOut:val('h_out') }; return t.city ? t : null; }
+  const t={ city:val('c_city'), pickupDate:val('c_in'), dropoffDate:val('c_out'), carClass:val('c_class') }; return t.city ? t : null;
+}
+/** A trip in the words a person reads: "From VPS to DCA, depart 2026-11-20, economy cabin." (never raw JSON). */
+function describeTrip(kind, t){
+  if(!t) return '';
+  const g = (k) => String(t[k]==null?'':t[k]).trim();
+  if(kind==='flight') return 'From '+g('origin').toUpperCase()+' to '+g('destination').toUpperCase()+(g('departDate')?', depart '+g('departDate'):'')+(g('returnDate')?', return '+g('returnDate'):'')+(g('cabin')?', '+g('cabin').replace('_',' ')+' cabin':'')+'.';
+  if(kind==='hotel') return 'Hotel in '+g('city')+(g('checkIn')?', check in '+g('checkIn'):'')+(g('checkOut')?', check out '+g('checkOut'):'')+'.';
+  return 'Car in '+g('city')+(g('pickupDate')?', pick up '+g('pickupDate'):'')+(g('dropoffDate')?', drop off '+g('dropoffDate'):'')+(g('carClass')?', '+g('carClass')+' class':'')+'.';
+}
+/** The offer context: the searched trip, else the typed one labelled as not searched (never as a booking). */
+function tripOfferContext(){
+  if(LAST.search) return { title:'Prepare for my '+KIND+' search', notes:'Travel search (not a confirmed booking): '+describeTrip(KIND, LAST.search) };
+  const typed = typedTrip(); if(!typed) return null;
+  return { title:'Plan around my '+KIND+' trip (not searched)', notes:'Travel plan as typed, not searched and not booked: '+describeTrip(KIND, typed) };
+}
+/**
+ * A hand-off from another app (Rides sends "Destination: ..." and "Pickup: ..." lines) fills the form, not only the
+ * chat box. A destination naming an airport code ("Pensacola International Airport (PNS)") is where the person flies
+ * from, so it becomes the flight's From; any other destination is the place they are going, so it becomes the hotel
+ * and car city. Nothing is guessed when the context names no destination.
+ */
+function applyHandoffTrip(context){
+  const notes = String((context&&context.notes)||'');
+  const line = (label) => { const m = new RegExp('^\\s*'+label+':\\s*(.+)$','mi').exec(notes); return m ? m[1].trim() : ''; };
+  const destination = line('Destination'); if(!destination) return false;
+  const code = /\(([A-Za-z]{3})\)/.exec(destination) || /^([A-Za-z]{3})$/.exec(destination);
+  saveForm();
+  if(code) FORM_STATE.flight.f_origin = code[1].toUpperCase();
+  else { FORM_STATE.hotel.h_city = destination.slice(0,120); FORM_STATE.car.c_city = destination.slice(0,120); }
+  showTab(code ? 'flight' : 'hotel');
+  return true;
+}
 function book(){ if(LAST.deepLink) window.open(LAST.deepLink,'_blank','noopener'); }
 
 async function watchThis(id, price){
@@ -342,13 +436,23 @@ async function sendChat(){
     const r = await api('/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
     convId = r.conversationId; addBubble('bot', r.reply || '…');
     if((r.cards||[]).length){ LAST.items = r.cards; document.getElementById('results').innerHTML = r.cards.map(KIND==='flight'?flightCard:simpleCard).join(''); if(r.price) priceBand(r.price); }
-  } catch(err){ addBubble('bot', 'Sorry — '+esc(err.message)); }
+  } catch(err){ addBubble('bot', err.status===503 ? NOT_CONNECTED : 'Sorry — '+err.message); }
 }
 
 // The full page only: under an audience view the shared kit paints instead (see the head script).
 if (!window.AppView || !AppView.active()) (async function init(){
   switchTab('flight');
-  try { const c = await api('/config'); document.getElementById('mode').textContent = c.mode||'demo'; document.getElementById('mode').className='badge '+(c.connected&&c.live?'live':''); } catch(e){}
+  try {
+    const c = await api('/config');
+    document.getElementById('mode').textContent = c.mode==='not_connected' ? 'not connected' : (c.mode||'demo');
+    document.getElementById('mode').className='badge '+(c.connected&&c.live?'live':'');
+    if(c.mode==='not_connected'){
+      RAIL_MISSING = true;
+      document.getElementById('results').innerHTML = '<div class="empty" role="status">'+esc(NOT_CONNECTED)+'</div>';
+      // The greeting promised a price read and a fare watch, neither of which this installation can do.
+      document.getElementById('greeting').textContent = NO_RAIL_GREETING;
+    }
+  } catch(e){ document.getElementById('mode').textContent = 'status unavailable'; }
 })();
 </script>
 
@@ -362,10 +466,10 @@ const set = (id,value) => { const el=document.getElementById(id); el.value = el.
 const brief = context => [context.title,context.notes,context.sourceUrl ? 'Source: '+context.sourceUrl : ''].filter(Boolean).join('\n\n');
 // The full page only: under an audience view no handoff listener is added, no section is appended to the body and no connected-actions offer is fetched.
 if (!window.AppView || !AppView.active()) {
-receiveHandoff({"app":"travel","action":"plan-trip","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]}, context => { set('chatbox', brief(context)); document.getElementById('chatbox').focus(); });
+receiveHandoff({"app":"travel","action":"plan-trip","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]}, context => { applyHandoffTrip(context); set('chatbox', brief(context)); document.getElementById('chatbox').focus(); });
 const element = document.createElement('section'); element.className='connected-app-actions'; element.setAttribute('aria-label','Connected application actions'); element.style.cssText='margin:16px auto;padding:16px;max-width:1200px;border:1px solid currentColor;border-radius:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap';
 document.body.append(element);
-void mountConnectedActions({ app:"travel", element, contextForOffer:()=>{ if (!LAST.search) return null; const title='Prepare for my '+KIND+' search'; const notes=clip('Travel search (not a confirmed booking): '+JSON.stringify(LAST.search)); return {title,notes}; } });
+void mountConnectedActions({ app:"travel", element, contextForOffer:()=>{ const c = tripOfferContext(); return c ? { title:c.title, notes:clip(c.notes) } : null; } });
 }
 </script>
 </body>

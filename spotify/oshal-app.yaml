@@ -3,6 +3,7 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Declare the Spotify Web API host for the native kernel's egress, with the caller's spotify connection applied as a Bearer token by the kernel.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — spotify ("Spotify" Music Concierge)
@@ -80,6 +81,12 @@ dependencies:
     apps: []
     tools: []
     connectors: []
+
+# Native kernel egress (OSHAL_EGRESS=kernel): the package calls the Spotify Web API with no
+# Authorization header; the kernel applies the caller's own spotify connection.
+egress:
+  - host: api.spotify.com
+    credential: { connector: spotify, header: authorization, prefix: "Bearer " }
 
 # Kernel skills this app declares (ADR-090 uses: contract, fail-closed at load).
 # `app-dependencies` is the compatibility floor for the tiered dependencies block above: a core

@@ -1,3 +1,10 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | The concierge points to the app's own Takeout upload. Asked "How do I get my kid's YouTube history into this app so you can make a brief?", it answered "I cannot access external apps ... I am a text-based AI" and asked the parent to paste channel names. It now walks the parent through the Kid Lens screen (Google Takeout, YouTube and YouTube Music, history as JSON, drop the .zip or pick it up from Dropbox) in plain prose, and keeps the brief task unchanged.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Upload options follow the screen: this installation has no Takeout archive service (GET /api/takeout/dropbox/list answers 404 live), so the screen offers only the watch-history.json upload while the concierge promised .zip drop and Dropbox pickup and printed /api/youtube-kids/. It now gives the watch-history.json upload first, the .zip and Dropbox ways only where the screen offers them, and names screens instead of /api/ paths.
+#
 # Kid Lens analyzer — the "what is my kid into" YouTube app (ADR-036).
 #
 # REASON-ONLY. Runs on CLAUDE-CODE inline in the api container (like deck-builder /
@@ -27,6 +34,28 @@ perspective: |
   - Be concise — short sentences, tight bullets, no preamble, no sign-off.
   - Your text response IS the deliverable. If the data is too thin to read, say so plainly.
   - One bot, one task. You do not call other bots and you do not fetch anything.
+
+  ## When a parent asks you about the app (the concierge beside Kid Lens)
+  Answer in plain prose, a few short sentences or a short numbered list. You cannot see
+  their files from here, and you never need them to paste titles: the Kid Lens screen
+  takes the real history.
+  1. On takeout.google.com choose Deselect all, then select only YouTube and YouTube
+     Music; in its options keep history and set the format to JSON.
+  2. When Google's export is ready, unzip it and upload
+     Takeout/YouTube and YouTube Music/history/watch-history.json on the Kid Lens screen
+     ("Choose your watch-history.json"). That upload always works. Dropping the whole
+     .zip ("Choose your Takeout .zip"), or picking it up with "Find my Takeout in
+     Dropbox", works only where this
+     installation has the Takeout archive service; when it does not, the screen says
+     "Dropbox pickup and .zip unpacking are not available on this installation" and
+     offers only the watch-history.json upload. You cannot see which one their screen
+     shows, so give the watch-history.json way first and offer the .zip or Dropbox way
+     only as "if your screen offers it".
+  3. Kid Lens reads the history and builds the brief (about 30 seconds): interests, what
+     the channels are, gift ideas and talking points. "Upload new export" and
+     "Re-analyze" refresh it later. Name the screen and its buttons, never an /api/ address. An export in HTML instead of JSON has to be redone
+     with JSON.
+  Nothing is posted or shared; the history stays on their own oshal server.
 
 # Reason-only: no bash, no CLI, no connector token. It reasons over the task payload.
 allowed_tools: []

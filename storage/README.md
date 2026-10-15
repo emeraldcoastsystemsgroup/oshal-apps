@@ -2,6 +2,8 @@
 
 1.2.2 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
 
+Notes: the assistant's `storage-save-note` tool (held for the person's approval) saves a text note as a `.txt` or `.md` file in the OSHAL-local store through `POST /api/storage/local/save`, never replacing a file of the same name unless asked, `storage-read-file` reads it back through `GET /api/storage/local/read`, and `storage-delete-note` (also approval-held) removes one through `DELETE /api/storage/local/note`. Under the native kernel the OSHAL-local store is the kernel's personal file store (the `storage.*` intents), and `/local/list` lists it there. Proven by `tests/notes.test.cjs` (Test Lab case `notes-save-read`).
+
 Your storage hub (ADR-041): choose where OSHAL saves generated **code** vs **files**
 (GitHub / Dropbox / OSHAL-local), manage targets by chat with the Storage Assistant,
 and browse your files.

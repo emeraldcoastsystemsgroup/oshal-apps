@@ -140,6 +140,30 @@ dependencies:
     tools: []
     connectors: []
 
+# Outbound hosts (native kernel): the sandbox has no network of its own, so every ESPN read goes
+# through the kernel's fenced egress, which refuses any host not declared here. These are the two
+# public, credential-free hosts routes/sports-espn.js reads (SITE_API, CORE_API); without them every
+# read was refused and "Load teams" came back empty. Guard: tests/sports-egress-manifest.test.js.
+egress:
+  - host: site.api.espn.com
+  - host: sports.core.api.espn.com
+
+# The refresh pass (line capture, grading, previews) runs only inside an admitted request: this
+# schedule fires POST /refresh/run as the person who activated it, over that person's own followed
+# teams. It replaces the in-process timer the route factory used to start, whose passes ran outside
+# any request and were refused by the native kernel. Every three hours, the shipped refresh cadence.
+schedules:
+  - id: refresh-pass
+    cron: "17 */3 * * *"
+    runsAs: user
+    target: service-route
+    route: /api/sports-edge/refresh/run
+    method: POST
+    body: {}
+    timeoutSeconds: 600
+    description: Capture the book's lines, grade finished calls and rebuild previews for the teams you follow.
+    offer: Keep my followed teams' previews, lines and graded calls fresh every three hours.
+
 theme: midnight
 
 # ─────────────────────────────────────────────────────────────────────────────

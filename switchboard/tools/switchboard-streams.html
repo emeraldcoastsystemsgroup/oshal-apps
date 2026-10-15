@@ -13,6 +13,10 @@
      DERIVED from a framework token with a hardcoded fallback, so the surface is native to all 11
      themes in-cockpit AND still renders if opened on its own (fallbacks = the midnight palette,
      with a light-scheme set under @media so a bare open respects the OS theme too). -->
+<!-- CHANGE LOG
+     1 | maintainer@emeraldcoastsystemsgroup.com | Draft per-platform variants leaves a variant the comms bot declined
+       (failed:'bot_declined', no text) untouched and names it with the bot's words, instead of announcing every variant
+       drafted; the bot's refusals had been written into the variant text. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
@@ -645,7 +649,7 @@
       published:"Confirmed publishes land here with their per-channel results.",
       rejected:"Posts a reviewer rejects wait here — reopen one to work on it again.",
       failed:"A publish where every channel failed lands here — retry or reopen.",
-      archived:"Archived posts are kept out of the way but never deleted."
+      archived:"Archived posts are kept out of the way. Open one and press Delete to remove it for good."
     };
     return hints[st]||"Nothing here yet.";
   }
@@ -702,6 +706,8 @@
     else if(st==="published"){ out+=b("Archive","#i-x","","t:archive"); }
     else if(st==="rejected"){ out+=b("Reopen","#i-undo","primary","t:reopen")+b("Archive","#i-x","","t:archive"); }
     else if(st==="failed"){ out+=b("Retry","#i-refresh","primary","t:retry")+b("Reopen","#i-undo","","t:reopen")+b("Archive","#i-x","","t:archive"); }
+    // Delete removes the post for good; a scheduled post must be unscheduled first (the server refuses it too).
+    if(st!=="scheduled"){ out+=b("Delete","#i-x","danger","del"); }
     return out;
   }
 
@@ -850,6 +856,7 @@
       var act=btn.getAttribute("data-act");
       if(act==="pub"){ startPublish(btn); return; }
       if(act==="sched"){ toggleSched(); return; }
+      if(act==="del"){ doDelete(btn); return; }
       if(act.indexOf("t:")===0){ doTransition(act.slice(2), null, btn); return; }
       if(act.indexOf("n:")===0){ openNotePrompt(act.slice(2)); return; }
     });
@@ -909,12 +916,18 @@
       .then(parse)
       .then(function(res){
         if(!res.ok){ edErr((res.j&&(res.j.message||res.j.error))||"Could not draft variants ("+res.status+")"); return; }
-        var byP={}; (res.j.variants||[]).forEach(function(v){ byP[v.platform==="twitter"?"x":v.platform]=v.text; });
+        var byP={}, declined=[];
+        (res.j.variants||[]).forEach(function(v){
+          var p=v.platform==="twitter"?"x":v.platform;
+          if(v.failed==="bot_declined"){ declined.push((BRAND[p]||{label:p}).label+(v.notice?" ("+v.notice+")":"")); return; }
+          byP[p]=v.text;
+        });
         Array.prototype.forEach.call(document.querySelectorAll("#vgrid .vcard"), function(card){
           var t=byP[card.dataset.platform];
           if(typeof t==="string"){ card.querySelector("textarea").value=t; meterFix(card); }
         });
-        toast("Variants drafted — review, tweak, then Save");
+        if(declined.length) edErr("The bot did not write "+declined.join("; ")+". Those variants are unchanged.");
+        if(Object.keys(byP).length) toast("Variants drafted — review, tweak, then Save");
       })
       .catch(function(){ edErr("The composer is offline right now."); })
       .finally(function(){ btn.disabled=false; btn.innerHTML='<svg><use href="#i-spark"/></svg> Draft per-platform variants'; });
@@ -966,6 +979,24 @@
         toast(STLABEL[state.selected.state]? "Moved to "+STLABEL[state.selected.state] : "Done");
       })
       .catch(function(){ edErr("Transition request failed."); })
+      .finally(function(){ if(btn) btn.disabled=false; });
+  }
+
+  // ── delete (DELETE /posts/:id with confirm:true after the person confirms) ──
+  function doDelete(btn){
+    if(state.preview){ toast("Preview — connect the Streams backend to delete posts", false); return; }
+    var p=state.selected; if(!p) return;
+    if(!window.confirm("Delete \u201c"+(p.title||"Untitled post")+"\u201d with its channel variants and revisions? This cannot be undone.")) return;
+    if(btn){ btn.disabled=true; }
+    api("/posts/"+encodeURIComponent(p.postId),{ method:"DELETE", body:JSON.stringify({ confirm:true }) })
+      .then(parse)
+      .then(function(res){
+        if(!res.ok){ edErr((res.j&&(res.j.message||res.j.error))||("Delete failed ("+res.status+")")); return; }
+        state.selected=null; state.revisions=[];
+        renderEditor(); loadPosts(false);
+        toast("Post deleted");
+      })
+      .catch(function(){ edErr("Delete request failed."); })
       .finally(function(){ if(btn) btn.disabled=false; });
   }
 

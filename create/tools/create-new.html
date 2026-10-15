@@ -239,7 +239,11 @@
     vids:     { tool: 'create-vids',     app: 'vids',            name: 'Vids Studio',     url: '/api/vids/app' },
     story:    { tool: 'create-story',    app: 'creative-studio', name: 'Stories',         url: '/api/creative-studio/review' },
     scan:     { tool: 'create-scan-to-print', app: 'scan-to-print', name: '3D Scan-to-Print', url: '/api/scan-to-print/app' },
-    brand:    { tool: 'create-brand-graphics', app: 'brand-graphics', name: 'Brand Graphics', url: '/api/brand-graphics/review' }
+    brand:    { tool: 'create-brand-graphics', app: 'brand-graphics', name: 'Brand Graphics', url: '/api/brand-graphics/review' },
+    motion:   { tool: 'create-motion-studio', app: 'motion-studio', name: 'Motion Studio', url: '/api/motion-studio/app' },
+    publishing: { tool: 'create-publishing-studio', app: 'publishing-studio', name: 'Publishing Studio', url: '/api/publishing-studio/app' },
+    pdf:      { tool: 'create-pdf-workbench', app: 'pdf-workbench', name: 'PDF Workbench', url: '/api/pdf-workbench/app' },
+    scene:    { tool: 'create-scene-studio', app: 'scene-studio', name: 'Scene Studio', url: '/api/scene-studio/app' }
   };
 
   /* ── Categories (the left rail). Office kinds carry the catalog's own groups once loaded. ── */
@@ -261,15 +265,19 @@
   var OTHER = [
     { id: 'image-templates', cat: 'image', group: 'designs', groupLabel: 'Editable designs', studio: 'editor', name: 'Image templates', desc: 'Start with an announcement, story, flyer, quote or cover. Every title, color and shape stays editable.', preview: 'design', query: 'templates=1' },
     { id: 'image-design', cat: 'image', group: 'canvas', groupLabel: 'Blank canvas', studio: 'editor', name: 'Image design', desc: 'Arrange editable images, titles, shapes and drawing layers. Save and export your design.', preview: 'photo' },
+    { id: 'publication', cat: 'docx', group: 'publishing', groupLabel: 'Publishing & PDF', studio: 'publishing', name: 'Publication layout', desc: 'Design multi-page brochures, booklets, reports and print-ready spreads with master pages.', preview: 'design' },
+    { id: 'pdf-workbench', cat: 'docx', group: 'publishing', groupLabel: 'Publishing & PDF', studio: 'pdf', name: 'PDF workbench', desc: 'Inspect, reorder, merge, split, redact, OCR and export PDF documents.', preview: 'design' },
     { id: 'headshot',  cat: 'portrait', group: 'professional', groupLabel: 'Professional', studio: 'portrait', name: 'Headshot',           desc: 'A studio portrait from one photo — for LinkedIn, a bio, a badge.', preview: 'photo' },
     { id: 'character', cat: 'portrait', group: 'character',    groupLabel: 'Character',    studio: 'portrait', name: 'Character portrait', desc: 'Your face, or your pet’s, in a scene — superhero, astronaut, vintage tintype.', preview: 'photo' },
     { id: 'group',     cat: 'portrait', group: 'group',        groupLabel: 'Group',        studio: 'portrait', name: 'Group portrait',     desc: 'Everyone from one photo, boxed and placed into a single scene together.', preview: 'photo' },
     { id: 'short',     cat: 'video',    group: 'shortform',    groupLabel: 'Short-form',   studio: 'video',    name: 'Short video',        desc: 'Reels, Shorts and TikTok from a storyboard you approve before anything renders.', preview: 'phone' },
     { id: 'clip',      cat: 'video',    group: 'render',       groupLabel: 'Render queue', studio: 'vids',     name: 'Video clip',         desc: 'A clip rendered on your own desktop worker and delivered to your Drive.', preview: 'phone' },
     { id: 'edit-video', cat: 'video',   group: 'editing',      groupLabel: 'Editing',      studio: 'videoEditor', name: 'Edit video',      desc: 'Trim, split and reorder your own clips, add a title and music, then export an MP4.', preview: 'phone' },
+    { id: 'motion-composition', cat: 'video', group: 'motion', groupLabel: 'Motion graphics', studio: 'motion', name: 'Motion composition', desc: 'Keyframe animations, motion graphics and visual effects on a multi-track timeline.', preview: 'phone' },
     { id: 'brand-intro', cat: 'video', group: 'brand', groupLabel: 'Brand', studio: 'brand', name: 'Brand intro clip', desc: 'An on-brand oshal motion graphic from a short brief, made in Google Vids on your signed-in Chrome.', preview: 'phone' },
     { id: 'episode',   cat: 'story',    group: 'episodes',     groupLabel: 'Episodes',     studio: 'story',    name: 'Story episode',      desc: 'A kid-safe animated episode from the rotating story library, produced on a schedule.', preview: 'phone' },
-    { id: 'scan-to-print', cat: '3d', group: 'objects', groupLabel: 'Objects', studio: 'scan', name: '3D scan to print', desc: 'Capture photos or upload views, review the model and prepare a 3D print.', preview: 'cube' }
+    { id: 'scan-to-print', cat: '3d', group: 'objects', groupLabel: 'Objects', studio: 'scan', name: '3D scan to print', desc: 'Capture photos or upload views, review the model and prepare a 3D print.', preview: 'cube' },
+    { id: 'scene-3d',  cat: '3d',       group: 'scenes',       groupLabel: '3D scenes & models', studio: 'scene', name: '3D scene & model', desc: 'Build 3D scenes and games in Godot or models in Blender with Cycles previews.', preview: 'cube' }
   ];
 
   /* ── Access: what the signed-in person may open, from the authorization service (ADR-149) ──

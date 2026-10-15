@@ -33,7 +33,7 @@ function createHomeSummaryRoutes(ctx) {
             items.push({ text: 'Some saved sources cannot be checked.', tone: 'warn', fix: "pumpkin-control" });
         else if (!items.length)
             items.push({ text: 'No saved work yet. Open the app to begin.', tone: 'neutral', fix: "pumpkin-control" });
-        items.push({ text: "Shows caller-saved custom looks and dialogue, with pinned lines first. No current projector liveness is claimed from saved settings. Selected dialogue can prepare a Vids clip draft; Home does not speak, animate, record audio or trigger the physical prop.", tone: 'neutral', fix: "pumpkin-control" });
+        items.push({ text: "Shows caller-saved custom looks and the newest saved dialogue. A saved line is not pinned unless the Pinned response lines count above says so; pinned lines, when there are any, are listed first. No current projector liveness is claimed from saved settings. Selected dialogue can prepare a Vids clip draft; Home does not speak, animate, record audio or trigger the physical prop.", tone: 'neutral', fix: "pumpkin-control" });
         res.status(failed === result.length ? 503 : 200).json({ metrics, tiles: metrics, items, asOf: now.toISOString(), partial: failed > 0 });
     });
     return router;

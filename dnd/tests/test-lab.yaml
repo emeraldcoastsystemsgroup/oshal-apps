@@ -5,6 +5,20 @@
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | 0.21.4: register the audience view contract of the review page (ADR-164 D6) with its runner and isolation boundaries: the family view for the Home shell reads only GET /campaigns, /characters and /home-summary on open, never paints a join code, names a heroes or story read that failed on its own, a refusal and a failure for what they are, and leaves the full page's own start (connected actions, refresh) ungated only when no audience view renders.
 # 2   | maintainer@emeraldcoastsystemsgroup.com     | 0.21.5: the case also covers the table (ui/table.html, the games group's first surface): its family view reads only GET /campaigns, /characters and /content on open, names each game's adventure and chapter as the route resolves them, and is proved over the package's real router with a recording pool; the tabletop start paths (boot, animation loop, narrator status, glitch banner, audio unlock, immersive wiring) run only when no audience view renders.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.21.6: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register art-manifest: GET /content lists the bundled portraits and maps, and the table asks only for those, so no art request answers 404.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register campaign-delete (the host deletes a campaign and its rows; players, unconfirmed and missing deletes remove nothing) and home-summary-dates (saved times read as local dates).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register the phone layout of the battle map (tests/browser/dnd-phone-layout.test.cjs): a 300px map row under a toolbar in the page flow, nothing over the board.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Phone layout case: the turn actions and End Turn stay on screen (drawer open and closed), the Ask DM input is not covered, and a screen card keeps the dock below the board.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Phone layout case: two and four actions, every action on screen with no sideways scroll; the board and dock fit one screen (with two actions the board is clear of the dock); Ask DM opens the drawer right under the board and stops above the dock when focused.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Phone layout case: the dock stays bounded with 10 and 32 actions (the import cap) and while watching another player's four-action hero; every action can be scrolled into the dock's list and takes the tap.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | K4: cutaway-fail-soft - the quest-start cutaway never 500s; an unwritable workspace, a failed seat lookup and a failed render answer fail-soft in plain words and are journaled, with the framework logger when the context has none.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | K4: dnd-caption-phone - the voiceover caption spans the table at phone width without clipping and covers at most a quarter of the board; the TV lobby and bar name the campaign the TV joined.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Native runtime: cutaway-native-root (with no workspace root and a read-only cwd the cutaway is written under the temporary directory; the native runtime's own unconfigured image provider answers not available); dnd-caption-phone adds the AI turn (the caption is above the sticky dock); dnd-phone-layout adds Delete / Leave Campaign contrast on dark and light themes.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Register dm-directive-lines: directive lines are stripped in every DM mode and the persona forbids them in concierge answers (sweep 8).
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Register initiative-sides (the snapshot reads enemy/party on each chip) and extend the persona case (no saved character needed; screen answers read sides, no working, only real controls) - sweep 9.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: initiative-sides adds the full eight-chip bar (the page never scrolls sideways at 412 and 392 px) and the Result stage repainting the bar (Enemies 3/4, Defeated); the persona case adds the turn line, the Result line and no thinking aloud.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | Sweep 11: dm-directive-lines also expects no directive template line anywhere in the served persona.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | dnd-caption-phone also expects the caption to show narration without Markdown marks (sweep 14).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -41,4 +55,198 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: art-manifest
+    name: The table asks only for bundled art
+    purpose: Drive GET /content and GET /art/* through the package's real router and run the table's own art block from the served runtime script against the served bundle - no browser, database or network.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/dnd-art-manifest.test.js
+    expected:
+      - GET /content lists in art.tokens and art.maps exactly the bundled files serveArt answers with an image.
+      - The table's art loader requests only listed ids, and every request it makes answers 200; a monster without a portrait is never requested and yields no URL.
+      - A bundle without the list keeps the earlier behaviour, and no surface script builds a portrait URL outside tokenArtUrl.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: campaign-delete
+    name: The host deletes a campaign from My Games
+    purpose: Drive the campaign service against plain rows with no foreign-key cascade, as the native kernel stores them - no database, network or provider.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/dnd-campaign-delete.test.js
+    expected:
+      - A confirmed host delete removes the campaign, its encounter, seats, archive, snapshots and seated characters; saved library characters stay.
+      - A player, an unconfirmed request and a missing campaign remove nothing.
+      - POST /campaign/delete is routed and My Games shows Delete Campaign to the host only.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: cutaway-fail-soft
+    name: Quest-start art never fails the table
+    purpose: Drive the media service and the package's real router with an unwritable cutaway workspace, a failing seat lookup and a failing render - no database, network or provider.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/dnd-cutaway-fail-soft.test.js
+    expected:
+      - An unwritable workspace, a failing seat lookup and a failing render each answer ok false, soft true, in plain words with no raw error text, and nothing is rendered or archived before the failure.
+      - Each failure is journaled with its stage, through the context logger or the framework logger when the context has none.
+      - POST /cutaway answers 200 fail-soft instead of 500 when the store fails; an unexpected route failure on another route is still 500 and is journaled.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: cutaway-native-root
+    name: Cutaways never write into the package folder
+    purpose: Drive the media service with CLINE_WORKSPACE_ROOT unset from inside a read-only directory (as the native package's /package is), and with the native runtime's own image provider from the kernel bridge (crates/host-process/bridge/video_generation.js).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/dnd-cutaway-native-root.test.js
+    expected:
+      - With no workspace root and a read-only working directory, the cutaway is written under os.tmpdir() (never under the working directory), the mkdir succeeds and nothing is journaled.
+      - An operator CLINE_WORKSPACE_ROOT still decides the directory.
+      - The native runtime's image provider (configured false) answers ok false, soft true, 'Cutaway art is not available on this swarm.', makes no directory, archives nothing and journals no error.
+    prerequisites:
+      - runner:node-test
+      - fixture:kernel-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Temporary directories under os.tmpdir() are removed after each case.
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: home-summary-dates
+    name: Saved times read as local dates
+    purpose: Run the home-summary route with a stubbed router and pool - no database or network.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/dnd-home-summary-dates.test.js
+    expected:
+      - The review evidence and the handed-off brief carry a local date with its zone and never an ISO timestamp.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: dnd-caption-phone
+    name: The voiceover caption and the TV lobby on a phone
+    purpose: Lay the real table (ui/table.html, ui/dnd.css, its own layout(), caption() and showTvLobby()) out in Chromium at 412 x 915 and in the 392 x 641 cockpit frame with a 260-character narration line, and open the TV lobby for a named campaign.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/browser/dnd-caption-phone.test.cjs] }
+    expected:
+      - The caption spans the table (within 24px of its width), stays inside the stage, covers at most a quarter of the board's height and shows every word (no clipped text).
+      - The TV lobby names the campaign and its join code, escaped; on a TV the initiative bar names the campaign before the scene.
+      - During an AI turn (turn panel, view-only dock) at 412 x 915, 412 x 859 and 392 x 641, at the top of the page and scrolled, the caption ends above the sticky dock and takes taps at its top, middle and bottom.
+      - Narration with Markdown marks ("**What do you do?**") shows as its words, with no asterisks (sweep 14).
+      - Nothing is written.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none, cleanup: Each case closes its browser context; pages are synthetic and served inside the browser with no network or server. }
+    limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
+    installation: never
+  - id: dnd-phone-layout
+    name: The battle map on a phone
+    purpose: Lay the real table (ui/table.html, ui/dnd.css and its own layout()) out in Chromium in the battle layout - turn panel, drawer open and closed - at 412 x 915 and in the 392 x 641 cockpit frame.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/browser/dnd-phone-layout.test.cjs] }
+    expected:
+      - The map row under the toolbar is at least 300px and the 18 x 12 board is drawn at the full width inside it.
+      - No toolbar button touches the board or another button; the turn panel, board and Dungeon Master drawer follow each other down the page.
+      - Nothing is wider than the screen and nothing is written.
+      - With the drawer closed and open, the dock's first action and End Turn are inside the visible screen and take the tap; the Ask DM input scrolled into view is not covered by the dock.
+      - While a screen card is open the dock rests below the board, not over it.
+      - My Games' Delete Campaign and Leave Campaign have an opaque background and read at 4.5:1 or better under the dark and a light cockpit theme.
+      - With two and with four actions every action is inside the visible screen and its width and takes the tap (they wrap in rows, no sideways scroll); the whole board and the dock fit one screen together, and with two actions the board is clear of the dock at the top of the page.
+      - With the drawer open the Ask DM input starts within 150px of the board's bottom, and focused from the top of the page it is on screen above the dock.
+      - With 10 and with 32 actions on a player's own turn, and while watching another player's four-action hero (view-only note above the cards), the dock is at most 220px, the whole board and the dock fit one screen together, End Turn and the first action are on screen (and the first action takes the tap on the player's own turn), and every action scrolled into the dock's list is on screen inside the width and takes the tap, without moving the page.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none, cleanup: Each case closes its browser context; pages and answers are synthetic and served inside the browser with no network or server. }
+    limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
+    installation: never
+  - id: dm-directive-lines
+    name: Directive lines never show as story text
+    purpose: >-
+      Drive the Dungeon Master service with a scripted storyteller in combat, recap and opening modes, and
+      read the served persona: a CHOICES or ROLL line is stripped from the archived and returned prose and
+      acts on nothing, and the persona keeps those lines to the table's own story requests (sweep 8 showed
+      'CHOICES: ...' in the combat log and in a concierge answer).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/dnd-dm-fast-path.test.js
+        - tests/dnd-persona-directives.test.js
+    expected:
+      - >-
+        In combat, recap and opening modes the narration and the archive carry no CHOICES or ROLL line,
+        choices/roll/grant stay empty and the board is unchanged.
+      - >-
+        The persona scopes CHOICES, ROLL and GRANT to the D&D table and forbids them in combat highlights and
+        concierge answers.
+      - >-
+        No line of the served persona begins with CHOICES:, ROLL: or GRANT: (sweep 11: the concierge copied the
+        persona's own template line); the table's TABLE CONVERSATION request still carries all three formats.
+      - >-
+        The persona says a new campaign needs no saved character, and screen answers read each combatant's marked
+        side, give a final reading without working and name only controls the screen shows.
+      - >-
+        Screen answers take whose turn it is from the "<Name>'s turn" line (YOU is the person's own hero, not
+        always the one acting), read the latest Result line as what just happened and never think aloud.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: initiative-sides
+    name: The initiative bar says which side each combatant is on
+    purpose: Draw the real table's initiative bar in Chromium at 412 x 915 and read it with the kernel's real screen snapshot (crates/api/src/shell_screen_state.js).
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/browser/dnd-initiative-sides.test.cjs] }
+    expected:
+      - The monster chip reads "(enemy)" and the AI companion's reads "(party)" in the snapshot the concierge receives.
+      - The mark is visually hidden and nothing is written.
+      - With eight combatants the strip scrolls inside itself and the page is exactly the screen wide at 412 and 392 px.
+      - Showing an AI turn's result repaints the bar from the board it reports (Enemies 3/4, the defeated goblin reads Defeated).
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium, fixture:kernel-checkout]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
     installation: never

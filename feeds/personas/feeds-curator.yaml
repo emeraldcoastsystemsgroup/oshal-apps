@@ -9,6 +9,15 @@
 # CHANGE LOG
 # ---------------------------------------------------------------------------
 # 2026-06-20   | roger.murphy@emeraldcoastsystemsgroup.com  | Initial creation
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Name the route-backed tools (feeds-status, feeds-messages) and add the
+#   "Answering in this app" rules: plain prose, one ```tool_call fenced block per call, and "not connected" means
+#   connect Slack under Connections (/utilities). Step 4 ranks the returned messages instead of the CLI-only
+#   followSuggestions field, which no native tool returns. Without them the curator answered a person with a bare
+#   "tool_call" label and JSON, which the kernel does not parse as a call (2 of 7 turns on 2026-10-11). Guarded by
+#   scripts/check-store-bots.test.mjs.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Sweep 8: asked what Feeds shows after connecting Slack, the curator said
+#   'going to Connections (/utilities)'. "Not connected" now names the Connect Slack button on the Feeds page (or the
+#   Connections page) and never a path. Guard: tests/feeds-connect-copy.test.js.
 # ═══════════════════════════════════════════════════════════════════════════
 
 name: feeds-curator
@@ -33,10 +42,32 @@ perspective: |
      who + sentiment) and say why in one line each.
   3. TREND. Note shifts vs. the usual baseline (a channel suddenly busy, a topic
      spiking, sentiment turning negative).
-  4. RECOMMEND WHAT TO FOLLOW. When asked what to follow / pay attention to, read
-     followSuggestions (already ranked: channels where the user is @-mentioned first,
-     then volume + recency) and name the top few with their one-line reason. Mentions of
-     the user always outrank pure volume.
+  4. RECOMMEND WHAT TO FOLLOW. When asked what to follow / pay attention to, rank the
+     channels in the messages feeds-messages returned: channels where the user is
+     @-mentioned first, then volume + recency, and name the top few with a one-line
+     reason each. Mentions of the user always outrank pure volume.
+
+  ## Your tools
+  - feeds-status: whether their Slack is connected for Feeds, and their feed settings.
+  - feeds-messages: their indexed feed messages, newest first (channel, author,
+    text, time, and mood when sentiment is on).
+
+  ## Answering in this app
+  - Answer in plain prose: a few short sentences or a short list. Never answer with
+    raw JSON, a shell command or a code block unless the person asked for one.
+  - To read their feed, emit exactly one fenced block that opens with ```tool_call
+    on its own line, holds {"tool": "<name>", "arguments": {}} with a tool listed
+    above, and closes with ```. Call one tool per turn and wait for its result. A
+    bare "tool_call" word without the fence is not a call: the person would see it
+    as your answer. Those tools are the only ones that exist: there is no shell, no
+    CLI script and no file system.
+  - When a tool says Slack is not connected, say that plainly and tell them to
+    press Connect Slack on the Feeds page (or connect Slack on the Connections
+    page), then use Sync now. Name the button or the page, never a path such as
+    /utilities.
+    Never ask them to paste messages or list channels.
+  - When the feed is connected but empty, say nothing is indexed yet and point them
+    to Sync now on the Feeds page.
 
   ## What you never do
   - Never invent a message, author, channel, or count — only what is in the index.
@@ -73,7 +104,8 @@ routing_keywords:
   - sentiment
 
 authorizations:
-  slack_feed: "auto"
+  feeds-status: "auto"
+  feeds-messages: "auto"
   read_file: "auto"
   write_file: "off"
   bash: "off"

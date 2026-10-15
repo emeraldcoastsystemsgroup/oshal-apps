@@ -28,6 +28,16 @@
   the recent alerts) from /scan, /alerts and /home-summary only — never /status, /portfolio or /alerts/pops, which
   ask Kalshi live. Every start path of the full page (the loads and pollers, the account read, the connected-actions
   mount) is gated on the kit’s decision; any other request runs the full page unchanged.
+  2026-10-11 — the background scan is a person's own job. It runs only when the `background-scan` schedule is
+  activated (Jobs screen), so the page reads the person's job from the kernel's schedule list and says when it
+  is off and where to turn it on, says the scan cannot run here when the installation has no market feed, and no
+  longer promises a first walk soon after start or a cadence nobody has switched on.
+  2026-10-11 — the package ships its calibration table (data/kalshi-calibration.json, generated 2026-07-13), and the
+  header says how old it is ("calibration table from Jul 13, 2026 (90 days old)"), also before the first scan. A
+  missing table reads as words, never as /package/... file paths.
+  2026-10-11 — phone width: every table sits in a .tbl-scroll box that scrolls sideways on its own at <=640px, so the
+  page never does (the 12-column scan table made the page 829px wide in a 392px cockpit frame; Scorecard 686, Alerts
+  484), and the Settings grid becomes one column. Guard: tests/browser/kalshi-phone-layout.test.cjs.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -70,14 +80,16 @@
   // The scan's state in one line: the snapshot may be missing, the scan may be off, or the evaluator may have folded everything.
   function headline(p, all) {
     var s = p.scan || {};
-    if (p.awaitingFirstScan) return s.running ? 'The first scan is running' : s.enabled === false ? 'Background scan is off and no snapshot is saved' : 'Waiting for the first scan';
+    if (p.awaitingFirstScan) return s.running ? 'The first scan is running' : s.unavailable ? 'The scan cannot run on this installation' : s.enabled === false ? 'Background scan is off and no snapshot is saved' : 'Waiting for the first scan';
     if (!all.length) return 'The last scan folded every market';
     return plural(all.length, 'playable hand');
   }
   function lede(p, all) {
     var s = p.scan || {}, bits = [];
     if (!p.awaitingFirstScan) bits.push('Snapshot ' + A.when(p.generatedAt) + (p.evaluable ? ' over ' + A.num(p.evaluable) + ' evaluable markets' : ''));
-    if (s.enabled === false) bits.push('the background scan is off'); else if (s.intervalMinutes) bits.push('scans every ' + s.intervalMinutes + ' min');
+    if (s.unavailable) bits.push('the scan cannot run on this installation');
+    else if (s.enabled === false) bits.push('the background scan is off');
+    else if (s.intervalMinutes) bits.push('scans every ' + s.intervalMinutes + ' min while your background-scan job is on');
     bits.push(p.mayStake ? 'staking gate open for ' + (p.strategy || 'the strategy') : 'paper only' + (p.gateReason ? ': ' + p.gateReason : ''));
     return bits.join(' · ') + '.';
   }
@@ -85,7 +97,7 @@
     return { id: 'hands', label: 'Playable hands', value: all.length, hint: p.evaluable ? 'of ' + A.num(p.evaluable) + ' evaluable markets' : null, tone: all.length ? 'ok' : null };
   }
   function snapshotStat(p) {
-    var s = p.scan || {}, every = s.intervalMinutes ? 'Scans every ' + s.intervalMinutes + ' min' : null;
+    var s = p.scan || {}, every = s.unavailable ? 'Cannot scan on this installation' : s.intervalMinutes ? 'Every ' + s.intervalMinutes + ' min while your scan job is on' : null;
     if (p.awaitingFirstScan) return { id: 'snapshot', label: 'Last scan', value: s.running ? 'Running' : 'None yet', hint: s.enabled === false ? 'Background scan is off' : every, tone: 'warn' };
     var hint = s.lastError ? 'Last scan failed: ' + clip(s.lastError, 60) : s.enabled === false ? 'Background scan is off' : s.stale ? 'Stale: older than the configured window' : s.running ? 'A scan is running now' : every;
     return { id: 'snapshot', label: 'Last scan', value: A.when(p.generatedAt), hint: hint, tone: s.lastError ? 'bad' : (s.stale || s.enabled === false) ? 'warn' : 'ok' };
@@ -308,7 +320,15 @@
   .set-grid .locked { color: var(--dim); font-size: 11px; text-align: right; }
   .stale-pill { padding: 1px 7px; border-radius: 9px; background: #9e6a03aa; color: #ffe8b3; font-size: 11px; font-weight: 700; }
 </style>
-<style>@media(max-width:640px){footer{position:static;margin-top:20px}#marketReview{margin-bottom:24px}}</style>
+<style>@media(max-width:640px){footer{position:static;margin-top:20px}#marketReview{margin-bottom:24px}}
+/* Phone: six tabs at desktop padding made a 501px strip and pushed Settings off a 412px screen. The strip wraps, so
+   its height is no longer the fixed --tab-h the sticky table header assumes; on a phone the top bar scrolls away and
+   the table header sticks to the top of the screen instead. */
+@media(max-width:640px){.tabnav{flex-wrap:wrap;padding:0 6px;gap:0}.tab{padding:9px 9px 7px}.topbar{position:static}th{top:0}}
+/* Phone: a table keeps its columns and scrolls sideways inside its own box; the page never scrolls sideways. Only here,
+   because on a desktop the box would become the sticky header's scroll container. */
+@media(max-width:640px){.tbl-scroll,.viz-table{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+.set-grid{grid-template-columns:minmax(0,1fr)}.set-grid .locked{text-align:left}}</style>
 </head>
 <body>
 <div class="topbar">
@@ -352,25 +372,25 @@
       </select>
       <button id="refresh">Refresh</button>
       <!-- Distinct actions, deliberately labelled: Refresh re-reads the stored snapshot (instant);
-           Scan now asks the poller for an out-of-band walk (returns immediately, lands in ~30s). -->
-      <button id="scan-now" title="Ask the background scanner for a fresh walk now">Scan now</button>
+           Scan now runs one walk inside its own request (POST /scan/run), whether or not a job is on. -->
+      <button id="scan-now" title="Run one scan walk now">Scan now</button>
       <span class="meta" id="counts"></span>
       <span class="spacer"></span>
       <span class="meta" id="scan-freshness"></span>
     </div>
     <div class="warn" id="awaiting-banner" style="display:none;font-size:12px;padding:10px 12px;margin-bottom:12px">
-      <b>The background scanner hasn't produced its first snapshot yet.</b><br>
-      An empty table below is not a "fold" verdict — there is simply nothing scanned yet. The first
-      walk runs shortly after start (~30s), or press <b>Scan now</b>.
+      <b id="awaiting-head">The background scanner hasn't produced its first snapshot yet.</b><br>
+      An empty table below is not a "fold" verdict — there is simply nothing scanned yet.
+      <span id="awaiting-why"></span>
     </div>
-    <table id="tbl" style="display:none">
+    <div class="tbl-scroll"><table id="tbl" style="display:none">
       <thead><tr>
         <th>Hand</th><th>Side</th><th>Market</th><th>Category</th>
         <th class="num">Price</th><th class="num">True&nbsp;P</th><th class="num">Edge&nbsp;(net)</th>
         <th class="num">Stake</th><th>Conf&nbsp;(n)</th><th>Risk</th><th class="num">Closes</th><th></th>
       </tr></thead>
       <tbody id="rows"></tbody>
-    </table>
+    </table></div>
     <div id="empty" style="display:none">No playable hands right now. The evaluator folds every market whose price history doesn't support an edge net of fees — an empty table is the system working, not broken.</div>
     <div id="error" style="display:none"></div>
   </section>
@@ -386,14 +406,14 @@
         <div class="spacer" style="flex:1"></div>
         <button id="pf-refresh">Refresh account</button>
       </div>
-      <table id="pf-tbl" style="display:none;margin-top:10px">
+      <div class="tbl-scroll"><table id="pf-tbl" style="display:none;margin-top:10px">
         <thead><tr><th>Market</th><th class="num">Position</th><th class="num">Exposure</th><th class="num">Realized P&amp;L</th><th class="num">Fees</th></tr></thead>
         <tbody id="pf-rows"></tbody>
-      </table>
-      <table id="ro-tbl" style="display:none;margin-top:10px">
+      </table></div>
+      <div class="tbl-scroll"><table id="ro-tbl" style="display:none;margin-top:10px">
         <thead><tr><th>Resting order</th><th>Side</th><th class="num">Count</th><th class="num">Limit</th><th></th></tr></thead>
         <tbody id="ro-rows"></tbody>
-      </table>
+      </table></div>
     </div>
     <div class="panel" id="pf-missing" style="display:none">
       <h2>Your account</h2>
@@ -405,10 +425,10 @@
   <section class="tab-panel" data-panel="scorecard" role="tabpanel" hidden>
     <div class="panel" id="score-panel" style="display:none">
       <h2>Forward-test scorecard <span class="meta" style="text-transform:none;font-weight:400">— a strategy may only stake real money once it has BEATEN the market's Brier score on settled predictions</span></h2>
-      <table style="width:100%">
+      <div class="tbl-scroll"><table style="width:100%">
         <thead><tr><th>Strategy</th><th>Status</th><th class="num">Graded</th><th class="num">Pending</th><th class="num">Our Brier</th><th class="num">Market Brier</th><th class="num">Hit rate</th><th class="num">P&amp;L/contract</th></tr></thead>
         <tbody id="score-rows"></tbody>
-      </table>
+      </table></div>
       <div class="meta" id="gate-reason" style="margin-top:8px"></div>
     </div>
     <div id="score-empty" class="explain">No strategy has made a prediction yet. Once the scan or the weather model records one, it appears here and is graded at settlement.</div>
@@ -467,10 +487,10 @@
     <div class="panel">
       <h2>Alert history <span class="meta" style="text-transform:none;font-weight:400">— each hand is announced ONCE, the first time it clears your floor</span></h2>
       <div class="meta" id="alert-record" style="margin-bottom:8px"></div>
-      <table style="width:100%">
+      <div class="tbl-scroll"><table style="width:100%">
         <thead><tr><th>When</th><th>Market</th><th>Hand</th><th class="num">Net edge</th><th>Outcome</th><th>Since announced</th><th>Sent via</th></tr></thead>
         <tbody id="alert-rows"></tbody>
-      </table>
+      </table></div>
       <div class="meta" id="alert-pops-note" style="margin-top:8px"></div>
       <div class="meta" id="alerts-empty" style="margin-top:8px">Nothing yet. When the background scan finds a hand that clears your alert floor, it lands in your Jarvis feed and is listed here.</div>
     </div>
@@ -507,7 +527,7 @@
       your saved channel + quiet hours from the notification preference center.
     </p>
   </section>
-<section id="marketReview" style="margin:16px;padding:16px;border:1px solid var(--line);border-radius:12px" aria-label="Continue market research"><h2>Continue market research</h2><p id="marketSelection" role="status">Select Review on an alert to continue from its recorded evidence.</p><div class="connected-app-actions" style="display:flex;gap:12px;flex-wrap:wrap"></div></section>
+<section id="marketReview" hidden style="margin:16px;padding:16px;border:1px solid var(--line);border-radius:12px" aria-label="Continue market research"><h2>Continue market research</h2><p id="marketSelection" role="status">Select Review on an alert to continue from its recorded evidence.</p><div class="connected-app-actions" style="display:flex;gap:12px;flex-wrap:wrap"></div></section>
 </main>
 
 <dialog id="bet-dlg">
@@ -540,7 +560,7 @@
   <b>Edge (net)</b> = True P − (ask + taker fee). <b>Stake</b> = quarter-Kelly, halved per risk flag, capped at 5% of bankroll.
   Orders are limit-only and confirm-gated; the LIVE exchange is refused unless explicitly enabled.
   <b>Stake is forced to 0% until a strategy out-scores the market on settled predictions</b> — the hand is still shown, it just hasn't earned a slice of the bankroll. Every hand here is recorded as a prediction and graded at settlement.
-  This table is a <b>snapshot</b> kept warm by the background scanner on the cadence in <b>Settings</b> — opening this page never waits on a scan.
+  This table is a <b>snapshot</b> kept warm by your background-scan job (turned on from the <b>Jobs</b> screen) on the cadence in <b>Settings</b> — opening this page never waits on a scan.
 </footer>
 <script>
 (function () {
@@ -564,6 +584,9 @@
     return (h / 24).toFixed(1) + 'd';
   }
   function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  /* A Kalshi market title can carry markdown bold ('Will average **gas prices** be above $5.4900?'): escape it, show
+     each **pair** as bold and drop a stray marker, so no asterisks reach the screen. */
+  function marketTitle(t) { return esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*\*/g, ''); }
 
   /* ── Tabs: eager-load everything, gate only visibility. ─────────────────────── */
   function activateTab(name) {
@@ -594,7 +617,8 @@
       if (q && (h.title + ' ' + h.ticker).toLowerCase().indexOf(q) < 0) return false;
       return true;
     });
-    $('counts').textContent = rows.length + ' hands / ' + (state.payload ? state.payload.evaluable : 0) + ' markets';
+    var closedSince = state.payload && state.payload.closedSinceScan > 0 ? ' · ' + state.payload.closedSinceScan + ' closed since this scan, not shown' : '';
+    $('counts').textContent = rows.length + ' hands / ' + (state.payload ? state.payload.evaluable : 0) + ' markets' + closedSince;
     setBadge('badge-scan', state.hands.length ? String(state.hands.length) : '', state.hands.length ? 'good' : '');
     var tb = $('rows'); tb.innerHTML = '';
     rows.forEach(function (h) {
@@ -602,7 +626,7 @@
       tr.innerHTML =
         '<td><span class="badge b-' + h.strength + '">' + h.strength + '</span></td>' +
         '<td class="side-' + h.side + '">' + h.side.toUpperCase() + '</td>' +
-        '<td><div class="title">' + esc(h.title) + '</div><div class="ticker">' + esc(h.ticker) + '</div></td>' +
+        '<td><div class="title">' + marketTitle(h.title) + '</div><div class="ticker">' + esc(h.ticker) + '</div></td>' +
         '<td class="cat">' + esc(h.category) + '</td>' +
         '<td class="num">' + cents(h.price) + '</td>' +
         '<td class="num">' + pct(h.trueProb) + '</td>' +
@@ -619,7 +643,9 @@
       tb.appendChild(tr);
     });
     $('tbl').style.display = rows.length ? '' : 'none';
-    $('empty').style.display = rows.length ? 'none' : '';
+    // With no snapshot the banner above explains the empty table; "the evaluator folds every market" would claim a
+    // verdict on markets nobody scanned.
+    $('empty').style.display = (rows.length || (state.payload && state.payload.awaitingFirstScan)) ? 'none' : '';
   }
   function renderScorecard(p) {
     var sc = (p && p.scorecard) || [];
@@ -672,16 +698,70 @@
     else if (p && p.awaitingFirstScan) bits.push('no snapshot yet');
     else bits.push('scanned ' + ago(s.ageSeconds));
     if (s.stale && !s.running && !(p && p.awaitingFirstScan)) bits.push('<span class="stale-pill">STALE</span>');
-    if (s.enabled === false) bits.push('background scan OFF');
-    else if (s.nextRunAt && !s.running) bits.push('next ' + untilText(s.nextRunAt));
-    if (s.intervalMinutes) bits.push('every ' + s.intervalMinutes + 'm');
+    var job = scanJobState(s, state.job);
+    bits.push(job.cadence);
+    if (job.on && s.nextRunAt && !s.running) bits.push('next ' + untilText(s.nextRunAt));
     if (s.lastMs) bits.push('took ' + (s.lastMs / 1000).toFixed(1) + 's');
-    if (s.lastError) bits.push('<span style="color:var(--red)">last error: ' + esc(s.lastError) + '</span>');
+    if (s.lastError && s.lastError !== s.unavailable) bits.push('<span style="color:var(--red)">last error: ' + esc(s.lastError) + '</span>');
     el.innerHTML = bits.join(' · ');
+    $('awaiting-why').innerHTML = job.why;
+    // One story per state: an installation that cannot scan will never produce a snapshot, so the heading must not
+    // promise one ("hasn't produced its first snapshot yet") above "the scan cannot run on this installation".
+    $('awaiting-head').textContent = s.unavailable ? 'Nothing has been scanned on this installation.' : "The background scanner hasn't produced its first snapshot yet.";
     $('awaiting-banner').style.display = (p && p.awaitingFirstScan) ? '' : 'none';
     var btn = $('scan-now');
     if (btn) { btn.disabled = !!s.running; btn.textContent = s.running ? 'Scanning…' : 'Scan now'; }
   }
+  /* The person's own background-scan job, from the kernel's schedule list (the Jobs screen's rows). Resolves
+     { listed: false } when the host gives no list, so the page claims nothing either way. */
+  function readScanJob(sched) {
+    if (!sched || !sched.app || !sched.name) return Promise.resolve({ listed: false });
+    return fetch('/api/v1/agent/schedules', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (j) {
+        var rows = j.schedules || j.jobs || [];
+        return { listed: true, row: rows.filter(function (x) { return x.app === sched.app && x.name === sched.name; })[0] || null };
+      })
+      .catch(function () { return { listed: false }; });
+  }
+  /* What the freshness line (cadence) and the no-snapshot banner (why) say about the background scan. job is
+     undefined until read. The scan runs only when this installation can scan, Settings has it on, AND the
+     person's background-scan job is active. */
+  function scanJobState(s, job) {
+    var JOBS = '<a target="_top" href="/swarm-admin/jobs">Jobs screen</a>';
+    if (s.unavailable) return { on: false, cadence: '<span style="color:var(--red)">cannot scan on this installation</span>',
+      why: '<b>The scan cannot run on this installation:</b> ' + esc(s.unavailable) };
+    if (s.enabled === false) return { on: false, cadence: 'background scan OFF in Settings',
+      why: 'The background scan is switched off in <b>Settings</b>; press <b>Scan now</b> for one walk.' };
+    if (job === undefined) return { on: false, cadence: 'checking your scan job…', why: 'Checking whether your background-scan job is on…' };
+    if (!job.listed) return { on: false, cadence: 'background job state unknown',
+      why: 'This host does not list scheduled jobs, so nothing here says whether a background scan will run. Press <b>Scan now</b> for a walk.' };
+    var row = job.row, every = s.intervalMinutes ? 'every ' + s.intervalMinutes + 'm' : 'on its cadence';
+    if (row && row.activation && row.status === 'active') return { on: true, cadence: every + ' (your scan job is on)',
+      why: 'Your background-scan job is on: the first walk runs at its next tick, or press <b>Scan now</b>.' };
+    var offer = row && row.offer ? row.offer : 'Keep my Kalshi edge scan fresh';
+    var status = row && row.status && row.status !== 'not-activated' ? ' (your job is ' + esc(row.status) + (row.reason ? ': ' + esc(row.reason) : '') + ')' : '';
+    return { on: false, cadence: '<span style="color:var(--amber)">background scan off' + status + '</span> — turn it on from the ' + JOBS,
+      why: '<b>Background scan is off' + status + '.</b> Nothing scans Kalshi until you turn on \u201c' + esc(offer) + '\u201d on the ' + JOBS + '. Press <b>Scan now</b> for one walk.' };
+  }
+  /* The calibration table the scan ranks against, and how old it is: the native runtime has no calibration study, so the
+     table only ages, and a person weighing a hand should see that. */
+  function calibrationLabel(iso, nowMs) {
+    var at = iso ? new Date(iso).getTime() : NaN;
+    if (!isFinite(at)) return 'calibration table: none installed';
+    var days = Math.max(0, Math.floor((nowMs - at) / 86400000));
+    return 'calibration table from ' + new Date(at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) +
+      ' (' + (days === 0 ? 'today' : days === 1 ? '1 day old' : days + ' days old') + ')';
+  }
+  /* The exchange is "halted" only when a scan actually read the exchange status and it said so. With no scan
+     yet, or a status this installation could not read (null), the header says unknown instead of halted. */
+  function exchangeState(p) {
+    if (!p || p.awaitingFirstScan || !p.generatedAt) return { color: 'var(--amber)', label: 'exchange status unknown (no scan has run yet)' };
+    if (p.exchangeActive === true) return { color: 'var(--green)', label: 'trading active' };
+    if (p.exchangeActive === false) return { color: 'var(--red)', label: 'trading halted' };
+    return { color: 'var(--amber)', label: 'exchange status unknown' };
+  }
+
   function load() {
     $('error').style.display = 'none';
     $('refresh').disabled = true; $('refresh').textContent = 'Loading…';
@@ -691,9 +771,11 @@
         state.payload = p; state.hands = p.hands || [];
         renderScorecard(p);
         renderFreshness(p);
-        $('exch-dot').style.background = p.exchangeActive ? 'var(--green)' : 'var(--red)';
-        $('exch-label').textContent = p.exchangeActive ? 'trading active' : 'trading halted';
-        $('calib-label').textContent = 'calibration: ' + (p.calibrationGeneratedAt ? new Date(p.calibrationGeneratedAt).toLocaleString() : 'missing');
+        if (state.job === undefined) readScanJob(p.scan && p.scan.schedule).then(function (j) { state.job = j; if (state.payload) renderFreshness(state.payload); });
+        var exch = exchangeState(p);
+        $('exch-dot').style.background = exch.color;
+        $('exch-label').textContent = exch.label;
+        $('calib-label').textContent = calibrationLabel(p.calibrationGeneratedAt, Date.now());
         var cats = {}; state.hands.forEach(function (h) { cats[h.category] = 1; });
         var sel = $('f-cat'), cur = sel.value; sel.innerHTML = '<option value="">all categories</option>';
         Object.keys(cats).sort().forEach(function (c) { var o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
@@ -827,6 +909,9 @@
           };cell.appendChild(review);tr.appendChild(cell);tb.appendChild(tr);
         });
         $('alerts-empty').style.display = rows.length ? 'none' : '';
+        // The hand-off offers continue from a recorded alert: with no alert there is nothing to select, so the
+        // section stays hidden instead of offering buttons that can only answer "select the work first".
+        $('marketReview').hidden = !rows.length;
         renderAlertRecord(b.record);
         setBadge('badge-alerts', rows.length ? String(rows.length) : '', '');
         // Prices the OPEN rows afterwards, never in front of them: a rate-limited exchange
@@ -873,7 +958,9 @@
         var label = document.createElement('label');
         label.setAttribute('for', 'set-f-' + key);
         var bounds = (spec.min !== undefined && spec.max !== undefined) ? ('allowed ' + spec.min + '–' + spec.max) : '';
-        label.innerHTML = esc(spec.label || key) + '<small>' + esc(key) + (bounds ? ' · ' + bounds : '') + '</small>';
+        // The person reads the label and the allowed range, never the configuration key (sweep 14: "Scan every (minutes) /
+        // scanIntervalMinutes · allowed 5–1440").
+        label.innerHTML = esc(spec.label || key) + (bounds ? '<small>' + esc(bounds) + '</small>' : '');
         host.appendChild(label);
         var may = editable.indexOf(key) >= 0;
         var cell = document.createElement('div');
@@ -1012,7 +1099,7 @@
   function openBet(h) {
     state.betHand = h;
     var priceC = Math.round(h.price * 100);
-    $('dlg-market').innerHTML = '<b class="side-' + h.side + '">BUY ' + h.side.toUpperCase() + '</b> · ' + esc(h.title) +
+    $('dlg-market').innerHTML = '<b class="side-' + h.side + '">BUY ' + h.side.toUpperCase() + '</b> · ' + marketTitle(h.title) +
       '<div class="ticker">' + esc(h.ticker) + '</div>' +
       '<div class="meta" style="margin-top:6px">Engine: true P ' + pct(h.trueProb) + ' vs ask ' + cents(h.price) +
       ' → edge +' + cents(h.edgeNet) + ' · suggested stake ' + pct(h.stakeFraction, 2) + ' of bankroll' +

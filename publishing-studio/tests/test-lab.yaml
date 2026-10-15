@@ -1,0 +1,201 @@
+version: 1
+cases:
+  - id: model
+    name: Closed human/agent model and actual Python parity
+    purpose: >-
+      Closed human/agent model and actual Python parity. Actual source fixtures name their grant/port/kept-run seams;
+      this is not installed kernel or configured-provider acceptance.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/model.test.mjs
+    expected:
+      - Required source assertions pass with genuine declared prerequisites; no skip or fallback.
+    prerequisites:
+      - runner:node
+      - runtime:publishing-pinned-python
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Remove only unique own fixture databases/roles/children/temp directories.
+        Preserve shared PostgreSQL127.0.0.1:35689 and its container; never use live data.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 1536
+    installation: never
+  - id: engine-real
+    name: Authoritative four-page native flow and independent PDF proofs
+    purpose: >-
+      Authoritative four-page native flow and independent PDF proofs. Actual source fixtures name their grant/port/kept-run seams;
+      this is not installed kernel or configured-provider acceptance.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/engine-real.test.mjs
+    expected:
+      - Required source assertions pass with genuine declared prerequisites; no skip or fallback.
+    prerequisites:
+      - runner:node
+      - runtime:typst-pinned
+      - runtime:typst-original-archive
+      - runtime:pypdf-original-wheel
+      - runtime:pypdf-pinned
+      - runtime:poppler
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Remove only unique own fixture databases/roles/children/temp directories.
+        Preserve shared PostgreSQL127.0.0.1:35689 and its container; never use live data.
+    limits:
+      timeoutMs: 240000
+      maxMemoryMb: 1536
+    installation: never
+  - id: engine-adapter
+    name: Actual framed native producer and current-authority client fences
+    purpose: >-
+      Actual framed native producer and current-authority client fences. Actual source fixtures name their grant/port/kept-run seams;
+      this is not installed kernel or configured-provider acceptance.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/engine-adapter.test.mjs
+    expected:
+      - Required source assertions pass with genuine declared prerequisites; no skip or fallback.
+    prerequisites:
+      - runner:node
+      - runtime:typst-pinned
+      - runtime:pypdf-pinned
+      - runtime:poppler
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Remove only unique own fixture databases/roles/children/temp directories.
+        Preserve shared PostgreSQL127.0.0.1:35689 and its container; never use live data.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 1536
+    installation: never
+  - id: http-tools
+    name: Closed HTTP tool contracts and native artifact unit guards
+    purpose: >-
+      Closed HTTP tool contracts and native artifact unit guards. Actual source fixtures name their grant/port/kept-run seams;
+      this is not installed kernel or configured-provider acceptance.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/http-tools.test.mjs
+    expected:
+      - Required source assertions pass with genuine declared prerequisites; no skip or fallback.
+    prerequisites:
+      - runner:node
+      - runtime:express-multer
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Remove only unique own fixture databases/roles/children/temp directories.
+        Preserve shared PostgreSQL127.0.0.1:35689 and its container; never use live data.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 1536
+    installation: never
+  - id: http-runtime
+    name: Actual HTTP original SQL and kept native renderer source integration
+    purpose: >-
+      Actual HTTP original SQL and kept native renderer source integration. Actual source fixtures name their grant/port/kept-run seams;
+      this is not installed kernel or configured-provider acceptance.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/http-runtime.test.mjs
+    expected:
+      - Required source assertions pass with genuine declared prerequisites; no skip or fallback.
+    prerequisites:
+      - runner:node
+      - runtime:express-multer
+      - runtime:typst-pinned
+      - runtime:pypdf-pinned
+      - runtime:poppler
+      - service:postgres-disposable-35689
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Remove only unique own fixture databases/roles/children/temp directories.
+        Preserve shared PostgreSQL127.0.0.1:35689 and its container; never use live data.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1536
+    installation: never
+  - id: project-store
+    name: Forced RLS immutable CAS retries quotas and producer fences
+    purpose: >-
+      Forced RLS immutable CAS retries quotas and producer fences. Actual source fixtures name their grant/port/kept-run seams;
+      this is not installed kernel or configured-provider acceptance.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/project-store.test.mjs
+    expected:
+      - Required source assertions pass with genuine declared prerequisites; no skip or fallback.
+    prerequisites:
+      - runner:node
+      - runtime:typst-pinned
+      - runtime:pypdf-pinned
+      - runtime:poppler
+      - service:postgres-disposable-35689
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Remove only unique own fixture databases/roles/children/temp directories.
+        Preserve shared PostgreSQL127.0.0.1:35689 and its container; never use live data.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1536
+    installation: never
+  - id: workbench-browser
+    name: Human layout edit save reopen render export and chat source workflow
+    purpose: >-
+      Human layout edit save reopen render export and chat source workflow. Actual source fixtures name their grant/port/kept-run seams;
+      this is not installed kernel or configured-provider acceptance.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/workbench-browser.test.mjs
+    expected:
+      - Required source assertions pass with genuine declared prerequisites; no skip or fallback.
+    prerequisites:
+      - runner:node
+      - runtime:chromium
+      - runtime:typst-pinned
+      - runtime:pypdf-pinned
+      - runtime:poppler
+      - service:postgres-disposable-35689
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Remove only unique own fixture databases/roles/children/temp directories.
+        Preserve shared PostgreSQL127.0.0.1:35689 and its container; never use live data.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1536
+    installation: never

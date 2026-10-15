@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-23 01:55:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Persist permanent image-free round and scene checkpoints with exact-state deduplication.
+ * 2026-10-10 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Write owner_sub explicitly on every INSERT: the native kernel skips migration 006, whose triggers stamp it on PostgreSQL (where they still override it from the parent campaign).
  */
 
 'use strict';
@@ -59,8 +60,8 @@ async function identicalAutoCheckpoint(db, campaignId, label, state, archiveSeq)
 /** @description Insert one permanent exact-board checkpoint. */
 async function insertCheckpoint(db, ownerSub, campaignId, label, state, sheets, auto, archiveSeq) {
   const saved = await db.query(
-    `INSERT INTO dnd_snapshots (campaign_id, user_sub, label, state, sheets, auto, archive_seq)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)
+    `INSERT INTO dnd_snapshots (campaign_id, user_sub, label, state, sheets, auto, archive_seq, owner_sub)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$2)
      RETURNING snapshot_id, label, auto, archive_seq, created_at`,
     [campaignId, ownerSub, label, JSON.stringify(state), JSON.stringify(sheets), auto, archiveSeq],
   );

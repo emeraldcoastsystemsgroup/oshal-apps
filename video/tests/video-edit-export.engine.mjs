@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Runs INSIDE the runtime image (started by video-edit-export.test.mjs): the compiled export runner drives the image's real FFmpeg over real synthesized clips, and the result is DECODED and measured - exact frame count, segment order and source offsets by colour, the aspect-preserving fit, the title only on its frames, clip audio only under its clip with the bed under everything - then cancellation, timeout, revocation, a lost compare-and-set and a missing encoder each leave no output, no work directory and no FFmpeg process behind. The job row store is an in-memory double: the database boundary is proved separately against PostgreSQL.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -174,5 +175,32 @@ test('an encoder that cannot start fails the job honestly and cleans up', async 
     const row = await settle(store, 'export-missing', runner);
     assert.deepEqual([row.status, row.error], ['failed', 'video_edit_encoder_unavailable']);
   } finally { if (previous === undefined) delete process.env.FFMPEG_PATH; else process.env.FFMPEG_PATH = previous; }
+  assert.deepEqual(readdirSync(workRoot), []);
+});
+
+test('v2 real export decodes overlapping tracks, animated opacity, captions and sample-aligned audio', async () => {
+  const multi = await import(pathToFileURL(join(process.cwd(), 'tools/editor/multitrack-model.mjs')).href);
+  let advanced = multi.migrateMultitrack(document); advanced.titles = [];
+  advanced = multi.applyMultitrack(advanced, { type: 'addTrack', kind: 'video', name: 'Overlay' });
+  const track = advanced.tracks.at(-1).id;
+  advanced = multi.applyMultitrack(advanced, { type: 'addClip', track, source: 'v1', start: 30, in: 0, out: 15 });
+  const id = advanced.tracks.at(-1).clips[0].id;
+  advanced = multi.applyMultitrack(advanced, { type: 'clip', id, patch: { x: 25, y: 25, scale: 50, audioEnabled: false,
+    keys: [{ property: 'opacity', frame: 0, value: 0, interpolation: 'linear' }, { property: 'opacity', frame: 10, value: 100, interpolation: 'hold' }] } });
+  advanced = multi.applyMultitrack(advanced, { type: 'text', track: 'captions', entry: { text: 'V2 CAPTION', start: 10, end: 20, position: 'top', size: 'medium' } });
+  const store = memoryStore(), runner = new ExportRunner({ store, workRoot });
+  runner.admit(job(store, 'export-v2', { document: advanced, variant: 'preview' }));
+  const row = await settle(store, 'export-v2', runner); assert.equal(row.status, 'succeeded', JSON.stringify(row));
+  assert.equal(row.output.frames, 75); const file = join(outputs, 'export-v2.mp4');
+  const blend = pixel(rgbAt(file, 1.2), 16, 9), full = pixel(rgbAt(file, 1.4), 16, 9), after = pixel(rgbAt(file, 1.6), 16, 9);
+  assert.ok(blend[0] > 100 && blend[1] > 20 && blend[1] < 90, JSON.stringify(blend));
+  assert.ok(full[0] > 180 && full[1] < 30, JSON.stringify(full));
+  assert.ok(after[1] > 90 && after[0] < 40, JSON.stringify(after));
+  const white = bytes => [...bytes].filter((value, index) => index % 3 === 0 && value > 200 && bytes[index + 1] > 200 && bytes[index + 2] > 200).length;
+  assert.ok(white(rgbAt(file, .5, 320, 180)) > 10); assert.equal(white(rgbAt(file, .8, 320, 180)), 0);
+  const pcm = execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', file, '-vn', '-ac', '1', '-ar', '48000', '-f', 's16le', 'pipe:1'], { maxBuffer: 64 * 1024 * 1024 });
+  const samples = Array.from({ length: pcm.length / 2 }, (_, index) => pcm.readInt16LE(index * 2));
+  const early = samples.slice(4800, 43200), late = samples.slice(52800, 91200);
+  assert.ok(goertzel(late, 880) > 10 * goertzel(early, 880)); assert.ok(goertzel(early, 220) > 50);
   assert.deepEqual(readdirSync(workRoot), []);
 });

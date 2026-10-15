@@ -26,6 +26,10 @@
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 0.17.1: every expected line at most 500 characters. The framework's catalog loader refused the WHOLE 0.17.0 package at install (`Application embodied testing.cases[19].expected[7]: must be non-empty text of at most 500 characters`, 575 characters; engine-px4-crosscheck-sih expected[0] was 550 behind it), so embodied was unmounted until 0.16.3 was restored. Each over-long line is split in two with its meaning kept; scripts/check-test-catalogs.mjs now runs that loader over every package on every push.
 # 23 | maintainer@emeraldcoastsystemsgroup.com | 0.17.2: ADR-164 D6 - the family audience view the Jarvis Home shell opens gets the audience-view case: the static kit contract, the view's two reads over the package's real GET /tasks and GET /home-summary routes, its plain-word model and named states, and the gate on the surface script's one start statement.
 # 24 | maintainer@emeraldcoastsystemsgroup.com | 0.17.3: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 25 | maintainer@emeraldcoastsystemsgroup.com | K4: routes-admitted-writes - the compiled routes over a pool that carries a query only inside an open request and a mutation only inside a non-GET one (the native kernel's rules): reads overlay a queued outcome, POST /writes/settle stores it with its final step and every step logged, Home counts it once, e-stop stores aborted.
+# 26 | maintainer@emeraldcoastsystemsgroup.com | K4 review: routes-admitted-writes covers Abort - POST /tasks/:id/abort stores the task aborted with failure "aborted by a human" inside the request (it stayed executing at step 0), Home counts it stopped, and a later task leaves it alone.
+# 27 | maintainer@emeraldcoastsystemsgroup.com | Register the physics rail status line suite (the status line is a whole sentence when no node is online).
+# 28 | maintainer@emeraldcoastsystemsgroup.com | The rail status suite also covers the physics engine line: with no engine it says 'not available on this installation', never the install command (demo sweep 1).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -313,6 +317,31 @@ cases:
     limits:
       timeoutMs: 60000
       maxMemoryMb: 256
+    installation: never
+  - id: routes-admitted-writes
+    name: World writes persist only inside a writer request
+    purpose: The native kernel carries a package query only inside the request that admitted it and lets only a non-GET request mutate, so the world's writes (command-log rows, a finished task's status) are queued and stored by a POST, while GET reads overlay the queued outcome. Mount the compiled routes and the Home summary over a pool double with those rules and drive tasks to done, to e-stop and to Abort.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/routes-admitted-writes.core.test.js
+    expected:
+      - A task finished during GET /state is reported done (with the executor's step) by GET /tasks, GET /tasks/:id and Home, while the store still holds executing.
+      - POST /writes/settle stores it done with the executor's final step and every plan step logged as completed; Home does not double count.
+      - A task finished on the timer between requests is reported by the next read and stored by the next POST; e-stop stores aborted with failure e-stop.
+      - POST /tasks/:id/abort stores the task aborted with failure "aborted by a human" before it answers; the control has no task, every read and Home (stopped) agree, and a later execute leaves it aborted.
+      - No query is ever attempted outside an open request or as a mutation inside a GET.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
     installation: never
   - id: routes-http
     name: Packaged routes over loopback HTTP
@@ -733,6 +762,30 @@ cases:
       - The saved jobs paint as four plain counts, a title naming the newest job's state, and tiles saying what each job was, how far it got, whether its dry run passed and when; no tile opens, runs or stops anything.
       - A count the summary could not check, odd rows, signed out, refused, the route's own 500, an unreadable answer and an unreachable server each read as what they are.
       - The surface script's one start statement carries the gate; under the view it binds, reads and starts nothing, without it the page makes its start reads and starts its four polls, and removing the gate turns the test red.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: physics-rail-status-line
+    name: Physics rail status line
+    purpose: >-
+      Verify the surface's physics status line names the online rail nodes, and with none says so in a whole sentence
+      instead of the cut-off 'rail: no node has heartbeat in'.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/rail-status.test.cjs
+    expected:
+      - "With no online node the line reads: node rail, no physics node is online (none has sent a heartbeat)."
+      - Online nodes are named by id, a stale build marked.
+      - The physics poll uses railStatus for the line.
+      - "With no physics engine the engine part reads: physics engine, not available on this installation, never the install command."
     prerequisites:
       - runner:node-test
     sideEffects: none

@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.3: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register the native kernel egress case: the compiled routes under OSHAL_EGRESS=kernel reach api.spotify.com with no credential and keep each route's not-connected answer.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -35,4 +36,29 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: kernel-egress
+    name: Native kernel Spotify egress
+    purpose: Drive the compiled Spotify routes with OSHAL_EGRESS=kernel, the bridge's inert framework stand-ins, synthetic connection metadata and a recording fetch - no network or credentials.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/kernel-egress.test.cjs
+    expected:
+      - Every Web API request goes to https://api.spotify.com/v1 with only a Content-Type header - no Authorization and no key in the URL.
+      - Profile, search, now playing (including 204), playlists and top tracks map to the same shapes the framework client returns; building a playlist posts the same JSON to /users/:id/playlists and /playlists/:id/tracks.
+      - The concierge chat runs on live search candidates and builds the playlist the brain asks for.
+      - No, revoked or lapsed spotify connection in the connection metadata, and a kernel "not connected" refusal, give each route its existing not-connected answer.
+      - Outside the kernel the broker token still reaches the framework client and the package sends nothing itself.
+      - The manifest declares api.spotify.com with the spotify connector as a Bearer credential.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
     installation: never

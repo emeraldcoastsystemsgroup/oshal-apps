@@ -77,7 +77,9 @@ function createCareerRailCallbackVerifier(_ctx) {
         const verdict = await verifyCareerRailRequest(req);
         if (!verdict.ok || !verdict.run.ownerIssuer)
             return null;
-        return { sub: verdict.run.owner, issuer: verdict.run.ownerIssuer };
+        // The run id lets the native sandbox relay admit this run's own callbacks after its request.
+        const owner = { sub: verdict.run.owner, issuer: verdict.run.ownerIssuer, runId: verdict.run.runId };
+        return owner;
     };
 }
 /**

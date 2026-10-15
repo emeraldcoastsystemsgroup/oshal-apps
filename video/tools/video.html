@@ -4,6 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Video Studio — OSHAL</title>
+<!-- unreleased | maintainer@emeraldcoastsystemsgroup.com | With rendering not configured, the subtitle under the title says so from the first paint and names what Storyboard it does offer: the Generate hint showed only after a storyboard, so the screen and the concierge (sweep 9: "will generate a storyboard and render a real .mp4") promised a render this installation cannot make. -->
+<!-- unreleased | maintainer@emeraldcoastsystemsgroup.com | Generate video says when rendering is not configured on this installation: a 503 native_executor_unavailable shows "Video rendering is not configured on this installation" with the kernel's reason instead of the raw code, and when /pump/status reports the render executor unconfigured (check native-render-unconfigured) the Generate button is disabled with that reason in place of the "Veo renders each scene" promise. -->
 <!-- 1.6.1 | maintainer@emeraldcoastsystemsgroup.com | The family audience view for the Home shell (ADR-164 D6): with ?audience=family the shared kit paints the signed-in account's saved series (where each stands, episodes finished, season cut), the episodes and season cuts the studio saved a watch link for (opening in a new tab) and the home summary's counts, from GET /series and GET /home-summary only. Every start step of the full page (the videos list, which scans the caller's connected storage, the series read, the control and joke-pump listeners, Create's brand-kit read, the handoff listener and the connected-actions mount) runs only when no audience view renders. -->
 <!-- 1.6.0 | maintainer@emeraldcoastsystemsgroup.com | Show owner-scoped season artifacts, validate series watch links and clear stale success on failed reads. -->
 <!-- 1.5.0: Use my brand colors buttons add the Create brand kit's colors, in words, to the video and series style fields. -->
@@ -194,7 +196,7 @@
 <body>
   <div class="top">
     <h1>🎬 Video Studio</h1>
-    <div class="sub">Shape it → storyboard it → render a real short with voiceover &amp; captions for TikTok / Shorts / Reels.</div>
+    <div class="sub" id="studioSub">Shape it → storyboard it → render a real short with voiceover &amp; captions for TikTok / Shorts / Reels.</div>
   </div>
   <div class="split">
     <div class="pane left">
@@ -350,11 +352,11 @@ async function storyboard() {
   $('sbBtn').disabled = true; $('sbHint').textContent = 'Directing…'; hideResult();
   try {
     const r = await fetch('/api/video/storyboard', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idea, shape: readShape() }) });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'storyboard failed');
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j) throw new Error(storyboardError(r.status, j));
     SB = j.storyboard;
     $('title').value = SB.title;
-    $('sbMeta').textContent = `· ${SB.scenes.length} scenes · ~${j.seconds}s · est ~$${j.estCostUsd}`;
+    $('sbMeta').textContent = `· ${SB.scenes.length} ${SB.scenes.length === 1 ? 'scene' : 'scenes'} · ~${j.seconds}s · est ~$${j.estCostUsd}`;
     renderScenes();
     $('sbWrap').style.display = 'block'; $('sbHint').textContent = '';
   } catch (e) { $('sbHint').textContent = e.message; }
@@ -368,11 +370,51 @@ async function generate() {
   try {
     const r = await fetch('/api/video/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ storyboard: SB, shape: readShape() }) });
     const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'generation failed');
+    if (!r.ok) throw new Error(generateError(r.status, j));
     showResult(`✅ Rendered ${j.seconds}s video (est $${j.estCostUsd}) → saved to ${j.provider}.` + (j.downloadUrl ? ` <a href="${j.downloadUrl}" target="_blank">Download</a>` : ''), true);
     loadList();
-  } catch (e) { showResult('⚠️ ' + e.message, false); }
-  finally { $('genBtn').disabled = false; $('genHint').textContent = ''; }
+  } catch (e) { showResult('⚠️ ' + esc(e.message), false); }
+  finally { $('genBtn').disabled = !!RENDER_UNCONFIGURED; $('genHint').textContent = RENDER_UNCONFIGURED || ''; }
+}
+
+/* Why a storyboard did not come back, in words: the route's error, or the installation's refusal (a package call that
+   ran past the request limit is named as such), with the HTTP status. Never a bare "storyboard failed". */
+function storyboardError(status, j) {
+  const said = j && (j.error || j.message);
+  if (said) return 'The storyboard could not be written: ' + said + ' (HTTP ' + status + ').';
+  const detail = j && typeof j.detail === 'string' ? j.detail : '';
+  if (/timed out/i.test(detail)) {
+    return 'The storyboard took longer than this installation allows for one request (' + detail + '). Press Storyboard again, or try a shorter idea.';
+  }
+  if (status === 401) return 'Sign in again to write a storyboard (HTTP 401).';
+  if (detail) return 'The storyboard could not be written: ' + detail + (j.refused ? ' [' + j.refused + ']' : '') + ' (HTTP ' + status + ').';
+  return 'The storyboard could not be written: the server answered HTTP ' + status + ' with no reason it could read.';
+}
+
+/* A refusal in words: an unconfigured renderer is named as such, with the installation's own reason. */
+function generateError(status, j) {
+  if (status === 503 && j && j.error === 'native_executor_unavailable') {
+    return 'Video rendering is not configured on this installation' + (j.detail ? ' (' + j.detail + ')' : '') + '.';
+  }
+  return (j && (j.error || j.message)) || 'generation failed';
+}
+
+/* Generate stays off while the installation reports no render executor; the hint says why. */
+let RENDER_UNCONFIGURED = null;
+async function renderReadiness() {
+  try {
+    const r = await fetch('/api/video/pump/status', { credentials: 'same-origin', cache: 'no-store' });
+    if (!r.ok) return;
+    const node = ((await r.json()) || {}).node || {};
+    if (node.check !== 'native-render-unconfigured') return;
+    RENDER_UNCONFIGURED = 'Video rendering is not configured on this installation' + (node.reason ? ' (' + node.reason + ')' : '') + '.';
+    $('genBtn').disabled = true; $('genBtn').title = RENDER_UNCONFIGURED;
+    $('genHint').textContent = RENDER_UNCONFIGURED;
+    // Said at the top from the first paint: the Generate hint only shows after a storyboard, so the screen (and the
+    // concierge reading it) promised a rendered .mp4 here. What this installation does offer is named instead.
+    $('studioSub').textContent = 'Shape it → storyboard it. ' + RENDER_UNCONFIGURED + ' Storyboard it writes the scenes, '
+      + 'narration and captions for you to read and edit here (they are not saved); Generate video stays off until rendering is set up.';
+  } catch (e) { /* status unreadable: Generate keeps its own answer */ }
 }
 
 function showResult(html, ok){ const el=$('result'); el.innerHTML=html; el.className='result '+(ok?'ok':'err'); }
@@ -389,7 +431,7 @@ async function loadList() {
         ? ` data-artifact-source="${esc(v.downloadUrl)}" data-artifact-type="video/mp4" data-artifact-name="${esc((v.title || v.fileName || 'video').replace(/\.mp4$/i, '') + '.mp4')}"`
         : ''}>
       <div class="vt">${esc(v.title || v.fileName)}</div>
-      <div class="vm">${v.seconds ? v.seconds + 's · ' : ''}${v.scenes ? v.scenes + ' scenes · ' : ''}${v.provider || ''}${v.costUsd ? ' · $' + v.costUsd : ''}</div>
+      <div class="vm">${v.seconds ? v.seconds + 's · ' : ''}${v.scenes ? v.scenes + (v.scenes === 1 ? ' scene · ' : ' scenes · ') : ''}${v.provider || ''}${v.costUsd ? ' · $' + v.costUsd : ''}</div>
       ${v.downloadUrl ? `<video controls preload="none" src="${v.downloadUrl}"></video><div style="margin-top:6px"><a href="${v.downloadUrl}" target="_blank">Download</a></div>` : (v.url ? `<a href="${v.url}" target="_blank">Open</a>` : '')}
     </div>`).join('');
   } catch (e) { $('list').innerHTML = '<div class="empty">Could not load videos.</div>'; }
@@ -581,6 +623,7 @@ if (!window.AppView || !AppView.active()) {
   $('len').addEventListener('input', () => { $('lenVal').textContent = $('len').value; });
   loadList();
   loadSeries();
+  renderReadiness();
   $('pumpBox').addEventListener('toggle', () => { if ($('pumpBox').open) pumpLoad(); });
 }
 </script>

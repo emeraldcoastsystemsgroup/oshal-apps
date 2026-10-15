@@ -8,9 +8,15 @@
  *   detachSymbolSearch(inputEl) — removes the listeners/timers and unwraps the input. Call it before
  *     re-attaching, or before the host that owns the input is re-rendered, so no timer or dropdown leaks.
  * All per-input state lives in the SS_STATE WeakMap keyed by the input element — never a shared module
- * global — so two inputs (the ticket and the research box) never step on each other. A failed fetch is
- * swallowed (no dropdown), a stale response (a superseded query, a value that moved on, or an input no
+ * global — so two inputs (the ticket and the research box) never step on each other. A failed fetch
+ * shows its reason in the dropdown (ssNotice), a stale response (a superseded query, a value that moved on, or an input no
  * longer in the document) is ignored, and nothing here throws into the page.
+ *
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened; earlier history is in git. A failed search shows its reason in the dropdown (the native host has no market-data connector for name search) and says to type the ticker, instead of swallowing the failure and showing nothing.
  */
 
 var SS_STATE = new WeakMap();
@@ -83,11 +89,23 @@ async function ssQuery(inputEl) {
   var q = String(inputEl.value || '').trim();
   if (q.length < 1) { ssClose(inputEl); return; }
   var seq = ++st.seq, results = null;
+  var failure = null;
   try { var j = await api('/symbols/search?q=' + encodeURIComponent(q) + '&limit=12'); results = (j && j.results) || []; }
-  catch (e) { return; }
+  catch (e) { failure = String((e && e.message) || 'Symbol search failed.'); }
   if (SS_STATE.get(inputEl) !== st || st.seq !== seq) return;
   if (!inputEl.isConnected || String(inputEl.value || '').trim() !== q) return;
+  if (failure) { ssNotice(inputEl, failure); return; }
   ssRender(inputEl, results);
+}
+
+/* A failed search says why in the dropdown (one row, not a pick), so typing a name is not met by silence;
+   the Research button still takes a typed ticker. */
+function ssNotice(inputEl, message) {
+  var st = SS_STATE.get(inputEl); if (!st) return;
+  st.items = []; st.active = -1;
+  st.drop.innerHTML = '<div class="ss-note" role="status" style="padding:8px 10px;font-size:12px;white-space:normal">' +
+    esc('Name search is unavailable: ' + message.replace(/[.\s]*$/, '') + '. Type the ticker and press Research.') + '</div>';
+  st.drop.hidden = false;
 }
 
 /* Paint the rows and open the dropdown; no rows means nothing to show. */

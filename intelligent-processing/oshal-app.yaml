@@ -1,0 +1,91 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Native port of the platform's Intelligent Processing queue. The native kernel held only its migrated declaration, so activating it opened nothing. It keeps its own ticket queue and runs it on Intelligent Operations' RCA specialist and reviewer, imported under dependencies.required.bots (the platform borrowed rca-specialist without declaring it). Its three screens (/intelligent-processing, /system-health, /alert-pipeline-admin) and the Alertmanager intake that opened its tickets are platform TypeScript with no native route, so the tiles are left out and the description says tickets are filed by hand.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Ship the store's canonical service-authenticated package-readiness route (routes/package-smoke.js, byte-identical to the reviewed module) and its smoke expectation, which the store security contract requires of every package except Pumpkin and the four front-door groups. It reads only this manifest; no screen, user data or model call.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | The queue screen, natively: ui/index.html (with its model ui/queue-model.js) is served from this package's own assets at /apps/intelligent-processing/ui/index.html and declared as the package's tile. It lists the caller's tickets on this queue from the kernel's GET /api/tickets, one row per alert, and files an alert with POST /api/v1/tickets. The cockpit rail's Intelligent Processing item opened the platform's /intelligent-processing page, which the native kernel never served (an empty 404). No route, bot, workflow or permission change.
+name: intelligent-processing
+suite: ai-engineering
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: alert-rca
+      unit: promoted alert ticket
+      tier: T3
+      generation: none
+      degrade: disable
+displayName: Intelligent Processing
+description: >-
+  A queue for self-monitoring alerts that need a root cause: file the alert as a ticket and it runs
+  Intelligent Operations' RCA pipeline (investigate, review, revise), proposing a fix for an operator
+  to run. On this installation no alert source opens these tickets and the platform's System Health
+  and Pipeline Admin screens are not available, so tickets are filed by hand with the alert text.
+version: 1.0.1
+status: active
+scope: public
+access:
+  supported: [deny, viewer, editor, admin]
+  defaultTier: editor
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: intelligent-processing
+  ref: main
+uses:
+  - app-dependencies
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/intelligent-processing/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/intelligent-processing/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+dependencies:
+  required:
+    apps: [intelligent-operations]
+    bots:
+      - app: intelligent-operations
+        name: ops-rca-specialist
+      - app: intelligent-operations
+        name: ops-incident-reviewer
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+
+ticketType: intelligent-processing
+workflow:
+  name: Intelligent Processing RCA Pipeline
+  phases:
+    - name: investigate
+      bot: ops-rca-specialist
+    - name: review
+      bot: ops-incident-reviewer
+    - name: revise
+      bot: ops-rca-specialist
+chatBot: ops-rca-specialist
+ui:
+  static:
+    - toolName: intelligent-processing-queue
+      label: Intelligent Processing
+      icon: codicon codicon-pulse
+      iframeUrl: /apps/intelligent-processing/ui/index.html
+      section: top
+ribbon:
+  defaultView: tickets
+  hideFrameworkItems: []

@@ -10,6 +10,8 @@
  * 2026-07-26 [rebuild] | roger.murphy@emeraldcoastsystemsgroup.com  | Player-experience rebuild: GET /qr renders the room's join link as an SVG QR (platform `qrcode` dependency, fail-soft to nothing so the code text always suffices) and the new gs-play.js player surface joins the inline script order.
  * 2026-07-26 19:15:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Broadcast chrome wiring: gs-play.js sits after the show files and before gs-surfaces.js (matching stage.html), and every chrome/set stylesheet (UI_STYLES — game-show-play.css + the four gs-set-*.css) is served no-store exactly like game-show.css always was.
  * 2026-07-31 22:45:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog #11: GET /leaderboard — the caller-scoped cross-game hall of fame read (gameshow_seats.score snapshots across the caller's ended games), rendered by the lobby.
+ * 2026-10-11 00:00:01 | maintainer@emeraldcoastsystemsgroup.com    | A host override that ends the game (endGame) also sets the room's status to 'ended' through the same setStatus the lobby's End uses (scores snapshotted, camera stills dropped).
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com    | GET /sync only reads; POST /sync {roomId, rev, seq} resolves a lapsed round clock and the due NPC beat, then answers the same payload. On the native kernel a GET is a reader admission, so the clock's write made every poll after a show started answer 500.
  */
 
 'use strict';
@@ -127,13 +129,19 @@ async function servePublic(env, method, pathname, res) {
 
 /** @description Apply one host override (owner only) under the room lock. */
 async function handleOverride(env, sub, body) {
-  return env.room.mutate(body.roomId, sub, async ({ state, seats, room }) => {
+  let endsRoom = false;
+  const applied = await env.room.mutate(body.roomId, sub, async ({ state, seats, room }) => {
     const show = registry.get(room.show_id);
     if (!show) return { ok: false, status: 400, error: 'Unknown show.' };
     const result = hostOverride.apply(show, state, body.action || {}, { seats }, Date.now());
     if (!result.ok) return { ok: false, status: 409, error: OVERRIDE_ERRORS[result.error] || 'That override does not apply right now.' };
+    endsRoom = result.endsRoom === true;
     return { ok: true, state: result.state, events: result.event ? [result.event] : [], host: result.host, cue: result.cue };
   }, { ownerOnly: true });
+  if (!applied.ok || !endsRoom) return applied;
+  // The finished show's room ends too, exactly as the lobby's End does it.
+  const ended = await env.room.setStatus(sub, body.roomId, 'ended');
+  return { ...applied, roomStatus: ended.ok ? ended.status : 'live' };
 }
 
 /** @description Apply one pure player/host action through the show reducer under the room lock. */
@@ -183,6 +191,8 @@ function postHandlers(env, sub, name) {
     '/tts': (body) => env.media.synthesizeHostLine(body),
     '/react': (body) => env.room.react(sub, name, body.roomId, body.emoji),
     '/speaker': (body) => handleSpeaker(env, sub, body),
+    // The poll that moves the room: the round clock and the NPC beat write, so they run on a POST.
+    '/sync': (body) => env.room.advanceAndSync(sub, body.roomId, Number(body.rev) || 0, Number(body.seq) || 0),
   };
 }
 
@@ -289,3 +299,4 @@ function createGameShowRoutes(ctx) {
 }
 
 exports.createGameShowRoutes = createGameShowRoutes;
+exports.handleOverride = handleOverride;

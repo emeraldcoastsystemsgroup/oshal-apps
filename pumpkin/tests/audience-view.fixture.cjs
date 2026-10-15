@@ -55,7 +55,7 @@ function summary(rows, iso) {
     const detail = r.expression + ' / saved ' + r.updatedAt;
     return { text: r.say, detail, tone: 'neutral', fix: 'pumpkin-control', actions: [{ integration: 'prepare-clip', context: { title: r.say, notes: detail + '\nSaved prop line: ' + r.say } }] };
   });
-  items.push({ text: 'Shows caller-saved custom looks and dialogue, with pinned lines first. No current projector liveness is claimed from saved settings. Selected dialogue can prepare a Vids clip draft; Home does not speak, animate, record audio or trigger the physical prop.', tone: 'neutral', fix: 'pumpkin-control' });
+  items.push({ text: 'Shows caller-saved custom looks and the newest saved dialogue. A saved line is not pinned unless the Pinned response lines count above says so; pinned lines, when there are any, are listed first. No current projector liveness is claimed from saved settings. Selected dialogue can prepare a Vids clip draft; Home does not speak, animate, record audio or trigger the physical prop.', tone: 'neutral', fix: 'pumpkin-control' });
   return { metrics, tiles: metrics, items, asOf: iso(0), partial: false };
 }
 

@@ -1,9 +1,37 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.APP_ADMIN_ROLE = void 0;
+exports.isApplicationAdmin = isApplicationAdmin;
 exports.createHomeSummaryRoutes = createHomeSummaryRoutes;
-/** Discovery work remains attributed to the caller's existing Studio workflow. */
+/**
+ * Discovery work remains attributed to the caller's existing Studio workflow.
+ *
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | The summary admits this application's own administrator as well as the kernel operator. This catalog-less app's administrator role is the kernel's @app-admin; a person holding it was refused 403 "Operator access required" because only the kernel-operator flag was read. The role is read from the kernel's auth.application intent where the host offers one; without it the operator check alone stands.
+ */
 const express_1 = require("express");
 const authz_1 = require("@/shared/middleware/authz");
+/** The role the kernel grants an application without an authorization catalog as its administrator. */
+exports.APP_ADMIN_ROLE = '@app-admin';
+/**
+ * @description Whether the caller administers this application: the kernel operator, or a holder of the
+ * application's own administrator role as the kernel reports it for this call (auth.application roles).
+ * @param ctx - The package context; its intent port exists only on hosts that report application roles.
+ * @param req - The admitted request.
+ * @returns True for the operator or an application administrator.
+ */
+async function isApplicationAdmin(ctx, req) {
+    if ((0, authz_1.isOperator)(req))
+        return true;
+    const intent = ctx.intent;
+    if (typeof intent !== 'function')
+        return false;
+    const authority = await intent.call(ctx, 'auth.application', {});
+    return Array.isArray(authority?.roles) && authority.roles.includes(exports.APP_ADMIN_ROLE);
+}
 function createHomeSummaryRoutes(ctx) {
     const r = (0, express_1.Router)();
     r.get('/', async (req, res) => {
@@ -13,7 +41,7 @@ function createHomeSummaryRoutes(ctx) {
             res.status(401).json({ error: 'not_authenticated' });
             return;
         }
-        if (!(0, authz_1.isOperator)(req)) {
+        if (!(await isApplicationAdmin(ctx, req))) {
             res.status(403).json({ error: 'Operator access required' });
             return;
         }

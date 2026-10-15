@@ -27,13 +27,16 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | A failed ESPN read now logs at WARN (the box runs LOG_LEVEL=info, so a debug-level failure is invisible exactly when someone asks why the surface is empty) and followedGames returns upstreamOk alongside the rows, so the caller can tell "no games" apart from "could not reach the schedule service".
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The pass now feeds followed teams, their injury wire and their upcoming matchups into the shared World Intelligence layer instead of this package growing a news reader of its own. Subject NAMING lives here; fetching, dedup, classification and the time series stay in World, which is what stops two applications pulling the same wire twice and disagreeing about what it said. Runs LAST — it is the only step whose work can be caught up on a later pass.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Resolve current head coaches from followed ESPN team IDs only when their team is due, then use the same shared World ingest, persistent cooldown and pass budget.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | No timer. The pass ran from a setInterval the route factory started, outside any request, so on the native kernel every pass failed before its first query ("Unbound application request is unavailable in this native runtime" / "SQL connection requires an active admitted request") and the surface never refreshed. A pass now runs only inside an admitted request: runRefreshPass is called by POST /refresh/run, which the manifest's `refresh-pass` schedule fires as the person who activated it, so the pass works over that person's own followed teams. Loading this module starts nothing. Guard: tests/sports-refresh-schedule.test.js.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | upcomingGames reads the scoreboard by month (dates=YYYYMM) and filters to the window: ESPN now answers every day range with HTTP 400 "Failed to get events endpoint" (measured 2026-10-11 for NFL, NBA and college football, past and future ranges alike), so line capture, previews and the followed-games list found no game at all. Guard: tests/sports-refresh-schedule.test.js.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | A requested pass is bounded by the deployment's refreshIntervalMinutes: runRefreshPass reads the caller's last pass start (sports_settings scope `__refresh_pass__:<sub>`) and answers skipped 'not_due' with nextDueAt until the interval (less a 10-minute slack for the schedule's own jitter) has passed; only an operator's {force:true} skips the check. POST /refresh/run had no brake but the in-process `running` flag, so any signed-in caller could run back-to-back passes, each a full line capture, grading, preview and World ingest, and a stale-ratings rebuild (~30 ESPN reads) on every call while ratings stayed stale. The pass also reads only the caller's own followed teams (WHERE user_sub = $1), which is what the schedule offer says and what the native kernel's per-person SQL scope already gave it. Guard: tests/sports-refresh-schedule.test.js.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Export FOLLOWED_GAMES_HORIZON_DAYS so GET /games can name the window an empty Games list covers.
  *
  * @module sports-refresh
  */
 
 import { createChildLogger } from '@/shared/logger';
 import { createWorldIntelligenceService, ingestFeeds } from '@/features/world-data';
-import type { AppContext } from '@/app/composition/app-context';
 import type { Pool } from 'pg';
 import type { League } from './sports-odds';
 import { buildPreview, buildSeasonRatings, type GamePreview, type SeasonRatings, type TeamTape } from './sports-preview';
@@ -44,7 +47,7 @@ import {
 import {
   DEPLOYMENT_SCOPE, ensureSchema, gradePrediction, gradedRows, openPredictions, readPreview,
   readRatings, readSettings, recordWorldPull, upsertPredictions, worldPullTimes, writePreview,
-  writeRatings,
+  writeRatings, writeSettings,
   type FollowedTeam,
 } from './sports-store';
 import { captureQuote, ensureLineSchema, type CaptureResult } from './sports-line-store';
@@ -76,6 +79,9 @@ function tracked(): { opts: EspnOptions; ok: () => boolean } {
 
 /** Shipped defaults; a deployment row overrides them. Mirrors the manifest's settings.schema. */
 const DEFAULTS = { refreshEnabled: true, refreshIntervalMinutes: 180, ratingsRefreshHours: 24, previewHorizonDays: 8 };
+
+/** How many days ahead the followed-games list looks; the Games screen names it when the list is empty. */
+export const FOLLOWED_GAMES_HORIZON_DAYS = DEFAULTS.previewHorizonDays;
 
 /** Bounds on how much work one refresh pass will do, so a wide follow list cannot run unbounded. */
 const MAX_PREVIEWS_PER_PASS = 40;
@@ -156,21 +162,43 @@ export async function getRatings(pool: Pool, league: League, maxAgeHours = DEFAU
 }
 
 /**
- * @description Every scheduled game in a league within the horizon. One request per league covers
- * the whole window, because the scoreboard accepts a date range.
+ * @description The calendar months (ESPN's `YYYYMM` scoreboard key) a window touches, in order.
+ * @param from - Window start.
+ * @param to - Window end.
+ * @returns One `YYYYMM` per month from the start's month to the end's, in UTC.
+ */
+export function monthsCovering(from: Date, to: Date): string[] {
+  const months: string[] = [];
+  const cursor = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), 1));
+  while (cursor.getTime() <= to.getTime()) {
+    months.push(`${cursor.getUTCFullYear()}${String(cursor.getUTCMonth() + 1).padStart(2, '0')}`);
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+  return months;
+}
+
+/**
+ * @description Every scheduled game in a league within the horizon. The scoreboard is read by MONTH
+ * (`dates=YYYYMM`): since at least 2026-10-11 ESPN answers every day range (`YYYYMMDD-YYYYMMDD`, even a
+ * two-day one) with HTTP 400 "Failed to get events endpoint", so a range read captured no game at all.
+ * A window spanning two months costs two requests per league; games are merged by event id.
  * @param league - League to list.
  * @param days - How far ahead to look.
  * @param opts - ESPN options; pass a tracked set to learn whether the read actually succeeded.
- * @returns Scheduled games with whatever prices the scoreboard carried.
+ * @returns Scheduled games inside the window, earliest first, with whatever prices the scoreboard carried.
  */
 export async function upcomingGames(
   league: League, days: number, opts: EspnOptions = espn,
 ): Promise<ScheduledGame[]> {
   const from = new Date();
   const to = new Date(from.getTime() + days * 86400000);
-  const stamp = (d: Date): string => d.toISOString().slice(0, 10).replace(/-/g, '');
-  const games = await scoreboard(league, opts, `${stamp(from)}-${stamp(to)}`);
-  return games.filter((g) => Date.parse(g.date) >= from.getTime() - 6 * 3600000);
+  const byEvent = new Map<string, ScheduledGame>();
+  for (const month of monthsCovering(from, to)) {
+    for (const game of await scoreboard(league, opts, month)) byEvent.set(game.eventId, game);
+  }
+  return [...byEvent.values()]
+    .filter((g) => Date.parse(g.date) >= from.getTime() - 6 * 3600000 && Date.parse(g.date) <= to.getTime())
+    .sort((a, b) => Date.parse(a.date) - Date.parse(b.date));
 }
 
 /** One row on the followed-teams page: a game and, when built, the headline of its preview. */
@@ -391,10 +419,15 @@ function conflictingCoachTeams(rows: Array<{ league: League; team: string; team_
  * ARANGO_URL) — a deployment without it keeps a working odds maker, just without the wires.
  * @param pool - Postgres pool.
  * @param lastPulled - Persistent subject timestamps shared with the ingest pass.
+ * @param sub - Whose followed teams; omitted means every followed team in this store.
  * @returns Followed team, injury and known-coach subjects within the pass budget.
  */
-async function followedWorldSubjects(pool: Pool, lastPulled: ReadonlyMap<string, string>): Promise<SportsSubject[]> {
-  const followed = await pool.query('SELECT DISTINCT league, team, team_id, display_name FROM sports_followed_teams ORDER BY league, team, team_id, display_name');
+async function followedWorldSubjects(
+  pool: Pool, lastPulled: ReadonlyMap<string, string>, sub?: string,
+): Promise<SportsSubject[]> {
+  const followed = sub
+    ? await pool.query('SELECT DISTINCT league, team, team_id, display_name FROM sports_followed_teams WHERE user_sub = $1 ORDER BY league, team, team_id, display_name', [sub])
+    : await pool.query('SELECT DISTINCT league, team, team_id, display_name FROM sports_followed_teams ORDER BY league, team, team_id, display_name');
   const subjects: SportsSubject[] = [];
   const seen = new Set<string>();
   const conflicts = conflictingCoachTeams(followed.rows);
@@ -421,13 +454,14 @@ async function followedWorldSubjects(pool: Pool, lastPulled: ReadonlyMap<string,
 }
 
 /** @description Ingest deployment-public sports subjects through the existing shared World service.
- * @param pool Current deployment database pool. @returns Actual subject and new-item counts.
+ * @param pool Current deployment database pool. @param sub Whose followed teams name the subjects (omitted: all).
+ * @returns Actual subject and new-item counts.
  */
-export async function refreshWorld(pool: Pool): Promise<{ subjects: number; newItems: number }> {
+export async function refreshWorld(pool: Pool, sub?: string): Promise<{ subjects: number; newItems: number }> {
   const svc = createWorldIntelligenceService();
   if (!svc) return { subjects: 0, newItems: 0 };
   const lastPulled = await worldPullTimes(pool);
-  const subjects = await followedWorldSubjects(pool, lastPulled);
+  const subjects = await followedWorldSubjects(pool, lastPulled, sub);
   // The matchup subjects come from previews already built this pass, so a game nobody follows never
   // gets a subject — the same team-first discipline the rest of the package is built on.
   const upcoming = await pool.query(
@@ -453,18 +487,22 @@ export async function refreshWorld(pool: Pool): Promise<{ subjects: number; newI
   return { subjects: due.length, newItems };
 }
 
-/** Module-level loop state, so a package reload cannot start a second timer. */
-let timer: NodeJS.Timeout | null = null;
+/** The manifest's schedule (oshal-app.yaml `schedules:` refresh-pass) that fires a pass as the person who activated it. */
+export const REFRESH_SCHEDULE = Object.freeze({ app: 'sports-edge', name: 'refresh-pass', route: '/api/sports-edge/refresh/run' });
+
+/** The last pass this process ran, for the status panel. Nothing here runs on its own. */
 let lastRun: string | null = null;
 let lastError: string | null = null;
 let running = false;
 
 /**
- * @description Current state of the background loop, for the status panel.
- * @returns Whether the loop is armed, when it last ran, and its last error.
+ * @description Current state of the scheduled refresh, for the status panel.
+ * @returns The schedule that runs it, when this process last ran a pass, its last error, and whether one is running.
  */
-export function refreshStatus(): { armed: boolean; lastRun: string | null; lastError: string | null; running: boolean } {
-  return { armed: timer !== null, lastRun, lastError, running };
+export function refreshStatus(): {
+  schedule: typeof REFRESH_SCHEDULE; lastRun: string | null; lastError: string | null; running: boolean;
+} {
+  return { schedule: REFRESH_SCHEDULE, lastRun, lastError, running };
 }
 
 /**
@@ -472,10 +510,11 @@ export function refreshStatus(): { armed: boolean; lastRun: string | null; lastE
  * inside the horizon. Bounded by `MAX_PREVIEWS_PER_PASS` so a long follow list cannot turn one
  * pass into an unbounded crawl.
  * @param pool - Postgres pool.
+ * @param sub - The person whose followed teams are previewed and named to World.
  * @returns Counts, for the log line.
  */
 export async function refreshPass(
-  pool: Pool,
+  pool: Pool, sub: string,
 ): Promise<{ graded: number; previews: number; lines: Record<string, number>; world: { subjects: number; newItems: number } }> {
   const settings = { ...DEFAULTS, ...(await readSettings(pool, DEPLOYMENT_SCOPE)) } as typeof DEFAULTS;
   // Capture FIRST. It is the cheapest thing in the pass and the only thing whose data cannot be
@@ -483,8 +522,8 @@ export async function refreshPass(
   const lines = await captureLines(pool);
   const graded = await gradeDue(pool);
   let previews = 0;
-  // Only games someone follows are previewed; this package never sweeps a whole board.
-  const followedRows = await pool.query('SELECT DISTINCT league, team FROM sports_followed_teams');
+  // Only the caller's followed teams are previewed; this package never sweeps a whole board.
+  const followedRows = await pool.query('SELECT DISTINCT league, team FROM sports_followed_teams WHERE user_sub = $1', [sub]);
   const byLeague = new Map<League, Set<string>>();
   for (const r of followedRows.rows) {
     const league = r.league as League;
@@ -502,44 +541,96 @@ export async function refreshPass(
   // Last in the pass, and deliberately so: it is the only step whose work can be caught up later.
   // A missed line capture is gone forever and an ungraded call is evidence not yet recorded, but a
   // news pull deferred by three hours is a news pull three hours late.
-  const world = await refreshWorld(pool).catch((err) => {
+  const world = await refreshWorld(pool, sub).catch((err) => {
     log.warn({ err }, 'world refresh failed');
     return { subjects: 0, newItems: 0 };
   });
   return { graded, previews, lines, world };
 }
 
+/** What one requested pass did. */
+export type RefreshRun =
+  | { ran: true; result: Awaited<ReturnType<typeof refreshPass>> }
+  | { ran: false; skipped: 'already_running' | 'refresh_disabled' }
+  | { ran: false; skipped: 'not_due'; lastPassAt: string; nextDueAt: string };
+
 /**
- * @description Start the background loop. Idempotent per process — a package reload re-invokes the
- * route factory, and a second timer would double every external read.
- * @param ctx - App context supplying the pool.
- * @returns Nothing.
+ * Slack under the interval before a pass is due. The schedule fires on its cron and a pass is stamped
+ * when it starts, so two fires exactly one interval apart can land a few seconds short of it; without
+ * slack every second scheduled fire would answer not_due.
  */
-export function startSportsRefresh(ctx: AppContext): void {
-  if (timer) return;
-  const pool: Pool = ctx.pool;
-  const tick = async (): Promise<void> => {
-    if (running) return;
-    running = true;
-    try {
-      await ensureSchema(pool);
-      await ensureLineSchema(pool);
-      const settings = { ...DEFAULTS, ...(await readSettings(pool, DEPLOYMENT_SCOPE)) } as typeof DEFAULTS;
-      if (!settings.refreshEnabled) { lastRun = new Date().toISOString(); return; }
-      const result = await refreshPass(pool);
-      lastRun = new Date().toISOString();
-      lastError = null;
-      log.info({ ...result }, 'refresh pass complete');
-    } catch (err) {
-      lastError = (err as Error).message;
-      log.error({ err }, 'refresh pass failed');
-    } finally {
-      running = false;
-    }
-  };
-  // A first pass shortly after start, so a freshly deployed box is warm without waiting a cadence.
-  setTimeout(() => { void tick(); }, 45000).unref?.();
-  timer = setInterval(() => { void tick(); }, DEFAULTS.refreshIntervalMinutes * 60000);
-  timer.unref?.();
-  log.info({ intervalMinutes: DEFAULTS.refreshIntervalMinutes }, 'sports-edge refresh loop armed');
+const DUE_SLACK_MS = 10 * 60000;
+
+/** @description The sports_settings scope that holds one person's last pass start. @param sub - Caller. @returns The key. */
+export function passKey(sub: string): string {
+  return `__refresh_pass__:${sub}`;
+}
+
+/**
+ * @description When this person's last requested pass started, from the store (not this process, which
+ * may not be the one that ran it).
+ * @param pool - The request's Postgres pool.
+ * @param sub - Caller.
+ * @returns The ISO start of the last pass, or null when none is recorded.
+ */
+export async function lastPassAt(pool: Pool, sub: string): Promise<string | null> {
+  const stamp = (await readSettings(pool, passKey(sub))).lastPassAt;
+  return typeof stamp === 'string' && Number.isFinite(Date.parse(stamp)) ? stamp : null;
+}
+
+/**
+ * @description Whether a pass is due for this person under the deployment's refresh interval.
+ * @param last - The last pass start, or null.
+ * @param intervalMinutes - The resolved refreshIntervalMinutes.
+ * @param nowMs - Current epoch ms.
+ * @returns null when due, else when it next will be.
+ */
+export function nextDueAt(last: string | null, intervalMinutes: number, nowMs: number = Date.now()): string | null {
+  if (!last) return null;
+  const due = Date.parse(last) + Math.max(30, Number(intervalMinutes) || DEFAULTS.refreshIntervalMinutes) * 60000 - DUE_SLACK_MS;
+  return nowMs >= due ? null : new Date(due).toISOString();
+}
+
+/** Options for one requested pass. */
+export interface RefreshRunOptions {
+  /** Skip the interval check. The route honours it only for an operator. */
+  force?: boolean;
+}
+
+/**
+ * @description Run one refresh pass inside the caller's admitted request (POST /refresh/run, fired by the
+ * `refresh-pass` schedule). A pass already running in this process is not started twice; a deployment
+ * that switched refreshing off records the visit and does nothing; a pass inside the configured interval
+ * since the caller's last one answers not_due, so a caller cannot loop full passes (and the ratings
+ * rebuild a stale cache triggers). A failure is recorded for the status panel and rethrown, so the
+ * schedule's run receipt shows it.
+ * @param pool - The request's Postgres pool.
+ * @param sub - The caller, whose followed teams the pass covers.
+ * @param opts - force (operator only, enforced by the route).
+ * @returns Whether a pass ran, and its counts.
+ */
+export async function runRefreshPass(pool: Pool, sub: string, opts: RefreshRunOptions = {}): Promise<RefreshRun> {
+  if (running) return { ran: false, skipped: 'already_running' };
+  running = true;
+  try {
+    await ensureSchema(pool);
+    await ensureLineSchema(pool);
+    const settings = { ...DEFAULTS, ...(await readSettings(pool, DEPLOYMENT_SCOPE)) } as typeof DEFAULTS;
+    if (!settings.refreshEnabled) { lastRun = new Date().toISOString(); return { ran: false, skipped: 'refresh_disabled' }; }
+    const last = await lastPassAt(pool, sub);
+    const next = opts.force ? null : nextDueAt(last, settings.refreshIntervalMinutes);
+    if (last && next) return { ran: false, skipped: 'not_due', lastPassAt: last, nextDueAt: next };
+    await writeSettings(pool, passKey(sub), { lastPassAt: new Date().toISOString() });
+    const result = await refreshPass(pool, sub);
+    lastRun = new Date().toISOString();
+    lastError = null;
+    log.info({ ...result }, 'refresh pass complete');
+    return { ran: true, result };
+  } catch (err) {
+    lastError = (err as Error).message;
+    log.error({ err }, 'refresh pass failed');
+    throw err;
+  } finally {
+    running = false;
+  }
 }

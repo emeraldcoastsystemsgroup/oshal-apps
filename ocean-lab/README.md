@@ -197,5 +197,7 @@ The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core 
 
 Container memory, MiB low / high: **32 / 128 (declared)**.
 
-No model in the loop (T0): every feature of this application is deterministic code.
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| ocean-lab-guide | concierge answer | T1 | none | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->

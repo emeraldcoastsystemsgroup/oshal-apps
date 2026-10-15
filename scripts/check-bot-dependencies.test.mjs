@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the real YAML/dependency reader and cross-package ownership guard with isolated successful and mutated sources.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Prove canonical platform imports resolve and stale, mismatched or duplicate native identities still refuse.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | communications-bot, home-bot and eats-concierge keep their enrolled UUIDs but run inline (posture: inline, no container): their own and importing applications' routes call them through the native kernel's package bot turn, which refuses a node-posture bot bound to an unreachable node ("this bot requires an enrolled node").
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -129,14 +130,11 @@ test('newly declared workers retain their enrolled UUID and dedicated execution 
   assert.deepEqual(problems, []);
   for (const [app, name, id, container] of [
     ['finance', 'finance-analyst', ID, 'finance-bot'],
-    ['eats', 'eats-concierge', 'b0080000-0000-0000-0000-000000000001', 'eats-bot'],
     ['movies', 'movies-concierge', 'b00b0000-0000-0000-0000-000000000001', 'movies-bot'],
     ['purchasing', 'shopping-concierge', 'b0070000-0000-0000-0000-000000000001', 'shopping-bot'],
     ['rides', 'rides-concierge', 'b0090000-0000-0000-0000-000000000001', 'rides-bot'],
     ['spotify', 'spotify-concierge', 'b00a0000-0000-0000-0000-000000000001', 'spotify-bot'],
     ['social', 'social-writer', 'a0000000-0000-0000-0000-000000000040', 'social-writer-bot'],
-    ['email-summarizer', 'communications-bot', 'b0000000-0000-0000-0000-000000000001', 'email-bot'],
-    ['home', 'home-bot', 'd0000000-0000-0000-0000-000000000001', 'home-bot'],
   ]) {
     const bot = manifests.get(app).bots.find((item) => item.name === name);
     assert.ok(bot, `${app} must own ${name}`);
@@ -144,6 +142,24 @@ test('newly declared workers retain their enrolled UUID and dedicated execution 
     assert.equal(bot.container, container);
     assert.equal(bot.port, 5000);
     assert.equal(bot.requiresOwnNode, true);
+    assert.ok(fs.existsSync(path.join(ROOT, app, bot.persona)));
+  }
+});
+
+test('route-called application bots retain their enrolled UUID and run inline on the native kernel', () => {
+  const { manifests, problems } = readDeclarations(ROOT, FRAMEWORK);
+  assert.deepEqual(problems, []);
+  for (const [app, name, id] of [
+    ['eats', 'eats-concierge', 'b0080000-0000-0000-0000-000000000001'],
+    ['email-summarizer', 'communications-bot', 'b0000000-0000-0000-0000-000000000001'],
+    ['home', 'home-bot', 'd0000000-0000-0000-0000-000000000001'],
+  ]) {
+    const bot = manifests.get(app).bots.find((item) => item.name === name);
+    assert.ok(bot, `${app} must own ${name}`);
+    assert.equal(bot.agentId, id, 'existing enrolled workers must retain their identity');
+    assert.equal(bot.posture, 'inline');
+    assert.equal(bot.container, undefined);
+    assert.notEqual(bot.requiresOwnNode, true);
     assert.ok(fs.existsSync(path.join(ROOT, app, bot.persona)));
   }
 });

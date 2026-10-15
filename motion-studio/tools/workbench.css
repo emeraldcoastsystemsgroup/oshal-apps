@@ -1,0 +1,38 @@
+/* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Keep the timeline/property workspace usable across desktop and narrow screens. */
+:root{color-scheme:dark;font:14px system-ui;background:#111723;color:#e7eef9}*{box-sizing:border-box}body{margin:0}header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 18px;background:#192334;border-bottom:1px solid #33435c}h1{font-size:20px;margin:0 auto 0 0}h2{font-size:15px;margin:16px 0 10px}main{display:grid;grid-template-columns:240px minmax(250px,1fr) 260px;gap:16px;padding:16px}aside,.center{min-width:0}label{display:grid;gap:5px;margin:9px 0}input,select,button{min-width:0;width:100%;font:inherit;color:inherit;border:1px solid #40536e;border-radius:7px;padding:8px;background:#202d42}button{cursor:pointer;background:#284d75}button:disabled,input:disabled,select:disabled{opacity:.5;cursor:default}header button,header select{width:auto;max-width:220px}.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}#stage{height:440px;display:flex;align-items:center;justify-content:center;background-color:#273348;background-image:linear-gradient(45deg,#35425b 25%,transparent 25%),linear-gradient(-45deg,#35425b 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#35425b 75%),linear-gradient(-45deg,transparent 75%,#35425b 75%);background-size:24px 24px;background-position:0 0,0 12px,12px -12px,-12px 0;border:1px solid #43536c;border-radius:10px;overflow:hidden}#preview{max-width:100%;max-height:100%;object-fit:contain}#preview[hidden],#error[hidden]{display:none}#error{margin:12px 18px;background:#572535;border:1px solid #a14d61;padding:12px;border-radius:8px}#layers{list-style:none;padding:0}#layers button{text-align:left;margin:3px 0}#layers button[aria-selected=true]{border-color:#9ecfff;background:#34678f}.track{padding:9px;border:1px solid #3c4c67;border-radius:7px;margin:7px 0}.keys{font-size:12px;color:#adc2e2}.upload{border:1px dashed #7288a7;padding:10px;border-radius:8px}details{margin-top:20px}#status{color:#b9d2f5}#params textarea{width:100%;min-height:80px;background:#202d42;color:inherit}@media(max-width:900px){main{grid-template-columns:220px 1fr}main>aside:last-child{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}main>aside:last-child h2,main>aside:last-child>p,details{grid-column:1/-1}}@media(max-width:560px){main{grid-template-columns:1fr}main>aside:last-child{display:block}#stage{height:280px}header{padding:12px}header select{max-width:100%;width:100%}input,button,select{min-height:40px}.center{grid-row:1}}
+
+/* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Make layer selection and organization usable with keyboard and narrow layouts. */
+#layers li{display:flex;align-items:center;gap:7px}#layers input[type=checkbox],.check input[type=checkbox]{width:20px;min-height:20px;flex:none}.check{display:flex;align-items:center;gap:8px}#layers button{overflow-wrap:anywhere}.track{overflow-wrap:anywhere}#layerTiming p{font-size:12px;color:#adc2e2}#nest{border-top:1px solid #40536e;margin-top:12px;padding-top:6px}#layerSettings,#layerTiming{min-width:0}
+
+/* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Keep native effect parameters and vectors usable on narrow layouts. */
+#effectsPanel{min-width:0}#effectFields .components{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}#effectFields textarea{width:100%;min-height:80px;background:#202d42;color:inherit;font:inherit}#effectFields fieldset{min-width:0;border:1px solid #40536e;border-radius:6px;margin:10px 0;padding:8px}#effectFields legend{max-width:100%;overflow-wrap:anywhere}#effectFields label{margin:5px 0}#effectFields small{color:#adc2e2}#removeEffect{margin-top:8px}
+@media(max-width:900px){#effectsPanel{grid-column:1/-1}}
+
+#effectFields input[type=color]{height:40px;padding:4px}
+
+/* CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Expose accessible keyframe buttons and native curve/path editing across viewport sizes. */
+#keyEditor[hidden],#spatialFields[hidden],#motionPath[hidden],#keyCurve[hidden]{display:none}.keyButton{width:auto;margin:4px;padding:6px;font-size:12px}#keyEditor{border:1px solid #43536c;border-radius:8px;padding:12px;margin:12px 0}#keyCurve,#motionPath{width:100%;max-height:280px;background:#192334;border:1px solid #43536c;margin-top:8px;touch-action:none}#motionPath circle{cursor:grab}#keyEditor fieldset{min-width:0;border:1px solid #40536e}#keySummary,#curveCaption{overflow-wrap:anywhere}
+
+/* CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | Keep work-area playback and frame controls usable on narrow screens. */
+.playback{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}.playbackNote{display:block;margin-top:6px;color:#adc2e2}#playbackStatus{display:block;overflow-wrap:anywhere}#workArea{border:1px solid #43536c;padding:10px;border-radius:8px;margin-top:12px}#workArea h2{margin-top:0}
+
+/* CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Keep exact-time caption typography and Unicode range selection usable on narrow screens. */
+#textPanel[hidden]{display:none}#textPanel{grid-column:1/-1;min-width:0;border:1px solid #43536c;border-radius:8px;padding:10px}#textPanel textarea{width:100%;min-height:70px;color:inherit;background:#202d42;font:inherit;padding:8px;border:1px solid #40536e;border-radius:7px}#textPanel input[type=color]{height:40px;padding:4px}#textStatus,#textRange,#fontNote{overflow-wrap:anywhere}#fontNote{font-size:12px;color:#adc2e2}
+
+#add textarea{width:100%;min-height:70px;color:inherit;background:#202d42;font:inherit;padding:8px;border:1px solid #40536e;border-radius:7px}
+
+#textRange,#textEdit>small{display:block;margin:6px 0;color:#adc2e2}
+
+/* CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | Expose saved native masks and keyboard vertex selection on narrow screens. */
+#maskPanel{grid-column:1/-1;min-width:0;border:1px solid #43536c;border-radius:8px;padding:10px}#maskNote{overflow-wrap:anywhere;font-size:12px;color:#adc2e2}#maskPath{width:100%;height:220px;background:#192334;border:1px solid #43536c;margin:8px 0}#maskPath circle{cursor:pointer}#maskPath circle:focus{stroke:white;stroke-width:2}
+
+/* CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | Keep variable mask feather controls and explanatory text usable on narrow screens. */
+#variableFeather{border-top:1px solid #43536c;margin-top:12px;padding-top:6px;min-width:0}#variableFeather p{font-size:12px;color:#adc2e2;overflow-wrap:anywhere}#editFeather{margin-bottom:10px}
+
+/* CHANGE LOG: 9 | maintainer@emeraldcoastsystemsgroup.com | Keep portable transfer progress, receipts and keyboard controls usable on narrow screens. */
+#bundlePanel{min-width:0;border-bottom:1px solid #43536c;padding-bottom:12px;margin-bottom:12px}#bundlePanel p,#bundleReceipt{overflow-wrap:anywhere;font-size:12px}#bundleReceipt{display:block;margin:8px 0}#bundleReceipt[hidden]{display:none}#bundleProgress{width:100%;margin:8px 0}#bundlePanel input[type=file]{width:100%;min-width:0}
+
+/* CHANGE LOG: 10 | maintainer@emeraldcoastsystemsgroup.com | Keep exact3Daxis and native camera/light fields usable on narrow screens. */
+#propertiesStatus{font-size:12px;overflow-wrap:anywhere}#scenePropertyFields fieldset{min-width:0;margin:8px 0;border:1px solid #43536c}#scenePropertyFields legend{overflow-wrap:anywhere}#scenePropertyFields input,#scenePropertyFields select{max-width:100%;min-width:0}
+
+#renderPanel {border:1px solid #64748b;padding:1rem;margin:1rem 0;} #renderReceipt {display:block;overflow-wrap:anywhere;} #renderPanel .pair {flex-wrap:wrap;} #renderSource {display:block;}

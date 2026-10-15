@@ -8,6 +8,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: sentiment is read through oshal's own observed outlet ratings (core ADR-061 update 2026-10-01; the seed table and its political/economic/kind axes are retired). The dashboard shows each source's observed lean and reliability with the compared subject-days, subjects and date range behind it, or insufficient data below the stated minimums; the world_sentiment and world_ingest tool texts and the description say so. No route, auth, schema or connector change.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: the operator Sources & schedules page (operator ask 2026-10-02): routes/world-operations.js mounted auth: operator at /api/world/operations, ahead of the public router. It shows the two schedules (changed through core's operator schedule routes) and every place World pulls from, with on/off switches.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: expose explicit bounded native collector requests through the existing operator mount, preserving current writer checks and actual partial outcomes.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Route-backed reads for world-analyst on the native kernel (world-entities, world-sentiment, world-metric, world-pulls, world-neighbors over this package's own GET /api/world routes). Every declared world_* tool is a legacy CLI the native kernel does not run, so the concierge printed a JSON tool call in prose with an invented id (world:topic:nvda) instead of reading the tracked world:ticker:nvda. Guarded by scripts/check-store-bots.test.mjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — world ("World Intelligence", ADR-061)
@@ -340,6 +341,80 @@ tools:
     routingTags: [world, knowledge, contribute, ingest]
     skills: [world-graph]
     tags: [world-intelligence, world-knowledge]
+
+  # Native kernel: route-backed reads (executorType api, inside /api/world) under the caller. The
+  # world_* CLI tools above are the legacy platform's; the native kernel offers only these.
+  - name: world-entities
+    displayName: Tracked World Subjects
+    type: api
+    category: intelligence
+    description: The subjects the world archive already tracks, with their canonical ids (world:ticker:nvda, world:market:us, world:topic:world-news), item counts and last-seen times.
+    executor: { executorType: api, apiEndpoint: "GET /api/world/entities?limit=200" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} FIRST and take the subject's id exactly as listed (a stock is world:ticker:<symbol>). Never make an id up.
+    tags: [world-intelligence, route-backed]
+  - name: world-sentiment
+    displayName: World Sentiment (bias-aware)
+    type: api
+    category: intelligence
+    description: Bias-aware sentiment for one tracked subject over the last 3 days, read through oshal's observed outlet ratings (a longer window exceeds what one tool answer may carry).
+    executor: { executorType: api, apiEndpoint: "GET /api/world/sentiment?entity={input.entity}&days=3" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        entity: { type: string, description: "an id from world-entities, e.g. world:ticker:nvda" }
+      required: [entity]
+    usageInstructions: Read the lean axis and consensus; never report the naive average as the sentiment. An error answer means the read failed; say so.
+    tags: [world-intelligence, route-backed]
+  - name: world-metric
+    displayName: World Sentiment Trend
+    type: api
+    category: intelligence
+    description: The average sentiment and point count for one tracked subject over the last 30 days.
+    executor: { executorType: api, apiEndpoint: "GET /api/world/metric?entity={input.entity}&metric=sentiment&days=30" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        entity: { type: string, description: "an id from world-entities" }
+      required: [entity]
+    usageInstructions: Quote avg and points as returned, with the 30-day window.
+    tags: [world-intelligence, route-backed]
+  - name: world-pulls
+    displayName: World Coverage
+    type: api
+    category: intelligence
+    description: How much coverage was pulled for one tracked subject over the last 7 days, per feed.
+    executor: { executorType: api, apiEndpoint: "GET /api/world/pulls?entity={input.entity}&days=7" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        entity: { type: string, description: "an id from world-entities" }
+      required: [entity]
+    usageInstructions: Use to say how fresh and how broad the coverage is.
+    tags: [world-intelligence, route-backed]
+  - name: world-neighbors
+    displayName: World Co-mentions
+    type: api
+    category: intelligence
+    description: The people, organisations and tickers co-mentioned with one tracked subject.
+    executor: { executorType: api, apiEndpoint: "GET /api/world/neighbors?id={input.entity}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        entity: { type: string, description: "an id from world-entities" }
+      required: [entity]
+    usageInstructions: An empty list means no co-mentions are recorded.
+    tags: [world-intelligence, route-backed]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon icon opens the World Intelligence dashboard

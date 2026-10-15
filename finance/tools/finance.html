@@ -5,6 +5,12 @@
   brokerage, or demo-connect in Sandbox) and dashboard (net worth, accounts, holdings,
   spending, + the AI brief). All work is auth-gated server-side; this page calls the JSON API.
   Read-only: nothing is traded or moved. Theme syncs to the cockpit.
+  Linked institutions: the dashboard lists each bank with Disconnect (Plaid /item/remove, then
+  re-sync) and an Add account button. OAuth banks that return through PLAID_REDIRECT_URI land
+  here with ?oauth_state_id=…; the page resumes Link with the token saved before it opened.
+  Brief: the page reads the saved brief (GET /brief?cached=1; none saved is a plain notice, not an
+  error) and Re-analyze asks for a new one with POST /brief/refresh, which saves it. A missing payment
+  rail is said in words with where to go (Connections, Payments), never an environment variable.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -147,6 +153,7 @@
   .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent); animation:p 1s infinite; }
   @keyframes p { 0%,100%{opacity:.3} 50%{opacity:1} }
   .foot { color:var(--muted); font-size:11px; margin-top:8px; }
+  .acct-inst-line { display:none; }
   @media (max-width:640px) {
     .page { padding:16px 12px 50px; }
     .head { flex-wrap:wrap; gap:8px; }
@@ -159,6 +166,11 @@
     /* Tables: allow horizontal scroll so they never overflow the viewport */
     .panel { overflow-x:auto; }
     table { min-width:360px; }
+    /* Accounts: the Institution column folds under the account name so Balance fits a 412 px screen. */
+    table.accounts { min-width:0; }
+    table.accounts .acct-inst { display:none; }
+    table.accounts .acct-inst-line { display:block; color:var(--muted); font-size:11px; }
+    table.accounts td.num { white-space:nowrap; }
     /* Inputs: keep font-size >= 16px to prevent iOS zoom */
     input { font-size:16px !important; }
     .sub { font-size:13px; }
@@ -172,6 +184,7 @@
     <span class="badge">💵</span>
     <h1>Finance</h1>
     <div class="actions" id="actions" style="display:none">
+      <button class="btn ghost" id="addBtn">Add account</button>
       <button class="btn ghost" id="syncBtn">Sync</button>
       <button class="btn primary" id="briefBtn">Re-analyze</button>
     </div>
@@ -196,6 +209,19 @@ const $ = (id) => document.getElementById(id);
 const main = $('main');
 const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(Number(n||0)).toLocaleString(undefined, { maximumFractionDigits: 0 });
 const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString(); } catch { return iso || '—'; } };
+const escapeHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+/** Where Link reports progress: the connect screen's line, else the linked-institutions panel's. */
+const linkMsg = () => $('cmsg') || $('lmsg') || document.createElement('div');
+/** The link token is kept briefly so an OAuth bank that returns by redirect resumes the same Link session. */
+const LINK_KEY = 'finance.plaidLink';
+function saveLinkToken(token) { try { localStorage.setItem(LINK_KEY, JSON.stringify({ token, at: Date.now() })); } catch {} }
+function takeLinkToken() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LINK_KEY) || 'null');
+    localStorage.removeItem(LINK_KEY);
+    return saved && Date.now() - saved.at < 30 * 60 * 1000 ? saved.token : null;
+  } catch { return null; }
+}
 
 /** Tiny Markdown → HTML for the brief. */
 function renderMarkdown(md) {
@@ -219,7 +245,7 @@ function renderMarkdown(md) {
 async function api(path, opts) {
   const r = await fetch('/api/finance' + path, Object.assign({ credentials: 'include' }, opts || {}));
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.message || j.error || ('HTTP ' + r.status));
+  if (!r.ok) { const err = new Error(j.message || j.error || ('HTTP ' + r.status)); err.code = j.error; err.status = r.status; throw err; }
   return j;
 }
 
@@ -230,11 +256,11 @@ function renderConnect(status) {
   main.innerHTML = `
     <div class="panel">
       <h2>Connect a bank or brokerage</h2>
-      <div class="sub" style="margin-bottom:16px">Linking is handled by Plaid — OSHAL never sees your bank password. We read balances, holdings, and transactions only. ${status.configured ? '' : '<span class="err">Plaid keys are not configured yet (set PLAID_CLIENT_ID / PLAID_SECRET).</span>'}</div>
+      <div class="sub" style="margin-bottom:16px">Linking is handled by Plaid — OSHAL never sees your bank password. We read balances, holdings, and transactions only. ${status.configured ? '' : '<span class="err">Bank linking is not set up on this installation yet, so no bank can be connected here.</span>'}</div>
       <button class="btn primary" id="connectBtn" ${status.configured ? '' : 'disabled'}>Connect a bank / brokerage</button>
       ${demo ? '<button class="btn ghost" id="demoBtn" ' + (status.configured ? '' : 'disabled') + '>Demo-connect (Sandbox)</button>' : ''}
       <div id="cmsg" style="margin-top:14px;font-size:13px;"></div>
-      <div class="foot">Environment: ${status.env}. ${demo ? 'Demo-connect links a Plaid Sandbox test bank — no real account needed.' : ''}</div>
+      <div class="foot">Environment: ${escapeHtml(status.env)}. ${demo && status.configured ? 'This installation uses Plaid Sandbox: Demo-connect links a test bank with no real account, and in Connect a bank you pick any bank and sign in with user_good / pass_good. Real banks need Plaid production keys.' : ''}</div>
     </div>`;
   $('connectBtn').onclick = startLink;
   if (demo) $('demoBtn').onclick = demoConnect;
@@ -242,22 +268,67 @@ function renderConnect(status) {
 
 /** Open Plaid Link for a real institution. */
 async function startLink() {
-  const msg = $('cmsg');
+  const msg = linkMsg();
   msg.className = ''; msg.style.color = 'var(--muted)'; msg.innerHTML = '<span class="dot"></span> Preparing secure link…';
   try {
     const { linkToken } = await api('/link-token', { method: 'POST' });
-    await ensurePlaidScript();
-    const handler = window.Plaid.create({
-      token: linkToken,
-      onSuccess: async (publicToken) => {
-        msg.innerHTML = '<span class="dot"></span> Linking…';
-        try { const r = await api('/exchange', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ publicToken }) });
-          msg.style.color = 'var(--accent2)'; msg.textContent = 'Linked ' + r.institution + '. Syncing…'; await afterConnect();
-        } catch (e) { msg.className = 'err'; msg.textContent = e.message; }
-      },
-      onExit: (err) => { if (err) { msg.className = 'err'; msg.textContent = err.display_message || err.error_message || 'Link cancelled.'; } else { msg.textContent = ''; } },
-    });
-    handler.open();
+    saveLinkToken(linkToken);
+    await openLink(linkToken, null, msg);
+  } catch (e) { msg.className = 'err'; msg.textContent = e.message; }
+}
+
+/** Open Link; with receivedRedirectUri it resumes an OAuth bank's redirect back to this page. */
+async function openLink(token, receivedRedirectUri, msg) {
+  await ensurePlaidScript();
+  const handler = window.Plaid.create({
+    token, ...(receivedRedirectUri ? { receivedRedirectUri } : {}),
+    onSuccess: async (publicToken) => {
+      takeLinkToken();
+      msg.innerHTML = '<span class="dot"></span> Linking…';
+      try { const r = await api('/exchange', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ publicToken }) });
+        msg.style.color = 'var(--accent2)'; msg.textContent = 'Linked ' + r.institution + '. Syncing…'; await afterConnect();
+      } catch (e) { msg.className = 'err'; msg.textContent = e.message; }
+    },
+    onExit: (err) => { takeLinkToken(); if (err) { msg.className = 'err'; msg.textContent = err.display_message || err.error_message || 'Link cancelled.'; } else { msg.textContent = ''; } },
+  });
+  handler.open();
+}
+
+/** Back from an OAuth bank (?oauth_state_id=…): resume the saved Link session, then clean the address. */
+async function resumeOAuth() {
+  if (!new URLSearchParams(location.search).has('oauth_state_id')) return false;
+  const token = takeLinkToken();
+  const returned = location.href;
+  history.replaceState(null, '', location.pathname);
+  if (!token) return false;
+  saveLinkToken(token);
+  main.innerHTML = '<div class="panel"><h2>Finishing your bank link</h2><div id="cmsg" style="font-size:13px"></div></div>';
+  try { await openLink(token, returned, $('cmsg')); } catch (e) { $('cmsg').className = 'err'; $('cmsg').textContent = e.message; }
+  return true;
+}
+
+/** Linked institutions with a Disconnect for each, from /status. */
+async function loadLinks() {
+  const host = $('linksPanel');
+  if (!host) return;
+  let st;
+  try { st = await api('/status'); } catch (e) { host.innerHTML = '<div class="notice err">' + escapeHtml(e.message) + '</div>'; return; }
+  const items = st.items || [];
+  host.innerHTML = `<div class="panel"><h2>Linked banks and brokerages</h2><table><tbody>` +
+    items.map((it) => `<tr><td>${escapeHtml(it.institution)}</td><td class="sub">linked ${escapeHtml(fmtDate(it.linkedAt))}</td><td class="num"><button class="btn ghost" data-item="${escapeHtml(it.itemId)}" data-name="${escapeHtml(it.institution)}">Disconnect</button></td></tr>`).join('') +
+    `</tbody></table><div id="lmsg" style="margin-top:10px;font-size:13px"></div><div class="foot">Environment: ${escapeHtml(st.env)}. Add account links another bank or brokerage through Plaid.</div></div>`;
+  host.querySelectorAll('button[data-item]').forEach((b) => { b.onclick = () => disconnect(b.dataset.item, b.dataset.name); });
+}
+
+/** Disconnect one institution at Plaid, then re-sync what remains (or return to the connect screen). */
+async function disconnect(itemId, name) {
+  if (!confirm(`Disconnect ${name}? Plaid stops sharing its data with Finance and its figures leave your overview.`)) return;
+  const msg = linkMsg();
+  msg.className = ''; msg.style.color = 'var(--muted)'; msg.innerHTML = '<span class="dot"></span> Disconnecting…';
+  try {
+    const r = await api('/items/' + encodeURIComponent(itemId), { method: 'DELETE' });
+    if (r.remaining > 0) await doSync();
+    else renderConnect(await api('/status'));
   } catch (e) { msg.className = 'err'; msg.textContent = e.message; }
 }
 
@@ -296,7 +367,7 @@ async function renderDashboard(freshBrief) {
   let summary;
   try { summary = await api('/summary'); }
   catch (e) {
-    if (/no_data/.test(e.message)) { main.innerHTML = '<div class="notice">Linked, but not synced yet.</div><div style="text-align:center"><button class="btn primary" id="s2">Sync now</button></div>'; $('s2').onclick = () => doSync(); return; }
+    if (e.code === 'no_data') { main.innerHTML = '<div class="notice">Linked, but not synced yet.</div><div style="text-align:center"><button class="btn primary" id="s2">Sync now</button></div><div id="linksPanel"></div>'; $('s2').onclick = () => doSync(); loadLinks(); return; }
     main.innerHTML = '<div class="notice err">' + e.message + '</div>'; return;
   }
   const a = summary.aggregate; const cur = a.currency || 'USD';
@@ -313,7 +384,9 @@ async function renderDashboard(freshBrief) {
     ${a.holdings.length ? renderHoldings(a, cur) : ''}
     ${a.topSpending.length ? renderSpending(a, cur) : ''}
     <div class="panel brief" id="briefPanel"><div class="spin"><span class="dot"></span> Finance analyst is reading your accounts… (~30s)</div></div>
+    <div id="linksPanel"></div>
     <div id="payPanel"></div>`;
+  loadLinks();
   loadBrief(freshBrief);
   loadPay();
 }
@@ -326,7 +399,7 @@ async function loadPay() {
   try { st = await api('/pay-status'); } catch (e) { st = { configured: false, message: e.message, provider: 'stripe' }; }
   try { hist = await api('/payments'); } catch (e) { /* history optional */ }
   const test = st.testMode ? '<span class="chip" style="background:#3a2a10;border-color:#6b4a18">test mode — no real money</span>' : '';
-  const gate = st.configured ? '' : `<div class="sub err">Payments rail not configured: ${st.message || 'set the rail credentials (e.g. STRIPE_SECRET_KEY).'}</div>`;
+  const gate = st.configured ? '' : `<div class="sub">${PAYMENTS_UNAVAILABLE} <a href="/utilities" target="_top">Open Connections</a></div>`;
   host.innerHTML = `
     <div class="panel">
       <h2>Send money ${test}</h2>
@@ -370,9 +443,11 @@ async function submitPay() {
   } catch (e) { msg.className = 'sub err'; msg.textContent = e.message; btn.disabled = false; }
 }
 
+// At phone width the Institution column folds under the account name (.acct-inst-line), so the Balance column fits
+// the card instead of being cut at its edge (sweep 8: 'BALANC', '$11' for $110 at 412 px).
 function renderAccounts(a, cur) {
-  return `<div class="panel"><h2>Accounts</h2><table><thead><tr><th>Account</th><th>Institution</th><th>Type</th><th class="num">Balance</th></tr></thead><tbody>` +
-    a.accounts.map((x) => `<tr><td>${x.name}${x.mask ? ' ····' + x.mask : ''}</td><td>${x.institution}</td><td>${x.subtype || x.type}</td><td class="num">${money(x.balance, cur)}</td></tr>`).join('') +
+  return `<div class="panel"><h2>Accounts</h2><table class="accounts"><thead><tr><th>Account</th><th class="acct-inst">Institution</th><th>Type</th><th class="num">Balance</th></tr></thead><tbody>` +
+    a.accounts.map((x) => `<tr><td>${x.name}${x.mask ? ' ····' + x.mask : ''}${x.institution ? `<span class="acct-inst-line">${x.institution}</span>` : ''}</td><td class="acct-inst">${x.institution}</td><td>${x.subtype || x.type}</td><td class="num">${money(x.balance, cur)}</td></tr>`).join('') +
     `</tbody></table></div>`;
 }
 function renderHoldings(a, cur) {
@@ -386,14 +461,25 @@ function renderSpending(a, cur) {
     `</tbody></table></div>`;
 }
 
-/** Load the AI brief into its panel. */
+/** Said when no payment rail is set up: where to go, never an environment variable. */
+const PAYMENTS_UNAVAILABLE = 'Sending money from Finance is not set up on this installation. To take payments, connect Stripe on the Connections page and use the Payments app.';
+/** Said when no brief has been saved yet. */
+const NO_SAVED_BRIEF = 'No saved analysis yet. Choose Re-analyze to request one.';
+
+/** Load the AI brief into its panel: the saved one, or (Re-analyze) a new one the server saves. */
 async function loadBrief(forceRefresh) {
   const panel = $('briefPanel');
   if (!panel) return;
+  if (forceRefresh) panel.innerHTML = '<div class="spin"><span class="dot"></span> Finance analyst is reading your accounts… (~30s)</div>';
   try {
-    const j = await api('/brief' + (forceRefresh ? '?refresh=1' : '?cached=1'));
+    const j = forceRefresh
+      ? await api('/brief/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      : await api('/brief?cached=1');
     panel.innerHTML = renderMarkdown(j.brief);
-  } catch (e) { panel.innerHTML = '<div class="notice err">' + e.message + '</div>'; }
+  } catch (e) {
+    if (!forceRefresh && (e.code === 'no_saved_brief' || e.status === 404)) { panel.innerHTML = '<div class="notice">' + NO_SAVED_BRIEF + '</div>'; return; }
+    panel.innerHTML = '<div class="notice err">' + escapeHtml(e.message) + '</div>';
+  }
 }
 
 async function doSync() {
@@ -403,12 +489,14 @@ async function doSync() {
 }
 
 $('syncBtn').onclick = doSync;
+$('addBtn').onclick = startLink;
 $('briefBtn').onclick = () => loadBrief(true);
 
 /** Boot: dashboard if connected, else the connect screen. */
 // The full page only: under an audience view the shared kit paints instead (see the head script).
 if (!window.AppView || !AppView.active()) (async function init() {
   try {
+    if (await resumeOAuth()) return;
     const st = await api('/status');
     if (st.connected > 0) await renderDashboard(false);
     else renderConnect(st);
@@ -435,10 +523,23 @@ field('reviewBtn').onclick=async()=>{
  catch(e){field('reviewStatus').textContent=e.message;}finally{field('reviewBtn').disabled=false;}
 };
 const element=document.querySelector('.connected-app-actions');
+// The work handed on is the review draft, else the loaded brief. With neither, the draft panel opens so the
+// work can be entered here, and the person is told exactly that instead of "Select or enter the work".
+const NOTHING_TO_HAND_ON='Nothing on this screen to hand on yet. Write a title and the evidence under “Review with your saved accounts” above (or load your brief), then choose the action again.';
 void mountConnectedActions({app:'finance',element,contextForOffer:()=>{
- if(!field('reviewPanel').hidden){const d=draft();return d.title&&d.notes?d:null;}
- const notes=field('briefPanel')?.innerText.trim();return notes&&!field('briefPanel').querySelector('.notice,.spin')?{title:'My saved financial brief',notes:notes.slice(0,2000)}:null;
+ if(!field('reviewPanel').hidden){const d=draft();if(d.title&&d.notes)return d;field('reviewTitle').focus();throw Error(NOTHING_TO_HAND_ON);}
+ const notes=field('briefPanel')?.innerText.trim();if(notes&&!field('briefPanel').querySelector('.notice,.spin'))return {title:'My saved financial brief',notes:notes.slice(0,2000)};
+ field('reviewPanel').hidden=false;field('reviewTitle').focus();throw Error(NOTHING_TO_HAND_ON);
 }}).then(()=>element.querySelectorAll('button').forEach(b=>b.classList.add('btn','ghost')));
+/* hand-on-notice:start */
+// The refusal above stayed on screen after the person filled in the title and evidence it asked for. Once both are
+// there, the notice says the work is ready; it is left alone for any other status.
+function settleHandOnNotice(status,d){
+ if(!status||!String(status.textContent).startsWith('Nothing on this screen to hand on yet'))return;
+ if(d.title&&d.notes)status.textContent='Ready to hand on. Choose the action again.';
+}
+/* hand-on-notice:end */
+['reviewTitle','reviewNotes'].forEach(id=>field(id).addEventListener('input',()=>settleHandOnNotice(element.querySelector('[role="status"]'),draft())));
 </script>
 </body>
 </html>

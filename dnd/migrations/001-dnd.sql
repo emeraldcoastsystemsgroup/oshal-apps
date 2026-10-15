@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-20 22:25:05 | roger.murphy@emeraldcoastsystemsgroup.com  | Initial D&D app schema: per-user campaigns, live encounter board state, characters, and the campaign story archive. Applied idempotently on install (ADR-085 P2 migration runner).
  * 2026-08-06 02:43:35 | maintainer@emeraldcoastsystemsgroup.com     | Replace the obsolete RLS follow-up note with the shipped migration-006 owner, member, and transaction-local join-capability boundary.
+ * 2026-10-10 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Final table shape for the native kernel, which skips 005 and 006 (nativeMigrations in oshal-app.yaml): owner_sub on every table and member_subs on campaigns (routes write them explicitly), and dnd_archive's roll payload column, its CHECK and its idempotency index, moved here from 005's DO block. CREATE ... IF NOT EXISTS keeps an existing PostgreSQL install unchanged; 005 and 006 still apply there and find these by name.
  */
 
 -- ISOLATION BASELINE: every row carries user_sub (NOT NULL) and every route
@@ -22,6 +23,8 @@ CREATE TABLE IF NOT EXISTS dnd_campaigns (
     name         text        NOT NULL,
     adventure_id text        NOT NULL,
     status       text        NOT NULL DEFAULT 'active',   -- active | archived
+    owner_sub    text,                                    -- the owner; 006 stamps it on PostgreSQL, routes write it
+    member_subs  text[]      NOT NULL DEFAULT ARRAY[]::text[],
     created_at   timestamptz NOT NULL DEFAULT now(),
     updated_at   timestamptz NOT NULL DEFAULT now()
 );
@@ -37,6 +40,7 @@ CREATE TABLE IF NOT EXISTS dnd_encounters (
     adventure_id text        NOT NULL,
     state        jsonb       NOT NULL DEFAULT '{}'::jsonb,
     round        integer     NOT NULL DEFAULT 0,
+    owner_sub    text,
     updated_at   timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT uq_dnd_encounter_campaign UNIQUE (campaign_id)
 );
@@ -53,6 +57,7 @@ CREATE TABLE IF NOT EXISTS dnd_characters (
     sheet        jsonb       NOT NULL,           -- full stat block (from party.json or an import)
     xp           integer     NOT NULL DEFAULT 0,
     level        integer     NOT NULL DEFAULT 1,
+    owner_sub    text,
     created_at   timestamptz NOT NULL DEFAULT now(),
     updated_at   timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT uq_dnd_character_slug UNIQUE (campaign_id, slug)
@@ -68,7 +73,25 @@ CREATE TABLE IF NOT EXISTS dnd_archive (
     seq         bigint      NOT NULL,
     kind        text        NOT NULL,            -- narration | combat | milestone | table-talk | level-up
     content     text        NOT NULL,
-    created_at  timestamptz NOT NULL DEFAULT now()
+    payload     jsonb,                               -- versioned roll event (005 on PostgreSQL)
+    owner_sub   text,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT ck_dnd_archive_roll_payload CHECK (
+      payload IS NULL OR (
+        jsonb_typeof(payload) = 'object'
+        AND payload ? 'v'
+        AND payload ? 'eventId'
+        AND payload ? 'rolls'
+        AND payload->>'v' = '1'
+        AND length(payload->>'eventId') BETWEEN 1 AND 160
+        AND jsonb_typeof(payload->'rolls') = 'array'
+        AND jsonb_array_length(payload->'rolls') BETWEEN 1 AND 64
+        AND octet_length(payload::text) <= 32768
+      )
+    )
 );
 CREATE INDEX IF NOT EXISTS idx_dnd_archive_campaign ON dnd_archive (campaign_id, seq);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_dnd_archive_roll_event
+  ON dnd_archive (campaign_id, (payload->>'eventId'))
+  WHERE payload IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_dnd_archive_user ON dnd_archive (user_sub);

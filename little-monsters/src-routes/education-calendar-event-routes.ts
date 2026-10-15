@@ -7,6 +7,7 @@
  * ---------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Extracted personal and teacher-owned event mutations with strict scope checks
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Replace wildcard event reads with the caller-visible calendar projection
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | DELETE /calendar/:eventId removes one of the caller's own personal events (student_id is the caller); class events (no owner) and another person's rows are refused 404 without a write. Personal events added from a homebase schedule could never be removed.
  * ---------------------------------------------------------------------------
  *
  * @module education-calendar-event-routes
@@ -139,6 +140,32 @@ async function createPersonalEvent(ctx: AppContext, req: Request, res: Response)
   }
 }
 
+/**
+ * Delete one personal event the caller owns. The owner predicate is in the DELETE itself, so a class
+ * event (student_id IS NULL), another person's event and an unknown id all answer the same 404 and
+ * nothing is removed; existence of someone else's row is never disclosed.
+ */
+async function deletePersonalEvent(ctx: AppContext, req: Request, res: Response): Promise<void> {
+  try {
+    const eventId = String(req.params.eventId ?? '');
+    requirePattern(eventId, UUID_PATTERN, 'eventId');
+    const caller = await resolveAuthedStudent(req, ctx.pool);
+    const result = await ctx.pool.query(
+      `DELETE FROM lm_calendar_events
+        WHERE event_id = $1 AND student_id = $2
+        RETURNING event_id`,
+      [eventId, caller.studentId],
+    );
+    if (!result.rows[0]) throw new EducationAccessError('Personal event not found', 404);
+    logger.info({ eventId, studentId: caller.studentId }, 'Personal calendar event deleted');
+    res.json({ deleted: true, eventId });
+  } catch (err) {
+    if (sendCalendarAccessError(res, err)) return;
+    logger.error({ err }, 'Failed to delete personal calendar event');
+    res.status(500).json({ error: 'Failed to delete calendar event' });
+  }
+}
+
 /** Lock and re-authorize the class inside the write transaction. */
 async function lockAssignmentClass(
   client: PoolClient,
@@ -220,11 +247,12 @@ async function createAssignmentWithEvent(ctx: AppContext, req: Request, res: Res
   }
 }
 
-/** Register the personal event and teacher-owned assignment event routes. */
+/** Register the personal event (list, create, delete own) and teacher-owned assignment event routes. */
 export function createCalendarEventRoutes(ctx: AppContext): Router {
   const router = Router();
   router.get('/calendar', (req, res) => listCalendarEvents(ctx, req, res));
   router.post('/calendar', (req, res) => createPersonalEvent(ctx, req, res));
+  router.delete('/calendar/:eventId', (req, res) => deletePersonalEvent(ctx, req, res));
   router.post('/assignments-with-events', (req, res) => createAssignmentWithEvent(ctx, req, res));
   return router;
 }

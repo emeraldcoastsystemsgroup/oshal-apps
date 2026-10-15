@@ -68,6 +68,8 @@
  *            | `positionWithheld` is true. A caller without a verified issuer (a service caller
  *            | asserting a subject) is withheld too. Everything else in the telemetry, the fence
  *            | and the command rail is unchanged; the surface hides a withheld drone's marker.
+ * 2026-10-10 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | GET /fleet spreads the engine's availability marker when it has one: the native runtime answers no drones (and a null fence: no flight provider) with { native: true, configured: false, reason, detail } instead of 503.
+ * 2026-10-12 05:50:00 | maintainer@emeraldcoastsystemsgroup.com | K4: POST /chat with no drone registered answered 503 'drone.getState is unavailable in this native runtime' and the chat printed it: the fallback after a failed getState(droneId) called getState() again, which throws the same way natively. With the engine's availability marker saying no drone (or both reads failing) the chat now answers 200 { noDrone: true, draft: null } with a plain reply, drafts and stores nothing, and never calls the planner.
  * ---------------------------------------------------------------------------
  * @module drone-routes
  */
@@ -139,6 +141,17 @@ function surfaceHtml(appPackageDir, fileName) {
         path.resolve(__dirname, '../tools', fileName),
     ].filter(Boolean);
     return candidates.find((p) => fs.existsSync(p)) || candidates[candidates.length - 1];
+}
+/**
+ * @description The runtime's own "nothing is configured here" marker, when the drone engine carries
+ * one (the native runtime does; the platform engine does not), so the surface can say why its list
+ * is empty instead of treating an empty list as a fault.
+ * @param engine - The drone engine instance.
+ * @returns The marker's fields ({ native, configured, reason, detail }), or no fields.
+ */
+function runtimeAvailability(engine) {
+    const marker = engine?.availability;
+    return marker && typeof marker === 'object' ? { ...marker } : {};
 }
 function resolveViewerSub(req) {
     const trustedSub = (0, authz_1.getTrustedServiceUserSub)(req);
@@ -434,7 +447,7 @@ function createDroneRoutes(ctx) {
         const fleet = await Promise.all(drone.listFleet().map(async (f) => ({
             ...f, telemetry: f.telemetry ? scopeTelemetry(f.telemetry, await positionVisible(pool, f.droneId)) : null,
         })));
-        res.json({ fleet, fence: drone.fence });
+        res.json({ fleet, fence: drone.fence, ...runtimeAvailability(drone) });
     }));
     // Fleet-wide abort: the confirm-exempt safety sweep (stopping missions only makes the
     // vehicles safer). The show conductor is frozen FIRST so it can't re-dispatch cues into
@@ -756,11 +769,23 @@ function registerMissionRoutes(router, viewer, pool, drone, audit, showRunner) {
     }));
 }
 // ── Concierge chat (drafts only — never actuates) ────────────────────────────
+/** The chat's answer when no drone can be read: nothing drafted, stored or flown, in plain words. */
+function noDroneReply() {
+    return {
+        noDrone: true, draft: null, draftErrors: [],
+        reply: 'No drone or flight simulator is registered with this installation, so I cannot draft a flight yet. Nothing was drafted or flown.',
+    };
+}
 function registerChatRoutes(router, viewer, ctx, pool, store, drone) {
     router.post('/chat', viewer(async (req, res, sub) => {
         const message = String(req.body?.message || '').trim();
         if (!message) {
             res.status(400).json({ error: 'message is required' });
+            return;
+        }
+        const availability = runtimeAvailability(drone);
+        if (availability.configured === false) {
+            res.json(noDroneReply());
             return;
         }
         const conversationId = await store.ensureConversation(sub, req.body?.conversationId || undefined, message);
@@ -776,7 +801,16 @@ function registerChatRoutes(router, viewer, ctx, pool, store, drone) {
         }
         catch {
             droneId = drone_1.DEFAULT_DRONE_ID;
-            state = drone.getState();
+            try {
+                state = drone.getState();
+            }
+            catch (error) {
+                logger.warn({ err: error, sub }, 'drone chat has no readable drone; answered without a draft');
+                const reply = noDroneReply();
+                await store.addMessage(conversationId, sub, 'assistant', String(reply.reply));
+                res.json({ conversationId, ...reply });
+                return;
+            }
         }
         const fleetLine = drone.listFleet()
             .map((f) => `${f.droneId} (${f.kind}, ${f.online ? 'online' : 'OFFLINE'}${f.telemetry ? `, batt ${f.telemetry.batteryPct}%, home ${f.telemetry.home.lat.toFixed(6)},${f.telemetry.home.lon.toFixed(6)}` : ''})`)

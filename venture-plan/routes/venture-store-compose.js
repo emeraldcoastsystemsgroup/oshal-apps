@@ -34,25 +34,35 @@
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — the row-to-engine translation, the source-kind/confidence ladder, deterministic assumption bindings for every numeric field the sweep must be able to move, the bounded structure overlay from the venture spec, and scenario override application through the engine's own withAssumption.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Consume scenario retail prices directly as integer micros instead of expanding a cents field at model time.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | A registered value for a bound input is what the model computes with: the final-assembly charge, container freight, HTS duty, base demand and shelf price now take the registered value (precedence: a scenario's own retail price, then the registered value, then the spec structure, then the default). The bindings only moved these fields in a sweep, so once the analysts register these keys the plan would otherwise cite an assumption while computing with the default.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Two more registered values are what the model computes with. channel.dtc.terms (the market analyst's all-in cost per direct order) is the default direct channel's orderCostMicros and is bound there; before, the channel charged its itemised defaults ($20 acquisition, $9 shipping, $2 pick-pack, 2.9% + $0.30) whatever was registered, so a $19.99 reading light with $12 registered showed -$33.24 contribution and refused to publish. landed.freight.units-per-container and landed.freight.cbm-per-unit (the ops analyst's container fill and unit volume) feed the freight stack and are cited by it, so a venture without them is named unsourced instead of computing with the default; before, every product shipped 400 units of 0.05 CBM to a container, which put $14 of freight and port charges on a $6.30 light.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The freight stack clamps cbmPerUnit to CBM_PER_UNIT_BOUNDS from venture-required-inputs, the range the cbmPerUnit slot accepts. It clamped to 0.0001..1000 while the slot accepted 0.00001..100, so a registered 0.00005 was cited at 0.00005 and computed at 0.0001.
  *
  * @module venture-store-compose
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ASSEMBLY_COST_KEY = void 0;
+exports.CBM_PER_UNIT_KEY = exports.UNITS_PER_CONTAINER_KEY = exports.DTC_ORDER_COST_KEY = exports.ASSEMBLY_COST_KEY = void 0;
 exports.engineConfidence = engineConfidence;
 exports.toEngineLedger = toEngineLedger;
 exports.buildBomTree = buildBomTree;
 exports.composeModelInput = composeModelInput;
+exports.registeredValues = registeredValues;
 exports.missingKeys = missingKeys;
 exports.hashableInputs = hashableInputs;
 const venture_assumptions_1 = require("./venture-assumptions");
 const venture_model_1 = require("./venture-model");
+const venture_required_inputs_1 = require("./venture-required-inputs");
 /** Engine assumption units. Anything else is stored as an unweighted ratio. */
 const ENGINE_UNITS = Object.freeze([
     'micros', 'bps', 'ratio', 'units', 'count', 'weeks', 'months', 'oz', 'cbm', 'lb',
 ]);
 /** The assumption key the synthetic assembly root resolves its own cost through. */
 exports.ASSEMBLY_COST_KEY = 'bom.final-assembly.cost';
+/** The market analyst's all-in cost per direct order (venture-required-inputs dtcCostPerOrderUsd). */
+exports.DTC_ORDER_COST_KEY = 'channel.dtc.terms';
+/** The ops analyst's container fill and unit volume (venture-required-inputs). */
+exports.UNITS_PER_CONTAINER_KEY = 'landed.freight.units-per-container';
+exports.CBM_PER_UNIT_KEY = 'landed.freight.cbm-per-unit';
 /** Whole dollars to micro-dollars, for the structural defaults below. */
 const D = (dollars) => Math.round(dollars * 1_000_000);
 /**
@@ -201,9 +211,10 @@ function componentFor(line, byParent, vendors, path, bindings) {
  * @param productName - The venture's product name, used as the root label.
  * @param lines - Every stored BOM line.
  * @param vendors - Vendors by id.
+ * @param assemblyCostMicros - The registered final-assembly charge per unit, 0 until one is registered.
  * @returns The root component and the bindings for every price break in it.
  */
-function buildBomTree(productName, lines, vendors) {
+function buildBomTree(productName, lines, vendors, assemblyCostMicros = 0) {
     const byParent = new Map();
     const roots = [];
     for (const l of lines) {
@@ -223,7 +234,7 @@ function buildBomTree(productName, lines, vendors) {
     const root = {
         id: 'final-assembly', name: `${productName} (final assembly)`,
         qtyPerParent: 1, discrete: true, scrapRateRatio: 0,
-        priceBreaks: [{ minQty: 0, unitCostMicros: 0, assumptionRef: exports.ASSEMBLY_COST_KEY }],
+        priceBreaks: [{ minQty: 0, unitCostMicros: Math.max(0, Math.round(assemblyCostMicros)), assumptionRef: exports.ASSEMBLY_COST_KEY }],
         supplier: {
             supplierId: 'final-assembly', name: 'Final assembly', moqUnits: 0, leadTimeWeeks: 0,
             qualificationWeeks: 0, depositBps: 0, balanceNetDays: 0, qualified: false, assumptionRefs: [],
@@ -244,6 +255,8 @@ const STRUCTURAL_BINDINGS = Object.freeze([
     { assumptionId: 'landed.duty.hts-rate', path: 'landed.duty.htsDutyBps' },
     { assumptionId: 'market.demand.base-units', path: 'demand.scenarios.1.baselineUnits' },
     { assumptionId: 'channel.retail-price', path: 'pricing.shelfPriceMicros' },
+    { assumptionId: exports.UNITS_PER_CONTAINER_KEY, path: 'landed.freight.unitsPerContainer' },
+    { assumptionId: exports.CBM_PER_UNIT_KEY, path: 'landed.freight.cbmPerUnit' },
 ]);
 /** Read a numeric field out of the untyped spec structure, with a bound and a default. */
 function num(structure, key, fallback, min, max) {
@@ -251,21 +264,33 @@ function num(structure, key, fallback, min, max) {
     const n = typeof raw === 'number' && Number.isFinite(raw) ? raw : fallback;
     return Math.min(max, Math.max(min, n));
 }
-/** The default direct channel, used until the market analyst proposes a mix. */
-function defaultChannels(structure) {
+/**
+ * The default direct channel, used until the market analyst proposes a mix. A registered all-in cost per order
+ * (channel.dtc.terms) is the channel's orderCostMicros and is bound there, so the waterfall charges the number the
+ * plan cites and the sweep moves it; without one the itemised defaults apply.
+ * @param structure - The venture spec structure.
+ * @param orderCostMicros - The registered channel.dtc.terms value, when the ledger holds one.
+ * @returns The channels and the bindings they add.
+ */
+function defaultChannels(structure, orderCostMicros) {
     const supplied = structure.channels;
     if (Array.isArray(supplied) && supplied.length)
-        return supplied;
-    return [{
-            id: 'dtc', label: 'Direct to consumer', volumeShareRatio: 1,
-            assumptionRefs: ['channel.dtc.terms'],
-            economics: {
-                kind: 'dtc', paymentBps: 290, paymentFixedMicros: D(0.30),
-                outboundShipMicros: D(9), shippingChargedToCustomerMicros: 0, pickPackMicros: D(2),
-                returnRateRatio: 0.06, returnHandlingMicros: D(4), returnSalvageRatio: 0.5,
-                cacPerOrderMicros: D(20),
-            },
-        }];
+        return { channels: supplied, bindings: [] };
+    const registered = orderCostMicros !== undefined;
+    return {
+        channels: [{
+                id: 'dtc', label: 'Direct to consumer', volumeShareRatio: 1,
+                assumptionRefs: [exports.DTC_ORDER_COST_KEY],
+                economics: {
+                    kind: 'dtc', paymentBps: 290, paymentFixedMicros: D(0.30),
+                    outboundShipMicros: D(9), shippingChargedToCustomerMicros: 0, pickPackMicros: D(2),
+                    returnRateRatio: 0.06, returnHandlingMicros: D(4), returnSalvageRatio: 0.5,
+                    cacPerOrderMicros: D(20),
+                    ...(registered ? { orderCostMicros: Math.max(0, Math.round(orderCostMicros)) } : {}),
+                },
+            }],
+        bindings: registered ? [{ assumptionId: exports.DTC_ORDER_COST_KEY, path: 'channels.0.economics.orderCostMicros' }] : [],
+    };
 }
 /** The seasonal sell-through curve, flat unless the spec supplies one. */
 function seasonFor(structure, sellWindowStart) {
@@ -313,22 +338,28 @@ function rolesFor(rows, horizonStart, horizonMonths) {
 function composeModelInput(s) {
     const structure = (s.venture.spec?.structure ?? {});
     const built = toEngineLedger(s.assumptions);
+    const registered = registeredValues(built.ledger);
     const vendors = new Map(s.vendors.map((v) => [v.id, v]));
-    const { root, bindings } = buildBomTree(s.venture.name, s.bomLines, vendors);
+    const { root, bindings } = buildBomTree(s.venture.name, s.bomLines, vendors, registered[exports.ASSEMBLY_COST_KEY] ?? 0);
     const horizonStart = String(structure.horizonStart ?? `${s.onDate.slice(0, 4)}-01`);
     const horizonMonths = Math.round(num(structure, 'horizonMonths', s.venture.horizonMonths || DEFAULTS.horizonMonths, 6, 120));
     const runQty = Math.round(s.scenario?.volumeUnits ?? num(structure, 'runQtyUnits', DEFAULTS.runQtyUnits, 1, 10_000_000));
     const shelfMicros = s.scenario?.retailPriceMicros
+        ?? registered['channel.retail-price']
         ?? Math.round(num(structure, 'shelfPriceMicros', DEFAULTS.shelfPriceMicros, 1, 1e12));
+    const channels = defaultChannels(structure, registered[exports.DTC_ORDER_COST_KEY]);
     const input = {
         ledger: built.ledger,
-        bindings: [...bindings, ...STRUCTURAL_BINDINGS, ...(s.venture.spec?.bindings ?? [])],
+        bindings: [...bindings, ...STRUCTURAL_BINDINGS, ...channels.bindings, ...(s.venture.spec?.bindings ?? [])],
         product: { name: s.venture.name, bom: root },
         runQtyUnits: runQty,
-        landed: landedShape(structure),
-        channels: defaultChannels(structure),
+        landed: landedShape({ ...structure, ...definedOnly({
+                containerCostMicros: registered['landed.freight.container-rate'], htsDutyBps: registered['landed.duty.hts-rate'],
+                unitsPerContainer: registered[exports.UNITS_PER_CONTAINER_KEY], cbmPerUnit: registered[exports.CBM_PER_UNIT_KEY],
+            }) }),
+        channels: channels.channels,
         pricing: { kind: 'fixed-shelf', shelfPriceMicros: shelfMicros },
-        demand: demandShape(structure, runQty),
+        demand: demandShape({ ...structure, ...definedOnly({ baseDemandUnits: registered['market.demand.base-units'] }) }, runQty),
         season: seasonFor(structure, `${horizonStart.slice(0, 4)}-10`),
         timing: {
             toolingMonth: String(structure.toolingMonth ?? horizonStart),
@@ -348,7 +379,38 @@ function composeModelInput(s) {
         missingAssumptionKeys: missingKeys(withOverrides),
     };
 }
-/** The landed-cost stack, defaulted then overlaid from the spec structure. */
+/**
+ * The bound inputs a registered value feeds directly (STRUCTURAL_BINDINGS plus the assembly root). Their ledger
+ * value is what the model computes with, so a document that cites the assumption computed with that number.
+ */
+const REGISTERED_INPUTS = Object.freeze([
+    exports.ASSEMBLY_COST_KEY, exports.DTC_ORDER_COST_KEY, ...STRUCTURAL_BINDINGS.map((b) => b.assumptionId),
+]);
+/**
+ * @description The registered value of each bound input the ledger holds.
+ * @param ledger - The engine ledger.
+ * @returns Key to value, for the keys present.
+ */
+function registeredValues(ledger) {
+    const out = {};
+    for (const key of REGISTERED_INPUTS) {
+        const value = ledger.byId[key]?.value;
+        if (typeof value === 'number' && Number.isFinite(value))
+            out[key] = value;
+    }
+    return out;
+}
+/** The entries of an object whose value is defined. */
+function definedOnly(values) {
+    return Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined));
+}
+/**
+ * The landed-cost stack, defaulted then overlaid from the spec structure. The freight cites the container rate and
+ * the container fill it computes with, so an unregistered fill is named as missing rather than a default shipped
+ * as if it were the product's.
+ * @param structure - The spec structure with the registered values laid over it.
+ * @returns The landed input.
+ */
 function landedShape(structure) {
     return {
         incoterm: ['EXW', 'FCA', 'FOB', 'CIF', 'DDP'].includes(structure.incoterm)
@@ -359,11 +421,11 @@ function landedShape(structure) {
             containerType: '40HQ',
             unitsPerContainer: Math.round(num(structure, 'unitsPerContainer', DEFAULTS.unitsPerContainer, 1, 1e7)),
             containerCostMicros: Math.round(num(structure, 'containerCostMicros', D(4000), 0, 1e12)),
-            cbmPerUnit: num(structure, 'cbmPerUnit', DEFAULTS.cbmPerUnit, 0.0001, 1000),
+            cbmPerUnit: num(structure, 'cbmPerUnit', DEFAULTS.cbmPerUnit, venture_required_inputs_1.CBM_PER_UNIT_BOUNDS.min, venture_required_inputs_1.CBM_PER_UNIT_BOUNDS.max),
             lclThresholdRatio: 0.5,
             lclCostPerCbmMicros: Math.round(num(structure, 'lclCostPerCbmMicros', D(95), 0, 1e12)),
             lclMinimumChargeableCbm: 2,
-            assumptionRefs: ['landed.freight.container-rate'],
+            assumptionRefs: ['landed.freight.container-rate', exports.UNITS_PER_CONTAINER_KEY, exports.CBM_PER_UNIT_KEY],
         },
         duty: {
             htsCode: String(structure.htsCode ?? ''),

@@ -61,6 +61,8 @@
   .reader .rbody { white-space:pre-wrap; line-height:1.6; font-size:14px; color:var(--text-primary, #d2d2e2); }
   .empty, .notice { color:var(--muted); padding:40px; text-align:center; }
   .notice a { color:var(--accent); }
+  .notice .btn { margin:12px 6px 6px 0; }
+  .notice .connect-note { margin-top:8px; }
   .actions { margin:22px 0 10px; display:flex; gap:10px; align-items:center; }
   .btn { background:var(--accent); color:#fff; border:none; border-radius:7px; padding:9px 16px; cursor:pointer; font-size:13px; font-weight:600; }
   .btn:hover { filter:brightness(1.1); }
@@ -84,7 +86,7 @@
 <body>
   <div class="wrap">
     <div class="list">
-      <div class="list-head"><h2>📥 Inbox</h2><span class="count" id="count"></span><select class="refresh mailbox" id="provider" aria-label="Mailbox"><option value="">Any mailbox</option><option value="google">Google</option><option value="outlook">Outlook</option><option value="yahoo">Yahoo</option></select><button class="refresh" id="refresh">↻</button></div>
+      <div class="list-head"><h2>📥 Inbox</h2><span class="count" id="count"></span><select class="refresh mailbox" id="provider" aria-label="Mailbox"><option value="">Any mailbox</option><option value="google">Google</option><option value="outlook">Outlook</option></select><button class="refresh" id="refresh">↻</button></div>
       <div id="items"><div class="empty">Loading…</div></div>
     </div>
     <div class="reader" id="reader"><div class="empty">Select a message to read it.</div></div>
@@ -100,16 +102,48 @@ let mailbox = ''; // the provider the last list actually read
 function esc(s){ return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function shortFrom(f){ const m=(f||'').match(/^"?([^"<]+)"?\s*</); return (m?m[1]:f||'').trim(); }
 const providerEl = document.getElementById('provider');
-// Which mailbox to read: '' lets the server pick the caller's connected one (Google first).
-const PROVIDERS = ['', 'google', 'outlook', 'yahoo'];
+// Which mailbox to read: '' lets the server pick the caller's connected one (Google first). Yahoo is not offered:
+// this installation has no Yahoo connector and its runtime answers a Yahoo read 501 (no Yahoo Mail reader).
+const PROVIDERS = ['', 'google', 'outlook'];
 const NOTICE = {
   no_google_connection: ['No Google account connected.', 'Connect Google →'],
   no_outlook_connection: ['No Outlook / Microsoft 365 account connected.', 'Connect Outlook →'],
-  no_yahoo_connection: ['No Yahoo Mail account connected.', 'Connect Yahoo Mail →'],
-  no_mail_connection: ['No mailbox connected.', 'Connect Google, Outlook or Yahoo →'],
+  no_mail_connection: ['No mailbox connected.', 'Connect a mailbox'],
   reconnect_required: ['This mailbox needs to be reconnected.', 'Reconnect →'],
 };
-function connectNotice(p){ const n = NOTICE[p.error] || NOTICE.no_mail_connection; return '<div class="notice">'+esc(n[0])+'<br><a href="/utilities" target="_top">'+esc(n[1])+'</a></div>'; }
+/* mailbox-connect:start */
+// Which mailbox connectors a notice offers. 'Connect Google or Outlook' used to open the whole Connections page (over
+// a thousand connector declarations, unfiltered); each button now starts that provider's own sign-in directly.
+const MAIL_CONNECTORS = { gmail: 'Connect Google (Gmail)', outlook: 'Connect Outlook / Microsoft 365' };
+function noticeConnectors(error){ return error === 'no_google_connection' ? ['gmail'] : error === 'no_outlook_connection' ? ['outlook'] : ['gmail', 'outlook']; }
+function connectNotice(p){
+  const n = NOTICE[p.error] || NOTICE.no_mail_connection;
+  const buttons = noticeConnectors(p.error).map(function (id) { return '<button type="button" class="btn" data-connect="'+id+'">'+esc(MAIL_CONNECTORS[id])+'</button>'; }).join(' ');
+  return '<div class="notice">'+esc(n[0])+'<br>'+buttons+' <a href="/utilities" target="_top">All connections</a><div class="connect-note" role="status"></div></div>';
+}
+/** Start a mailbox provider's sign-in at the top level; a refusal is said in the notice instead. */
+async function startMailboxConnect(id, noteEl, nav){
+  try {
+    const r = await fetch('/connectors/' + encodeURIComponent(id) + '/authorize', { credentials: 'same-origin' });
+    const b = await r.json().catch(function () { return {}; });
+    if (!r.ok || !b.authorize_url) throw new Error(b.detail || b.message || 'This sign-in is not available right now.');
+    const url = new URL(b.authorize_url);
+    if (url.protocol !== 'https:') throw new Error('The sign-in address is not secure.');
+    nav(url.href);
+    return true;
+  } catch (e) {
+    if (noteEl) noteEl.textContent = e.message + ' You can connect it from All connections.';
+    return false;
+  }
+}
+/* mailbox-connect:end */
+/** Wire the connect buttons a notice just rendered into `root`. */
+function bindConnectButtons(root){
+  if (!root || !root.querySelectorAll) return;
+  root.querySelectorAll('[data-connect]').forEach(function (b) {
+    b.onclick = function () { startMailboxConnect(b.getAttribute('data-connect'), b.parentElement.querySelector('.connect-note'), function (href) { (window.top || window).location.assign(href); }); };
+  });
+}
 function withProvider(url, p){ return p ? url + (url.includes('?') ? '&' : '?') + 'provider=' + encodeURIComponent(p) : url; }
 function savedProvider(){ try { const v = localStorage.getItem('email-provider') || ''; return PROVIDERS.includes(v) ? v : ''; } catch (e) { return ''; } }
 function rememberProvider(v){ try { localStorage.setItem('email-provider', v); } catch (e) { /* per-viewer convenience only */ } }
@@ -122,7 +156,7 @@ async function load(){
   const r = await fetch(withProvider('/api/email/messages?max=30&surface=1', providerEl.value));
   if (!r.ok) { items.innerHTML = '<div class="notice">Could not load inbox ('+r.status+').</div>'; return; }
   const payload = await r.json();
-  if (payload.connected === false) { countEl.textContent = ''; items.innerHTML = connectNotice(payload); return; }
+  if (payload.connected === false) { countEl.textContent = ''; items.innerHTML = connectNotice(payload); bindConnectButtons(items); return; }
   mailbox = payload.provider || '';
   const messages = payload.messages || [];
   countEl.textContent = messages.length + ' shown' + ({ google: ' · Google', outlook: ' · Outlook', yahoo: ' · Yahoo' }[mailbox] || '');

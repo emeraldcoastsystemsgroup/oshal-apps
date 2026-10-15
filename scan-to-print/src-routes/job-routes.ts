@@ -44,6 +44,25 @@
  *                     |                             | Video frames are NOT auto-assigned: a turntable clip shows one
  *                     |                             | face marker, slightly turned, in several frames, and the first
  *                     |                             | would win by upload order rather than by being square-on.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com  | New object makes sure the data folder exists before it inserts
+ *                     |                             | the job and deletes the row again when the job's folder cannot
+ *                     |                             | be made, so an unwritable folder no longer leaves an orphan
+ *                     |                             | 'capturing' job behind a 500. A photo or video that cannot be
+ *                     |                             | stored (a filesystem error) answers 503 storage_unavailable
+ *                     |                             | in words; the raw error, which named the data path, stays in
+ *                     |                             | the log. A refused photo still answers 422 with its reason.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com  | A reconstruction fits one save and every output fits one
+ *                     |                             | download. The native kernel commits a request's new file chunks
+ *                     |                             | base64-encoded inside its 16 MiB transaction bound and answers at
+ *                     |                             | most 8 MiB per response; at the default resolution (96) a round
+ *                     |                             | object's OBJ alone was 8.3 MB, so the save exceeded the bound,
+ *                     |                             | everything rolled back and the page showed only
+ *                     |                             | "application_route_failed". The OBJ is now kept gzip-compressed
+ *                     |                             | at rest (about 1/7 the size) and inflated on download; an OBJ too
+ *                     |                             | large for one download is not kept and the report says why; a
+ *                     |                             | mesh whose STL cannot fit one download, or whose outputs cannot
+ *                     |                             | fit one save, is refused (422) in words naming a resolution that
+ *                     |                             | fits (artifact-budget.ts). Guard: tests/reconstruct-save-bound.test.js.
  */
 
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
@@ -67,6 +86,7 @@ import { DEPTH_UPLOAD_LIMITS, depthMapFromFloat32, depthMapFromUint16, parseDept
 import { type FrameSample, suggestSquareOnFrames } from './engine/grid/frame-suggest';
 import { type JobRequest, artifactPresence, requireCurrentOutput, retireOutput, withCurrentJob } from './job-outputs';
 import { exportContours } from './engine/drawing/contour-export';
+import { downloadBytes, planArtifacts } from './artifact-budget';
 
 const logger = createChildLogger({ module: 'scan-to-print-job-routes' });
 
@@ -161,12 +181,14 @@ function readFlag(raw: unknown, label: string): boolean {
 /** @description Persist one result's artifacts and the job report. */
 async function saveResult(deps: JobRouteDeps, sub: string, job: JobRow, dir: string, result: ReconstructionResult, sourceKind: string): Promise<JobRow> {
   const artifacts = exportArtifacts(result, `STP-${job.job_id.slice(0, 8).toUpperCase()}`);
+  const contours = JSON.stringify(exportContours(result.grid, result.projections, result.report.sizeMm));
+  const stl = Buffer.from(artifacts.stl.buffer, artifacts.stl.byteOffset, artifacts.stl.byteLength);
+  const plan = planArtifacts(stl, artifacts.obj, [['svg', Buffer.from(artifacts.svg)], ['contours', Buffer.from(contours)]], artifacts.report);
+  artifacts.report.warnings.push(...plan.warnings);
   ensureDir(path.join(dir, 'artifacts'));
-  fs.writeFileSync(artifactPath(dir, 'stl'), artifacts.stl);
-  fs.writeFileSync(artifactPath(dir, 'obj'), artifacts.obj);
-  fs.writeFileSync(artifactPath(dir, 'svg'), artifacts.svg);
+  fs.rmSync(artifactPath(dir, 'obj'), { force: true });
+  for (const [key, bytes] of plan.files) fs.writeFileSync(artifactPath(dir, key), bytes);
   fs.writeFileSync(artifactPath(dir, 'report'), JSON.stringify(artifacts.report, null, 2));
-  fs.writeFileSync(artifactPath(dir, 'contours'), JSON.stringify(exportContours(result.grid, result.projections, result.report.sizeMm)));
   fs.rmSync(artifactPath(dir, 'gcode'), { force: true });
   const updated = await updateJob(deps.pool, sub, job.job_id, {
     state: 'reconstructed', report: artifacts.report as unknown as Record<string, unknown>, failure_reason: null, source_kind: sourceKind,
@@ -265,6 +287,22 @@ function registerGuards(router: Router, deps: JobRouteDeps): void {
   });
 }
 
+/** @description The answer when the job's files cannot be written: what happened, never the path. */
+const STORAGE_UNAVAILABLE = Object.freeze({
+  error: 'storage_unavailable',
+  message: 'Scan to Print could not save files on this installation (its data folder is not writable). Nothing was saved.',
+});
+
+/**
+ * @description Whether an error came from the filesystem (it carries the failing syscall) rather
+ * than from a photo or a request, so it is answered as storage, not as a refused photo.
+ * @param error - The caught error.
+ * @returns True for a filesystem error.
+ */
+function storageFailure(error: unknown): boolean {
+  return !!error && typeof error === 'object' && typeof (error as NodeJS.ErrnoException).syscall === 'string';
+}
+
 /** @description Register collection routes with their existing owner and response contracts. */
 function registerCollection(router: Router, deps: JobRouteDeps): void {
   router.get('/jobs', async (req: JobRequest, res: Response) => {
@@ -274,11 +312,20 @@ function registerCollection(router: Router, deps: JobRouteDeps): void {
   router.post('/jobs', async (req: JobRequest, res: Response) => {
     const title = String((req.body ?? {}).title ?? '').trim().slice(0, 120);
     if (!title) { res.status(400).json({ error: 'title_required' }); return; }
+    try { ensureDir(deps.dataRoot); } catch (error) {
+      logger.error({ err: error }, 'Scan data folder unavailable');
+      res.status(503).json(STORAGE_UNAVAILABLE); return;
+    }
+    let job: JobRow | null = null;
     try {
-      const job = await createJob(deps.pool, req.scanSub as string, title, 'photos');
+      job = await createJob(deps.pool, req.scanSub as string, title, 'photos');
       ensureDir(jobDir(deps.dataRoot, req.scanSub as string, job.job_id));
       res.status(201).json({ job });
-    } catch (error) { logger.error({ err: error }, 'Create job failed'); res.status(500).json({ error: 'create_failed' }); }
+    } catch (error) {
+      logger.error({ err: error }, 'Create job failed');
+      if (job) await deleteJob(deps.pool, req.scanSub as string, job.job_id).catch((err: unknown) => logger.error({ err }, 'Orphan job cleanup failed'));
+      if (storageFailure(error)) res.status(503).json(STORAGE_UNAVAILABLE); else res.status(500).json({ error: 'create_failed' });
+    }
   });
 }
 
@@ -338,6 +385,7 @@ function registerPhotos(router: Router, deps: JobRouteDeps): void {
       res.status(201).json({ images, viewsFromMarkers: images.filter((img) => img.view !== null).length });
     } catch (error) {
       logger.error({ err: error, jobId: job.job_id }, 'Image ingest failed');
+      if (storageFailure(error)) { res.status(503).json(STORAGE_UNAVAILABLE); return; }
       res.status(422).json({ error: 'image_ingest_failed', message: error instanceof Error ? error.message : String(error) });
     }
   }));
@@ -363,6 +411,7 @@ function registerVideo(router: Router, deps: JobRouteDeps): void {
       res.status(201).json({ images, frames: frames.length });
     } catch (error) {
       logger.error({ err: error, jobId: job.job_id }, 'Video ingest failed');
+      if (storageFailure(error)) { res.status(503).json(STORAGE_UNAVAILABLE); return; }
       res.status(422).json({ error: 'video_ingest_failed', message: error instanceof Error ? error.message : String(error) });
     } finally {
       fs.rmSync(file.path, { force: true });
@@ -510,7 +559,7 @@ function registerArtifacts(router: Router, deps: JobRouteDeps): void {
     const types: Record<ArtifactKey, string> = { stl: 'model/stl', obj: 'text/plain', svg: 'image/svg+xml', report: 'application/json', gcode: 'text/plain', contours: 'application/json' };
     res.setHeader('Cache-Control', 'private, no-store');
     if (req.query.download !== undefined) res.setHeader('Content-Disposition', `attachment; filename="${job.title.replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 60) || 'part'}.${key === 'report' || key === 'contours' ? 'json' : key}"`);
-    res.type(types[key]).send(fs.readFileSync(file));
+    res.type(types[key]).send(downloadBytes(key, fs.readFileSync(file)));
   }, 'read'));
 }
 

@@ -59,6 +59,8 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D5: the Earnings rules card. The kernel's earnings-reaction rule store has existed since 2026-09-06 with no way for a person to reach it - a rule could only be created or read by calling the module - so this view gains the #earningsRulesCard placeholder and kickAccountCards gains its painter. The card itself lives in view-earnings-rules.js rather than here, on the same reasoning that carved the event playbooks out to view-events.js: this file is already the largest on the surface and a card that owns a form belongs with its own form.
  * 10 | maintainer@emeraldcoastsystemsgroup.com   | The account header gains the arming acknowledgement for a NON-LEGACY book (data-act="armack" -> acknowledgeArming in view-strategies.js, beside Start/Stop trading, which owns the wording). armAckRequired and armAckAt ride the book row from GET /accounts, so the button asks the server which books carry the gate rather than re-deriving it from the ref here - the kernel dispatch that enforces it reads the same predicate. A legacy paper/live book renders no button, which is the honest answer: it carries no gate.
  * 11 | maintainer@emeraldcoastsystemsgroup.com   | ADR-052 addendum P4: an empty #planAmendCard host right under the positions table. tools/ui/position-plans.js fills it with the 'Exit plans' card (open-plan count and the confirm-gated amend) after each plan read, and leaves it empty when the account has no open plan.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com   | TRADE-01: on the native kernel a paper book with no broker shows the native paper autopilot panel (native-paper.js: arm with guardrails, then the person's own schedule activation) instead of 'Broker not connected', and an opened native paper book gets Start/Stop paper autopilot in the account header.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com   | A paper book with no broker prints the host's own reason (STATUS.brokerReason: no Alpaca connector on the native installation) instead of advice to set Alpaca paper keys, which this installation has no place to hold.
  */
 
 /* ── the view ──────────────────────────────────────────────────────────────── */
@@ -75,11 +77,17 @@ async function renderAccountView(token) {
         ? '<div class="livebanner">LIVE account (' + name + ') — orders place REAL trades with REAL money. Each order asks you to confirm.</div>'
         : '';
     // "configured" reflects THIS book (the server's reader binding), not the legacy paper/live rails.
+    if (STATUS.bookConfigured === false && STATUS.nativePaper && STATUS.nativePaper.available && typeof nativePaperArmPanel === 'function') {
+      // TRADE-01: no broker on the native kernel's paper book - offer the person's own native paper book.
+      main.innerHTML = nativePaperArmPanel(name);
+      wireNativePaper($('npPanel'));
+      return;
+    }
     if (STATUS.bookConfigured === false) {
       main.innerHTML = banner + '<div class="panel"><h2>Broker not connected for ' + name + '</h2><div class="sub err">' +
         (MODE === 'live'
           ? 'This account\'s Schwab connection is not available. Re-connect Schwab from the cockpit: Settings → Connections.'
-          : 'Set the Alpaca paper keys.') +
+          : (STATUS.brokerReason || 'No paper broker is connected: the Alpaca paper keys are not set on this host.')) +
         '</div></div>';
       return;
     }
@@ -100,6 +108,7 @@ async function renderAccountView(token) {
       '<div class="panel" id="focus"><div class="foot" style="padding:22px 6px;text-align:center">Select a position above to open its chart, signal model and order ticket.</div></div>' +
       '<div id="viewTabs"></div>';
     wireAccountHeader();
+    if (typeof wireNativePaper === 'function') wireNativePaper($('acctHead'));   // TRADE-01 start/stop on the native paper book
     kickAccountCards(token, b);            // the five async card painters, each filling its own placeholder
     await loadKpisAndPositions();          // KPI strip + STATE.positions + the positions hero
     if (stale(token)) return;
@@ -163,6 +172,7 @@ function accountHeader(b, autopilotOff) {
   const research = ' <button class="btn ghost" id="acctResearchBtn" data-act="research" title="Quote, chart, fundamentals, news and filings for one stock">Research a stock</button>';
   return '<div class="panel acct-head" id="acctHead"><h2>' + esc(DISP) + '</h2>' + pills + settlementControlHtml(b) +
     '<span class="spacer"></span>' + research + buy + toggle + armack +
+    (typeof nativePaperHeaderButton === 'function' ? nativePaperHeaderButton() : '') +
     '<div id="stratLine" class="sub" style="flex-basis:100%">Loading strategy…</div></div>';
 }
 /* CASH accounts only (ADR-134 D8): how a buy funded by UNSETTLED sale proceeds is treated on this account —

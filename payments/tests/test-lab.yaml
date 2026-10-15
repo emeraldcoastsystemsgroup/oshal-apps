@@ -4,9 +4,26 @@
 # -----------------------------------------------------------------------------
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.4: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register the audience rails suite: the view's heading and action agree with the rails /providers lists (no "Take a payment" without a connected rail).
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register continue-panel: the Continue from a payment panel shows only when Recent payments holds a payment (it asked to select a saved payment below with no list on the page).
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register the Stripe rail suites: stripe-rail (routes against a local fake Stripe server: request shapes, mode, confirmations, isolation, no key in answers or logs) and stripe-page (the panel's mode badges and two-step LIVE confirmation).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register connections-recheck: connect links open a new tab and the page checks the connection again in place.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
+  - id: connections-recheck
+    name: Connecting keeps the page and checks again in place
+    purpose: Run the page's own connect prompt and check-again functions in a VM with a scripted GET /providers.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/connections-recheck.test.cjs] }
+    expected:
+      - Open Connections and each Connect link open a new tab; no link replaces the whole tab.
+      - Check again re-reads /providers and redraws in place; a failed check says so and leaves the button usable.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
   - id: audience-view
     name: Audience view contract
     purpose: >-
@@ -24,6 +41,94 @@ cases:
       - The boot names this application and exactly the audiences the page provides, with an escape label.
       - The full page start runs only when the kit renders no audience, and when the kit is absent.
       - The head block parses, reads only this package's routes and builds no HTML from data.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: audience-rails
+    name: Audience view agrees with the listed rails
+    purpose: >-
+      Execute the shipped audience view with no rail, an unconfigured rail, a connectable rail and a connected rail: "Take a payment" only
+      with a connected rail, "Connect" only for a rail with a connector, and the reason in words otherwise.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audience-rails.test.cjs
+    expected:
+      - With no rail the view says there is no payment rail here and offers only Open Payments.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: continue-panel
+    name: Continue from a payment only with a payment to continue from
+    purpose: Read the shipped page and run its loadHistory() in a VM with element and fetch doubles - no browser, server or payment rail.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/continue-panel.test.cjs
+    expected:
+      - The Continue from a payment panel starts hidden and its copy names the Review button under Recent payments.
+      - With no recorded payment it stays hidden; with one it shows above the list.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: stripe-rail
+    name: Stripe rail against a local fake Stripe server
+    purpose: >-
+      Drive the compiled payments routes against a real local HTTP server standing in for api.stripe.com: form-encoded
+      Checkout Session, charges list and full refund; mode from Stripe's own livemode (test, live, unknown, rejected, not
+      connected); confirm and confirmLive enforced before anything is sent; each caller reaches Stripe with their own key
+      and sees only their own requests; no key text in any answer or log line, even when Stripe echoes one.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/stripe-rail.test.cjs
+        - tests/providers-availability.test.cjs
+    expected:
+      - An unconfirmed request answers 428 and sends nothing to Stripe; a live or unknown key also needs confirmLive.
+      - A person without a key is not connected and never reaches Stripe.
+      - No answer or log line contains a key.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: stripe-page
+    name: Stripe panel mode badges and LIVE confirmation
+    purpose: Run the shipped page's Stripe functions in a VM - no browser, server or Stripe.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/stripe-page.test.cjs
+    expected:
+      - Not connected and a rejected key point to the Connections page and offer no payment form.
+      - A test key shows TEST MODE; a live key shows LIVE; an unknown mode is treated as LIVE.
+      - A non-test key asks twice, the second time naming LIVE, before confirmLive is sent.
     prerequisites:
       - runner:node-test
     sideEffects: none

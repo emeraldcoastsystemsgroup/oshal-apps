@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The company view and its family alias asserted as behaviour: the head block runs against a stub kit and a stub fetch, fed the JSON the REAL compiled route (routes/home-summary.js, loaded with a stub Router and pool) builds from database rows; the title follows the account state, partial reads and every refusal are said with no figure in their place, the only read is the home summary, and the module start is gated after its imports.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | The route now also reads the followed teams' names: the stub answers that query, and the notes name the followed teams and say no preview is built yet instead of "No saved work yet" when teams are followed.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -88,14 +89,15 @@ function loadCompany(answers) {
  * @param {boolean} [signedIn] Whether the session carries a sub (true by default).
  * @returns {Promise<object>} The body the view would read (after a JSON round trip), as `{ http, body }` when the route did not answer 200.
  */
-async function fromRoute(teams, previews, signedIn = true) {
+async function fromRoute(teams, previews, signedIn = true, followed = []) {
   let handler = null;
   const deps = { express: { Router: () => ({ get: (_p, f) => { handler = f; } }) } };
   const mod = { exports: {} };
   new Function('require', 'module', 'exports', fs.readFileSync(path.join(ROOT, 'routes/home-summary.js'), 'utf8'))((name) => { if (name in deps) return deps[name]; throw new Error('Unexpected dependency ' + name); }, mod, mod.exports);
   const pool = { query: async (q) => {
     assert.match(q.text, /^SELECT /); assert.equal(q.values[0], 'synthetic-sub');
-    const answer = /FROM sports_followed_teams WHERE/.test(q.text) && /^SELECT count/.test(q.text) ? teams : previews;
+    const answer = /FROM sports_followed_teams WHERE/.test(q.text) && /^SELECT count/.test(q.text) ? teams
+      : /^SELECT league,team,display_name FROM sports_followed_teams/.test(q.text) ? followed : previews;
     if (answer instanceof Error) throw answer;
     return { rows: Array.isArray(answer) ? answer : [answer] };
   } };
@@ -134,10 +136,14 @@ test('fed the JSON the real route builds, the view shows the followed teams, the
 });
 
 test('the title names the account\'s state and the empty and partial reads are said as they are', async () => {
-  assert.equal((await build(await fromRoute({ teams: '0' }, []))).title, 'No teams followed yet');
-  const quiet = await build(await fromRoute({ teams: '2' }, []));
+  const none = await build(await fromRoute({ teams: '0' }, []));
+  assert.equal(none.title, 'No teams followed yet');
+  assert.equal(section(none, 'notes').items[0].title, 'No followed team yet. Follow a team on the Teams tab to begin.');
+  const quiet = await build(await fromRoute({ teams: '2' }, [], true, [{ league: 'nfl', team: 'MIA', display_name: 'Miami Dolphins' }, { league: 'nba', team: 'MIA', display_name: 'Miami Heat' }]));
   assert.equal(quiet.title, 'No preview for your teams this week'); assert.match(section(quiet, 'games').note, /^No cached preview matches/);
-  assert.equal(section(quiet, 'notes').items[0].title, 'No saved work yet. Open the app to begin.');
+  assert.deepEqual(section(quiet, 'notes').items.slice(0, 2).map((i) => i.title), ['Following: Miami Dolphins (NFL), Miami Heat (NBA)',
+    'No preview has been built yet for your teams\' games in the next 7 days. The Games tab lists their schedule.']);
+  assert.ok(!JSON.stringify(quiet).includes('No saved work yet'), 'a followed team is saved work');
   const partial = await build(await fromRoute(new Error('synthetic outage'), PREVIEWS));
   assert.equal(partial.title, 'Some saved sources cannot be checked');
   assert.deepEqual(partial.stats.map((s) => [s.value, s.tone, s.hint]), [['Unavailable', 'warn', 'Could not be checked']]);

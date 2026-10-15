@@ -27,6 +27,22 @@
  *                     |                             | withheld, never as a result; the sentence that
  *                     |                             | `fabricable` is not a safety claim is rendered
  *                     |                             | from the route's own text.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Draft with AI sends the sliders' design
+ *                     |                             | (state.design) with the message, so the concierge
+ *                     |                             | drafts against the person's own design instead of
+ *                     |                             | the defaults (it answered about the R7 Sweep Winner
+ *                     |                             | with the Tier-1 sketch loaded), and the draft box
+ *                     |                             | lists only the changed fields as from -> to, with
+ *                     |                             | Apply setting only those. Guarded by
+ *                     |                             | aero-lab/tests/aero-designer-chat.test.cjs.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Draft with AI also sends what the screen
+ *                     |                             | records (screenRecord): the loaded preset's recorded
+ *                     |                             | verdict and boundary and the latest verdict card, so
+ *                     |                             | a proposal starts from them (it proposed 0.5 kg for the
+ *                     |                             | Tier-1 sketch whose record says ~0.694 kg closes).
+ *                     |                             | Guarded by aero-lab/tests/aero-screen-record.test.cjs.
+ * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Sweep 7: on a multi-day energy loop the 'min SOC' label still crossed the rising curve: the valleys are too narrow for any spot beside the dot, and the fallback drew it there anyway. Candidates now reach 120 px either side, and when none is clear the label goes in the strip above the plot, right-aligned and keyed by a dot in the mark's colour. Guard: tests/aero-chart-labels.test.cjs.
+ * 2026-10-13 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 1: with no engine the page showed the person the host's install command ('on the kernel host run aero-lab/engine/install-engine.sh and pin the engine in OSHAL_PACKAGE_ENGINES') and a README path. A missing or unreachable engine is now one sentence (ENGINE_DOWN: not answering on this installation); a module mid-upgrade is still the engine's own sentence. Guard: tests/aero-engine-down-words.test.cjs.
  */
 /* Served by the package route as /api/aero-lab/app.js next to /app (the HTML).
    All data flows from the routes in BUILD_CONTRACT §2a; the only client-side
@@ -103,6 +119,18 @@
     return parsed;
   }
 
+  /** What a person is told when the engine itself is not there: never the kernel's address, a setting
+   * or the host's install command (those are the operator's, in the route's reason and the logs). */
+  const ENGINE_DOWN = "Aero Lab's engine is not answering on this installation, so no simulation can run right now. If this keeps happening, an administrator needs to set the engine up.";
+  /**
+   * @description Whether a route's reason says the engine itself is missing or unreachable (rather than one
+   * module being mid-upgrade, which is the engine's own sentence and is shown as it is).
+   * @param {string} [reason] - The route's reason. @returns {boolean} True for a missing engine.
+   */
+  function engineMissing(reason) {
+    return /engine container|no engine is configured|install-engine|OSHAL_PACKAGE_ENGINES|kernel host/i.test(String(reason || ''));
+  }
+
   /**
    * @description Turn a normalized route failure into the honest sentence the
    * surface shows. Raw enum codes never render — capability_unavailable becomes
@@ -113,7 +141,8 @@
   function errText(err) {
     const b = err.body || {};
     if (b.code === 'capability_unavailable') {
-      return 'Engine module not available yet: ' + (b.reason || b.error || 'no reason given');
+      return engineMissing(b.reason || b.error) ? ENGINE_DOWN
+        : 'Engine module not available yet: ' + (b.error || b.reason || 'no reason given');
     }
     if (err.status === 400) return 'Design rejected before the engine ran: ' + (b.error || 'invalid design vector');
     if (err.status === 422) return 'The engine ran — this design is un-buildable: ' + (b.error || 'no reason given');
@@ -298,6 +327,7 @@
   function applyPreset(p) {
     state.design = Object.assign({}, p.v);
     state.presetHull = p.hull || '';
+    state.presetRecord = { name: p.name, note: p.note };
     syncForm();
     let note = p.note;
     if (p.needs && state.caps && state.caps.capabilities && !state.caps.capabilities[p.needs]) {
@@ -394,8 +424,8 @@
     if (!eng.present) {
       // The route's reason is the honest one: a missing venv, or an absent / out-of-date engine
       // container with the exact command that installs it on this box.
-      renderEngineDown('Aero Lab engine unavailable: ' + (caps.reason || 'no reason given') +
-        '. Every run button will refuse until it is fixed — see the package engine/README.md.');
+      renderEngineDown(engineMissing(caps.reason) ? ENGINE_DOWN
+        : 'Aero Lab engine unavailable: ' + (caps.reason || 'no reason given') + '. Every run button will refuse until it is fixed.');
     } else {
       $('engineDownBanner').style.display = 'none';
     }
@@ -546,6 +576,73 @@
     return out;
   }
 
+  /* chart-label-placement:start */
+  /** Average glyph width and line height (px) of the 10.5 px chart text, for label boxes. */
+  const LABEL_CHAR_W = 6.4;
+  const LABEL_H = 12;
+
+  /**
+   * @description Whether a line segment touches an axis-aligned box (Liang-Barsky clip).
+   * Used so a chart label is never drawn across a series line.
+   * @param {number[]} a - Segment start [x, y]. @param {number[]} b - Segment end [x, y].
+   * @param {{x0:number,y0:number,x1:number,y1:number}} r - Box in screen px.
+   * @returns {boolean} True when any part of the segment lies inside the box.
+   */
+  function segHitsBox(a, b, r) {
+    let t0 = 0;
+    let t1 = 1;
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const edges = [[-dx, a[0] - r.x0], [dx, r.x1 - a[0]], [-dy, a[1] - r.y0], [dy, r.y1 - a[1]]];
+    for (const [p, q] of edges) {
+      if (p === 0) { if (q < 0) return false; continue; }
+      const t = q / p;
+      if (p < 0) { if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; }
+    }
+    return true;
+  }
+
+  /**
+   * @description Choose where a point's label goes: the nearest spot beside the point
+   * that stays inside the plot area and crosses no series line. Before, the min-SOC
+   * label always went up-right of the dot and was printed over the recharge curve.
+   * @param {object} o - { px, py: the point in px; text; plot: {l,r,t,b} box in px;
+   *   lines: arrays of [x,y] screen points, one per series }.
+   * @returns {{x:number,y:number,anchor:string,clear:boolean}} Text position and
+   *   anchor; clear is false only when no candidate avoided every line.
+   */
+  function placeMarkLabel(o) {
+    const w = String(o.text || '').length * LABEL_CHAR_W;
+    const cands = [];
+    const dys = [-6, 14, 26, 38];
+    for (let dy = -18; dy > -(o.plot.b - o.plot.t); dy -= 12) dys.push(dy);
+    for (const dy of dys) {
+      for (const dx of [0, 7, -7, 15, -15, 30, -30, 45, -45, 60, -60, 90, -90, 120, -120]) {
+        const anchors = dx > 0 ? ['start', 'middle'] : dx < 0 ? ['end', 'middle'] : ['middle'];
+        for (const anchor of anchors) {
+          const x = o.px + dx;
+          const y = o.py + dy;
+          const x0 = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w / 2;
+          const box = { x0, x1: x0 + w, y0: y - LABEL_H + 2, y1: y + 2 };
+          const gx = Math.max(box.x0 - o.px, 0, o.px - box.x1);
+          const gy = Math.max(box.y0 - o.py, 0, o.py - box.y1);
+          cands.push({ x, y, anchor, box, d: Math.hypot(gx, gy) + Math.abs(dy) / 100 });
+        }
+      }
+    }
+    cands.sort((m, n) => m.d - n.d);
+    let fallback = null;
+    for (const c of cands) {
+      const box = c.box;
+      if (box.x0 < o.plot.l || box.x1 > o.plot.r || box.y0 < o.plot.t || box.y1 > o.plot.b) continue;
+      const hit = (o.lines || []).some((pts) => pts.some((p, i) => i > 0 && segHitsBox(pts[i - 1], p, box)));
+      if (!hit) return { x: c.x, y: c.y, anchor: c.anchor, clear: true };
+      if (!fallback) fallback = { x: c.x, y: c.y, anchor: c.anchor, clear: false };
+    }
+    return fallback || { x: o.px + 7, y: o.py - 6, anchor: 'start', clear: false };
+  }
+  /* chart-label-placement:end */
+
   /**
    * @description Generic themed multi-series line chart with grid, axis labels,
    * optional shaded x-bands (night), an optional highlighted point, direct series
@@ -558,7 +655,9 @@
     host.innerHTML = '';
     const W = Math.max(280, Math.min(host.clientWidth || 460, 900));
     const H = o.height || 190;
-    const P = { l: 44, r: 66, t: 8, b: 26 };
+    // A y-axis title sits in its own strip above the plot, clear of the top tick
+    // label (it used to be drawn at the top tick's height and overprint the '1').
+    const P = { l: 44, r: 66, t: o.yLabel ? 22 : 8, b: 26 };
     const xs = o.series.flatMap((s) => s.xs);
     const ys = o.series.flatMap((s) => s.ys).filter(Number.isFinite);
     if (!xs.length || !ys.length) { host.innerHTML = '<div class="empty">Engine returned no points for this plot.</div>'; return; }
@@ -592,11 +691,13 @@
     const xl = el('text', { x: (P.l + W - P.r) / 2, y: H - 3, 'text-anchor': 'middle', class: 'dim' });
     xl.textContent = o.xLabel || '';
     svg.appendChild(xl);
-    const yl = el('text', { x: 10, y: P.t + 8, class: 'dim' });
+    const yl = el('text', { x: 4, y: 11, class: 'dim' });
     yl.textContent = o.yLabel || '';
     svg.appendChild(yl);
+    const lines = [];
     o.series.forEach((s, i) => {
       const pts = s.xs.map((x, j) => [x, s.ys[j]]).filter((p) => Number.isFinite(p[1]));
+      lines.push(pts.map((p) => [sx(p[0]), sy(p[1])]));
       svg.appendChild(el('polyline', {
         points: pts.map((p) => sx(p[0]).toFixed(1) + ',' + sy(p[1]).toFixed(1)).join(' '),
         fill: 'none', stroke: s.color, 'stroke-width': 2, 'stroke-linejoin': 'round',
@@ -610,7 +711,21 @@
     });
     if (o.mark && Number.isFinite(o.mark.x) && Number.isFinite(o.mark.y)) {
       svg.appendChild(el('circle', { cx: sx(o.mark.x), cy: sy(o.mark.y), r: 4, fill: o.mark.color || 'currentColor', stroke: 'var(--bg-primary, #06080f)', 'stroke-width': 2 }));
-      const mt = el('text', { x: sx(o.mark.x) + 7, y: sy(o.mark.y) - 6 });
+      const at = placeMarkLabel({
+        px: sx(o.mark.x), py: sy(o.mark.y), text: o.mark.label || '',
+        plot: { l: P.l, r: W - 2, t: P.t, b: H - P.b }, lines,
+      });
+      // No spot beside the point is clear of the curve (a multi-day loop leaves narrow valleys): the label goes in
+      // the strip above the plot, right-aligned and keyed by a dot in the mark's colour, instead of across the line.
+      const strip = at.clear ? null : { x: W - 2, y: 11 };
+      if (strip) {
+        const w = String(o.mark.label || '').length * LABEL_CHAR_W;
+        svg.appendChild(el('circle', { cx: strip.x - w - 7, cy: strip.y - 4, r: 3.5, fill: o.mark.color || 'currentColor' }));
+      }
+      const mt = el('text', {
+        x: strip ? strip.x : at.x, y: strip ? strip.y : at.y, 'text-anchor': strip ? 'end' : at.anchor, 'paint-order': 'stroke',
+        stroke: 'var(--panel)', 'stroke-width': 3, 'stroke-linejoin': 'round',
+      });
       mt.textContent = o.mark.label || '';
       svg.appendChild(mt);
     }
@@ -852,6 +967,7 @@
       (reasons.length
         ? '<ul id="reasons">' + reasons.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>'
         : ('admissible' in v && v.admissible ? '<div class="note" style="margin-top:6px">No screen objections — every reason list came back empty.</div>' : ''));
+    state.verdictShown = true;
   }
 
   /**
@@ -966,18 +1082,19 @@
    */
   async function sendChat() {
     const input = $('chatInput');
-    const msg = input.value.trim();
-    if (!msg || state.busy) return;
+    const typed = input.value.trim();
+    if (!typed || state.busy) return;
     input.value = '';
-    addMsg('user', msg);
-    state.chat.push({ role: 'user', content: msg });
+    addMsg('user', typed);
+    state.chat.push({ role: 'user', content: typed });
+    const msg = typed + screenRecord();
     const btn = $('chatSend');
     btn.disabled = true;
     try {
-      const r = await api('POST', '/chat', { message: msg, history: state.chat.slice(-8) });
+      const r = await api('POST', '/chat', { message: msg, history: state.chat.slice(-8), design: { ...state.design } });
       addMsg('bot', r.say || '(no reply)');
       state.chat.push({ role: 'assistant', content: r.say || '' });
-      if (r.draft && typeof r.draft === 'object') showDraft(r.draft);
+      if (r.draft && typeof r.draft === 'object' && Array.isArray(r.changes)) showDraft(r.changes);
       else $('draftBox').style.display = 'none';
     } catch (err) {
       addMsg('bot', errText(err));
@@ -985,6 +1102,29 @@
       btn.disabled = false;
     }
   }
+
+  // screen-record:start
+  /**
+   * @description The engine-recorded facts this screen is showing, appended to a Draft with AI message so the
+   * concierge drafts from them: the loaded preset's recorded verdict and boundary (for example "~0.694 kg battery is
+   * the smallest single change that closes") and the latest run's verdict card with its run status. Without them it
+   * proposed a 0.5 kg battery for the Tier-1 sketch, which the page's own record already shows does not close.
+   * @returns {string} '' when nothing is recorded on screen, else a labelled block starting with a blank line.
+   */
+  function screenRecord() {
+    const lines = [];
+    if (state.presetRecord) {
+      lines.push('Loaded preset "' + state.presetRecord.name + '" (recorded for the preset as loaded, before any slider edits): ' + state.presetRecord.note);
+    }
+    const verdict = state.verdictShown ? String($('verdictCard').textContent || '').replace(/\s+/g, ' ').trim() : '';
+    if (verdict) {
+      const status = String($('runStatus').textContent || '').trim();
+      lines.push('Latest engine run on this screen' + (status ? ' (' + status + ')' : '') + ': ' + verdict);
+    }
+    if (!lines.length) return '';
+    return '\n\nWHAT THIS SCREEN SHOWS (recorded by the engine; base any draft on these numbers and do not propose a change they already show is too small):\n' + lines.join('\n');
+  }
+  // screen-record:end
 
   /** @description Append a chat bubble. @param {string} who - 'user'|'bot'. @param {string} text - Content. @returns {void} */
   function addMsg(who, text) {
@@ -997,30 +1137,31 @@
   }
 
   /**
-   * @description Preview a concierge draft: known finite fields only, rendered as
-   * a table with an Apply button. Unknown or non-finite fields void the draft
-   * (a bad draft must never reach the sliders).
-   * @param {object} draft - Draft design vector from /chat.
+   * @description Preview a concierge draft as the fields it changes against the sliders
+   * (from -> to), with an Apply button that sets only those. Unknown or non-finite fields void
+   * the draft (a bad draft must never reach the sliders).
+   * @param {Array<{field: string, from: number, to: number}>} changes - The route's changes list.
    * @returns {void}
    */
-  function showDraft(draft) {
+  function showDraft(changes) {
     const rows = [];
-    for (const [k, v] of Object.entries(draft)) {
-      if (!FIELD_BY_KEY[k] || !Number.isFinite(Number(v))) {
+    for (const c of changes) {
+      if (!c || !FIELD_BY_KEY[c.field] || !Number.isFinite(Number(c.to))) {
         $('draftBox').style.display = 'block';
-        $('draftBox').innerHTML = '<div class="note">The concierge returned a draft with an invalid field (' + esc(k) + ') — discarded rather than applied.</div>';
+        $('draftBox').innerHTML = '<div class="note">The concierge returned a draft with an invalid field (' + esc(c && c.field) + ') — discarded rather than applied.</div>';
         return;
       }
-      rows.push([k, Number(v)]);
+      rows.push([c.field, Number(c.from), Number(c.to)]);
     }
     if (!rows.length) { $('draftBox').style.display = 'none'; return; }
     const box = $('draftBox');
     box.style.display = 'block';
+    const cell = (k, v) => (Number.isFinite(v) ? fmt(v, FIELD_BY_KEY[k].dp) : '—') + ' ' + esc(FIELD_BY_KEY[k].unit);
     box.innerHTML = '<b>Design draft</b><table>' +
-      rows.map(([k, v]) => '<tr><td>' + esc(FIELD_BY_KEY[k].label) + '</td><td>' + fmt(v, FIELD_BY_KEY[k].dp) + ' ' + esc(FIELD_BY_KEY[k].unit) + '</td></tr>').join('') +
+      rows.map(([k, from, to]) => '<tr><td>' + esc(FIELD_BY_KEY[k].label) + '</td><td>' + cell(k, from) + ' → ' + cell(k, to) + '</td></tr>').join('') +
       '</table><button id="applyDraft" class="primary">Apply to sliders</button> <span class="note">then press Run yourself</span>';
     $('applyDraft').addEventListener('click', () => {
-      for (const [k, v] of rows) setField(k, v, 'code');
+      for (const [k, , to] of rows) setField(k, to, 'code');
       state.presetHull = '';
       $('presetNote').textContent = 'AI draft applied to the sliders — the engine has not judged it yet. Press Run.';
       $('runStatus').textContent = 'draft applied — press Run';

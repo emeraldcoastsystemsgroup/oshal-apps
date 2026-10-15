@@ -77,3 +77,24 @@ cases:
       cleanup: The temporary index and the loopback servers are removed after the run; the in-memory authorization store is discarded.
     limits: { timeoutMs: 240000, maxMemoryMb: 1024 }
     installation: never
+  - id: refusal-prose
+    name: Developer console refusals in words
+    purpose: >-
+      GET /dev-mode names the failing check and the operator settings, and the page renders every state and refusal as a sentence.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/dev-workspace-refusal-prose.test.js
+    expected:
+      - A closed console names the native operator setting.
+      - The page never prints the refusal JSON.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

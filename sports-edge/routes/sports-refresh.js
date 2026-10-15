@@ -28,13 +28,19 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | A failed ESPN read now logs at WARN (the box runs LOG_LEVEL=info, so a debug-level failure is invisible exactly when someone asks why the surface is empty) and followedGames returns upstreamOk alongside the rows, so the caller can tell "no games" apart from "could not reach the schedule service".
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The pass now feeds followed teams, their injury wire and their upcoming matchups into the shared World Intelligence layer instead of this package growing a news reader of its own. Subject NAMING lives here; fetching, dedup, classification and the time series stay in World, which is what stops two applications pulling the same wire twice and disagreeing about what it said. Runs LAST — it is the only step whose work can be caught up on a later pass.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Resolve current head coaches from followed ESPN team IDs only when their team is due, then use the same shared World ingest, persistent cooldown and pass budget.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | No timer. The pass ran from a setInterval the route factory started, outside any request, so on the native kernel every pass failed before its first query ("Unbound application request is unavailable in this native runtime" / "SQL connection requires an active admitted request") and the surface never refreshed. A pass now runs only inside an admitted request: runRefreshPass is called by POST /refresh/run, which the manifest's `refresh-pass` schedule fires as the person who activated it, so the pass works over that person's own followed teams. Loading this module starts nothing. Guard: tests/sports-refresh-schedule.test.js.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | upcomingGames reads the scoreboard by month (dates=YYYYMM) and filters to the window: ESPN now answers every day range with HTTP 400 "Failed to get events endpoint" (measured 2026-10-11 for NFL, NBA and college football, past and future ranges alike), so line capture, previews and the followed-games list found no game at all. Guard: tests/sports-refresh-schedule.test.js.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | A requested pass is bounded by the deployment's refreshIntervalMinutes: runRefreshPass reads the caller's last pass start (sports_settings scope `__refresh_pass__:<sub>`) and answers skipped 'not_due' with nextDueAt until the interval (less a 10-minute slack for the schedule's own jitter) has passed; only an operator's {force:true} skips the check. POST /refresh/run had no brake but the in-process `running` flag, so any signed-in caller could run back-to-back passes, each a full line capture, grading, preview and World ingest, and a stale-ratings rebuild (~30 ESPN reads) on every call while ratings stayed stale. The pass also reads only the caller's own followed teams (WHERE user_sub = $1), which is what the schedule offer says and what the native kernel's per-person SQL scope already gave it. Guard: tests/sports-refresh-schedule.test.js.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Export FOLLOWED_GAMES_HORIZON_DAYS so GET /games can name the window an empty Games list covers.
  *
  * @module sports-refresh
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.FOLLOWED_GAMES_HORIZON_DAYS = exports.REFRESH_SCHEDULE = void 0;
 exports.currentSeason = currentSeason;
 exports.refreshRatings = refreshRatings;
 exports.getRatings = getRatings;
+exports.monthsCovering = monthsCovering;
 exports.upcomingGames = upcomingGames;
 exports.followedGames = followedGames;
 exports.previewFor = previewFor;
@@ -44,7 +50,10 @@ exports.captureLines = captureLines;
 exports.refreshWorld = refreshWorld;
 exports.refreshStatus = refreshStatus;
 exports.refreshPass = refreshPass;
-exports.startSportsRefresh = startSportsRefresh;
+exports.passKey = passKey;
+exports.lastPassAt = lastPassAt;
+exports.nextDueAt = nextDueAt;
+exports.runRefreshPass = runRefreshPass;
 const logger_1 = require("@/shared/logger");
 const world_data_1 = require("@/features/world-data");
 const sports_preview_1 = require("./sports-preview");
@@ -73,6 +82,8 @@ function tracked() {
 }
 /** Shipped defaults; a deployment row overrides them. Mirrors the manifest's settings.schema. */
 const DEFAULTS = { refreshEnabled: true, refreshIntervalMinutes: 180, ratingsRefreshHours: 24, previewHorizonDays: 8 };
+/** How many days ahead the followed-games list looks; the Games screen names it when the list is empty. */
+exports.FOLLOWED_GAMES_HORIZON_DAYS = DEFAULTS.previewHorizonDays;
 /** Bounds on how much work one refresh pass will do, so a wide follow list cannot run unbounded. */
 const MAX_PREVIEWS_PER_PASS = 40;
 /** Leagues whose lines are captured every pass. Capture is one scoreboard call per league. */
@@ -145,19 +156,41 @@ async function getRatings(pool, league, maxAgeHours = DEFAULTS.ratingsRefreshHou
     return refreshRatings(pool, league);
 }
 /**
- * @description Every scheduled game in a league within the horizon. One request per league covers
- * the whole window, because the scoreboard accepts a date range.
+ * @description The calendar months (ESPN's `YYYYMM` scoreboard key) a window touches, in order.
+ * @param from - Window start.
+ * @param to - Window end.
+ * @returns One `YYYYMM` per month from the start's month to the end's, in UTC.
+ */
+function monthsCovering(from, to) {
+    const months = [];
+    const cursor = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), 1));
+    while (cursor.getTime() <= to.getTime()) {
+        months.push(`${cursor.getUTCFullYear()}${String(cursor.getUTCMonth() + 1).padStart(2, '0')}`);
+        cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+    }
+    return months;
+}
+/**
+ * @description Every scheduled game in a league within the horizon. The scoreboard is read by MONTH
+ * (`dates=YYYYMM`): since at least 2026-10-11 ESPN answers every day range (`YYYYMMDD-YYYYMMDD`, even a
+ * two-day one) with HTTP 400 "Failed to get events endpoint", so a range read captured no game at all.
+ * A window spanning two months costs two requests per league; games are merged by event id.
  * @param league - League to list.
  * @param days - How far ahead to look.
  * @param opts - ESPN options; pass a tracked set to learn whether the read actually succeeded.
- * @returns Scheduled games with whatever prices the scoreboard carried.
+ * @returns Scheduled games inside the window, earliest first, with whatever prices the scoreboard carried.
  */
 async function upcomingGames(league, days, opts = espn) {
     const from = new Date();
     const to = new Date(from.getTime() + days * 86400000);
-    const stamp = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
-    const games = await (0, sports_espn_1.scoreboard)(league, opts, `${stamp(from)}-${stamp(to)}`);
-    return games.filter((g) => Date.parse(g.date) >= from.getTime() - 6 * 3600000);
+    const byEvent = new Map();
+    for (const month of monthsCovering(from, to)) {
+        for (const game of await (0, sports_espn_1.scoreboard)(league, opts, month))
+            byEvent.set(game.eventId, game);
+    }
+    return [...byEvent.values()]
+        .filter((g) => Date.parse(g.date) >= from.getTime() - 6 * 3600000 && Date.parse(g.date) <= to.getTime())
+        .sort((a, b) => Date.parse(a.date) - Date.parse(b.date));
 }
 /**
  * @description The upcoming games involving any followed team, newest first, with each game's
@@ -361,10 +394,13 @@ function conflictingCoachTeams(rows) {
  * ARANGO_URL) — a deployment without it keeps a working odds maker, just without the wires.
  * @param pool - Postgres pool.
  * @param lastPulled - Persistent subject timestamps shared with the ingest pass.
+ * @param sub - Whose followed teams; omitted means every followed team in this store.
  * @returns Followed team, injury and known-coach subjects within the pass budget.
  */
-async function followedWorldSubjects(pool, lastPulled) {
-    const followed = await pool.query('SELECT DISTINCT league, team, team_id, display_name FROM sports_followed_teams ORDER BY league, team, team_id, display_name');
+async function followedWorldSubjects(pool, lastPulled, sub) {
+    const followed = sub
+        ? await pool.query('SELECT DISTINCT league, team, team_id, display_name FROM sports_followed_teams WHERE user_sub = $1 ORDER BY league, team, team_id, display_name', [sub])
+        : await pool.query('SELECT DISTINCT league, team, team_id, display_name FROM sports_followed_teams ORDER BY league, team, team_id, display_name');
     const subjects = [];
     const seen = new Set();
     const conflicts = conflictingCoachTeams(followed.rows);
@@ -395,14 +431,15 @@ async function followedWorldSubjects(pool, lastPulled) {
     return subjects;
 }
 /** @description Ingest deployment-public sports subjects through the existing shared World service.
- * @param pool Current deployment database pool. @returns Actual subject and new-item counts.
+ * @param pool Current deployment database pool. @param sub Whose followed teams name the subjects (omitted: all).
+ * @returns Actual subject and new-item counts.
  */
-async function refreshWorld(pool) {
+async function refreshWorld(pool, sub) {
     const svc = (0, world_data_1.createWorldIntelligenceService)();
     if (!svc)
         return { subjects: 0, newItems: 0 };
     const lastPulled = await (0, sports_store_1.worldPullTimes)(pool);
-    const subjects = await followedWorldSubjects(pool, lastPulled);
+    const subjects = await followedWorldSubjects(pool, lastPulled, sub);
     // The matchup subjects come from previews already built this pass, so a game nobody follows never
     // gets a subject — the same team-first discipline the rest of the package is built on.
     const upcoming = await pool.query(`SELECT league, event_id, home_team, away_team FROM sports_previews
@@ -425,34 +462,36 @@ async function refreshWorld(pool) {
         log.info({ subjects: due.length, newItems, feeds: sports_world_1.SPORTS_FEED_IDS.length }, 'world subjects refreshed');
     return { subjects: due.length, newItems };
 }
-/** Module-level loop state, so a package reload cannot start a second timer. */
-let timer = null;
+/** The manifest's schedule (oshal-app.yaml `schedules:` refresh-pass) that fires a pass as the person who activated it. */
+exports.REFRESH_SCHEDULE = Object.freeze({ app: 'sports-edge', name: 'refresh-pass', route: '/api/sports-edge/refresh/run' });
+/** The last pass this process ran, for the status panel. Nothing here runs on its own. */
 let lastRun = null;
 let lastError = null;
 let running = false;
 /**
- * @description Current state of the background loop, for the status panel.
- * @returns Whether the loop is armed, when it last ran, and its last error.
+ * @description Current state of the scheduled refresh, for the status panel.
+ * @returns The schedule that runs it, when this process last ran a pass, its last error, and whether one is running.
  */
 function refreshStatus() {
-    return { armed: timer !== null, lastRun, lastError, running };
+    return { schedule: exports.REFRESH_SCHEDULE, lastRun, lastError, running };
 }
 /**
  * @description One full pass: grade what has finished, then rebuild previews for games starting
  * inside the horizon. Bounded by `MAX_PREVIEWS_PER_PASS` so a long follow list cannot turn one
  * pass into an unbounded crawl.
  * @param pool - Postgres pool.
+ * @param sub - The person whose followed teams are previewed and named to World.
  * @returns Counts, for the log line.
  */
-async function refreshPass(pool) {
+async function refreshPass(pool, sub) {
     const settings = { ...DEFAULTS, ...(await (0, sports_store_1.readSettings)(pool, sports_store_1.DEPLOYMENT_SCOPE)) };
     // Capture FIRST. It is the cheapest thing in the pass and the only thing whose data cannot be
     // recovered if the pass later fails on something else.
     const lines = await captureLines(pool);
     const graded = await gradeDue(pool);
     let previews = 0;
-    // Only games someone follows are previewed; this package never sweeps a whole board.
-    const followedRows = await pool.query('SELECT DISTINCT league, team FROM sports_followed_teams');
+    // Only the caller's followed teams are previewed; this package never sweeps a whole board.
+    const followedRows = await pool.query('SELECT DISTINCT league, team FROM sports_followed_teams WHERE user_sub = $1', [sub]);
     const byLeague = new Map();
     for (const r of followedRows.rows) {
         const league = r.league;
@@ -473,51 +512,88 @@ async function refreshPass(pool) {
     // Last in the pass, and deliberately so: it is the only step whose work can be caught up later.
     // A missed line capture is gone forever and an ungraded call is evidence not yet recorded, but a
     // news pull deferred by three hours is a news pull three hours late.
-    const world = await refreshWorld(pool).catch((err) => {
+    const world = await refreshWorld(pool, sub).catch((err) => {
         log.warn({ err }, 'world refresh failed');
         return { subjects: 0, newItems: 0 };
     });
     return { graded, previews, lines, world };
 }
 /**
- * @description Start the background loop. Idempotent per process — a package reload re-invokes the
- * route factory, and a second timer would double every external read.
- * @param ctx - App context supplying the pool.
- * @returns Nothing.
+ * Slack under the interval before a pass is due. The schedule fires on its cron and a pass is stamped
+ * when it starts, so two fires exactly one interval apart can land a few seconds short of it; without
+ * slack every second scheduled fire would answer not_due.
  */
-function startSportsRefresh(ctx) {
-    if (timer)
-        return;
-    const pool = ctx.pool;
-    const tick = async () => {
-        if (running)
-            return;
-        running = true;
-        try {
-            await (0, sports_store_1.ensureSchema)(pool);
-            await (0, sports_line_store_1.ensureLineSchema)(pool);
-            const settings = { ...DEFAULTS, ...(await (0, sports_store_1.readSettings)(pool, sports_store_1.DEPLOYMENT_SCOPE)) };
-            if (!settings.refreshEnabled) {
-                lastRun = new Date().toISOString();
-                return;
-            }
-            const result = await refreshPass(pool);
+const DUE_SLACK_MS = 10 * 60000;
+/** @description The sports_settings scope that holds one person's last pass start. @param sub - Caller. @returns The key. */
+function passKey(sub) {
+    return `__refresh_pass__:${sub}`;
+}
+/**
+ * @description When this person's last requested pass started, from the store (not this process, which
+ * may not be the one that ran it).
+ * @param pool - The request's Postgres pool.
+ * @param sub - Caller.
+ * @returns The ISO start of the last pass, or null when none is recorded.
+ */
+async function lastPassAt(pool, sub) {
+    const stamp = (await (0, sports_store_1.readSettings)(pool, passKey(sub))).lastPassAt;
+    return typeof stamp === 'string' && Number.isFinite(Date.parse(stamp)) ? stamp : null;
+}
+/**
+ * @description Whether a pass is due for this person under the deployment's refresh interval.
+ * @param last - The last pass start, or null.
+ * @param intervalMinutes - The resolved refreshIntervalMinutes.
+ * @param nowMs - Current epoch ms.
+ * @returns null when due, else when it next will be.
+ */
+function nextDueAt(last, intervalMinutes, nowMs = Date.now()) {
+    if (!last)
+        return null;
+    const due = Date.parse(last) + Math.max(30, Number(intervalMinutes) || DEFAULTS.refreshIntervalMinutes) * 60000 - DUE_SLACK_MS;
+    return nowMs >= due ? null : new Date(due).toISOString();
+}
+/**
+ * @description Run one refresh pass inside the caller's admitted request (POST /refresh/run, fired by the
+ * `refresh-pass` schedule). A pass already running in this process is not started twice; a deployment
+ * that switched refreshing off records the visit and does nothing; a pass inside the configured interval
+ * since the caller's last one answers not_due, so a caller cannot loop full passes (and the ratings
+ * rebuild a stale cache triggers). A failure is recorded for the status panel and rethrown, so the
+ * schedule's run receipt shows it.
+ * @param pool - The request's Postgres pool.
+ * @param sub - The caller, whose followed teams the pass covers.
+ * @param opts - force (operator only, enforced by the route).
+ * @returns Whether a pass ran, and its counts.
+ */
+async function runRefreshPass(pool, sub, opts = {}) {
+    if (running)
+        return { ran: false, skipped: 'already_running' };
+    running = true;
+    try {
+        await (0, sports_store_1.ensureSchema)(pool);
+        await (0, sports_line_store_1.ensureLineSchema)(pool);
+        const settings = { ...DEFAULTS, ...(await (0, sports_store_1.readSettings)(pool, sports_store_1.DEPLOYMENT_SCOPE)) };
+        if (!settings.refreshEnabled) {
             lastRun = new Date().toISOString();
-            lastError = null;
-            log.info({ ...result }, 'refresh pass complete');
+            return { ran: false, skipped: 'refresh_disabled' };
         }
-        catch (err) {
-            lastError = err.message;
-            log.error({ err }, 'refresh pass failed');
-        }
-        finally {
-            running = false;
-        }
-    };
-    // A first pass shortly after start, so a freshly deployed box is warm without waiting a cadence.
-    setTimeout(() => { void tick(); }, 45000).unref?.();
-    timer = setInterval(() => { void tick(); }, DEFAULTS.refreshIntervalMinutes * 60000);
-    timer.unref?.();
-    log.info({ intervalMinutes: DEFAULTS.refreshIntervalMinutes }, 'sports-edge refresh loop armed');
+        const last = await lastPassAt(pool, sub);
+        const next = opts.force ? null : nextDueAt(last, settings.refreshIntervalMinutes);
+        if (last && next)
+            return { ran: false, skipped: 'not_due', lastPassAt: last, nextDueAt: next };
+        await (0, sports_store_1.writeSettings)(pool, passKey(sub), { lastPassAt: new Date().toISOString() });
+        const result = await refreshPass(pool, sub);
+        lastRun = new Date().toISOString();
+        lastError = null;
+        log.info({ ...result }, 'refresh pass complete');
+        return { ran: true, result };
+    }
+    catch (err) {
+        lastError = err.message;
+        log.error({ err }, 'refresh pass failed');
+        throw err;
+    }
+    finally {
+        running = false;
+    }
 }
 //# sourceMappingURL=sports-refresh.js.map

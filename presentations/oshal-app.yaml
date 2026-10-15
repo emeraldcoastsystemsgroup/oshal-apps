@@ -11,6 +11,9 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 2.12.5: make the Guide's tool-less editor proposal compatible with protected direct reasoning.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 2.12.8: the family audience view for the Home shell (ADR-164 D6) — the household's recent documents from the studio's own /list read, in plain words, each opening in a new tab, with honest empty, signed-out, refused and unreadable states; the company and classroom views are unchanged.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 2.13.0: draw a deck, document or workbook in the caller's Create brand kit: the studio offers "Your brand", built by the kernel's brandTheme from the kit's colors and faces on the nearest look's layout, picks it when nothing else chose a look, and every render and send carries the kit; the record names the look brand:<base>; an invalid kit is a 400. Needs a framework whose deck engine has brandTheme; on an older one the studio keeps the nearest built-in look.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Declare the native-kernel egress hosts the delivery legs send through: gmail.googleapis.com (gmail), graph.microsoft.com (outlook) and slack.com (slack), each with the caller's own connection applied by the kernel as a Bearer token, and files.slack.com with no credential for Slack's pre-signed upload URL.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | The AI-draft outline runs on this package's own deck-builder bot (routes), and deck-builder gets one route-backed read, presentations-list (GET /api/presentations/sections/list), so asked about the person's decks it reads them instead of saying it has no access. Guarded by scripts/check-store-bots.test.mjs.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Declare migrations/001-presentations.sql (the My decks record table in its final shape) so the native kernel provisions it: every record INSERT was refused "SQL table oshal_presentations is not provisioned", so My files listed decks dated 'Dec 31' with no slide count and Delete removed rows: 0.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — presentations (AI Office: deck / document / workbook studio)
@@ -120,6 +123,19 @@ dependencies:
     tools: []
     connectors: [dropbox, github, google-drive, google, microsoft, slack]
 
+# Native kernel egress: the hosts the email and Slack delivery legs send through when the package runs in
+# the kernel's sandbox. The kernel applies the caller's own connection for the named connector as a Bearer
+# token; the package never holds it. files.slack.com is the pre-signed upload URL Slack hands back, which
+# takes no credential.
+egress:
+  - host: gmail.googleapis.com
+    credential: { connector: gmail, header: authorization, prefix: "Bearer " }
+  - host: graph.microsoft.com
+    credential: { connector: outlook, header: authorization, prefix: "Bearer " }
+  - host: slack.com
+    credential: { connector: slack, header: authorization, prefix: "Bearer " }
+  - host: files.slack.com
+
 # Guest tier REQUEST (ADR-085 D4): core listed 'presentations' Tier-A (interactive demo
 # app — guests could build a deck). Unapproved default = guests read-only until the
 # operator approves via PATCH /api/swarm/apps/presentations/guest-tier.
@@ -162,6 +178,20 @@ ui:
 surface:
   ops: [set_field, set_content, custom]
 
+# Route-backed read for deck-builder (native kernel: executorType api, inside this package's mount).
+tools:
+  - name: presentations-list
+    displayName: My Decks
+    type: api
+    category: productivity
+    description: The person's saved decks, documents and workbooks, newest first (title, format, slides, where it saved, its link).
+    executor: { executorType: api, apiEndpoint: "GET /api/presentations/sections/list" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks what they have made. Name only decks this returns; an empty list means nothing is saved yet.
+    tags: [presentations, route-backed]
+
 routes:
   - module: routes/home-summary.js
     factory: createHomeSummaryRoutes
@@ -185,8 +215,10 @@ routes:
     requiresAuth: true
     requiresContext: true
 
-# No migrations: oshal_presentations is lazy DDL — the packaged ensurePresentationsSchema
-# carries CREATE + owner-RLS at the chokepoint (table stays in place across the carve).
+# The "My decks" record table is declared so the native kernel provisions it; on PostgreSQL the
+# packaged ensurePresentationsSchema still adds its owner-RLS at the chokepoint.
+migrations:
+  - migrations/001-presentations.sql
 
 # Trim the ribbon to: the Presentations surface, the ticket queue (your decks),
 # settings, and logs. Hide everything else.

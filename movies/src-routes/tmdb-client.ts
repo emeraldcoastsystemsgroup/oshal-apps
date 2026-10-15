@@ -20,6 +20,9 @@
  * 2026-06-21 | roger.murphy@emeraldcoastsystemsgroup.com | ADR-065: route HTTP through the shared
  *            | ConnectorClient runtime (retries, rate-limit, structured errors). Same public API +
  *            | output shapes; the movies surface is unchanged. /api/connectors/tmdb is now canonical.
+ * 2026-10-10 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: when OSHAL_EGRESS=kernel the package
+ *            | sends TMDB requests through the global fetch with no key and the kernel applies the manifest's
+ *            | declared credential; the legacy ConnectorClient path is unchanged elsewhere.
  * ---------------------------------------------------------------------------
  * @module tmdb-client
  */
@@ -59,7 +62,31 @@ export const isV4 = (key: string) => String(key).startsWith('eyJ');
  * inherits retries/backoff, the rate-limit governor, and a structured ConnectorError (which still
  * carries `.status`). v4 token → Bearer; v3 key → ?api_key=. Same return shape as before.
  */
+/** The sentinel key routes pass when the native kernel applies the declared TMDB credential itself. */
+export const KERNEL_KEY = 'kernel';
+
+/** True inside the native kernel's package sandbox, where the manifest's `egress` declaration carries the key. */
+export function kernelEgress(): boolean {
+  return process.env.OSHAL_EGRESS === 'kernel';
+}
+
+/**
+ * TMDB GET through the kernel's fenced egress: the package sends no key, the kernel adds the
+ * declared `api_key` for api.themoviedb.org. A refusal (undeclared host, no secret) rejects.
+ */
+async function kernelGet(pathAndQuery: string): Promise<any> {
+  const res = await fetch(`${BASE}${pathAndQuery}`, { headers: { accept: 'application/json' } });
+  if (!res.ok) throw Object.assign(new Error(`tmdb answered HTTP ${res.status}`), { status: res.status });
+  return res.json();
+}
+
+/** The cheapest authenticated read: proves the kernel holds a working TMDB credential. */
+export async function tmdbConfiguration(): Promise<any> {
+  return get(KERNEL_KEY, '/configuration');
+}
+
 async function get(key: string, pathAndQuery: string): Promise<any> {
+  if (kernelEgress()) return kernelGet(pathAndQuery);
   const client = new ConnectorClient({
     provider: 'tmdb',
     baseUrl: BASE,

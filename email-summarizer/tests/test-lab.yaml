@@ -8,6 +8,8 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: the isolation case also expects 409 no_mail_connection from message, draft and send for a caller with no mailbox (the Yahoo fallback is list, digest and summary only).
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: register the audience view contract of My Day (ADR-164 D6): the company view for the Business shell reads only the digest and the saved digest on open, writes a new digest only on a click, and names each empty, refused and failed state.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register the native-kernel egress case: mailbox, calendar, send and Social profile requests reach their declared hosts with no credential and map to the package's rows; missing or lapsed connections keep the 409s.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | surface-provider and audience-view: the surfaces no longer offer Yahoo (no Yahoo connector on this installation; its runtime answers a Yahoo read 501). No switch option, a saved Yahoo choice falls back to the server's pick, and the no-mailbox notices name Google and Outlook only.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -73,6 +75,30 @@ cases:
       timeoutMs: 30000
       maxMemoryMb: 256
     installation: never
+  - id: kernel-egress
+    name: Native kernel mail egress
+    purpose: Drive the compiled mail routes with OSHAL_EGRESS=kernel, the bridge's inert framework stand-ins, synthetic connection metadata and a recording fetch - no network or credentials.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/kernel-egress.test.cjs
+    expected:
+      - Gmail, Calendar, Graph and Facebook requests go to gmail.googleapis.com, www.googleapis.com, graph.microsoft.com and graph.facebook.com with no Authorization, Prefer or access_token.
+      - Gmail answers map to the same bounded summaries; Graph answers to the same rows; the digest counts them.
+      - The default mailbox follows the caller's connection metadata (Google first); no or a lapsed connection answers the same 409s, and so does a kernel "not connected" refusal or a 401.
+      - A confirmed Gmail send posts the fenced MIME (CRLF flattened); a confirmed Outlook send posts Graph sendMail JSON; neither uses the inert framework sender.
+      - Outside the kernel the broker token still travels as a Bearer header.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
   - id: surface-provider
     name: Inbox and My Day mailbox switch
     purpose: Run the two surface scripts in a node:vm context with a minimal DOM and a recording fetch; this is not a browser receipt.
@@ -86,7 +112,8 @@ cases:
       - The chosen mailbox reaches the API as ?provider=, and an unknown saved value falls back to the server default.
       - Opening and drafting a message stay on the mailbox the list used; the My Day summary follows the digest's mailbox.
       - A missing connection shows the matching Connect notice linking to /utilities.
-      - A Yahoo row opens from the list data alone, with no message or draft request.
+      - A Yahoo list the server picks opens from the list data alone, with no message or draft request.
+      - No surface offers Yahoo; a saved Yahoo choice is not requested and the no-mailbox notice names Google and Outlook only.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -152,6 +179,29 @@ cases:
       - A new digest is written only when the reader clicks Summarize my day, once even on a double click, and a refused run is named.
       - A mailbox that is not connected, a core without a Yahoo reader, a refusal and a failed read each read as what they are.
       - Under an audience view the full page binds no mailbox switch and reads nothing.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: mailbox-connect
+    name: Connect notices start the mailbox provider's own sign-in
+    purpose: >-
+      Run the shipped connect notice of My Day and Inbox: one button per mailbox provider starts that provider's
+      sign-in through the kernel's authorize step at the top level ('Connect Google or Outlook' opened the unfiltered
+      Connections page), an All connections link stays, and a refused or insecure sign-in is said without navigating.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/mailbox-connect.test.cjs
+    expected:
+      - No mailbox offers Connect Google (Gmail) and Connect Outlook / Microsoft 365; a missing Outlook offers only Outlook.
+      - A button fetches /connectors/<id>/authorize and navigates only to an https sign-in address.
     prerequisites:
       - runner:node-test
     sideEffects: none

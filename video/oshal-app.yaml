@@ -10,6 +10,9 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Import vids-operator from its single owning application, vids, instead of relying on global aliases or duplicate bot ownership.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4: declare existing series storyboarding and pump schema; await native ticket and screenplay acknowledgements.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.9.5: use declared native media transport and full-read-set transactions while retaining ordinary PostgreSQL behavior.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | video-editor routing words "video studio" and "video project": "Create a new project in Video Studio" scored Scene Studio's "studio" and never this app, so Jarvis offered Scene Studio for it. No route, tool, permission or binding change.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Sweep 13: the held editor tools read 'Video New Project' / 'Video Apply Edits' with no sentence on their approval cards; they are 'New video project' / 'Apply video edits' with a cardText each. Words only: no route, scope, schema or binding change.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Declare protected owned-job discovery and approval-held Motion job import with closed inputs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — video ("Video Studio")
@@ -44,6 +47,11 @@ suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own cate
 rating:
   memoryMb: { low: 32, high: 128, basis: declared }
   features:
+    - id: video-editing-command
+      unit: editing command
+      tier: T1
+      generation: none
+      degrade: disable
     - id: storyboard
       unit: storyboard
       tier: T2
@@ -64,8 +72,9 @@ description: >-
   Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from an idea.
   Shape the style, tone, length, captions and voiceover; the director storyboards it and the
   studio renders a real .mp4 with voiceover and captions, saved to your Files storage.
-version: 1.9.6
+version: 1.11.0
 status: active
+chatBot: video-editor
 
 # Per-app skin (approved palette) — sakura so the media studio reads distinct.
 theme: sakura
@@ -98,12 +107,33 @@ uses:
   - app-dependencies # compatibility floor for the tiered dependencies block (ADR-085 addendum)
   - test-catalog
   - application-authorization # the named catalog below; older cores refuse it instead of ignoring it
+  - experience-roles
 
 # ADR-149 named catalog: studio view/read/generate, pump management, and the manual editor's own
 # view/read/create/change/delete/export. Every endpoint of every route below has a binding.
 authorization:
   version: 1
   catalog: authorization.yaml
+  roleTemplates:
+    - id: admin
+      version: 1
+      label: Video Studio Administrator
+      members:
+        - { app: video, role: admin }
+        - { app: vids, role: '@app-admin' }
+        - { app: create, role: admin }
+        - { app: motion-studio, role: administrator }
+    - id: creator
+      version: 1
+      label: Video Creator
+      members:
+        - { app: video, role: producer }
+        - { app: video, role: creator }
+        - { app: video, role: editor }
+        - { app: video, role: exporter }
+        - { app: vids, role: '@app-admin' }
+        - { app: create, role: creator }
+        - { app: motion-studio, role: creator }
 
 testing:
   version: 1
@@ -122,7 +152,7 @@ dependencies:
     tools: []
     connectors: []
   optional:
-    apps: [create]   # owns the brand kit the brand chips read; absent, the chips stay hidden
+    apps: [create, motion-studio] # optional brand kit and exact editable Motion render source
     tools: []
     connectors: []
 
@@ -136,6 +166,26 @@ voice:
 # blocks (kernel-resident). The personas here are package COPIES for the registrar;
 # the inline nodes keep using /app/ai-lab (core).
 bots:
+  - agentId: c504b2de-81f6-44c9-bad5-b4c042b7c4c6
+    name: video-editor
+    persona: personas/video-editor.yaml
+    posture: inline
+    role: creative/video-editor
+    capabilities:
+      - video-project-inspection
+      - video-revision-editing
+    selectorDescriptor: >-
+      Select for owned Video manual timeline projects: multitrack clips, linked audio, fades, keyframes,
+      captions and render jobs. Prompted video storyboards remain video-director; series scripts remain
+      screenplay-writer.
+    routingKeywords:
+      - video studio
+      - video project
+      - multitrack
+      - video editing
+      - timeline
+      - trim clips
+      - video captions
   - agentId: a0000000-0000-0000-0000-000000000048
     name: video-director
     persona: personas/video-director.yaml
@@ -172,6 +222,7 @@ migrations:
   - migrations/070-video-series-storyboarding-status.sql
   - migrations/071-video-pump.sql
   - migrations/068-video-edit-projects.sql   # the manual editor's own private, forced-RLS tables
+  - migrations/072-video-motion-sources.sql # immutable exact-owner editable Motion source lineage
   - migrations/069-video-edit-exports.sql    # its export jobs, same forced two-arm policy
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -292,3 +343,439 @@ summary:
   tilesPointer: /tiles
   metricsPointer: /metrics
   itemsPointer: /items
+
+# Route-backed tools run as the original caller; edits use the existing approval cards.
+tools:
+  - name: video-editing-contract
+    displayName: Video Editing Contract
+    type: api
+    category: creative
+    description: Read the installed editing operations, examples, limits and unsupported features.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/video/editor/editing-contract
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      additionalProperties: false
+    usageInstructions: >-
+      Read this before constructing edits. It describes the installed source contract; it does not certify
+      installed rendering.
+    routingTags:
+      - creative
+      - editing
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+  - name: video-list-projects
+    displayName: Video List Projects
+    type: api
+    category: creative
+    description: List this person’s own saved editing projects.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/video/editor/projects
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      additionalProperties: false
+    usageInstructions: Choose a project returned here; never guess an id or ownership.
+    routingTags:
+      - creative
+      - editing
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+  - name: video-read-project
+    displayName: Video Read Project
+    type: api
+    category: creative
+    description: Inspect an owned project document and its exact current revision.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/video/editor/projects/{input.id}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: >-
+      Read before editing; use actual layer/track/source/clip ids and returned revision. Large documents may
+      exceed bounded tool output; ask for the editor surface rather than invent missing data.
+    routingTags:
+      - creative
+      - editing
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+  - name: video-new-project
+    displayName: New video project
+    type: api
+    category: creative
+    description: Create an empty owned editable project.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/video/editor/agent-projects
+    defaultAuthMode: ask
+    requiresApproval: true
+    cardText: Creates an empty video project you can open from the Video editor tab.
+    inputSchema:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+      required:
+        - title
+      additionalProperties: false
+    usageInstructions: >-
+      Create only when requested. Returns an owned saved project. Video starts with empty video1/audio1
+      tracks; Create starts with an empty canvas.
+    routingTags:
+      - creative
+      - editing
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+  - name: video-apply-edits
+    displayName: Apply video edits
+    type: api
+    category: creative
+    description: Apply a bounded batch of immutable editing operations as one new owned revision.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/video/editor/projects/{input.id}/operations
+    defaultAuthMode: ask
+    requiresApproval: true
+    cardText: Saves these edits to your video project as a new revision.
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        baseRevision:
+          type: integer
+          minimum: 1
+          maximum: 100000
+        operations:
+          type: array
+          minItems: 1
+          maxItems: 16
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - type
+            properties:
+              type:
+                type: string
+                enum:
+                  - migrate
+                  - rename
+                  - addSource
+                  - removeSource
+                  - replaceMotionSource
+                  - addTrack
+                  - track
+                  - addClip
+                  - clip
+                  - moveClip
+                  - removeClip
+                  - split
+                  - extractAudio
+                  - unlink
+                  - text
+                  - removeText
+              id:
+                type: string
+                maxLength: 100
+              name:
+                type: string
+                minLength: 1
+                maxLength: 120
+              key:
+                type: string
+                maxLength: 32
+              kind:
+                type: string
+                enum:
+                  - video
+                  - audio
+              track:
+                type: string
+                maxLength: 100
+              patch:
+                type: object
+              entry:
+                type: object
+              start:
+                type: integer
+                minimum: 0
+                maximum: 1800
+              in:
+                type: integer
+                minimum: 0
+                maximum: 1800
+              out:
+                type: integer
+                minimum: 1
+                maximum: 1800
+              frame:
+                type: integer
+                minimum: 0
+                maximum: 1800
+              ripple:
+                type: boolean
+              sourceKey:
+                type: string
+                maxLength: 32
+              sourceMetadata:
+                type: object
+      required:
+        - id
+        - baseRevision
+        - operations
+      additionalProperties: false
+    usageInstructions: >-
+      Read editing-contract and read-project first. Use returned revision exactly; at most16 operations/16KiB
+      total. One batch saves one revision. Existing open browser drafts need an explicit reload. On conflict
+      re-read and reconsider intent; never retry blindly. The person approves the exact edit card before
+      execution.
+    routingTags:
+      - creative
+      - editing
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+  - name: video-render-project
+    displayName: Video Render Project
+    type: api
+    category: creative
+    description: Start an actual owned preview or MP4 export job for an explicit saved revision.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/video/editor/projects/{input.id}/exports
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 100000
+        variant:
+          type: string
+          enum:
+            - preview
+            - export
+      required:
+        - id
+        - revision
+        - variant
+      additionalProperties: false
+    usageInstructions: >-
+      Do not claim completion from accepted/queued. Poll video-render-status; native/runtime failures are real
+      and must be reported.
+    routingTags:
+      - creative
+      - editing
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+  - name: video-list-renders
+    displayName: Video List Renders
+    type: api
+    category: creative
+    description: List owned render jobs for a project.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/video/editor/projects/{input.id}/exports
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: Read actual job states; no rendering is started.
+    routingTags:
+      - creative
+      - editing
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+  - name: video-render-status
+    displayName: Video Render Status
+    type: api
+    category: creative
+    description: Read one owned render job status and output measurements.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/video/editor/exports/{input.id}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: >-
+      Only a succeeded job has a usable output. Link /api/video/editor/exports/<returned id>/download only
+      after succeeded. Do not invent output or provider results.
+    routingTags:
+      - creative
+      - editing
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+  - name: video-cancel-render
+    displayName: Video Cancel Render
+    type: api
+    category: creative
+    description: Cancel one owned render job.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/video/editor/exports/{input.id}/cancel
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: Cancel only the job the person requested. Report actual returned state.
+    routingTags:
+      - creative
+      - editing
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+
+  - name: video-list-motion-renders
+    displayName: Find owned Motion renders
+    type: api
+    category: creative
+    description: List every ready owned Motion MP4 with its actual composition title, immutable revision and render profile. Requires original Writer and current Motion export access.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/video/editor/motion-renders
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {}
+    usageInstructions: >-
+      Discover actual ready Motion jobs before proposing an import. Resolve a named composition from the protected
+      returned title and revision; ask if ambiguous. Returns jobs, at most two complete ready MP4 receipts;
+      overflow refuses rather than silently omitting a render. This metadata call creates no project, render,
+      handle or media. It still requires original Writer Video read/change and current Motion export authority.
+      Report source duration/size/profile incompatibility honestly; never invent a job or handle.
+    routingTags: [creative, editing, motion]
+    skills: [creative-editing]
+    tags: [route-backed]
+  - name: video-import-motion-render-job
+    displayName: Import owned Motion render
+    type: api
+    category: creative
+    description: Import an actual discovered owned ready Motion job through native typed exchange and preserve its editable composition source.
+    cardText: Import this owned Motion render into your Video media with its editable source link.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/video/editor/motion-render-jobs/{input.id}/import
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [id, name, requestKey]
+      properties:
+        id: { type: string, minLength: 36, maxLength: 36 }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        requestKey: { type: string, minLength: 36, maxLength: 36 }
+    usageInstructions: >-
+      Use the actual id returned by video-list-motion-renders, not a guessed source or caller lineage.
+      Generate one requestKey UUID and retain it for an uncertain same-render reply; native recovery is bounded
+      to one hour and the current source generation. Approval mints a typed owned Motion handle internally
+      and uses the existing verified H264 import. It returns sourceMetadata and sourceUrl, not a saved Video edit.
+      Freshly read the target Video project, then propose video-apply-edits addSource or replaceMotionSource
+      with this exact sourceMetadata and current baseRevision; keep existing trims and locked tracks.
+      Graph edits happen in Motion at the pinned revision. Current Video source limit is H264 MP4
+      up to100MiB/30s/1920px, even if Motion can render more. Never claim import or save before success.
+    routingTags: [creative, editing, motion]
+    skills: [creative-editing]
+    tags: [route-backed]
+
+  - name: video-import-motion-render
+    displayName: Import Motion Composition Render
+    type: api
+    category: creative
+    description: Import an owned verified Motion render and preserve its editable native composition source revision.
+    cardText: Add this rendered Motion composition to your Video media with its editable source link.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/video/editor/motion-media
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [ref, name, requestKey]
+      properties:
+        ref: { type: string, minLength: 68, maxLength: 68 }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        requestKey: { type: string, minLength: 36, maxLength: 36 }
+    usageInstructions: >-
+      Use only a real original-owned Motion render handle minted from a ready MP4 render job.
+      Generate one requestKey UUID and retain it when an uncertain reply is retried; never reuse it for another render.
+      Returns sourceMetadata with immutable motion lineage and sourceUrl. Use addSource or replaceMotionSource
+      in video-apply-edits to save it into a project. Never fabricate lineage. Source graph edits open in Motion
+      at the pinned revision; the Video media is an immutable rendered cache. Requires current Motion Writer
+      export access and Video read/change; current native Video source profile is H264 MP4 <=100MiB/30s/1920px,
+      while its output timeline can be 60s. Existing cache survives source removal; graph access does not.
+    routingTags: [creative, editing, motion]
+    skills: [creative-editing]
+    tags: [route-backed]

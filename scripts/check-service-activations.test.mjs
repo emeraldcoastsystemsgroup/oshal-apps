@@ -4,6 +4,8 @@
  * SEQ                 | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | ADR-157 S3: mutation-proof the scheduled-service declaration gate. Each case removes or corrupts exactly one thing in a disposable one-package store and asserts the gate goes red for it — a dropped runsAs, an invented class, a requires naming a permission the catalog does not define, and a requires on a package with no catalog at all (which makes the KERNEL refuse the whole manifest, so the app would not install). The last two cases pin the real declarations in this repository, so deleting one from a shipped manifest turns this suite red rather than leaving the gate to be quietly removed from CI.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Pin trading's paper-autopilot (runsAs: user, TRADE-01) in the shipped service-route inventory: a person job each person activates for their own paper book.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Pin kalshi's background-scan and sports-edge's refresh-pass (runsAs: user): each replaces an in-process timer whose work ran outside any admitted request, and each person activates it for their own scan / followed teams.
  */
 
 import test from 'node:test';
@@ -20,9 +22,12 @@ const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)
 const DECLARED = [
   ['calendar', 'calendar-meeting-briefs', 'system'],
   ['daily-trade-recap', 'daily-trade-recap-recorded-reports', 'system'],
+  ['kalshi', 'background-scan', 'user'],
   ['lora', 'lora-autonomous-overnight', 'system'],
   ['marketing-engine', 'daily-metrics-ingest', 'system'],
   ['marketing-engine', 'weekly-campaign-review', 'system'],
+  ['sports-edge', 'refresh-pass', 'user'],
+  ['trading', 'paper-autopilot', 'user'],
   ['venture-plan', 'rebaseline-policy-tick', 'system'],
 ];
 

@@ -6,6 +6,7 @@
  * 2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Source-of-truth guard for the completed Spaces carve: protect the packaged factory and /pair endpoint in source and compiled routes, parse every served inline script, and pin the cockpit-versus-embed stylesheet boundary.
  * 2026-08-06 01:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Move the room-scale/8GB/multi-scan acceptance assertion beside its now-authoritative packaged surface before deleting the unrouted kernel copy.
  * 2026-09-14 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | The comment stripper treated the `video/*` MIME wildcard inside the ADR-139 error string as the start of a block comment and swallowed the source up to the next close marker, so the POST /pair invariant has failed against the maintained source since 2026-09-06. A block comment now has to start at a line start or after a non-word character; the two lanes' identity guard lives in upload-identity.core.test.js (needs a framework checkout, so the CI glob is tests/spaces-*.test.js).
+ * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | The empty viewer said "Upload a walk-through video on the left", which is wrong at phone width where the upload form sits above the viewer; its copy now names the form's own labels, and no placeholder copy gives a left/right direction.
  *
  * Dependency-free `node --test` suite, matching the store CI contract.
  */
@@ -124,3 +125,15 @@ test('source and compiled routes both retain mobile pairing ingest', () => {
   }
   assert.match(read(COMPILED_ROUTE), /createSpacesRoutes/, 'compiled route lost the manifest factory export');
 });
+
+test('the empty viewer names the upload controls instead of a side of the screen', () => {
+  const html = fs.readFileSync(path.join(TOOLS_ROOT, 'spaces.html'), 'utf8');
+  const start = html.indexOf('id="placeholder"');
+  const placeholder = html.slice(start, html.indexOf('</div>', start));
+  assert.match(placeholder, /Walk-through video/);
+  assert.match(placeholder, /Reconstruct 3D scene/);
+  assert.doesNotMatch(placeholder, /on the (left|right)\b/i);
+  assert.match(html, /<label for="video">Walk-through video<\/label>/);
+  assert.match(html, /id="submit-btn">Reconstruct 3D scene</);
+});
+

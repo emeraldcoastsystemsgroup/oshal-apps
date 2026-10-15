@@ -3,6 +3,10 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | On the native kernel (no network in the sandbox) the engine is
+ *                     |                             | reached through the kernel's engine.exchange intent and run
+ *                     |                             | artifacts live in the kernel's owner-scoped atomic file root
+ *                     |                             | (/tmp/circuit-store), so a design's rows and files commit together.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The catalog is resolved PER REQUEST, and the response carries the
  *                     |                             | rows it could not resolve. A row may now name another package
  *                     |                             | as the owner of a real part and read it (`sharedPart`), and
@@ -34,7 +38,7 @@ import type { AppContext } from '@/app/composition/app-context';
 import { describeContract, DRIVER_TYPES } from './circuit-contract';
 import { listDrivers, loadDriverCatalog } from './driver-catalog';
 import { engineBuildHash } from './engine-build-hash';
-import { DEFAULT_ENGINE_ADDR, EngineClient, parseEngineAddr } from './engine-client';
+import { DEFAULT_ENGINE_ADDR, EngineClient, parseEngineAddr, type NativeExchange } from './engine-client';
 import { resolveDataRoot } from './data-dir';
 import { createDesignRoutes } from './design-routes';
 import { listExamples } from './examples';
@@ -67,6 +71,27 @@ function serveFile(filePath: string, contentType: 'html' | 'application/javascri
   };
 }
 
+/** The native kernel restores the caller's files here for each request and checkpoints them after a write. */
+export const NATIVE_DATA_ROOT = '/tmp/circuit-store';
+const NATIVE_INSTALL_HINT = 'on the kernel host run circuit-lab/engine/install-engine.sh and pin the engine in OSHAL_PACKAGE_ENGINES';
+
+/** @description True inside the native kernel's sandbox: its pool is the kernel's scoped document store. */
+export function nativeContext(ctx: AppContext): boolean {
+  return (ctx.pool as unknown as { storageModel?: unknown }).storageModel === 'kernel-scoped-documents';
+}
+
+/** @description The engine client: the kernel's engine.exchange intent natively, the TCP bridge otherwise. */
+function engineClient(ctx: AppContext, env: Record<string, string | undefined>, expectedBuildHash: string | null): EngineClient {
+  const addr = parseEngineAddr(env.CIRCUIT_LAB_ENGINE_ADDR || DEFAULT_ENGINE_ADDR);
+  if (!nativeContext(ctx)) return new EngineClient({ host: addr.host, port: addr.port, expectedBuildHash, installHint: installHint(env) });
+  const intent = ctx.intent as ((name: string, input: unknown) => Promise<unknown>) | undefined;
+  return new EngineClient({ host: addr.host, port: addr.port, expectedBuildHash: null, installHint: NATIVE_INSTALL_HINT,
+    exchange: async (request, timeoutMs) => {
+      if (typeof intent !== 'function') throw new Error('the kernel intent port is unavailable');
+      return (await intent('engine.exchange', { request, timeoutMs })) as NativeExchange;
+    } });
+}
+
 /** @description Optional overrides for specs, on top of the framework's per-package context. */
 export interface CircuitLabRouteOpts {
   dataRoot?: string;
@@ -95,17 +120,16 @@ export function installHint(env: Record<string, string | undefined>): string {
  */
 export function createCircuitLabRoutes(ctx: AppContext, opts: CircuitLabRouteOpts = {}): Router {
   const env = opts.env ?? (process.env as Record<string, string | undefined>);
-  const dataRoot = opts.dataRoot ?? resolveDataRoot(env);
+  const native = nativeContext(ctx);
+  const dataRoot = opts.dataRoot ?? (native ? NATIVE_DATA_ROOT : resolveDataRoot(env));
   const appPackageDir = ctx.appPackageDir;
   const engineDir = packageFile(appPackageDir, 'engine');
-  const engineBuild = opts.engineBuild !== undefined ? opts.engineBuild : engineBuildHash(engineDir);
-  const hint = installHint(env);
-  const addr = parseEngineAddr(env.CIRCUIT_LAB_ENGINE_ADDR || DEFAULT_ENGINE_ADDR);
-  const engine = opts.engine ?? new EngineClient({ host: addr.host, port: addr.port, expectedBuildHash: engineBuild, installHint: hint });
+  const packageBuild = opts.engineBuild !== undefined ? opts.engineBuild : native ? null : engineBuildHash(engineDir);
+  const engine = opts.engine ?? engineClient(ctx, env, packageBuild);
   const router = Router();
 
   const surface = packageFile(appPackageDir, 'tools', 'circuit-lab.html');
-  logger.info({ surface, appPackageDir, dataRoot, engine: `${addr.host}:${addr.port}`, engineBuild }, 'Resolved the circuit-lab surface');
+  logger.info({ surface, appPackageDir, dataRoot, engine: engine.status().address, engineBuild: packageBuild }, 'Resolved the circuit-lab surface');
   router.get('/app', serveFile(surface, 'html'));
   const assets = Router();
   for (const file of SURFACE_SCRIPTS) assets.get(`/${file}`, serveFile(packageFile(appPackageDir, 'tools', file), 'application/javascript'));
@@ -140,6 +164,7 @@ export function createCircuitLabRoutes(ctx: AppContext, opts: CircuitLabRouteOpt
     res.json({ drivers: listDrivers(catalog.drivers, type), unresolved: catalog.unresolved.filter((u) => !type || u.type === type) });
   });
 
-  router.use(createDesignRoutes({ pool: ctx.pool, engine, dataRoot, engineBuild, callerSub, timeoutMs: opts.runTimeoutMs }));
+  // Natively the build a run records is the one the engine reported, since the sandbox holds no engine sources.
+  router.use(createDesignRoutes({ pool: ctx.pool, engine, dataRoot, get engineBuild() { return packageBuild ?? engine.status().buildHash; }, callerSub, timeoutMs: opts.runTimeoutMs }));
   return router;
 }

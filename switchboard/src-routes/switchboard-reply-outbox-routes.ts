@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Add a confirmed, encrypted, owner-scoped Gmail reply outbox with request idempotency, atomic worker claims, and fail-closed ambiguous-delivery handling.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Make replay independent of source-row retention and verify every ciphertext field against the stored semantic digest before delivery.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Await `@/features/personal-data` (asynchronous on the native kernel, which holds the key, PDATA-01): the encrypt/decrypt helpers, the replay comparison and the reply sealing are asynchronous, so a ciphertext or plaintext is never a pending Promise.
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -53,16 +54,16 @@ function callerSub(req: Request): string | null {
 }
 
 /** Encrypt one required outbound field under the owner-derived vault key. */
-function encryptRequired(ownerSub: string, value: string): string {
-  const encrypted = encryptField(ownerSub, value);
+async function encryptRequired(ownerSub: string, value: string): Promise<string> {
+  const encrypted = await encryptField(ownerSub, value);
   if (!encrypted || !isEncrypted(encrypted)) throw new Error('Reply encryption failed closed.');
   return encrypted;
 }
 
 /** Decrypt one required outbound field and refuse corrupt/wrong-key envelopes. */
-function decryptRequired(ownerSub: string, stored: string): string {
+async function decryptRequired(ownerSub: string, stored: string): Promise<string> {
   if (!isEncrypted(stored)) throw new Error('Reply ciphertext envelope is missing.');
-  const plain = decryptField(ownerSub, stored);
+  const plain = await decryptField(ownerSub, stored);
   if (!plain || isEncrypted(plain)) throw new Error('Reply decryption failed closed.');
   return plain;
 }
@@ -124,12 +125,12 @@ async function loadExistingReply(pool: AppContext['pool'], sub: string, key: str
 }
 
 /** Verify stored ciphertext against its digest, then compare an incoming idempotent replay. */
-function matchesExistingReply(sub: string, request: ValidReplyRequest, row: Record<string, unknown>): boolean {
+async function matchesExistingReply(sub: string, request: ValidReplyRequest, row: Record<string, unknown>): Promise<boolean> {
   const provider = String(row.provider);
-  const recipient = decryptRequired(sub, String(row.recipient_ciphertext));
-  const subject = decryptRequired(sub, String(row.subject_ciphertext));
-  const sourceMessageId = decryptRequired(sub, String(row.source_message_id_ciphertext));
-  const body = decryptRequired(sub, String(row.body_ciphertext));
+  const recipient = await decryptRequired(sub, String(row.recipient_ciphertext));
+  const subject = await decryptRequired(sub, String(row.subject_ciphertext));
+  const sourceMessageId = await decryptRequired(sub, String(row.source_message_id_ciphertext));
+  const body = await decryptRequired(sub, String(row.body_ciphertext));
   const workspaceId = row.workspace_id ? String(row.workspace_id).toLowerCase() : null;
   const storedHash = replyRequestHash({ ...request, provider, recipient, subject, sourceMessageId, body, workspaceId });
   if (storedHash !== String(row.request_hash)) throw new Error('Reply outbox integrity check failed.');
@@ -149,12 +150,12 @@ async function workspaceAllowsReply(pool: AppContext['pool'], sub: string, works
 }
 
 /** Encrypt the exact approved reply and server-resolved source identity. */
-function encryptedReply(sub: string, request: ValidReplyRequest, recipient: string, subject: string): EncryptedReply {
+async function encryptedReply(sub: string, request: ValidReplyRequest, recipient: string, subject: string): Promise<EncryptedReply> {
   return {
-    recipient: encryptRequired(sub, recipient),
-    subject: encryptRequired(sub, subject),
-    body: encryptRequired(sub, request.body),
-    sourceMessageId: encryptRequired(sub, request.sourceMessageId),
+    recipient: await encryptRequired(sub, recipient),
+    subject: await encryptRequired(sub, subject),
+    body: await encryptRequired(sub, request.body),
+    sourceMessageId: await encryptRequired(sub, request.sourceMessageId),
   };
 }
 
@@ -228,10 +229,10 @@ async function deliverClaim(ctx: AppContext, claim: ClaimedReply): Promise<void>
   let providerAttempted = false;
   try {
     if (claim.provider !== REPLY_PROVIDER) throw new Error('Unsupported reply provider.');
-    const sourceMessageId = decryptRequired(claim.user_sub, claim.source_message_id_ciphertext);
-    const recipient = decryptRequired(claim.user_sub, claim.recipient_ciphertext);
-    const subject = decryptRequired(claim.user_sub, claim.subject_ciphertext);
-    const body = decryptRequired(claim.user_sub, claim.body_ciphertext);
+    const sourceMessageId = await decryptRequired(claim.user_sub, claim.source_message_id_ciphertext);
+    const recipient = await decryptRequired(claim.user_sub, claim.recipient_ciphertext);
+    const subject = await decryptRequired(claim.user_sub, claim.subject_ciphertext);
+    const body = await decryptRequired(claim.user_sub, claim.body_ciphertext);
     const integrityHash = replyRequestHash({
       idempotencyKey: '', sourceMessageId, body, workspaceId: claim.workspace_id ? String(claim.workspace_id).toLowerCase() : null,
       provider: claim.provider, recipient, subject,
@@ -307,7 +308,7 @@ function registerEnqueue(router: Router, ctx: AppContext): void {
     try {
       const existing = await loadExistingReply(ctx.pool, sub, checked.value.idempotencyKey);
       if (existing) {
-        if (!matchesExistingReply(sub, checked.value, existing)) {
+        if (!(await matchesExistingReply(sub, checked.value, existing))) {
           res.status(409).json({ error: 'idempotency_conflict', message: 'This Idempotency-Key already names a different reply.' });
           return;
         }
@@ -323,7 +324,7 @@ function registerEnqueue(router: Router, ctx: AppContext): void {
       }
       const subject = replySubject(source.subject);
       const hash = replyRequestHash({ ...checked.value, provider: REPLY_PROVIDER, recipient, subject });
-      const stored = await insertReply(ctx.pool, sub, checked.value, hash, encryptedReply(sub, checked.value, recipient, subject));
+      const stored = await insertReply(ctx.pool, sub, checked.value, hash, await encryptedReply(sub, checked.value, recipient, subject));
       if (String(stored.row.request_hash) !== hash) {
         res.status(409).json({ error: 'idempotency_conflict', message: 'This Idempotency-Key already names a different reply.' });
         return;

@@ -24,6 +24,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | ADR-143 D9: the Last / Mkt value / Total $ / Total % cells carry data-col and data-stream-symbol so quote-stream.js's stale sweep can grey exactly the cells a print patches (no index arithmetic); the table foot says which columns move on prints and that Today $/% stay the broker's values. Nothing else in the row changes; the print patch itself still re-renders through this function.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | ADR-052 addendum P4: each open position's exit plan beside its governance badge. This file loads tools/ui/position-plans.js once (the page's script list is unchanged), asks it for the selected book's open plans after the positions table has painted (loadPositionPlans repaints the table when they arrive), and renders planPill(symbol) right after governancePills in the table row. Both calls are typeof-guarded, so the table paints exactly as before until the module has loaded, and a book with no plans shows no pill.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | ADR-052 addendum P6 (trading 1.33.0): the armed yield sleeve's fund on the positions table. From 1.33.0 the /ledger payload answers kind 'yield-sleeve' for that fund (no exits, orders still applying), and this file handled it as an unnamed kind in two places. GOV_PILL_CLASS had no entry, so the badge fell back to the NOT KNOWN style while the Exits card painted the same state in the settings style; it now maps to that style. governanceNotice counted the fund under 'N positions the engine will not trade ... still counts toward exposure and drawdown - only the orders are withheld', which contradicts the answer beside it (the sleeve trades the fund, and the engine counts it as parked cash). The fund is now reported in its own block, as a holding pinned in full is: the block states the count and the explanation is the server's detail, unchanged. Every other state renders as before.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | The chart draws the World archive's stored prices when there is no market-data feed: GET /api/trading-charts/bars answers {line, note} instead of candles on that host, and drawFocusChart draws it as a price line titled "stored price" with the server's note under the chart (never invented candles); the avg-cost line still rides on it. A feed's candles draw exactly as before.
  */
 
 /* ADR-052 addendum P4: the per-position plan pill lives in its own module (tools/ui/position-plans.js),
@@ -325,7 +326,21 @@ function renderPortfolioTable() {
 let FCHART = null, FCANDLE = null, FVOL = null, FENTRY = null;
 async function chartBars(symbol, tf) {
   const r = await fetch('/api/trading-charts/bars?symbol=' + encodeURIComponent(symbol) + '&timeframe=' + tf, { credentials: 'include' });
-  const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.message || j.error || ('HTTP ' + r.status)); return j.bars || [];
+  const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.message || j.error || ('HTTP ' + r.status));
+  return { bars: j.bars || [], line: Array.isArray(j.line) ? j.line : null, note: j.note || '' };
+}
+/* The archive's stored prices as one line (no feed: the server sent {line, note}, never candles). Returns the series. */
+function drawArchiveLine(chart, el, data) {
+  const css = getComputedStyle(document.documentElement);
+  const series = chart.addLineSeries({ color: css.getPropertyValue('--buy').trim() || '#34c79a', lineWidth: 2, title: 'stored price' });
+  series.setData(data.line.map(p => ({ time: p.t, value: p.v })));
+  const host = el.parentNode;
+  if (host && data.note) {
+    let n = host.querySelector('.chart-note');
+    if (!n) { n = document.createElement('div'); n.className = 'foot chart-note'; n.style.margin = '6px 0 0'; el.insertAdjacentElement('afterend', n); }
+    n.textContent = data.note;
+  }
+  return series;
 }
 function focus(sym) {
   if (!sym) return;
@@ -369,19 +384,25 @@ async function drawFocusChart(sym) {
   const el = $('focChart'); if (!el) return;
   if (!window.LightweightCharts) { el.innerHTML = '<div class="foot err" style="padding:14px">Chart library failed to load.</div>'; return; }
   if (FCHART) { try { FCHART.remove(); } catch {} FCHART = null; FENTRY = null; }
+  const staleNote = el.parentNode && el.parentNode.querySelector('.chart-note'); if (staleNote) staleNote.remove();
   const css = getComputedStyle(document.documentElement); const line = (v,d)=>(css.getPropertyValue(v).trim()||d);
   FCHART = LightweightCharts.createChart(el, { width: el.clientWidth, height: 330,
     layout:{ background:{ type:'solid', color:'transparent' }, textColor: line('--muted','#8a99a3') },
     grid:{ vertLines:{ color: line('--line','#26333f') }, horzLines:{ color: line('--line','#26333f') } },
     timeScale:{ timeVisible: FOC_TF==='5Min'||FOC_TF==='1Hour', borderColor: line('--line','#26333f') },
     rightPriceScale:{ borderColor: line('--line','#26333f') }, crosshair:{ mode:0 } });
-  FCANDLE = FCHART.addCandlestickSeries({ upColor:'#34c79a', downColor:'#ec7672', wickUpColor:'#34c79a', wickDownColor:'#ec7672', borderVisible:false });
-  FVOL = FCHART.addHistogramSeries({ priceFormat:{ type:'volume' }, priceScaleId:'' });
-  FVOL.priceScale().applyOptions({ scaleMargins:{ top:0.82, bottom:0 } });
+  const chart = FCHART;
   try {
-    const bars = await chartBars(sym, FOC_TF);
-    FCANDLE.setData(bars.map(b => ({ time:b.t, open:b.o, high:b.h, low:b.l, close:b.c })));
-    FVOL.setData(bars.map(b => ({ time:b.t, value:b.v, color: b.c>=b.o?'rgba(52,199,154,.35)':'rgba(236,118,114,.35)' })));
+    const data = await chartBars(sym, FOC_TF);
+    if (FCHART !== chart) return;   // a newer draw replaced this chart while the bars were in flight
+    if (data.line) FCANDLE = drawArchiveLine(FCHART, el, data);
+    else {
+      FCANDLE = FCHART.addCandlestickSeries({ upColor:'#34c79a', downColor:'#ec7672', wickUpColor:'#34c79a', wickDownColor:'#ec7672', borderVisible:false });
+      FVOL = FCHART.addHistogramSeries({ priceFormat:{ type:'volume' }, priceScaleId:'' });
+      FVOL.priceScale().applyOptions({ scaleMargins:{ top:0.82, bottom:0 } });
+      FCANDLE.setData(data.bars.map(b => ({ time:b.t, open:b.o, high:b.h, low:b.l, close:b.c })));
+      FVOL.setData(data.bars.map(b => ({ time:b.t, value:b.v, color: b.c>=b.o?'rgba(52,199,154,.35)':'rgba(236,118,114,.35)' })));
+    }
     const avg = (UNIVERSE[sym]||{}).avg || 0;
     if (avg > 0) FENTRY = FCANDLE.createPriceLine({ price: avg, color:'#5fa8ff', lineWidth:1, lineStyle:2, axisLabelVisible:true, title:'avg cost' });
     FCHART.timeScale().fitContent();

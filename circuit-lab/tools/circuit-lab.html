@@ -103,7 +103,7 @@
   var NOTE = 'Newest first. Last run is the outcome of the most recent solve; an edit made since then is not solved until the lab runs it. Runs counts the solves kept, and Warnings come from the last solve. A row opens that circuit in the full lab.';
   // A failed solve is stored as failure_reason '<code>: <reason>' (routes/simulate-service.js, the only writer). Only the
   // solver's refusal, a sentence about the circuit, is quoted; the other reasons carry the engine address and the
-  // install command, which the full lab shows beside its engine banner.
+  // install command, which are for the operator and are never shown to a person.
   var FAILURES = { refused: 'The solver refused the circuit', capability_unavailable: 'The simulator was not available', engine_busy: 'The simulator was busy', engine_timeout: 'The simulator did not answer in time', engine_error: 'The simulator reported an error' };
   var LAST_RUN = { ran: { text: 'Solved', tone: 'ok' }, failed: { text: 'Failed', tone: 'warn' }, draft: { text: 'Not run yet' } };
   function read(path) {
@@ -153,7 +153,7 @@
   // works, so it is not read.
   function engineNote(caps) {
     if (!caps || !caps.ok || !caps.body || !caps.body.engine) return 'The simulator status could not be read.';
-    return caps.body.engine.lastError ? 'The last request to the simulator failed (not reachable, out of date or timed out), so a run may not solve until it answers; the full lab names the reason and the install command.' : '';
+    return caps.body.engine.lastError ? 'The last request to the simulator failed (not reachable, out of date or timed out), so a run may not solve until it answers.' : '';
   }
   function ledger(designs, c, caps) {
     var note = [c.total > ROWS ? 'The newest ' + ROWS + ' of ' + c.total + ' circuits.' : '', c.total ? NOTE : '', engineNote(caps)].filter(Boolean).join(' ');
@@ -196,7 +196,9 @@
           --cl-accent: var(--accent, #4f8cff); --cl-danger: var(--danger, #e5534b); --cl-ok: var(--ok, #3fb950); --cl-warn: var(--warn, #d29922); --cl-wire: #8fb7ff; --cl-mech: #d7a35c; }
   * { box-sizing: border-box; }
   body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--cl-text); background: var(--cl-bg); }
-  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--cl-line); background: var(--cl-panel); }
+  /* flex-wrap: on a 412px phone the title, tagline, engine pill, example picker and New circuit made a 566px row. */
+  header { display: flex; align-items: center; gap: 8px 12px; padding: 10px 16px; border-bottom: 1px solid var(--cl-line); background: var(--cl-panel); flex-wrap: wrap; }
+  header select { max-width: 100%; }
   header h1 { font-size: 16px; margin: 0; }
   header .spacer { flex: 1; }
   .layout { display: grid; grid-template-columns: 220px 1fr 320px; min-height: calc(100vh - 49px); }
@@ -316,6 +318,7 @@
   <span class="muted small">parts + wires → ngspice → waveforms · motors and gears solve in the same run</span>
   <span class="spacer"></span>
   <span id="engine-pill" class="badge">engine…</span>
+  <label for="example-select" class="muted small">Examples</label>
   <select id="example-select"><option value="">Start from an example…</option></select>
   <button id="new-design" class="primary">New circuit</button>
 </header>
@@ -327,7 +330,6 @@
     <div id="engine-banner" class="banner" hidden>
       <strong>The circuit engine container is not answering.</strong>
       <div id="engine-reason" class="small"></div>
-      <div class="small muted">Install or rebuild it from the host: <code id="engine-hint"></code></div>
     </div>
     <div id="empty-panel">
       <p class="muted">Create a circuit, open one, or start from an example. Click a part in the palette to add it, drag it into place, click one pin then another to wire them, then Run.</p>
@@ -384,6 +386,13 @@
         <ul id="warnings" class="warnings"></ul>
         <p id="downloads" class="small"></p>
       </section>
+      <!-- The declared hand-off (integrations.offers prepare-document -> AI Office prepare-brief). It lives in the open
+           circuit's panel, so it is only on screen when there is a circuit to write up; the note is the same capped
+           digest the assistant rail reads (parts, wires, solver readings, warnings), labelled as simulated. -->
+      <section class="step" id="lab-note">
+        <h2>Lab note <small>the open circuit and its last solve, as a brief in AI Office</small></h2>
+        <div id="labActions" class="row"></div>
+      </section>
     </div>
   </main>
   <aside class="right">
@@ -424,5 +433,20 @@
 <script src="/api/circuit-lab/assets/circuit-lab-board-model.js"></script>
 <script src="/api/circuit-lab/assets/circuit-lab-board.js"></script>
 <script src="/api/circuit-lab/assets/circuit-lab.js"></script>
+<script>
+(function () {
+  if (window.AppView && AppView.active && AppView.active()) return;
+  var el = document.getElementById('labActions');
+  /** The open circuit as a research-brief context, or null when nothing is open (the shell then says so). */
+  function labNote() {
+    var lab = window.CircuitLabAssistant, title = (document.getElementById('design-heading').textContent || '').trim();
+    if (!lab || !title || document.getElementById('design-panel').hidden) return null;
+    return { title: 'Lab note: ' + title, notes: ('SIMULATED in Circuit Lab (ngspice), not a bench measurement.\n' + lab.contextDigest()).slice(0, 2000) };
+  }
+  import('/cockpit/js/app-workflows.js')
+    .then(function (m) { return m.mountConnectedActions({ app: 'circuit-lab', element: el, contextForOffer: labNote }); })
+    .catch(function () { el.textContent = 'Connected actions are unavailable on this screen.'; });
+})();
+</script>
 </body>
 </html>

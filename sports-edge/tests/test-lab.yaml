@@ -5,6 +5,8 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Say that the scoring-history suite now drives the registered lineup route itself. The earlier expectations were all one level below the defect, so a catalog reader could not tell that reverting the route wiring left them green.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | The four fantasy suites drive the fantasy-leagues kernel skill (ADR-146 D2) loaded from the framework source, so they declare fixture:core-checkout and the loader fixture. Register the skill-boundary suite: the private client is gone, no module names the fantasy host or builds the cookie header, and the manifest declares the skill.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 0.11.0: the five fantasy cases moved with their suites to fantasy-football/tests/test-lab.yaml (ADR-146 D1); register sports-fantasy-moved, which proves the old routes answer 410 with the new address and that no fantasy engine module or declaration remains here.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register sports-preview-readonly: GET /preview only reads (the native kernel admits a GET as a reader and refused its build), POST /preview/:eventId/build builds.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register games-next: an empty Games list names its 8-day window and the next game within 35 days (a bye week read as a broken schedule); the audience-view case also expects the followed teams named instead of 'No saved work yet'.
 version: 1
 cases:
   - id: package-readiness
@@ -257,6 +259,50 @@ cases:
       - The boot names this application and exactly the audiences the page provides, with an escape label.
       - The full page start runs only when the kit renders no audience, and when the kit is absent.
       - The head block parses, reads only this package's routes and builds no HTML from data.
+      - With teams followed and no preview built, the notes name the followed teams and say no preview is built yet, never "No saved work yet".
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: sports-preview-readonly
+    name: Preview reads on GET, builds on POST
+    purpose: Drive the compiled preview routes with a reader-admission pool that refuses every write, as the native kernel does for a GET.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-preview-readonly.test.js
+    expected:
+      - GET /preview with nothing stored answers built false and never reads ESPN or writes.
+      - GET /preview with a stored preview answers it and its calls.
+      - POST /preview/:eventId/build is mounted, refuses anonymous callers and unknown leagues.
+      - The page reads with GET and builds or rebuilds with POST.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: games-next
+    name: An empty Games list names its window and the next game
+    purpose: Run the compiled GET /games with framework stand-ins, a pool where the caller follows one team and a stubbed ESPN scoreboard, plus the page's emptyGamesText - no network, database or browser.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-games-next.test.js
+    expected:
+      - A bye week answers horizonDays 8, nextGameLookaheadDays 35 and the next game for the followed team.
+      - A failed schedule read answers no next game; a game inside the window is listed with no look-ahead read.
+      - 'The page says "No games for your teams in the next 8 days. Next: <away> @ <home>, <when>." and no longer says "inside the horizon".'
     prerequisites:
       - runner:node-test
     sideEffects: none

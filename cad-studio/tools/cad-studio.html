@@ -72,6 +72,8 @@
   .model-item { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--cs-line); border-radius: 8px; background: var(--cs-panel2); color: var(--cs-text); cursor: pointer; }
   .model-item.active { border-color: var(--cs-accent); }
   .model-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .model-name { display: flex; flex-direction: column; min-width: 0; }
+  .model-note { font-size: 11px; color: var(--cs-muted); }
   .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--cs-line); color: var(--cs-muted); white-space: nowrap; }
   .badge.built { border-color: var(--cs-ok); color: var(--cs-ok); }
   .badge.failed { border-color: var(--cs-danger); color: var(--cs-danger); }
@@ -139,7 +141,6 @@
     <div id="engine-banner" class="banner" hidden>
       <strong>The CAD engine container is not answering.</strong>
       <div id="engine-reason" class="small"></div>
-      <div class="small muted">Install or rebuild it from the host: <code id="engine-hint"></code></div>
     </div>
     <div id="empty-panel">
       <p class="muted">Create a part, open one, or start from a Scan to Print job (Open in CAD Studio).</p>

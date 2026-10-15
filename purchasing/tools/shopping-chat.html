@@ -23,6 +23,12 @@
   html[data-audience] body { height: auto; overflow: auto; }
 </style>
 <script src="/shared/ui/js/app-view.js"></script>
+<!-- CHANGE LOG
+     1 | maintainer@emeraldcoastsystemsgroup.com | The Shopping Concierge printed its reply's Markdown raw ('configured with the
+       status: **NO WALMART RAIL**'). A reply now renders through the shared escape-first renderer
+       (/shared/ui/js/simple-chat.js, SimpleChat.renderMarkdown: bold, lists, code, safe links only); without the kit it
+       stays plain text. -->
+<script src="/shared/ui/js/simple-chat.js"></script>
 <script>
 (function () {
   var A = window.AppView; if (!A) return;
@@ -528,6 +534,10 @@
     white-space: pre-wrap;
   }
   .msg.bot { justify-self: start; border: 1px solid var(--line); background: rgba(255,255,255,.05); }
+  .msg.md { white-space: normal; }
+  .msg.md p { margin: 0 0 6px; } .msg.md p:last-child { margin-bottom: 0; }
+  .msg.md ul, .msg.md ol { margin: 4px 0; padding-left: 20px; }
+  .msg.md code { font-size: .92em; }
   .msg.me { justify-self: end; background: var(--accent); color: #fff; font-weight: 850; }
   .chat-row {
     display: grid;
@@ -753,6 +763,11 @@
       const parentWindow = window.parent && window.parent !== window ? window.parent : null;
       if (!parentWindow) return;
       const computed = parentWindow.getComputedStyle(parentWindow.document.documentElement);
+      // Theme-sync copies the cockpit's tokens ONLY as a matched set: the parent must name both --bg-primary and --text-primary; otherwise the copied properties are removed and this page keeps its own palette (the native cockpit names --text-primary #f8fafc and no --bg-primary, which put near-white text on a light page).
+      if (!computed.getPropertyValue('--bg-primary').trim() || !computed.getPropertyValue('--text-primary').trim()) {
+        for (const localName in map) document.documentElement.style.removeProperty(localName);
+        return;
+      }
       for (const localName in map) {
         const value = computed.getPropertyValue(map[localName]).trim();
         if (value) document.documentElement.style.setProperty(localName, value);
@@ -820,7 +835,7 @@
         </div>
         <div class="cart-footer">
           <button class="btn primary" id="compareAdd" type="button" disabled>Add selected item</button>
-          <div class="note">Walmart can be live or demo. Amazon is shown as a comparison slot until its connector is enabled.</div>
+          <div class="note">Products come from the installation's Walmart rail. Amazon and Target have no connector here, so they show no price.</div>
         </div>
       </section>
 
@@ -894,19 +909,37 @@ function toast(message) {
   setTimeout(() => node.classList.remove('show'), 1800);
 }
 
+/** The parsed body, carrying the HTTP status so a refusal is never read as an empty result. */
+async function readBody(response) {
+  const body = await response.json().catch(() => ({}));
+  const value = body && typeof body === 'object' ? body : { value: body };
+  Object.defineProperty(value, 'httpStatus', { value: response.status });
+  return value;
+}
+
 async function getJson(url) {
-  const response = await fetch(url, { credentials: 'same-origin' });
-  return response.json();
+  return readBody(await fetch(url, { credentials: 'same-origin' }));
 }
 
 async function postJson(url, body) {
-  const response = await fetch(url, {
+  return readBody(await fetch(url, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body || {})
-  });
-  return response.json();
+  }));
+}
+
+// Products, deals and the checkout hand-off come from Walmart. When this installation has no Walmart
+// connection the server refuses those calls (HTTP 503); the page says so instead of "no products".
+const NOT_CONNECTED = 'Unavailable: this installation has no Walmart rail (it runs no Walmart operations), so products, deals and checkout links cannot be searched or opened here. Your lists and the concierge still work.';
+function providerRefused(result) {
+  return Boolean(result && (result.httpStatus === 503 || result.error === 'native_executor_unavailable'));
+}
+function showNotConnected() {
+  state.products = [];
+  $('#grid').innerHTML = `<div class="empty" role="status">${escapeHtml(NOT_CONNECTED)}</div>`;
+  publishContext();
 }
 
 function renderChips(active = '') {
@@ -963,6 +996,7 @@ async function search(query = '') {
   $('#sectionSub').textContent = $('#shipAddress').value ? `Ship to ${$('#shipAddress').value}` : 'Set a shipping address for better handoff context.';
   $('#grid').innerHTML = '<div class="empty">Searching products...</div>';
   const result = await getJson(`${API}/search?q=${encodeURIComponent(query)}&limit=16`);
+  if (providerRefused(result)) return showNotConnected();
   state.source = result.source || 'walmart';
   const products = result.items || [];
   $('#grid').innerHTML = products.length ? products.map(renderProductCard).join('') : '<div class="empty">No products matched that search.</div>';
@@ -976,6 +1010,7 @@ async function loadDeals() {
   $('#sectionSub').textContent = 'Rollback and common household products.';
   $('#grid').innerHTML = '<div class="empty">Loading deals...</div>';
   const result = await getJson(`${API}/deals?feed=rollback`);
+  if (providerRefused(result)) return showNotConnected();
   state.source = result.source || 'walmart';
   const products = result.items || [];
   $('#grid').innerHTML = products.length ? products.map(renderProductCard).join('') : '<div class="empty">No deals returned yet. Try searching directly.</div>';
@@ -985,12 +1020,11 @@ async function loadDeals() {
 
 function comparisonRows(product) {
   const price = Number(product.price || 0);
-  const amazonEstimate = price ? price * 1.06 + 0.49 : null;
-  const targetEstimate = price ? Math.max(price * 0.98, price - 0.25) : null;
   return [
-    { vendor: 'Walmart', price, status: state.source === 'demo' ? 'Demo catalog, live when connected' : 'Connected catalog', available: true },
-    { vendor: 'Amazon', price: amazonEstimate, status: 'Connector slot ready, needs Amazon provider', available: false },
-    { vendor: 'Target', price: targetEstimate, status: 'Future connector comparison slot', available: false }
+    { vendor: 'Walmart', price, status: 'Connected catalog', available: true },
+    // No Amazon or Target connector exists: no price is shown for them rather than an invented one.
+    { vendor: 'Amazon', price: null, status: 'Not connected', available: false },
+    { vendor: 'Target', price: null, status: 'Not connected', available: false }
   ];
 }
 
@@ -1079,12 +1113,23 @@ async function loadCart() {
 
 async function checkout() {
   const result = await postJson(`${API}/checkout`, { listId: state.listId });
-  if (result.checkoutUrl) {
+  if (providerRefused(result)) {
+    toast('This installation has no Walmart rail, so checkout cannot open');
+  } else if (result.checkoutUrl) {
     toast('Opening checkout');
     window.open(result.checkoutUrl, '_blank');
   } else {
     toast(result.error || 'Add products first');
   }
+}
+
+/** A concierge reply as escape-first Markdown through the shared kit (every character escaped before a tag is made);
+ *  plain text when the kit is not there. */
+function showReply(node, text) {
+  const kit = window.SimpleChat;
+  if (kit && typeof kit.renderMarkdown === 'function') { node.classList.add('md'); node.innerHTML = kit.renderMarkdown(text); }
+  else node.textContent = text;
+  $('#messages').scrollTop = $('#messages').scrollHeight;
 }
 
 function addMessage(role, text) {
@@ -1109,9 +1154,10 @@ async function sendChat() {
       conversationId: state.conversationId,
       shippingAddress: $('#shipAddress').value.trim()
     });
+    if (providerRefused(result)) { pending.textContent = NOT_CONNECTED; return; }
     state.conversationId = result.conversationId || state.conversationId;
     if (state.conversationId) localStorage.setItem('oshalShopConv', state.conversationId);
-    pending.textContent = result.reply || 'I could not complete that shopping step yet.';
+    showReply(pending, result.reply || 'I could not complete that shopping step yet.');
     const products = [...(result.cards || []), ...(result.added || [])];
     if (products.length) {
       $('#grid').innerHTML = products.map(renderProductCard).join('');
@@ -1311,9 +1357,12 @@ async function boot() {
   try {
     const config = await getJson(`${API}/config`);
     $('#connDot').classList.toggle('on', Boolean(config.walmartConnected));
-    $('#connTxt').textContent = config.walmartConnected ? 'Walmart connected' : 'Demo catalog';
+    // rail 'absent': this installation runs no Walmart operations, so connecting an account would not help.
+    $('#connTxt').textContent = config.rail === 'absent' ? 'No Walmart rail here'
+      : config.walmartConnected ? 'Walmart connected' : 'Walmart not connected';
+    if (config.rail === 'absent' && config.railNote) $('#connTxt').title = config.railNote;
   } catch {
-    $('#connTxt').textContent = 'Demo catalog';
+    $('#connTxt').textContent = 'Connection status unavailable';
   }
 }
 

@@ -13,6 +13,13 @@
  * QUARANTINE: `AWAITING_ROUTE` holds references whose route is owned by another lane and has not
  * landed. Entries expire LOUDLY — the moment the route ships, this suite goes red telling you to
  * delete the line. That is deliberate: a quarantine nobody is forced to clean up becomes permanent.
+ *
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | A reference keeps its file extension (a trailing sentence dot is dropped), so a
+ *   script the pages load from /api/pumpkin/assets/<name>.js is checked against the route that serves it.
  */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -95,7 +102,7 @@ function referencedBy(file) {
   const src = fs.readFileSync(path.join(PKG, 'tools', file), 'utf8');
   // Deliberately narrow: a JS string ends at the quote, so `'/api/pumpkin/rooms'` must not swallow
   // the `').then(` that follows it.
-  const hits = src.match(/\/api\/pumpkin\/[A-Za-z0-9_/:-]*/g) || [];
+  const hits = (src.match(/\/api\/pumpkin\/[A-Za-z0-9_/:.-]*/g) || []).map((hit) => hit.replace(/\.+$/, ''));
   return [...new Set(hits.map(toRoutePath))];
 }
 

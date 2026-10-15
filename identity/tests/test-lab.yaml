@@ -5,9 +5,60 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register all shipped package tests with explicit runner and fixture boundaries; retain readiness smoke identity.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | The connection-contract case now runs the surface, not a regex over it, and covers the revoked-grant case the stored expiry cannot see.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.3: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register the native-kernel list-shape case: kernel connector kinds map to the redirect flow or /utilities setup, a lapsed native grant needs attention, and consent falls back from /api/connect/{id}/start to the kernel's JSON authorize answer.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register the native-kernel access-review case: the inventory comes from the connectors.metadata intent with the framework's expired/expiring rules, never the framework store, and a kernel without that intent answers 503.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register search-rank: a search lists the best name and id matches first ("google" finds the Google sign-in connector before the Google Cloud APIs).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | The list contract case also proves providers sharing a label read apart by their id (sweep 8: three identical 'Account API' cards).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
+  - id: kernel-access-review
+    name: Native kernel access-review inventory
+    purpose: Drive the compiled /advice handler with OSHAL_EGRESS=kernel, synthetic connection metadata and a stub advisor.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/kernel-advice.test.cjs
+    expected:
+      - A renewable lapsed grant is healthy; a revoked or unrenewable lapsed grant is expired; an unrenewable grant inside 14 days is expiring.
+      - Under the kernel the inventory comes from connectors.metadata and the framework connection store is never read.
+      - A kernel without connection metadata answers 503 instead of reporting no accounts.
+      - Outside the kernel the framework connection store is read as before.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 20000
+    installation: never
+  - id: kernel-list-shape
+    name: Native kernel connection list and consent start
+    purpose: >-
+      Run the shipped surface over the native kernel's /api/connect/list shape and drive Connect/Reconnect
+      over a scripted fetch and a recording window.open.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/kernel-list-shape.test.js
+    expected:
+      - oauth providers offer Connect/Reconnect; personal_token and api_key providers are set up on /utilities.
+      - An expired or revoked native grant shows the Reconnect pill and counts as needing attention.
+      - Consent follows /api/connect/{id}/start when it redirects and never asks the kernel route then.
+      - Without the start route, the kernel's JSON authorize_url (or url) opens in the consent tab.
+      - A failed start closes the tab and names the reason; a non-https answer is never followed.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 20000
+    installation: never
   - id: package-readiness
     name: Installed package readiness
     purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
@@ -41,6 +92,7 @@ cases:
       - A grant the provider has revoked reaches the same four places via the liveness probe.
       - A healthy self-renewing login stays unflagged, and a probe that cannot answer changes nothing.
       - Source and compiled inventory use the shared expiry rule and expose refreshability.
+      - Providers that share a label (three 'Account API' cards) each show their provider id beneath the name; an id that only restates the name is not repeated.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -97,6 +149,27 @@ cases:
       - The boot names this application and exactly the audiences the page provides, with an escape label.
       - The full page start runs only when the kit renders no audience, and when the kit is absent.
       - The head block parses, reads only this package's routes and builds no HTML from data.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: search-rank
+    name: Connection search ranks by relevance
+    purpose: Run the shipped searchRank and rankedMatches from tools/identity.html in a VM over a synthetic catalog slice - no browser, server or provider.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/identity-search-rank.test.cjs
+    expected:
+      - '"google" lists the Google sign-in connector first, then Google-named connectors, and Google Cloud APIs whose id merely starts with googleapis last.'
+      - A multi-word query matches word starts in the name; category and auth kind still match below any name match.
+      - A search renders one ranked list instead of category groups sorted by name.
     prerequisites:
       - runner:node-test
     sideEffects: none

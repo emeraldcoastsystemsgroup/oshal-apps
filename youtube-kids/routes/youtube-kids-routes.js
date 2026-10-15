@@ -11,7 +11,7 @@
  *  - **Ingest + aggregate** (cheap, deterministic) runs here in the controller: the user
  *    uploads their Google Takeout `watch-history.json`, we parse it into a compact
  *    aggregate (youtube-takeout.ts) and store it in a `user_sub`-keyed table; the raw
- *    export is kept AES-256-GCM-encrypted at rest.
+ *    export is kept encrypted at rest through @/features/personal-data.
  *  - **Reasoning** (the parent brief: interests, decoded channels, gift ideas, talking
  *    points) ALWAYS runs on the accountable Kid Lens bot via BotNodeClient.execute, so
  *    per-call cost lands in chat_tasks under the bot's own agent_id (ADR-036). The bot is
@@ -34,6 +34,9 @@
  * 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: replace the public SESSION_SECRET fallback with package-local fail-closed encryption while retaining the existing envelope for stored Takeout exports.
  * 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | Register the package's owner-scoped watch-history ingest function with the generic manifest Takeout spine.
  * 2026-09-06 | maintainer@emeraldcoastsystemsgroup.com | ADR-139 wave 2 — POST /import-artifact {ref}: the "Send to…" destination. Redeems via the SHARED kernel-relay helper and feeds the same ingestWatchHistory the raw upload uses (JSON only; zips stay with the Takeout spine).
+ * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | GET /status answers {hasData:false} and GET /brief 404 no_data when the caller has no activity store yet: on the native kernel a GET runs under read admission, where the lazy CREATE TABLE is refused "SQL schema is not provisioned", so everyone who had not uploaded got a 500. The table is now also a declared migration the kernel provisions for a writer.
+ * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | The raw export is sealed through `@/features/personal-data` encryptField (awaited) instead of the package-local SESSION_SECRET helper: on the native kernel the key is held by the kernel, bound to this application and the uploading person (PDATA-01), so an upload no longer fails with "SESSION_SECRET is required for package data encryption".
+ * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | GET /brief only reads: it answers the stored brief, or {brief:null} with hasData/analyzed saying why (a 200, because the kernel replaces a package GET's 404 with "application asset not found"). The analyzer run and the brief UPDATE move to POST /brief. On the native kernel a GET is admitted as a reader and the UPDATE was refused "SQL mutation requires original writer admission" after the analyzer had already run, so a parent never got a brief and every page load paid for an analyzer call. GET /status and GET /brief no longer run the schema bootstrap; the table is a declared migration and the writer ingest path still declares it.
  *
  * @module youtube-kids-routes
  */
@@ -71,6 +74,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.isActivityStoreAbsent = isActivityStoreAbsent;
 exports.ensureYoutubeKidsSchema = ensureYoutubeKidsSchema;
 exports.ingestWatchHistory = ingestWatchHistory;
 exports.ingestTakeoutWatchHistory = ingestTakeoutWatchHistory;
@@ -83,7 +87,7 @@ const artifact_exchange_1 = require("@/shared/artifact-exchange");
 const agent_management_1 = require("@/features/agent-management");
 const inline_bot_execution_1 = require("@/app/routes/inline-bot-execution");
 const youtube_takeout_1 = require("./youtube-takeout");
-const session_crypto_1 = require("./session-crypto");
+const personal_data_1 = require("@/features/personal-data");
 const logger = (0, logger_1.createChildLogger)({ module: 'youtube-kids-routes' });
 /** Package install dir — set by the loader on the context; env fallback for tool-style callers. */
 let packageDir = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -92,6 +96,15 @@ const KID_LENS_AGENT_ID = 'a0000000-0000-0000-0000-000000000043';
 const botClient = new agent_management_1.BotNodeClient((0, agent_management_1.createRegistryEndpointResolver)());
 /** Watch-history exports get large; cap generously (a few years of viewing is ~tens of MB). */
 const MAX_UPLOAD = 64 * 1024 * 1024;
+/** POST /brief refusal when the caller has not uploaded a watch history. */
+const NO_DATA = { error: 'no_data', message: 'Upload your Takeout watch-history.json first.' };
+/**
+ * GET /brief answers for "no brief stored" are 200 representations, not 404s: the native kernel
+ * replaces a package GET's 404 with its own "application asset not found" for a package without an
+ * authorization catalog, which would hide why there is no brief from the page.
+ */
+const NO_BRIEF_NO_DATA = { brief: null, hasData: false, analyzed: false, message: NO_DATA.message };
+const NO_BRIEF_NOT_ANALYZED = { brief: null, hasData: true, analyzed: false, message: 'The watch history has not been analyzed yet.' };
 /** Signed-in caller's OIDC sub. */
 function callerSub(req) {
     const u = req.oidc?.user;
@@ -107,6 +120,19 @@ function servePage(surfaceDir, file) {
             }
         });
     };
+}
+/**
+ * @description Whether a store error means "this caller has no activity table yet": PostgreSQL's
+ * undefined_table, or the native kernel refusing the lazy CREATE TABLE of a read-only request in a
+ * scope where the declared migration has not been provisioned. Either way nothing was uploaded.
+ * @param err - The error a schema bootstrap or activity query threw.
+ * @returns True when the caller simply has no stored watch history.
+ */
+function isActivityStoreAbsent(err) {
+    const e = err;
+    if (!e)
+        return false;
+    return e.code === '42P01' || /SQL schema is not provisioned/.test(String(e.message || ''));
 }
 /** Create the per-user store if absent. Raw export kept encrypted; aggregate is JSONB. */
 async function ensureYoutubeKidsSchema(pool) {
@@ -159,7 +185,7 @@ async function ingestWatchHistory(pool, sub, rawJson) {
        VALUES ($1, $2, $3, $4, NULL, now(), NULL)
      ON CONFLICT (user_sub) DO UPDATE SET
        aggregate = EXCLUDED.aggregate, raw_blob = EXCLUDED.raw_blob,
-       total_watched = EXCLUDED.total_watched, brief = NULL, uploaded_at = now(), brief_at = NULL`, [sub, JSON.stringify(agg), (0, session_crypto_1.encryptSessionValue)(rawJson), agg.totalWatched]);
+       total_watched = EXCLUDED.total_watched, brief = NULL, uploaded_at = now(), brief_at = NULL`, [sub, JSON.stringify(agg), await (0, personal_data_1.encryptField)(sub, rawJson), agg.totalWatched]);
     logger.info({ sub, totalWatched: agg.totalWatched, channels: agg.distinctChannels }, 'kid-lens watch history ingested');
     return { totalWatched: agg.totalWatched, distinctChannels: agg.distinctChannels, dateRange: agg.dateRange, topChannels: agg.topChannels.slice(0, 8) };
 }
@@ -242,7 +268,6 @@ function createYoutubeKidsRoutes(ctx) {
             return;
         }
         try {
-            await ensureYoutubeKidsSchema(ctx.pool);
             const row = (await ctx.pool.query(`SELECT total_watched, aggregate->'dateRange' AS date_range,
                 (brief IS NOT NULL) AS has_brief, uploaded_at, brief_at
            FROM oshal_youtube_activity WHERE user_sub = $1`, [sub])).rows[0];
@@ -256,6 +281,10 @@ function createYoutubeKidsRoutes(ctx) {
             });
         }
         catch (err) {
+            if (isActivityStoreAbsent(err)) {
+                res.json({ hasData: false });
+                return;
+            }
             logger.error({ err }, 'kid-lens status failed');
             res.status(500).json({ error: err.message });
         }
@@ -313,7 +342,7 @@ function createYoutubeKidsRoutes(ctx) {
             res.status(500).json({ error: err.message });
         }
     });
-    /** GET /brief — the parent brief. Cached after first run; ?refresh=1 regenerates. */
+    /** GET /brief — the stored parent brief. Read-only: it never runs the analyzer or writes. */
     router.get('/brief', async (req, res) => {
         const sub = callerSub(req);
         if (!sub) {
@@ -321,15 +350,37 @@ function createYoutubeKidsRoutes(ctx) {
             return;
         }
         try {
-            await ensureYoutubeKidsSchema(ctx.pool);
-            const row = (await ctx.pool.query('SELECT aggregate, brief FROM oshal_youtube_activity WHERE user_sub = $1', [sub])).rows[0];
-            if (!row || !row.aggregate) {
-                res.status(404).json({ error: 'no_data', message: 'Upload your Takeout watch-history.json first.' });
+            const row = (await ctx.pool.query('SELECT (aggregate IS NOT NULL) AS has_data, brief, brief_at FROM oshal_youtube_activity WHERE user_sub = $1', [sub])).rows[0];
+            if (!row || !row.has_data) {
+                res.json(NO_BRIEF_NO_DATA);
                 return;
             }
-            const refresh = String(req.query.refresh || '') === '1';
-            if (row.brief && !refresh) {
-                res.json({ brief: row.brief, cached: true });
+            if (!row.brief) {
+                res.json(NO_BRIEF_NOT_ANALYZED);
+                return;
+            }
+            res.json({ brief: row.brief, briefAt: row.brief_at, hasData: true, analyzed: true, cached: true });
+        }
+        catch (err) {
+            if (isActivityStoreAbsent(err)) {
+                res.json(NO_BRIEF_NO_DATA);
+                return;
+            }
+            logger.error({ err }, 'kid-lens brief read failed');
+            res.status(500).json({ error: 'brief_unavailable', message: err.message });
+        }
+    });
+    /** POST /brief — run the Kid Lens bot over the stored aggregate and store the brief (writer). */
+    router.post('/brief', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        try {
+            const row = (await ctx.pool.query('SELECT aggregate FROM oshal_youtube_activity WHERE user_sub = $1', [sub])).rows[0];
+            if (!row || !row.aggregate) {
+                res.status(404).json(NO_DATA);
                 return;
             }
             const brief = await runAnalyzer(ctx, sub, row.aggregate);
@@ -341,6 +392,10 @@ function createYoutubeKidsRoutes(ctx) {
             res.json({ brief, cached: false });
         }
         catch (err) {
+            if (isActivityStoreAbsent(err)) {
+                res.status(404).json(NO_DATA);
+                return;
+            }
             logger.error({ err }, 'kid-lens brief failed');
             res.status(502).json({ error: err.message });
         }

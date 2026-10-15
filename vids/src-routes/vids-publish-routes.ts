@@ -1,6 +1,7 @@
 /**
  * CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add exact-owner private export upload/preview and separately confirmed publish, revoke and private removal controls. Multipart completion preserves verified identity.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Register the export routes directly on the Vids router at their full /jobs/:jobId/artifact paths (registerVidsPublishRoutes) instead of mounting a sub-router with router.use('/jobs/:jobId/artifact'): the native kernel's bridge router matches a use() path as a literal prefix, so every export request answered 404 "No matching application route". In the native sandbox (OSHAL_EGRESS=kernel) attaching refuses 503 export_storage_unavailable with a sentence before any upload is parsed or written: the native host keeps no lasting file store for Vids exports (outside the sandbox temp dir its root is a discarded in-memory filesystem, and Vids has no kernel-backed file store), so a 201 there would name a file that is gone when the request ends. GET reports `attach` (available, maxBytes, detail) so the page can say so instead of offering a file input.
  */
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import multer from 'multer';
@@ -55,41 +56,72 @@ async function attachExport(ctx: AppContext, req: OwnedRequest, res: Response): 
   } finally { await unlink(uploaded).catch(() => undefined); }
 }
 
-export function createVidsPublishRoutes(ctx: AppContext): Router {
-  const router = Router({ mergeParams: true });
-  router.use((req: OwnedRequest, res, next) => {
-    const sub = getCaller(req).sub ?? getTrustedServiceUserSub(req);
-    if (!sub) { res.status(401).json({ error: 'user_identity_required' }); return; }
-    if (!uuid.test(job(req))) { res.status(404).json({ error: 'job_not_found' }); return; }
-    req.exportOwner = sub; res.set('Cache-Control', 'private, no-store'); next();
-  });
-  router.get('/', async (req, res) => {
-    try { await requireFinishedJob(ctx, owner(req), job(req)); res.json({ artifact: artifactView(await ownedArtifact(ctx, owner(req), job(req))) }); }
+/** @description Where the export routes live under the Vids router. */
+const BASE = '/jobs/:jobId/artifact';
+
+/** @description Why attaching an export is refused in the native sandbox, in words. */
+export const NATIVE_EXPORT_DETAIL = 'Video exports cannot be kept on this installation yet: it has no lasting file store for Vids, so an attached MP4 would be lost when the request ends. Nothing was uploaded or saved.';
+
+/**
+ * @description Whether this installation keeps an attached export file. The native kernel's bridge sets
+ * OSHAL_EGRESS=kernel; there the package's files outside the sandbox temp dir are discarded with the process.
+ * @returns True when an attached MP4 is kept where the preview and public routes read it.
+ */
+export function exportsKept(): boolean {
+  return process.env.OSHAL_EGRESS !== 'kernel';
+}
+
+/** @description The exact-owner guard every export route runs first. */
+function ownerGuard(req: OwnedRequest, res: Response, next: NextFunction): void {
+  const sub = getCaller(req).sub ?? getTrustedServiceUserSub(req);
+  if (!sub) { res.status(401).json({ error: 'user_identity_required' }); return; }
+  if (!uuid.test(job(req))) { res.status(404).json({ error: 'job_not_found' }); return; }
+  req.exportOwner = sub; res.set('Cache-Control', 'private, no-store'); next();
+}
+
+/** @description What the page needs to offer (or not offer) an attach control. */
+function attachState(): Record<string, unknown> {
+  return exportsKept() ? { available: true, maxBytes: MAX_VIDEO_BYTES } : { available: false, detail: NATIVE_EXPORT_DETAIL };
+}
+
+/**
+ * @description Register the owner's export routes on the Vids router at their full paths. A sub-router mounted at
+ * a parameterised use() path is never reached on the native kernel, whose bridge router matches use() paths literally.
+ * @param router - The Vids router (after its identity middleware).
+ * @param ctx - The package context.
+ * @returns Nothing; the routes are added to `router`.
+ */
+export function registerVidsPublishRoutes(router: Router, ctx: AppContext): void {
+  router.get(BASE, ownerGuard, async (req: OwnedRequest, res: Response) => {
+    try { await requireFinishedJob(ctx, owner(req), job(req)); res.json({ artifact: artifactView(await ownedArtifact(ctx, owner(req), job(req))), attach: attachState() }); }
     catch (error) { refusal(res, error); }
   });
-  router.get('/video.mp4', async (req, res) => {
+  router.get(`${BASE}/video.mp4`, ownerGuard, async (req: OwnedRequest, res: Response) => {
     try {
       const row = await ownedArtifact(ctx, owner(req), job(req));
       if (!row) { res.status(404).end(); return; }
       await serveVideo(req, res, row);
     } catch (error) { refusal(res, error); }
   });
-  router.post('/', async (req, res, next) => {
-    try { await requireFinishedJob(ctx, owner(req), job(req)); next(); } catch (error) { refusal(res, error); }
+  router.post(BASE, ownerGuard, async (req: OwnedRequest, res: Response, next: NextFunction) => {
+    try {
+      await requireFinishedJob(ctx, owner(req), job(req));
+      if (!exportsKept()) { res.status(503).json({ error: 'export_storage_unavailable', detail: NATIVE_EXPORT_DETAIL }); return; }
+      next();
+    } catch (error) { refusal(res, error); }
   }, preserveRequestIdentity((req, res, next) => uploadParser()(req, res, AsyncResource.bind((error?: unknown) => {
     if (!error) { next(); return; }
     if (error instanceof multer.MulterError) { res.status(error.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ error: error.code, maxBytes: MAX_VIDEO_BYTES }); return; }
     refusal(res, error);
-  }))), (req, res) => { void attachExport(ctx, req, res); });
+  }))), (req: OwnedRequest, res: Response) => { void attachExport(ctx, req, res); });
   registerControls(router, ctx);
-  return router;
 }
 
 function registerControls(router: Router, ctx: AppContext): void {
   const confirm = (req: Request, res: Response, next: NextFunction) => {
     if (req.body?.confirm !== true) { res.status(428).json({ error: 'confirmation_required' }); return; } next();
   };
-  router.post('/publish', confirm, async (req, res) => {
+  router.post(`${BASE}/publish`, ownerGuard, confirm, async (req, res) => {
     try {
       if (typeof req.body.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(req.body.sha256)) throw new ArtifactRefusal(400, 'reviewed_digest_required');
       await requireFinishedJob(ctx, owner(req), job(req));
@@ -100,10 +132,10 @@ function registerControls(router: Router, ctx: AppContext): void {
       res.json({ artifact: artifactView(await publishArtifact(ctx, owner(req), job(req), req.body.sha256)) });
     } catch (error) { refusal(res, error); }
   });
-  router.post('/unpublish', confirm, async (req, res) => {
+  router.post(`${BASE}/unpublish`, ownerGuard, confirm, async (req, res) => {
     try { res.json({ artifact: artifactView(await unpublishArtifact(ctx, owner(req), job(req))) }); } catch (error) { refusal(res, error); }
   });
-  router.delete('/', confirm, async (req, res) => {
+  router.delete(BASE, ownerGuard, confirm, async (req, res) => {
     try {
       const row = await removeArtifact(ctx, owner(req), job(req));
       await unlink(artifactPath(row.artifact_id)).catch(() => undefined);

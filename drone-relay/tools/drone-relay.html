@@ -201,6 +201,18 @@
   .legend .l-lost::before { background: var(--dr-danger); }
   .legend .l-return::before { background: var(--dr-muted); }
   .legend .l-slot::before { background: transparent; border: 1px dashed var(--dr-muted); }
+  /* Phone width: the chain list and form stack above the results, so the preview and its design
+     write-up get the full width instead of a ~70px column beside the form. */
+  @media (max-width: 760px) {
+    header { flex-wrap: wrap; gap: 4px 12px; padding: 8px 12px; }
+    .layout { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+    aside { border-right: 0; border-bottom: 1px solid var(--dr-line); overflow: visible; }
+    main { padding: 12px 12px 32px; overflow: visible; min-width: 0; }
+    .two { grid-template-columns: minmax(0, 1fr); }
+    table { display: block; max-width: 100%; overflow-x: auto; }
+    .legend { flex-wrap: wrap; }
+    .toast { left: 12px; right: 12px; max-width: none; }
+  }
 </style>
 </head>
 <body>
@@ -254,7 +266,7 @@
     </section>
   </aside>
   <main>
-    <section class="step" id="empty-panel"><p class="muted">Pick a chain on the left, or set the numbers and press <em>Preview</em> to size one without saving.</p></section>
+    <section class="step" id="empty-panel"><p class="muted">Pick a chain from the list, or set the numbers and press <em>Preview</em> to size one without saving.</p></section>
     <div id="plan-panel" hidden>
       <section class="step">
         <h2 id="plan-heading">Chain</h2>
@@ -299,10 +311,35 @@
         <div class="row"><div class="field">Distance (m) <input type="number" id="c-distance" value="200" min="1" step="10" /></div><button class="ghost" id="compare">Compare</button></div>
         <table><thead><tr><th>transport</th><th class="num">design range</th><th class="num">margin here</th><th class="num">kbps / hop</th><th>multi-hop</th><th>module</th></tr></thead><tbody id="compare-body"></tbody></table>
       </section>
+      <!-- The declared hand-off (integrations.offers prepare-document "Prepare a design brief" -> AI Office
+           prepare-brief). Inside the chain panel, so it is only on screen when a chain is open; the brief is the
+           chain's facts and notes and the last scenario result as this page shows them, labelled as simulated. -->
+      <section class="step" id="design-brief">
+        <h2>Design brief <small>this chain and its last simulated scenario, as a brief in AI Office</small></h2>
+        <div id="briefActions" class="row"></div>
+      </section>
     </div>
   </main>
 </div>
 <div id="toast" class="toast" hidden></div>
 <script src="/api/drone-relay/assets/drone-relay.js"></script>
+<script>
+(function () {
+  if (window.AppView && AppView.active && AppView.active()) return;
+  var el = document.getElementById('briefActions');
+  function txt(id) { var n = document.getElementById(id); return n ? n.innerText.replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim() : ''; }
+  /** The open chain as a research-brief context, or null when no chain is open (the shell then says so). */
+  function designBrief() {
+    if (document.getElementById('plan-panel').hidden) return null;
+    var head = txt('plan-heading') || 'Relay chain', ran = !document.getElementById('result-panel').hidden;
+    var lines = ['SIMULATED in Drone Relay, not a flight test.', head, txt('plan-facts'), txt('plan-notes'),
+      ran ? 'Last scenario: ' + (txt('verdict') || 'run') + '\n' + txt('metrics') : 'No scenario has been run for this chain yet.'];
+    return { title: 'Design brief: ' + head, notes: lines.filter(Boolean).join('\n').slice(0, 2000) };
+  }
+  import('/cockpit/js/app-workflows.js')
+    .then(function (m) { return m.mountConnectedActions({ app: 'drone-relay', element: el, contextForOffer: designBrief }); })
+    .catch(function () { el.textContent = 'Connected actions are unavailable on this screen.'; });
+})();
+</script>
 </body>
 </html>

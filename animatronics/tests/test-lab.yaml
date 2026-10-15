@@ -173,6 +173,31 @@ cases:
       timeoutMs: 30000
       maxMemoryMb: 256
     installation: never
+  - id: surface-adopt
+    name: Rename reaches the rig list; the build note keeps panel lines apart
+    purpose: >-
+      Run the shipped adopt() and the build note's text reader under plain node. Adopting a renamed rig updates its rig
+      list entry (the list kept the old title until reload), and the build note reads the power panel one line per block
+      and the supply budget grid as label and value (two power lines ran together).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-adopt.test.js
+    expected:
+      - After adopt of a PATCHed rig titled sweep6-skull, state.rigs holds sweep6-skull for that rig and the other rig is unchanged.
+      - >-
+        The power text reads '... headroom 89 % — ok; all servos stalled would draw 10.4 A' and the budget
+        'supply: 5 V / 3 A bench; verdict: ok; a note'.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
   - id: routes-http
     name: Packaged routes over loopback HTTP
     purpose: Drive the compiled routes with express from a framework checkout — the manifest and this catalog load through the framework's own loaders (the limits the box enforces on install); the surface, assets and the browser protocol module serve; caller gate; a rig from a template with its manifest, axes and idle budget; poses and scenarios one per call with refusals and in-use 409s; rehearse answers report, frames and protocol lines; play, look-at and jog 409 until armed while look-at rehearses without arming; arm 428 without confirm, 422 on a refused supply, bring-up lines on success; play advances the believed pose; a rig change disarms; disarm answers the e-stop line; owner scoping; the command log; the Home summary; deletion.
@@ -199,7 +224,7 @@ cases:
     installation: never
   - id: surface-page
     name: The actual page in a browser
-    purpose: Drive the actual packaged page in headless Chromium over the compiled routes on loopback with a fake Web Serial port injected as navigator.serial that answers the way the reference firmware does — a rig from the skull template shows its seven channels, poses and scenarios; a jog slider moves the pupil in the drawing and the angles capture as a pose; BLINK rehearses to an ok verdict with the report filled and the run logged; the controller connects at 115200 baud; Arm (confirmed) writes hello, seven clamp lines and the neutral frame and the hello reply names the board; TALK plays and all 66 frame lines reach the port; E-STOP writes E*45 last and the rig is disarmed on the server; the page raises no errors.
+    purpose: Drive the actual packaged page in headless Chromium over the compiled routes on loopback with a fake Web Serial port injected as navigator.serial that answers the way the reference firmware does — a rig from the skull template shows its seven channels, poses and scenarios; a rename shows in the rig list at once; a jog slider moves the pupil in the drawing and the angles capture as a pose; BLINK rehearses to an ok verdict with the report filled and the run logged; the controller connects at 115200 baud; Arm (confirmed) writes hello, seven clamp lines and the neutral frame and the hello reply names the board; TALK plays and all 66 frame lines reach the port; E-STOP writes E*45 last and the rig is disarmed on the server; the page raises no errors.
     level: browser
     runner:
       kind: playwright

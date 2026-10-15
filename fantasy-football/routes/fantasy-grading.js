@@ -30,6 +30,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — record the week's decision at lineup time, grade completed weeks from stored actuals against the lineup actually started, settle the week's start/sit calls first, and roll the ledger up.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | weekRecord takes an optional league key and then reads only that league's weeks. Sweep 8: the 'Week by week' record under a league created a minute earlier listed four other leagues' week-5 rows ('WEEKS GRADED 0 / 4'). Guard: tests/fantasy-week-record-league.test.js.
  *
  * @module fantasy-grading
  */
@@ -121,15 +122,21 @@ async function gradeWeek(pool, userSub, open, inputs) {
     return 'graded';
 }
 /**
- * @description The caller's week ledger, newest first, with its rollup.
+ * @description The caller's week ledger, newest first, with its rollup: one league's weeks when a league key is given
+ * (the board under a league shows that league's record, never another league's rows), else every league's.
  * @param pool - Postgres pool.
  * @param userSub - Caller's subject.
+ * @param leagueKey - The ledger key (an ESPN league id or `manual:<id>`), or absent for all leagues.
  * @returns The rollup and rows.
  */
-async function weekRecord(pool, userSub) {
-    const r = await pool.query(`SELECT season, league_key, week, source, advised, mean_lineup, started, swaps, win_probability,
+async function weekRecord(pool, userSub, leagueKey) {
+    const columns = `season, league_key, week, source, advised, mean_lineup, started, swaps, win_probability,
             mean_win_probability, projected_advised, projected_started, graded, actual_advised, actual_started,
-            actual_gain, recorded_at, graded_at
+            actual_gain, recorded_at, graded_at`;
+    const r = leagueKey
+        ? await pool.query(`SELECT ${columns}
+     FROM ff_weeks WHERE user_sub = $1 AND league_key = $2 ORDER BY season DESC, week DESC LIMIT 60`, [userSub, leagueKey])
+        : await pool.query(`SELECT ${columns}
      FROM ff_weeks WHERE user_sub = $1 ORDER BY season DESC, week DESC LIMIT 60`, [userSub]);
     const graded = r.rows.filter((x) => x.graded);
     return {

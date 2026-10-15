@@ -22,6 +22,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — one loader for the compiled router shared by the transport and history suites (moved from sports-edge, where each suite carried its own), plus an owner-keyed in-memory reading of the ff_* statements.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.2.0: the database double reads the hand-typed league, week-ledger and call-grading statements too (each by what it asks, owner first), refuses an unrecognised data statement instead of answering empty, and the broker double counts connection lookups so the manual-entry parity guard can prove the connector was never consulted.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | The logger double records every ERROR line into `state.logs` when a suite passes that array, so a suite can prove a read that degrades instead of failing logs its error (the house rule every catch logs) rather than swallowing it.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The week-ledger double reads one league's weeks (user_sub and league_key) and deletes them, the statements GET /record?leagueKey and a hand-typed league's delete issue.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | The call-ledger double reads one league's graded record and call list (user_sub and league_id) and deletes one league's calls, the statements GET /record?leagueKey and a hand-typed league's delete now issue.
  */
 
 'use strict';
@@ -179,11 +181,19 @@ function callHandlers(t) {
       return { rows: [], rowCount: c ? 1 : 0 };
     }],
     [/count\(\*\) AS graded/, (p) => {
-      const mine = t.calls.filter((c) => c.user_sub === p[0] && c.settled);
+      const mine = t.calls.filter((c) => c.user_sub === p[0] && c.settled && (p.length < 2 || c.league_id === p[1]));
       return { rows: [{ graded: mine.length, right_calls: mine.filter((c) => c.actual_gain > 0).length,
         actual_points: mine.reduce((s, c) => s + c.actual_gain, 0), projected_points: mine.reduce((s, c) => s + c.projected_gain, 0) }] };
     }],
     [/FROM ff_calls WHERE user_sub = \$1 ORDER BY/, (p) => ({ rows: t.calls.filter((c) => c.user_sub === p[0]).map(shape) })],
+    [/FROM ff_calls WHERE user_sub = \$1 AND league_id = \$3 ORDER BY/, (p) => ({
+      rows: t.calls.filter((c) => c.user_sub === p[0] && c.league_id === p[2]).map(shape),
+    })],
+    [/DELETE FROM ff_calls WHERE user_sub = \$1 AND league_id = \$2/, (p) => {
+      const before = t.calls.length;
+      t.calls.splice(0, t.calls.length, ...t.calls.filter((c) => !(c.user_sub === p[0] && c.league_id === p[1])));
+      return { rows: [], rowCount: before - t.calls.length };
+    }],
   ];
 }
 
@@ -206,6 +216,14 @@ function weekHandlers(t) {
       const w = t.weeks.get(`${p[0]}:${p[1]}:${p[2]}:${p[3]}`);
       if (w && !w.graded) Object.assign(w, { graded: true, started: JSON.parse(p[4]), actual_advised: p[5], actual_started: p[6], actual_gain: p[5] - p[6] });
       return { rows: [], rowCount: w ? 1 : 0 };
+    }],
+    [/FROM ff_weeks WHERE user_sub = \$1 AND league_key = \$2 ORDER BY/, (p) => ({
+      rows: [...t.weeks.values()].filter((w) => w.user_sub === p[0] && w.league_key === p[1]).sort((a, b) => b.week - a.week),
+    })],
+    [/DELETE FROM ff_weeks WHERE user_sub = \$1 AND league_key = \$2/, (p) => {
+      let n = 0;
+      for (const [k, w] of t.weeks) if (w.user_sub === p[0] && w.league_key === p[1]) { t.weeks.delete(k); n += 1; }
+      return { rows: [], rowCount: n };
     }],
     [/FROM ff_weeks WHERE user_sub = \$1 ORDER BY/, (p) => ({
       rows: [...t.weeks.values()].filter((w) => w.user_sub === p[0]).sort((a, b) => b.week - a.week),

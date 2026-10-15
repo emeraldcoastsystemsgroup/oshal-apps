@@ -2,6 +2,28 @@
 
 1.1.4 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
 
+## Stripe (native rail)
+
+Paste your own Stripe key on the Connections page (`/utilities` -> Stripe -> Save connection). Use a
+**restricted key**, test mode first (`rk_test_...`), with exactly these permissions: **Balance: Read**
+(mode detection), **Checkout Sessions: Write** (payment pages), **Charges: Read** (recent payments),
+**Refunds: Write** (refunds); everything else None. The kernel seals the key for you alone and places
+it itself on requests to `api.stripe.com`, the only host this package declares (`egress:` in
+`oshal-app.yaml`); the package, the page and the assistant never see it.
+
+- Mode is what Stripe answers (`livemode` on the balance): **TEST MODE** for a test key, **LIVE** for a
+  live key, **MODE UNKNOWN - treated as LIVE** when the key cannot read the balance.
+- `POST /api/payments/stripe/checkout` creates a hosted Checkout Session (amount + description) and
+  returns its link; `GET /stripe/checkout/:id` refreshes an owned one; `GET /stripe/payments` lists
+  recent charges; `POST /stripe/refund` refunds one charge in full.
+- Every money-shaped action needs `confirm: true` (HTTP 428 otherwise, nothing sent), and also
+  `confirmLive: true` unless Stripe says the key is test. The page asks once for a test key and twice,
+  naming LIVE, otherwise.
+- Proven by `tests/stripe-rail.test.cjs` (local fake Stripe server) and `tests/stripe-page.test.cjs`;
+  the kernel side by `crates/oshald/tests/stripe_pasted_key.rs` in oshal-kernel.
+
+## Square / PayPal
+
 Take payments through your own connected merchant account. Connect Square and/or PayPal on
 `/utilities` (the `payments` connector category); the app charges on your behalf with your
 per-user brokered token — Square runs a direct card charge, PayPal creates and sends an

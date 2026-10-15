@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the ADR-141 D7 review conversation end to end. A signed-in user answers the shipped Strengthen story card role by role until it reads "Every role has a story"; every role then holds a verbatim story citing one of its own bullets and readiness reports 3 of 3. Every turn runs through the COMPILED story and readiness routes and the REAL engine dispatch and runner. career-engine-dispatch provides lease admission and then the caller's Firecrawl brokerage query. career-engine-runner provides the inherited-env allowlist, run-lock adoption, engine-run registration, the runner-minted rail entries and the vendor-login sandbox. Then bin/oshal-jobhunter.js runs the Python `stories` verb against the profile file on disk. A concurrent turn is refused with 503 before brokerage, and the lease is released afterwards. Anonymous callers get 401 with no brokerage and no engine run, and a second user reaches only their own store. Scoped doubles: the page DOM (a markup-driven element map), the Express router and JSON body parser (node:http), the OIDC session (a cookie-to-subject map), the logger, the kernel trusted-service decoder (never trusted here), the unused SQLite driver, the Postgres pool and the kernel token decryptor. The pool answers the Firecrawl brokerage query with no row. The decryptor is a tripwire that the empty brokerage never reaches. No career-hunter suite runs that brokerage query against a real Postgres; career-no-sync-api.test.mjs covers its row handling over a doubled pool. No rail service secret is set, so the engine has no provider, and the rail URL the runner mints points at this fixture listener, which records any request to it.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The signed rail (1.25.1): the compiled dispatch now reads the caller's verified issuer from the kernel request-identity module, so that module is doubled here (the AsyncLocalStorage mirror in tests/helpers/request-identity-stub.mjs); with no verified issuer the runner registers the run and mints no rail entries, which is what a fixture with no rail service secret already asserted.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | GET /stories now reads the profile file in the route (lib/career-stories-state.js) and starts no engine child, because the native kernel's package sandbox carries no Python source. Engine turns are counted per POST answer only; every GET /stories in the conversation must leave no run and no brokerage query behind. The one-turn-at-a-time guard now races two marked answers (one admitted, one refused with 503 before brokerage), proves the lease was released by removing the admitted answer through DELETE /stories/test-lab/:tag, and checks that a review read is still served while a turn holds the lease.
  */
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -136,12 +137,25 @@ function sessionFor(req) {
   return sub ? { user: { sub } } : undefined;
 }
 
+/** Find the registered handler for a request, binding Express-style `:name` path parameters. */
+function matchRoute(router, method, routePath) {
+  for (const [key, handler] of router.handlers) {
+    const [registeredMethod, pattern] = key.split(' ');
+    if (registeredMethod !== method) continue;
+    const names = [];
+    const source = pattern.replace(/:(\w+)/g, (_, name) => { names.push(name); return '([^/]+)'; });
+    const match = new RegExp(`^${source}$`).exec(routePath);
+    if (match) return { handler, params: Object.fromEntries(names.map((name, i) => [name, decodeURIComponent(match[i + 1])])) };
+  }
+  return { handler: undefined, params: {} };
+}
+
 /** Serve the package routes at /api/career-hunter over loopback HTTP; the rail path is recorded, not served. */
 async function startServer(router) {
   const listener = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://fixture');
     if (url.pathname === routes.engineRuns.RAIL_PATH) railRequests.push({ method: req.method, headers: req.headers });
-    const handler = router.handlers.get(`${req.method} ${url.pathname.replace(/^\/api\/career-hunter/, '')}`);
+    const { handler, params } = matchRoute(router, req.method, url.pathname.replace(/^\/api\/career-hunter/, ''));
     const reply = {
       statusCode: 200,
       status(code) { reply.statusCode = code; return reply; },
@@ -149,7 +163,7 @@ async function startServer(router) {
     };
     if (!handler) { reply.status(404).json({ error: 'not mounted in this fixture' }); return; }
     const body = req.method === 'POST' ? await readJsonBody(req) : undefined;
-    handler({ method: req.method, path: url.pathname, headers: req.headers, body, oidc: sessionFor(req) }, reply);
+    handler({ method: req.method, path: url.pathname, headers: req.headers, body, params, oidc: sessionFor(req) }, reply);
   });
   await new Promise((resolve) => listener.listen(0, '127.0.0.1', resolve));
   return listener;
@@ -318,7 +332,10 @@ test('a signed-in user answers Strengthen role by role until every role has a st
   assert.equal(page.document.getElementById('story-ta'), null, 'no question is left to answer');
   const posted = page.requests.filter((r) => r.method === 'POST').map((r) => JSON.parse(r.body).role);
   assert.deepEqual(posted, [0, 1, 2], 'each answer went to the role the card asked about');
-  assertEngineTurns(observed, OWNER, page.requests.filter((r) => r.url.includes('/stories')).length);
+  const reads = page.requests.filter((r) => r.method === 'GET' && r.url.includes('/stories')).length;
+  assert.ok(reads >= ROLES.length, 'the card re-read the review after every answer');
+  // Only answers start the engine: every review read is served from the profile file itself.
+  assertEngineTurns(observed, OWNER, posted.length);
 
   const saved = JSON.parse(readFileSync(profilePath(OWNER), 'utf8'));
   assert.equal(saved.roles.length, ROLES.length);
@@ -340,18 +357,25 @@ test('a signed-in user answers Strengthen role by role until every role has a st
 });
 
 test('one review turn at a time: a concurrent turn is refused before brokerage and the lease is released', { timeout: 120_000 }, async () => {
+  const tag = 'concurrent-turn';
+  const answer = (n) => ({ role: 0, response: `[oshal-test-lab:${tag}] Concurrent answer ${n} about the release pipeline.` });
+  const snapshot = readFileSync(profilePath(OWNER), 'utf8');
   const observed = await observe(() => Promise.all([
-    call('GET', '/stories', 'session-owner'),
+    call('POST', '/stories/answer', 'session-owner', answer(1)),
+    call('POST', '/stories/answer', 'session-owner', answer(2)),
     call('GET', '/stories', 'session-owner'),
   ]));
-  const statuses = observed.result.map((reply) => reply.status).sort();
-  assert.deepEqual(statuses, [200, 503], 'the store lease admits one turn');
-  const refused = observed.result.find((reply) => reply.status === 503);
+  const [first, second, read] = observed.result;
+  const statuses = [first.status, second.status].sort();
+  assert.deepEqual(statuses, [201, 503], 'the store lease admits one turn');
+  const refused = [first, second].find((reply) => reply.status === 503);
   assert.equal(refused.body.error, 'a review turn is already running');
+  assert.equal(read.status, 200, 'a review read is served while a turn holds the lease');
   assertEngineTurns(observed, OWNER, 1);
   assert.equal(observed.queries.length, 1, 'the refused turn never reached credential brokerage');
-  const next = await call('GET', '/stories', 'session-owner');
-  assert.equal(next.status, 200, 'the lease was released when the admitted turn settled');
+  const removed = await call('DELETE', `/stories/test-lab/${tag}`, 'session-owner');
+  assert.deepEqual([removed.status, removed.body.removed], [200, 1], 'the lease was released when the admitted turn settled');
+  assert.deepEqual(JSON.parse(readFileSync(profilePath(OWNER), 'utf8')), JSON.parse(snapshot), 'the owner\'s profile is as it was');
 });
 
 test('an anonymous caller is refused before anything runs', { timeout: 60_000 }, async () => {
@@ -375,7 +399,7 @@ test('a second signed-in user reaches only their own store', { timeout: 120_000 
     const answer = await call('POST', '/stories/answer', 'session-other', { role: 0, response: 'Writing into someone else\'s role.' });
     assert.deepEqual([answer.status, answer.body.error], [400, 'no role at index 0']);
   });
-  assertEngineTurns(observed, OTHER, 2);
+  assertEngineTurns(observed, OTHER, 1);
   assert.deepEqual(observed.runs(OWNER), [], 'nothing ran as the owner');
   const ready = await call('GET', '/readiness', 'session-other');
   assert.equal(ready.body.stories.roles, 0);

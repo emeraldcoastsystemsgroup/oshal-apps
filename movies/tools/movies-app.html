@@ -238,6 +238,10 @@
   function sync(){try{
     const p=(window.parent&&window.parent!==window)?window.parent:null; if(!p)return;
     const cs=p.getComputedStyle(p.document.documentElement);
+    // Matched set or nothing: a parent that names no --bg-primary (the native cockpit) has no background to
+    // pair with its --text-primary, so copying the text alone painted near-white text on this light page.
+    if(!cs.getPropertyValue('--bg-primary').trim()||!cs.getPropertyValue('--text-primary').trim()){
+      for(const k in M)document.documentElement.style.removeProperty(k); return;}
     for(const k in M){const v=cs.getPropertyValue(M[k]).trim(); if(v)document.documentElement.style.setProperty(k,v);}
   }catch(e){}}
   sync();
@@ -445,6 +449,12 @@ const panel=document.getElementById('planningPanel'),draft=document.getElementBy
 receiveHandoff({"app":"movies","action":"plan-movie","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]},context=>{draft.value=[context.title,context.notes,context.sourceUrl?'Source: '+context.sourceUrl:''].filter(Boolean).join('\n\n');panel.hidden=false;draft.focus();});
 document.getElementById('usePlanningDraft').onclick=()=>{if(document.getElementById('appWrap').style.display==='none'){document.getElementById('planningStatus').textContent='Your draft is ready. Complete the connection below, refresh its status, then use this draft.';return;}const input=document.getElementById('chatq');input.value=draft.value.replace(/\s+/g,' ').trim();input.focus();input.scrollIntoView({block:'center'});document.getElementById('planningStatus').textContent='Draft copied to the concierge. Review it and choose Send when ready.';};
 const element=document.querySelector('.connected-app-actions');
+// The offers continue from a request: the concierge and search (inside #appWrap, shown only when connected) or a
+// received planning draft. With neither on screen there is nothing to hand on, so the offers stay hidden instead of
+// answering every tap with "select or enter the work".
+const appWrap=document.getElementById('appWrap');
+const syncOffers=()=>{element.style.display=(appWrap.style.display==='none'&&panel.hidden)?'none':'flex';};
+syncOffers();if(typeof MutationObserver==='function'){new MutationObserver(syncOffers).observe(appWrap,{attributes:true,attributeFilter:['style']});new MutationObserver(syncOffers).observe(panel,{attributes:true,attributeFilter:['hidden']});}
 void mountConnectedActions({app:"movies",element,contextForOffer:()=>{const notes=(panel.hidden?'':draft.value.trim())||document.getElementById('chatq').value.trim()||document.getElementById('q').value.trim();return notes?{title:"Plan around my movie request",notes:notes.slice(0,2000)}:null;}}).then(()=>element.querySelectorAll('button').forEach(b=>b.classList.add('btn')));
 }
 </script>

@@ -14,12 +14,15 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — odds attribution incl. the swapped-block case, provider priority, statistics flattening with formatted numbers, production-stat mapping, and the degrade-not-throw contract on a failing endpoint.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The team list is the exception to degrade-not-throw: a list that could not be read rejects with an EspnReadError naming the classified failure (the native kernel's refused egress is the live case), while ESPN's own empty answer is still []. The 4xx/5xx retry guards now expect that rejection.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Scoreboard and schedule event times come back as full ISO-8601 instants: ESPN's minute-precision "2026-10-11T13:30Z" is refused as a timestamp by the native kernel's SQL adapter.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The NFL and NBA paths carry scoreboardParams 'limit=1000' (a month read without a limit stops at 100 events).
  */
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  LEAGUE_PATHS, flattenStats, listTeams, parseQuote, productionStatFor, scoreboard, teamSchedule,
+  EspnReadError, espnDate, LEAGUE_PATHS, flattenStats, listTeams, parseQuote, productionStatFor, scoreboard, teamSchedule,
 } = require('../routes/sports-espn.js');
 
 /** Builds a fetch stub that answers every request with one payload. */
@@ -28,8 +31,9 @@ function stub(payload, ok) {
 }
 
 test('both leagues resolve to real ESPN path segments', () => {
-  assert.deepEqual(LEAGUE_PATHS.nfl, { sport: 'football', league: 'nfl' });
-  assert.deepEqual(LEAGUE_PATHS.nba, { sport: 'basketball', league: 'nba' });
+  // limit=1000: a month read with no limit stops at 100 events (NBA 202611 ended at 11-15 without it).
+  assert.deepEqual(LEAGUE_PATHS.nfl, { sport: 'football', league: 'nfl', scoreboardParams: 'limit=1000' });
+  assert.deepEqual(LEAGUE_PATHS.nba, { sport: 'basketball', league: 'nba', scoreboardParams: 'limit=1000' });
 });
 
 test('a quote is attributed to the actual home team of the competition', () => {
@@ -107,8 +111,21 @@ test('a position with no box-score footprint returns null rather than a plausibl
   assert.equal(productionStatFor('nfl', ''), null);
 });
 
+test('a team list that could not be read REJECTS with why; only ESPN\'s own empty answer is []', async () => {
+  // Live 2026-10-11: the native kernel refused every read ("site.api.espn.com is not a declared outbound
+  // host of sports-edge") and Load teams rendered an empty grid with no error at all.
+  const refused = async () => { throw new Error('refused: site.api.espn.com is not a declared outbound host of sports-edge'); };
+  await assert.rejects(listTeams('nfl', { fetchImpl: refused, attempts: 1 }), (err) => {
+    assert.ok(err instanceof EspnReadError);
+    assert.equal(err.failure.kind, 'transport');
+    assert.match(err.message, /nfl team list could not be read from ESPN \(transport: refused: site\.api\.espn\.com is not a declared outbound host/);
+    return true;
+  });
+  await assert.rejects(listTeams('nfl', { fetchImpl: stub({}, false), attempts: 1 }), (err) => err.failure.kind === 'unavailable');
+  assert.deepEqual(await listTeams('nfl', { fetchImpl: stub({ sports: [{ leagues: [{ teams: [] }] }] }) }), []);
+});
+
 test('a failing endpoint DEGRADES to an empty result — one bad read must not take down a slate', async () => {
-  assert.deepEqual(await listTeams('nfl', { fetchImpl: stub({}, false) }), []);
   assert.deepEqual(await scoreboard('nfl', { fetchImpl: stub({}, false) }), []);
   const sched = await teamSchedule('nfl', '12', 2025, { fetchImpl: stub({}, false) });
   assert.deepEqual(sched, { results: [], upcoming: [] });
@@ -152,7 +169,7 @@ test('A TRANSIENT FAILURE IS RETRIED — one attempt from a busy event loop is n
 test('a 4xx is NOT retried — it is a statement about the request, not a transient blip', async () => {
   let calls = 0;
   const notFound = async () => { calls += 1; return { ok: false, status: 404, json: async () => ({}) }; };
-  await listTeams('nfl', { fetchImpl: notFound, attempts: 4 });
+  await assert.rejects(listTeams('nfl', { fetchImpl: notFound, attempts: 4 }), EspnReadError);
   assert.equal(calls, 1, 'retrying a 404 four times just wastes four times as long');
 });
 
@@ -160,7 +177,7 @@ test('a 5xx and a 429 ARE retried', async () => {
   for (const status of [500, 503, 429]) {
     let calls = 0;
     const flaky = async () => { calls += 1; return { ok: false, status, json: async () => ({}) }; };
-    await listTeams('nfl', { fetchImpl: flaky, attempts: 3 });
+    await assert.rejects(listTeams('nfl', { fetchImpl: flaky, attempts: 3 }), EspnReadError);
     assert.equal(calls, 3, `HTTP ${status} should be retried`);
   }
 });
@@ -182,4 +199,15 @@ test('onError does NOT fire on a successful read, so a good read is never report
   const failures = [];
   await scoreboard('nfl', { fetchImpl: stub({ events: [] }), onError: () => failures.push(1) });
   assert.equal(failures.length, 0, 'an empty-but-successful scoreboard is an ANSWER, not a failure');
+});
+
+test('event times are full ISO instants: the native SQL adapter refuses ESPN\'s minute precision', async () => {
+  // Live 2026-10-11: 288 scoreboard games, and every line capture write failed "invalid: invalid timestamp".
+  const payload = { events: [{ id: '401', date: '2026-10-11T13:30Z', name: 'LV at KC', competitions: [{ competitors: [
+    { homeAway: 'home', team: { id: '12', abbreviation: 'KC' } }, { homeAway: 'away', team: { id: '13', abbreviation: 'LV' } }] }] }] };
+  const games = await scoreboard('nfl', { fetchImpl: stub(payload) }, '202610');
+  assert.equal(games[0].date, '2026-10-11T13:30:00.000Z');
+  assert.equal(espnDate(''), '');
+  assert.equal(espnDate('not a date'), '');
+  assert.equal(espnDate(undefined), '');
 });

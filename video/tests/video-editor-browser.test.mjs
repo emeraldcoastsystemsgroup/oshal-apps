@@ -4,6 +4,9 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Real Chromium through the real editor screen, the real compiled routes and a disposable PostgreSQL: import two clips and music with the native picker, trim, split and reorder on the keyboard, title, clip and music volume, undo and redo, save, reopen and export; the unsaved draft survives a theme change, a failed save, a reload and a conflict; every portal palette and a phone-width layout keep the controls usable; missing permissions disable exactly what they must and send nothing.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Delete project: declining the confirmation sends nothing; accepting deletes the open project (gone from the list and from the route) and returns to a new project; without editor.delete the button is disabled with its reason and no DELETE is sent.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | A storage refusal on upload names its cause on the screen instead of "Something went wrong", and the media list stays as it was.
  */
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -118,6 +121,18 @@ test('the unsaved draft survives a theme change, a failed save, a reload and a c
   assert.deepEqual(errors, []);
 });
 
+test('a storage refusal on upload says why and keeps the edits', async t => {
+  const { page, errors } = await openEditor(t, browser, database);
+  await page.route('**/api/video/editor/media*', route => route.request().method() === 'POST'
+    ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"video_edit_storage_unavailable"}' }) : route.continue());
+  await page.locator('#addClip').setInputFiles(file('Beach.mp4', 'video', clipProbe({ seconds: 3 })));
+  await status(page, 'Upload failed. Your edits are still here.');
+  assert.equal(await page.locator('#error').textContent(),
+    'The video editor cannot store files right now, so nothing was added or changed. Try again in a minute.');
+  assert.deepEqual(await segments(page), [], 'nothing was added to the timeline');
+  assert.deepEqual(errors, []);
+});
+
 test('every portal palette and a phone-width layout keep the editor readable and usable', async t => {
   const wide = await openEditor(t, browser, database);
   const contrast = selector => wide.page.locator(selector).evaluate(node => {
@@ -161,4 +176,55 @@ test('missing permissions disable exactly what they must and send nothing', asyn
   await status(readOnly.page, 'Your access does not include creating projects.');
   for (const selector of ['#addClip', '#addBed', '#saveProject', '#saveAsNew', '#newProject']) assert.equal(await readOnly.page.locator(selector).isDisabled(), true, selector);
   assert.equal(readOnly.requests.some(line => line.startsWith('POST')), false, 'nothing was written');
+});
+
+test('Delete project asks first, deletes the open project, and is disabled without delete access', async t => {
+  const { page, api, errors, requests } = await openEditor(t, browser, database);
+  assert.equal(await page.locator('#deleteProject').isDisabled(), true, 'nothing saved yet, nothing to delete');
+  await page.locator('#projectName').fill('Throwaway cut'); await page.locator('#projectName').press('Tab');
+  await page.locator('#addClip').setInputFiles(file('Beach.mp4', 'video', clipProbe({ seconds: 3 })));
+  await status(page, 'Beach.mp4 added.');
+  await key(page, 'Control+s'); await status(page, 'Saved · revision 1');
+  const id = new URL(page.url()).searchParams.get('project');
+  const asked = [];
+  page.once('dialog', dialog => { asked.push(dialog.message()); dialog.dismiss(); });
+  await page.locator('#deleteProject').click();
+  assert.match(asked[0], /Delete the project "Throwaway cut"/);
+  assert.equal(requests.some(line => line.startsWith('DELETE')), false, 'declining sends nothing');
+  assert.equal((await api.call(`/editor/projects/${id}`)).status, 200);
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('#deleteProject').click();
+  await status(page, 'Deleted Throwaway cut.');
+  assert.equal((await api.call(`/editor/projects/${id}`)).status, 404, 'the project is gone');
+  assert.equal(await page.locator('#projectName').inputValue(), 'Untitled video');
+  assert.equal(await page.locator('#projectList option').count(), 1, 'the list no longer offers it');
+  assert.deepEqual(errors, []);
+
+  const keep = await openEditor(t, browser, database, { denied: ['editor.delete'] });
+  await keep.page.locator('#addClip').setInputFiles(file('Beach.mp4', 'video', clipProbe({ seconds: 3 })));
+  await status(keep.page, 'Beach.mp4 added.');
+  await key(keep.page, 'Control+s'); await status(keep.page, 'Saved · revision 1');
+  assert.equal(await keep.page.locator('#deleteProject').isDisabled(), true);
+  assert.equal(await keep.page.locator('#deleteProject').getAttribute('title'), 'Your access does not include deleting projects.');
+  assert.equal(keep.requests.some(line => line.startsWith('DELETE')), false);
+});
+
+test('multitrack controls upgrade, edit effects and linked audio, save/reopen and use the existing export job', async t => {
+  const value = await openEditor(t, browser, database), { page, api } = value; await addMedia(page);
+  await page.locator('#upgradeMultitrack').click(); await page.locator('#multitrackEditor').waitFor();
+  assert.equal(await page.locator('#multiTracks .multi-track').count(), 2);
+  await page.locator('#multiTrackName').fill('Overlay'); await page.locator('#multiAddTrack').click();
+  assert.equal(await page.locator('#multiTracks .multi-track').count(), 3);
+  await page.locator('[data-multi-clip]').first().click(); await page.locator('#multi-opacity').fill('70'); await page.locator('#multi-opacity').press('Tab');
+  await page.locator('#multiKeyProperty').selectOption('opacity'); await page.locator('#multiKeyFrame').fill('0'); await page.locator('#multiKeyValue').fill('40'); await page.locator('#multiAddKey').click();
+  await page.locator('#multiText').fill('Multitrack caption'); await page.locator('#multiTextStart').fill('0'); await page.locator('#multiTextEnd').fill('30'); await page.locator('#multiAddText').click();
+  await page.locator('#multiExtractAudio').click();
+  await page.locator('#saveProject').click(); await status(page, 'Saved · revision 1');
+  const id = new URL(page.url()).searchParams.get('project'), row = (await api.call(`/editor/projects/${id}`)).body.project;
+  assert.equal(row.document.version, 2); assert.equal(row.document.tracks.length, 3); assert.equal(row.document.captions[0].text, 'Multitrack caption');
+  assert.equal(row.document.tracks[0].clips[0].audioEnabled, false);
+  assert.ok(row.document.tracks[1].clips.some(clip => clip.link));
+  await page.reload(); await status(page, 'Saved · revision 1'); await page.locator('#multitrackEditor').waitFor();
+  await page.locator('#exportMp4').click(); await page.locator('#exportStatus').filter({ hasText: 'Export ready' }).waitFor();
+  assert.deepEqual(value.errors, []); assert.deepEqual(value.external, []);
 });

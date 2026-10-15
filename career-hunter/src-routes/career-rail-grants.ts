@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The package half of the kernel's signed-package-callbacks contract for the Career worker rail (1.25.1). Under ADR-149 enforce the kernel refused every engine-child completion with authorization_identity_required before routes/career-worker-rail.js ran, because a service-secret caller has no verified identity; the manifest's callbackVerifier now runs first, reads the exact body the signature covers, verifies the per-run grant the runner minted (lib/career-engine-runs.js: owner, timestamp, HMAC over method, path and body hash, single-use nonce, live run with a recorded owner issuer) and returns only that run's recorded (subject, issuer) for the kernel to refresh and authorize. The admitted run is remembered for this request object only, and the handler reads it rather than verifying a second time, which would also spend the nonce twice.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Drop the exported CAREER_RAIL_MOUNT constant: nothing read it (the verifier compares the request target against CAREER_RAIL_TARGET, which the run registry owns), and an unused export of the mount path invites a second copy of a value the manifest already declares.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | The verifier also names the verified run id, so the native sandbox relay admits a kept background run's own callbacks after its request answered (and no other run's).
  */
 /**
  * Career worker rail grants — verification glue between the kernel's callback rail and the
@@ -92,7 +93,9 @@ export function createCareerRailCallbackVerifier(_ctx: AppContext): PackageCallb
   return async (req: Request) => {
     const verdict = await verifyCareerRailRequest(req);
     if (!verdict.ok || !verdict.run.ownerIssuer) return null;
-    return { sub: verdict.run.owner, issuer: verdict.run.ownerIssuer };
+    // The run id lets the native sandbox relay admit this run's own callbacks after its request.
+    const owner = { sub: verdict.run.owner, issuer: verdict.run.ownerIssuer, runId: verdict.run.runId };
+    return owner;
   };
 }
 

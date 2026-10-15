@@ -2,8 +2,52 @@
 # CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Restate the registered evidence after the privacy fixes: the assembler cites recorded conversation instead of quoting it, the consent question is settled before anything is read, and the per-speaker consent gate decides which voices may be cited at all.
 # CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.3: register the audience view contract of the review page (ADR-164 D6): the company view for the Business shell reads only GET /home-summary and GET /meeting-briefs on open, never POSTs /sync, names not synced, empty, refused and failed states for what they are, and leaves the full page's own start ungated only when no audience view renders.
 # CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.4: the audience-view case also covers the family view for the Jarvis shell: the same two reads (proved over the package's real home-summary and meeting-brief handlers, only SELECTs pinned to the caller), "Coming up" in plain words with all-day and timed starts formatted by their shape, and every named state.
+# CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | Register the native-kernel egress case: the explicit sync reads the declared Calendar host with no Authorization header, a missing or rejected Google grant answers 409 without a write, and the Home summary names connected-not-synced, not connected and reconnect from connection metadata.
+# CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Register the own-events case: events the person adds in OSHAL (confirmed, offset-bearing, caller-pinned, bounded) and their place in the Home summary; the audience-view case now counts the own-events read among the family view's owner-pinned SELECTs.
+# CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | Register own-events-postgres: migration 004's forced exact-owner row security on a disposable PostgreSQL under the package's runtime role, through the compiled routes and raw statements.
+# CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | own-events also proves removal by the listed uuid: the remove tool declares `format: uuid`, a title is refused unwritten, and the persona reads calendar-my-events first, answers status questions without a card and guesses no zone abbreviation (sweep 10).
+# CHANGE LOG: 9 | maintainer@emeraldcoastsystemsgroup.com | own-events also proves (sweep 11) that approval-held tool descriptions read as card sentences without model instructions and that a span the person gave is one event with its end.
+# CHANGE LOG: 10 | maintainer@emeraldcoastsystemsgroup.com | own-events also expects a card named by its event, never by its place (sweep 13); the span expectation is quoted, since its unquoted colon made it a map the kernel loader refuses.
 version: 1
 cases:
+  - id: own-events
+    name: Events the person adds in OSHAL
+    purpose: Drive the compiled own-events and home-summary handlers over a recording pool that keeps rows per owner.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/own-events.test.cjs] }
+    expected:
+      - "The persona names a card by the event it holds, never by where it sits or when it appeared (sweep 13)."
+      - Adding needs confirm, a title and a real start; a date is all day and a timed start must carry its UTC offset.
+      - Every statement is pinned to the verified caller; another person neither sees nor removes the event; a full calendar answers 409 without a write.
+      - The Home summary lists added events marked added in OSHAL with an Added in OSHAL tile, and is unchanged when there are none.
+      - The manifest mounts /api/calendar/events, applies migration 003 and holds calendar-add-event and calendar-remove-event for approval.
+      - A local start with the person's IANA timeZone is saved as that zone's instant and listed with its local words; an unknown zone or a start with neither is refused naming timeZone.
+      - An event identical to a saved one (title, start, all-day) answers 409 and writes no second row.
+      - The add tool declares timeZone, migration 005 is declared, and the persona never asks for a UTC offset, never re-proposes an approved event and never says an OSHAL event appears in Google.
+      - The remove tool's id is format uuid and its id field says to read calendar-my-events first and never send a title; a title answers 400 and removes nothing; the listed id removes the event; the persona reads calendar-my-events before removing, never proposes a card for a question and never guesses CST or CDT.
+      - Every approval-held tool's description, which the kernel shows as the approval card's sentence, is person-facing with no tool name, id or call instruction.
+      - "A span the person gave is one event with its end: the add tool's end field and the persona say so, and the route saves a local Friday-to-Sunday span with its end in the person's zone."
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 20000 }
+    installation: never
+  - id: kernel-egress-sync
+    name: Native kernel sync through the declared egress
+    purpose: Drive the compiled sync and Home summary handlers with OSHAL_EGRESS=kernel, a recording fetch and synthetic connection metadata.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/kernel-egress.test.cjs] }
+    expected:
+      - The sync request goes to www.googleapis.com primary events with fixed bounds and no Authorization header.
+      - The stored rows carry only id, title, start, end, all-day and link; description and attendees are dropped.
+      - A kernel "not connected" refusal, a 401 or a 403 answers 409 and keeps the previous snapshot.
+      - With no snapshot the Home summary says connected-not-synced, not connected or reconnect from the caller's connections.
+      - The legacy connector broker and Calendar service are never loaded under the kernel.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 20000 }
+    installation: never
   - id: native-independent-load
     name: Independent reads with optional services unavailable
     purpose: Exercise real Calendar HTTP route factories without legacy connector or briefing modules.
@@ -97,4 +141,93 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: own-events-postgres
+    name: Another person's own event is invisible and undeletable on PostgreSQL
+    purpose: >-
+      Apply migrations 003 and 004 as the package's NOSUPERUSER NOBYPASSRLS runtime role (it owns the table) on a
+      disposable PostgreSQL 16, then drive the compiled own-events routes over loopback HTTP and raw statements through
+      the framework's identity (GUC) pool. Seams: the logger and the caller middleware standing in for OIDC.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/own-events-postgres.test.cjs
+    expected:
+      - With 003 alone the runtime role reads and deletes another person's row (the gap the fixture shows first).
+      - After 004 the table has row security enabled and forced, owned by the runtime role, with one owner policy.
+      - Through the routes B's list never shows A's event and B's DELETE answers 404 with A's row still stored.
+      - Under B's identity a select, update or delete reaches none of A's rows, a row in A's name is refused 42501, and an operator identity sees none.
+      - With migration 005 a local start with timeZone is stored with its zone and answered in its own words, and an identical add answers 409 leaving one row.
+    prerequisites:
+      - runner:node-test
+      - core:dependencies
+      - harness:oshal-core-root
+      - service:docker
+      - image:postgres-16-alpine-local
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/own-events-postgres.test.cjs
+      cleanup: Remove the uniquely labelled fixture container and its tmpfs storage; never connect to the installed database.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+    installation: never
+  - id: own-events-local-time-browser
+    name: Added events read in their own zone and can be removed from the screen
+    purpose: >-
+      Serve tools/review.html with the REAL compiled own-events, home-summary and event-time routes on express over loopback,
+      add an event with timeZone America/Chicago, and drive the page in Chromium at 412x915. Seams: an in-memory pool, a
+      signed-in caller stub and empty stand-ins for the shell's theme scripts and connected-action modules.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/local-time.test.cjs] }
+    expected:
+      - The Added in OSHAL list and the Recorded work list show 'Fri, Nov 6, 2099, 6:00 PM CST', never a raw UTC instant.
+      - Remove asks first; a dismissed dialog removes nothing; OK sends DELETE and the event leaves the list and the summary.
+      - Nothing is wider than the 412-pixel screen.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: personal-calendar-dates
+    name: Personal calendar civil-day boundaries
+    purpose: Validate the closed bounded window, original event shapes and exclusive-end date projection.
+    level: unit
+    runner: { kind: external, scope: package, files: [tests/personal-calendar.test.cjs] }
+    expected:
+      - Invalid windows and zones are refused; timed DST spans and all-day exclusive ends retain their intended days.
+    prerequisites: [runner:node, runtime:store-pinned-toolchain]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 20000 }
+    installation: never
+  - id: personal-calendar-postgres
+    name: Personal calendar original-owner PostgreSQL
+    purpose: Real HTTP and forced nonbypass RLS over original migrations; OIDC and scoped session are named Source fixture seams.
+    level: integration
+    runner: { kind: external, scope: package, files: [tests/personal-calendar-postgres.test.cjs] }
+    expected:
+      - Owned past and ongoing events merge with the actual saved snapshot; foreign access and writes refuse, and both caps refuse explicitly.
+    prerequisites: [runner:node, runtime:store-pinned-toolchain, fixture:postgres-127.0.0.1-35689]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Drop only the unique owned fixture database and role; never remove the shared Postgres container. }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: personal-calendar-browser
+    name: Personal calendar actual Chromium entry
+    purpose: Load the real compact review screen over actual owner-scoped PostgreSQL routes with named OIDC and session fixture seams.
+    level: integration
+    runner: { kind: external, scope: package, files: [tests/personal-calendar-browser.test.mjs] }
+    expected:
+      - Month and selected-day agenda show real own events and saved Google data, with no implicit write or sync.
+      - Human save, reload, removal, DST-gap refusal and phone layout pass; refused reads are never presented as an empty calendar.
+    prerequisites: [runner:node, runtime:store-pinned-toolchain, runtime:chromium, fixture:postgres-127.0.0.1-35689]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Close only own browser/server and drop unique fixture database and role; preserve shared Postgres. }
+    limits: { timeoutMs: 60000 }
     installation: never

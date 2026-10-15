@@ -6,6 +6,18 @@
   leagues you linked, the lineup for the team your own ESPN account owns, and the ledger of calls
   made for it. Nothing on this page changes a lineup on ESPN or submits a claim — it advises, you act.
 
+  2026-10-11 — Season, Waivers and Trades check the projection feed the way the Lineup board does: with no
+  projection for the week they say the ESPN projection feed is unavailable and why, instead of a season value of
+  0.0, "Nobody on the wire improves your starting lineup" and weeks claimed as priced from their own projection.
+
+  2026-10-12 — A league typed in by hand is entered in labelled fields (name, season, weeks, FAAB, one line per scoring
+  rule, slot, game and bye, and a fieldset per team with its roster and starters) instead of one unlabelled text box of
+  raw JSON. The form names a line it cannot read before anything is sent; the route still validates the league.
+
+  2026-10-12 — A new league's scoring starts empty with an example as a placeholder, not a "0 = 0" line, and a scoring
+  table that gives every stat 0 points is named before saving. A league saved that way earlier gets, on every board,
+  "this league's scoring gives every stat 0 points" and no numbers, instead of advice drawn from all-0.0 projections.
+
   Self-contained: no external assets. Framework theme tokens + the shared glass sheet only.
 -->
 <html lang="en" data-theme="midnight">
@@ -129,6 +141,16 @@
     border-radius: 0 6px 6px 0; margin-bottom: 12px; font-size: 12px;
   }
   .banner.hard { border-left-color: var(--red); }
+  /* The hand-typed league form: one labelled field per value. */
+  .mhead { margin: 12px 0 6px; font-size: 12px; font-weight: 600; }
+  .mform { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-top: 8px; }
+  .mf { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dim); min-width: 0; }
+  .mf input, .mf textarea { width: 100%; box-sizing: border-box; color: var(--text); }
+  .mf.mine { flex-direction: row; align-items: center; color: var(--text); }
+  .mf.mine input { width: auto; }
+  fieldset.mteam { border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; margin: 10px 0; min-width: 0; }
+  fieldset.mteam legend { color: var(--dim); font-size: 12px; padding: 0 4px; }
+  fieldset.mteam .mf { margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -180,6 +202,10 @@ function loadFantasy() {
 }
 
 function connectCard(d) {
+  // Where this installation cannot send ESPN's sign-in cookies, connecting cannot help: say so, no cookie steps.
+  if (d.credentialSupported === false) {
+    return '<div class="card"><h2>Your ESPN league</h2><p>' + esc(d.connectHint || '') + '</p></div>';
+  }
   return '<div class="card"><h2>Connect ESPN Fantasy</h2>' +
     (d.connectHint ? '<p>' + esc(d.connectHint) + '</p>' : '') +
     '<div class="banner hard">These are your ESPN <strong>account session cookies</strong>, not an ' +
@@ -295,27 +321,50 @@ function matchupCard(m) {
 }
 
 function callsCard(d) {
-  if (!d.calls || !d.calls.length) {
-    return '<div class="card"><h2>Start / sit</h2><p class="muted">Your lineup is already the best ' +
-      'legal one. That is the normal answer &mdash; a tool that always finds something to change is ' +
-      'fidgeting, not advising.</p></div>';
-  }
+  var calls = d.calls || [], fills = d.openSlots || [];
+  if (!calls.length && !fills.length) return noCallsCard(d);
+  var rows = fills.map(function (f) {
+    return '<tr><td class="pos"><strong>' + esc(f.start.name) + '</strong> (' + f.start.points.toFixed(1) + ')</td>' +
+      '<td class="muted">Empty slot</td><td class="num pos">+' + f.gain.toFixed(1) + '</td>' +
+      '<td class="muted">Your lineup as set leaves this starting slot empty; ' + esc(f.start.name) + ' fills it.</td></tr>';
+  }).concat(calls.map(function (c) {
+    return '<tr><td class="pos"><strong>' + esc(c.start.name) + '</strong> (' + c.start.points.toFixed(1) + ')</td>' +
+      '<td class="neg">' + esc(c.sit.name) + ' (' + c.sit.points.toFixed(1) + ')</td>' +
+      '<td class="num pos">+' + c.gain.toFixed(1) + '</td><td class="muted">' + esc(c.reason) + '</td></tr>';
+  }));
   return '<div class="card"><h2>Start / sit</h2><table>' +
-    '<tr><th>Start</th><th>Sit</th><th class="num">Gain</th><th>Why</th></tr>' +
-    d.calls.map(function (c) {
-      return '<tr><td class="pos"><strong>' + esc(c.start.name) + '</strong> (' + c.start.points.toFixed(1) + ')</td>' +
-        '<td class="neg">' + esc(c.sit.name) + ' (' + c.sit.points.toFixed(1) + ')</td>' +
-        '<td class="num pos">+' + c.gain.toFixed(1) + '</td><td class="muted">' + esc(c.reason) + '</td></tr>';
-    }).join('') + '</table>' +
-    '<p class="muted" style="margin:9px 0 0">Every one of these is recorded before kickoff and graded ' +
-    'against what the benched player actually scored.</p></div>';
+    '<tr><th>Start</th><th>Sit</th><th class="num">Gain</th><th>Why</th></tr>' + rows.join('') + '</table>' +
+    (calls.length ? '<p class="muted" style="margin:9px 0 0">Every start/sit swap is recorded before kickoff and graded ' +
+      'against what the benched player actually scored.</p>' : '') +
+    (fills.length ? '<p class="muted" style="margin:9px 0 0">Filling an empty slot is not graded: nobody is benched ' +
+      'to compare against.</p>' : '') + '</div>';
+}
+
+function noCallsCard(d) {
+  var gain = d.optimal ? Math.round((d.optimal.total - d.currentTotal) * 100) / 100 : 0;
+  if (gain >= 0.5) {
+    return '<div class="card"><h2>Start / sit</h2><p class="muted">The recommended lineup below projects +' +
+      gain.toFixed(1) + ' over your lineup as set, but no single swap gains half a point or more. ' +
+      'Set the starters listed under Projected starters to take it.</p></div>';
+  }
+  return '<div class="card"><h2>Start / sit</h2><p class="muted">Your lineup is already the best ' +
+    'legal one. That is the normal answer &mdash; a tool that always finds something to change is ' +
+    'fidgeting, not advising.</p></div>';
+}
+
+/* ESPN's lineup slot ids, named as ESPN's own lineup screen names them (the Slot column printed the raw id: "0 Patrick
+   Mahomes", "4 CeeDee Lamb"). An id ESPN adds later shows as "Slot <id>". */
+var SLOT_NAMES = { 0: 'QB', 1: 'TQB', 2: 'RB', 3: 'RB/WR', 4: 'WR', 5: 'WR/TE', 6: 'TE', 7: 'OP', 8: 'DT', 9: 'DE', 10: 'LB',
+  11: 'DL', 12: 'CB', 13: 'S', 14: 'DB', 15: 'DP', 16: 'D/ST', 17: 'K', 18: 'P', 19: 'HC', 20: 'Bench', 21: 'IR', 23: 'FLEX' };
+function slotName(id) {
+  return Object.prototype.hasOwnProperty.call(SLOT_NAMES, id) ? SLOT_NAMES[id] : 'Slot ' + id;
 }
 
 function startersCard(d) {
   return '<div class="card"><h2>Projected starters</h2><table>' +
     '<tr><th>Slot</th><th>Player</th><th class="num">Projected</th></tr>' +
     d.optimal.starters.map(function (a) {
-      return '<tr><td class="muted">' + esc(a.slotId) + '</td><td>' + esc(a.player.name) + '</td>' +
+      return '<tr><td class="muted">' + esc(slotName(a.slotId)) + '</td><td>' + esc(a.player.name) + '</td>' +
         '<td class="num">' + a.points.toFixed(1) + '</td></tr>';
     }).join('') + '</table>' +
     (d.optimal.bench.length ? '<h2 style="margin-top:14px">Bench</h2><table>' +
@@ -324,10 +373,32 @@ function startersCard(d) {
       }).join('') + '</table>' : '') +
     '<p class="muted" style="margin:9px 0 0">Projections from ' +
     (d.projectionsGeneratedAt ? esc(new Date(d.projectionsGeneratedAt).toLocaleString()) : 'an unavailable feed') +
-    ' &middot; ' + esc(d.projectionsAvailable) + ' players.</p></div>';
+    ' &middot; ' + esc(d.projectionsAvailable) + ' players' +
+    (d.projectionFeed && d.projectionFeed.source === 'stale-cache'
+      ? ' &middot; an older copy: the feed could not be refreshed (' + esc(d.projectionFeed.reason || 'no reason given') + ')' : '') +
+    '.</p></div>';
+}
+
+// No projection for the week: say why, and show no lineup numbers (an empty feed is not zero points).
+// A league whose scoring scores nothing: say so and show no numbers (every player would project 0.0).
+function scoringRefusedCard(d, what) {
+  return '<div class="card"><h2>' + esc(d.team.name) + ' &middot; ' + esc(what) + '</h2>' +
+    '<p><strong>No ' + esc(what) + ' can be advised</strong>: ' + esc(d.scoring.reason) + '</p>' +
+    '<p class="muted">Edit the league under Leagues typed in by hand, or relink it if it came from ESPN.</p></div>';
+}
+
+function feedFailureCard(d) {
+  var f = d.projectionFeed || {};
+  return '<div class="card"><h2>' + esc(d.team.name) + ' &middot; week ' + esc(d.league.week) + '</h2>' +
+    '<p><strong>Projections are unavailable for this week</strong>, so no lineup can be recommended and nothing was recorded.</p>' +
+    '<p class="muted">The projection feed said: ' + esc(f.reason || 'no reason given') + '</p>' +
+    (d.matchup && d.matchup.opponentName ? '<p class="muted">Your opponent this week: ' + esc(d.matchup.opponentName) + '.</p>' : '') +
+    '</div>';
 }
 
 function renderLineup(d) {
+  if (d.scoring && d.scoring.ok === false) { el('lineupBody').innerHTML = scoringRefusedCard(d, 'lineup'); loadFantasyRecord(); return; }
+  if (!d.optimal) { el('lineupBody').innerHTML = feedFailureCard(d); loadFantasyRecord(); return; }
   var gain = Math.round((d.optimal.total - d.currentTotal) * 100) / 100;
   if (d.matchup) d.matchup.week = d.league.week;
   el('lineupBody').innerHTML = [matchupCard(d.matchup),
@@ -386,8 +457,15 @@ function weeksHtml(w) {
     }).join('') + '</table>';
 }
 
+// The record under a board is that league's own: its ledger key is the ESPN league id or manual:<id>.
+function recordLeagueKey() {
+  if (!shownBoard) return '';
+  return shownBoard.source === 'manual' ? 'manual:' + shownBoard.id : shownBoard.id;
+}
+
 function loadFantasyRecord() {
-  jget(API + '/record?limit=50').then(function (d) {
+  var key = recordLeagueKey();
+  jget(API + '/record?limit=50' + (key ? '&leagueKey=' + encodeURIComponent(key) : '')).then(function (d) {
     if (!d.record.graded && !(d.calls || []).length && !(d.weeks && d.weeks.weeks)) return;
     el('lineupBody').innerHTML += recordHtml(d);
   }).catch(function () { /* the record is additive; its absence must not blank the lineup */ });
@@ -419,11 +497,21 @@ function bindBoards(root) {
   });
 }
 
+// The board on screen, so deleting its league can take it off the screen too.
+var shownBoard = null;
+
 function loadBoard(source, season, id, kind) {
+  shownBoard = { source: source, id: String(id) };
   el('lineupBody').innerHTML = '<div class="card muted">building the ' + esc(kind) + '&hellip;</div>';
   var q = (source === 'manual' ? 'manualId=' : 'leagueId=') + encodeURIComponent(id) + '&season=' + encodeURIComponent(season);
   var render = { lineup: renderLineup, season: renderSeason, waivers: renderWaivers, trades: renderTrades }[kind];
-  jget(BOARDS[kind] + '?' + q).then(render)
+  // The lineup is the one board that records: viewing it registers the week's decision and its
+  // start/sit calls (the forward test), so it is a POST. The other boards are reads.
+  var load = kind === 'lineup'
+    ? jbody('POST', API + '/lineup/record', source === 'manual'
+      ? { manualId: id, season: Number(season) } : { leagueId: id, season: Number(season) })
+    : jget(BOARDS[kind] + '?' + q);
+  load.then(render)
     .catch(function (e) { el('lineupBody').innerHTML = '<div class="card muted">' + esc(e.message) + '</div>'; });
 }
 
@@ -434,10 +522,25 @@ function provenance(d) {
   return '<p class="muted" style="margin:9px 0 0">Weeks ' + esc((w.fromFeed || []).join(', ') || 'none') +
     ' priced from their own weekly projection; weeks ' + esc((w.fromRate || []).join(', ') || 'none') +
     ' from this week’s projection used as a rate' + (d.byesKnown ? '' : ', with bye weeks not known for those weeks') +
-    (w.playoffStart ? '. Playoff weeks from ' + esc(w.playoffStart) + ' count extra.' : '.') + '</p>';
+    (w.playoffStart ? '. Playoff weeks from ' + esc(w.playoffStart) + ' count extra.' : '.') +
+    (d.projectionFeed && d.projectionFeed.source === 'stale-cache'
+      ? ' This week’s projection is an older copy: the feed could not be refreshed (' + esc(d.projectionFeed.reason || 'no reason given') + ').' : '') + '</p>';
+}
+
+// No projection for the week: a board priced from an empty feed would show a season value of zero and a wire that
+// improves nothing. Say which board cannot be priced, and why, instead.
+function boardFeedFailure(d, what) {
+  if (d.scoring && d.scoring.ok === false) { el('lineupBody').innerHTML = scoringRefusedCard(d, what); return true; }
+  if (!d.projectionFeed || d.projectionFeed.ok !== false) return false;
+  el('lineupBody').innerHTML = '<div class="card"><h2>' + esc(d.team.name) + ' &middot; ' + esc(what) + '</h2>' +
+    '<p><strong>The ESPN projection feed is unavailable</strong>, so the ' + esc(what) + ' cannot be priced: ' +
+    'every number on this board comes from player projections.</p>' +
+    '<p class="muted">The projection feed said: ' + esc(d.projectionFeed.reason || 'no reason given') + '</p></div>';
+  return true;
 }
 
 function renderSeason(d) {
+  if (boardFeedFailure(d, 'rest of season')) return;
   el('lineupBody').innerHTML = '<div class="card"><h2>' + esc(d.team.name) + ' &middot; rest of season</h2>' +
     '<div class="lines">' + box('Season value', d.total.toFixed(1)) +
       box('Weeks left', (d.byWeek || []).length) +
@@ -448,6 +551,7 @@ function renderSeason(d) {
 }
 
 function renderWaivers(d) {
+  if (boardFeedFailure(d, 'waiver board')) return;
   var rows = (d.rows || []).map(function (r) {
     return '<tr><td class="pos"><strong>' + esc(r.add.name) + '</strong>' + (r.scarcity ? ' <span class="muted">(fills a replacement-level slot)</span>' : '') + '</td>' +
       '<td>' + esc(r.drop.name) + '</td><td class="num">+' + r.gain.toFixed(1) + '</td>' +
@@ -467,6 +571,7 @@ function renderWaivers(d) {
 }
 
 function renderTrades(d) {
+  if (boardFeedFailure(d, 'trade finder')) return;
   var list = (d.proposals || []).map(function (t) {
     var names = function (xs) { return xs.map(function (x) { return esc(x.name); }).join(' + '); };
     return '<tr><td>' + esc(t.teamName) + '</td><td class="neg">' + names(t.give) + '</td><td class="pos">' + names(t.get) + '</td>' +
@@ -483,7 +588,7 @@ function renderTrades(d) {
 // A league typed in once runs every board above with no ESPN connection at all.
 var MANUAL_TEMPLATE = {
   name: 'My league', season: 2026,
-  scoring: [{ statId: 0, points: 0 }],
+  scoring: [],
   slots: [{ slotId: 0, count: 1 }, { slotId: 2, count: 2 }, { slotId: 4, count: 2 }, { slotId: 23, count: 1 }],
   teams: [
     { teamId: 1, name: 'My team', mine: true, roster: [], starting: [] },
@@ -497,47 +602,242 @@ function loadManual() {
   jget(API + '/manual-leagues').then(function (d) {
     var rows = (d.leagues || []).map(function (l) {
       return '<tr><td>' + esc(l.season) + '</td><td>' + esc(l.name) + '</td><td class="num">' + boardButtons('manual', l.season, l.id) +
-        ' <button class="ghost" data-edit="' + esc(l.id) + '">edit</button> <button class="ghost" data-drop="' + esc(l.id) + '">delete</button></td></tr>';
+        ' <button class="ghost" data-edit="' + esc(l.id) + '">edit</button> <button class="ghost" data-drop="' + esc(l.id) + '" data-name="' + esc(l.name) + '">delete</button></td></tr>';
     }).join('');
     el('manualBody').innerHTML = '<div class="card"><h2>Leagues typed in by hand</h2>' +
       '<p class="muted">Needs no ESPN connection. Rosters are ESPN player ids; scoring is ESPN stat id → points, exactly as your league’s settings state it — nothing here assumes what a stat is worth.</p>' +
       (rows ? '<table>' + rows + '</table>' : '') +
-      '<textarea id="mDoc" rows="10" style="width:100%;margin-top:10px;font-family:monospace"></textarea>' +
-      '<div class="row" style="margin-top:8px"><button class="act" id="mSave">Save</button><span class="muted" id="mNote"></span></div></div>';
-    el('mDoc').value = JSON.stringify(MANUAL_TEMPLATE, null, 2);
-    el('mDoc').setAttribute('data-id', '');
+      '<div id="mForm"></div>' +
+      '<div class="row" style="margin-top:8px"><button class="act" id="mSave">Save</button><span class="muted" id="mNote" role="status"></span></div></div>';
+    renderManualForm(MANUAL_TEMPLATE, '');
     bindManual();
   }).catch(function (e) { el('manualBody').innerHTML = '<div class="card muted">' + esc(e.message) + '</div>'; });
+}
+
+// ---- the hand-typed league form: every value has its own labelled field (it was one raw-JSON text box) ----
+var manualEditId = '';
+var manualTeamCount = 0;
+
+/** One labelled field: the label names what goes in and, for a list, how to write it. */
+function mField(id, label, control) {
+  return '<label class="mf" for="' + id + '"><span>' + label + '</span>' + control + '</label>';
+}
+function mInput(id, value, type, extra) {
+  return '<input id="' + id + '" type="' + (type || 'text') + '" value="' + esc(value === null || value === undefined ? '' : value) + '"' + (extra || '') + '>';
+}
+function mArea(id, text, rows) { return '<textarea id="' + id + '" rows="' + (rows || 3) + '">' + esc(text) + '</textarea>'; }
+
+/** The league's lists as the one-per-line text their fields take. */
+function manualListsText(l) {
+  return {
+    scoring: (l.scoring || []).map(function (r) { return r.statId + ' = ' + r.points; }).join('\n'),
+    slots: (l.slots || []).map(function (x) { return x.slotId + ' x ' + x.count; }).join('\n'),
+    schedule: (l.schedule || []).map(function (m) { return m.week + ': ' + m.home + (m.away === null || m.away === undefined ? '' : ' vs ' + m.away); }).join('\n'),
+    byes: Object.keys(l.byes || {}).map(function (t) { return t + ' = ' + l.byes[t]; }).join('\n')
+  };
+}
+
+/** One team's fieldset from the raw text of its fields: id, name, whether it is yours, its roster and this week's starters. */
+function manualTeamHtml(t, i) {
+  return '<fieldset class="mteam"><legend>Team ' + (i + 1) + '</legend><div class="mform">' +
+    mField('mTeamId' + i, 'Team id', mInput('mTeamId' + i, t.teamId, 'number', ' min="1" max="1000"')) +
+    mField('mTeamName' + i, 'Team name', mInput('mTeamName' + i, t.name)) +
+    '<label class="mf mine" for="mMine' + i + '"><input type="radio" name="mMine" id="mMine' + i + '"' + (t.mine ? ' checked' : '') + '> <span>This is my team</span></label>' +
+    '</div>' +
+    mField('mRoster' + i, 'Roster: ESPN player ids, separated by commas', mArea('mRoster' + i, t.roster, 2)) +
+    mField('mStart' + i, 'Starting this week: ESPN player ids from the roster', mArea('mStart' + i, t.starting, 2)) +
+    '<button class="ghost" type="button" data-team-drop="' + i + '">Remove team ' + (i + 1) + '</button></fieldset>';
+}
+
+/** A league document as the raw text of every form field, so the form can be drawn from either. */
+function manualRawFromLeague(l) {
+  var lists = manualListsText(l);
+  var faab = l.faab || null;
+  var text = function (v) { return v === null || v === undefined ? '' : String(v); };
+  return {
+    name: text(l.name), season: text(l.season), lastWeek: text(l.lastWeek), playoff: text(l.playoffStart),
+    faabBudget: faab ? text(faab.budget) : '', faabSpent: faab ? text(faab.spent) : '',
+    scoring: lists.scoring, slots: lists.slots, schedule: lists.schedule, byes: lists.byes,
+    teams: (l.teams || []).map(function (t) {
+      return { teamId: text(t.teamId), name: text(t.name), mine: t.mine === true,
+        roster: (t.roster || []).join(', '), starting: (t.starting || []).join(', ') };
+    })
+  };
+}
+
+/** The raw text of every field exactly as typed, including lines the form cannot read yet. */
+function manualRawFromForm() {
+  var teams = [];
+  for (var i = 0; i < manualTeamCount; i++) {
+    teams.push({ teamId: el('mTeamId' + i).value, name: el('mTeamName' + i).value, mine: !!el('mMine' + i).checked,
+      roster: el('mRoster' + i).value, starting: el('mStart' + i).value });
+  }
+  return {
+    name: el('mName').value, season: el('mSeason').value, lastWeek: el('mLastWeek').value, playoff: el('mPlayoff').value,
+    faabBudget: el('mFaabBudget').value, faabSpent: el('mFaabSpent').value,
+    scoring: el('mScoring').value, slots: el('mSlots').value, schedule: el('mSchedule').value, byes: el('mByes').value,
+    teams: teams
+  };
+}
+
+/** Draw the form for a league (the template for a new one, or the league being edited). */
+function renderManualForm(l, id) { drawManualForm(manualRawFromLeague(l), id); }
+
+/** Draw the form from raw field text, so redrawing it never changes or drops anything typed. */
+function drawManualForm(r, id) {
+  manualEditId = id ? String(id) : '';
+  manualTeamCount = r.teams.length;
+  el('mForm').innerHTML = '<h3 class="mhead">' + (manualEditId ? 'Edit ' + esc(r.name) : 'Add a league') + '</h3><div class="mform">' +
+    mField('mName', 'League name', mInput('mName', r.name)) +
+    mField('mSeason', 'Season (year)', mInput('mSeason', r.season, 'number', ' min="2000" max="2100"')) +
+    mField('mLastWeek', 'Last regular-season week', mInput('mLastWeek', r.lastWeek, 'number', ' min="1" max="25"')) +
+    mField('mPlayoff', 'Playoffs start in week (blank if none)', mInput('mPlayoff', r.playoff, 'number', ' min="1" max="25"')) +
+    mField('mFaabBudget', 'FAAB budget in dollars (blank if none)', mInput('mFaabBudget', r.faabBudget, 'number', ' min="0"')) +
+    mField('mFaabSpent', 'FAAB spent in dollars', mInput('mFaabSpent', r.faabSpent, 'number', ' min="0"')) +
+    '</div><div class="mform">' +
+    mField('mScoring', 'Scoring: one rule per line, ESPN stat id = points (for example 53 = 1), as your league settings state it',
+      mArea('mScoring', r.scoring, 4)) +
+    mField('mSlots', 'Starting slots: one per line, ESPN slot id x count', mArea('mSlots', r.slots, 4)) +
+    mField('mSchedule', 'Schedule: one game per line, week: home team id vs away team id', mArea('mSchedule', r.schedule, 4)) +
+    mField('mByes', 'Bye weeks: one per line, pro-team id = week', mArea('mByes', r.byes, 4)) +
+    '</div>' + r.teams.map(manualTeamHtml).join('') +
+    '<button class="ghost" type="button" id="mAddTeam">Add a team</button>';
+  bindManualForm();
+}
+
+/** A team id no team in the form has: one more than the highest id typed. */
+function nextManualTeamId(teams) {
+  return teams.reduce(function (hi, t) {
+    var n = Number(String(t.teamId).trim());
+    return Number.isInteger(n) && n > hi ? n : hi;
+  }, 0) + 1;
+}
+
+/** Redraw after adding or removing a team, then name anything the form still cannot read. */
+function redrawManualForm(r) {
+  drawManualForm(r, manualEditId);
+  var note = el('mNote');
+  if (note) note.textContent = readManualForm().problems.join(' • ');
+}
+
+/** Add or remove a team, keeping every field exactly as typed (a line the form cannot read is kept and named). */
+function bindManualForm() {
+  el('mAddTeam').addEventListener('click', function () {
+    var r = manualRawFromForm();
+    var next = nextManualTeamId(r.teams);
+    r.teams.push({ teamId: String(next), name: 'Team ' + next, mine: false, roster: '', starting: '' });
+    redrawManualForm(r);
+  });
+  Array.prototype.forEach.call(el('mForm').querySelectorAll('[data-team-drop]'), function (b) {
+    b.addEventListener('click', function () {
+      var r = manualRawFromForm();
+      r.teams.splice(Number(b.getAttribute('data-team-drop')), 1);
+      redrawManualForm(r);
+    });
+  });
+}
+
+/** Lines of a list field, each matched by `re`; a line that does not match is named in the problems. */
+function manualLines(text, re, what, example, problems, build) {
+  var out = [];
+  String(text || '').split('\n').forEach(function (raw, n) {
+    var line = raw.trim();
+    if (!line) return;
+    var m = re.exec(line);
+    if (m) out.push(build(m)); else problems.push(what + ' line ' + (n + 1) + ' "' + line + '" is not written as ' + example + '.');
+  });
+  return out;
+}
+function manualIds(text, what, problems) {
+  var parts = String(text || '').split(/[\s,]+/).filter(Boolean);
+  return parts.map(function (p) {
+    if (!/^\d+$/.test(p)) problems.push(what + ': "' + p + '" is not an ESPN player id (a whole number).');
+    return Number(p);
+  }).filter(function (n) { return Number.isInteger(n); });
+}
+function numOrNull(v) { var t = String(v === undefined || v === null ? '' : v).trim(); return t === '' ? null : Number(t); }
+
+/** The team fieldsets as the teams the league route takes. */
+function readManualTeams(problems) {
+  var teams = [];
+  for (var i = 0; i < manualTeamCount; i++) {
+    teams.push({ teamId: numOrNull(el('mTeamId' + i).value), name: el('mTeamName' + i).value.trim(), mine: !!el('mMine' + i).checked,
+      roster: manualIds(el('mRoster' + i).value, 'Team ' + (i + 1) + ' roster', problems),
+      starting: manualIds(el('mStart' + i).value, 'Team ' + (i + 1) + ' starters', problems) });
+  }
+  return teams;
+}
+
+/** Read every field into the league document the route validates; problems the form can see are named first. */
+function readManualForm() {
+  var problems = [];
+  var budget = numOrNull(el('mFaabBudget').value);
+  var spent = numOrNull(el('mFaabSpent').value);
+  if (budget === null && spent !== null) problems.push('FAAB spent is filled in but the FAAB budget is blank: fill in the budget, or clear spent.');
+  var byes = {};
+  manualLines(el('mByes').value, /^(\d+)\s*[=:]\s*(\d+)$/, 'Bye weeks', '"pro-team id = week"', problems, function (m) { byes[m[1]] = Number(m[2]); return m; });
+  var league = {
+    name: el('mName').value.trim(), season: numOrNull(el('mSeason').value),
+    scoring: manualLines(el('mScoring').value, /^(\d+)\s*[=:]\s*(-?\d+(?:\.\d+)?)$/, 'Scoring', '"stat id = points"', problems,
+      function (m) { return { statId: Number(m[1]), points: Number(m[2]) }; }),
+    slots: manualLines(el('mSlots').value, /^(\d+)\s*[x×*]\s*(\d+)$/i, 'Starting slots', '"slot id x count"', problems,
+      function (m) { return { slotId: Number(m[1]), count: Number(m[2]) }; }),
+    teams: readManualTeams(problems),
+    schedule: manualLines(el('mSchedule').value, /^(\d+)\s*:\s*(\d+)(?:\s*(?:vs\.?|v|-)\s*(\d+))?$/i, 'Schedule', '"week: home id vs away id"', problems,
+      function (m) { return { week: Number(m[1]), home: Number(m[2]), away: m[3] ? Number(m[3]) : null }; }),
+    byes: byes,
+    faab: budget === null ? null : { budget: budget, spent: spent || 0 },
+    lastWeek: numOrNull(el('mLastWeek').value) || 17,
+    playoffStart: numOrNull(el('mPlayoff').value)
+  };
+  if (!league.scoring.some(function (r) { return r.points !== 0; })) {
+    problems.push(league.scoring.length
+      ? 'Scoring: every rule is worth 0 points, so every player would project 0.0. Enter your league\u2019s scoring as stat id = points.'
+      : 'Scoring: enter your league\u2019s scoring, one rule per line as stat id = points (for example 53 = 1).');
+  }
+  return { league: league, problems: problems };
 }
 
 function bindManual() {
   var root = el('manualBody');
   bindBoards(root);
   el('mSave').addEventListener('click', function () {
-    var doc;
-    try { doc = JSON.parse(el('mDoc').value); } catch (e) { el('mNote').textContent = 'That is not valid JSON.'; return; }
-    var id = el('mDoc').getAttribute('data-id');
+    var read = readManualForm();
+    if (read.problems.length) { el('mNote').textContent = read.problems.join(' • '); return; }
+    var id = manualEditId;
     fetch(API + '/manual-leagues' + (id ? '/' + encodeURIComponent(id) : ''), {
-      method: id ? 'PUT' : 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(doc)
+      method: id ? 'PUT' : 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(read.league)
     }).then(function (r) { return r.json().then(function (b) { return { ok: r.ok, b: b }; }); }).then(function (x) {
-      el('mNote').textContent = x.ok ? 'Saved.' : (x.b.problems || [x.b.error]).join(' • ');
+      el('mNote').textContent = x.ok ? 'Saved.' : (x.b.problems || x.b.errors || [x.b.error]).join(' • ');
       if (x.ok) loadManual();
     });
   });
   Array.prototype.forEach.call(root.querySelectorAll('[data-edit]'), function (b) {
     b.addEventListener('click', function () {
       jget(API + '/manual-leagues/' + encodeURIComponent(b.getAttribute('data-edit'))).then(function (d) {
-        el('mDoc').value = JSON.stringify(d.league, null, 2);
-        el('mDoc').setAttribute('data-id', String(d.id));
+        renderManualForm(d.league, d.id);
       });
     });
   });
   Array.prototype.forEach.call(root.querySelectorAll('[data-drop]'), function (b) {
-    b.addEventListener('click', function () {
-      fetch(API + '/manual-leagues/' + encodeURIComponent(b.getAttribute('data-drop')), { method: 'DELETE', credentials: 'same-origin' })
-        .then(function () { loadManual(); });
-    });
+    b.addEventListener('click', function () { dropManualLeague(b.getAttribute('data-drop'), b.getAttribute('data-name')); });
   });
+}
+
+// Delete a hand-typed league: asked first (it went on one click), and a board of that league still on screen is
+// cleared with it (the deleted league's trade board stayed up under an empty list).
+function dropManualLeague(id, name) {
+  if (!window.confirm('Delete the league "' + (name || 'this league') + '"? This cannot be undone.')) return Promise.resolve(false);
+  return fetch(API + '/manual-leagues/' + encodeURIComponent(id), { method: 'DELETE', credentials: 'same-origin' })
+    // Read the answer through, so the request completes rather than being abandoned mid-body.
+    .then(function (r) { return r.text().then(function () { return r; }, function () { return r; }); })
+    .then(function (r) {
+      if (!r.ok) throw new Error('The league could not be deleted (' + r.status + '). Nothing was removed.');
+      if (shownBoard && shownBoard.source === 'manual' && shownBoard.id === String(id)) { el('lineupBody').innerHTML = ''; shownBoard = null; }
+      loadManual();
+      return true;
+    })
+    .catch(function (e) { el('mNote').textContent = e.message; return false; });
 }
 
 // Audience view (ADR-164 D6): under a view the page starts nothing; without one, or on a core without the kit, it starts exactly as before.

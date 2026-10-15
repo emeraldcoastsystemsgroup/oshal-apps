@@ -23,6 +23,16 @@
  * 2026-07-27 22:05:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Give a joined player a seat-confirmation header in place of the host's join-code block.
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Add themed campaign cards and persistent investigation-lead controls for story-first play.
  * 2026-07-23 13:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Release the campaign shelf from the legacy modal max-width so desktop cards never clip, while preserving a single mobile column.
+ * 22 | maintainer@emeraldcoastsystemsgroup.com  | Buttons painted on the fixed dark wood (button.big, .fab, the talk Send) use a fixed light --on-dark ink instead of the theme's --ink, which is navy under a light cockpit theme (Resume / Start New Campaign / the board toolbar read navy on brown). Phone width: the board toolbar uses a compact system font with bounded widths and DM Settings collapses to its icon, so no two floating buttons overlap at 412px. Guard: scripts/phone-screens.browser.cjs (dnd).
+ * 2026-10-11 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | The initiative strip's role label ("GOBLIN AMBUSH ARCHER", "AI COMPANION") is capped like the name and the chips no longer shrink below their labels (the strip scrolls sideways), so neighbouring labels no longer print over each other; on a phone the full-screen button draws its icon instead of the ⛶ character, which phone fonts lack (it showed an empty box).
+ * 2026-10-11 20:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Phone width: the initiative strip's title no longer shrinks to "R P ·" (it keeps 132px and wraps), and the "Previously on…" banner sits under the two rows of table buttons instead of covering Timeline and Party. Guard: scripts/phone-handoffs.browser.cjs (dnd-table).
+ * 2026-10-11 23:30:00 | maintainer@emeraldcoastsystemsgroup.com     | Phone width: the table is one scrolling column (initiative, turn panel, board, Dungeon Master drawer, dock) instead of one squeezed screen. The board toolbar is two grid rows in the page flow above the map (no button over the board, and Full screen no longer slides under DM & Story in the 392px cockpit frame), and the map row is at least the full-width board's height, so the 18 x 12 board is drawn edge to edge (378 x 252 in that frame, was ~110px tall). Guard: tests/browser/dnd-phone-layout.test.cjs.
+ * 2026-10-12 05:40:00 | maintainer@emeraldcoastsystemsgroup.com     | K4: at phone width the voiceover caption spans the table at the stage's bottom edge and scrolls instead of clipping; centred with left:50% it shrank to half the width and covered the lower half of the battle map, cut off mid-word.
+ * 2026-10-12 23:55:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 10: the play view scrolled sideways on a phone (page 689px on a 412px screen). Each chip's hidden side mark is absolutely positioned; with no positioned chip it was placed against the page, outside the strip's own sideways scroll. A chip is now its mark's containing block. Guard: tests/browser/dnd-initiative-sides.test.cjs.
+ * 23 | maintainer@emeraldcoastsystemsgroup.com     | Phone width: the action dock sticks to the bottom of the screen (solid ground, above the drawer) so the turn actions, End Turn and Move stay in reach while the board and the Dungeon Master drawer scroll; the one-column layout had put them below the visible cockpit frame. With a screen card open the dock rests below the board. Guard: tests/browser/dnd-phone-layout.test.cjs.
+ * 24 | maintainer@emeraldcoastsystemsgroup.com     | Phone width: the sticky dock is compact (name and controller badge on one line, race/class and hit points on one line, End Turn and Move side by side, each action's effect and range on one line, the actions wrapping in rows instead of a row that scrolled sideways), 168px -> about 120px in the 392 x 641 cockpit frame, and the board sits at the top of its map row instead of centred in it, so on a player's turn the dock no longer covers the bottom of the 18 x 12 board (it covered 52px). The Dungeon Master's quick questions and the Ask DM bar open at the top of the drawer, right under the board, instead of under the whole story log (the input was ~420px below the board). Guard: tests/browser/dnd-phone-layout.test.cjs.
+ * 25 | maintainer@emeraldcoastsystemsgroup.com     | Phone width: the dock's action list is bounded at 156px (two rows of cards and the top of a third) and scrolls inside the dock past that, with overscroll contained, so the sticky dock stays at most about 215px whatever the action count: the wrapping grid of 24 grew with every three actions (10 actions: a 324px dock over 69px of the board; the import cap of 32: 833px, taller than the 641px frame, with 8 actions out of reach; watching another player's four-action hero: 275px). Guard: tests/browser/dnd-phone-layout.test.cjs.
+ * 26 | maintainer@emeraldcoastsystemsgroup.com     | My Games: Delete Campaign / Leave Campaign is light ink on an opaque dark red. It was #ffb2a5 over an 18% red tint of the row, and the row is --panel-2 (the theme's --bg-tertiary), so under a light cockpit theme it read pale pink on a pale card (about 1.5:1). Guard: tests/browser/dnd-phone-layout.test.cjs (>= 4.5:1 on light and dark themes).
  */
 
 /* CHROME follows the cockpit's standard theme (read-only framework tokens from
@@ -40,6 +50,9 @@
   --blood:     var(--status-error,   #b5432f);
   --line:      var(--border-color,   #3a2f24);
   --good:      var(--status-success, #6fbf73);
+  /* Ink for controls painted on the fixed dark wood below: NOT a theme token, because the wood does
+     not follow the theme either (a light theme's --ink is navy, unreadable on #241a0f). */
+  --on-dark:   #f3e8d1;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -61,8 +74,11 @@ html, body {
 #initiative .round { color: var(--amber); font-size: 13px; letter-spacing: .5px; white-space: nowrap; padding-right: 6px; }
 #initiative .round small { display: block; margin-top: 4px; color: var(--muted); font: 10px/1.15 system-ui, sans-serif; letter-spacing: .15px; }
 .init-chip {
-  display: flex; flex-direction: column; align-items: center; min-width: 58px;
+  display: flex; flex-direction: column; align-items: center; min-width: 58px; position: relative;
   padding: 4px 6px; border-radius: 10px; border: 1px solid transparent; opacity: .65;
+  /* Never shrink below the capped labels: the strip scrolls sideways instead (a shrunk 48px chip let its labels
+     print over the next chip's). */
+  flex: 0 0 auto;
 }
 .init-chip.active { border-color: var(--amber); background: #241a10; opacity: 1; box-shadow: 0 0 14px rgba(224,164,76,.35); }
 .init-chip.inspectable { cursor: pointer; }
@@ -71,10 +87,14 @@ html, body {
 .init-chip.downed { opacity: .92; filter: none; text-decoration: none; border-color: rgba(255,82,68,.68); background: rgba(92,22,18,.32); }
 .init-chip.downed .hp { color: #ff9a86; font-weight: 700; }
 .init-chip .glyph { font-size: 20px; line-height: 1; }
+/* Which side a chip is on, for screen readers and the concierge's screen snapshot; the art and colours already show it.
+   The chip is its containing block (position: relative on .init-chip): placed against the page, the mark sat outside the
+   strip's sideways scroll and made the whole page scroll sideways on a phone. */
+.init-chip .side { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .init-chip .face { width: 34px; height: 34px; border-radius: 50%; background-size: cover; background-position: center top; box-shadow: 0 1px 4px rgba(0,0,0,.6); }
 body.tv .init-chip .face { width: 50px; height: 50px; }
 .init-chip .nm { font-size: 10px; color: var(--muted); max-width: 62px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.init-chip .controller { font: 700 8px/1.1 system-ui, sans-serif; color: #9ed6ff; text-transform: uppercase; letter-spacing: .35px; white-space: nowrap; }
+.init-chip .controller { font: 700 8px/1.1 system-ui, sans-serif; color: #9ed6ff; text-transform: uppercase; letter-spacing: .35px; white-space: nowrap; max-width: 62px; overflow: hidden; text-overflow: ellipsis; }
 .init-chip .controller.ai { color: #c7a7ff; }
 .init-chip .hp { font-size: 10px; color: var(--good); }
 .init-chip .hp.hurt { color: var(--amber); }
@@ -198,7 +218,7 @@ body[data-campaign-theme="crownfall"] {
 #endTurn { grid-column: 1 / -1; }
 button.big {
   padding: 10px 16px; border-radius: 12px; border: 1px solid var(--amber-dim);
-  background: linear-gradient(180deg, #3a2a15, #241a0f); color: var(--ink);
+  background: linear-gradient(180deg, #3a2a15, #241a0f); color: var(--on-dark);
   font-size: 15px; cursor: pointer; font-family: inherit; white-space: nowrap;
 }
 button.big:hover { border-color: var(--amber); }
@@ -227,7 +247,7 @@ body.tv #caption { bottom: 40px; font-size: clamp(20px, 2vw, 34px); max-width: 8
 }
 #choices.hidden { display: none; }
 .choice {
-  background: rgba(24,19,15,.94); border: 1px solid var(--amber-dim); color: var(--ink);
+  background: rgba(24,19,15,.94); border: 1px solid var(--amber-dim); color: var(--on-dark);
   border-radius: 10px; padding: 9px 12px; font-family: inherit; font-size: 13px; cursor: pointer;
   text-align: left; width: 100%;
 }
@@ -288,7 +308,7 @@ body.tv #choices { display: none !important; }
 .quick-character { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: left; }
 .quick-character label { display: grid; gap: 3px; color: var(--muted); font: 10px/1 system-ui, sans-serif; text-transform: uppercase; letter-spacing: .6px; }
 .quick-character label.wide { grid-column: span 3; }
-.quick-character input, .quick-character select { width: 100%; border: 1px solid var(--line); border-radius: 8px; background: #0f0c0a; color: var(--ink); padding: 8px; font: 13px system-ui, sans-serif; text-transform: none; }
+.quick-character input, .quick-character select { width: 100%; border: 1px solid var(--line); border-radius: 8px; background: #0f0c0a; color: var(--on-dark); padding: 8px; font: 13px system-ui, sans-serif; text-transform: none; }
 .ability-inputs { grid-column: span 3; display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
 .ability-inputs input { text-align: center; padding: 7px 3px; }
 .import-error { min-height: 18px; color: var(--blood) !important; font: 12px/1.35 system-ui, sans-serif; }
@@ -325,7 +345,7 @@ body.tv #choices { display: none !important; }
 .quest-thread .quest-label { display: block; margin-bottom: 4px; color: var(--amber); font: 700 9px/1 system-ui, sans-serif; letter-spacing: 1px; text-transform: uppercase; }
 .quest-thread strong { display: block; color: var(--ink); font: 700 13px/1.35 system-ui, sans-serif; }
 .quest-thread p { margin: 5px 0 8px; color: var(--muted); font: 12px/1.4 system-ui, sans-serif; }
-.quest-thread button { border: 1px solid var(--amber-dim); border-radius: 999px; background: #241a0f; color: var(--ink); padding: 6px 10px; font: 600 10px/1 system-ui, sans-serif; cursor: pointer; }
+.quest-thread button { border: 1px solid var(--amber-dim); border-radius: 999px; background: #241a0f; color: var(--on-dark); padding: 6px 10px; font: 600 10px/1 system-ui, sans-serif; cursor: pointer; }
 #log { min-height: 72px; overflow: visible; padding: 10px 14px 12px; }
 .beat { margin-bottom: 12px; font-size: 14px; line-height: 1.5; }
 .beat .k { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--amber-dim); display: block; margin-bottom: 2px; }
@@ -337,13 +357,13 @@ body.tv #choices { display: none !important; }
 #dmPrompts button { flex: 0 0 auto; border: 1px solid rgba(108,145,255,.38); border-radius: 999px; background: rgba(37,45,82,.45); color: #cbd6ff; padding: 6px 9px; cursor: pointer; font: 700 10px/1 system-ui, sans-serif; }
 #dmPrompts button:hover { border-color: #8ca8ff; background: rgba(54,68,124,.55); }
 #talk { flex: 0 0 auto; display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--line); background: rgba(18,14,11,.99); box-shadow: 0 -10px 30px rgba(0,0,0,.3); }
-#talk input { flex: 1; background: #0f0c0a; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); padding: 10px; font-family: inherit; font-size: 14px; }
-#talk button { padding: 0 12px; border-radius: 10px; border: 1px solid var(--amber-dim); background: #241a0f; color: var(--ink); cursor: pointer; }
+#talk input { flex: 1; background: #0f0c0a; border: 1px solid var(--line); border-radius: 10px; color: var(--on-dark); padding: 10px; font-family: inherit; font-size: 14px; }
+#talk button { padding: 0 12px; border-radius: 10px; border: 1px solid var(--amber-dim); background: #241a0f; color: var(--on-dark); cursor: pointer; }
 
 /* Floating controls over the board */
 .fab {
   position: absolute; z-index: 15; border-radius: 999px; border: 1px solid var(--line);
-  background: rgba(23,19,16,.9); color: var(--ink); cursor: pointer; padding: 10px 14px; font-size: 14px; font-family: inherit;
+  background: rgba(23,19,16,.9); color: var(--on-dark); cursor: pointer; padding: 10px 14px; font-size: 14px; font-family: inherit;
 }
 .fab.primary-fab { border-color: var(--amber); background: linear-gradient(180deg, rgba(78,54,23,.98), rgba(39,28,16,.98)); box-shadow: 0 0 16px rgba(224,164,76,.2); font-weight: 700; }
 #storyBtn { top: 10px; right: 10px; }
@@ -367,8 +387,8 @@ body.table-fullscreen #fullscreenBtn { border-color: var(--amber); background: r
 .campaign-row p { margin: 4px 0 0; font: 12px/1.4 system-ui, sans-serif; }
 .campaign-row .campaign-role { display: inline-block; margin-left: 6px; border: 1px solid var(--amber-dim); border-radius: 999px; padding: 2px 6px; color: var(--amber); font: 700 9px/1 system-ui, sans-serif; text-transform: uppercase; letter-spacing: .5px; vertical-align: middle; }
 .campaign-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-.campaign-actions button { padding: 7px 11px; border-radius: 999px; border: 1px solid var(--amber-dim); background: #241a0f; color: var(--ink); cursor: pointer; font-family: inherit; }
-.campaign-actions button.leave { border-color: rgba(181,67,47,.7); color: #ffb2a5; background: rgba(100,28,20,.18); }
+.campaign-actions button { padding: 7px 11px; border-radius: 999px; border: 1px solid var(--amber-dim); background: #241a0f; color: var(--on-dark); cursor: pointer; font-family: inherit; }
+.campaign-actions button.leave { border-color: #b5432f; color: #ffe6df; background: #6a1f15; }
 .library-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px; }
 .library-empty { border: 1px dashed var(--line); border-radius: 12px; padding: 18px; color: var(--muted); }
 .save-list { display: grid; gap: 7px; max-height: 52vh; overflow-y: auto; margin: 8px 0; padding-right: 4px; }
@@ -376,7 +396,7 @@ body.table-fullscreen #fullscreenBtn { border-color: var(--amber); background: r
   background: var(--panel-2); color: var(--ink); border-radius: 10px; padding: 10px 13px; text-align: left; }
 .save-row .sl { min-width: 0; }
 .save-row .sl b { font-size: 14px; } .save-row .sl small { color: var(--muted); display: block; }
-.save-row button { flex: 0 0 auto; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--amber-dim); background: #241a0f; color: var(--ink); cursor: pointer; font-family: inherit; }
+.save-row button { flex: 0 0 auto; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--amber-dim); background: #241a0f; color: var(--on-dark); cursor: pointer; font-family: inherit; }
 .save-row button:hover { border-color: var(--amber); }
 
 /* ── THE BIG DICE ──────────────────────────────────────────────────────────── */
@@ -615,8 +635,18 @@ body.tv .turn-steps { display: none; }
 .hidden { display: none !important; }
 
 @media (max-width: 760px) {
+  /* The voiceover caption spans the table and sits at the bottom of the stage. Centred with left:50% it could only
+     shrink to the right half (206px of 412), so a 260-character line stood ~190px tall over half the map and was cut
+     off mid-word by the height cap. Full width it takes about five short lines and scrolls rather than clipping. */
+  #caption { left: 6px; right: 6px; max-width: none; bottom: 6px; transform: translateY(10px); padding: 8px 12px 6px; font-size: 13px; line-height: 1.35; max-height: 24vh; overflow-y: auto; border-radius: 10px; }
+  #caption.show { transform: translateY(0); }
+  #caption.show::after { margin-top: 2px; }
   #initiative { min-height: 54px; padding: 5px 8px; gap: 4px; }
-  #initiative .round { max-width: 118px; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
+  /* The title holds its own width (the chips scroll instead) and wraps onto lines, so a resumed campaign reads
+     "Round 1 · Coast Road / Party: 1 ALIVE" rather than being squeezed to "R P ·". */
+  #initiative .round { flex: 0 0 auto; width: 132px; max-width: 132px; white-space: normal; overflow-wrap: break-word; line-height: 1.2; font-size: 11px; }
+  /* The "Previously on…" banner sits under the two rows of table buttons instead of over Timeline and Party. */
+  #banner { top: 94px; max-width: calc(100% - 24px); }
   .init-chip { min-width: 48px; padding: 3px 4px; }
   .init-chip .face { width: 29px; height: 29px; }
   #turnflag { min-height: 94px; align-items: stretch; flex-direction: column; gap: 7px; padding: 8px 10px; }
@@ -633,18 +663,78 @@ body.tv .turn-steps { display: none; }
   #turnctl { grid-area: controls; align-items: center; }
   #turnctl button.big { padding: 8px 10px; font-size: 12px; }
   .act { min-width: 122px; padding: 6px 9px; }
-  .fab { padding: 8px 10px; font-size: 12px; }
+  /* Phone: the table is one column that scrolls as a page - initiative, turn panel, the board, the Dungeon Master
+     drawer, then the dock. Squeezed into one screen (2026-10-11) the board got ~110px between the turn panel and the
+     drawer, and the floating toolbar sat on top of it; in the 392px cockpit frame Full screen also slid under
+     DM & Story. Guard: tests/browser/dnd-phone-layout.test.cjs. */
+  html, body { height: auto; min-height: 100%; overflow: visible; }
+  #app, body.table-fullscreen #app { height: auto; min-height: 100%; }
+  #playfield, #playfield.story-open, body.table-fullscreen #playfield.story-open { display: flex; flex-direction: column; overflow: visible; }
+  #playfield:not(.story-open) #story { display: none; }
+  /* The board: two toolbar rows in the page flow (6 + 32 + 5 + 32 + 5 = 80px), then the map row. The map row is never
+     shorter than the board drawn at full width (an 18 x 12 grid is two thirds as tall as it is wide), so layout() in
+     table-runtime.js sizes the cell by the width; the board is centred in the map row below the toolbar. */
+  #stage { flex: none; display: grid; grid-template-columns: 1fr 1.2fr 1fr 1.4fr; grid-template-rows: 32px 32px minmax(0, 1fr);
+    gap: 5px; padding: 6px 6px 0; height: max(calc(84px + 66.67vw), 60vh); }
+  #stage:has(> #overlay:not(.hidden)) { height: max(calc(84px + 66.67vw), 82vh); }
+  /* The board sits at the top of its map row (layout() centres it; the spare row height is left under it, where the sticky
+     dock rests), so on a player's turn the dock does not cover the bottom of the map. */
+  #board { grid-row: 3 / 4; top: 0 !important; bottom: 0 !important; margin-top: 0 !important; margin-bottom: auto !important; }
+  .fab { position: relative; inset: auto; width: 100%; min-width: 0; padding: 7px 8px; font: 600 11px/1.2 system-ui, -apple-system, sans-serif;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #gamesBtn, #savesBtn, #partyBtn, #storyBtn, #fullscreenBtn, #voiceBtn, #diceBtn, #helpBtn { inset: auto; }
   #helpBtn, #diceBtn { display: none; }
-  #gamesBtn { left: 8px; }
-  #savesBtn { left: 82px; }
-  #partyBtn { left: 154px; }
-  #fullscreenBtn { left: 226px; width: 38px; overflow: hidden; white-space: nowrap; color: transparent; }
-  #fullscreenBtn::first-letter { color: var(--ink); }
-  #voiceBtn { right: 94px; }
-  #storyBtn { right: 8px; }
-  #playfield { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 0; }
-  #playfield.story-open { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(120px, 58%) minmax(180px, 42%); }
-  #story { border-left: 0; border-top: 1px solid var(--line); }
+  #gamesBtn { grid-area: 1 / 1; }
+  #savesBtn { grid-area: 1 / 2; }
+  #partyBtn { grid-area: 1 / 3; }
+  #storyBtn { grid-area: 1 / 4; }
+  /* The label stays (it is the button's accessible name) but is invisible; the icon is drawn, not a ⛶ character: phone
+     fonts have no U+26F6, so the button showed an empty box. */
+  #fullscreenBtn { grid-area: 2 / 1 / 3 / 3; color: transparent; text-overflow: clip; }
+  #fullscreenBtn::after { content: 'Full screen'; position: absolute; inset: 0; pointer-events: none; display: flex; align-items: center; justify-content: center;
+    padding-left: 20px; color: var(--on-dark);
+    background: left calc(50% - 40px) center / 14px 14px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23f3e8d1' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4'/%3E%3C/svg%3E"); }
+  #voiceBtn { grid-area: 2 / 3 / 3 / 5; }
+  #story { flex: none; height: min(72vh, 560px); border-left: 0; border-top: 1px solid var(--line); }
+  /* The player's controls stay on the screen: the dock follows the drawer in the column, so it sticks to the bottom
+     of the screen while the board and the drawer scroll above it (in the 392 x 641 frame the Attack row was at 620-690
+     in combat and 1.5 screens down in exploration). The theme's card colour can be translucent, so it is laid over a
+     solid ground. While a screen card is open the dock rests in the flow below the board instead of over the card. */
+  #dock { position: sticky; bottom: 0; z-index: 21; background: linear-gradient(var(--panel), var(--panel)), #120e0b;
+    box-shadow: 0 -8px 20px rgba(0,0,0,.35); }
+  #app:has(#overlay:not(.hidden)) #dock { position: relative; box-shadow: none; }
+  /* A compact dock, so the sticky strip leaves the board in view: the name and its controller badge share a line, as do
+     race/class and the hit points; End Turn and Move sit side by side, and an action's effect and range share a line
+     (168px -> about 120px in the 392 x 641 frame). */
+  #dock { gap: 5px 8px; padding: 5px 8px 6px; min-height: 0; }
+  #who .who-top > div { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-width: 0; }
+  #who .controller-badge { margin-top: 0; }
+  #who .sub, #who .bars { display: inline; margin-top: 0; }
+  #who .sub:not(:empty)::after { content: ' · '; }
+  #turnctl { grid-template-columns: none; grid-auto-flow: column; }
+  #endTurn { grid-column: auto; }
+  /* Every action is reachable without a sideways swipe: the actions wrap in rows of cards (three across the 392px frame)
+     instead of one row that scrolled sideways inside the dock (a fourth action started off screen). */
+  #actions { min-height: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 5px; overflow-x: visible; }
+  /* The rows are bounded: past two rows of cards the list scrolls inside the dock (the top of a third row peeks out to
+     show there is more) instead of growing the sticky dock - 10 actions made it 324px over the board, the import cap
+     of 32 made it 833px, taller than the 641px frame. Scrolling the list does not carry on into the page. */
+  #actions { max-height: 156px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  #actions > :not(.act) { grid-column: 1 / -1; }
+  .act { display: block; min-width: 0; padding: 5px 8px; }
+  .act .an { font-size: 13px; overflow-wrap: anywhere; }
+  .act .ax, .act .ar { display: inline; }
+  .act .ar::before { content: ' · '; }
+  .act .resource-label { margin-top: 2px; }
+  /* Ask DM right under the board: the quick questions and the input open the drawer, the story log scrolls below them
+     (it was under the whole log, ~420px below the board in the 641px frame). */
+  #story h3 { order: -2; }
+  #dmPrompts, #talk { order: -1; }
+  #dmPrompts { border-top: 0; padding-top: 8px; }
+  #talk { border-top: 0; border-bottom: 1px solid var(--line); box-shadow: none; }
+  /* Scrolled to (by a tap's focus or a link), the input stops above the sticky dock instead of under it: the dock is
+     115-130px with up to three actions and about 190-200px with four, or three and the spent-spells note. */
+  #talkInput, #dmPrompts button { scroll-margin-bottom: 230px; }
   .card.sheet-wide { padding: 18px 16px; }
   .sheet-portrait { width: 58px; height: 58px; }
   .ability-grid { grid-template-columns: repeat(3, 1fr); }

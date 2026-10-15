@@ -7,6 +7,8 @@
  * 2026-07-24 07:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Export the saved-responses store (PumpkinResponseService + normalizer) for the one-tap replay playlist.
  * 2026-08-01 12:00:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Export the swarm-control surface of the room registry: resolveSpeakTargets (headless room resolution that refuses rather than guesses), the now-exported roomSlug (three surfaces derive that pairing key independently, so exactly one definition may exist), the TTL/idle constants the route and its guards assert against, and the PumpkinRoomListener transport type whose `false` return is what makes dead-listener pruning possible.
  * 2026-08-01 22:10:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Export the device-link builder (buildPumpkinLinks / resolvePublicOrigin / pumpkinQrTargetUrl / readQrTarget) behind the new GET /links + GET /qr routes — the two endpoints the README documented and the control surface has been calling since Design C, but which no router ever registered.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Export requestOrigin (a Host-preserving link origin) and PROJECTOR_PATH (the projector page this package now serves).
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Export POLL_INTERVAL_MS and POLL_LIVE_MS (the room poll transport the native bridge needs: its response cannot hold an SSE stream open).
  */
 
 export type {
@@ -43,17 +45,22 @@ export {
   roomSlug,
   ROOM_TTL_MS,
   ROOM_MAX_IDLE_MS,
+  POLL_INTERVAL_MS,
+  POLL_LIVE_MS,
 } from './pumpkin-engine-room-registry';
 export type {
   PumpkinEvent,
   PumpkinRoomInfo,
   PumpkinRoomListener,
   SpeakTargetResolution,
+  PumpkinPollResult,
 } from './pumpkin-engine-room-registry';
 export {
   buildPumpkinLinks,
   pumpkinQrTargetUrl,
   readQrTarget,
+  requestOrigin,
   resolvePublicOrigin,
+  PROJECTOR_PATH,
 } from './pumpkin-engine-links';
 export type { PumpkinLinks, PumpkinLinkRequest, PumpkinQrTarget } from './pumpkin-engine-links';

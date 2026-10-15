@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The Calling Assistant page client: configuration, sender numbers, the audio interpretation test, task start, reports and cancel, all against the package's own routes.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Gate every start path on the shared kit's decision (ADR-164 D6). When the page renders an audience view the client stops before its first read, so the /config probe (it reaches the speech provider registry), the /tasks refresh and every form and button listener stay off; without a view, or without the kit, the full page boots exactly as before. The body moved into a function so the gate can hold it back; no line of it changed.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Plain sentences instead of codes and JSON (the page's Plain helper, index.html): a refusal reads as what to do ("select_connection" was shown as "select connection"), an empty connection list says to connect Twilio on Connections and switches Load numbers off, the audio test reads as what was heard and what the assistant would do (it printed the raw result JSON), and malformed approved replies say how to fix them instead of a JSON parser error.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | Demo sweep 1: a failed audio test no longer leaves 'Interpreting audio…' in the result box; the refusal is the page's message alone.
  * -----------------------------------------------------------------------------
  */
 (function () {
@@ -17,13 +19,15 @@ let loaded, requestKey;
 function message(t) {$('message').textContent=t;}
 async function api(path,method='GET',body) {
   const response=await fetch(root+path,{method,headers:{'X-Oshal-Calling':'1',...(body instanceof File?{'Content-Type':'audio/wav'}:body?{'Content-Type':'application/json'}:{})},...(body?{body:body instanceof File?body:JSON.stringify(body)}:{})});
-  const data=await response.json(); if(!response.ok) throw new Error(data.error||'Request failed'); return data;
+  const data=await response.json().catch(()=>({})); if(!response.ok) throw Object.assign(new Error(data.message||data.detail||data.error||'Request failed'),{code:data.error||data.refused}); return data;
 }
-async function busy(button,fn) {button.disabled=true;try{await fn();}catch(e){message(e.message.replaceAll('_',' '));}finally{button.disabled=false;}}
+async function busy(button,fn) {button.disabled=true;try{await fn();}catch(e){message(Plain.refusal(e));}finally{button.disabled=false;}}
 function option(value,text) { const o=document.createElement('option');o.value=value;o.textContent=text;return o; }
 function renderConfig(data) {
   loaded=data.config;
-  $('connectionId').replaceChildren(option('','Select a connection'),...data.connections.map(c=>option(c.id,`${c.label} (${c.scope})`)));
+  $('connectionId').replaceChildren(option('',data.connections.length?'Select a connection':'No Twilio connection yet'),...data.connections.map(c=>option(c.id,`${c.label} (${c.scope})`)));
+  $('loadNumbers').disabled=!data.connections.length;
+  if(!data.connections.length) message(Plain.NO_CONNECTION);
   $('sttProvider').replaceChildren(...data.providers.map(p=>option(p.id,`${p.id}${p.configured?'':' — not configured'}`)));
   $('from').replaceChildren(option('','Select a sender'),...(loaded.from?[option(loaded.from,loaded.from)]:[]));
   for(const [k,v] of Object.entries(loaded)) {const el=$(k);if(!el)continue;if(el.type==='checkbox')el.checked=v;else el.value=Array.isArray(v)?v.join('\n'):v??'';}
@@ -39,9 +43,9 @@ async function refresh() {
 $('loadNumbers').onclick=()=>busy($('loadNumbers'),async()=>{const {numbers}=await api('/numbers?connectionId='+encodeURIComponent($('connectionId').value));$('from').replaceChildren(option('','Select a sender'),...numbers.map(n=>option(n.number,n.label+' · '+n.number)));if(numbers.some(n=>n.number===loaded.from))$('from').value=loaded.from;message('Choose the number this application should use.');});
 $('connectionId').onchange=()=>{$('from').replaceChildren(option('','Load numbers from selected account'));};
 $('settings').onsubmit=e=>{e.preventDefault();busy(e.submitter,async()=>{const c={...loaded};for(const k of Object.keys(c)){const el=$(k);if(!el)continue;c[k]=el.type==='checkbox'?el.checked:el.type==='number'?Number(el.value):el.value;}c.connectionId=c.connectionId||null;c.allowedNumbers=$('allowedNumbers').value.split(/[\n,]/).map(s=>s.trim()).filter(Boolean);await api('/config','PUT',c);message('Configuration saved.');await load();});};
-$('audioForm').onsubmit=e=>{e.preventDefault();busy(e.submitter,async()=>{const file=$('audioFile').files[0];if(!file)throw new Error('Choose a WAV file');$('audioResult').textContent='Interpreting audio…';$('audioResult').textContent=JSON.stringify(await api('/audio-test','POST',file),null,2);});};
+$('audioForm').onsubmit=e=>{e.preventDefault();busy(e.submitter,async()=>{const file=$('audioFile').files[0];if(!file)throw new Error('Choose a WAV file');$('audioResult').textContent='Interpreting audio…';try{$('audioResult').textContent=Plain.interpretation(await api('/audio-test','POST',file));}catch(err){$('audioResult').textContent='';throw err;}});};
 $('taskForm').oninput=()=>{requestKey=undefined;};
-$('taskForm').onsubmit=e=>{e.preventDefault();busy(e.submitter,async()=>{requestKey=requestKey||crypto.randomUUID();const data=await api('/tasks','POST',{to:$('to').value.trim(),objective:$('objective').value.trim(),keywords:$('keywords').value.split(',').map(s=>s.trim()).filter(Boolean),responses:JSON.parse($('responses').value),idempotencyKey:requestKey});$('report').textContent=JSON.stringify(data,null,2);message('Task '+data.status+'. Review its report for the actual outcome.');await refresh();});};
+$('taskForm').onsubmit=e=>{e.preventDefault();busy(e.submitter,async()=>{requestKey=requestKey||crypto.randomUUID();const data=await api('/tasks','POST',{to:$('to').value.trim(),objective:$('objective').value.trim(),keywords:$('keywords').value.split(',').map(s=>s.trim()).filter(Boolean),responses:Plain.responses($('responses').value),idempotencyKey:requestKey});$('report').textContent=JSON.stringify(data,null,2);message('Task '+data.status+'. Review its report for the actual outcome.');await refresh();});};
 $('refresh').onclick=()=>busy($('refresh'),refresh);
 load().catch(e=>message(e.message.replaceAll('_',' ')));
 }

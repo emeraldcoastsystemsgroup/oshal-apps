@@ -20,12 +20,14 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial implementation — caller-scoped lane discovery off getActiveRegistry() (ADR-087 isBotAccessibleTo, operator sees wider), sequential lane execution through executeBotOrInline with per-lane failure isolation, grading through JudgeService on the quality-judge concierge, single-flight per job, and a best-effort completion notification through the kernel notification router.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | laneAvailability(): the bot registry's own "nothing to race here" marker when it carries one (the native runtime runs every bot on one metered inference rail, so it lists no lanes and says why), for GET /lanes to return beside the empty roster.
  *
  * @module bake-off-engine
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BAKE_OFF_ANALYST_AGENT_ID = void 0;
 exports.discoverLanes = discoverLanes;
+exports.laneAvailability = laneAvailability;
 exports.selectLanes = selectLanes;
 exports.inFlightRun = inFlightRun;
 exports.runBakeOff = runBakeOff;
@@ -77,6 +79,16 @@ function discoverLanes(req) {
         lanes.push({ agentId, bot: bot.name, harness: bot.harnessType, provider: bot.apiType, role: bot.role });
     }
     return lanes.sort((a, b) => a.bot.localeCompare(b.bot));
+}
+/**
+ * @description The bot registry's own "nothing to race here" marker, when it carries one. The
+ * native runtime does (every bot answers through its one metered inference rail, so there are no
+ * separate lanes); the platform registry does not, and then this adds nothing.
+ * @returns The marker's fields ({ native, configured, reason, detail }), or no fields.
+ */
+function laneAvailability() {
+    const marker = swarm_bot_registry_1.availability;
+    return marker && typeof marker === 'object' ? { ...marker } : {};
 }
 /**
  * @description Narrow the discovered lanes to the job's declared subset, capped.

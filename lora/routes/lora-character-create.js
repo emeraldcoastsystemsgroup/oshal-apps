@@ -63,7 +63,7 @@ async function createLoraCharacter(ctx, owner, body) {
     const client = await ctx.pool.connect();
     let destroy = false;
     try {
-        await client.query('BEGIN ISOLATION LEVEL READ COMMITTED');
+        await client.query('BEGIN');
         await client.query("SET LOCAL lock_timeout = '5s'");
         await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`lora-character-create:${owner}`]);
         const outcome = await insertCharacter(client, owner, fields);

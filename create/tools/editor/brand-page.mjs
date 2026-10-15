@@ -14,6 +14,7 @@ const MESSAGES = {
   brand_logo_unavailable: 'That logo is no longer available. Upload it again.',
   brand_kit_not_found: 'There is no saved brand kit to remove.',
   project_asset_limit_reached: 'Your image storage is full. Clean unused uploads in the image editor, then try again.',
+  create_native_image_limit: 'This installation has a 32 MiB image storage limit. Clean unused uploads in the image editor, then try again.',
   project_image_too_large: 'This image exceeds the 8 MB limit.',
   invalid_project_image: 'Choose a PNG, JPEG or WebP image within 8192 pixels on each side.',
   invalid_brand_kit: 'Some brand kit values are not supported. Check the colors and fonts.',

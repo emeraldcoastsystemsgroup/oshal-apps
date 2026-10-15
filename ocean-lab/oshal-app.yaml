@@ -1,3 +1,5 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Declare ocean-lab-guide (inline, personas/ocean-lab-guide.yaml) as the screen's concierge in place of the borrowed platform general-bot, which had none of the lab's tools and answered "harvest margin" as a generic agriculture term; the rating label names the concierge as the package's one model-touching feature. Guarded by scripts/check-store-bots.test.mjs.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — ocean-lab ("Ocean Lab")
 #
@@ -10,8 +12,8 @@
 #
 # The ENGINE IS BUNDLED — src-routes/engine/ compiled to routes/engine/. Nothing
 # is fetched, nothing is called out to, and there is no LLM in any path here: the
-# numbers are deterministic in-process arithmetic. That is why this package
-# declares no bot: there is nothing here for a model to reason about.
+# numbers are deterministic in-process arithmetic. The one bot (ocean-lab-guide)
+# only reads those results through the tools below and explains them in words.
 #
 # ADR-160 S2 (1.2.0): the 300 mm wave explorer from the design study is a
 # RECORD — an owned vehicle whose design vector a person edits, its "What is not
@@ -41,7 +43,12 @@ suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
 rating:
   memoryMb: { low: 32, high: 128, basis: declared }
-  features: []   # no model in the loop (T0)
+  features:
+    - id: ocean-lab-guide
+      unit: concierge answer
+      tier: T1
+      generation: none
+      degrade: disable
 displayName: Ocean Lab
 description: >-
   Ambient-energy design lab — model a machine that moves on tidal and current
@@ -57,8 +64,8 @@ description: >-
 version: 1.3.1
 status: active
 scope: person
-# Ocean Lab has deterministic tools but no packaged bot; use the stable framework concierge.
-chatBot: general-bot
+# Ocean Lab's own concierge: it reads the deterministic route-backed tools below and explains the lab's terms.
+chatBot: ocean-lab-guide
 
 source:
   type: git-subdir
@@ -110,6 +117,17 @@ testing:
 # TOOLS — every one is route-backed and deterministic. A bot that calls these
 # gets arithmetic, not an opinion; the numbers are the engine's, never a model's.
 # ─────────────────────────────────────────────────────────────────────────────
+# The concierge. Inline: it reasons over the lab's deterministic tools and never computes a number itself.
+bots:
+  - agentId: 0cea0000-0000-0000-0000-000000000001
+    name: ocean-lab-guide
+    posture: inline
+    persona: personas/ocean-lab-guide.yaml
+    role: ai-engineering/ocean-lab-guide
+    capabilities:
+      - energy-budget-explanation
+      - rotor-design-explanation
+
 tools:
   - name: ocean-lab-capabilities
     displayName: Ocean Lab Capabilities

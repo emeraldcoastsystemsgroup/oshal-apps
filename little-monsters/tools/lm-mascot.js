@@ -18,6 +18,7 @@
  * 2026-04-19     | roger.murphy@emeraldcoastsystemsgroup.com    | Initial creation — mascot component
  * 2026-09-27     | maintainer@emeraldcoastsystemsgroup.com     | Carry the page frame (window.LM) in this already-bound script so the authorization catalog stays at its installed revision; every surface loads it
  * 2026-09-27     | maintainer@emeraldcoastsystemsgroup.com     | The frame renders the profile as served: the server filters tools per caller through the app's tool-keys route, so the client keeps no teacher-only list
+ * 2026-10-11     | maintainer@emeraldcoastsystemsgroup.com     | First visit completes school setup: when /me answers "complete school setup" the frame makes the screen's open-time write (the caller's own reminder check, the one non-GET every school role is bound to), which provisions the learner, then reads /me again. Native reads never provision, so a new person was stuck at that message inside the app
  * ---------------------------------------------------------------------------
  *
  * @module lm-mascot
@@ -346,6 +347,13 @@ var LM_FRAME = (function () {
   /** The ribbon profile that lists this package's admitted surfaces for the caller. */
   var PROFILE_PATH = '/api/ui/profile?name=little-monsters';
   var ME_PATH = '/api/education/me';
+  /**
+   * The open-time write: the caller's own reminder check (POST, bound to app.open + study.change for
+   * every school role). The server provisions a new learner only on a non-GET call, so this is what
+   * turns a first visit into a student record without a new route or a changed permission catalog.
+   */
+  var SETUP_PATH = '/api/education/check-reminders';
+  var SETUP_REFUSAL = 'Open Little Monsters to complete school setup';
   var REWARDS_PATH = '/api/education/rewards';
   var CLASS_PATH = '/api/education/class?classId=';
   var LOGO_PATH = '/api/education/logo-96.png';
@@ -424,6 +432,16 @@ var LM_FRAME = (function () {
     return { level: rewards.level, pct: needed > 0 ? Math.min(100, Math.round((inLevel / needed) * 100)) : 0, inLevel: inLevel, needed: needed };
   }
 
+  /**
+   * @description Whether a refused /me answer is the first-visit "no learner record yet" refusal.
+   * @param {number} status The HTTP status of the /me answer.
+   * @param {unknown} body Its parsed JSON body (or null).
+   * @returns {boolean} True only for the exact 403 school-setup refusal.
+   */
+  function needsSchoolSetup(status, body) {
+    return status === 403 && Boolean(body) && body.error === SETUP_REFUSAL;
+  }
+
   /** @description True when this page is hosted by another document (cockpit or experience). */
   function isEmbedded(win) {
     try { return win.top !== win.self; } catch (_) { return true; }
@@ -446,8 +464,24 @@ var LM_FRAME = (function () {
         .then(function (r) { return r.ok ? r.json().catch(function () { return null; }) : null; })
         .catch(function () { return null; });
     }
+    /** @description Make the open-time write once, then read the identity it provisioned. */
+    function completeSetup() {
+      return w.fetch(SETUP_PATH, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: '{}' })
+        .then(function (r) { return r.ok ? getJson(ME_PATH) : null; })
+        .catch(function () { return null; });
+    }
+    /** @description Read /me; a first visit's school-setup refusal completes setup instead of failing. */
+    function readMe() {
+      return w.fetch(ME_PATH, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(function (r) {
+          var body = r.json().catch(function () { return null; });
+          if (r.ok) return body;
+          return body.then(function (b) { return needsSchoolSetup(r.status, b) ? completeSetup() : null; });
+        })
+        .catch(function () { return null; });
+    }
     /** @description The signed-in person's education identity, fetched once per page. */
-    function me() { if (!cache.me) cache.me = getJson(ME_PATH); return cache.me; }
+    function me() { if (!cache.me) cache.me = readMe(); return cache.me; }
     /** @description Navigation entries admitted for this caller, fetched once per page. */
     function entries() {
       if (!entriesReady) entriesReady = getJson(PROFILE_PATH).then(function (r) { cache.profile = r && r.profile ? r.profile : null; return navEntries(cache.profile); });
@@ -511,7 +545,7 @@ var LM_FRAME = (function () {
     return api;
   }
 
-  var exported = { esc: esc, navEntries: navEntries, activeEntry: activeEntry, hrefForView: hrefForView, levelProgress: levelProgress, isEmbedded: isEmbedded, createFrame: createFrame };
+  var exported = { esc: esc, navEntries: navEntries, activeEntry: activeEntry, hrefForView: hrefForView, levelProgress: levelProgress, isEmbedded: isEmbedded, needsSchoolSetup: needsSchoolSetup, createFrame: createFrame };
   if (typeof window !== 'undefined' && window.document && !window.LM) window.LM = createFrame(window);
   return exported;
 })();

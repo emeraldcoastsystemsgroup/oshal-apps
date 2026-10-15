@@ -8,6 +8,7 @@
  * 2026-07-24 12:15:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Fast Money endgame (backlog #6, delegated to feud-fast-money.js so this file stays inside the size limits) and localJudge (exact text/alias hits rule without an LLM call — the aliases were generated for exactly this).
  * 2026-07-25 22:45:00 | roger.murphy@emeraldcoastsystemsgroup.com  | npcMove — the Feud NPC brain for one-person game night: buzz the face-off, answer from the board the server already holds (skill decides hit rate and whether it takes the top answer), miss with a spoken wrong guess. No LLM; flows through the existing judge shape.
  * 2026-07-26 09:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Fast Money delegates to the fastMoney npcMove like every other fm-* beat — an NPC picked for the endgame now actually plays it.
+ * 2026-10-12 06:10:00 | maintainer@emeraldcoastsystemsgroup.com     | K4: the intro prompt carried no board context, so the host invented teams and a topic ("the Blues taking on the Reds ... things people forget when they head out the door" for Team A/B and a freezer question). It now names the two teams as the scoreboard does, the drawn question (or says none is drawn yet) and the board context every other mode carries, and tells the host not to invent either.
  */
 
 'use strict';
@@ -512,12 +513,19 @@ function boardSummary(state) {
   return `Question: "${board.question}". Revealed: ${revealed}. Strikes: ${board.strikes}. Score A:${state.scores.A} B:${state.scores.B}.`;
 }
 
+/** @description The facts the open may use: the teams as the scoreboard names them and the drawn question, nothing invented. */
+function introContext(state) {
+  const question = String((state.board && state.board.question) || '').trim();
+  const drawn = question ? `The first question is "${question}".` : 'The first question is not drawn yet; do not name a topic.';
+  return `The teams are Team A and Team B; use only these names, never invented ones. ${drawn}`;
+}
+
 /** @description Build the prompt for a spoken host line in the requested mode. */
 function spokenPrompt(mode, state, payload = {}, ctx = {}) {
   const context = boardSummary(state);
   const who = payload.name ? ` The contestant is ${payload.name}.` : '';
   const map = {
-    intro: `MODE: intro. Welcome the room to the show, name the two teams if given, and tease the first question.${who}`,
+    intro: `MODE: intro. Welcome the room to the show, name the two teams, and tease the first question.${who} ${introContext(state)} ${context}`,
     banter: `MODE: banter. One quick host line to keep the energy up right now.${who} ${context}`,
     reveal: `MODE: reveal. React warmly to what just landed on the board.${who} ${context}`,
     strike: `MODE: strike. Sell the miss kindly — keep them looking good.${who} ${context}`,

@@ -21,6 +21,10 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com  | GET /realized is now a call to realizedReport (trading-realized.ts) - the same body, moved. The trading specialist's bounded facts read today's realized from that helper too, and a money figure must not have two implementations to drift between.
  * 12 | maintainer@emeraldcoastsystemsgroup.com  | The two cost bases stop being reconciled in silence. The venue reports the WASH-SALE-ADJUSTED average, so after a loss sale and a re-buy inside 30 days the disallowed loss rides on the replacement shares; the engine vetoes a stop drawn off that number (SEQ 9), but the card still printed the venue average and a stop price derived from it - so the row said a position was 5-18% under water and about to be sold while the engine quietly measured something else, which is the same silent-correct this package spent SEQ 10 removing from the other half of the card. Each rule row now carries `engineBasisPx` - the engine's own average cost for the holding, the kernel number from withEngineCostBasis rounded for display, never recomputed here - and `engineStopPx`, the stop measured from it, which is the price the stop ACTUALLY fires at whenever the venue average is the higher of the two. Both are null where the engine's ledger does not cover the quantity: there is no second basis to show, and inventing one is the failure this closes.
  * 13 | maintainer@emeraldcoastsystemsgroup.com  | GET /exposure knows the idle-cash yield sleeve (ADR-052 addendum P6): readExposureInputs answers its governance through bookGovernance (trading-routes-order-flow-builders.ts, the function GET /ledger uses), which hands the book's armed sleeve to positionGovernanceBySymbol, so the fund of an armed sleeve reads exitsApply false and exitRuleRows marks its stop / take-profit / trailing / trim rules inactive with no wouldFireNow - the dispatch never fires them. Unarmed, the payload is unchanged. A kernel without armedYieldSleeve passes no sleeve.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com  | Rail guard: every book read asks railConfigured(rail) instead of calling configured() directly, and GET /account, /positions, /performance and /exposure answer 409 broker_not_configured with one message saying no broker is connected (the account read's env-key hint is dropped: it called mode.toUpperCase() on a book with no kind and threw) when the selected book has no connected broker, instead of 503. On the native kernel bridge the reader has no configured() probe and all four answered 502 "broker.configured is not a function"; the not-connected state is the operator's to resolve, not a server fault. /status reports the three configured flags through the same guard.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com  | TRADE-01: on the native kernel a paper book with no broker rail answers GET /account, /positions, /performance and /realized from the person's native paper book (routes/paper/screen.js) when they have one, and GET /status carries nativePaper (available, armed, schedule) with bookConfigured/bookEnabled from that book. No native paper account, a connected rail, a live book or a host without the kernel price intents keeps the existing answers exactly.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com  | GET /status carries brokerReason and marketDataReason: the host's own sentence when the selected book has no broker or market-data rail (on the native kernel, no Alpaca connector and Schwab not used for market data), so the account view prints it instead of "Set the Alpaca paper keys".
+ * 17 | maintainer@emeraldcoastsystemsgroup.com  | GET /exposure on the native paper book (the native kernel, no broker rail) says what the panel reads and where the paper book's holdings and the autopilot's decisions are, instead of "No broker is connected for this account. Connect one in Settings → Connections." - the paper book needs no broker. Same 409 and error code; every other book keeps the existing answer.
  *
  * @module trading-routes-book-read-builders
  */
@@ -58,6 +62,8 @@ import { routeBook } from './trading-accounts-routes';
 import { ensureTradingSchema } from '@/app/trading-schema';
 import { loadDailyEquitySeries } from '@/app/trading-daily-equity-store';
 import { buildSettlementView, settlementApplies, unsettledLedgerSells } from '@/app/trading-settlement';
+import { NO_BROKER_STATUS, NO_BROKER_MESSAGE, railConfigured, railReason } from './trading-rail-guard';
+import { screenRead, statusFields, readerConnected, nativeHost, paperBook } from './paper/screen';
 
 // Same module tag as the entry file so structured log output is unchanged by the split.
 const logger = createChildLogger({ module: 'trading-routes' });
@@ -522,6 +528,9 @@ async function shapeExposure(book: TradingBook, inp: ExposureInputs): Promise<Re
   };
 }
 
+/** What the Allocation and Exits panels say on the native paper book, which needs no broker. */
+const PAPER_EXPOSURE_MESSAGE = 'Allocation and exits are computed from a connected broker account\'s holdings and working orders. Your paper book needs no broker: its holdings are in Positions above, and the paper autopilot\'s own buy and sell decisions are in the Trade journal.';
+
 /**
  * @description Register the one /exposure read on the book router. It is deliberately its own
  *   function rather than another block inside registerTradingBookReadRoutes, which is already many
@@ -543,7 +552,10 @@ function registerExposureRoute(router: Router, ctx: AppContext): void {
     try {
       const book = await routeBook(ctx, sub, req);
       const broker = getBrokerReader(book.kind, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
-      if (!broker.configured()) { res.status(503).json({ error: 'broker_not_configured' }); return; }
+      if (!railConfigured(broker)) {
+        const paper = nativeHost(ctx) && paperBook(book);
+        res.status(NO_BROKER_STATUS).json({ error: 'broker_not_configured', message: paper ? PAPER_EXPOSURE_MESSAGE : NO_BROKER_MESSAGE }); return;
+      }
       res.json(await shapeExposure(book, await readExposureInputs(ctx, sub, book, broker)));
     } catch (err) {
       logger.error({ err }, 'trading exposure failed');
@@ -577,14 +589,17 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
       const book = await routeBook(ctx, sub, req);
       const mode = book.kind;
       let paperConfigured = false, liveConfigured = false, bookConfigured = false;
-      try { paperConfigured = getBrokerReader('paper', sub).configured(); } catch { /* provider unset */ }
+      try { paperConfigured = railConfigured(getBrokerReader('paper', sub)); } catch { /* provider unset */ }
       // Reader (not gated): report whether the LIVE rail is wired regardless of the live-enable switch.
-      try { liveConfigured = getBrokerReader('live', sub).configured(); } catch { /* rail unset */ }
+      try { liveConfigured = railConfigured(getBrokerReader('live', sub)); } catch { /* rail unset */ }
       // bookConfigured = whether THIS book's own bound reader is wired (surface-audit 2026-09-03):
       // a b-book's Schwab connection can be healthy while the legacy-rail liveConfigured is false,
       // and vice-versa — the hub's broker-not-connected gate must key on the selected book, not the
       // env rail. The SPA prefers this field.
-      try { bookConfigured = getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined).configured(); } catch { /* rail unset */ }
+      try { bookConfigured = railConfigured(getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined)); } catch { /* rail unset */ }
+      // What the surface prints when this book has no broker or market-data rail (the host's own reason).
+      let brokerReason: string | null = null, marketDataReason: string | null = null;
+      try { if (!bookConfigured) brokerReason = railReason(getBrokerReader(mode, sub)); marketDataReason = railReason(getMarketData(mode, sub)); } catch { /* rail unset */ }
       const counts = (await ctx.pool.query(
         `SELECT
            (SELECT COUNT(*)::int FROM oshal_trading_signals  WHERE user_sub=$1 AND book_id=$2) AS signals,
@@ -594,9 +609,11 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
       res.json({
         provider: process.env.BROKER_PROVIDER || 'alpaca',
         mode, book: book.ref, bookEnabled: book.enabled, liveEnabled: liveTradingEnabled(),
-        paperConfigured, liveConfigured, bookConfigured,
+        paperConfigured, liveConfigured, bookConfigured, brokerReason, marketDataReason,
         guardrails: guardrails(),
         counts: { signals: counts?.signals || 0, decisions: counts?.decisions || 0, orders: counts?.orders || 0 },
+        // TRADE-01: the native paper book's state ({} unless this is the native kernel's railless paper book).
+        ...(await statusFields(ctx, sub, book, bookConfigured)),
       });
     } catch (err) {
       logger.error({ err }, 'trading status failed');
@@ -612,7 +629,12 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
       const book = await routeBook(ctx, sub, req);
       const mode = book.kind;
       const broker = getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
-      if (!broker.configured()) { res.status(503).json({ error: 'broker_not_configured', message: `Set the ${mode} broker keys (e.g. ALPACA_${mode.toUpperCase()}_KEY_ID / _SECRET_KEY).` }); return; }
+      if (!railConfigured(broker)) {
+        // TRADE-01: a paper book with no broker rail answers from the person's native paper book when one exists.
+        const paper = await screenRead(ctx, sub, book, false, 'account');
+        if (paper) { res.json(paper); return; }
+        res.status(NO_BROKER_STATUS).json({ error: 'broker_not_configured', message: NO_BROKER_MESSAGE }); return;
+      }
       const account = await broker.getAccount();
       // Settled vs unsettled cash for the ticket: the ledger is consulted only where the guard applies
       // (a cash-type book under an armed policy); margin/paper books get the view with no extra read.
@@ -634,7 +656,12 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
       const book = await routeBook(ctx, sub, req);
       const mode = book.kind;
       const broker = getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
-      if (!broker.configured()) { res.status(503).json({ error: 'broker_not_configured' }); return; }
+      if (!railConfigured(broker)) {
+        // TRADE-01: a paper book with no broker rail answers from the person's native paper book when one exists.
+        const paper = await screenRead(ctx, sub, book, false, 'positions');
+        if (paper) { res.json(paper); return; }
+        res.status(NO_BROKER_STATUS).json({ error: 'broker_not_configured', message: NO_BROKER_MESSAGE }); return;
+      }
       res.json({ mode, book: book.ref, positions: await broker.getPositions() });
     } catch (err) {
       logger.error({ err }, 'trading positions failed');
@@ -652,7 +679,7 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
     try {
       const mode = (await routeBook(ctx, sub, req)).kind;
       const md = getMarketData(mode, sub);
-      if (!md.configured()) { res.status(503).json({ error: 'market_data_not_configured', source: md.kind }); return; }
+      if (!railConfigured(md)) { res.status(503).json({ error: 'market_data_not_configured', source: md.kind }); return; }
       const price = await md.latestPrice(symbol);
       res.json({ mode, source: md.kind, symbol, price });
     } catch (err) {
@@ -669,7 +696,12 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
       const book = await routeBook(ctx, sub, req);
       const mode = book.kind;
       const broker = getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
-      if (!broker.configured()) { res.status(503).json({ error: 'broker_not_configured' }); return; }
+      if (!railConfigured(broker)) {
+        // TRADE-01: a paper book with no broker rail answers from the person's native paper book when one exists.
+        const paper = await screenRead(ctx, sub, book, false, 'performance', { period: String(req.query.period || '1M') });
+        if (paper) { res.json(paper); return; }
+        res.status(NO_BROKER_STATUS).json({ error: 'broker_not_configured', message: NO_BROKER_MESSAGE }); return;
+      }
       const periodReq = String(req.query.period || '1M').toUpperCase();
       // period → (Alpaca period code, resolution, SPY daily bars to fetch).
       const MAP: Record<string, { p: string; tf: string; n: number; days: number }> = {
@@ -766,6 +798,9 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
       const book = await routeBook(ctx, sub, req);
       // The whole tally lives in realizedReport (trading-realized.ts) so this surface and the
       // trading specialist's bounded facts read exactly the same numbers for the same day.
+      const rail = readerConnected(() => getBrokerReader(book.kind, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined));
+      const paper = await screenRead(ctx, sub, book, rail, 'realized');
+      if (paper) { res.json(paper); return; }
       res.json(await realizedReport(ctx, sub, book.bookId, book.kind));
     } catch (err) {
       logger.error({ err }, 'trading realized failed');
@@ -783,7 +818,7 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
       const book = await routeBook(ctx, sub, req);
       const mode = book.kind;
       const broker = getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
-      if (!broker.configured() || !broker.getTransactions) { res.status(503).json({ error: 'transactions_not_supported' }); return; }
+      if (!railConfigured(broker) || !broker.getTransactions) { res.status(503).json({ error: 'transactions_not_supported' }); return; }
       const days = Math.min(365, Math.max(1, Number(req.query.days) || 90));
       const symbol = req.query.symbol ? String(req.query.symbol).toUpperCase() : undefined;
       const txns = await broker.getTransactions(new Date(Date.now() - days * 86400000).toISOString(), new Date().toISOString(), symbol);

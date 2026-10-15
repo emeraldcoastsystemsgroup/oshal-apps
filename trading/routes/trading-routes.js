@@ -51,6 +51,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Declare the MARKET half of the fact set alongside the book half (trading-market-facts.ts), so the registration is TRADING_SPECIALIST_FACT_KEYS and the read is readTradingSpecialistFacts. The book half alone is why the accountable bot could report the operator's equity to the cent and, in the same answer, say it could not access index or market-mover data: the screener ships in the kernel and GET /reports/movers already uses it, but a tool-less worker can never call a route, and no market number was declared on the one channel it can see. The market half reads SPY/QQQ/DIA day moves and the whole-market screener's extremes in PARALLEL with the book half, so the declaration costs no additional wall-clock time against the registry's 2000 ms deadline.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D5 earnings-reaction rules: register the /events/rules route family (trading-earnings-rule-routes.ts) right after the event playbooks — the operator's surface over the kernel rule store, which until now could only be reached by calling the module, so no person could arm, see or stop a rule. Book-scoped query-first like every 2026-09-03-audited route.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | ADR-052 addendum P4 per-position exit plans: register the /position-plans route family (trading-position-plan-routes.ts — list a book's plans, and the confirm-gated amend) before the generic flow, beside the other kernel-store surfaces.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | Register the same book-and-market reader for every bot this package declares (futures-research-analyst, trading-research-analyst, weather-analyst beside trading-analyst). The kernel requires a selected bot of a specialist-context package to have its own reader, so each research concierge refused every question with 'required specialist reader is missing'.
  *
  * @module trading-routes
  */
@@ -88,7 +89,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TRADING_FACTS_TOOL = exports.TRADING_ANALYST_AGENT_ID = void 0;
+exports.TRADING_FACTS_TOOL = exports.TRADING_FACT_BOT_IDS = exports.TRADING_ANALYST_AGENT_ID = void 0;
 exports.surfaceDir = surfaceDir;
 exports.createTradingRoutes = createTradingRoutes;
 const express_1 = require("express");
@@ -119,6 +120,18 @@ const logger = (0, logger_1.createChildLogger)({ module: 'trading-routes' });
  * tests/trading-specialist-context.spec.ts pins the two together so the pair cannot drift.
  */
 exports.TRADING_ANALYST_AGENT_ID = 'a0000000-0000-0000-0000-000000000046';
+/**
+ * Every bot this package declares in oshal-app.yaml `bots:`. A kernel that serves a package with
+ * `uses: specialist-context` requires each selected bot to have its own registered reader, so the
+ * research concierges carry the same book-and-market facts as the accountable trading bot.
+ * tests/trading-specialist-context.spec.ts pins this list to the manifest.
+ */
+exports.TRADING_FACT_BOT_IDS = [
+    exports.TRADING_ANALYST_AGENT_ID,
+    '90a8023d-7f86-485a-b215-f427d92ce032', // futures-research-analyst
+    'a0000000-0000-0000-0000-000000000049', // trading-research-analyst
+    'a0000000-0000-0000-0000-00000000004a', // weather-analyst
+];
 /**
  * The named read the facts run under - this package's own `tools:` entry, so the kernel resolves
  * us as its owner. When this app gains an authorization catalog, this is the binding that carries
@@ -168,12 +181,15 @@ function createTradingRoutes(ctx) {
     // answering that it could not access index or market-mover data - the surface route had the
     // screener all along, and a tool-less worker can never call a route.
     if (ctx.specialistContext) {
-        ctx.specialistContext.register({
-            agentId: exports.TRADING_ANALYST_AGENT_ID,
-            toolName: exports.TRADING_FACTS_TOOL,
-            facts: [...trading_market_facts_1.TRADING_SPECIALIST_FACT_KEYS],
-            read: (input) => (0, trading_market_facts_1.readTradingSpecialistFacts)(ctx, { sub: input.sub, signal: input.signal }),
-        });
+        const port = ctx.specialistContext;
+        for (const agentId of exports.TRADING_FACT_BOT_IDS) {
+            port.register({
+                agentId,
+                toolName: exports.TRADING_FACTS_TOOL,
+                facts: [...trading_market_facts_1.TRADING_SPECIALIST_FACT_KEYS],
+                read: (input) => (0, trading_market_facts_1.readTradingSpecialistFacts)(ctx, { sub: input.sub, signal: input.signal }),
+            });
+        }
     }
     else {
         logger.error({ agentId: exports.TRADING_ANALYST_AGENT_ID, tool: exports.TRADING_FACTS_TOOL }, 'No specialist-context port on this framework - the trading bot will be dispatched with no book or market facts');

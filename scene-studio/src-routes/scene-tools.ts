@@ -13,6 +13,13 @@
  *                     |                             | inside a deadline and a size budget. Entry and exit are logged
  *                     |                             | with the tool, project, duration and outcome only — never file
  *                     |                             | text, code or input values.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | scene-get-project reports the engine's live status: a native
+ *                     |                             | package process holds no engine connection until it makes a
+ *                     |                             | request, so a read-only project read said connected:false while
+ *                     |                             | the engine was up and the studio page showed it live. A
+ *                     |                             | disconnected status is refreshed with one bounded ping (the
+ *                     |                             | same engine and permission the capabilities read uses) before
+ *                     |                             | it is reported; a failed ping is reported with its reason.
  */
 
 import type { AppContext } from '@/app/composition/app-context';
@@ -65,11 +72,28 @@ function revisionView(r: RevisionRow): Record<string, unknown> {
   return { revision: r.revision, action: r.action, detail, fileCount: r.file_count, at: r.created_at };
 }
 
+/** The bounded wait for the engine-status ping a project read makes when no request has run yet. */
+export const ENGINE_PING_MS = 10_000;
+
+/**
+ * @description The engine's live status. A process that has made no engine request reports
+ * connected:false, so one bounded ping refreshes it; a failed ping leaves its reason in lastError.
+ * @param deps - The tool dependencies (the engine client).
+ * @returns The engine status after the refresh.
+ */
+export async function liveEngineStatus(deps: ServiceDeps): Promise<Record<string, unknown>> {
+  if (!deps.engine.status().connected) {
+    try { await deps.engine.request('ping', {}, ENGINE_PING_MS); }
+    catch (err) { logger.warn({ reason: (err as Error).message }, 'Scene engine status ping failed'); }
+  }
+  return deps.engine.status() as unknown as Record<string, unknown>;
+}
+
 async function readProject(deps: SceneToolDeps, sub: string, projectId: string): Promise<Record<string, unknown>> {
   const project = await ownProject(deps, sub, projectId);
   const files = await loadFiles(deps, sub, project);
   const revisions = (await listRevisions(deps.pool, sub, project.project_id, 20)).map(revisionView);
-  return { project: toolProject(project), ...listing(files), revisions, engine: deps.engine.status() };
+  return { project: toolProject(project), ...listing(files), revisions, engine: await liveEngineStatus(deps) };
 }
 
 async function readFile(deps: SceneToolDeps, sub: string, projectId: string, filePath: string): Promise<Record<string, unknown>> {

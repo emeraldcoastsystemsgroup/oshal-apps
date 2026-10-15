@@ -1,0 +1,1694 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Declare reviewed own-scoped Motion source contracts; installed acceptance remains open.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve exact native integer transport and bind an approval-held exact edit tool.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Opt into the kernel package-private lasting directory for durable owned photo bytes.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Declare bounded read-only actual effect inventory/schema tools.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Declare bounded original-read exact keyframe metadata.
+name: motion-studio
+suite: ai-creative
+displayName: Motion Studio
+description: >-
+  Editable motion compositions with manual layers, keyframes, masks and owned raster sources; shared
+  original-person route tools. Source prototype pending full artifact/job integration and installed acceptance.
+version: 0.1.0
+runtime: process
+lastingStorage: true
+status: active
+scope: public
+uses:
+  - application-authorization
+  - test-catalog
+  - app-dependencies
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+authorization:
+  version: 1
+  catalog: authorization.yaml
+chatBot: motion-editor
+rating:
+  memoryMb:
+    low: 32
+    high: 1024
+    basis: declared
+  features:
+    - id: motion-editing-command
+      unit: editing command
+      tier: T1
+      generation: none
+      degrade: disable
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: motion-studio
+  ref: main
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+routes:
+  - module: routes/application.mjs
+    factory: createMotionRoutes
+    mountPath: /api/motion-studio
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+migrations:
+  - migrations/001-motion-projects.sql
+  - migrations/native/001-motion.sql
+nativeMigrations:
+  - id: migrations/001-motion-projects.sql
+    native: skip
+    reason: >-
+      Native tables, checks, keys and immutable triggers are in migrations/native/001-motion.sql;
+      PostgreSQL alone applies the forced-RLS policy loop. Native person scope retains original
+      issuer/subject.
+summary:
+  path: /api/motion-studio/home-summary
+  tilesPointer: /metrics
+  itemsPointer: /items
+ui:
+  static:
+    - toolName: motion-studio-editor
+      label: Motion editor
+      icon: codicon codicon-play
+      iframeUrl: /api/motion-studio/app
+      section: top
+ribbon:
+  defaultView: motion-studio-editor
+  hideChatPanel: false
+bots:
+  - agentId: f14c20b6-15c5-4c5c-930d-2cc4b28c1d7f
+    name: motion-editor
+    persona: personas/motion-editor.yaml
+    posture: inline
+    role: creative/motion-editor
+    capabilities:
+      - motion-project-inspection
+      - motion-revision-editing
+    selectorDescriptor: >-
+      Choose for owned Motion compositions, editable layers, transforms, keyframes, masks and stored
+      photos. Do not claim unfinished export jobs or cross-app lineage.
+    routingKeywords:
+      - motion composition
+      - keyframe
+      - motion editor
+      - animation curve
+tools:
+  - name: motion-editing-contract
+    displayName: Motion Editing Contract
+    type: api
+    category: creative
+    description: Read the complete compact command index, timebase and source bounds.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/agent-contract
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      additionalProperties: false
+    usageInstructions: >-
+      Read before editing, then use motion-command-schema for each command. The complete response
+      fits the agent observation budget. It is not an installed acceptance receipt.
+    routingTags:
+      - motion
+      - editing
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-command-schema
+    displayName: Motion Command Schema
+    type: api
+    category: creative
+    description: Read the exact real schema of one command before constructing parameters.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/command-schema/{input.command}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        command:
+          type: string
+          minLength: 1
+          maxLength: 128
+      required:
+        - command
+      additionalProperties: false
+    usageInstructions: >-
+      Use an id from the complete command index. This returns one complete schema rather than a
+      truncated full registry. Unknown or unadmitted commands refuse.
+    routingTags:
+      - motion
+      - editing
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-list-projects
+    displayName: Motion List Projects
+    type: api
+    category: creative
+    description: Choose an original-owned id from this list; never guess ids or select another owner.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/project-index/{input.stamp}/{input.offset}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        stamp:
+          type: string
+          minLength: 5
+          maxLength: 64
+        offset:
+          type: integer
+          minimum: 0
+          maximum: 1000
+      additionalProperties: false
+      required:
+        - stamp
+        - offset
+    usageInstructions: >-
+      Start stamp=start offset=0; subsequent pages use the returned stamp and nextOffset until
+      complete. Collection changes return motion_index_changed: restart from the first page rather
+      than inferring missing projects. The index covers the declared1000-project target; native
+      aggregate feasibility remains unproven.
+    routingTags:
+      - motion
+      - editing
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-read-project
+    displayName: Motion Read Project
+    type: api
+    category: creative
+    description: >-
+      Read current owned project metadata/revision, then inspect that immutable revision in complete
+      pages.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/projects/{input.id}/receipt
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: >-
+      This returns a bounded receipt, not document contents. Use motion-inspect-project from root at
+      the returned revision; never infer missing fields.
+    routingTags:
+      - motion
+      - editing
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-new-project
+    displayName: Motion New Composition
+    type: api
+    category: creative
+    description: Create only when requested.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/projects
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        width:
+          type: integer
+          minimum: 1
+          maximum: 8192
+        height:
+          type: integer
+          minimum: 1
+          maximum: 8192
+        frameRate:
+          type: number
+          minimum: 0.000001
+          maximum: 1000
+        duration:
+          type: number
+          minimum: 0.000001
+          maximum: 86400
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+        response:
+          type: string
+          enum:
+            - receipt
+      required:
+        - title
+        - width
+        - height
+        - frameRate
+        - duration
+        - requestKey
+        - response
+      additionalProperties: false
+    usageInstructions: >-
+      Create only when requested. Supply a new UUID requestKey and preserve it for an identical
+      retry; product width*height limits also apply. Set response to receipt. The result includes
+      id/revision and inspection instructions, never the full document or arbitrary command outputs.
+      Inspect the returned immutable revision to obtain actual new composition/layer ids.
+    routingTags:
+      - motion
+      - editing
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-apply-edits
+    displayName: Motion Apply Edits
+    type: api
+    category: creative
+    description: Use the fresh revision and exact command schemas/ids; 16 KiB tool arguments maximum.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/projects/{input.id}/operations
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        baseRevision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        comp:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        commands:
+          type: array
+          minItems: 1
+          maxItems: 32
+          items:
+            type: object
+            properties:
+              command:
+                type: string
+                minLength: 1
+                maxLength: 128
+              params:
+                type: object
+                maxProperties: 64
+                additionalProperties: true
+            required:
+              - command
+              - params
+            additionalProperties: false
+        response:
+          type: string
+          enum:
+            - receipt
+      required:
+        - id
+        - baseRevision
+        - requestKey
+        - commands
+        - response
+      additionalProperties: false
+    usageInstructions: >-
+      Use the fresh revision and exact command schemas/ids; 16 KiB tool arguments maximum. Each
+      batch starts an isolated session. Select the composition explicitly. After adding a layer, use
+      its returned id in a later edit rather than guessing #1. One successful batch makes one
+      revision; conflicts require re-read. Set response to receipt. The result includes id/revision
+      and inspection instructions, never the full document or arbitrary command outputs. Inspect the
+      returned immutable revision to obtain actual new composition/layer ids.
+    routingTags:
+      - motion
+      - editing
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-revision-history
+    displayName: Motion Revision History
+    type: api
+    category: creative
+    description: Read returned immutable version metadata before undo.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/projects/{input.id}/revision-index/{input.revision}/{input.offset}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        offset:
+          type: integer
+          minimum: 0
+          maximum: 1000
+      required:
+        - id
+        - revision
+        - offset
+      additionalProperties: false
+    usageInstructions: >-
+      Supply the current receipt revision as upper boundary and offset=0. Follow nextOffset until
+      complete. New revisions do not alter pages through that immutable boundary. These metadata
+      pages cover declared1000-history entries; native aggregate feasibility is still unproven.
+    routingTags:
+      - motion
+      - editing
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-read-revision
+    displayName: Motion Read Revision
+    type: api
+    category: creative
+    description: Read an actual returned immutable version.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/projects/{input.id}/revisions/{input.revision}/receipt
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+      required:
+        - id
+        - revision
+      additionalProperties: false
+    usageInstructions: Read bounded metadata for an immutable version, then inspect it in complete structural pages.
+    routingTags:
+      - motion
+      - editing
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-restore-revision
+    displayName: Motion Restore Revision
+    type: api
+    category: creative
+    description: Restore only when requested, against the fresh baseRevision.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/projects/{input.id}/restore
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        baseRevision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+        response:
+          type: string
+          enum:
+            - receipt
+      required:
+        - id
+        - revision
+        - baseRevision
+        - requestKey
+        - response
+      additionalProperties: false
+    usageInstructions: >-
+      Restore only when requested, against the fresh baseRevision. This appends an undo revision
+      instead of replacing history. Use a new requestKey; explain the proposal and await its result.
+      Set response to receipt. The result includes id/revision and inspection instructions, never
+      the full document or arbitrary command outputs. Inspect the returned immutable revision to
+      obtain actual new composition/layer ids.
+    routingTags:
+      - motion
+      - editing
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-export-document
+    displayName: Motion Export Native Document
+    type: api
+    category: creative
+    description: >-
+      Obtain digest/length and a protected immutable native JSON download URL; original sources
+      remain references.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/projects/{input.id}/export-receipt
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: >-
+      Return download.immutableUrl for these exact bytes; download requires current export
+      permission. This is editable JSON, not a portable source bundle. No file is created by
+      returning metadata.
+    routingTags:
+      - motion
+      - editing
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-list-assets
+    displayName: Motion List Owned Photos
+    type: api
+    category: creative
+    description: Use only ids and dimensions returned here for asset.import.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/assets
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      additionalProperties: false
+    usageInstructions: >-
+      Use only ids and dimensions returned here for asset.import. Native row admission has a
+      temporary lower capacity; durable assets and aggregate library growth remain unfinished.
+      Upload is the manual photo control, not this tool.
+    routingTags:
+      - motion
+      - editing
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-delete-project
+    displayName: Motion Delete Project
+    type: api
+    category: creative
+    description: Delete only when explicitly requested and after explaining removal of the project/history.
+    executor:
+      executorType: api
+      apiEndpoint: DELETE /api/motion-studio/projects/{input.id}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: >-
+      Delete only when explicitly requested and after explaining removal of the project/history.
+      Asset cleanup is separate; returned success is required before claiming deletion.
+    routingTags:
+      - motion
+      - editing
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-delete-unused-asset
+    displayName: Motion Delete Unused Photo
+    type: api
+    category: creative
+    description: Delete only when requested; any photo referenced by immutable history is refused.
+    executor:
+      executorType: api
+      apiEndpoint: DELETE /api/motion-studio/assets/{input.id}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: >-
+      Delete only when requested; any photo referenced by immutable history is refused. Never retry
+      with another owner or remove a referenced source.
+    routingTags:
+      - motion
+      - editing
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-inspect-project
+    displayName: Motion Inspect Project
+    type: api
+    category: creative
+    description: >-
+      Inspect every field of an owned immutable native document through complete bounded structural
+      or text/key pages.
+    executor:
+      executorType: api
+      apiEndpoint: >-
+        GET
+        /api/motion-studio/projects/{input.id}/inspection/{input.revision}/{input.part}/{input.node}/{input.offset}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        part:
+          type: string
+          enum:
+            - value
+            - key
+        node:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        offset:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+      required:
+        - id
+        - revision
+        - part
+        - node
+        - offset
+      additionalProperties: false
+    usageInstructions: >-
+      Start node=root part=value offset=0 at a returned immutable revision. Objects/arrays list
+      children with actual names/types and ordinal node paths; follow nextOffset until complete,
+      then inspect relevant children. Nodes are root or dot-separated numeric ordinals, never
+      filenames or JSON pointers. Strings return exact text chunks using UTF-16 offsets; concatenate
+      through nextOffset. part=key retrieves an exact field name if nameComplete=false. Preview
+      fields are not full values unless marked complete. Pin the same revision for every page;
+      reread current metadata before an optimistic edit.
+    routingTags:
+      - motion
+      - editing
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-fork-project
+    displayName: Motion Duplicate Saved Project
+    type: api
+    category: creative
+    description: >-
+      Create an independent editable copy of a pinned owned revision, preserving layers, curves,
+      masks and owned source references.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/projects/{input.id}/fork
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+        response:
+          type: string
+          enum:
+            - receipt
+      required:
+        - id
+        - revision
+        - requestKey
+        - response
+      additionalProperties: false
+    usageInstructions: >-
+      Fork only when asked, from an actually read original-owned id/revision. This creates a
+      distinct project with revision1; it does not change the source or copy its entire history. Set
+      response=receipt, retain the UUID for an identical retry, and inspect the returned immutable
+      revision for actual ids. Source photo rows remain owned references and their historical
+      retention applies to the copy. Source read and create grants must remain current;
+      missing/foreign photo rows refuse. This is not a portable source bundle or Video handoff.
+    routingTags:
+      - motion
+      - editing
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-apply-exact-edits
+    displayName: Motion Apply Exact Edits
+    type: api
+    category: creative
+    description: >-
+      Edit with exact native JSON command text and decimal composition id, preserving wider integer
+      literals.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/projects/{input.id}/operations
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        baseRevision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        response:
+          type: string
+          enum:
+            - receipt
+        commandsJson:
+          type: string
+          minLength: 2
+          maxLength: 12000
+        compId:
+          type: string
+          minLength: 1
+          maxLength: 20
+      required:
+        - id
+        - baseRevision
+        - requestKey
+        - commandsJson
+        - response
+      additionalProperties: false
+    usageInstructions: >-
+      Use exact command schemas. Supply a JSON array as commandsJson and an exact decimal compId
+      when selected, never convert wider ids to Number. Batches are1..32commands; total platform
+      arguments remain16KiB and server validates the command array/fields. Preserve UUID and
+      baseRevision for a retry; response=receipt. Inspect returned decimal integer pages for actual
+      ids/ticks. Approval required, same read/change permission as ordinary edits.
+    routingTags:
+      - motion
+      - editing
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-list-effects
+    displayName: Motion Effect Index
+    type: api
+    category: creative
+    description: Read a complete stamp-pinned page of actual native effects before choosing one.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/effect-index/{input.stamp}/{input.offset}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [stamp, offset]
+      additionalProperties: false
+      properties:
+        stamp:
+          type: string
+          minLength: 5
+          maxLength: 64
+        offset:
+          type: integer
+          minimum: 0
+          maximum: 999999
+    usageInstructions: >-
+      Start with stamp=start and offset=0. Pin returned stamp and follow nextOffset until complete.
+      Catalog inventory is not installed or rendering proof. Fetch motion-effect-schema before editing.
+    routingTags: [motion, effects]
+    skills: [motion-editing]
+    tags: [route-backed]
+  - name: motion-effect-schema
+    displayName: Motion Effect Schema
+    type: api
+    category: creative
+    description: Read real effect parameters, types, defaults, bounds and zero-based options.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/effect-schema/{input.effect}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [effect]
+      additionalProperties: false
+      properties:
+        effect:
+          type: string
+          minLength: 1
+          maxLength: 128
+
+    usageInstructions: >-
+      Apply effect.apply using explicit layer ids, then inspect saved property UIDs and actual
+      instantiated values before prop.set; positions in catalog defaults may be normalized.
+      Preserve untouched keys and fields. Existing edit tools still require change approval.
+    routingTags: [motion, effects]
+    skills: [motion-editing]
+    tags: [route-backed]
+  - name: motion-read-keyframe
+    displayName: Motion Exact Keyframe
+    type: api
+    category: creative
+    description: Read an original-owned immutable exact key and its native comp/layer timing and curve metadata.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/projects/{input.id}/revisions/{input.revision}/keyframes/{input.compId}/{input.layer}/{input.prop}/{input.timeTicks}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [id, revision, compId, layer, prop, timeTicks]
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        compId:
+          type: string
+          minLength: 1
+          maxLength: 20
+        layer:
+          type: string
+          minLength: 1
+          maxLength: 20
+        prop:
+          type: string
+          minLength: 1
+          maxLength: 20
+        timeTicks:
+          type: string
+          minLength: 1
+          maxLength: 20
+    usageInstructions: >-
+      Inspect actual native ids and key times first; pass exact decimal strings, never rounded
+      Number values. Metadata time fields use decimal-i64. For a large value, valueComplete=false
+      gives revision-pinned document inspection instructions; do not infer omitted data.
+      keys.selectExact/addExact/patchExact are real package adapters with schemas in motion-command-schema.
+      Use the existing approval-held exact edit tool, preserve untouched keys, and honor collision/lock refusals.
+    routingTags: [motion, keyframes]
+    skills: [motion-editing]
+    tags: [route-backed]
+
+  - name: motion-list-fonts
+    displayName: Motion Runtime Fonts
+    type: api
+    category: creative
+    description: Read a complete stamp-pinned page of the native worker's real font families and styles.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/font-index/{input.stamp}/{input.offset}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [stamp, offset]
+      properties:
+        stamp: {type: string, minLength: 5, maxLength: 64}
+        offset: {type: integer, minimum: 0, maximum: 999999}
+    usageInstructions: >-
+      Start with stamp=start and offset=0; keep the returned stamp and nextOffset until complete.
+      Inventory belongs to the actual worker. Bundled/system/user origin is metadata, not proof
+      of installed image availability or every glyph. Preserve an existing unavailable font
+      unless the person asks to replace it. Use the approval-held exact edit tool for changes.
+    routingTags: [motion, text, fonts]
+    skills: [motion-editing]
+    tags: [route-backed]
+  - name: motion-read-text
+    displayName: Motion Exact Source Text
+    type: api
+    category: creative
+    description: Read genuine owned native text at exact composition ticks with native layer-time mapping.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/projects/{input.id}/revisions/{input.revision}/text/{input.compId}/{input.layer}/{input.compTimeTicks}/bounded
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [id, revision, compId, layer, compTimeTicks]
+      properties:
+        id: {type: string, minLength: 36, maxLength: 36}
+        revision: {type: integer, minimum: 1, maximum: 1000}
+        compId: {type: string, minLength: 1, maxLength: 20}
+        layer: {type: string, minLength: 1, maxLength: 20}
+        compTimeTicks: {type: string, minLength: 1, maxLength: 19}
+    usageInstructions: >-
+      Pass exact native decimal ids/ticks, never rounded Numbers. Observation is native source
+      text before expressions, with actual layer-time mapping and key source. If valueComplete=false,
+      use the supplied immutable revision inspection and sourceKeyTimeTicks; never infer omitted
+      text or styles. text.patchAt is a real package adapter; fetch its schema and use the existing
+      approval-held exact edit tool. Range positions are Unicode scalar counts, not UTF-16 offsets.
+      Preserve unchanged attributes, formatting, other keys and original grants.
+    routingTags: [motion, text]
+    skills: [motion-editing]
+    tags: [route-backed]
+
+  - name: motion-read-mask
+    displayName: Motion Exact Mask
+    type: api
+    category: creative
+    description: Read owned native animated mask geometry and properties at exact composition ticks.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/projects/{input.id}/revisions/{input.revision}/masks/{input.compId}/{input.layer}/{input.mask}/{input.compTimeTicks}/bounded/{input.offset}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [id, revision, compId, layer, mask, compTimeTicks, offset]
+      properties:
+        id: {type: string, minLength: 36, maxLength: 36}
+        revision: {type: integer, minimum: 1, maximum: 1000}
+        compId: {type: string, minLength: 1, maxLength: 20}
+        layer: {type: string, minLength: 1, maxLength: 20}
+        mask: {type: string, minLength: 1, maxLength: 20}
+        compTimeTicks: {type: string, minLength: 1, maxLength: 19}
+        offset: {type: integer, minimum: 0, maximum: 9999999}
+    usageInstructions: >-
+      Pass immutable revision and decimal exact native ids/ticks. Start offset0 and follow geometry.nextOffset
+      with the same revision/comp/layer/mask/tick until complete. Pages contain actual evaluated native vertices,
+      tangent offsets and feather points before expressions, not inferred static/key values. Fetch mask.patchAt
+      schema and use existing approval-held exact edits. Native topology edits synchronize vertex counts across
+      keys by the reported native preference. Existing keys.addExact can begin animation at layerTimeTicks;
+      preserve untouched keys/metadata and original grants. Do not infer missing geometry from partial pages.
+    routingTags: [motion, mask, animation]
+    skills: [motion-editing]
+    tags: [route-backed]
+
+  - name: motion-export-bundle
+    displayName: Export Editable Bundle
+    type: api
+    category: creative
+    description: Export Editable Bundle under original-owner current grants.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/projects/{input.id}/bundle-exports
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+        - revision
+        - requestKey
+    usageInstructions: >-
+      Prepare a self-contained copy of one returned owned revision and its photos. Keep requestKey for exact
+      retries. Return openUrl for the person to download verified chunks; the receipt is staging, not a
+      downloaded file or Video handoff.
+    routingTags:
+      - motion
+      - portable-bundle
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-begin-bundle-import
+    displayName: Begin Editable Bundle Import
+    type: api
+    category: creative
+    description: Begin Editable Bundle Import under original-owner current grants.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/bundle-imports
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        bytes:
+          type: integer
+          minimum: 1
+          maximum: 276824064
+        sha256:
+          type: string
+          minLength: 64
+          maxLength: 64
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+      required:
+        - bytes
+        - sha256
+        - requestKey
+    usageInstructions: >-
+      Begin only for actual complete archive bytes and digest. Keep requestKey for exact retries. Use returned
+      id and received offset; do not invent archive bytes, lengths or hashes. Human Upload for agent provides
+      an existing staged id for large files.
+    routingTags:
+      - motion
+      - portable-bundle
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-append-bundle-chunk
+    displayName: Append Bundle Bytes
+    type: api
+    category: creative
+    description: Append Bundle Bytes under original-owner current grants.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/bundle-imports/{input.id}/chunks
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        offset:
+          type: integer
+          minimum: 0
+          maximum: 276824064
+        dataBase64:
+          type: string
+          minLength: 4
+          maxLength: 10924
+      required:
+        - id
+        - offset
+        - dataBase64
+    usageInstructions: >-
+      Send canonical base64 of at most8192 actual archive bytes at returned received offset. Keep all
+      arguments under16KiB. Exact acknowledged retries compare bytes; conflicts require inspection. Never
+      reconstruct missing data from summaries.
+    routingTags:
+      - motion
+      - portable-bundle
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-import-bundle
+    displayName: Import Staged Editable Bundle
+    type: api
+    category: creative
+    description: Import Staged Editable Bundle under original-owner current grants.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/bundle-imports/{input.id}/finish
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+    usageInstructions: >-
+      Use an actual own fully uploaded id, including the Human Upload for agent receipt. Validate and create
+      one recipient-owned editable composition with remapped photos. Await approval/success; unknown replies
+      retry the same id, not a new import. Inspect the returned revision before edits.
+    routingTags:
+      - motion
+      - portable-bundle
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-import-transfer-status
+    displayName: Read Bundle Upload Status
+    type: api
+    category: creative
+    description: Read Bundle Upload Status under original-owner current grants.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/bundle-imports/{input.id}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+    usageInstructions: >-
+      Read current own upload bytes/offset/state under original read/create grants. A complete upload is not
+      yet a saved project; finish with motion-import-bundle.
+    routingTags:
+      - motion
+      - portable-bundle
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-export-transfer-status
+    displayName: Read Bundle Export Status
+    type: api
+    category: creative
+    description: Read Bundle Export Status under original-owner current grants.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/bundle-exports/{input.id}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+    usageInstructions: >-
+      Read current own export staging metadata. ready means bytes are staged; fresh original source/export
+      grants are still required for each actual download chunk.
+    routingTags:
+      - motion
+      - portable-bundle
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-cancel-bundle-import
+    displayName: Cancel Bundle Upload
+    type: api
+    category: creative
+    description: Cancel Bundle Upload under original-owner current grants.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/bundle-imports/{input.id}/cancel
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+    usageInstructions: >-
+      Cancel the stated own staging id only when requested. This removes temporary upload bytes and preserves
+      any already imported composition.
+    routingTags:
+      - motion
+      - portable-bundle
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+  - name: motion-cancel-bundle-export
+    displayName: Cancel Bundle Export
+    type: api
+    category: creative
+    description: Cancel Bundle Export under original-owner current grants.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/bundle-exports/{input.id}/cancel
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+    usageInstructions: >-
+      Cancel the stated own export staging id only when requested. The original composition and photos remain
+      saved.
+    routingTags:
+      - motion
+      - portable-bundle
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+
+  - name: motion-read-properties
+    displayName: Read Native Scene Properties
+    type: api
+    category: creative
+    description: >-
+      Read exact native transform/camera/light properties before expressions under original owned immutable
+      read.
+    executor:
+      executorType: api
+      apiEndpoint: >-
+        GET
+        /api/motion-studio/projects/{input.id}/revisions/{input.revision}/properties/{input.compId}/{input.layer}/{input.compTimeTicks}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - revision
+        - compId
+        - layer
+        - compTimeTicks
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        compId:
+          type: string
+          minLength: 1
+          maxLength: 20
+        layer:
+          type: string
+          minLength: 1
+          maxLength: 20
+        compTimeTicks:
+          type: string
+          minLength: 1
+          maxLength: 20
+    usageInstructions: >-
+      Pin one actual owned revision and decimal native composition/layer ids and exact ticks. Read returns
+      complete numeric scene leaves, actual property ids, types/UI ranges/keys/locks/expression flags before
+      expressions. Fetch properties.patchAt schema then use existing approval-held exact edits with actual
+      prop ids and changed-only values. Preserve unmodified vector axes, keys/handles and source layer timing;
+      no float seconds or inferred fields. Native camera/light/3D switch commands are in the real catalog.
+      This read is not a rendered-value or installed parity receipt.
+    routingTags:
+      - motion
+      - scene
+      - camera
+      - light
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+
+  - name: motion-read-effect-properties
+    displayName: Read Native Effect Properties
+    type: api
+    category: creative
+    description: >-
+      Read exact native effect-instance properties before expressions under original owned immutable
+      read.
+    executor:
+      executorType: api
+      apiEndpoint: >-
+        GET
+        /api/motion-studio/projects/{input.id}/revisions/{input.revision}/effects/{input.compId}/{input.layer}/{input.effect}/{input.compTimeTicks}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - revision
+        - compId
+        - layer
+        - effect
+        - compTimeTicks
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        compId:
+          type: string
+          minLength: 1
+          maxLength: 20
+        layer:
+          type: string
+          minLength: 1
+          maxLength: 20
+        effect:
+          type: string
+          minLength: 1
+          maxLength: 20
+        compTimeTicks:
+          type: string
+          minLength: 1
+          maxLength: 20
+    usageInstructions: >-
+      Pin owned revision and exact decimal composition, layer, effect-instance uid and ticks. Read actual
+      native parameter metadata and complete small values before expressions, typed metadata, keys and locks. Use properties.patchAt
+      with the returned layer, effect and compTimeTicks and only changed property ids/values through
+      approval-held exact edits. Preserve other effect instances and neighboring keys/easing. The effect
+      argument is an actual instance uid, not a catalog name. Do not use floating time or saved base values.
+      Read-only observations do not prove rendered expressions or installed parity.
+    routingTags: [motion, effects, keyframes]
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+
+  - name: motion-read-effect-value
+    displayName: Read Exact Native Effect Value
+    type: api
+    category: creative
+    description: >-
+      Read exact native effect-instance properties before expressions under original owned immutable
+      read.
+    executor:
+      executorType: api
+      apiEndpoint: >-
+        GET
+        /api/motion-studio/projects/{input.id}/revisions/{input.revision}/effects/{input.compId}/{input.layer}/{input.effect}/{input.compTimeTicks}/values/{input.prop}/{input.offset}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - revision
+        - compId
+        - layer
+        - effect
+        - compTimeTicks
+        - prop
+        - offset
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        compId:
+          type: string
+          minLength: 1
+          maxLength: 20
+        layer:
+          type: string
+          minLength: 1
+          maxLength: 20
+        effect:
+          type: string
+          minLength: 1
+          maxLength: 20
+        prop:
+          type: string
+          minLength: 1
+          maxLength: 20
+        offset:
+          type: integer
+          minimum: 0
+          maximum: 6291456
+        compTimeTicks:
+          type: string
+          minLength: 1
+          maxLength: 20
+    usageInstructions: >-
+      When motion-read-effect-properties reports valueComplete false, pin its original owned revision,
+      comp/layer/effect ids and exact tick; pass actual property uid and offset zero. Concatenate text using
+      nextOffset until complete. Offsets use UTF-16 units and preserve surrogate pairs. valueEncoding string
+      means exact text; native-json means parse the complete native JSON preserving exact integer literals.
+      Every chunk rechecks original read authority and native current-time value; never change revision/tick
+      mid-read. No incomplete value may replace a saved parameter. Mutations retain existing exact-edit approval.
+    routingTags: [motion, effects, keyframes]
+    skills:
+      - motion-editing
+    tags:
+      - route-backed
+
+  - name: motion-begin-value-upload
+    displayName: Begin Native Value Replacement
+    type: api
+    category: creative
+    description: Pin one original owned revision and actual comp/layer/effect/property decimal ids and exact tick.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/value-uploads
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: ["project", "revision", "compId", "layer", "effect", "prop", "compTimeTicks", "bytes", "sha256", "requestKey"]
+      properties:
+        project: {"type": "string", "minLength": 36, "maxLength": 36}
+        revision: {"type": "integer", "minimum": 1, "maximum": 1000}
+        compId: {"type": "string", "minLength": 1, "maxLength": 20}
+        layer: {"type": "string", "minLength": 1, "maxLength": 20}
+        effect: {"type": "string", "minLength": 1, "maxLength": 20}
+        prop: {"type": "string", "minLength": 1, "maxLength": 20}
+        compTimeTicks: {"type": "string", "minLength": 1, "maxLength": 20}
+        bytes: {"type": "integer", "minimum": 1, "maximum": 2097152}
+        sha256: {"type": "string", "minLength": 64, "maxLength": 64}
+        requestKey: {"type": "string", "minLength": 36, "maxLength": 36}
+    usageInstructions: >-
+      Pin one original owned revision and actual comp/layer/effect/property decimal ids and exact tick. Provide actual UTF8 byte length, whole SHA256 and stable UUID requestKey; destination is sealed. Only native string properties, own read/change and unlocked sources are admitted. Upload receipt is staging, not a saved revision.
+    routingTags: [motion, effects, value-upload]
+    skills: [motion-editing]
+    tags: [route-backed]
+
+  - name: motion-value-upload-status
+    displayName: Read Native Value Upload Status
+    type: api
+    category: creative
+    description: Inspect received offset and complete/uploading state before retry.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/value-uploads/{input.id}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: ["id"]
+      properties:
+        id: {"type": "string", "minLength": 36, "maxLength": 36}
+    usageInstructions: >-
+      Inspect received offset and complete/uploading state before retry. Metadata GET is auto but retains actual change grant classification. It is not a saved-project claim until complete with an original owned project receipt.
+    routingTags: [motion, effects, value-upload]
+    skills: [motion-editing]
+    tags: [route-backed]
+
+  - name: motion-append-value-chunk
+    displayName: Append Exact Native Value Bytes
+    type: api
+    category: creative
+    description: Send canonical base64 of at most8192 actual UTF8 bytes at acknowledged received offset; all arguments remain below16KiB.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/value-uploads/{input.id}/chunks
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: ["id", "offset", "dataBase64"]
+      properties:
+        id: {"type": "string", "minLength": 36, "maxLength": 36}
+        offset: {"type": "integer", "minimum": 0, "maximum": 2097152}
+        dataBase64: {"type": "string", "minLength": 4, "maxLength": 10924}
+    usageInstructions: >-
+      Send canonical base64 of at most8192 actual UTF8 bytes at acknowledged received offset; all arguments remain below16KiB. Exact retries compare bytes, conflicting offsets refuse. Each request rechecks original read/change and pinned source. Never synthesize missing bytes or switch owner/path.
+    routingTags: [motion, effects, value-upload]
+    skills: [motion-editing]
+    tags: [route-backed]
+
+  - name: motion-finish-value-upload
+    displayName: Save Staged Native Value
+    type: api
+    category: creative
+    description: Finish only after received equals bytes.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/value-uploads/{input.id}/finish
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: ["id"]
+      properties:
+        id: {"type": "string", "minLength": 36, "maxLength": 36}
+    usageInstructions: >-
+      Finish only after received equals bytes. Whole SHA256/UTF8/native target/source validation precedes one atomic immutable save. Retry unknown SQL/metadata/HTTP replies with same upload id/requestKey; never allocate another intent. Stale/deleted/locked/foreign/revoked source refuses, no partial revision. Re-read saved project and native values before reporting completion.
+    routingTags: [motion, effects, value-upload]
+    skills: [motion-editing]
+    tags: [route-backed]
+
+  - name: motion-cancel-value-upload
+    displayName: Cancel Native Value Staging
+    type: api
+    category: creative
+    description: Remove only this original-principal private staging session.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/value-uploads/{input.id}/cancel
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: ["id"]
+      properties:
+        id: {"type": "string", "minLength": 36, "maxLength": 36}
+    usageInstructions: >-
+      Remove only this original-principal private staging session. Existing project and saved revisions remain. Requires original read/change; cancellation is an approval-held mutation, not permission to delete a project.
+    routingTags: [motion, effects, value-upload]
+    skills: [motion-editing]
+    tags: [route-backed]
+
+  - name: motion-start-render
+    displayName: Start Composition Render
+    type: api
+    category: creative
+    description: Start a render of this saved composition revision.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/render-jobs
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [project, revision, requestKey, format]
+      properties:
+        project: {"type":"string","minLength":36,"maxLength":36}
+        revision: {"type":"integer","minimum":1,"maximum":1000}
+        requestKey: {"type":"string","minLength":36,"maxLength":36}
+        format: {"type":"string","enum":["mp4","png-sequence"]}
+        compId: {"type":"string","minLength":1,"maxLength":20}
+        startTick: {"type":"string","minLength":1,"maxLength":19}
+        endTick: {"type":"string","minLength":1,"maxLength":19}
+        maxSide: {"type":"integer","minimum":1,"maximum":4096}
+    usageInstructions: >-
+      Pin original owned project revision and exact decimal composition/ticks. Start retains the same requestKey on uncertain replies; poll the returned id. Only ready means the whole output is complete. Rendering progress is not publication. Status includes protected contentUrl and immutable source hash for verified human download or editable Video lineage. Chunk is canonical8192-byte base64, byte count and SHA256; verify the complete receipt SHA256 before treating a reconstructed output as ready. Cancellation removes staging/output, never the source. Every call requires current original own export/read grants. Installed acceptance remains separate.
+    routingTags: [motion, render]
+    skills: [motion-editing]
+    tags: [route-backed]
+
+  - name: motion-render-status
+    displayName: Read Composition Render
+    type: api
+    category: creative
+    description: Read the protected render state and verified download receipt.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/render-jobs/{input.id}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id: {"type":"string","minLength":36,"maxLength":36}
+        offset: {"type":"integer","minimum":0,"maximum":276824064}
+    usageInstructions: >-
+      Pin original owned project revision and exact decimal composition/ticks. Start retains the same requestKey on uncertain replies; poll the returned id. Only ready means the whole output is complete. Rendering progress is not publication. Status includes protected contentUrl and immutable source hash for verified human download or editable Video lineage. Chunk is canonical8192-byte base64, byte count and SHA256; verify the complete receipt SHA256 before treating a reconstructed output as ready. Cancellation removes staging/output, never the source. Every call requires current original own export/read grants. Installed acceptance remains separate.
+    routingTags: [motion, render]
+    skills: [motion-editing]
+    tags: [route-backed]
+
+  - name: motion-cancel-render
+    displayName: Cancel Composition Render
+    type: api
+    category: creative
+    description: Cancel this render and remove only its private output.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/motion-studio/render-jobs/{input.id}/cancel
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id: {"type":"string","minLength":36,"maxLength":36}
+        offset: {"type":"integer","minimum":0,"maximum":276824064}
+    usageInstructions: >-
+      Pin original owned project revision and exact decimal composition/ticks. Start retains the same requestKey on uncertain replies; poll the returned id. Only ready means the whole output is complete. Rendering progress is not publication. Status includes protected contentUrl and immutable source hash for verified human download or editable Video lineage. Chunk is canonical8192-byte base64, byte count and SHA256; verify the complete receipt SHA256 before treating a reconstructed output as ready. Cancellation removes staging/output, never the source. Every call requires current original own export/read grants. Installed acceptance remains separate.
+    routingTags: [motion, render]
+    skills: [motion-editing]
+    tags: [route-backed]
+
+  - name: motion-read-render-chunk
+    displayName: Read Composition Render Bytes
+    type: api
+    category: creative
+    description: Read a verified bounded chunk from a completed render.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/render-jobs/{input.id}/chunks/{input.offset}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      required: [id, offset]
+      properties:
+        id: {"type":"string","minLength":36,"maxLength":36}
+        offset: {"type":"integer","minimum":0,"maximum":276824064}
+    usageInstructions: >-
+      Pin original owned project revision and exact decimal composition/ticks. Start retains the same requestKey on uncertain replies; poll the returned id. Only ready means the whole output is complete. Rendering progress is not publication. Status includes protected contentUrl and immutable source hash for verified human download or editable Video lineage. Chunk is canonical8192-byte base64, byte count and SHA256; verify the complete receipt SHA256 before treating a reconstructed output as ready. Cancellation removes staging/output, never the source. Every call requires current original own export/read grants. Installed acceptance remains separate.
+    routingTags: [motion, render]
+    skills: [motion-editing]
+    tags: [route-backed]
+
+  - name: motion-list-renders
+    displayName: List Composition Renders
+    type: api
+    category: creative
+    description: List your current protected composition render receipts.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/motion-studio/render-jobs
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {}
+    usageInstructions: >-
+      List original owner renders only with fresh read/export grants. Choose actual ready receipt to download or link in Video; never synthesize ids or infer publication from progress. No access to other people or expired/deleted source.
+    routingTags: [motion, render]
+    skills: [motion-editing]
+    tags: [route-backed]

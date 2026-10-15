@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Native provisioning: declare migrations/native/001-vids.sql (the job and artifact tables, their indexes and the exact-owner unique key) and skip 059, 100 and 101 natively: 101's pg_roles-guarded GRANT DO block is refused by the native kernel and 059 seeds the platform agents table; the declared migrations stayed pending for every person. PostgreSQL still applies 059-101 and the native file is a no-op there.
+# -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — vids ("Vids Studio")
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -212,6 +218,18 @@ migrations:
   - migrations/059-vids-platform.sql
   - migrations/100-vids-owner-rls.sql
   - migrations/101-vids-artifact-publication.sql
+  - migrations/native/001-vids.sql
+# The native kernel applies the native file above in place of 059-101 (agents-table seed, RLS policies and a pg_roles-guarded GRANT are PostgreSQL-only).
+nativeMigrations:
+  - id: migrations/059-vids-platform.sql
+    native: skip
+    reason: "Its job table and indexes are in migrations/native/001-vids.sql; it seeds the platform agents table, which is not a package table (the native kernel registers vids-operator from this manifest's bots: block), and its RLS policy is PostgreSQL-only."
+  - id: migrations/100-vids-owner-rls.sql
+    native: skip
+    reason: "It backfills legacy blank owners, sets user_sub NOT NULL (native 001 declares it NOT NULL from the start) and installs RLS policies, which are PostgreSQL-only; the native per-person scope keeps each person's jobs their own."
+  - id: migrations/101-vids-artifact-publication.sql
+    native: skip
+    reason: "Its artifact table and exact-owner unique key are in migrations/native/001-vids.sql; its RLS policies and pg_roles-guarded GRANT are PostgreSQL-only."
 
 # Tickets of type 'vids' route to the operator bot.
 ticketType: vids

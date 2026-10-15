@@ -10,6 +10,10 @@
   router) plus one module per view under ui/. Served by createTradingRoutes at /api/trading/ with
   the modules at /api/trading/ui/*. All data is live from /api/trading/* — nothing is simulated.
   Paper is one account like any other; live orders are gated server-side and need an explicit confirm.
+
+  CHANGE LOG
+  1 | maintainer@emeraldcoastsystemsgroup.com | The Settings button showed a bare letter 'C'; it shows a gear glyph (text presentation, hidden from
+    assistive technology) and keeps its 'Settings' label. Guard: tests/research-handoff-summary.test.js.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -252,7 +256,7 @@
         <span class="chip"><i id="engineDot"></i><span id="engineState"></span></span>
         <select id="bookSel" title="Switch account"></select>
       </div>
-      <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">C</button>
+      <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings"><span aria-hidden="true">&#9881;&#xFE0E;</span></button>
       <button class="btn ghost sm" id="refreshBtn">Refresh</button>
     </div>
   </div>
@@ -282,6 +286,7 @@
 <script src="/api/trading/ui/ticket.js"></script>
 <script src="/api/trading/ui/view-accounts.js"></script>
 <script src="/api/trading/ui/view-account.js"></script>
+<script src="/api/trading/ui/native-paper.js"></script>
 <script src="/api/trading/ui/view-strategies.js"></script>
 <script src="/api/trading/ui/view-events.js"></script>
 <script src="/api/trading/ui/view-futures-review.js"></script>

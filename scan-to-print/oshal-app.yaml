@@ -14,6 +14,11 @@
 # geometry, and it sends a print only through print-to-3d-printer, which asks the
 # person first (ask by default).
 #
+# THE DESCRIPTION OPENS WITH "3D printers only" (sweep 14 / demo sweep 2): asked to print a packing list on a
+# home inkjet, Jarvis offered this app as "printing to your home printer (inkjet, laser, etc.)" because the
+# catalog line it reads said "a one-click job on your own ... printer". The first sentence fits the Jarvis
+# catalog's 80-character short form and says it cannot print paper documents.
+#
 # THE PRINT SERVICE (0.6.0, operator decision 2026-10-06: "build it into the
 # app as a service", the way agents call the RAG service): any agent, persona
 # script or app prints through /api/scan-to-print/service — a scan job or a
@@ -63,6 +68,7 @@ rating:
   features: []   # no model in the loop (T0)
 displayName: Scan to Print
 description: >-
+  Scans and 3D-prints objects. 3D printers only; it cannot print paper documents.
   Photograph an object from its six sides (or film it, or import a LiDAR point
   cloud), enter one ruler measurement, and get a third-angle engineering drawing
   with overall dimensions, a watertight STL/OBJ you can rotate in the browser,
@@ -136,7 +142,17 @@ uses:
   - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
   - application-authorization   # ADR-149: the authorization.yaml catalog below
   - package-tools               # the five print-service tools run in-process (src-routes/print-tools.ts)
-authorization: { version: 1, catalog: authorization.yaml }
+  - experience-roles
+authorization:
+  version: 1
+  catalog: authorization.yaml
+  roleTemplates:
+    - id: maker
+      version: 1
+      label: Scan to Print Maker
+      members:
+        - { app: scan-to-print, role: maker }
+        - { app: cad-studio, role: '@app-admin' }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BOTS — one INLINE concierge (no container: reasoning rides the caller's hosted/BYO brain

@@ -58,7 +58,8 @@
       { id: 'pending', label: 'In the order now', value: known(pending) ? pending.value : '—', hint: known(pending) ? null : 'Could not check' },
       { id: 'links', label: 'Checkout links, 5 days', value: known(five) ? five.value : '—', hint: known(five) ? 'Not placed orders' : 'Could not check' },
       { id: 'saved', label: 'Saved checkouts', value: !orders ? '—' : orders.length >= LIMIT ? LIMIT + '+' : orders.length, hint: orders ? null : 'Could not check' },
-      { id: 'uber', label: 'Uber Eats', value: !cfg ? '—' : cfg.uberConnected ? 'Linked' : 'Not linked', hint: !cfg ? 'Could not check' : cfg.uberConnected ? null : 'Eats still browses its built-in catalog' }
+      // rail 'absent': no Uber Eats connector exists on this installation, so there is nothing to link.
+      { id: 'uber', label: 'Uber Eats', value: !cfg ? '—' : cfg.rail === 'absent' ? 'None here' : cfg.uberConnected ? 'Linked' : 'Not linked', hint: !cfg ? 'Could not check' : cfg.rail === 'absent' ? 'This installation has no Uber Eats connector' : cfg.uberConnected ? null : 'Restaurant search needs an Uber Eats connection' }
     ];
   }
   // Nothing waiting and no checkout link to name: "Nothing saved yet" only when the history answered empty AND the
@@ -324,6 +325,13 @@
     color: var(--muted);
     font-size: 12px;
   }
+  .remembered { grid-column: 1 / -1; min-width: 0; font-size: 13px; }
+  .remembered summary { cursor: pointer; font-weight: 800; min-height: 32px; display: flex; align-items: center; }
+  .remembered-hint { margin: 4px 0 8px; color: var(--muted); font-size: 12px; }
+  .remembered ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .remembered li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+  .remembered li span { min-width: 0; overflow-wrap: anywhere; }
+  .remembered li .btn { min-height: 32px; flex: none; }
   .results {
     min-height: 0;
     overflow: auto;
@@ -548,6 +556,11 @@
     justify-self: start;
     border: 1px solid var(--line);
     background: rgba(255,255,255,.05);
+  }
+  .msg.allergy-check {
+    border-color: var(--warn);
+    color: var(--warn);
+    font-weight: 700;
   }
   .msg.me {
     justify-self: end;
@@ -774,6 +787,11 @@
       const parentWindow = window.parent && window.parent !== window ? window.parent : null;
       if (!parentWindow) return;
       const computed = parentWindow.getComputedStyle(parentWindow.document.documentElement);
+      // Theme-sync copies the cockpit's tokens ONLY as a matched set: the parent must name both --bg-primary and --text-primary; otherwise the copied properties are removed and this page keeps its own palette (the native cockpit names --text-primary #f8fafc and no --bg-primary, which put near-white text on a light page).
+      if (!computed.getPropertyValue('--bg-primary').trim() || !computed.getPropertyValue('--text-primary').trim()) {
+        for (const localName in map) document.documentElement.style.removeProperty(localName);
+        return;
+      }
       for (const localName in map) {
         const value = computed.getPropertyValue(map[localName]).trim();
         if (value) document.documentElement.style.setProperty(localName, value);
@@ -820,6 +838,11 @@
         <div class="mini"><b id="prefDiet">No diet set</b><span>Dietary preferences</span></div>
         <div class="mini"><b id="prefBudget">Budget open</b><span>Per-order budget</span></div>
         <div class="mini"><b id="orderHistory">No orders yet</b><span>Previous handoffs</span></div>
+        <details class="remembered" id="rememberedBox" hidden>
+          <summary id="rememberedSummary">What the concierge remembers</summary>
+          <p class="remembered-hint">Saved from your conversations. Forget anything that is wrong and the concierge stops using it.</p>
+          <ul id="rememberedList"></ul>
+        </details>
       </section>
 
       <section class="results">
@@ -898,19 +921,36 @@ function toast(message) {
   setTimeout(() => node.classList.remove('show'), 1800);
 }
 
+/** The parsed body, carrying the HTTP status so a refusal is never read as an empty result. */
+async function readBody(response) {
+  const body = await response.json().catch(() => ({}));
+  const value = body && typeof body === 'object' ? body : { value: body };
+  Object.defineProperty(value, 'httpStatus', { value: response.status });
+  return value;
+}
+
 async function getJson(url) {
-  const response = await fetch(url, { credentials: 'same-origin' });
-  return response.json();
+  return readBody(await fetch(url, { credentials: 'same-origin' }));
 }
 
 async function postJson(url, body) {
-  const response = await fetch(url, {
+  return readBody(await fetch(url, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body || {})
-  });
-  return response.json();
+  }));
+}
+
+// The restaurant catalog, menus and checkout hand-off come from Uber Eats. Where this installation has no Uber
+// Eats rail the server refuses those calls (HTTP 503); the page says so instead of "no matches", and never offers a
+// connection that does not exist here.
+const NOT_CONNECTED = 'Unavailable: this installation has no Uber Eats rail (no Uber Eats connector exists here), so restaurants, menus and checkout links cannot be searched or opened from here. The concierge can still help you decide what to eat.';
+function providerRefused(result) {
+  return Boolean(result && (result.httpStatus === 503 || result.error === 'native_executor_unavailable'));
+}
+function showNotConnected() {
+  $('#grid').innerHTML = `<div class="empty" role="status">${escapeHtml(NOT_CONNECTED)}</div>`;
 }
 
 function renderChips(active = '') {
@@ -969,6 +1009,8 @@ async function search(query = '') {
   $('#sectionSub').textContent = $('#address').value ? `Delivering to ${$('#address').value}` : 'Set a location for better results';
   $('#grid').innerHTML = '<div class="empty">Finding restaurants...</div>';
   const result = await getJson(`${API}/search?q=${encodeURIComponent(query)}&limit=16`);
+  if (providerRefused(result)) { state.restaurants = []; showNotConnected(); publishContext(); return; }
+  if (result.httpStatus >= 400) { $('#grid').innerHTML = `<div class="empty" role="alert">Search failed: ${escapeHtml(result.error || ('HTTP ' + result.httpStatus))}</div>`; return; }
   const items = result.items || [];
   state.restaurants = items.slice(0, 40);
   state.dishes = [];
@@ -1000,6 +1042,7 @@ async function openMenu(storeId, storeName) {
   $('#sectionSub').textContent = 'Menu';
   $('#grid').innerHTML = '<div class="empty">Loading menu...</div>';
   const result = await getJson(`${API}/menu?storeId=${encodeURIComponent(storeId)}`);
+  if (providerRefused(result)) { showNotConnected(); return; }
   const items = result.items || [];
   $('#grid').innerHTML = items.length ? items.map(renderDishCard).join('') : '<div class="empty">No menu items found.</div>';
   hydrateDishButtons(items);
@@ -1059,7 +1102,9 @@ async function requestOrder() {
   const result = await postJson(`${API}/order`, {});
   button.textContent = 'Open Uber Eats';
   button.disabled = state.cart.items.length === 0;
-  if (result.checkoutUrl) {
+  if (providerRefused(result)) {
+    toast('Uber Eats is not connected, so the order cannot open');
+  } else if (result.checkoutUrl) {
     toast('Opening Uber Eats');
     window.open(result.checkoutUrl, '_blank');
     loadHistory();
@@ -1090,9 +1135,17 @@ async function sendChat() {
       conversationId: state.conversationId,
       location: $('#address').value.trim()
     });
+    if (providerRefused(result)) { pending.textContent = NOT_CONNECTED; return; }
     state.conversationId = result.conversationId || state.conversationId;
     if (state.conversationId) localStorage.setItem('oshalEatsConv', state.conversationId);
     pending.textContent = result.reply || 'I could not build that order yet.';
+    // The route's allergy and diet check: a dish the reply names that usually carries one of the diner's restrictions
+    // is said on its own line (demo sweep 2: a Vegetarian Pad Thai right after a peanut allergy).
+    if (result.allergy && result.allergy.check) {
+      const check = addMessage('bot', result.allergy.check);
+      check.classList.add('allergy-check');
+      check.setAttribute('role', 'status');
+    }
     if (Array.isArray(result.cards) && result.cards.length) {
       state.mode = 'menu';
       $('#sectionTitle').textContent = 'Concierge picks';
@@ -1285,9 +1338,43 @@ async function loadProfile() {
     const profile = state.profile;
     $('#address').value = $('#address').value || profile.default_address || '';
     $('#prefCuisine').textContent = Array.isArray(profile.favorite_cuisines) && profile.favorite_cuisines.length ? profile.favorite_cuisines.join(', ') : 'Any craving';
-    $('#prefDiet').textContent = Array.isArray(profile.dietary) && profile.dietary.length ? profile.dietary.join(', ') : 'No diet set';
-    $('#prefBudget').textContent = profile.budget_per_order ? `$${Number(profile.budget_per_order).toFixed(0)}` : 'Budget open';
+    const remembered = Array.isArray(result.remembered) ? result.remembered : [];
+    const diet = (Array.isArray(profile.dietary) ? profile.dietary : []).concat(remembered.filter((r) => r.restriction).map((r) => r.note));
+    $('#prefDiet').textContent = diet.length ? diet.join(', ') : 'No diet set';
+    showRemembered(remembered);
+    // A remembered spending note ("budget: cheap") shows on the card while no dollar cap is set (sweep 10: the card read
+    // "Budget open" beside a remembered "budget: cheap").
+    const spending = remembered.filter((r) => r.budget).map((r) => r.note.replace(/^budget\s*:\s*/i, ''));
+    $('#prefBudget').textContent = profile.budget_per_order ? `$${Number(profile.budget_per_order).toFixed(0)}`
+      : spending.length ? `${spending.join(', ')} (remembered)` : 'Budget open';
   } catch {}
+}
+
+// What the concierge remembers, each with Forget (sweep 9: an invented "wants spicy food" saved in sweep 8 kept steering
+// its answers and nothing could remove it). Forget asks first and removes every saved copy of that note.
+function showRemembered(remembered) {
+  const box = $('#rememberedBox'), list = $('#rememberedList');
+  list.replaceChildren();
+  box.hidden = !remembered.length;
+  $('#rememberedSummary').textContent = `What the concierge remembers (${remembered.length})`;
+  for (const item of remembered) {
+    const row = document.createElement('li'), text = document.createElement('span'), forget = document.createElement('button');
+    text.textContent = item.note;
+    forget.type = 'button'; forget.className = 'btn'; forget.textContent = 'Forget';
+    forget.setAttribute('aria-label', `Forget "${item.note}"`);
+    forget.addEventListener('click', () => forgetRemembered(item.note, forget));
+    row.append(text, forget);
+    list.append(row);
+  }
+}
+
+async function forgetRemembered(note, button) {
+  if (!window.confirm(`Forget "${note}"? The concierge will stop using it.`)) return;
+  button.disabled = true;
+  const result = await postJson(`${API}/notes/forget`, { note });
+  if (result.httpStatus >= 400) { toast(result.error || `Could not forget that (HTTP ${result.httpStatus}).`); button.disabled = false; return; }
+  toast(`Forgot "${note}".`);
+  await loadProfile();
 }
 
 async function loadHistory() {
@@ -1319,7 +1406,8 @@ async function boot() {
   try {
     const config = await getJson(`${API}/config`);
     $('#connDot').classList.toggle('on', Boolean(config.uberConnected));
-    $('#connTxt').textContent = config.uberConnected ? 'Uber Eats connected' : 'Demo catalog';
+    $('#connTxt').textContent = config.rail === 'absent' ? 'No Uber Eats connector here'
+      : config.uberConnected ? 'Uber Eats connected' : 'Uber Eats not connected';
   } catch {
     $('#connTxt').textContent = 'Demo catalog';
   }

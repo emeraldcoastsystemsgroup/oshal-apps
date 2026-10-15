@@ -2,6 +2,8 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Import explicit workspace/project roles; every stored record remains scoped to verified issuer and subject.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Add the personal brand kit: its own own-scoped resource, read for every project reader, change for editors and admins, and bindings for the page, the kit and the logo upload.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Add project.generate (execute), the separately named permission for region regeneration because it spends provider money: a new generator role (view, read, generate) and the admin role carry it, the existing roles keep their exact meaning, and the six region-edit routes are bound. Accepting a candidate is a project.change like any save.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Bind the Create concierge and its route tools. The catalog bound only HTTP routes, so every turn to create-editor (992feff6) was refused 'operation has no explicit permission binding' before the model ran (live 2026-10-12, POST /api/swarm/bots/992feff6-.../ask 403). The bot needs project.view and project.read (it inspects owned projects; every edit still goes through its own bound route and approval card); each create-* tool carries exactly the permissions of the HTTP route it calls. Owners can now delete their own projects: project.delete (own scope only, rows stay issuer-and-subject scoped) joins the creator and editor roles, so a workspace member no longer needs the admin role to remove what they made.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Bind reviewed bounded PSD inspection, approved import and separately guarded immutable original export.
 version: 1
 resources:
   projects:
@@ -35,6 +37,7 @@ roles:
       - { permission: project.view, scope: own }
       - { permission: project.read, scope: own }
       - { permission: project.create, scope: own }
+      - { permission: project.delete, scope: own }
       - { permission: brand.read, scope: own }
   editor:
     tier: editor
@@ -42,6 +45,7 @@ roles:
       - { permission: project.view, scope: own }
       - { permission: project.read, scope: own }
       - { permission: project.change, scope: own }
+      - { permission: project.delete, scope: own }
       - { permission: brand.read, scope: own }
       - { permission: brand.change, scope: own }
   exporter:
@@ -71,6 +75,15 @@ roles:
       - { permission: brand.change, scope: own }
 bindings:
   http:
+    - { id: psd-inspect, method: POST, path: /psd-inspect, allOf: [project.view, project.read] }
+    - { id: psd-import, method: POST, path: /psd-imports, allOf: [project.view, project.read, project.create] }
+    - { id: psd-artifact-inspect, method: GET, path: '/psd-artifacts/:ref/inspect', allOf: [project.view, project.read] }
+    - { id: psd-artifact-import, method: POST, path: /psd-artifact-imports, allOf: [project.view, project.read, project.create] }
+    - { id: psd-source, method: GET, path: '/projects/:id/psd-source', allOf: [project.view, project.read] }
+    - { id: psd-original, method: GET, path: '/projects/:id/psd-original', allOf: [project.view, project.read, project.export] }
+    - { id: editing-contract, method: GET, path: '/editing-contract', allOf: [project.view] }
+    - { id: agent-project, method: POST, path: '/agent-projects', allOf: [project.view, project.create] }
+    - { id: apply-operations, method: POST, path: '/projects/:id/operations', allOf: [project.view, project.read, project.change] }
     - { id: home, method: GET, path: /home, allOf: [project.view] }
     - { id: new, method: GET, path: /new, allOf: [project.view] }
     - { id: theme, method: GET, path: /theme/:asset, allOf: [project.view] }
@@ -102,3 +115,18 @@ bindings:
     - { id: region-edit-reject, method: POST, path: '/projects/:id/region-edits/:edit/reject', allOf: [project.view, project.read, project.generate] }
     - { id: region-edit-provider, method: GET, path: /region-edit-provider, allOf: [project.view, project.read, project.generate] }
     - { id: package-readiness, method: GET, path: /, allOf: [project.view] }
+  # The concierge turn itself: inspecting owned projects. Edits, creation and export still need
+  # their own tool and route permissions below, and the person approves every write.
+  bots:
+    - { id: 992feff6-bda5-4d30-a075-22fd6f4aa9ee, allOf: [project.view, project.read] }
+  # Each route-backed tool carries exactly the permissions of the HTTP route it calls.
+  tools:
+    - { id: create-inspect-psd, allOf: [project.view, project.read] }
+    - { id: create-import-psd, allOf: [project.view, project.read, project.create] }
+    - { id: create-psd-source, allOf: [project.view, project.read] }
+    - { id: create-editing-contract, allOf: [project.view] }
+    - { id: create-list-projects, allOf: [project.view, project.read] }
+    - { id: create-read-project, allOf: [project.view, project.read] }
+    - { id: create-new-project, allOf: [project.view, project.create] }
+    - { id: create-apply-edits, allOf: [project.view, project.read, project.change] }
+    - { id: create-export-document, allOf: [project.view, project.read, project.export] }

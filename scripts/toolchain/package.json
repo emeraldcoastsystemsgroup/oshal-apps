@@ -1,0 +1,18 @@
+{
+  "name": "oshal-store-ci-toolchain",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The store push gate's own pinned dev toolchain (scripts/store-ci-local.mjs). Install with: npm ci --prefix scripts/toolchain",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "better-sqlite3": "12.9.0",
+    "express": "5.2.1",
+    "js-yaml": "4.3.2",
+    "multer": "2.4.0",
+    "pg": "8.20.0",
+    "playwright": "1.59.1",
+    "typescript": "5.9.3",
+    "vite": "7.3.5",
+    "vitest": "4.1.9"
+  }
+}

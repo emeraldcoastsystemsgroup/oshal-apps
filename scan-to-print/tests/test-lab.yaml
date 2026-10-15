@@ -22,6 +22,12 @@
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 0.6.0: register the Bambu Lab LAN client (a fake printer on real loopback TLS, certificates minted per run with the image's openssl), the slicer engine client (the build hash cross-checked against the real bridge with the image's python3, stale/stopped/refused engines) and the print service over the real routes and the core request-identity module (fixture:core-checkout).
 # 19 | maintainer@emeraldcoastsystemsgroup.com | 0.6.1: the Bambu case also proves a printer that never answers a TLS 1.3 hello (as reported for the P2S 01.02.00.00 broker; the fake does it on every port) is identified, read, uploaded to and started; register the surface-printers case (printers listed and registered with no object open).
 # 20 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: register catalog-bindings (the ADR-149 catalog covers every route, tool, bot and the photo intake exactly), print-tools (the five package tools as the kernel runs them) and kernel-authorization (activation, the maker grant, executor runs, the HTTP guard and the reviewed catalog migration through the real core runtime).
+# 21 | maintainer@emeraldcoastsystemsgroup.com | Register the reconstruct-save-bound suite (a 96-voxel reconstruction of a round object fits one native save and each output one download; the OBJ is stored compressed and inflates exactly) and the surface-errors suite (a bare application_route_failed reads as a sentence).
+# 22 | maintainer@emeraldcoastsystemsgroup.com | Register the upload-limit suites: the compiled upload-limits module (the native kernel's 10 MiB file cap in the native sandbox, the declared ceilings elsewhere), /capabilities stating it over loopback HTTP, and the page refusing an oversized video or .ply before sending and splitting photos into requests that fit.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | K4: register surface-pointcloud-refusal - a refused point-cloud import keeps its reason in the report after reloading the object, never a stuck Processing line.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | Register persona-controls: the operator names the screen's own STL link and other controls (sweep 8 answered 'look for the option').
+# 25 | maintainer@emeraldcoastsystemsgroup.com | Register cad-handoff-words: a failed Open in CAD Studio with no CAD engine says so in words, never the host's install command (demo sweep 1).
+# 26 | maintainer@emeraldcoastsystemsgroup.com | Register description-paper: the description's catalog short form says 3D printers only and that it cannot print paper documents (sweep 14 / demo sweep 2: Jarvis offered it for a home inkjet).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -797,4 +803,198 @@ cases:
     limits:
       timeoutMs: 300000
       maxMemoryMb: 1024
+    installation: never
+  - id: reconstruct-save-bound
+    name: A default-resolution reconstruction fits one native save
+    purpose: >-
+      Reconstruct a round object at the default resolution (96) with the compiled engine and run the shipped artifact plan: written as
+      before the outputs encode past the kernel's 16 MiB transaction bound; through the plan they fit, the OBJ inflates to the exact
+      text, an OBJ too large for one download is left out with a warning, and an STL too large is refused with a resolution that fits.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/reconstruct-save-bound.test.js
+    expected:
+      - The fixture reproduces the overflow; through the plan the save stays under the bound with room for the SQL rows.
+      - A refusal names a resolution, and a reconstruction at that resolution is accepted.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: surface-errors
+    name: A failed request reads as a sentence
+    purpose: Run the shipped failureText from tools/scan-to-print.js; a bare kernel code such as application_route_failed is shown in words.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-errors.test.js
+    expected:
+      - application_route_failed reads "The server could not finish this request, so nothing was saved" with the code in brackets.
+      - A message wins, then a detail; an unknown code is made readable and never shown bare.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: upload-limits
+    name: The upload ceilings that hold on this installation
+    purpose: Run the compiled upload-limits module; in the native sandbox every per-file ceiling is the kernel's 10 MiB file cap and one request is bounded, elsewhere the routes' declared ceilings stand.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/upload-limits.test.js
+    expected:
+      - With OSHAL_EGRESS=kernel the photo, video, .ply and depth ceilings are 10 MiB, requestBytes is 10 MiB and the declared ceilings stay under `declared`.
+      - Without it the declared 200 MiB .ply stands and requestBytes is null; a ceiling already under the cap is kept.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: upload-limits-http
+    name: /capabilities states the native upload cap
+    purpose: Drive the compiled routes over loopback HTTP and read /capabilities with and without the native sandbox marker in the routes' environment.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/limits.core.test.js
+    expected:
+      - In the native sandbox the upload section is the 10 MiB cap with a 10 MiB request bound; elsewhere the .ply ceiling is the declared 200 MiB.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/routes-core.fixture.js
+      cleanup: Close the loopback server, restore module hooks and remove the temporary job directory; the database is an isolated double.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 1024
+    installation: never
+  - id: surface-upload-limits
+    name: The page refuses a file over the limit before sending it
+    purpose: Run the shipped upload helpers and handlers from tools/scan-to-print.js over recording doubles under the native limits.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-upload-limits.test.js
+    expected:
+      - An 11 MiB .ply or a 42 MiB video is refused with its size, the 10 MiB limit and how to make it fit; nothing is sent and the outputs are not cleared.
+      - Photos go in requests of at most 10 MiB and 12 files; an oversized photo is named and not sent; the note under Capture names the cap.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: surface-pointcloud-refusal
+    name: A refused point-cloud import says why in the report
+    purpose: Run the surface's own uploadPointCloud and showImportRefusal over doubles of the page helpers with a 422 refusal and with a successful import.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-pointcloud-refusal.test.js
+    expected:
+      - After a refusal the object is reloaded and the report holds one alert that starts "The point cloud was not imported:" with the server's reason; no "Processing the new point cloud" text is left; the toast carries the reason.
+      - A successful import reloads the object and toasts the outcome with no alert.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: persona-controls
+    name: The concierge names the screen's controls
+    purpose: >-
+      Read the served persona and page: the operator names the STL, OBJ, SVG, REPORT and GCODE links under 3 ·
+      Reconstruct, the 3D model viewer, Open in CAD Studio and Send to printer, and each is a control the page
+      renders (sweep 8: it said 'look for the option to download the STL').
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/persona-controls.test.js
+    expected:
+      - >-
+        The persona names the STL, OBJ, SVG, REPORT and GCODE links, the 3D model viewer, Open in CAD Studio
+        and Send to printer.
+      - >-
+        Each named control is rendered by the served tools/scan-to-print.js or tools/scan-to-print.html.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: cad-handoff-words
+    name: "A CAD Studio with no engine is told in words, not an install command"
+    purpose: "Run the page's shipped cadRefusal over CAD Studio's no-engine answer and a modelling refusal - no browser, network or engine."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/cad-handoff-words.test.js
+    expected:
+      - "A CAD Studio with no engine reads: CAD Studio's engine is not answering on this installation, with no address, setting or install command."
+      - "Any other CAD Studio refusal is shown as its own sentence."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: description-paper
+    name: "The catalog says 3D printers only, never a paper printer"
+    purpose: "Read the manifest description as the Jarvis catalog shortens it (first 80 characters) and the store catalog's copy - no browser, network or engine."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/description-paper.test.js
+    expected:
+      - "The short form reads: 3D printers only: it cannot print paper documents on inkjet or laser printers."
+      - "marketplace.json carries the same description."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

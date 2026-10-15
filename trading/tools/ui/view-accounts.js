@@ -25,6 +25,8 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D6 event playbooks: ONE GET /events/plans after the tiles paint (allPlans, not a call per tile) marks every tile whose book has an active IPO plan with an 'IPO plan armed' pill under the strategy line; errors (older server) leave the tiles untouched.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | ADR-138 watchlist: a compact Watchlist panel below the tiles (symbols + quotes, Research → researchSymbol, ✕ remove, add box) painted through the shared loadWatchlistPanel() from view-research.js; independent of GET /accounts so it still fills when the accounts service is down.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Strict-CSP cleanup (ADR-136 D2 tail): the Discover button no longer carries a handler attribute - wireDiscovered() binds it by id right after the skeleton paints, alongside the delegated #discovered listener it already owned.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | The native paper book's tile: GET /accounts now lists it (bookId null, nativePaper {opened, armed}) and GET /summary carries its balances, or a notOpened row. The tile says PAPER and whether its autopilot is armed instead of a trading-book strategy line, and a paper book not started yet reads "Not started yet ..." in plain grey, never zeros or a red error.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Label daily-change coverage when real balances are known but their daily change is unavailable; no reporting accounts means n/a.
  */
 
 /* The tile models of the CURRENT paint, in display order — the delegated click handler resolves a
@@ -62,7 +64,7 @@ function tileModelsFromBooks() {
   return BOOKS.map((b, i) => {
     const acct = ACCOUNTS.find((a) => a.book && a.book.bookId === b.bookId) || null;
     return {
-      ref: b.ref, kind: b.kind, bookId: b.bookId, enabled: b.enabled !== false, notTrading: false, order: i,
+      ref: b.ref, kind: b.kind, bookId: b.bookId, enabled: b.enabled !== false, notTrading: false, order: i, nativePaper: b.nativePaper || null,
       label: b.ref === 'paper' ? 'Paper (reference book)' : bookLabel(b.ref),
       strategy: b.strategy || null,
       accountType: (acct && acct.accountType) || null,
@@ -107,6 +109,7 @@ function matchSummaryRow(rows, used, m) {
 function applySummaryRow(m, row) {
   if (!row) { m.state = 'unavailable'; m.note = 'no balance data for this account'; return; }
   if (row.error) { m.state = 'error'; m.note = String(row.error); return; }
+  if (row.notOpened) { m.state = 'idle'; m.note = String(row.message || 'Not started yet.'); return; }
   m.state = 'ok';
   m.equity = row.equity != null ? Number(row.equity) : null;
   m.cash = row.cash != null ? Number(row.cash) : null;
@@ -131,7 +134,7 @@ function mergeSummaryIntoTiles(models, j) {
     const acct = ACCOUNTS.find((a) => !a.book && a.accountMasked && a.accountMasked === r.accountMasked) || null;
     const m = {
       ref: null, kind: r.kind || 'live', bookId: null, enabled: false, notTrading: true, order: models.length + k,
-      accountId: acct ? acct.accountId : null,
+      accountId: r.accountId || (acct ? acct.accountId : null), connectionKey:r.connectionKey || (acct && acct.connectionKey), nativeReadOnly:r.nativeReadOnly === true, positions:r.positions || [],
       label: r.label || (acct && acct.nickname) || ('Account ' + (r.accountMasked || '?')),
       strategy: null, accountType: r.accountType || (acct && acct.accountType) || null, accountMasked: r.accountMasked || null,
       state: 'loading', note: '', equity: null, cash: null, dayChange: null, dayChangePct: null,
@@ -179,16 +182,19 @@ function tileStrategyText(s) {
  */
 function tileHtml(m, i) {
   const loading = m.state === 'loading';
-  const pill = m.notTrading ? '<span class="pill" style="margin:0" title="Discovered account — no trading book yet">NO BOOK</span>'
+  const pill = m.nativeReadOnly ? '<span class="pill foot">VIEW-ONLY</span>' : m.notTrading ? '<span class="pill" style="margin:0" title="Discovered account — no trading book yet">NO BOOK</span>'
+    : m.nativePaper ? '<span class="pill ok" style="margin:0" title="Your own paper book: simulated fills at stored market prices, never a broker order">PAPER</span>'
     : (m.enabled ? '<span class="pill ok" style="margin:0">TRADING</span>' : '<span class="pill foot" style="margin:0">VIEW-ONLY</span>');
   const num = (v) => loading ? '…' : (m.state === 'ok' && v != null ? money(v) : '—');
   const day = loading ? '…' : (m.state !== 'ok' ? '—' : (m.dayChange == null ? '<span class="foot">n/a</span>' : dollarPctCell(m.dayChange, m.dayChangePct)));
-  const note = (m.state === 'error' || m.state === 'unavailable') ? '<div class="err" style="font-size:12px">' + esc(m.note) + '</div>' : '';
-  const strat = m.notTrading
+  const note = (m.state === 'error' || m.state === 'unavailable') ? '<div class="err" style="font-size:12px">' + esc(m.note) + '</div>'
+    : m.state === 'idle' ? '<div class="foot" style="font-size:12px;margin:0">' + esc(m.note) + '</div>' : '';
+  const strat = m.nativeReadOnly ? '<span class="foot">Schwab balances and holdings. Real trading is not enabled.</span>' : m.notTrading
     ? '<span class="foot">No book yet — create one to trade this account (it starts disabled).</span>'
+    : m.nativePaper ? 'Paper autopilot: ' + (m.nativePaper.armed ? '<span class="ok">armed</span>' : '<span class="foot">off</span>')
     : tileStrategyText(m.strategy) +
       (m.ref && ACCT_EVENT_REFS.has(m.ref) ? '<div style="margin-top:4px"><span class="pill warn" style="margin:0;border-color:var(--warn)" title="An event playbook (IPO plan) is armed on this account">IPO plan armed</span></div>' : '');
-  const actions = m.notTrading
+  const actions = m.nativeReadOnly ? '<button class="btn sm primary" data-act="open">View holdings →</button>' : m.notTrading
     ? '<button class="btn sm ghost" data-act="create">Create book…</button>'
     : '<button class="btn sm primary" data-act="open">Open account →</button>' +
       (m.kind === 'live' && m.bookId ? '<button class="btn sm ghost" data-act="toggle">' + (m.enabled ? 'Stop trading' : 'Start trading…') + '</button>' : '');
@@ -272,6 +278,7 @@ function requestBook(accountId, label) {
  */
 function tileAction(tile, action) {
   const m = ACCT_TILES[Number(tile.getAttribute('data-i'))]; if (!m) return;
+  if (m.nativeReadOnly) { nativeAccountView(m); return; }
   if (action === 'create' || m.notTrading) { requestBook(m.accountId, discoveredLabel(m.accountType, m.accountMasked, m.label)); return; }
   if (action === 'toggle') {
     if (typeof toggleBook === 'function') toggleBook(m.bookId, !m.enabled);
@@ -337,7 +344,9 @@ function paintHero(j, err, models) {
   }
   const cov = heroCoverage(j, models || []);
   t.textContent = j.totalValue != null ? money(j.totalValue) : '—';
-  d.innerHTML = j.totalDayChange == null ? 'day change n/a' : dollarPctCell(j.totalDayChange, null) + ' today';
+  const dayRows = j.accounts || [], dayKnown = dayRows.filter((row) => !row.error && row.dayChange != null).length;
+  d.innerHTML = j.totalDayChange == null || !dayKnown ? 'day change n/a' : dollarPctCell(j.totalDayChange, null) + ' today' +
+    (dayKnown < dayRows.length ? ' · ' + dayKnown + ' of ' + dayRows.length + ' accounts report day change' : '');
   if (s) s.textContent = cov.partial ? 'Total of the ' + cov.answered + (cov.answered === 1 ? ' account' : ' accounts') + ' that answered' : 'Total value · all accounts';
   if (miss) { miss.hidden = !cov.partial; miss.textContent = cov.partial ? 'Not included: ' + cov.missing.join(', ') : ''; }
 }
@@ -372,7 +381,7 @@ function paintRollup(j, err) {
 function discoveredRow(a, i) {
   const book = a.book || null;
   const seen = a.lastSeenAt || a.lastSeen;
-  const bookCell = book
+  const bookCell = a.nativeReadOnly ? '<span class="foot">View-only Schwab account</span>' : book
     ? '<a href="#" data-open-ref="' + esc(book.ref) + '">' + esc(bookLabel(book.ref)) + '</a>' + (book.enabled ? '' : ' <span class="foot">(disabled)</span>')
     : '<span class="foot">no book — <a href="#" data-act="create" data-i="' + i + '">create one →</a></span>';
   return '<tr><td><strong>' + esc(a.accountMasked || '?') + '</strong>' + (a.nickname ? ' <span class="foot">' + esc(a.nickname) + '</span>' : '') + '</td>' +
@@ -520,4 +529,60 @@ async function renderAccountsView(token) {
   if (stale(token)) return;
   mergeSummaryIntoTiles(models, summary);
   paintTiles(models); paintHero(summary, null, models); paintRollup(summary, null);
+}
+
+/** Show the current caller's real holdings without offering unsupported live order controls. */
+function nativeAccountView(model) {
+  if (model.state !== 'ok') {
+    $('main').innerHTML = '<div class="panel"><button class="btn ghost sm" id="nativeAccountBack">← All accounts</button><h2>Schwab account unavailable</h2><p class="err">' + esc(model.note || 'The account read did not complete. Refresh or check your connection.') + '</p></div>';
+    $('nativeAccountBack').onclick = () => navigate('accounts', {sub:null});
+    return;
+  }
+  const rows = (model.positions || []).map(p => '<tr><td>' + esc(p.symbol) + '</td><td>' + esc(String(p.qty)) + '</td><td>' + money(p.marketValue) + '</td></tr>').join('');
+  $('main').innerHTML = '<div class="panel"><button class="btn ghost sm" id="nativeAccountBack">← All accounts</button><h2>' + esc(model.label) + '</h2><p class="foot">Schwab account · view only. Holdings are not managed by the paper autopilot.</p><div class="t-eq">' + money(model.equity) + '</div><p>Cash: ' + money(model.cash) + '</p><button class="btn sm" id="nativeHistoryOpen">View execution history</button><div style="overflow-x:auto"><table><thead><tr><th>Symbol</th><th>Quantity</th><th>Market value</th></tr></thead><tbody>' + (rows || '<tr><td colspan="3">Schwab reports no open positions.</td></tr>') + '</tbody></table></div></div>';
+  $('nativeAccountBack').onclick = () => navigate('accounts', {sub:null});
+  if ($('nativeHistoryOpen')) $('nativeHistoryOpen').onclick = () => nativeHistoryView(model);
+}
+
+/** Account-bound venue evidence; a failed chunk never becomes an empty or complete history. */
+async function nativeHistoryView(model) {
+  const token = RENDER_TOKEN;
+  $('main').innerHTML = '<div class="panel"><button class="btn ghost sm" id="historyBack">← Holdings</button><h2>' + esc(model.label) + ' execution history</h2><p id="nativeHistoryStatus">Reading the last year of Schwab equity fills…</p><div id="nativeHistoryBody"></div></div>';
+  $('historyBack').onclick = () => { ++RENDER_TOKEN; nativeAccountView(model); };
+  const host = $('nativeHistoryBody');
+  try {
+    if (!model.accountId || !model.connectionKey) throw new Error('The account connection is unavailable. Refresh the Accounts page.');
+    const end = Date.now(), start = end - 365 * 86400000;
+    const trades = new Map(); let unsupported = 0, binding = null;
+    for (let from=start; from<end; from+=55*86400000) {
+      const to = Math.min(from+55*86400000,end);
+      const query = new URLSearchParams({accountId:model.accountId,connection:model.connectionKey,from:new Date(from).toISOString(),to:new Date(to).toISOString()});
+      const result = await api('/reconciliation/history?' + query);
+      if (stale(token) || $('nativeHistoryBody') !== host) return;
+      if (!Array.isArray(result.transactions) || !Array.isArray(result.unsupported) || !result.accountBinding || result.accountId !== model.accountId) throw new Error('Schwab history did not contain verifiable account evidence.');
+      if (binding && binding !== result.accountBinding) throw new Error('The account binding changed during the history read. Retry.');
+      binding = result.accountBinding; unsupported += result.unsupported.length;
+      for (const row of result.transactions) {
+        const prior = trades.get(row.transactionId);
+        if (prior && JSON.stringify(prior) !== JSON.stringify(row)) throw new Error('Schwab returned conflicting copies of a fill.');
+        trades.set(row.transactionId,row);
+      }
+    }
+    const rows = [...trades.values()].sort((a,b) => a.tradeDate.localeCompare(b.tradeDate) || a.transactionId.localeCompare(b.transactionId));
+    if ($('nativeHistoryStatus')) $('nativeHistoryStatus').textContent = 'Schwab execution history · read only.';
+    host.innerHTML = '<p>Schwab · ' + rows.length + ' equity executions · through ' + esc(new Date(end).toLocaleString()) + '. This history does not certify that the ledger is reconciled.</p>' +
+      (unsupported ? '<p class="err">' + unsupported + ' records require review because they are not unambiguous equity fills. Automatic reconciliation is withheld.</p>' : '') +
+      '<button class="btn sm" id="downloadNativeHistory">Download execution CSV</button><div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Side</th><th>Symbol</th><th>Quantity</th><th>Price</th><th>Fees</th></tr></thead><tbody>' +
+      rows.slice().reverse().map(row => '<tr><td>' + esc(row.tradeDate) + '</td><td>' + esc(row.side) + '</td><td>' + esc(row.symbol) + '</td><td>' + esc(String(row.qty)) + '</td><td>' + money(row.price) + '</td><td>' + money(row.fees) + '</td></tr>').join('') + '</tbody></table></div>';
+    $('downloadNativeHistory').onclick = () => {
+      const columns = ['accountId','accountBinding','windowFrom','windowTo','unsupportedRecords','transactionId','orderId','symbol','side','qty','price','fees','netAmount','tradeDate','activityAt'];
+      const quote = value => '"' + String(value == null ? '' : value).replace(/"/g,'""') + '"';
+      const csv = [columns.join(','), ...rows.map(row => columns.map(key => quote(({accountId:model.accountId,accountBinding:binding,windowFrom:new Date(start).toISOString(),windowTo:new Date(end).toISOString(),unsupportedRecords:unsupported,...row})[key])).join(','))].join('\r\n');
+      const blob = new Blob([csv],{type:'text/csv;charset=utf-8'}), url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = 'schwab-executions-' + model.accountMasked.replace(/[^0-9]/g,'') + '.csv'; a.click(); URL.revokeObjectURL(url);
+    };
+  } catch (error) {
+    if (!stale(token) && $('nativeHistoryBody') === host && $('nativeHistoryStatus')) $('nativeHistoryStatus').textContent = 'Execution history unavailable.';
+    if (!stale(token) && $('nativeHistoryBody') === host) host.innerHTML = '<p class="err">' + esc(error.message || 'Execution history could not be verified.') + '</p><p>No reconciliation or ledger changes were made.</p>';
+  }
 }

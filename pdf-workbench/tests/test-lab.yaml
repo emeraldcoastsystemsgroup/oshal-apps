@@ -1,0 +1,137 @@
+version: 1
+cases:
+  - id: model
+    name: Bounded immutable page model
+    purpose: >-
+      Bounded immutable page model. Source fixture seams remain explicit; this is not installed
+      kernel admission.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/model.test.mjs
+    expected:
+      - Bounded immutable page model succeeds with genuine bounded source fixtures.
+    prerequisites:
+      - runner:node
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Remove only unique fixture database/role/children/temp paths. Preserve shared
+        PostgreSQL35689; never use live data or remove its container.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 768
+    installation: never
+  - id: http-tools
+    name: Actual HTTP and artifact contract guards
+    purpose: >-
+      Actual HTTP and artifact contract guards. Source fixture seams remain explicit; this is not
+      installed kernel admission.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/http-tools.test.mjs
+    expected:
+      - Actual HTTP and artifact contract guards succeeds with genuine bounded source fixtures.
+    prerequisites:
+      - runner:node
+      - runtime:express-multer
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Remove only unique fixture database/role/children/temp paths. Preserve shared
+        PostgreSQL35689; never use live data or remove its container.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 768
+    installation: never
+  - id: engine-real
+    name: Independent PDF page/form/annotation/OCR decode
+    purpose: >-
+      Independent PDF page/form/annotation/OCR decode. Source fixture seams remain explicit; this is
+      not installed kernel admission.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/engine-real.test.mjs
+    expected:
+      - >-
+        Independent PDF page/form/annotation/OCR decode succeeds with genuine bounded source
+        fixtures.
+    prerequisites:
+      - runner:node
+      - runtime:pypdf-pinned
+      - runtime:poppler-tesseract-eng
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Remove only unique fixture database/role/children/temp paths. Preserve shared
+        PostgreSQL35689; never use live data or remove its container.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 768
+    installation: never
+  - id: project-store
+    name: Original owned immutable SQL publication
+    purpose: >-
+      Original owned immutable SQL publication. Source fixture seams remain explicit; this is not
+      installed kernel admission.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/project-store.test.mjs
+    expected:
+      - Original owned immutable SQL publication succeeds with genuine bounded source fixtures.
+    prerequisites:
+      - runner:node
+      - runtime:pypdf-pinned
+      - service:postgres-disposable-35689
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Remove only unique fixture database/role/children/temp paths. Preserve shared
+        PostgreSQL35689; never use live data or remove its container.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 768
+    installation: never
+  - id: workbench-browser
+    name: Human PDF revision and history workflow
+    purpose: >-
+      Human PDF revision and history workflow. Source fixture seams remain explicit; this is not
+      installed kernel admission.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/workbench-browser.test.mjs
+    expected:
+      - Human PDF revision and history workflow succeeds with genuine bounded source fixtures.
+    prerequisites:
+      - runner:node
+      - runtime:pypdf-pinned
+      - runtime:chromium
+      - service:postgres-disposable-35689
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: >-
+        Remove only unique fixture database/role/children/temp paths. Preserve shared
+        PostgreSQL35689; never use live data or remove its container.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 768
+    installation: never

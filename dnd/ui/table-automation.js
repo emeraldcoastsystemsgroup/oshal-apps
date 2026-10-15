@@ -17,6 +17,7 @@
  * 2026-07-22 22:55:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Preserve stationary position facts silently so repeated no-move filler no longer interrupts each automated turn.
  * 2026-07-23 09:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Apply spoken-action and dice-detail preferences while scaling only NPC presentation pauses.
  * 2026-07-23 11:36:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Retry a persisted death-save result after an interrupted presenter retires so initiative cannot remain stranded.
+ * 2026-10-12 23:55:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 10: while "Tallow is defeated!" showed as Pip's result, the initiative bar still read "Enemies: 4/4" and Tallow 7/7 until the turn passed. The Result stage repaints the bar as well as the dock, from the board the result was applied to. Guard: tests/browser/dnd-initiative-sides.test.cjs.
  */
 
 'use strict';
@@ -165,8 +166,11 @@ function showOutcomeRollStage(actor, outcome) {
     : `Result · ${outcome.text}` };
   renderDock();
 }
+/** @description Show an outcome's Result stage: the dice are done, so the bar shows the hit points and the defeated
+ * the result reports (the engine applied them before presentation began). */
 function showOutcomeResultStage(actor, outcome) {
   automationPhase = { id: actor.id, cue: `Result · ${outcome.text}` };
+  updateInitiativeBar();
   renderDock();
 }
 /** @description Preserve one exact tactical fact without holding the live turn. */

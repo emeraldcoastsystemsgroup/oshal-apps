@@ -21,11 +21,16 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — the hand-typed league document, its validation (one team is yours, integer ids, bounded sizes, numeric scoring, weeks in range), and owner-scoped create, replace, read, list and delete.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Deleting a hand-typed league also deletes its own week-ledger rows (ff_weeks, league key `manual:<id>`), owner-scoped. Sweep 8: a deleted league's week-5 row stayed behind in every later league's record. Guard: tests/fantasy-week-record-league.test.js.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Deleting a hand-typed league also deletes its own start/sit calls (ff_calls, league_id `manual:<id>`), owner-scoped; they stayed behind after the league and its weeks were gone. Guard: tests/fantasy-week-record-league.test.js and the real-PostgreSQL tests/fantasy-isolation.spec.ts.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | A scoring table that gives every stat 0 points is refused (zeroScoringReason). Sweep 9: a league saved with the form's "0 = 0" line projected every player 0.0 and the boards still advised on it ("Your lineup is already the best legal one"). The boards refuse such a league from either source with the same reason. Guard: tests/fantasy-zero-scoring.test.js.
  *
  * @module fantasy-manual
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MANUAL_LIMITS = void 0;
+exports.zeroScoringReason = zeroScoringReason;
+exports.scoringRefusedBody = scoringRefusedBody;
 exports.parseManualLeague = parseManualLeague;
 exports.saveManualLeague = saveManualLeague;
 exports.readManualLeague = readManualLeague;
@@ -44,6 +49,42 @@ function idList(v, max) {
         return null;
     const ids = v.map((x) => int(x, 1, 2_147_483_647));
     return ids.every((x) => x !== null) && new Set(ids).size === ids.length ? ids : null;
+}
+/**
+ * @description Why a scoring table cannot rank anyone: no rule, or every rule worth 0 points. Under such a table
+ * every player projects 0.0, so a lineup, a waiver board or a trade drawn from it is noise presented as advice.
+ * Nothing here says what a stat id means; it only checks that the league's own table scores something.
+ * @param scoring - The league's {statId, points} rules.
+ * @returns The reason in words, or null when at least one rule is worth points.
+ */
+function zeroScoringReason(scoring) {
+    const rules = Array.isArray(scoring) ? scoring : [];
+    if (rules.some((r) => Number.isFinite(r.points) && r.points !== 0))
+        return null;
+    return rules.length
+        ? `this league's scoring gives every stat 0 points (${rules.length} rule${rules.length === 1 ? '' : 's'}), so every player would project 0.0. `
+            + "Enter the league's own scoring as ESPN stat id = points, one rule per line, as its settings state it."
+        : "this league has no scoring rules, so every player would project 0.0. Enter the league's own scoring as ESPN stat id = points.";
+}
+/**
+ * @description The answer a lineup or board gives for a league whose scoring scores nothing: the league, the team
+ * and why, with no numbers and nothing recorded.
+ * @param ctx - The league.
+ * @param reason - zeroScoringReason's words.
+ * @returns The body.
+ */
+function scoringRefusedBody(ctx, reason) {
+    return {
+        source: ctx.source,
+        league: { name: ctx.settings.name, leagueId: ctx.key, season: ctx.season, week: ctx.week },
+        team: { teamId: ctx.own.teamId, name: ctx.own.name },
+        scoring: { ok: false, reason },
+        projectionsAvailable: 0,
+        optimal: null,
+        meanOptimal: null,
+        calls: [],
+        recorded: false,
+    };
 }
 /**
  * @description Validate the scoring rules and the starting slots.
@@ -65,6 +106,9 @@ function parseRules(body, errors) {
             else
                 scoring.push({ statId, points });
         }
+        const zero = scoring.length === body.scoring.length ? zeroScoringReason(scoring) : null;
+        if (zero)
+            errors.push(`scoring: ${zero}`);
     }
     const slots = [];
     if (!Array.isArray(body?.slots) || !body.slots.length || body.slots.length > exports.MANUAL_LIMITS.slots) {
@@ -212,14 +256,17 @@ async function listManualLeagues(pool, userSub) {
     return r.rows.map((x) => ({ id: Number(x.id), name: x.name, season: Number(x.season), updatedAt: new Date(x.updated_at).toISOString() }));
 }
 /**
- * @description Delete one of the caller's hand-typed leagues.
+ * @description Delete one of the caller's hand-typed leagues with its own week-ledger and start/sit call rows, so the
+ * league's weeks and calls never linger in another league's record.
  * @param pool - Postgres pool.
  * @param userSub - Caller's subject.
  * @param id - League id.
- * @returns Rows removed.
+ * @returns League rows removed.
  */
 async function deleteManualLeague(pool, userSub, id) {
     const r = await pool.query('DELETE FROM ff_manual_leagues WHERE user_sub = $1 AND id = $2', [userSub, id]);
+    await pool.query('DELETE FROM ff_weeks WHERE user_sub = $1 AND league_key = $2', [userSub, `manual:${id}`]);
+    await pool.query('DELETE FROM ff_calls WHERE user_sub = $1 AND league_id = $2', [userSub, `manual:${id}`]);
     return r.rowCount || 0;
 }
 //# sourceMappingURL=fantasy-manual.js.map

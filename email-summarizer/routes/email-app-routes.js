@@ -40,6 +40,8 @@
  *
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Yahoo Mail leg: `?provider=yahoo` reads the caller's inbox through core's fixed read-only IMAP seam (AppContext `imapMail`), so the app password never reaches this package. List, digest and the bot summary work for Yahoo (the day window is applied here); opening a message, drafting a reply and sending answer 400 not_supported_for_provider without contacting Yahoo, and a core without the seam answers 501. A caller who names no provider and has no Google/Outlook grant falls through to Yahoo on list, digest and summary only (the operations Yahoo offers), where a missing grant is still no_mail_connection; message, draft and send never fall through, so a caller with no mailbox gets 409 no_mail_connection on every mail route. Mailbox refusals now travel as MailboxRefusal and are answered with their own status.
  *
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: with OSHAL_EGRESS=kernel there is no token broker and no framework email module in the sandbox, so the mailbox, the senders and the Social profile go through the kernel egress (kernel-mail.ts). The manifest declares gmail.googleapis.com and www.googleapis.com (gmail / google-calendar), graph.microsoft.com (outlook) and graph.facebook.com (facebook) with Bearer credentials the kernel applies; requests carry no Authorization header. Which providers are connected comes from the connectors.metadata intent, so the provider choice, the 409 refusals and the Google-first default behave as before; a kernel "not connected" refusal is that same 409. Gmail summaries and sends use the package-local copies of the framework's summarizer and fenced MIME builder there. The legacy broker path is unchanged elsewhere.
+ *
  * @module email-app-routes
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
@@ -92,6 +94,7 @@ const explicit_write_confirmation_1 = require("@/shared/security/explicit-write-
 const session_crypto_1 = require("./session-crypto");
 const outlook_mailbox_1 = require("./outlook-mailbox");
 const mail_provider_1 = require("./mail-provider");
+const kernel_mail_1 = require("./kernel-mail");
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 const logger = (0, logger_1.createChildLogger)({ module: 'email-app-routes' });
@@ -124,23 +127,38 @@ function gmailMailbox(token) {
         list: (days, max, query) => listInbox(token, query || `in:inbox newer_than:${days}d`, max),
         message: async (id) => {
             const m = await gget(token, `${GMAIL}/messages/${encodeURIComponent(id)}?format=full`);
-            return { ...(0, email_routes_1.summarizeGmailMetadata)(id, m), to: header(m, 'To'), body: extractBody(m.payload).slice(0, 20000) };
+            return { ...summarizeMessage(id, m), to: header(m, 'To'), body: extractBody(m.payload).slice(0, 20000) };
         },
         eventsToday: () => eventsToday(token),
         ownAddress: async () => String((await gget(token, `${GMAIL}/profile`)).emailAddress || ''),
-        send: (mail) => (0, email_routes_1.sendGmail)(token, mail),
+        send: (mail) => ((0, kernel_mail_1.kernelEgress)() ? (0, kernel_mail_1.kernelSendGmail)(mail) : (0, email_routes_1.sendGmail)(token, mail)),
     };
 }
 /** The Outlook / Microsoft 365 mailbox: fixed Graph reads + the kernel's sendOutlookMail. */
 function outlookMailbox(token) {
+    // Under the kernel the Graph reads go through the egress: it drops the Authorization the adapter sets and applies its own.
+    const graph = (0, kernel_mail_1.kernelEgress)() ? (0, kernel_mail_1.kernelFetch)('outlook') : fetch;
     return {
         provider: 'outlook',
-        list: (days, max) => (0, outlook_mailbox_1.listOutlookInbox)(token, { days, max }, fetch),
-        message: (id) => (0, outlook_mailbox_1.getOutlookMessage)(token, id, fetch),
-        eventsToday: () => (0, outlook_mailbox_1.outlookEventsToday)(token, fetch),
-        ownAddress: () => (0, outlook_mailbox_1.outlookOwnAddress)(token, fetch),
-        send: (mail) => (0, email_routes_1.sendOutlookMail)(token, mail),
+        list: (days, max) => (0, outlook_mailbox_1.listOutlookInbox)(token, { days, max }, graph),
+        message: (id) => (0, outlook_mailbox_1.getOutlookMessage)(token, id, graph),
+        eventsToday: () => (0, outlook_mailbox_1.outlookEventsToday)(token, graph),
+        ownAddress: () => (0, outlook_mailbox_1.outlookOwnAddress)(token, graph),
+        send: (mail) => ((0, kernel_mail_1.kernelEgress)() ? (0, kernel_mail_1.kernelSendOutlook)(mail) : (0, email_routes_1.sendOutlookMail)(token, mail)),
     };
+}
+/** The Gmail summary: the framework's summarizer, or its package-local copy where the framework module is absent (kernel). */
+function summarizeMessage(id, msg) {
+    return (0, kernel_mail_1.kernelEgress)() ? (0, kernel_mail_1.summarizeGmail)(id, msg) : (0, email_routes_1.summarizeGmailMetadata)(id, msg);
+}
+/**
+ * The caller-bound connection lookup: the kernel's connection metadata under the native kernel (the kernel holds the
+ * credential), otherwise the framework broker bound to the caller's own sub.
+ */
+async function mailTokenLookup(ctx, sub) {
+    if (!(0, kernel_mail_1.kernelEgress)())
+        return (provider) => (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, provider);
+    return (0, kernel_mail_1.kernelTokenFor)(await (0, kernel_mail_1.readConnections)(ctx, (err) => logger.error({ err }, 'Connection metadata unavailable; the provider request decides')));
 }
 /** List, digest and summary: a caller who names no provider may fall through to Yahoo. */
 const YAHOO_READ_ROUTE = { yahooFallback: true };
@@ -169,7 +187,7 @@ async function openMailbox(req, res, ctx, options = { yahooFallback: false }) {
         res.status(501).json({ error: 'provider_unavailable', provider: 'yahoo', message: 'This oshal core has no Yahoo Mail reader.' });
         return null;
     }
-    const connection = await (0, mail_provider_1.selectMailConnection)(choice.provider, (provider) => (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, provider), (provider, err) => logger.error({ err, provider }, 'Mailbox token could not be refreshed'));
+    const connection = await (0, mail_provider_1.selectMailConnection)(choice.provider, await mailTokenLookup(ctx, sub), (provider, err) => logger.error({ err, provider }, 'Mailbox token could not be refreshed'));
     if (connection.token === null) {
         if (!choice.provider && !connection.reconnect && options.yahooFallback && ctx.imapMail)
             return yahooMailbox(ctx.imapMail, sub, true);
@@ -226,9 +244,11 @@ async function eventsOrEmpty(mailbox) {
         return [];
     }
 }
-/** GET a Google API URL with the bearer token; throws on non-2xx. */
+/** GET a Google API URL with the bearer token (under the kernel: through the egress, which applies it); throws on non-2xx. */
 async function gget(token, url) {
-    const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const r = (0, kernel_mail_1.kernelEgress)()
+        ? await (0, kernel_mail_1.kernelFetch)('google')(url, { headers: { Accept: 'application/json' } })
+        : await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!r.ok)
         throw new Error(`google ${r.status}: ${(await r.text()).slice(0, 200)}`);
     return r.json();
@@ -277,7 +297,7 @@ async function listInbox(token, q, max) {
     const out = [];
     for (const id of ids) {
         const m = await gget(token, `${GMAIL}/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`);
-        out.push((0, email_routes_1.summarizeGmailMetadata)(id, m));
+        out.push(summarizeMessage(id, m));
     }
     return out;
 }
@@ -590,6 +610,10 @@ function socialProfile(ctx) {
             res.status(401).json({ error: 'not_authenticated' });
             return;
         }
+        if ((0, kernel_mail_1.kernelEgress)()) {
+            await kernelSocialProfile(ctx, req, res);
+            return;
+        }
         const token = await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'facebook');
         if (!token) {
             if (req.query.surface === '1') {
@@ -613,6 +637,50 @@ function socialProfile(ctx) {
             res.status(502).json({ error: err.message });
         }
     };
+}
+/** The refusal for a caller with no usable Facebook connection. */
+function noFacebook(req, res, reconnect) {
+    const body = reconnect
+        ? { error: 'reconnect_required', message: 'Reconnect your Facebook account at /utilities.' }
+        : { error: 'no_facebook_connection', message: 'Connect your Facebook account at /utilities first.' };
+    if (req.query.surface === '1')
+        res.json({ connected: false, ...body });
+    else
+        res.status(409).json(body);
+}
+/**
+ * The Social profile under the native kernel: the connection metadata decides "not connected" up front, and the Graph
+ * read goes through the egress with no access_token (the kernel applies the caller's facebook grant as a Bearer token).
+ */
+async function kernelSocialProfile(ctx, req, res) {
+    const state = (0, kernel_mail_1.connectionState)(await (0, kernel_mail_1.readConnections)(ctx, (err) => logger.error({ err }, 'Connection metadata unavailable')), 'facebook');
+    if (state === 'none' || state === 'reconnect') {
+        noFacebook(req, res, state === 'reconnect');
+        return;
+    }
+    let r;
+    try {
+        r = await fetch(`${FB_GRAPH}/me?fields=id,name,picture.width(160).height(160)`, { headers: { Accept: 'application/json' } });
+    }
+    catch (err) {
+        if (/not connected/i.test(String(err?.message || ''))) {
+            noFacebook(req, res, false);
+            return;
+        }
+        logger.error({ err }, 'Facebook profile failed');
+        res.status(502).json({ error: err.message });
+        return;
+    }
+    if (r.status === 401) {
+        noFacebook(req, res, true);
+        return;
+    }
+    if (!r.ok) {
+        res.status(502).json({ error: `facebook ${r.status}` });
+        return;
+    }
+    const me = (await r.json());
+    res.json({ id: me.id, name: me.name, picture: me.picture?.data?.url || null });
 }
 /**
  * @description Builds the Email Summarizer app surface router. Serves the inbox +

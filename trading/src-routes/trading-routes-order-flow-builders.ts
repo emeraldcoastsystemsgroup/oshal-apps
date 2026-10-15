@@ -17,6 +17,8 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | GET /ledger answers `governance` beside `positions` (ADR-159): per symbol, whether the engine's protective exit set runs, whether it emits any order at all, and in the operator's words why not. /ledger is THE positions payload the hub paints from, and it carried no trace of a rule the engine has been enforcing since #486/#497 - the operator could see a holding with no stop and no exit and no way to tell that was deliberate. Every part of the answer is the kernel's: subtractPinnedLots + withEngineCostBasis over the same pinned-subtracted positions the dispatch costs, then positionGovernance. A failed read answers `{}` and the surface says NOT KNOWN for those rows - it never says managed about a position nobody could check.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | GET /ledger stops disagreeing with itself, and answers for the position it was silently skipping. (a) `positions` is the RAW venue array while the governance beside it is computed over `subtractPinnedLots(positions, pinned)`, so a partially pinned symbol showed the full quantity next to a sentence about the smaller one - one payload, two numbers, on the same screen. Each answer now carries the two quantities it was measured between (heldQty, the row; governedQty, what the autopilot can act on), both taken from the kernel's OWN subtraction, so the surface can say which is which instead of leaving the operator to reconcile them. (b) `subtractPinnedLots` DROPS a symbol whose every share is pinned, so a fully protected holding reached no governance answer at all and the surface's fallback called it NOT KNOWN - a deliberately protected position shown as unexamined, which is ADR-159's own failure inverted. Such a symbol - present at the venue, absent from the kernel's subtraction - now gets the kernel's `pinnedInFullGovernance`. The words and the reason code are core's; the only thing decided here is which symbols core's subtraction dropped, read off that subtraction's own output.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | GET /ledger's `governance` (and GET /exposure's, through the same function) knows the idle-cash yield sleeve (ADR-052 addendum P6). New exported bookGovernance: the ring-fence coreConfig parses from the applied override, and the book's armed sleeve through the kernel's own armedYieldSleeve (override, book kind, that ring-fence), handed to positionGovernanceBySymbol - so on a book where the sleeve is armed its fund reads 'yield sleeve' with no exits, as the dispatch treats it, instead of as an ordinary managed holding. Unarmed, the answer is unchanged. A kernel that predates armedYieldSleeve passes no sleeve, so the readout stays as it was instead of failing the payload (the package can be staged before the core that carries it).
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Rail guard: GET /ledger asks railConfigured(broker) instead of calling broker.configured(). The native kernel bridge's broker reader has no configured() probe, so the ledger answered 502; it now answers 200 with configured false, account null and no positions, which the hub already renders.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | TRADE-01: on the native kernel a paper book with no broker rail answers GET /orders, /ledger and /journal from the person's native paper book (routes/paper/screen.js) when they have one; otherwise every answer is unchanged.
  *
  * @module trading-routes-order-flow-builders
  */
@@ -39,6 +41,8 @@ import { recordDailyEquity, loadPriorCloseEquity } from '@/app/trading-daily-equ
 import { reconcileLedger, type ManualClose } from '@/app/trading-reconcile-ledger';
 import { priceOrdersOnEngineCost } from './trading-realized';
 import { isOperatorIdentity } from '@/shared/middleware/authz';
+import { railConfigured } from './trading-rail-guard';
+import { screenRead, readerConnected } from './paper/screen';
 
 // Same module tag as the entry file so structured log output is unchanged by the split.
 const logger = createChildLogger({ module: 'trading-routes' });
@@ -295,6 +299,9 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
       await ensureTradingSchema(ctx.pool);
       const book = await resolveBook(ctx.pool, sub, (req.query.book as string | undefined) ?? (req.query.mode as string | undefined));
       const mode = book.kind;
+      // TRADE-01: a paper book with no broker rail answers from the person's native paper book when one exists.
+      const paper = await screenRead(ctx, sub, book, readerConnected(() => getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined)), 'orders');
+      if (paper) { res.json(paper); return; }
       const rows = (await ctx.pool.query(
         `SELECT order_id, decision_id, broker, broker_order_id, symbol, side, qty, order_type, limit_price,
                 status, filled_qty, filled_avg_price, realized_pnl, reject_reason, created_at, updated_at
@@ -356,7 +363,10 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
       const book = await resolveBook(ctx.pool, sub, (req.query.book as string | undefined) ?? (req.query.mode as string | undefined));
       const mode = book.kind;
       const broker = getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
-      const configured = broker.configured();
+      const configured = railConfigured(broker);
+      // TRADE-01: a paper book with no broker rail answers from the person's native paper book when one exists.
+      const paper = configured ? null : await screenRead(ctx, sub, book, false, 'ledger');
+      if (paper) { res.json(paper); return; }
       const [account, positions] = configured
         ? await Promise.all([broker.getAccount().catch(() => null), broker.getPositions().catch(() => [])])
         : [null, []];
@@ -434,6 +444,9 @@ export function registerTradingOrderFlowRoutes(router: Router, ctx: AppContext, 
       await ensureTradingSchema(ctx.pool);
       const book = await resolveBook(ctx.pool, sub, (req.query.book as string | undefined) ?? (req.query.mode as string | undefined));
       const mode = book.kind;
+      // TRADE-01: a paper book with no broker rail answers from the person's native paper book when one exists.
+      const paper = await screenRead(ctx, sub, book, readerConnected(() => getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined)), 'journal');
+      if (paper) { res.json(paper); return; }
       const orders = (await ctx.pool.query(
         `SELECT o.order_id, o.symbol, o.side, o.qty, o.order_type, o.limit_price, o.stop_price,
                 o.trail_price, o.trail_percent, o.status, o.filled_qty, o.filled_avg_price,

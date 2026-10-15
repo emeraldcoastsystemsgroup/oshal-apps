@@ -7,6 +7,8 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: Yahoo Mail leg through core's fixed read-only IMAP seam (AppContext imapMail; needs the matching core). List, digest and bot summary read Yahoo; message, draft and send answer 400 for Yahoo. Declares the optional yahoo connector.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: My Day provides the company audience view for the Business shell (ADR-164 D6): the member's own inbox and today from GET /digest and the saved digest from /summary/cached, painted by the shared kit; the bot summary runs only on a click. No route, schema or connector change.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Retain the communications bot as the single application-owned identity with its dedicated-node execution posture.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Declare the mail, calendar, Graph and Facebook hosts for the native kernel's egress, each with the caller's own connection (gmail, google-calendar, outlook, facebook) applied as a Bearer token by the kernel.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | communications-bot runs inline on the native kernel with route-backed reads (email-digest, email-messages, email-message) over this package's own /api/email routes. As a dedicated-node bot with no enrolled node it answered as a tool-free completion that printed `node /app/scripts/oshal-gmail.js` and fetched nothing, and every app that imports it (Switchboard compose and concierge, Social) was refused "this bot requires an enrolled node". Its persona no longer instructs the retired CLI scripts. Guarded by scripts/check-store-bots.test.mjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — email-summarizer (Intelligent Communication, ADR-037)
@@ -106,6 +108,19 @@ dependencies:
     tools: []
     connectors: [google, outlook, yahoo, twilio, facebook]
 
+# Outbound hosts (native kernel): the sandbox has no network and no token broker, so every mailbox,
+# calendar, send and profile request goes through the kernel's fenced egress, which applies the
+# caller's own connection for that host as the Authorization header. This package never holds a token.
+egress:
+  - host: gmail.googleapis.com
+    credential: { connector: gmail, header: authorization, prefix: "Bearer " }
+  - host: www.googleapis.com
+    credential: { connector: google-calendar, header: authorization, prefix: "Bearer " }
+  - host: graph.microsoft.com
+    credential: { connector: outlook, header: authorization, prefix: "Bearer " }
+  - host: graph.facebook.com
+    credential: { connector: facebook, header: authorization, prefix: "Bearer " }
+
 # Per-app skin (approved palette) — gray so the comms workspace reads distinct.
 theme: gray
 
@@ -150,9 +165,7 @@ skillProfiles:
 bots:
   - agentId: b0000000-0000-0000-0000-000000000001
     name: communications-bot
-    container: email-bot
-    port: 5000
-    requiresOwnNode: true
+    posture: inline   # native kernel: an application bot with route-backed tools (tools below); no dedicated node
     persona: personas/email-summarizer.yaml
     role: comms/email-calendar-social
     capabilities:
@@ -167,6 +180,47 @@ bots:
       - social-publishing
       - sms-texting
       - voice-calls
+
+# Route-backed reads for communications-bot (native kernel: executorType api, inside /api/email).
+# Each runs under the caller with the caller's own mail connection applied by the kernel's egress.
+tools:
+  - name: email-digest
+    displayName: My Day Digest
+    type: api
+    category: communication
+    description: The last day's mail and today's calendar as counts plus unread, important, starred and priority lists.
+    executor: { executorType: api, apiEndpoint: "GET /api/email/digest" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} for "my day", a summary, triage or "what did I miss". no_mail_connection means no mailbox is connected.
+    tags: [email, route-backed]
+  - name: email-messages
+    displayName: Inbox
+    type: api
+    category: communication
+    description: The person's recent inbox messages (sender, subject, time, unread/important/starred).
+    executor: { executorType: api, apiEndpoint: "GET /api/email/messages" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} to list recent mail. Use a returned id with email-message to read one in full.
+    tags: [email, route-backed]
+  - name: email-message
+    displayName: Read Message
+    type: api
+    category: communication
+    description: One full message from the person's mailbox by its id.
+    executor: { executorType: api, apiEndpoint: "GET /api/email/message/{input.id}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string }
+      required: [id]
+    usageInstructions: Call with {id} taken from email-messages or email-digest; never guess an id.
+    tags: [email, route-backed]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — ribbon icons open the email client pages (served by the

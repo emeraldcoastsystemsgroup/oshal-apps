@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The manual video editor's browser client for /api/video/editor (CREATE-EDIT-05d): same-origin JSON and multipart calls that never cache, stable error codes on every failure, and the plain-language sentence each refusal shows the person.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve legacy routes while enabling bounded original-owner native media transport.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Name the storage refusal (video_edit_storage_unavailable) instead of "Something went wrong", so a failed upload or download says why (sweep 12).
  */
 
 export const BASE = '/api/video/editor';
@@ -32,6 +33,11 @@ async function uploadChunks(kind, file) {
 
 /** @description Plain-language explanations for the server's stable refusal codes. */
 const WORDS = Object.freeze({
+  video_edit_motion_source_mismatch: 'The composition link does not match your verified media. Import its real Motion render again.',
+  video_edit_motion_source_unavailable: 'That Motion source is no longer available with your current access.',
+  video_edit_motion_exchange_unavailable: 'Motion exchange is not available on this installation.',
+  video_edit_motion_render_required: 'Choose a ready Motion MP4 render within the Video clip limits.',
+  video_edit_motion_import_conflict: 'This import retry belongs to a different Motion render. Choose it again to start a new import.',
   video_edit_permission_denied: 'Your access does not include that action in the video editor.',
   video_edit_verified_identity_required: 'Sign in again to keep editing.',
   video_edit_revision_conflict: 'This project was saved somewhere else since you opened it.',
@@ -46,6 +52,7 @@ const WORDS = Object.freeze({
   video_edit_export_timeout: 'The export took too long and was stopped.',
   video_edit_permission_revoked: 'Your access changed while exporting, so the export was stopped.',
   video_edit_export_interrupted: 'The export was interrupted by a restart. Start it again.',
+  video_edit_storage_unavailable: 'The video editor cannot store files right now, so nothing was added or changed. Try again in a minute.',
 });
 
 /**

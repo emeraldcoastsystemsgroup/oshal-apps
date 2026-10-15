@@ -16,6 +16,10 @@
  *                     |                             | rebuild (the connection is closed mid-rebuild, the bridge kills
  *                     |                             | the worker) and answers once the part is recorded at its last
  *                     |                             | good revision; settings.featureBudgetMs is validated by field.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | A create whose first build fails leaves no part behind: the row
+ *                     |                             | and its files are removed and the reply carries the build
+ *                     |                             | outcome with `model: null`, so a stopped engine no longer
+ *                     |                             | fills the list with empty failed parts.
  */
 
 import fs from 'node:fs';
@@ -100,8 +104,18 @@ export function createModelRoutes(deps: ModelRouteDeps): Router {
     catch (error) { logger.error({ err: error }, 'List models failed'); res.status(500).json({ error: 'list_failed' }); }
   });
 
+  /** Remove a part whose creation did not complete: its row (revisions cascade) and its files. */
+  async function discardCreated(sub: string, modelId: string): Promise<void> {
+    try {
+      await deleteModel(deps.pool, sub, modelId);
+      fs.rmSync(modelDir(deps.dataRoot, sub, modelId), { recursive: true, force: true });
+      logger.info({ modelId }, 'Discarded a part whose first build failed');
+    } catch (error) { logger.error({ err: error, modelId }, 'Discarding a failed new part failed'); }
+  }
+
   router.post('/models', async (req: ModelRequest, res) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
+    let createdId: string | null = null;
     try {
       const rawBase = body.base ?? { kind: 'box', sizeX: 40, sizeY: 40, sizeZ: 20 };
       let base = validateBase(rawBase);
@@ -109,14 +123,21 @@ export function createModelRoutes(deps: ModelRouteDeps): Router {
       const source = body.source && typeof body.source === 'object' && !Array.isArray(body.source) ? (body.source as Record<string, unknown>) : {};
       const settings = body.settings && typeof body.settings === 'object' && !Array.isArray(body.settings) ? (body.settings as Record<string, unknown>) : {};
       const stored = await createModel(deps.pool, req.cadSub as string, { title: title(body.title, 'Untitled part'), base: base.kind === 'mesh' ? { kind: 'mesh' } : base, features, source, settings });
+      createdId = stored.model_id;
       let model = stored;
       if (base.kind === 'mesh') {
         base = storeMeshBase(deps.dataRoot, req.cadSub as string, stored.model_id, Buffer.from(String(base.stl), 'base64'));
         model = (await updateModel(deps.pool, req.cadSub as string, stored.model_id, { base })) ?? stored;
       }
       const built = await rebuildModel(deps, model);
-      res.status(built.build.ok ? 201 : buildStatus(built.build)).json({ model: publicModel(built.model), build: built.build });
+      if (!built.build.ok) {
+        await discardCreated(req.cadSub as string, stored.model_id);
+        res.status(buildStatus(built.build)).json({ model: null, build: built.build });
+        return;
+      }
+      res.status(201).json({ model: publicModel(built.model), build: built.build });
     } catch (error) {
+      if (createdId) await discardCreated(req.cadSub as string, createdId);
       if (!refuse(res, error)) { logger.error({ err: error }, 'Create model failed'); res.status(500).json({ error: 'create_failed' }); }
     }
   });

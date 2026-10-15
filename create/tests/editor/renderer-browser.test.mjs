@@ -5,10 +5,15 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Inspect actual Canvas2D pixels, raster encodings and portable asset reads in isolated headless Chromium.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Prove each image filter changes real pixels as named, that the fixed filter string is what reaches the canvas, and that exported PNG pixels equal the preview canvas for a filtered layer.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Inspect mask pixels through crop, rotation, inversion and feather; compare decoded PNG with preview.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Prove brush masks, mask combination and editable adjustment persistence with actual rendered pixels and UI gestures.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, startFixture, ASSET } from './renderer-fixture.mjs';
+import { startEditorFixture } from '../browser/create-editor-fixture.mjs';
 let browser;
 before(async () => { browser = await chromium.launch({ headless: true }); });
 after(async () => { await browser?.close(); });
@@ -41,6 +46,62 @@ function clean(value) {
   assert.deepEqual(value.errors, []); assert.deepEqual(value.external, []);
   assert.ok(value.fixture.requests.every(row => row.method === 'GET'));
 }
+
+test('a duplicated masked group has matching isolated pixels and independently editable child values', async t => {
+  const value = await open(t), result = await value.page.evaluate(async () => {
+    let project = model.applyOperation(model.createProject({ width: 220, height: 220 }), { type: 'add',
+      images: { photo: { src: photo(), width: 40, height: 20 } },
+      layer: { id: 'photo', type: 'image', assetId: 'photo', x: 10, y: 10, w: 40, h: 20,
+        mask: { points: [{x:0,y:0},{x:30,y:0},{x:30,y:20},{x:0,y:20}], enabled: true, inverted: false, feather: 0 } } });
+    project = model.applyOperation(project, { type: 'add', layer: { id: 'grade', type: 'adjustment', scope: 'layer', targetId: 'photo', exposure: -1 } });
+    project = model.applyOperation(project, { type: 'group', ids: ['photo', 'grade'], id: 'inner' });
+    project = model.applyOperation(project, { type: 'add', layer: { id: 'rectangle', type: 'rect', x: 45, y: 10, w: 10, h: 20, fill: '#00ff00' } });
+    project = model.applyOperation(project, { type: 'group', ids: ['inner', 'rectangle'], id: 'outer' });
+    project = model.applyOperation(project, { type: 'update', id: 'outer', patch: { opacity: .5 } });
+    const before = model.serializeProject(project), copied = model.applyOperation(project, { type: 'duplicate', id: 'outer', newId: 'copy', offset: 90 });
+    const images = await rendering.loadProjectImages(copied);
+    rendering.renderProject(ctx, copied, { images });
+    const originalPixels = [...ctx.getImageData(0, 0, 70, 70).data], copyPixels = [...ctx.getImageData(90, 90, 70, 70).data];
+    const originalRed = pixel(15,15), copiedRed = pixel(105,105), masked = pixel(132,105);
+    const grade = copied.layers.find(layer => layer.type === 'adjustment' && layer.id !== 'grade');
+    const edited = model.applyOperation(copied, { type: 'update', id: grade.id, patch: { exposure: 0 } });
+    rendering.renderProject(ctx, edited, { images });
+    return { originalPixels, copyPixels, originalRed, copiedRed, masked, brighterCopy: pixel(105,105), unchangedRed: pixel(15,15),
+      unchangedSource: model.serializeProject(project) === before,
+      roundTrip: model.serializeProject(copied) === model.serializeProject(model.parseProject(model.serializeProject(copied))) };
+  });
+  assert.deepEqual(result.copyPixels, result.originalPixels);
+  assert.ok(result.originalRed[3] >= 127 && result.originalRed[3] <= 129);
+  assert.deepEqual(result.copiedRed, result.originalRed); assert.equal(result.masked[3], 0);
+  assert.ok(result.brighterCopy[0] > result.copiedRed[0]); assert.deepEqual(result.unchangedRed, result.originalRed);
+  assert.equal(result.roundTrip, true); assert.equal(result.unchangedSource, true); clean(value);
+});
+
+test('human group Duplicate works on a narrow screen and saves/reopens as one history edit', async t => {
+  const fixture = await startEditorFixture(), context = await browser.newContext({ viewport: { width: 412, height: 915 } });
+  t.after(async () => { await context.close(); await fixture.close(); });
+  const page = await context.newPage(), errors = []; page.on('pageerror', error => errors.push(error.message));
+  let document = { version:3, name:'Group duplicate proof', width:200, height:200, background:'transparent', images:{},
+    layers:[{id:'a',type:'rect',name:'Red',x:0,y:0,w:20,h:20,fill:'#ff0000'},
+      {id:'b',type:'rect',name:'Blue',x:20,y:0,w:20,h:20,fill:'#0000ff'},
+      {id:'g',type:'group',name:'Composition',x:20,y:20,w:40,h:20,baseWidth:40,baseHeight:20,children:['a','b']}] };
+  const record = fixture.seed(document);
+  await page.goto(`${fixture.origin}/api/create/editor?project=${record.id}`);
+  await page.locator('[data-layer-id="g"] .layer-select').click();
+  await page.locator('#duplicateLayer').click();
+  assert.equal(await page.locator('[data-layer-id]').count(), 6);
+  await page.locator('#undo').click(); assert.equal(await page.locator('[data-layer-id]').count(), 3);
+  await page.locator('#redo').click(); assert.equal(await page.locator('[data-layer-id]').count(), 6);
+  await page.locator('#saveProject').click();
+  await page.locator('#saveStatus').filter({ hasText: 'Saved · revision 2' }).waitFor();
+  const saved = fixture.state.projects.get(record.id).document;
+  assert.equal(saved.layers.length, 6); assert.equal(saved.layers.filter(layer => layer.type === 'group').length, 2);
+  assert.deepEqual(saved.layers.find(layer => layer.id === 'g').children, ['a','b']);
+  await page.reload();
+  await page.waitForSelector('[data-layer-id="g"]');
+  assert.equal(await page.locator('[data-layer-id]').count(), 6);
+  assert.deepEqual(errors, []);
+});
 
 test('native canvas paints all five kinds with real transparency, curves, text and rotation', async t => {
   const value = await open(t), result = await value.page.evaluate(async () => {
@@ -203,4 +264,144 @@ test('held image decoding has a bounded timeout without producing an empty expor
   const requested = value.page.waitForRequest(request => request.url().endsWith(ASSET));
   await value.page.evaluate(source => { window.waiting = rendering.loadProjectImages(imageProject(source)).then(() => 'unexpected', error => error.message); }, ASSET);
   await requested; await value.page.clock.fastForward(30001); assert.match(await value.page.evaluate(() => waiting), /timed out/); clean(value);
+});
+
+
+test('source-space image masks retain crop/rotation, invert/disable and match actual exported PNG pixels', async t => {
+  const value = await open(t), result = await value.page.evaluate(async () => {
+    const original = imageProject(photo()), images = await rendering.loadProjectImages(original);
+    const mask = { points: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 20 }, { x: 0, y: 20 }] };
+    const masked = model.applyOperation(original, { type: 'update', id: 'photo', patch: { mask } });
+    const draw = project => rendering.renderProject(ctx, project, { images });
+    draw(masked); const inside = pixel(15, 15), outside = pixel(45, 15);
+    const inverted = model.applyOperation(masked, { type: 'update', id: 'photo', patch: { mask: { ...masked.layers[0].mask, inverted: true } } });
+    draw(inverted); const invInside = pixel(15, 15), invOutside = pixel(45, 15);
+    const disabled = model.applyOperation(masked, { type: 'update', id: 'photo', patch: { mask: { ...masked.layers[0].mask, enabled: false } } });
+    draw(disabled); const restored = pixel(45, 15);
+    const cropped = model.applyOperation(masked, { type: 'update', id: 'photo', patch: { crop: { x: .5, y: 0, w: .5, h: 1 } } });
+    draw(cropped); const croppedAway = pixel(30, 15);
+    const rotated = model.applyOperation(masked, { type: 'update', id: 'photo', patch: { rotation: 180 } });
+    draw(rotated); const movedInside = pixel(45, 15), movedOutside = pixel(15, 15);
+    const feathered = model.applyOperation(masked, { type: 'update', id: 'photo', patch: { mask: { ...masked.layers[0].mask, feather: 3 } } });
+    draw(feathered); const edge = pixel(29, 20), expected = [...ctx.getImageData(0, 0, 80, 60).data];
+    const blob = await rendering.exportProjectImage(feathered, { images }), decoded = await createImageBitmap(blob);
+    ctx.clearRect(0, 0, 80, 60); ctx.drawImage(decoded, 0, 0); decoded.close();
+    return { inside, outside, invInside, invOutside, restored, croppedAway, movedInside, movedOutside, edge,
+      equal: JSON.stringify(expected) === JSON.stringify([...ctx.getImageData(0, 0, 80, 60).data]),
+      roundTrip: model.parseProject(model.serializeProject(feathered)).layers[0].mask, unchanged: !original.layers[0].mask };
+  });
+  assert.deepEqual(result.inside, [255, 0, 0, 255]); assert.equal(result.outside[3], 0);
+  assert.equal(result.invInside[3], 0); assert.deepEqual(result.invOutside, [0, 0, 255, 255]);
+  assert.deepEqual(result.restored, [0, 0, 255, 255]); assert.equal(result.croppedAway[3], 0);
+  assert.deepEqual(result.movedInside, [255, 0, 0, 255]); assert.equal(result.movedOutside[3], 0);
+  assert.ok(result.edge[3] > 0 && result.edge[3] < 255); assert.equal(result.equal, true);
+  assert.equal(result.roundTrip.feather, 3); assert.equal(result.unchanged, true); clean(value);
+});
+
+
+test('mask brush strength and polygon arithmetic render real coverage without replacing source pixels', async t => {
+  const value = await open(t), result = await value.page.evaluate(async () => {
+    const original = imageProject(photo()), images = await rendering.loadProjectImages(original);
+    const base = { points: [{ x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 20 }, { x: 0, y: 20 }] };
+    const draw = operations => { const project = model.applyOperation(original, { type: 'update', id: 'photo', patch: { mask: { ...base, operations } } }); rendering.renderProject(ctx, project, { images }); };
+    draw([{ kind: 'brush', mode: 'subtract', points: [{ x: 10, y: 10 }], size: 10, opacity: .5 }]); const gray = pixel(20, 20);
+    draw([{ kind: 'polygon', mode: 'subtract', points: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 20 }, { x: 0, y: 20 }] }]); const erased = pixel(20, 20), kept = pixel(40, 20);
+    draw([{ kind: 'polygon', mode: 'intersect', points: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 20 }, { x: 0, y: 20 }] }]); const inside = pixel(20, 20), outside = pixel(40, 20);
+    return { gray, erased, kept, inside, outside, unchanged: !original.layers[0].mask };
+  });
+  assert.ok(result.gray[3] >= 126 && result.gray[3] <= 129); assert.equal(result.erased[3], 0);
+  assert.deepEqual(result.kept, [0, 0, 255, 255]); assert.deepEqual(result.inside, [255, 0, 0, 255]);
+  assert.equal(result.outside[3], 0); assert.equal(result.unchanged, true); clean(value);
+});
+
+test('stack and clipped adjustment layers change actual colors while preserving alpha and upper layers', async t => {
+  const value = await open(t), result = await value.page.evaluate(async () => {
+    let project = model.createProject({ width: 40, height: 20 });
+    project = model.applyOperation(project, { type: 'add', layer: { id: 'under', type: 'rect', x: 0, y: 0, w: 30, h: 20, fill: '#804020', opacity: .5 } });
+    project = model.applyOperation(project, { type: 'add', layer: { id: 'other', type: 'rect', x: 30, y: 0, w: 10, h: 20, fill: '#00ff00' } });
+    const clipped = model.applyOperation(project, { type: 'add', layer: { id: 'grade', type: 'adjustment', scope: 'layer', targetId: 'under', exposure: 1 } });
+    rendering.renderProject(ctx, clipped); const graded = pixel(10, 10), other = pixel(35, 10);
+    const stack = model.applyOperation(clipped, { type: 'add', layer: { id: 'mono', type: 'adjustment', saturation: 0 } });
+    const top = model.applyOperation(stack, { type: 'add', layer: { id: 'top', type: 'rect', x: 0, y: 0, w: 5, h: 5, fill: '#ff0000' } });
+    rendering.renderProject(ctx, top); const gray = pixel(35, 10), upper = pixel(2, 2);
+    const expected = [...ctx.getImageData(0, 0, 40, 20).data], blob = await rendering.exportProjectImage(top), bitmap = await createImageBitmap(blob);
+    ctx.clearRect(0, 0, 40, 20); ctx.drawImage(bitmap, 0, 0); bitmap.close();
+    return { graded, other, gray, upper, equal: JSON.stringify(expected) === JSON.stringify([...ctx.getImageData(0, 0, 40, 20).data]), original: project.layers[0].fill };
+  });
+  assert.ok(result.graded[0] >= 253); assert.ok(result.graded[1] >= 125 && result.graded[1] <= 131);
+  assert.ok(result.graded[3] >= 126 && result.graded[3] <= 129); assert.deepEqual(result.other, [0, 255, 0, 255]);
+  assert.equal(result.gray[0], result.gray[1]); assert.equal(result.gray[1], result.gray[2]);
+  assert.deepEqual(result.upper, [255, 0, 0, 255]); assert.equal(result.equal, true); assert.equal(result.original, '#804020'); clean(value);
+});
+
+
+test('group opacity is isolated across overlap, nested transforms render and ungroup preserves output', async t => {
+  const value = await open(t), result = await value.page.evaluate(async () => {
+    let project = model.createProject({ width: 80, height: 60 });
+    for (const layer of [{ id: 'a', type: 'rect', x: 10, y: 10, w: 20, h: 20, fill: '#ff0000' },
+      { id: 'b', type: 'rect', x: 20, y: 10, w: 20, h: 20, fill: '#0000ff' }]) project = model.applyOperation(project, { type: 'add', layer });
+    project = model.applyOperation(project, { type: 'group', ids: ['a', 'b'], id: 'group' });
+    const half = model.applyOperation(project, { type: 'update', id: 'group', patch: { opacity: .5 } });
+    rendering.renderProject(ctx, half); const overlap = pixel(25, 20), single = pixel(15, 20);
+    const moved = model.applyOperation(project, { type: 'update', id: 'group', patch: { x: 30, rotation: 180 } });
+    rendering.renderProject(ctx, moved); const expected = [...ctx.getImageData(0, 0, 80, 60).data];
+    rendering.renderProject(ctx, model.applyOperation(moved, { type: 'ungroup', id: 'group' }));
+    return { overlap, single, same: JSON.stringify(expected) === JSON.stringify([...ctx.getImageData(0, 0, 80, 60).data]) };
+  });
+  assert.deepEqual(result.overlap.slice(0, 3), [0, 0, 255]); assert.ok(result.overlap[3] >= 127 && result.overlap[3] <= 129);
+  assert.ok(result.single[3] >= 127 && result.single[3] <= 129); assert.equal(result.same, true); clean(value);
+});
+
+
+test('editable cubic paths, gradients, clips and boolean holes render real geometry', async t => {
+  const value = await open(t), result = await value.page.evaluate(async () => {
+    const geometry = await import('/editor/vector-geometry.mjs');
+    let project = model.createProject({ width: 80, height: 60 });
+    const outer = geometry.pathFromRings([[[10, 10], [60, 10], [60, 50], [10, 50]]], { id: 'outer', fill: '#ff0000' });
+    const inner = geometry.pathFromRings([[[25, 20], [45, 20], [45, 40], [25, 40]]], { id: 'inner' });
+    for (const layer of [outer, inner]) project = model.applyOperation(project, { type: 'add', layer });
+    const hole = geometry.combinePaths(project, ['outer', 'inner'], 'difference'); hole.id = 'hole';
+    const cut = model.applyOperation(project, { type: 'booleanResult', ids: ['outer', 'inner'], result: hole });
+    rendering.renderProject(ctx, cut); const filled = pixel(15, 15), empty = pixel(35, 30);
+    const styled = model.applyOperation(cut, { type: 'update', id: 'hole', patch: { gradient: { from: { x: 0, y: 0 }, to: { x: 1, y: 0 }, stops: [{ offset: 0, color: '#ff0000' }, { offset: 1, color: '#0000ff' }] },
+      clip: [{ x: 0, y: 0 }, { x: .5, y: 0 }, { x: .5, y: 1 }, { x: 0, y: 1 }] } });
+    rendering.renderProject(ctx, styled); const clipped = pixel(55, 15), gradient = pixel(20, 15);
+    return { filled, empty, clipped, gradient };
+  });
+  assert.deepEqual(result.filled, [255, 0, 0, 255]); assert.equal(result.empty[3], 0); assert.equal(result.clipped[3], 0);
+  assert.ok(result.gradient[0] > result.gradient[2] && result.gradient[2] > 0); clean(value);
+});
+
+test('SVG cubic, gradient, clip and stroke interchange preserves pixels and rejects external or executable features', async t => {
+  const value = await open(t), result = await value.page.evaluate(async () => {
+    const svg = await import('/editor/vector-svg.mjs');
+    let project = model.applyOperation(model.createProject({ width: 80, height: 60 }), { type: 'add', layer: { id: 'curve', type: 'path', x: 10, y: 10, w: 50, h: 40,
+      contours: [{ closed: true, nodes: [{ x: 0, y: 0, out: { x: .4, y: 0 } }, { x: 1, y: 1, in: { x: 0, y: -.4 } }, { x: 0, y: 1 }] }],
+      stroke: '#00ff00', strokeWidth: 2, cap: 'round', gradient: { from: { x: 0, y: 0 }, to: { x: 1, y: 0 }, stops: [{ offset: 0, color: '#ff0000' }, { offset: 1, color: '#0000ff' }] },
+      clip: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }] } });
+    rendering.renderProject(ctx, project); const expected = [...ctx.getImageData(0, 0, 80, 60).data];
+    const exported = svg.exportVectorSvg(project), imported = svg.importVectorSvg(exported).project;
+    rendering.renderProject(ctx, imported); const actual = [...ctx.getImageData(0, 0, 80, 60).data];
+    const failures = [];
+    for (const element of ['<script>alert(1)</script>', '<image href="https://external.invalid/x.png"/>', '<path d="M0 0L10 10" onclick="alert(1)"/>', '<foreignObject/>']) {
+      try { svg.importVectorSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 60">${element}</svg>`); failures.push(false); } catch { failures.push(true); }
+    }
+    return { failures, equal: JSON.stringify(expected) === JSON.stringify(actual), nodes: imported.layers[0].contours[0].nodes.length,
+      gradient: imported.layers[0].gradient.stops.length, clip: imported.layers[0].clip.length, xml: exported.includes('<script') };
+  });
+  assert.equal(result.equal, true); assert.equal(result.nodes, 3); assert.equal(result.gradient, 2); assert.equal(result.clip, 4);
+  assert.ok(result.failures.every(Boolean)); assert.equal(result.xml, false); clean(value);
+});
+
+
+test('native SVG text metadata retains editable text, wrapping dimensions and font properties', async t => {
+  const value = await open(t), result = await value.page.evaluate(async () => {
+    const svg = await import('/editor/vector-svg.mjs');
+    const project = model.applyOperation(model.createProject({ width: 200, height: 100 }), { type: 'add', layer: { id: 'title', type: 'text', x: 10, y: 10,
+      w: 120, h: 60, text: 'Editable title\nSecond line', fontFamily: 'monospace', fontSize: 20, fontWeight: 700, fill: '#123456', align: 'center' } });
+    const imported = svg.importVectorSvg(svg.exportVectorSvg(project));
+    return { before: project.layers[0], after: imported.project.layers[0], warnings: imported.warnings };
+  });
+  for (const field of ['text', 'fontFamily', 'fontSize', 'fontWeight', 'fill', 'align', 'x', 'y', 'w', 'h']) assert.equal(result.after[field], result.before[field]);
+  assert.ok(result.warnings.some(value => value.includes('fonts'))); clean(value);
 });

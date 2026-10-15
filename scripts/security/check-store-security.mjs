@@ -12,6 +12,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Name the two existing hand-written compiled-only routes whose packages acquired an independent readiness source; keep both inside route/auth/write inventory.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Carry the existing bounded anonymous read declaration so whole-store package audits can inventory the published Vids manifest without weakening unknown-field refusal.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Accept core ADR-175's `node` route mode (a package node rail authenticated by a device-bound node credential) in the manifest auth vocabulary.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Inventory explicit native ESM source beside typed readiness while checking syntax and retaining peer/auth/write guards.
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
@@ -342,6 +343,9 @@ function containedModule(packageDir, modulePath) {
  */
 function sourceFor(packageDir, modulePath) {
   const sourceRoot = join(packageDir, 'src-routes');
+  const manifest = readFileSync(join(packageDir, 'oshal-app.yaml'), 'utf8');
+  // Explicit native process modules execute their ESM source directly; they are not tsc output.
+  if (modulePath.endsWith('.mjs') && /^runtime:[ \t]*process[ \t]*(?:#.*)?$/m.test(manifest)) return null;
   if (!existsSync(sourceRoot) || !modulePath.startsWith('routes/')) return null;
   const source = join(sourceRoot, modulePath.slice('routes/'.length).replace(/\.js$/, '.ts'));
   if (existsSync(source)) return source;
@@ -386,13 +390,14 @@ function localImportClosure(packageDir, entry) {
 /** @description Verify every source route has a compiled counterpart and valid JavaScript syntax. */
 function assertCompiledParity(packageDir) {
   const sourceRoot = join(packageDir, 'src-routes');
-  if (!existsSync(sourceRoot)) return;
-  for (const source of filesWithSuffix(sourceRoot, '.ts').filter((file) => !file.endsWith('.d.ts'))) {
+  const typed = existsSync(sourceRoot);
+  for (const source of (typed ? filesWithSuffix(sourceRoot, '.ts') : []).filter((file) => !file.endsWith('.d.ts'))) {
     const rel = relative(sourceRoot, source).replace(/\.ts$/, '.js');
     const compiled = join(packageDir, 'routes', rel);
     if (!existsSync(compiled)) throw new Error(`Source route has no compiled peer: ${source}`);
   }
-  for (const compiled of filesWithSuffix(join(packageDir, 'routes'), '.js')) {
+  const modules = [...(typed ? filesWithSuffix(join(packageDir, 'routes'), '.js') : []), ...filesWithSuffix(join(packageDir, 'routes'), '.mjs')];
+  for (const compiled of modules) {
     const result = spawnSync(process.execPath, ['--check', compiled], { encoding: 'utf8' });
     if (result.status !== 0) throw new Error(`Compiled route does not parse: ${compiled}\n${result.stderr}`);
   }

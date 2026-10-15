@@ -6,6 +6,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial. store-ci.yml lost its `pull_request:` trigger because this repository is PRIVATE and every run is billed — 217 runs in the first sixteen days of September at ~18.9 billed minutes each. This is the gate that replaces it: the same checks, in the same order, against the working tree, before you push. It is a thin wrapper on purpose — the runner is scripts/store-ci-local.mjs because it PARSES store-ci.yml rather than restating it, and a YAML walk plus node:test TAP grading belongs in the same language as every other gate in scripts/.
 # 2 | maintainer@emeraldcoastsystemsgroup.com   | Document the --allow-skips opt-out and the pre-push hook that actually runs this. Entry 1 shipped a gate nothing invoked: with store-ci.yml on workflow_dispatch and security.yml already there, the repository had no automatic check of any kind, and every reference to this script outside itself was prose.
+# 3 | maintainer@emeraldcoastsystemsgroup.com   | The gate's toolchain is its own: scripts/toolchain (pinned package.json + package-lock.json, `npm ci --prefix scripts/toolchain`), not an OSHAL_ROOT or sibling ../oshal checkout. The old TypeScript platform checkout is never resolved; inherited OSHAL_* / NODE_PATH variables are ignored, and a check that needs that platform's source reports SKIPPED naming it.
 # =============================================================================
 #
 # store-ci-local.sh — run every store-ci check locally, as a pre-push habit.
@@ -38,12 +39,20 @@
 #   text above it. Pass --allow-skips to accept them deliberately; they are still printed.
 #
 # Usage:  bash scripts/store-ci-local.sh [--allow-skips]
-# Env:    OSHAL_ROOT              a checkout whose node_modules has typescript / playwright /
-#                                 express / multer. Auto-detected as the sibling ../oshal checkout,
-#                                 which is where it already is on an operator workstation; set it
-#                                 only when your layout differs. Without it the suites that need a
-#                                 compiler or a browser report SKIPPED, never PASS - and the run
-#                                 exits non-zero.
+# Setup:  npm ci --prefix scripts/toolchain
+#                                 The gate's own pinned dev toolchain (TypeScript, Vitest, Playwright,
+#                                 Express, Multer, pg, better-sqlite3, js-yaml). node_modules is
+#                                 gitignored. Chromium for the browser contracts:
+#                                 node scripts/toolchain/node_modules/playwright/cli.js install chromium
+#                                 Without the toolchain the suites that need it report SKIPPED, never
+#                                 PASS - and the run exits non-zero.
+# Env:    STORE_CI_TOOLCHAIN      another directory whose node_modules holds the same pinned set.
+#                                 Optional; the default is scripts/toolchain.
+#                                 OSHAL_ROOT / OSHAL_FRAMEWORK / OSHAL_CORE_DIR / OSHAL_CORE_ROOT /
+#                                 KALSHI_BROWSER_DEPS / CAREER_LOADER_NODE_PATH / NODE_PATH are NOT
+#                                 read and are dropped from every suite: the old TypeScript platform
+#                                 checkout is never resolved. A check that needs that platform's source
+#                                 reports SKIPPED with a LEGACY reason naming what it needs.
 #         CAREER_TEST_POSTGRES_ADMIN_URL
 #                                 a DISPOSABLE PostgreSQL superuser URL for the Career storage
 #                                 contract. Unset by default and that is deliberate: never point it

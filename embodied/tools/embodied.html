@@ -180,6 +180,19 @@
   .legend { font-size: 11px; color: var(--em-muted); display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
   @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+  /* A grid/flex child's min-width defaults to its content, so one long caption or wide table widened the whole
+     column to ~520px on a 412px phone. Children may shrink; long captions wrap; wide tables scroll in their panel. */
+  .layout > *, .stack > *, .panel { min-width: 0; }
+  .panel { overflow-wrap: anywhere; }
+  .panel table.world { display: block; overflow-x: auto; }
+  @media (max-width: 600px) {
+    .layout { padding: 10px 8px 32px; gap: 10px; }
+    .panel { padding: 10px; }
+    .panel h2 small { display: block; margin: 2px 0 0; }
+    .controls { grid-template-columns: 1fr; }
+    header label { max-width: 100%; }
+    header select { max-width: 100%; }
+  }
 </style>
 </head>
 <body>
@@ -205,8 +218,10 @@
   <div class="stack">
     <section class="panel rel">
       <h2>Discovered world — 3-D <small class="muted">only what LiDAR sweeps and depth pictures have mapped · drag to orbit · wheel to zoom</small></h2>
-      <canvas id="view3d" width="960" height="600"></canvas>
-      <span class="watermark" style="top:34px">SIMULATED · DISCOVERED MAP</span>
+      <!-- The watermark is pinned to the canvas, not to a guessed offset below the heading: the caption wraps to
+           two lines on a phone and the old top:34px label sat on it. -->
+      <div class="rel"><canvas id="view3d" width="960" height="600"></canvas>
+      <span class="watermark">SIMULATED · DISCOVERED MAP</span></div>
       <div class="legend"><span><i style="background:#6b7a99"></i>mapped voxels (by height)</span><span><i style="background:#3fb950"></i>discovered surface</span><span><i style="background:#f6c177"></i>discovered object</span><span><i style="background:#4f8cff"></i>rover + arm</span><span><i style="background:#c792ea"></i>drone (believed pose)</span><span><i style="background:#5a4470"></i>drone true pose (sim only)</span><span><i style="background:#ffffff"></i>last sweep</span></div>
       <div id="world-stats" class="small muted" style="margin-top:6px">No scans yet — the map is entirely unknown.</div>
     </section>

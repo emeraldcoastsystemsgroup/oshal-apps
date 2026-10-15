@@ -8,11 +8,11 @@
  * So: while the kalshi app is ACTIVE, this poller keeps a fresh snapshot warm and announces NEW
  * playable hands. Three deliberate choices:
  *
- *  1. **A one-minute tick, not a one-hour interval.** The tick asks "is the stored snapshot older
- *     than the configured cadence?" So a settings change takes effect within a minute (no restart),
- *     an api recreate mid-cycle recovers on the next tick instead of silently skipping the hour,
- *     and two api processes can never double-scan the same window — the shared snapshot in
- *     Postgres, not a per-process timer, is the clock.
+ *  1. **A frequent scheduled tick, not a one-hour interval.** The manifest's `background-scan`
+ *     schedule fires POST /scan/tick every fifteen minutes, inside an admitted request, and the tick
+ *     asks "is the stored snapshot older than the configured cadence?" So a settings change takes
+ *     effect on the next fire, a restart mid-cycle recovers on the next tick, and the shared
+ *     snapshot in Postgres, not a per-process timer, is the clock.
  *  2. **Only if you have the application.** These routes (and therefore this poller) exist only
  *     while the app is installed + active. Alerts narrow it further: only subs with a Kalshi
  *     connection or saved settings (alertAudience).
@@ -28,6 +28,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-30 03:50:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial — the snapshot-clocked poller (single-flighted scanNow, boot catch-up, cadence from the manifest/settings config), the per-user alert fan-out (first-seen dedup, strength/edge floor, rolling daily budget), the Jarvis feed notification, and the opt-in outward channel via the preference center.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Respect the core briefing enqueue decision before finishing or recording Jarvis delivery.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | No timer. The one-minute setInterval (and the boot setTimeout) ran each tick outside any request, so on the native kernel every cycle failed at its first query with "SQL connection requires an active admitted request", which the surface showed as the scan's last error. A tick now runs only inside an admitted request: scheduledTick is the body of POST /scan/tick, which the manifest's `background-scan` schedule fires as the person who activated it, and it reports why it did nothing (inactive, disabled, backing off, not due) instead of returning silently. scanNow refuses before any SQL with the installation's own reason when a scan cannot run here (no Kalshi market-feed reader, no calibration table). Guard: tests/kalshi-scan-schedule.test.js.
  *
  * @module kalshi-scan-cron
  */
@@ -38,7 +39,7 @@ import { saveTaskPending, finishTask } from '@/app/routes/jarvis-task-store';
 import { buildNotificationRouter } from '@/app/routes/notify-routes';
 import {
   alertAudience, alertedTickers, alertsSentToday, appIsActive, pruneAlertLedger, readSnapshot,
-  recordAlert, resolveConfig, runScan, withScanLease, writeSnapshot, type ScanPayload,
+  recordAlert, resolveConfig, runScan, scanUnavailableReason, withScanLease, writeSnapshot, type ScanPayload,
 } from './kalshi-scan-engine';
 import { formatAlert, scanFreshness, selectAlertHands, type ScanHandLike } from './kalshi-scan-config';
 
@@ -47,11 +48,8 @@ const log = createChildLogger({ module: 'kalshi-scan-cron' });
 /** The topic the preference center routes these alerts under (users configure it on /api/notify/prefs). */
 export const ALERT_TOPIC = 'kalshi-edge';
 
-/** Poller tick. The CADENCE is config; this is just how often we ask "is the snapshot stale?". */
-const TICK_MS = 60_000;
-
-/** Delay before the boot catch-up, so activation/deploy churn settles before a 20s+ feed walk. */
-const BOOT_DELAY_MS = 30_000;
+/** The manifest's schedule (oshal-app.yaml `schedules:` background-scan) whose fires run scheduledTick. */
+export const KALSHI_SCAN_SCHEDULE = Object.freeze({ app: 'kalshi', name: 'background-scan', route: '/api/kalshi/scan/tick' });
 
 /** Backoff after a failed cycle: 2^n minutes, capped. Without it a dead upstream (or a missing
  *  calibration table) meant a fresh 60-page attempt EVERY MINUTE, forever (self-review 2026-07-30). */
@@ -90,11 +88,6 @@ const runtime: ScanRuntime = {
 
 let inFlight: Promise<ScanPayload> | null = null;
 
-/** The started flag lives on globalThis, not module scope: the manifest route mounter busts the
- *  require cache for the entry module on every package reload, and if it ever purges dependencies
- *  too, a module-local flag would let a SECOND poller start alongside the first. */
-const STARTED_KEY = '__oshalKalshiScanCronStarted';
-
 /** @description What the surface/status route reports about the background scan. */
 export function scanRuntimeStatus(): Readonly<ScanRuntime> {
   return { ...runtime };
@@ -130,6 +123,13 @@ export function manualRunAllowed(nowMs: number = Date.now()): { allowed: boolean
  */
 export function scanNow(ctx: AppContext, source: 'poller' | 'manual' | 'boot'): Promise<ScanPayload> {
   if (inFlight) return inFlight;
+  // A scan that cannot run on this installation says why before touching SQL or the feed.
+  const unavailable = scanUnavailableReason(ctx.appPackageDir);
+  if (unavailable) {
+    runtime.lastError = unavailable;
+    runtime.lastSource = source;
+    return Promise.reject(Object.assign(new Error(unavailable), { code: 'kalshi_scan_unavailable' }));
+  }
   runtime.running = true;
   runtime.startedAt = new Date().toISOString();
   runtime.lastSource = source;
@@ -140,7 +140,7 @@ export function scanNow(ctx: AppContext, source: 'poller' | 'manual' | 'boot'): 
     // result rather than walking the same 60 pages again. Lease unavailable is NOT a failure.
     const leased = await withScanLease(ctx.pool, async () => {
       const cfg = await resolveConfig(ctx);
-      const payload = await runScan(ctx.pool, cfg);
+      const payload = await runScan(ctx.pool, cfg, ctx.appPackageDir);
       await writeSnapshot(ctx.pool, payload);
       runtime.cyclesRun += 1;
       // Alerts must never fail the cycle — the snapshot is already published and correct.
@@ -257,63 +257,32 @@ async function notifyJarvis(ctx: AppContext, userSub: string, title: string, bod
   }
 }
 
-/**
- * @description One poller tick: scan when the stored snapshot is older than the configured cadence
- * (or missing). Cheap when it is not due — two small settings reads and one snapshot read.
- * @param ctx - App context.
- * @param source - 'boot' for the catch-up tick, else 'poller'.
- */
-async function tick(ctx: AppContext, source: 'poller' | 'boot' = 'poller'): Promise<void> {
-  if (runtime.running) return;
-  // TOGGLED-OFF APPS MUST GO QUIET. The routes unmount on deactivate but this timer does not, so
-  // without this check a switched-off app kept scanning and alerting (ADR-085 P0's runaway).
-  const active = await appIsActive(ctx.pool);
-  if (!active) {
-    if (!runtime.paused) log.info('kalshi app is not active — background scan paused (it resumes if reactivated)');
-    runtime.paused = true;
-    return;
-  }
-  if (runtime.paused) { log.info('kalshi app active again — background scan resumed'); runtime.paused = false; }
-  const cfg = await resolveConfig(ctx);
-  if (!cfg.scanEnabled) return;
-  if (runtime.nextAttemptAfter && Date.now() < runtime.nextAttemptAfter) return; // failure backoff
-  const snap = await readSnapshot(ctx.pool);
-  const fresh = scanFreshness(snap?.generatedAt ?? null, cfg, Date.now());
-  const dueSeconds = cfg.scanIntervalMinutes * 60;
-  if (fresh.ageSeconds !== null && fresh.ageSeconds < dueSeconds) return;
-  log.info({
-    source, ageSeconds: fresh.ageSeconds, intervalMinutes: cfg.scanIntervalMinutes, failures: runtime.failures,
-  }, 'kalshi background scan due');
-  await scanNow(ctx, source).catch(() => { /* logged + backed off in scanNow; the next tick retries */ });
-}
+/** What one scheduled tick did, and why when it did nothing. */
+export type ScheduledTick =
+  | { ran: true; generatedAt: string; hands: number }
+  | { ran: false; reason: 'already_running' | 'app_inactive' | 'scan_disabled' | 'backing_off' | 'not_due' | 'unavailable'; detail?: string };
 
 /**
- * @description Start the always-on scan loop. Idempotent per process (a package reload re-invokes
- * the route factory; a second timer would double the load on Kalshi's public tier). The timer is
- * unref'd so it can never hold the process open, and the boot catch-up is delayed so a deploy's
- * activation churn settles first.
- * @param ctx - App context (pool + appPackageDir for the manifest defaults).
+ * @description One scheduled tick, inside the caller's admitted request (POST /scan/tick, fired by the
+ * `background-scan` schedule): scan when the stored snapshot is older than the configured cadence (or
+ * missing). Cheap when it is not due: two small settings reads and one snapshot read.
+ * @param ctx - App context.
+ * @returns What it did, or why it did nothing.
  */
-export function startKalshiScanCron(ctx: AppContext): void {
-  const g = globalThis as Record<string, unknown>;
-  if (g[STARTED_KEY]) return;
-  g[STARTED_KEY] = true;
-  void (async () => {
-    const cfg = await resolveConfig(ctx).catch(() => null);
-    if (!cfg?.scanEnabled) {
-      log.info('kalshi background scan disabled by config (scanEnabled=false) — the surface still serves the last snapshot');
-      return;
-    }
-    log.info({
-      intervalMinutes: cfg.scanIntervalMinutes, onActivate: cfg.scanOnActivate,
-      maxPaged: cfg.scanMaxMarketsPaged, staleAfterMinutes: cfg.staleAfterMinutes,
-    }, 'kalshi background scan started');
-    if (cfg.scanOnActivate) {
-      setTimeout(() => { void tick(ctx, 'boot'); }, BOOT_DELAY_MS).unref?.();
-    }
-    const timer = setInterval(() => {
-      void tick(ctx).catch((err) => log.error({ err }, 'kalshi scan tick failed'));
-    }, TICK_MS);
-    timer.unref?.();
-  })();
+export async function scheduledTick(ctx: AppContext): Promise<ScheduledTick> {
+  if (runtime.running) return { ran: false, reason: 'already_running' };
+  const unavailable = scanUnavailableReason(ctx.appPackageDir);
+  if (unavailable) { runtime.lastError = unavailable; runtime.lastSource = 'poller'; return { ran: false, reason: 'unavailable', detail: unavailable }; }
+  // TOGGLED-OFF APPS MUST GO QUIET (ADR-085 P0's runaway).
+  if (!await appIsActive(ctx.pool)) { runtime.paused = true; return { ran: false, reason: 'app_inactive' }; }
+  runtime.paused = false;
+  const cfg = await resolveConfig(ctx);
+  if (!cfg.scanEnabled) return { ran: false, reason: 'scan_disabled' };
+  if (runtime.nextAttemptAfter && Date.now() < runtime.nextAttemptAfter) return { ran: false, reason: 'backing_off', detail: runtime.lastError ?? undefined };
+  const snap = await readSnapshot(ctx.pool);
+  const fresh = scanFreshness(snap?.generatedAt ?? null, cfg, Date.now());
+  if (fresh.ageSeconds !== null && fresh.ageSeconds < cfg.scanIntervalMinutes * 60) return { ran: false, reason: 'not_due' };
+  log.info({ ageSeconds: fresh.ageSeconds, intervalMinutes: cfg.scanIntervalMinutes, failures: runtime.failures }, 'kalshi scheduled scan due');
+  const payload = await scanNow(ctx, 'poller');
+  return { ran: true, generatedAt: payload.generatedAt, hands: payload.hands.length };
 }

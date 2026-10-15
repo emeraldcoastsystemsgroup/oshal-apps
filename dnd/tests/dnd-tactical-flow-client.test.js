@@ -10,6 +10,7 @@
  * 2026-07-22 22:55:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove stationary automated positions complete and archive without another spoken filler phase.
  * 2026-07-23 00:49:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Await the scheduled post-movement handoff deterministically under full-suite load.
  * 2026-07-23 09:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Supply deterministic defaults for configurable action, dice, and NPC-pace presentation.
+ * 2026-10-12 23:55:00 | maintainer@emeraldcoastsystemsgroup.com     | The Result stage now also repaints the initiative bar (sweep 10); the sandbox supplies updateInitiativeBar beside renderDock. The repaint itself is proved in Chromium by tests/browser/dnd-initiative-sides.test.cjs.
  */
 
 'use strict';
@@ -97,6 +98,7 @@ function tacticalEffects(parts, options, sandbox) {
       return { text: 'Bram hits Goblin for 4 damage.', rolls: [{ kind: 'attack', actionName: 'Longsword' }] };
     },
     renderDock: () => events.push(`render:${sandbox.automationPhase && sandbox.automationPhase.cue || ''}`),
+    updateInitiativeBar: () => {},
     banner: (text) => events.push(`banner:${text}`), persist: () => events.push('persist'),
     flushPendingState: async () => { snapshots.push(clone(board)); return true; },
     recordArchivedBeat: (_kind, text) => { events.push(`archive:${text}`); return never(); },

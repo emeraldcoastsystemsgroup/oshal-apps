@@ -6,6 +6,11 @@
 <title>OSHAL Camera Ops</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- CHANGE LOG
+     1 | maintainer@emeraldcoastsystemsgroup.com | The Fleet hint told the person to run `npm run camera:node`, a script of the retired
+       platform checkout; the native kernel ships no camera node and refuses the legacy service-secret heartbeat. It now
+       says no camera node ships with this installation (the fleet answers no_camera_node) and points to this browser's camera; an empty fleet
+       shows the fleet route's own detail instead of "start a camera node". -->
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the household's cameras (online,
      recording or offline, battery, mode), the photos and videos they reported since Camera Ops last started, and the
      latest recorded commands, from the SAME /api/camera routes the full page reads, painted by the shared kit in the
@@ -331,6 +336,12 @@
     .main { grid-template-columns: 1fr; }
     .col { overflow-y: visible; }
     .col.left, .col.right { border: none; border-bottom: 1px solid var(--c-line); }
+    /* A grid track sized to its content let the top bar's no-wrap pills and subline push the page to 421px on a
+       412px phone. The tracks may shrink, the bar wraps, and the subline gives way first. */
+    .app { grid-template-columns: minmax(0, 1fr); }
+    .main { grid-template-columns: minmax(0, 1fr); }
+    .topbar { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+    .subline { min-width: 0; max-width: 100%; text-align: left; }
   }
 </style>
 </head>
@@ -340,7 +351,7 @@
     <h1>🎥 Camera Ops</h1>
     <span id="statusPill" class="pill">…</span>
     <span id="recPill" class="pill rec" style="display:none">REC <span id="recTime" class="mono">0:00</span></span>
-    <span id="kindPill" class="pill">SIM</span>
+    <span id="kindPill" class="pill" style="display:none"></span>
     <div class="spacer"></div>
     <div class="subline" id="subline">select a camera</div>
   </div>
@@ -363,7 +374,7 @@
       <div class="panel-box">
         <h2>Fleet</h2>
         <div id="fleetList"></div>
-        <div class="hint">Real cameras (GoPro etc.) that the swarm can control: run <code>npm run camera:node</code> on a box near the camera with the swarm secret — it appears here on first heartbeat.</div>
+        <div class="hint" id="fleetHint">Real cameras (GoPro etc.) join through a camera node. No camera node ships with this installation, so none can be added here; use this browser's camera above.</div>
       </div>
       <div class="panel-box">
         <h2>Concierge</h2>
@@ -399,8 +410,8 @@
           <button class="btn small" id="btnPreviewStart" disabled>Start preview</button>
           <button class="btn small" id="btnPreviewStop" disabled>Stop preview</button>
           <span style="flex:1"></span>
-          <button class="btn small" id="btnConnect" disabled>Connect</button>
-          <button class="btn small" id="btnDisconnect" disabled>Disconnect</button>
+          <button class="btn small" id="btnConnect" disabled title="Opens the link to the camera selected in the list; select a camera first">Connect</button>
+          <button class="btn small" id="btnDisconnect" disabled title="Closes the link to the camera selected in the list">Disconnect</button>
         </div>
         <div class="row danger-zone">
           <button class="btn danger" id="btnDeleteAll" disabled>🗑 Delete all media</button>
@@ -546,10 +557,12 @@ async function getJson(path) {
 }
 
 // ── Fleet ────────────────────────────────────────────────────────────────────
+/** The server's own sentence for an empty fleet (the native kernel: no camera node is registered). */
+let fleetDetail = '';
 function renderFleet() {
   const box = $('fleetList');
   box.innerHTML = '';
-  if (!fleet.length) { box.appendChild(mk('div', 'muted', 'No cameras yet — start a camera node.')); return; }
+  if (!fleet.length) { box.appendChild(mk('div', 'muted', fleetDetail || 'No cameras are connected.')); return; }
   for (const f of fleet) {
     const t = f.telemetry;
     const row = mk('div', 'cam-row' + (f.cameraId === selCam ? ' sel' : ''));
@@ -599,11 +612,21 @@ function selectCam(id) {
 }
 
 // ── Telemetry / control state ────────────────────────────────────────────────
+/* kind-pill:start */
+// The header pill names the selected camera's kind (SIM, GOPRO) and whether a node serves it. With no camera selected it
+// is hidden: it used to read 'SIM' beside 'select a camera' on an installation with no camera at all.
+function renderKindPill(f) {
+  const label = f ? [f.kind ? String(f.kind).toUpperCase() : '', f.remote ? 'NODE' : ''].filter(Boolean).join(' · ') : '';
+  const pill = $('kindPill');
+  pill.textContent = label;
+  pill.style.display = label ? '' : 'none';
+}
+/* kind-pill:end */
 function applyTelemetry(t) {
   tele = (t && typeof t === 'object') ? t : null;
   const f = selInfo();
   $('ctlCam').textContent = selCam || '—';
-  $('kindPill').textContent = ((f && f.kind) || 'sim').toUpperCase() + (f && f.remote ? ' · NODE' : '');
+  renderKindPill(f);
 
   const st = tele ? String(tele.status || '—') : (f && !f.online ? 'offline' : '—');
   const pill = $('statusPill');
@@ -785,6 +808,7 @@ async function pollFleet() {
   try {
     const r = await getJson('/api/camera/fleet');
     fleet = Array.isArray(r.fleet) ? r.fleet : [];
+    fleetDetail = typeof r.detail === 'string' ? r.detail : '';
     if (!isLocal(selCam) && !fleet.find((f) => f.cameraId === selCam)) selCam = fleet.length ? fleet[0].cameraId : (activeLocalId || null);
     renderFleet();
     // Fleet telemetry is a fallback readout; /state stays authoritative when it answers.

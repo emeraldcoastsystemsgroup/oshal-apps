@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Extracted resume-strengthening reads and bounded engine mutations from the route composition root.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Let the caller see the profile bullets an answer actually wrote. Augmentation stays a detached child (it is an unbounded model call), so its stdout can never come back on the POST; this adds a bounded read of the durable enrichment audit tail and points the answer acknowledgement at it.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Honour the package's admission contract on the changelog poll: 'busy' (global engine ceiling) now answers 429, keeping 409 for 'inflight' (this caller's own augmentation still holds the slot). Both keep the in-progress body so a poller retries instead of erroring; previously both collapsed into 409, misreporting deployment-wide saturation as the caller's own duplicate.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | On the native kernel the changelog poll answers 409 in-progress while the kernel reports a kept background run of the caller in flight; reads see only the last published files while that run holds the write lock.
  */
 
 /**
@@ -18,6 +19,7 @@ import type { AppContext } from '@/app/composition/app-context';
 import { callerSub } from './career-user-store';
 import { runCareerCliAsync, runCareerCliAwait } from './career-engine-dispatch';
 import { rejectEngineStart } from './career-engine-response';
+import { nativeRunInProgress } from './career-engine-runner';
 
 const logger = createChildLogger({ module: 'career-strengthen-routes' });
 const CHANGELOG_PATH = '/api/career-hunter/strengthen/changelog';
@@ -65,6 +67,13 @@ async function listStrengthen(ctx: AppContext, req: Request, res: Response): Pro
 async function changelogStrengthen(ctx: AppContext, req: Request, res: Response): Promise<void> {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
+  // Native kernel: a kept run holds the owner's write lock in its own sandbox, so this read sees
+  // only the last published files. The kernel's run list is the truthful "still weaving" signal.
+  const running = await nativeRunInProgress();
+  if (running) {
+    res.status(409).json({ ok: false, status: 'in-progress', entries: [], runId: running });
+    return;
+  }
   const result = await runCareerCliAwait(ctx.pool, userSub, ['strengthen', 'changelog']);
   if (result.limitReason) {
     // 'inflight' is the poller's truthful "your augmentation still owns the slot" signal and

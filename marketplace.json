@@ -226,13 +226,14 @@
       "name": "payments",
       "suite": "ai-productivity",
       "displayName": "Payments",
-      "description": "Take payments through your own Square or PayPal account — Square runs a card charge, PayPal sends an invoice. Deterministic, sandbox by default, explicit-confirm gated.",
+      "description": "Take payments through your own Stripe, Square or PayPal account — Stripe makes a hosted payment page from your own pasted key (test or clearly marked LIVE), Square runs a card charge, PayPal sends an invoice. Deterministic, sandbox by default, explicit-confirm gated.",
       "version": "1.1.4",
       "theme": "ocean",
       "dependencies": {
         "apps": [],
         "tools": [],
         "connectors": [
+          "stripe",
           "square",
           "paypal"
         ],
@@ -245,6 +246,7 @@
           "apps": [],
           "tools": [],
           "connectors": [
+            "stripe",
             "square",
             "paypal"
           ]
@@ -1191,7 +1193,7 @@
       "suite": "ai-creative",
       "displayName": "Create",
       "description": "One studio for everything you make: decks, documents and workbooks from AI Office, portraits, short videos, story episodes, LoRA characters, 3D scans and brand intro clips — a single home page that shows what you were working on and one tap to pick up where you left off, in every studio you already have.",
-      "version": "1.9.6",
+      "version": "1.15.0",
       "theme": "create",
       "dependencies": {
         "apps": [],
@@ -1211,7 +1213,11 @@
             "vids",
             "creative-studio",
             "scan-to-print",
-            "brand-graphics"
+            "brand-graphics",
+            "motion-studio",
+            "publishing-studio",
+            "pdf-workbench",
+            "scene-studio"
           ],
           "tools": [],
           "connectors": []
@@ -1283,7 +1289,7 @@
       "suite": "ai-creative",
       "displayName": "Video Studio",
       "description": "Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from an idea - the director bot storyboards it and the studio renders a real .mp4 with voiceover and captions, saved to your Files storage; a series is written by the screenplay-writer, approval-gated on the script, then rendered one episode at a time on the remote Vids node. The series conductor engine, the video-generation slice, the video-director + screenplay-writer inline nodes, and the shared vids-operator desktop worker stay framework-resident; this package is the surface over them.",
-      "version": "1.9.6",
+      "version": "1.11.0",
       "theme": "sakura",
       "dependencies": {
         "apps": [
@@ -1312,7 +1318,8 @@
         },
         "optional": {
           "apps": [
-            "create"
+            "create",
+            "motion-studio"
           ],
           "tools": [],
           "connectors": []
@@ -1487,7 +1494,7 @@
       "suite": "ai-finance",
       "displayName": "Intelligent Trades",
       "description": "Signal-justified stock trading (ADR-052). Capture a market signal, let the trading-analyst reason it into a decision tree, and execute through the provider-agnostic BrokerAdapter (Alpaca paper / Schwab live) - every order FK-bound to its justifying decision and signals. Dual paper/live books, PAPER-ONLY by default; the env-level live gate (TRADING_LIVE_ENABLED + explicit confirm) and the whole autopilot/engine stay framework-resident - this package is the four route surfaces (/api/trading, /autopilot, /lab, /trading-charts), the cockpit surface + vendored chart lib, the trading_* operator tools, and the analyst/feed-bot manifest. NOTE: package directory is 'trading' (install trading); the registered app name stays intelligent-trades.",
-      "version": "1.33.0",
+      "version": "1.33.5",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -1629,6 +1636,7 @@
         "apps": [],
         "tools": [],
         "connectors": [],
+        "bots": [],
         "required": {
           "apps": [],
           "tools": [],
@@ -1638,6 +1646,12 @@
           "apps": [
             "dnd",
             "game-show"
+          ],
+          "bots": [
+            {
+              "app": "dnd",
+              "name": "dungeon-master"
+            }
           ],
           "tools": [],
           "connectors": []
@@ -2255,7 +2269,7 @@
       "name": "print-ingest",
       "suite": "ai-knowledge",
       "displayName": "Print Ingest",
-      "description": "Print a document to the swarm and decide where it belongs. Everything lands in one inbox with a recommended filing — a bot's corpus, the swarm's shared knowledge, or private to you — and nothing is written until you approve it.",
+      "description": "An inbound virtual printer for the swarm: a document printed to the oshal virtual printer, or sent to its inbox, is filed into the swarm's knowledge, never printed on paper. Everything lands in one inbox with a recommended filing — a bot's corpus, the swarm's shared knowledge, or private to you — and nothing is written until you approve it. It cannot print to a home or office printer.",
       "version": "0.3.6",
       "dependencies": {
         "apps": [],
@@ -2339,7 +2353,9 @@
       "dependencies": {
         "apps": [],
         "tools": [],
-        "connectors": [],
+        "connectors": [
+          "google-calendar"
+        ],
         "required": {
           "apps": [],
           "tools": [],
@@ -2348,7 +2364,9 @@
         "optional": {
           "apps": [],
           "tools": [],
-          "connectors": []
+          "connectors": [
+            "google-calendar"
+          ]
         }
       },
       "source": {
@@ -2401,7 +2419,7 @@
       "name": "scan-to-print",
       "suite": "ai-engineering",
       "displayName": "Scan to Print",
-      "description": "Photograph an object from its six sides (or film it, or import a LiDAR point cloud), enter one ruler measurement, and get a third-angle engineering drawing with overall dimensions, a watertight STL/OBJ you can rotate in the browser, and a one-click job on your own OctoPrint, Klipper/Moonraker, PrusaLink or Bambu Lab printer (sliced for that printer by a bundled OrcaSlicer engine and sent over your home network). The same printers are a swarm print service any agent or app can call, starting a print on its own only on printers where you turned auto-start on. The geometry is deterministic — silhouettes carve a voxel grid, the grid becomes the mesh and the drawing — and the same occupancy grid accepts depth and LiDAR input, so it is the building block a scanner plugs into.",
+      "description": "Scans and 3D-prints objects. 3D printers only; it cannot print paper documents. Photograph an object from its six sides (or film it, or import a LiDAR point cloud), enter one ruler measurement, and get a third-angle engineering drawing with overall dimensions, a watertight STL/OBJ you can rotate in the browser, and a one-click job on your own OctoPrint, Klipper/Moonraker, PrusaLink or Bambu Lab printer (sliced for that printer by a bundled OrcaSlicer engine and sent over your home network). The same printers are a swarm print service any agent or app can call, starting a print on its own only on printers where you turned auto-start on. The geometry is deterministic — silhouettes carve a voxel grid, the grid becomes the mesh and the drawing — and the same occupancy grid accepts depth and LiDAR input, so it is the building block a scanner plugs into.",
       "version": "0.7.0",
       "dependencies": {
         "apps": [],
@@ -2774,6 +2792,12 @@
         ],
         "tools": [],
         "connectors": [],
+        "bots": [
+          {
+            "app": "purchasing",
+            "name": "shopping-concierge"
+          }
+        ],
         "required": {
           "apps": [
             "purchasing",
@@ -2786,6 +2810,12 @@
             "presentations",
             "calendar",
             "circuit-lab"
+          ],
+          "bots": [
+            {
+              "app": "purchasing",
+              "name": "shopping-concierge"
+            }
           ],
           "tools": [],
           "connectors": []
@@ -2837,6 +2867,12 @@
         ],
         "tools": [],
         "connectors": [],
+        "bots": [
+          {
+            "app": "email-summarizer",
+            "name": "communications-bot"
+          }
+        ],
         "required": {
           "apps": [
             "presentations",
@@ -2857,6 +2893,12 @@
             "private-app-2",
             "intelligent-sales",
             "private-app-3"
+          ],
+          "bots": [
+            {
+              "app": "email-summarizer",
+              "name": "communications-bot"
+            }
           ],
           "tools": [],
           "connectors": []
@@ -2957,6 +2999,11 @@
           "vids",
           "creative-studio",
           "scan-to-print",
+          "brand-graphics",
+          "motion-studio",
+          "publishing-studio",
+          "pdf-workbench",
+          "scene-studio",
           "storage",
           "career-hunter",
           "dnd",
@@ -3001,6 +3048,11 @@
             "vids",
             "creative-studio",
             "scan-to-print",
+            "brand-graphics",
+            "motion-studio",
+            "publishing-studio",
+            "pdf-workbench",
+            "scene-studio",
             "storage",
             "career-hunter",
             "dnd",
@@ -3070,6 +3122,11 @@
           "vids",
           "creative-studio",
           "scan-to-print",
+          "brand-graphics",
+          "motion-studio",
+          "publishing-studio",
+          "pdf-workbench",
+          "scene-studio",
           "storage",
           "career-hunter",
           "dnd",
@@ -3083,6 +3140,12 @@
         ],
         "tools": [],
         "connectors": [],
+        "bots": [
+          {
+            "app": "jarvis",
+            "name": "oshal-assistant"
+          }
+        ],
         "required": {
           "apps": [
             "home",
@@ -3114,6 +3177,11 @@
             "vids",
             "creative-studio",
             "scan-to-print",
+            "brand-graphics",
+            "motion-studio",
+            "publishing-studio",
+            "pdf-workbench",
+            "scene-studio",
             "storage",
             "career-hunter",
             "dnd",
@@ -3124,6 +3192,12 @@
             "private-app-2",
             "intelligent-sales",
             "private-app-3"
+          ],
+          "bots": [
+            {
+              "app": "jarvis",
+              "name": "oshal-assistant"
+            }
           ],
           "tools": [],
           "connectors": []
@@ -3183,6 +3257,11 @@
           "vids",
           "creative-studio",
           "scan-to-print",
+          "brand-graphics",
+          "motion-studio",
+          "publishing-studio",
+          "pdf-workbench",
+          "scene-studio",
           "storage",
           "career-hunter",
           "dnd",
@@ -3227,6 +3306,11 @@
             "vids",
             "creative-studio",
             "scan-to-print",
+            "brand-graphics",
+            "motion-studio",
+            "publishing-studio",
+            "pdf-workbench",
+            "scene-studio",
             "storage",
             "career-hunter",
             "dnd",
@@ -3296,6 +3380,11 @@
           "vids",
           "creative-studio",
           "scan-to-print",
+          "brand-graphics",
+          "motion-studio",
+          "publishing-studio",
+          "pdf-workbench",
+          "scene-studio",
           "storage",
           "career-hunter",
           "dnd",
@@ -3340,6 +3429,11 @@
             "vids",
             "creative-studio",
             "scan-to-print",
+            "brand-graphics",
+            "motion-studio",
+            "publishing-studio",
+            "pdf-workbench",
+            "scene-studio",
             "storage",
             "career-hunter",
             "dnd",
@@ -3371,6 +3465,283 @@
         "sourceSha": "0000000000000000000000000000000000000000"
       },
       "status": "ready"
+    },
+    {
+      "name": "intelligent-operations",
+      "suite": "ai-engineering",
+      "displayName": "Intelligent Operations",
+      "description": "Incident tickets run a root-cause pipeline: the RCA specialist investigates from the ticket's evidence, a reviewer checks the report, the specialist revises it. Remediation is proposed for an operator to run, never applied automatically.",
+      "version": "1.0.2",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [],
+        "required": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        },
+        "optional": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        }
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "intelligent-operations",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/intelligent-operations.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "ready"
+    },
+    {
+      "name": "intelligent-processing",
+      "suite": "ai-engineering",
+      "displayName": "Intelligent Processing",
+      "description": "A queue for self-monitoring alerts that need a root cause, run on Intelligent Operations' RCA pipeline. Tickets are filed by hand on the native kernel.",
+      "version": "1.0.1",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [
+          "intelligent-operations"
+        ],
+        "tools": [],
+        "connectors": [],
+        "bots": [
+          {
+            "app": "intelligent-operations",
+            "name": "ops-rca-specialist"
+          },
+          {
+            "app": "intelligent-operations",
+            "name": "ops-incident-reviewer"
+          }
+        ],
+        "required": {
+          "apps": [
+            "intelligent-operations"
+          ],
+          "bots": [
+            {
+              "app": "intelligent-operations",
+              "name": "ops-rca-specialist"
+            },
+            {
+              "app": "intelligent-operations",
+              "name": "ops-incident-reviewer"
+            }
+          ],
+          "tools": [],
+          "connectors": []
+        },
+        "optional": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        }
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "intelligent-processing",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/intelligent-processing.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "ready"
+    },
+    {
+      "name": "capability-ideation",
+      "suite": "ai-productivity",
+      "displayName": "Capability Ideation",
+      "description": "A ticket queue for Capability Ideator: describe a business process and get up to three sourced tool or integration proposals; opens Capability Ideator's review screen.",
+      "version": "1.0.0",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [
+          "capability-ideator"
+        ],
+        "tools": [],
+        "connectors": [],
+        "bots": [
+          {
+            "app": "capability-ideator",
+            "name": "capability-ideator"
+          }
+        ],
+        "required": {
+          "apps": [
+            "capability-ideator"
+          ],
+          "bots": [
+            {
+              "app": "capability-ideator",
+              "name": "capability-ideator"
+            }
+          ],
+          "tools": [],
+          "connectors": []
+        },
+        "optional": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        }
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "capability-ideation",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/capability-ideation.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "ready"
+    },
+    {
+      "name": "codex-packer",
+      "suite": "ai-engineering",
+      "displayName": "Bot Forge",
+      "description": "An interview that drafts a single-purpose application (manifest plus persona) for the operator to commit and install from App Loader.",
+      "version": "1.2.0",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [],
+        "required": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        },
+        "optional": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        }
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "codex-packer",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/codex-packer.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "ready"
+    },
+    {
+      "name": "motion-studio",
+      "suite": "ai-creative",
+      "displayName": "Motion Studio",
+      "description": "Edit original-owned motion compositions with layers, captions, keyframes, masks and photos. Preview frames, render verified MP4 or transparent PNG sequences, export editable native JSON, and link owned renders to Video with their exact editable source. Live installed acceptance and broader upstream fidelity remain separately tracked.",
+      "version": "0.1.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [],
+        "required": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        },
+        "optional": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        }
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "motion-studio",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/motion-studio.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "ready"
+    },
+    {
+      "name": "pdf-workbench",
+      "suite": "ai-creative",
+      "displayName": "PDF Workbench",
+      "description": "Owned PDF page organization, annotations, supported AcroForm filling and explicit OCR. Preserves original files and saves new derivative revisions.",
+      "version": "0.1.0",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [],
+        "required": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        },
+        "optional": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        }
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "pdf-workbench",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/pdf-workbench.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "pending"
+    },
+    {
+      "name": "publishing-studio",
+      "suite": "ai-creative",
+      "displayName": "Publishing Studio",
+      "description": "Original-owned bounded English print layouts, linked stories, styles, masters and native Typst PDF/PNG output.",
+      "version": "0.1.0",
+      "theme": "midnight",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [],
+        "required": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        },
+        "optional": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        }
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "publishing-studio",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/publishing-studio.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "pending"
     }
   ]
 }

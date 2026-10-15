@@ -7,6 +7,7 @@ exports.createHomeSummaryRoutes = createHomeSummaryRoutes;
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Count the records the production recap actually writes. The tiles counted `workflow_runs` for ticket_type 'daily-trade-recap', but the nightly recap is a host scheduled task that creates no ticket and no workflow run, so every tile read 0 on a good night and a bad one alike - there has never been a single row of that type. Home now reads the two records the pipeline really leaves behind: a trading session in `oshal_trading_daily_equity` (written by the trading schedule, independent of the recap) and the day's published-report row in `oshal_trading_strategy_journal` (written by the recap's own publish step). A recorded recap moves a tile, a session that finished the day with no recap is counted and named as an item, and the ticket path's own `approval_required` backlog - the June tickets the workflow-run states could never see - is counted and listed. A market holiday records no session, so it raises nothing.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The empty state said 'Open the app to begin.' though Recap Review is this application's only screen. It now says where sessions come from (Intelligent Trades' schedule) and that each closed session's recap shows here. Guard: tests/review-copy.test.cjs.
  */
 /** Saved daily-trade-recap evidence. GET is owner-scoped, bounded, and side-effect free. */
 const express_1 = require("express");
@@ -57,7 +58,7 @@ function createHomeSummaryRoutes(ctx) {
         if (failed)
             items.push({ text: 'Some saved sources cannot be checked.', tone: 'warn', fix: "recap-review" });
         else if (!items.length)
-            items.push({ text: 'No recorded trading session in the window. Open the app to begin.', tone: 'neutral', fix: "recap-review" });
+            items.push({ text: 'No trading session recorded in the last 7 days. Sessions come from Intelligent Trades\' schedule; each closed session\'s recap shows here.', tone: 'neutral', fix: "recap-review" });
         items.push({ text: "Counts exact-owner Eastern trading days: sessions recorded by the trading schedule, published reports recorded by the recap pipeline, and recap tickets parked at their approval gate. Today is excluded because the after-close recap has not run yet. A recorded report is not proof that an email arrived or a video was published. Review actions prepare a production handoff; Home never reruns the existing render/email pipeline.", tone: 'neutral', fix: "recap-review" });
         res.status(failed === result.length ? 503 : 200).json({ metrics, tiles: metrics, items, asOf: now.toISOString(), partial: failed > 0 });
     });

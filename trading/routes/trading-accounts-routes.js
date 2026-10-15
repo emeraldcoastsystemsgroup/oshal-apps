@@ -23,6 +23,8 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-134 pin retirement: GET /summary's double-count guard no longer reads SCHWAB_ACCOUNT_NUMBER. The kernel adapter's unbound rule is now single-account-or-refuse, so the ONLY state in which the legacy 'live' row still stands for a discovered account is: that book is UNBOUND and the login discovered exactly ONE Schwab account. The skip is now computed from those two facts (books.account_id IS NULL + the account count) instead of a last4 match against an env pin that no longer exists. On a multi-account login an unbound legacy book renders the adapter's refusal as this row's `error` - an honest row rather than another account's money.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The arming acknowledgement (BACKLOG "Arming a second autopilot leg is a deliberate, gated act"). POST /accounts/books/:bookId/arm-ack records - or withdraws - the acknowledgement the kernel dispatch now requires before an autopilot leg pinned to a NON-LEGACY book may fire, and GET /accounts books[] carries armAckRequired/armAckAt/armAckBy so the surface can say whether an account is armed. It is a route of its own rather than another field on PATCH: `enabled` says this book may take risk, the acknowledgement says the operator has read what an armed leg does to an account whose positions the engine did not open, and one PATCH carrying both would collapse the very distinction the gate exists to hold. Recording is confirm-gated like every other risk action here; WITHDRAWING is not, because it can only ever stop a leg.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | ADR-052 addendum (paper-to-live parity): the three parity knobs — marketGapFilterPct, exitPlanSessions, yieldSleeveFloatPct — reach a book only through the confirm-gated applies, normalized by the kernel's own normalizeConfig (parityKnobsOf: absent or junk = inherit the book's env default, a number clamped to the kernel's range, 0 = an explicit off). POST /strategy normalized them already on its strategyId path; its full-snapshot body path now overlays the normalized knobs instead of storing whatever was posted. POST /mix accepts them beside the mix keys and normalizes the merged snapshot's knobs, so an edit that does not name a knob keeps the applied strategy's value. Both paths are still 428 without confirm:true before any read.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | Rail guard: the accounts summary and discovery reads ask railConfigured(reader) instead of calling reader.configured() directly, so a reader with no configured() probe (the native kernel bridge) reports broker_not_configured for that book instead of failing the request.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | The native paper book on the landing: on the native kernel the book store lists no books, so GET /accounts and GET /summary answered an empty roster and $0 ("No accounts yet - connect a Schwab login") while the person's paper book held $100,000. GET /accounts now lists that paper book (paper/landing.js rosterBook) and GET /summary carries its balances, day change and held names in the total and the positions rollup, or says it has not been started. A host that lists a stored paper book, or whose paper rail is connected, keeps its answers exactly.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PARITY_KNOBS = void 0;
@@ -40,6 +42,10 @@ const trading_strategy_lab_store_1 = require("@/app/trading-strategy-lab-store")
 const trading_strategy_lab_sim_1 = require("@/app/trading-strategy-lab-sim");
 const trading_daily_equity_store_1 = require("@/app/trading-daily-equity-store");
 const trading_strategy_journal_1 = require("@/app/trading-strategy-journal");
+const trading_rail_guard_1 = require("./trading-rail-guard");
+const screen_1 = require("./paper/screen");
+const landing_1 = require("./paper/landing");
+const trading_native_reads_1 = require("./trading-native-reads");
 const logger = (0, logger_1.createChildLogger)({ module: 'trading-accounts-routes' });
 /** The ADR-052 paper-to-live parity knobs a per-book apply carries (the dispatch reads each through one resolver). */
 exports.PARITY_KNOBS = ['marketGapFilterPct', 'exitPlanSessions', 'yieldSleeveFloatPct'];
@@ -84,6 +90,29 @@ function fail(res, err) {
  * @param ctx - Package app context.
  */
 function registerTradingAccountRoutes(router, ctx) {
+    /** Read-only evidence for reconciliation; never accepts a subject, URL or real account number. */
+    router.get('/reconciliation/history', async (req, res) => {
+        const s = sub(req, res);
+        if (!s)
+            return;
+        if (!(0, trading_native_reads_1.nativeSchwabReads)()) {
+            res.status(503).json({ error: 'history_unavailable', message: 'Native execution history is unavailable on this host.' });
+            return;
+        }
+        const { accountId, connection, from, to } = req.query;
+        if (![accountId, connection, from, to].every(value => typeof value === 'string' && value.length > 0 && value.length <= 200)) {
+            res.status(400).json({ error: 'history_input_required', message: 'Select an account, its connection, and a bounded history window.' });
+            return;
+        }
+        try {
+            res.setHeader('Cache-Control', 'no-store');
+            res.json(await (0, trading_native_reads_1.readNativeHistory)(ctx, { accountId: accountId, connection: connection, from: from, to: to }));
+        }
+        catch (err) {
+            logger.error({ err }, 'native execution history read failed');
+            res.status(502).json({ error: 'history_read_failed', message: 'Schwab execution history could not be verified. No reconciliation or ledger changes were made.' });
+        }
+    });
     /** GET /accounts — the roster: discovered accounts LEFT-joined with their books, plus link
      *  state. connectionMissing flags a book whose login's connection row is gone (a dropped Schwab
      *  login otherwise fail-closed-skips every fire invisibly — the watchdog counts these). */
@@ -93,7 +122,9 @@ function registerTradingAccountRoutes(router, ctx) {
             return;
         try {
             await (0, trading_books_store_1.ensureLegacyBooks)(ctx.pool, s);
-            const [accounts, books] = await Promise.all([(0, trading_accounts_store_1.listAccounts)(ctx.pool, s), (0, trading_books_store_1.listBooks)(ctx.pool, s)]);
+            const native = (0, trading_native_reads_1.nativeSchwabReads)() ? await (0, trading_native_reads_1.readNativeAccounts)(ctx) : null;
+            const [storedAccounts, books] = await Promise.all([(0, trading_accounts_store_1.listAccounts)(ctx.pool, s), (0, trading_books_store_1.listBooks)(ctx.pool, s)]);
+            const accounts = native ? native.accounts.map(a => ({ ...a, book: null, nativeReadOnly: true })) : storedAccounts;
             const conns = (await ctx.pool.query(`SELECT DISTINCT account_key FROM oshal_connections WHERE user_sub=$1 AND provider='schwab'`, [s])).rows;
             const liveKeys = new Set(conns.map((r) => String(r.account_key || 'default')));
             const bookByAccount = new Map();
@@ -114,13 +145,15 @@ function registerTradingAccountRoutes(router, ctx) {
             WHERE b.user_sub = $1`, [s])).rows
                 .map((r) => [String(r.book_id), { label: String(r.label), last4: r.account_last4 ? String(r.account_last4) : null }]));
             res.json({
-                multiAccountEnabled: (0, trading_books_store_1.multiAccountEnabled)(),
+                multiAccountEnabled: native ? false : (0, trading_books_store_1.multiAccountEnabled)(),
+                nativeReadOnly: Boolean(native),
+                errors: native?.errors || [],
                 accounts: accounts.map((a) => {
                     const book = bookByAccount.get(a.accountId) ?? null;
                     return {
                         ...a,
                         book: book ? { bookId: book.bookId, ref: book.ref, label: labels.get(book.bookId)?.label ?? book.ref, enabled: book.enabled } : null,
-                        connectionMissing: !liveKeys.has(a.connectionKey),
+                        connectionMissing: native ? false : !liveKeys.has(a.connectionKey),
                     };
                 }),
                 books: books.map((b) => ({
@@ -132,7 +165,7 @@ function registerTradingAccountRoutes(router, ctx) {
                     // The arming gate, so the surface can say "armed" / "not armed yet" rather than implying
                     // that a book being enabled is the same thing as a leg being allowed to fire for it.
                     armAckRequired: (0, trading_books_store_1.requiresArmAcknowledgement)(b), armAckAt: b.armAckAt ?? null, armAckBy: b.armAckBy ?? null,
-                })),
+                })).concat(await nativePaperRoster(ctx, s, books)),
             });
         }
         catch (err) {
@@ -145,7 +178,12 @@ function registerTradingAccountRoutes(router, ctx) {
         if (!s)
             return;
         try {
-            res.json(await (0, trading_accounts_store_1.discoverBrokerAccounts)(ctx.pool, s));
+            if ((0, trading_native_reads_1.nativeSchwabReads)()) {
+                const result = await (0, trading_native_reads_1.readNativeAccounts)(ctx);
+                res.json({ accounts: result.accounts.length, connections: new Set(result.accounts.map(a => a.connectionKey)).size, errors: result.errors.map(e => e.message), nativeReadOnly: true });
+            }
+            else
+                res.json(await (0, trading_accounts_store_1.discoverBrokerAccounts)(ctx.pool, s));
         }
         catch (err) {
             fail(res, err);
@@ -159,6 +197,10 @@ function registerTradingAccountRoutes(router, ctx) {
         const b = (req.body || {});
         if (b.confirm !== true) {
             res.status(428).json({ error: 'confirm_required', message: 'Creating a live trading book requires confirm:true.' });
+            return;
+        }
+        if ((0, trading_native_reads_1.nativeSchwabReads)()) {
+            res.status(503).json({ error: 'native_live_book_unavailable', message: 'Schwab accounts are available for viewing. Live book creation and trading are not enabled on this installation.' });
             return;
         }
         if (!b.accountId || !b.label) {
@@ -424,7 +466,7 @@ function registerTradingAccountRoutes(router, ctx) {
                         continue;
                     }
                     const reader = (0, trading_1.getBrokerReader)(book.kind, s, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
-                    if (!reader.configured()) {
+                    if (!(0, trading_rail_guard_1.railConfigured)(reader)) {
                         rows.push({ bookId: book.bookId, ref: book.ref, kind: book.kind, error: 'broker_not_configured' });
                         continue;
                     }
@@ -454,6 +496,18 @@ function registerTradingAccountRoutes(router, ctx) {
                     rows.push({ bookId: listed.bookId, ref: listed.ref, kind: listed.kind, error: err.message.slice(0, 200) });
                 }
             }
+            // The native paper book is not a stored book: its row and held names come from its own tables.
+            const paper = await nativePaperSummary(ctx, s, books);
+            if (paper) {
+                rows.push(paper.row);
+                if (paper.row.equity != null)
+                    totalValue += paper.row.equity;
+                if (paper.row.dayChange != null) {
+                    totalDayChange += paper.row.dayChange;
+                    sawDayChange = true;
+                }
+                addToRollup(rollup, 'paper', paper.positions);
+            }
             // Discovered-but-UNBOOKED accounts (ADR-134 R6 amendment): Schwab's own summary shows every
             // account under the login, so ours does too — read-only rows flagged notTrading, in the
             // totals. Binding decrypts at point of use; a per-row failure degrades to an error entry.
@@ -480,7 +534,7 @@ function registerTradingAccountRoutes(router, ctx) {
                     try {
                         const num = await (0, connector_token_crypto_1.decryptToken)(ctx.pool, s, String(a.account_number_enc));
                         const reader = (0, trading_1.getBrokerReader)('live', s, { accountNumber: num, connectionKey: a.connection_key ? String(a.connection_key) : null });
-                        if (!reader.configured())
+                        if (!(0, trading_rail_guard_1.railConfigured)(reader))
                             continue;
                         const account = await reader.getAccount();
                         totalValue += account.equity;
@@ -496,6 +550,8 @@ function registerTradingAccountRoutes(router, ctx) {
                     }
                 }
             }
+            if ((0, trading_native_reads_1.nativeSchwabReads)())
+                totalValue += (0, trading_native_reads_1.appendNativeSummary)(await (0, trading_native_reads_1.readNativeAccounts)(ctx), rows, rollup);
             res.json({
                 totalValue, totalDayChange: sawDayChange ? totalDayChange : null,
                 accounts: rows,
@@ -508,6 +564,46 @@ function registerTradingAccountRoutes(router, ctx) {
     });
 }
 /**
+ * @description The native paper book's roster entry: one entry on the native kernel when the store lists no paper
+ * book and the paper rail is not connected, none otherwise.
+ * @param ctx - App context.
+ * @param s - Caller sub.
+ * @param books - The books the store listed.
+ * @returns Zero or one books[] entries.
+ */
+async function nativePaperRoster(ctx, s, books) {
+    const landing = await (0, landing_1.paperLanding)(ctx, s, books, (0, screen_1.readerConnected)(() => (0, trading_1.getBrokerReader)('paper', s)));
+    return landing ? [(0, landing_1.rosterBook)(landing)] : [];
+}
+/**
+ * @description The native paper book's /summary row and held names, or null when the existing answer stands.
+ * @param ctx - App context.
+ * @param s - Caller sub.
+ * @param books - The books the store listed.
+ * @returns {row, positions} or null.
+ */
+async function nativePaperSummary(ctx, s, books) {
+    const landing = await (0, landing_1.paperLanding)(ctx, s, books, (0, screen_1.readerConnected)(() => (0, trading_1.getBrokerReader)('paper', s)));
+    return landing ? (0, landing_1.summaryOf)(landing, new Date()) : null;
+}
+/**
+ * @description Add one book's positions to the cross-account rollup.
+ * @param rollup - symbol → rollup row (mutated).
+ * @param ref - The book's ref.
+ * @param positions - The book's positions.
+ * @returns Nothing.
+ */
+function addToRollup(rollup, ref, positions) {
+    for (const p of positions) {
+        const key = p.symbol.toUpperCase();
+        const cur = rollup.get(key) ?? { symbol: key, qty: 0, marketValue: 0, perBook: [] };
+        cur.qty += p.qty;
+        cur.marketValue += p.marketValue;
+        cur.perBook.push({ ref, qty: p.qty, marketValue: p.marketValue });
+        rollup.set(key, cur);
+    }
+}
+/**
  * @description Resolve a route's book param the shared way (re-exported for the builder modules'
  * resolveMode→resolveBook conversion).
  * @param ctx - App context.
@@ -518,4 +614,3 @@ function registerTradingAccountRoutes(router, ctx) {
 async function routeBook(ctx, s, req) {
     return (0, trading_routes_helpers_1.resolveBook)(ctx.pool, s, req.query.book ?? req.query.mode);
 }
-//# sourceMappingURL=trading-accounts-routes.js.map

@@ -3,6 +3,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise actual HTTP identity, validation and permission boundaries with a strict non-writing database double.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The permissions report now carries the separately named generate action; deny it with the other write actions here.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -94,4 +95,16 @@ test('a failed rollback discards the connection and returns a bounded unavailabl
   const api = await startApi(t, pool), result = await api.call('/projects');
   assert.equal(result.status, 503); assert.deepEqual(result.body, { error: 'project_service_unavailable' });
   assert.deepEqual(released, [true]); assert.match(result.headers.get('cache-control'), /no-store/);
+});
+
+test('agent edits need both read and change before decoding a body; contract does no private query', async t => {
+ for(const permission of ['project.read','project.change']) {
+  const pool=emptyPool(),api=await startApi(t,pool,{denied:[permission]});
+  assert.equal((await api.call(`/projects/${ID}/operations`,'POST',{id:ID,baseRevision:1,operations:[]})).status,403);
+  assert.equal(pool.queries.length,0);
+ }
+ const pool=emptyPool(),api=await startApi(t,pool);
+ const contract=await api.call('/editing-contract');assert.equal(contract.status,200);assert.equal(contract.body.editor,'create');assert.equal(pool.queries.length,0);
+ assert.equal((await api.call(`/projects/${ID}/operations`,'POST',{id:'00000000-0000-4000-8000-000000000002',baseRevision:1,operations:[]})).status,400);
+ assert.equal((await api.call('/agent-projects','POST',{title:'x',owner:'bob'})).status,400);assert.equal(pool.queries.length,0);
 });

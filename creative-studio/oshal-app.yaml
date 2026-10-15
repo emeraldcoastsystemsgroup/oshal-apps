@@ -1,5 +1,6 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Import the shared rendering worker from its single owner, vids, instead of overwriting bot ownership.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Name the screen's concierge (chatBot: vids-operator, the required vids bot this app already imports) so the shell offers a live conversation beside the Creative Studio screen; it declared no bot or chatBot, so its concierge panel was hidden.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — creative-studio ("Creative Studio")
@@ -25,6 +26,7 @@
 
 name: creative-studio
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
+chatBot: vids-operator # Concierge the shell offers beside this screen (resolved through its owning application).
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
 # After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
 rating:

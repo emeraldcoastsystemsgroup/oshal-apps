@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Native provisioning: declare migrations/native/001-lora.sql (every LoRA table and index in final shape, with 102's identity columns, 106's issuer columns and 101's model foreign key folded in) and skip 058 and 100-106 natively: 058 seeds a character owned by system:seed:lora, which the native owner-field check refuses, sets NOT NULL by ALTER and installs RLS policies, and 102's comment carries an escaped quote; the declared migrations stayed pending for every person. PostgreSQL still applies 058-106 and the native file is a no-op there.
+# -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — lora ("LoRA Studio")
 # Carved out of OSHAL core 2026-07-17 (ADR-085 Wave 1 carve #3).
@@ -109,8 +115,17 @@ uses:
   # verifier (routes/lora-ingest-routes.js) and run as the grant owner the kernel refreshes; a core
   # without the rail refuses this package instead of refusing every worker request at runtime.
   - signed-package-callbacks
+  - experience-roles
 
-authorization: { version: 1, catalog: authorization.yaml }
+authorization:
+  version: 1
+  catalog: authorization.yaml
+  roleTemplates:
+    - id: trainer
+      version: 1
+      label: LoRA Trainer
+      members:
+        - { app: lora, role: trainer }
 
 testing:
   version: 1
@@ -235,6 +250,33 @@ migrations:
   - migrations/104-lora-dataset-staging.sql
   - migrations/105-lora-callback-grants.sql
   - migrations/106-lora-callback-identity.sql
+  - migrations/native/001-lora.sql
+# The native kernel applies the native file above in place of 058 and 100-106 (seed owner, backfills, comments and RLS policies are PostgreSQL-only).
+nativeMigrations:
+  - id: migrations/058-lora-studio.sql
+    native: skip
+    reason: "Its tables and indexes are in migrations/native/001-lora.sql; its system:seed:lora sample character has no person to own it in a native scope, and its backfill, SET NOT NULL and RLS policies are PostgreSQL-only; the native per-person scope and its owner-field check keep each person's characters their own."
+  - id: migrations/100-lora-owner-rls.sql
+    native: skip
+    reason: "It repeats 058's owner backfill, SET NOT NULL and owner index (native 001 declares owner_sub NOT NULL and the index from the start) and installs RLS policies, which are PostgreSQL-only."
+  - id: migrations/101-lora-cell-images.sql
+    native: skip
+    reason: "Its table, indexes and model foreign key are in migrations/native/001-lora.sql; its RLS policy is PostgreSQL-only."
+  - id: migrations/102-lora-character-identity.sql
+    native: skip
+    reason: "Its three identity columns are in migrations/native/001-lora.sql; its backfill touches only the PostgreSQL seed character and its comments are documentation."
+  - id: migrations/103-lora-dataset-images.sql
+    native: skip
+    reason: "Its table and index are in migrations/native/001-lora.sql; its RLS policy is PostgreSQL-only."
+  - id: migrations/104-lora-dataset-staging.sql
+    native: skip
+    reason: "Its table and index are in migrations/native/001-lora.sql; its RLS policy is PostgreSQL-only."
+  - id: migrations/105-lora-callback-grants.sql
+    native: skip
+    reason: "Its tables and index are in migrations/native/001-lora.sql; its RLS policies are PostgreSQL-only."
+  - id: migrations/106-lora-callback-identity.sql
+    native: skip
+    reason: "Its two issuer columns are in migrations/native/001-lora.sql."
 
 # WORKFLOW — training tickets of type 'lora-train' route to the director, which authorizes the
 # box-side kohya run via the worker node's gated shell.exec (lora-train-dispatch, vendored).

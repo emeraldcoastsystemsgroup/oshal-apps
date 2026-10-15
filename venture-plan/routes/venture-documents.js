@@ -28,12 +28,15 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — the computed posture header, figure/table/assumption/prose section rendering, the throw-on-missing-required-figure rule, the assumption register and its CSV projection, and the model-table builder that freezes engine results into a snapshot.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | A prose section's {{fig:id}} tokens are rendered against the snapshot's figures. The strategist writes every number as a token (personas/venture-strategist.yaml NARRATE), but proseSection printed the prose verbatim, so live the Executive summary read "a blended shelf price of {{fig:demand.priceMicros}}" and plan.docx carried 11 raw tokens. A section that names a figure the model did not compute is rejected and says so in place of the prose, as the persona states, instead of printing a hole or failing the whole document. The numeral check still runs on the prose as written (a token is a cited figure, not an unverified number).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Sweep 14: a rejected section showed the machine name the draft cited ("named a figure the model did not compute (ledger.ledger.softMoneyCount)"). The note now says it in words: a cited name that is a computed figure's id under a doubled or shortened prefix is named by that figure's label, any other is "a figure the model did not compute". Guard: tests/venture-figure-units.test.js.
  *
  * @module venture-documents
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MissingFiguresError = void 0;
 exports.postureHeader = postureHeader;
+exports.proseSection = proseSection;
 exports.renderDocument = renderDocument;
 exports.renderRegisterCsv = renderRegisterCsv;
 exports.buildTables = buildTables;
@@ -181,14 +184,47 @@ function assumptionSection(s, heading, domains, cited) {
     }
     return `## ${heading}\n\n${out.join('\n')}\n`;
 }
-/** Render one prose section, or say plainly that nobody has written it. */
+/**
+ * @description Render one prose section, or say plainly that nobody has written it.
+ *
+ * The strategist writes numbers as `{{fig:id}}` tokens, so the reader sees the engine's formatted
+ * value and never a number the model typed. A token naming a figure the model did not compute
+ * rejects the section: it says which figure in place of the prose, because a blank where a number
+ * should be is indistinguishable from a zero.
+ *
+ * @param s - The render sources (prose and figures).
+ * @param heading - The section heading.
+ * @param proseKey - The prose key the section reads.
+ * @returns The section markdown.
+ */
 function proseSection(s, heading, proseKey) {
     const text = s.prose[proseKey];
     if (!text) {
         return `## ${heading}\n\n*Not written. Ask for narration on this document to have the strategist `
             + 'draft it over the computed model.*\n';
     }
-    return `## ${heading}\n\n${text}\n`;
+    try {
+        return `## ${heading}\n\n${(0, venture_figures_1.renderFigureTokens)(text, s.figures)}\n`;
+    }
+    catch (err) {
+        if (!(err instanceof venture_figures_1.MissingFigureError))
+            throw err;
+        return `## ${heading}\n\n*Not written: the strategist's draft ${misnamedFigure(err.figureId, s.figures)}, `
+            + 'so the section was rejected rather than printed with a hole in it. Press Regenerate prose to have it written again.*\n';
+    }
+}
+/**
+ * @description What a rejected section's draft cited, in words. Sweep 14: the section read "named a figure the model did not
+ * compute (ledger.ledger.softMoneyCount)", a machine name with its prefix doubled by the writer. A cited name that ends with,
+ * or is the tail of, a computed figure's id is that figure under a wrong name and is said by its label; any other is a figure
+ * the model did not compute. No id reaches the reader.
+ * @param cited - The id the draft's token named.
+ * @param figures - The snapshot's figures.
+ * @returns The clause naming what was cited.
+ */
+function misnamedFigure(cited, figures) {
+    const near = Object.values(figures || {}).find((f) => f && (cited.endsWith(`.${f.id}`) || f.id.endsWith(`.${cited}`)));
+    return near ? `cited \u201c${near.label}\u201d under a name the model does not use` : 'cited a figure the model did not compute';
 }
 /**
  * @description Render one document from a computed snapshot.

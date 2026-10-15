@@ -47,12 +47,17 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Add GET /symbols/search (400 query_required, limit capped 25, searchSymbols over the market-wide asset directory — no book) and GET /reports/movers (kind ∈ winners|losers|volatile|active, 400 kind_invalid, limit default 15/cap 50) over the honest bounded universe DEFAULT_UNIVERSE ∪ the caller's watchlist — one daily-bar batch fetch of 30 bars, the PURE computeMovers ranking (trading-movers.ts), best-effort per-row names, an empty batch → an honest empty board with a note, never a fabricated row.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Project feed-only congressional world_metrics points into each caller's owner-scoped watchlist, preserving the Quiver source and disclosure date; unavailable world data stays explicitly unavailable.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | GET /reports/congress lists the names the congressional disclosure feed reported lately (core recentFeedMetricPoints, bounded: limit default 25 / cap 100, 90-day window), each with its disclosure date and when the collector observed it, newest disclosure first. It sits under /reports because /research/:symbol would swallow /research/congress. The surface's Add button posts the existing POST /watchlist with the symbol only, so a watchlist row never stores a holding. The projection now also requires a recorded observedAt: rows written before core recorded it were keyed on the trade day and must not be labelled "disclosed". A core without the read answers 'unavailable', never an error.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Rail guard: the research quote and GET /watchlist quotes ask railConfigured(md) instead of calling md.configured(). The native kernel bridge answers getMarketData with {}, so a watchlist with any symbol answered 502 "md.configured is not a function"; it now answers 200 with every symbol and quote null, the honest state when no market-data source is connected.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | Say why a research section is unavailable, and price from the archive when there is no market-data rail. The report carries `reasons` (section → sentence: the host's market_data_not_connected refusal, a refused outbound host, an EDGAR failure) beside `sections`, which the page printed only as a bare "unavailable". With no rail on the selected book, the research quote and the watchlist quotes read the kernel's World price archive (prices.latest via ctx.intent, trading-archive-quotes.js), labelled as a stored price with its own timestamp; a ticker the archive does not track says so.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | With no market-data rail, two more reads use the kernel's World price archive instead of showing nothing: the movers board ranks the universe and the watchlist by their stored day closes (archiveDailyBars: the latest stored price against the previous session's, labelled as the archive's and not live; names stay null, the asset directory is a market-data read), and the watchlist's Today column carries the same stored day change (archiveDayChanges) instead of a dash. A ticker the archive does not track has no row and no change; a failed archive read keeps the existing answers.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Movers distinguishes missing archived prices from insufficient session history without fabricating comparisons or volatility.
  *
  * @module trading-research-routes
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.projectCongressSignals = projectCongressSignals;
 exports.registerTradingResearchRoutes = registerTradingResearchRoutes;
+const trading_native_reads_1 = require("./trading-native-reads");
 const logger_1 = require("@/shared/logger");
 const database_1 = require("@/shared/services/database");
 const trading_1 = require("@/features/trading");
@@ -61,6 +66,8 @@ const trading_routes_helpers_1 = require("@/app/routes/trading-routes-helpers");
 const trading_pinned_lots_1 = require("@/app/trading-pinned-lots");
 const trading_movers_1 = require("./trading-movers");
 const trading_edgar_filings_1 = require("./trading-edgar-filings");
+const trading_rail_guard_1 = require("./trading-rail-guard");
+const trading_archive_quotes_1 = require("./trading-archive-quotes");
 const logger = (0, logger_1.createChildLogger)({ module: 'trading-research-routes' });
 const SYMBOL_RE = /^[A-Z.\-]{1,10}$/;
 /** News lookback for the research read (minutes) and the item cap. */
@@ -85,6 +92,9 @@ const MOVERS_SOURCE = 'oshal universe + your watchlist';
 const MOVERS_NOTE = 'End-of-last-session daily closes on the free IEX feed — not intraday real-time.';
 /** What an empty batch says instead of inventing rows. */
 const MOVERS_UNAVAILABLE_NOTE = 'Market data unavailable right now.';
+/** The movers board's source and note when it ranks the World archive's stored day closes. */
+const MOVERS_ARCHIVE_SOURCE = 'oshal universe + your watchlist (World price archive)';
+const MOVERS_ARCHIVE_NOTE = 'From oshal\'s World price archive (Yahoo chart, collected on its own schedule): each name\'s latest stored price against the previous session\'s last stored price. Not live quotes.';
 /** Ask the screener for more rows than the board shows, because the stated filters remove some. */
 const MOVERS_SCREENER_OVERFETCH = 3;
 /** What the screener board actually spans — printed beside the vendor's label, never implied. */
@@ -146,7 +156,7 @@ function fail(res, err, what) {
  * @param sections - The per-section state map this call writes into.
  * @returns The section's value or the fallback.
  */
-async function section(name, symbol, fallback, run, sections) {
+async function section(name, symbol, fallback, run, sections, reasons) {
     try {
         const value = await run();
         sections[name] = 'ok';
@@ -155,22 +165,36 @@ async function section(name, symbol, fallback, run, sections) {
     catch (err) {
         logger.error({ err, symbol, section: name }, 'research section failed — reported unavailable');
         sections[name] = 'unavailable';
+        if (reasons)
+            reasons[name] = (0, trading_archive_quotes_1.sectionReason)(name, err, trading_routes_helpers_1.TradingError);
         return fallback;
     }
 }
 /* ─── research sections ────────────────────────────────────────────────────── */
 /**
  * @description The latest print from THIS book's market-data rail with its exchange timestamp
- * (latestTrade), falling back to the freshness-blind latestPrice stamped now.
+ * (latestTrade), falling back to the freshness-blind latestPrice stamped now. With no rail, the
+ * World archive's last stored price (labelled) when the host has one, else the rail's refusal.
+ * @param ctx - App context (ctx.intent reaches the price archive).
  * @param book - The selected book.
  * @param s - Caller sub.
  * @param symbol - The ticker.
  * @returns The quote, or null when the rail is not configured or has no print.
  */
-async function quoteFor(book, s, symbol) {
+async function quoteFor(ctx, book, s, symbol) {
     const md = (0, trading_1.getMarketData)(book.kind, s);
-    if (!md.configured())
-        return null;
+    if (!(0, trading_rail_guard_1.railConfigured)(md)) {
+        if ((0, trading_archive_quotes_1.archiveAvailable)(ctx))
+            return (0, trading_archive_quotes_1.archiveQuote)(ctx, symbol, trading_routes_helpers_1.TradingError);
+        const reason = md?.notConnectedReason;
+        throw new trading_routes_helpers_1.TradingError(503, 'market_data_not_connected', reason || 'No market-data source is connected for this account.');
+    }
+    const native = md;
+    if (native.quoteDetails) {
+        const q = await native.quoteDetails(symbol);
+        const asOf = q.tradeAt || q.quoteAt;
+        return q.price != null && asOf ? { price: q.price, asOf, source: 'schwab', note: q.delayed ? 'Delayed Schwab quote.' : 'Schwab quote at the reported exchange time.' } : null;
+    }
     const tick = await md.latestTrade(symbol);
     if (tick)
         return { price: tick.price, asOf: new Date(tick.asOf).toISOString() };
@@ -248,27 +272,33 @@ async function earningsFor(symbol, resultsDates) {
     return { nextExpected: estimate, source: estimate ? 'cadence-estimate' : null, pastResults: resultsDates };
 }
 /**
- * @description Assemble the research report — every section guarded independently.
+ * @description Assemble the research report — every section guarded independently; `reasons`
+ * says in words why each unavailable section is unavailable.
+ * @param ctx - App context.
  * @param s - Caller sub.
  * @param book - The selected book (its rail prices the quote).
  * @param symbol - The ticker.
  * @returns The report.
  */
-async function researchSymbol(s, book, symbol) {
-    const sections = {};
+async function researchSymbol(ctx, s, book, symbol) {
+    const sections = {}, reasons = {};
     const [quote, fundamentals, news, filings] = await Promise.all([
-        section('quote', symbol, null, () => quoteFor(book, s, symbol), sections),
-        section('fundamentals', symbol, null, () => (0, trading_1.fundamentalsSummary)(symbol), sections),
-        section('news', symbol, [], () => (0, trading_1.recentNews)([symbol], NEWS_WINDOW_MIN, NEWS_LIMIT), sections),
-        section('filings', symbol, EMPTY_FILINGS, () => filingsFor(symbol), sections),
+        section('quote', symbol, null, () => quoteFor(ctx, book, s, symbol), sections, reasons),
+        section('fundamentals', symbol, null, () => (0, trading_1.fundamentalsSummary)(symbol), sections, reasons),
+        section('news', symbol, [], () => (0, trading_1.recentNews)([symbol], NEWS_WINDOW_MIN, NEWS_LIMIT), sections, reasons),
+        section('filings', symbol, EMPTY_FILINGS, () => filingsFor(symbol), sections, reasons),
     ]);
-    if (!quote)
+    if (!quote && sections.quote === 'ok') {
         sections.quote = 'unavailable';
-    if (!fundamentals)
+        reasons.quote = 'The market-data rail has no recent print for ' + symbol + '.';
+    }
+    if (!fundamentals && sections.fundamentals === 'ok') {
         sections.fundamentals = 'unavailable';
+        reasons.fundamentals = 'No fundamentals were returned for ' + symbol + '.';
+    }
     const noEarnings = { nextExpected: null, source: null, pastResults: filings.resultsDates };
-    const earnings = await section('earnings', symbol, noEarnings, () => earningsFor(symbol, filings.resultsDates), sections);
-    return { symbol, book: book.ref, quote, fundamentals, news, filings: filings.summary, events: (0, trading_edgar_filings_1.filingEvents)(filings.summary.recent8K), earnings, sections };
+    const earnings = await section('earnings', symbol, noEarnings, () => earningsFor(symbol, filings.resultsDates), sections, reasons);
+    return { symbol, book: book.ref, quote, fundamentals, news, filings: filings.summary, events: (0, trading_edgar_filings_1.filingEvents)(filings.summary.recent8K), earnings, sections, reasons };
 }
 /* ─── watchlist ────────────────────────────────────────────────────────────── */
 /**
@@ -287,19 +317,51 @@ async function ensureWatchlistSchema(pool) {
 }
 /**
  * @description Best-effort latest prices for the watchlist from the SELECTED book's rail. A symbol
- * whose read fails is logged and shown without a quote; dayChangePct stays null (see header).
+ * whose read fails is logged and shown without a quote; dayChangePct stays null (see header). With no
+ * rail, the World archive's last stored prices (labelled) when the host has the archive.
+ * @param ctx - App context.
  * @param book - The selected book.
  * @param s - Caller sub.
  * @param symbols - The watchlist symbols.
  * @returns symbol → quote (absent when unreadable).
  */
-async function watchlistQuotes(book, s, symbols) {
+async function watchlistQuotes(ctx, book, s, symbols) {
     const out = new Map();
     if (!symbols.length)
         return out;
     const md = (0, trading_1.getMarketData)(book.kind, s);
-    if (!md.configured())
+    if (!(0, trading_rail_guard_1.railConfigured)(md)) {
+        if (!(0, trading_archive_quotes_1.archiveAvailable)(ctx))
+            return out;
+        try {
+            const upper = symbols.map((x) => x.toUpperCase());
+            const [quotes, changes] = await Promise.all([(0, trading_archive_quotes_1.archiveQuotes)(ctx, upper), (0, trading_archive_quotes_1.archiveDayChanges)(ctx, upper).catch(() => new Map())]);
+            for (const [symbol, q] of quotes)
+                out.set(symbol, { ...q, dayChangePct: changes.get(symbol) ?? null });
+        }
+        catch (err) {
+            logger.error({ err, book: book.ref }, 'watchlist archive quotes failed — shown without a price');
+        }
         return out;
+    }
+    const native = md;
+    if (native.quotes) {
+        for (let start = 0; start < symbols.length; start += 50) {
+            try {
+                for (const q of await native.quotes(symbols.slice(start, start + 50))) {
+                    if (q.price == null)
+                        continue;
+                    const stamp = q.tradeAt || q.quoteAt;
+                    out.set(q.symbol, { price: q.price, dayChangePct: q.priorClose && q.priorClose > 0 ? (q.price - q.priorClose) / q.priorClose * 100 : null,
+                        ...(stamp ? { asOf: stamp } : {}), source: 'schwab', note: q.delayed ? 'Delayed Schwab quote.' : 'Schwab quote at the reported exchange time.' });
+                }
+            }
+            catch (err) {
+                logger.error({ err, book: book.ref }, 'Schwab watchlist quotes unavailable');
+            }
+        }
+        return out;
+    }
     await Promise.all(symbols.map(async (symbol) => {
         try {
             const price = await md.latestPrice(symbol);
@@ -464,7 +526,7 @@ function registerResearchRead(router, ctx) {
         }
         try {
             const book = await resolveRequestBook(ctx, s, req);
-            res.json(await researchSymbol(s, book, symbol));
+            res.json(await researchSymbol(ctx, s, book, symbol));
         }
         catch (err) {
             fail(res, err, 'research');
@@ -576,7 +638,7 @@ async function moversReport(ctx, s, kind, limit) {
  * @returns The screener payload, or null when the caller must fall back.
  */
 async function screenerMoversReport(kind, limit) {
-    if (kind === 'volatile' || !(0, trading_1.marketDataConfigured)())
+    if (kind === 'volatile' || !(0, trading_1.marketDataConfigured)() || (0, trading_native_reads_1.nativeSchwabReads)())
         return null;
     const top = limit * MOVERS_SCREENER_OVERFETCH;
     const board = kind === 'active'
@@ -621,11 +683,35 @@ function screenerNote(kind, filter) {
  */
 async function boundedMoversReport(ctx, s, kind, limit) {
     const universe = await moversUniverse(ctx, s);
+    if ((!(0, trading_1.marketDataConfigured)() || (0, trading_native_reads_1.nativeSchwabReads)()) && (0, trading_archive_quotes_1.archiveAvailable)(ctx))
+        return archiveMoversReport(ctx, kind, limit, universe);
     const base = { kind, source: MOVERS_SOURCE, asOf: new Date().toISOString(), universeCount: universe.length };
     const bars = await (0, trading_1.barsBatchOhlcv)(universe, '1Day', MOVERS_BARS);
     if (!bars.size)
         return { ...base, rows: [], note: MOVERS_UNAVAILABLE_NOTE };
     return { ...base, rows: await withNames((0, trading_movers_1.computeMovers)(bars, kind, limit)), note: MOVERS_NOTE };
+}
+/**
+ * @description The movers board from the World archive's stored day closes (no market-data rail on this host).
+ * Names stay null: the asset directory is a market-data read too. An empty archive is an honest empty board.
+ * @param ctx - App context (its intent call reads prices.series).
+ * @param kind - The board.
+ * @param limit - Max rows.
+ * @param universe - The tickers to rank (the default universe plus the caller's watchlist).
+ * @returns The board payload, labelled as the archive's.
+ */
+async function archiveMoversReport(ctx, kind, limit, universe) {
+    const base = { kind, source: MOVERS_ARCHIVE_SOURCE, asOf: new Date().toISOString(), universeCount: universe.length };
+    const bars = await (0, trading_archive_quotes_1.archiveDailyBars)(ctx, universe, MOVERS_BARS + 15);
+    if (!bars.size)
+        return { ...base, rows: [], note: 'No stored daily prices for this universe in the requested window. ' + MOVERS_ARCHIVE_NOTE };
+    // computeMovers reads only each bar's close and volume; the archive keeps one price per day, never an open/high/low.
+    const closes = bars;
+    const rows = (0, trading_movers_1.computeMovers)(closes, kind, limit).map((row) => ({ ...row, name: null }));
+    const shortage = rows.length ? '' : kind === 'volatile'
+        ? 'Not enough stored daily history to calculate volatility for this universe yet. '
+        : 'Not enough stored daily history to compare sessions for this universe yet. ';
+    return { ...base, rows, note: shortage + MOVERS_ARCHIVE_NOTE };
 }
 /** The watchlist is PER USER (not per book); only the quotes read the selected book's rail. */
 function registerWatchlist(router, ctx) {
@@ -639,7 +725,7 @@ function registerWatchlist(router, ctx) {
             const book = await resolveRequestBook(ctx, s, req);
             const rows = (await ctx.pool.query('SELECT symbol, note, added_at FROM oshal_trading_watchlist WHERE user_sub=$1 ORDER BY added_at DESC', [s])).rows;
             const symbols = rows.map((r) => String(r.symbol));
-            const [quotes, congress] = await Promise.all([watchlistQuotes(book, s, symbols), watchlistCongress(symbols)]);
+            const [quotes, congress] = await Promise.all([watchlistQuotes(ctx, book, s, symbols), watchlistCongress(symbols)]);
             res.json({ items: rows.map((r) => watchlistItem(r, quotes.get(String(r.symbol)) ?? null, congress.get(String(r.symbol).toUpperCase()) ?? null)), book: book.ref });
         }
         catch (err) {
@@ -728,4 +814,3 @@ function registerLots(router, ctx) {
         }
     });
 }
-//# sourceMappingURL=trading-research-routes.js.map

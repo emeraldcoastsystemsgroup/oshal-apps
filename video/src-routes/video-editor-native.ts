@@ -2,6 +2,7 @@
  * CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Use original native owner ports for bounded media and durable real exports; keep legacy FFmpeg lifecycle unchanged.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Overlay one complete validated native success receipt instead of mixing fresh success with a stale SQL row.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  */
 import type { Router, Request, Response } from 'express';
 import { EditorError, type EditorMedia, type EditorOwner } from './video-editor-types';
@@ -110,7 +111,8 @@ async function status(env: RouteEnvironment, row: ExportRecord): Promise<ExportR
 }
 /** @description Canonical native export request records actual SQL revision then captures original durable work before202. */
 async function start(env: RouteEnvironment, req: Request, res: Response, owner: EditorOwner): Promise<void> {
-  exactFields(req.body ?? {}, ['revision', 'variant']);
+  exactFields(req.body ?? {}, ['id', 'revision', 'variant']);
+    if (req.body.id !== undefined && editorId(req.body.id) !== editorId(req.params.id)) throw new EditorError(400, 'invalid_video_edit_id');
   const kind = req.body.variant ?? 'export';
   if (!['export', 'preview'].includes(kind)) throw new EditorError(400, 'invalid_video_edit_export_variant');
   const { epoch } = await call(env, { op: 'epoch' });
@@ -133,7 +135,9 @@ export function nativeExportRoutes(router: Router, env: RouteEnvironment): boole
     res.json({ export: await status(env, await env.exportStore.get(owner, editorId(req.params.id), String(epoch))) });
   }));
   router.post('/editor/exports/:id/cancel', admit(env, 'export'), bodyParser, handler(env, 'export', async (req, res, owner) => {
-    exactFields(req.body ?? {}, []); const id = editorId(req.params.id); const { epoch } = await call(env, { op: 'epoch' });
+    exactFields(req.body ?? {}, ['id']); const id = editorId(req.params.id);
+    if (req.body.id !== undefined && editorId(req.body.id) !== id) throw new EditorError(400, 'invalid_video_edit_id');
+    const { epoch } = await call(env, { op: 'epoch' });
     const row = await env.exportStore.requestCancel(owner, id, String(epoch), confirm(env, 'export', owner));
     await call(env, { op: 'export_cancel', id }); res.status(202).json({ export: await status(env, row) });
   }));

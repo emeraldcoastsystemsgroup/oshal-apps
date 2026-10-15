@@ -65,6 +65,9 @@
 # 56 | maintainer@emeraldcoastsystemsgroup.com | Job `public-snapshot` now runs gate C as well whenever the runner has a docker engine (ubuntu-latest does): the guard requires the complete build, gitleaks included, to succeed. The first complete cut was refused by gitleaks on three career-hunter claim-token fixtures that a docker-withheld run could not see. Without an engine the gates before gitleaks still run and a named gate C case is skipped, which the local gate grades PARTIAL.
 
 # 57 | maintainer@emeraldcoastsystemsgroup.com     | Provision the explicit framework and Chromium used by the real Presentations renderer/browser contracts; their package glob already includes these dependency-bearing tests.
+# 58 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` runs scripts/check-store-bots.mjs and its mutation spec: every bot a package route calls must be one the native kernel's package bot turn runs for that package (declared or imported, and inline), no persona prompt may teach the retired /app/scripts/ CLIs or an example.com link, and each named concierge answers in plain prose.
+# 59 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` also runs scripts/check-connector-copy.test.mjs: no package page or persona tells a person to connect a provider this installation has no connector or rail for (Uber, Uber Eats, Duffel, Walmart, Alpaca, Yahoo, PayPal), with its mutation cases and the check over the tree.
+# 60 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` also runs codex-packer's persona-template guard (the Forge never re-asks an answered step, sweep 10) and life's home-summary guard (Life's Home summary says which parts work without a connection, sweep 10); neither suite ran in the gate before.
 
 name: store-ci
 
@@ -364,6 +367,32 @@ jobs:
       - name: Cut the public snapshot through every publish gate
         run: node --test scripts/build-store-public.test.mjs
 
+  store-bots:
+    name: route-called bots run on the native kernel; personas teach no retired scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Provide the gate toolchain's js-yaml
+        run: npm ci --no-audit --no-fund --prefix scripts/toolchain
+      # The kernel resolves a package's bot turn only against its own and imported bots and refuses a
+      # node-posture bot bound to an unreachable node; personas that taught the retired CLI scripts
+      # printed shell commands to the person.
+      - name: Refuse a route bot the native kernel would refuse and a persona teaching retired scripts
+        run: node scripts/check-store-bots.mjs
+      - name: Mutation-test the store bot contract
+        run: node --test scripts/check-store-bots.test.mjs
+      # The native installation has no Uber, Uber Eats, Duffel, Alpaca, Yahoo or PayPal connector and runs no Walmart
+      # operation; pages and personas told people to connect them anyway.
+      - name: Refuse copy that sends a person to connect a provider with no connector or rail here
+        run: node --test scripts/check-connector-copy.test.mjs
+      # The platform left these four as inert migrated declarations that opened nothing on the native
+      # kernel; each must declare a concierge or workflow bound to a declared or imported inline bot.
+      - name: Ported platform packages declare something runnable
+        run: node --test intelligent-operations/tests/package-contract.test.cjs intelligent-processing/tests/package-contract.test.cjs capability-ideation/tests/package-contract.test.cjs codex-packer/tests/package-contract.test.cjs codex-packer/tests/persona-template.test.cjs life/tests/home-summary.test.cjs
+
   store-ci-local:
     name: the local gate's own exit-code contract
     runs-on: ubuntu-latest
@@ -583,6 +612,16 @@ jobs:
       - name: Run switchboard suites
         working-directory: switchboard
         run: node --test "tests/*.test.js"
+
+  presentations-workspaces:
+    name: Office workspace source suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Provide the pinned Store toolchain
+        run: npm ci --prefix scripts/toolchain
+      - name: Run Office workspace source suites
+        run: node --test presentations/tests/office-assets.test.mjs presentations/tests/office-assistant.test.mjs presentations/tests/office-workspace-browser.test.mjs presentations/tests/presentations-slide-workspace.test.mjs presentations/tests/presentations-slide-workspace-browser.test.mjs presentations/tests/presentations-sheet-workspace.test.mjs presentations/tests/presentations-sheet-workspace-browser.test.mjs presentations/tests/presentations-guide.test.mjs presentations/tests/presentations-surface-parse.test.js presentations/tests/presentations-record-before-answer.test.cjs
 
   presentations:
     name: presentations package suites
@@ -948,6 +987,9 @@ jobs:
       - name: Run calendar brief-honesty suite
         working-directory: calendar
         run: node --test tests/meeting-brief.test.js
+      - name: Run personal calendar date, PostgreSQL and browser suites
+        working-directory: calendar
+        run: node --test "tests/personal-calendar*.test.*js"
 
   scan-to-print:
     name: scan-to-print package suites
@@ -1156,6 +1198,13 @@ jobs:
         env:
           OSHAL_FRAMEWORK: framework
         run: node scripts/run-trading-specs.mjs
+      - name: Install Chromium for native Trading screen proofs
+        run: node framework/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Run native Schwab read and desktop/phone holdings contracts
+        working-directory: trading
+        env:
+          OSHAL_FRAMEWORK: ../framework
+        run: node --test "tests/native-schwab*.test.js"
       - name: Run Futures Research workflow and compiled readiness contract
         working-directory: futures-research
         env:
@@ -1194,3 +1243,33 @@ jobs:
         run: node --test "tests/*.test.cjs"
       - name: Refuse incomplete package audit evidence and malformed route declarations
         run: node --test scripts/security/run-package-audit.test.mjs scripts/security/security-ci-contract.test.mjs
+
+  pdf-workbench:
+    name: PDF bounded HTTP/tool contracts
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - name: Provision the pinned source contract dependencies
+        run: npm ci --prefix scripts/toolchain
+      - name: Run PDF HTTP and tool contract suites
+        working-directory: pdf-workbench
+        run: node --test "tests/*tools.test.mjs"
+
+  publishing-studio:
+    name: Publishing genuine Source contracts and runtime
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - name: Provision the pinned source contract dependencies
+        run: npm ci --prefix scripts/toolchain
+      - name: Require genuine Publishing renderer SQL HTTP and browser proofs
+        working-directory: publishing-studio
+        run: node --test "tests/*.test.mjs"

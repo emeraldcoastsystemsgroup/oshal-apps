@@ -10,6 +10,9 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | The audience-view case covers the family view (Home shell) beside company and classroom: its model as behaviour over the single /list read, its Open items and its named states.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 2.13.0 brand looks: the brand-look case covers the exact look (asked for on the nearest look, picked when nothing chose one, carried by renders and sends, reopened from a saved file); the new brand-render case drives the compiled route with the framework's own deck engine and reads the brand back out of each generated file.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Run the framework fixture refusal guard beside the Guide artifact contract, which now compiles actual source without a machine-specific or ignored dist dependency.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register the native-kernel delivery egress case: email through gmail.googleapis.com / graph.microsoft.com and Slack through slack.com plus files.slack.com carry no credential; missing, lapsed or refused connections keep the 409s; outside the kernel the framework sender and Slack client are unchanged.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | record-before-answer: the compiled POST /pptx writes its My decks record before the request answers (the native kernel refuses SQL after the answer), a refused record still answers with the saved file, and the surface shows no date for a missing createdAt.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Register ai-draft-outline (the topic draft fills Title and Outline; sweep 10: an outline cut off at the output budget keeps its complete slides or answers 502 in plain words, and the draft asks for 8192 output tokens) and generate-reenable (sweep 10: a failed generate left every generate button disabled).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -267,4 +270,125 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: kernel-egress
+    name: Native kernel delivery egress
+    purpose: Drive the compiled email and Slack delivery routes with OSHAL_EGRESS=kernel, the bridge's inert framework stand-ins, a stub renderer, synthetic connection metadata and a recording fetch - no network, credentials or recipients.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/kernel-egress.test.cjs
+    expected:
+      - A confirmed email posts the fenced MIME (CRLF flattened, artifact attached) to gmail.googleapis.com, or Graph sendMail JSON to graph.microsoft.com, with no Authorization and only headers the egress accepts; the inert framework sender is never used.
+      - Gmail is tried first and a kernel "not connected" refusal falls through to Microsoft; no usable mailbox answers 409 no_mail_connection, and a provider refusal is a 502, never a delivered send.
+      - A confirmed Slack delivery runs files.getUploadURLExternal, the raw-byte upload to the pre-signed files.slack.com URL and files.completeUploadExternal with no credential; an upload URL on any other host is refused before the bytes leave.
+      - No, a lapsed or a kernel-refused Slack connection answers 409 no_slack_connection.
+      - Outside the kernel the broker token still reaches the framework sender and Slack client.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: record-before-answer
+    name: A saved Office file is recorded before the request answers
+    purpose: Drive the compiled POST /pptx route against a pool that, like the native kernel, refuses every query once the request has answered, with inert framework stand-ins and a stub renderer and store; run the surface's when() date formatter.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/presentations-record-before-answer.test.cjs
+    expected:
+      - The My decks INSERT lands before the answer, carrying the saved name, slide count and format; no query runs after the answer.
+      - A refused record still answers 200 with the saved file.
+      - The surface shows no date for a deck whose createdAt is missing or invalid, never the 1970 epoch.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: ai-draft-outline
+    name: An AI draft fills the studio, survives a cut-off outline and fails in plain words
+    purpose: Drive the compiled POST /pptx route with a deck-builder double whose reply is whole, cut off late, cut off early or missing; run the surface's fillDrafted() out of the shipped page.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/presentations-ai-draft-outline.test.cjs
+    expected:
+      - A topic draft answers with the title and the outline it drafted; a person's own outline is not echoed back.
+      - The draft asks the deck-builder for 8192 output tokens (the 2048 default cut a six-slide outline off).
+      - An outline cut off after at least half the requested slides keeps its complete slides and says so in note.
+      - An outline cut off earlier, or a reply with no outline, answers 502 with plain words and a code (outline_cut_off / outline_missing), never a parser message, and saves nothing.
+      - fillDrafted writes the outline into empty Title and Outline and never overwrites a typed title.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: generate-reenable
+    name: Every way out of a generate turns the buttons back on
+    purpose: Run the shipped page's generate() against button and fetch doubles for a refused answer, a network error and a saved draft.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/presentations-generate-reenable.test.cjs
+    expected:
+      - After a refused draft all four generate buttons are enabled, the status is cleared and the server's plain refusal is shown.
+      - After a network error and after a success the buttons are enabled too; a cut-off note shows beside the saved file.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+
+  - id: editing-workspace-source
+    name: Slides, sheets and AI proposal workspace
+    purpose: Verify actual draft modules and Chromium interaction with explicitly named shell, catalog and Guide HTTP fixtures.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/office-assets.test.mjs
+        - tests/office-assistant.test.mjs
+        - tests/office-workspace-browser.test.mjs
+        - tests/presentations-slide-workspace.test.mjs
+        - tests/presentations-slide-workspace-browser.test.mjs
+        - tests/presentations-sheet-workspace.test.mjs
+        - tests/presentations-sheet-workspace-browser.test.mjs
+    expected:
+      - Editing selected slides and cells preserves other sections and structured source.
+      - AI suggestions require review and cannot overwrite a newer human draft.
+      - The AI partner remains visible on desktop and phone.
+    prerequisites:
+      - runner:node-test
+      - browser:chromium
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
     installation: never

@@ -25,11 +25,13 @@
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — the closed SourceKind/Confidence/Domain enums, the row DTOs for every stored entity, the provenance literal discriminants, and the run/stage vocabularies the routes and the orchestrator share.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Add immutable FX evidence, preserve original and reporting-currency quote amounts, and replace the last scenario cents field with integer micros.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Add scheduled rebaseline run kind, trigger provenance, UTC idempotency slot, and exact micro-USD cost evidence.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Name which live assumption rows an analyst may not supersede (heldAgainstAnalysts): a person's own entry and any row carrying outside evidence (user-entered, vendor-quote, published-source). The analysts' required slots write the exact keys the model computes with, and a re-run replaced a recorded freight quote with the analyst's guess.
  *
  * @module venture-types
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.RUN_PHASES = exports.DOMAINS = exports.ENGINE_VERSION = exports.CONFIDENCES = exports.SELF_CERTIFIABLE_SOURCE_KINDS = exports.SOURCE_KINDS = void 0;
+exports.RUN_PHASES = exports.DOMAINS = exports.ENGINE_VERSION = exports.CONFIDENCES = exports.EVIDENCE_SOURCE_KINDS = exports.SELF_CERTIFIABLE_SOURCE_KINDS = exports.SOURCE_KINDS = void 0;
+exports.heldAgainstAnalysts = heldAgainstAnalysts;
 exports.isSourceKind = isSourceKind;
 exports.isConfidence = isConfidence;
 exports.isDomain = isDomain;
@@ -42,6 +44,19 @@ exports.SOURCE_KINDS = Object.freeze([
  * Everything else needs a URL or a document reference, or it is downgraded.
  */
 exports.SELF_CERTIFIABLE_SOURCE_KINDS = Object.freeze(['model-estimate']);
+/** Source kinds that carry a person's word or outside evidence. An analyst never supersedes a live row of one. */
+exports.EVIDENCE_SOURCE_KINDS = Object.freeze(['user-entered', 'vendor-quote', 'published-source']);
+/**
+ * @description Whether a live assumption row stands against an analyst's write to its key. The analysts fill the
+ * exact keys the composed model computes with (venture-required-inputs), so an analyst write that superseded a
+ * person's entry or a recorded quote would quietly change the plan's numbers back to a guess.
+ * @param row - The live row's source kind and author (an agentId, or `user:<sub>`).
+ * @returns True when a person wrote it or it carries evidence; the analyst's value is then not stored.
+ */
+function heldAgainstAnalysts(row) {
+    return String(row.authoredBy).startsWith('user:')
+        || exports.EVIDENCE_SOURCE_KINDS.includes(row.sourceKind);
+}
 /** Every confidence level, weakest first. */
 exports.CONFIDENCES = Object.freeze(['low', 'medium', 'high']);
 /**

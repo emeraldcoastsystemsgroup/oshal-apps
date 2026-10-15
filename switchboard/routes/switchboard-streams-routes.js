@@ -24,6 +24,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial Streams pane: posts/variants/revisions stores (lazy DDL + owner-RLS + import-dedup unique), list-with-counts + CRUD + revision snapshots on every edit, the 8-state transition endpoint, schedule (future-only), confirm-gated publish with a claim CAS (double-fire cannot double-post), per-channel results recorded on variants, honest 'skipped no_binding' for instagram/threads, idempotent imports from the LinkedIn assistant + Content Studio stores, and the opt-in due-post executor riding the same publish core as the route.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | DELETE /posts/:id {confirm:true}: the owner removes a post with its variants and revisions (live 2026-10-11 a draft could only be archived, so test posts piled up in Archived). A scheduled post or one being published right now is refused with the step to take first.
  *
  * @module switchboard-streams-routes
  */
@@ -482,6 +483,56 @@ function registerTransition(router, ctx) {
         }
     });
 }
+/**
+ * @description DELETE /posts/:id {confirm:true} - the owner removes a post with its channel
+ * variants and revisions. A scheduled post (the executor may fire it) or one being published
+ * right now is refused with the step to take first; nothing is removed without confirm:true.
+ * @param router - The Streams router.
+ * @param ctx - App context (db pool).
+ * @returns Nothing; registers the route.
+ */
+function registerDelete(router, ctx) {
+    router.delete('/posts/:id', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        const id = String(req.params.id);
+        if (!UUID_RE.test(id)) {
+            res.status(404).json({ error: 'post not found' });
+            return;
+        }
+        if (!(0, explicit_write_confirmation_1.hasExplicitWriteConfirmation)(req.body)) {
+            res.status(428).json((0, explicit_write_confirmation_1.confirmationRequiredPayload)('no-delete', 'Deleting this post'));
+            return;
+        }
+        try {
+            const r = await ctx.pool.query(`DELETE FROM oshal_switchboard_stream_posts
+         WHERE user_sub = $1 AND post_id = $2 AND state <> 'scheduled'
+           AND (publish_claimed_at IS NULL OR publish_claimed_at < now() - interval '5 minutes')
+         RETURNING post_id`, [sub, id]);
+            if (!r.rowCount) {
+                const loaded = await loadPost(ctx.pool, sub, id);
+                if (!loaded) {
+                    res.status(404).json({ error: 'post not found' });
+                    return;
+                }
+                const state = String(loaded.post.state);
+                res.status(409).json({ error: state === 'scheduled' ? 'Unschedule this post before deleting it.' : 'This post is being published right now. Try again when it finishes.', state });
+                return;
+            }
+            await ctx.pool.query('DELETE FROM oshal_switchboard_stream_variants WHERE user_sub = $1 AND post_id = $2', [sub, id]);
+            await ctx.pool.query('DELETE FROM oshal_switchboard_stream_revisions WHERE user_sub = $1 AND post_id = $2', [sub, id]);
+            logger.info({ postId: id }, 'Streams post deleted by its owner');
+            res.json({ deleted: true, postId: id });
+        }
+        catch (err) {
+            logger.error({ err }, 'Streams delete failed');
+            res.status(502).json({ error: err.message });
+        }
+    });
+}
 /** POST /posts/:id/schedule — approved → scheduled at a future instant (CAS). */
 function registerSchedule(router, ctx) {
     router.post('/posts/:id/schedule', async (req, res) => {
@@ -746,6 +797,7 @@ function createStreamsRoutes(ctx) {
     registerDetail(router, ctx);
     registerPatch(router, ctx);
     registerTransition(router, ctx);
+    registerDelete(router, ctx);
     registerSchedule(router, ctx);
     registerPublish(router, ctx);
     registerRevisionRead(router, ctx);

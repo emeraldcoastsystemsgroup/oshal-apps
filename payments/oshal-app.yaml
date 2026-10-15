@@ -8,6 +8,12 @@
 # each provider is a connector + a MerchantPaymentAdapter — adding another rail is
 # one connector + one adapter, no app change.
 #
+# STRIPE (native rail): the person pastes their own Stripe key (a restricted key, test first) on the
+# Connections page; the kernel seals it per person and places it itself on every request to the one
+# declared host below. The package never holds it. Operations: a hosted Checkout Session for an amount
+# + description, its status, recent charges, a FULL refund. Test/LIVE comes from Stripe's own `livemode`;
+# every money-shaped action needs confirm:true, and confirmLive:true unless Stripe says the key is test.
+#
 # Each rail charges the way its API supports: Square = a direct card charge (a
 # Web Payments SDK card token; Sandbox test token cnon:card-nonce-ok); PayPal =
 # create + send an invoice the customer pays (the hosted invoice URL is returned).
@@ -30,9 +36,11 @@ rating:
   features: []   # no model in the loop (T0)
 displayName: Payments
 description: >-
-  Take payments through your own Square or PayPal account. Pick a provider, enter the
-  amount, and charge — Square runs a card payment, PayPal sends the customer an invoice.
-  Pluggable across providers; sandbox by default for safe testing.
+  Take payments through your own Stripe, Square or PayPal account. Stripe: paste your own
+  Stripe key on the Connections page, then create a Stripe payment page for an amount and a
+  description, see recent payments and refund one; a test key runs in Stripe test mode, a live
+  key is shown as LIVE and every money action asks you to confirm. Square runs a card payment,
+  PayPal sends the customer an invoice.
 version: 1.1.4
 testing:
   version: 1
@@ -64,7 +72,7 @@ smoke:
 
 # Kernel skills + core connector infra only — no app, tool, or connector-install deps.
 # (dependencies.connectors is the runtime connector ALLOW-LIST: this app's surfaces
-# offer the two merchant rails.)
+# offer Stripe (a pasted key) and the two merchant rails.)
 # Kernel skills this package IMPORTS (ADR-085 §2). Declared because an undeclared import is
 # invisible to the prune guard: the first carve that drops the skill would break this app at
 # MOUNT time, not at compile time. See docs/apps/kernel-skills.md.
@@ -81,7 +89,15 @@ dependencies:
   optional:
     apps: []
     tools: []
-    connectors: [square, paypal]
+    connectors: [stripe, square, paypal]
+
+# OUTBOUND HOSTS (native kernel fenced egress). The sandbox has no network: the kernel admits only
+# this host for this package and places the CALLER'S OWN saved Stripe key (connector `stripe`, a
+# pasted key sealed per person) in the Authorization header itself. The package never sees the key;
+# a caller with no saved key is refused as not connected (there is no installation-wide Stripe key).
+egress:
+  - host: api.stripe.com
+    credential: { connector: stripe, header: authorization, prefix: "Bearer " }
 
 # Guests never reach the charge surface (was hardcoded core Tier-C pre-carve).
 # Declaring it here is a REQUEST (ADR-085 D4) — the unapproved default already

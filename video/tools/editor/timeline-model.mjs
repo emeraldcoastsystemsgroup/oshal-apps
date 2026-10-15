@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Immutable manual timeline operations: add/remove sources, append, trim, split, reorder and remove non-destructive segments, per-segment volume, one title track, one audio bed. Every operation returns a freshly validated document and never edits its input; structural edits refit titles to the new length instead of leaving them past the end.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  */
 import { LIMITS, PROFILE, TITLE_POSITIONS, TITLE_SIZES, demand, integer, plainText, timelineFrames, validateTimeline } from './timeline-validation.mjs';
 
@@ -76,6 +77,7 @@ export function addSource(document, source) {
  * @param {object} document Document. @param {string} key Source key. @returns {object} New document. */
 export function removeSource(document, key) {
   demand(Object.hasOwn(document.sources, key), 'That file is not in this project');
+  demand(!(document.tracks ?? []).some(track => track.clips.some(clip => clip.source === key)), 'Remove it from the tracks first');
   demand(!document.segments.some(segment => segment.source === key) && document.audioBed?.source !== key, 'Remove it from the timeline first');
   const sources = { ...document.sources }; delete sources[key];
   return validateTimeline({ ...document, sources });
@@ -186,3 +188,15 @@ export function setAudioBed(document, key, volume = 40) {
 
 /** @description Rename the project. @param {object} document Document. @param {string} name New name. @returns {object} New document. */
 export function renameTimeline(document, name) { return validateTimeline({ ...document, name }); }
+
+/** @description Replace a linked rendered cache after editing its exact owned Motion graph. All timeline timing stays fixed; a shorter/differently timed or locked source refuses. */
+export function replaceMotionSource(document, key, source) {
+  const current = validateTimeline(document), previous = current.sources[key];
+  demand(previous?.motion && source?.motion && source.kind === 'video', 'Choose a linked Motion source');
+  demand(previous.motion.project === source.motion.project && previous.motion.compId === source.motion.compId, 'Refresh must use the same Motion composition');
+  demand(source.motion.revision >= previous.motion.revision, 'Refresh cannot move to an older Motion revision');
+  demand(source.motion.startTick === previous.motion.startTick && source.motion.endTick === previous.motion.endTick
+    && source.motion.frameRate.num === previous.motion.frameRate.num && source.motion.frameRate.den === previous.motion.frameRate.den, 'Refresh must preserve the source time range and rate');
+  demand(!(current.tracks ?? []).some(track => track.locked && track.clips.some(clip => clip.source === key)), 'Unlock the affected tracks before refreshing');
+  return validateTimeline({...current,sources:{...current.sources,[key]:{...source,name:previous.name}}});
+}

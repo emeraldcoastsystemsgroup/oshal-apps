@@ -13,6 +13,8 @@
  * 2026-07-11 05:05:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Extracted from trading-routes.ts (1000-line cap decomposition): POST /scan + /signal-latest + /decide-algo, GET /recommendations + /algo-stats, the tuning routes (GET /strategy-params, GET /recommendations-tuning, POST approve/reject, POST /optimize-now), and the recordPredictions/resolveMaturedPredictions/algoEnsembleDecision helpers. Code moved verbatim — zero behavior change.
  * 2026-07-19 16:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Trading engine extraction (ADR-085 pre-carve): resolveMaturedPredictions moved VERBATIM to app/trading-engine.ts (the review/assess loops import the engine, not this carvable surface); this builder now imports it back from the engine, and ensureTradingSchema from its moved home app/trading-schema.ts. Pure code motion — zero behavior change.
  * 2026-07-19 23:30:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Carved out of OSHAL core into the trading app package (ADR-085 Wave 3). Relative kernel imports flip to @/ aliases (helpers/schema/engine/strategy-params/optimize-dispatch/schedule-dispatch ALL stay kernel with the dispatch loops). Handler bodies byte-identical — zero behavior change.
+ * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Rail guard: the algo reads ask railConfigured(md) instead of calling md.configured() directly, so a host whose market-data source has no configured() probe (the native kernel bridge answers getMarketData with {}) answers market_data_not_configured instead of a TypeError.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | A market-data refusal prints the host's own reason (railReason: on the native kernel, no Alpaca connector and Schwab not used for market data) before falling back to the platform's set-the-keys advice, which this installation has no place for.
  *
  * @module trading-routes-algo-builders
  */
@@ -31,6 +33,7 @@ import { resolveMaturedPredictions } from '@/app/trading-engine';
 import { loadStrategyParams, loadStrategyParamsDetailed } from '@/app/trading-strategy-params';
 import { runOptimize, loadRecommendations, approveRecommendation, rejectRecommendation, optimizeTaskType, OPTIMIZE_CRON } from '@/app/trading-optimize-dispatch';
 import { getTradingScheduleService } from '@/app/trading-schedule-dispatch';
+import { railConfigured, railReason } from './trading-rail-guard';
 
 // Same module tag as the entry file so structured log output is unchanged by the split.
 const logger = createChildLogger({ module: 'trading-routes' });
@@ -58,7 +61,7 @@ async function algoEnsembleDecision(pool: AppContext['pool'], sub: string, book:
   const mode = book.kind;
   // Per-mode data source: paper reads Alpaca (IEX), the live book reads the caller's Schwab feed.
   const md = getMarketData(mode, sub);
-  if (!md.configured()) throw new TradingError(503, 'market_data_not_configured', md.kind === 'schwab' ? 'Connect your Charles Schwab account for live market data.' : 'Set Alpaca data keys (ALPACA_PAPER_KEY_ID/_SECRET).');
+  if (!railConfigured(md)) throw new TradingError(503, 'market_data_not_configured', railReason(md) || (md.kind === 'schwab' ? 'Connect your Charles Schwab account for live market data.' : 'Set Alpaca data keys (ALPACA_PAPER_KEY_ID/_SECRET).'));
   const SYM = symbol.toUpperCase();
   const closes = await md.dailyCloses(SYM);
   if (!closes.length) throw new TradingError(502, 'no_data', `No daily bars for ${SYM}.`);
@@ -113,7 +116,7 @@ export function registerTradingAlgoRoutes(router: Router, ctx: AppContext): void
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
       await ensureTradingSchema(ctx.pool);
-      if (!marketDataConfigured()) { res.status(503).json({ error: 'market_data_not_configured', message: 'Set Alpaca data keys.' }); return; }
+      if (!marketDataConfigured()) { res.status(503).json({ error: 'market_data_not_configured', message: railReason(getMarketData(resolveMode((req.body || {}).mode), sub)) || 'Set Alpaca data keys.' }); return; }
       const b = (req.body || {}) as { mode?: string; symbols?: string[] };
       const mode = resolveMode(b.mode);
       const watch = (Array.isArray(b.symbols) && b.symbols.length ? b.symbols : ['HD', 'LOW', 'GNRC', 'BLDR', 'SPY']).map((s) => String(s).toUpperCase());
@@ -219,7 +222,7 @@ export function registerTradingAlgoRoutes(router: Router, ctx: AppContext): void
       const mode = resolveMode(req.query.mode);
       // Per-mode data source: the live book scans on the Schwab feed, paper on Alpaca IEX.
       const md = getMarketData(mode, sub);
-      if (!md.configured()) { res.status(503).json({ error: 'market_data_not_configured', message: md.kind === 'schwab' ? 'Connect your Charles Schwab account for live data.' : 'Set Alpaca data keys.' }); return; }
+      if (!railConfigured(md)) { res.status(503).json({ error: 'market_data_not_configured', message: railReason(md) || (md.kind === 'schwab' ? 'Connect your Charles Schwab account for live data.' : 'Set Alpaca data keys.') }); return; }
       const universe = (req.query.universe ? String(req.query.universe).split(',') : RECO_UNIVERSE).map((s) => s.trim().toUpperCase()).filter(Boolean).slice(0, 40);
       const spy = await md.dailyCloses('SPY').catch(() => [] as number[]);
       const params = await loadStrategyParams(ctx.pool);

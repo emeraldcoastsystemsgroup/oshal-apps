@@ -1,0 +1,17 @@
+OSHAL Motion Engine links EffectCraft at revision 67434e90388b6dca4417555346fa6850b6f96033.
+EffectCraft copyright (c) 2026 ArtCraft Team and the EffectCraft contributors.
+EffectCraft code is licensed under MIT OR Apache-2.0; texts are in licenses/.
+Upstream source: https://github.com/storytold/effectcraft
+No ArtCraft trademark artwork or Adobe assets are copied into this package.
+The compiled text core embeds Inter, JetBrains Mono and Noto Serif (OFL-1.1).
+Their exact pinned attribution sidecars and license texts ship in licenses/.
+The container build retains resolved dependency license/source metadata and
+available license texts in /opt/motion-dependency-notices/INDEX.json.
+No upstream font binary or trademark artwork is committed to this source package.
+The source revision and command/render receipts do not establish full Adobe parity.
+
+The render crate is a documented local derivative of that exact revision.
+engine/vendor/effectcraft-render retains its44files, both original licenses,
+checksums and patch notes. Full text surface geometry replaces silent side/coordinate
+clipping within the declared32MP float-surface profile; refusal is reported.
+The container dependency index identifies this modified upstream origin.

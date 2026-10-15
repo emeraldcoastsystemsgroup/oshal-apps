@@ -6,6 +6,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The manual editor's persistence over the compiled routes and a disposable PostgreSQL migrated as the owning role: owned uploads with authenticated range playback, optimistic immutable revisions, 100 retained revisions, media references checked against the owner's own uploads, cross-owner and colliding-issuer denial down to the forced two-arm policy, revocation before commit, quotas, cleanup that keeps referenced media, and a max-two pool that completes concurrent writes whose authorization reads share it.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05c: the forced two-arm policy check now covers video_edit_exports as well (every table the fixture's migrations create).
  * 3 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05d: deleting one owned upload removes its file and row, refuses one a retained revision uses, and never reaches another owner's.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -119,7 +121,7 @@ test('the forced two-arm policy holds against the owning role itself, with no op
   const rows = await admin.query(`SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity, pg_get_userbyid(c.relowner) AS owner FROM pg_class c
     WHERE c.relname = ANY($1) ORDER BY c.relname`, [EDITOR_TABLES]);
   assert.equal(rows.rows.length, EDITOR_TABLES.length);
-  for (const row of rows.rows) assert.deepEqual([row.relrowsecurity, row.relforcerowsecurity, row.owner], [true, true, 'video_fixture_app'], row.relname);
+  for (const row of rows.rows) assert.deepEqual([row.relrowsecurity, row.relforcerowsecurity, row.owner], [true, true, database.evidence.role ?? 'video_fixture_app'], row.relname);
   const policies = await admin.query('SELECT tablename, qual, with_check FROM pg_policies WHERE tablename = ANY($1)', [EDITOR_TABLES]);
   assert.equal(policies.rows.length, EDITOR_TABLES.length);
   for (const policy of policies.rows) {
@@ -216,4 +218,42 @@ test('an unused upload can be deleted by its owner; one a revision uses cannot',
   assert.equal((await api.call(`/editor/media/${spare.id}`)).status, 404);
   const owner = (await readdir(api.dataRoot)).filter(name => !name.startsWith('.'))[0];
   assert.deepEqual((await readdir(join(api.dataRoot, owner))).sort(), [`${kept.id}.mp4`], 'only the used file remains');
+});
+
+test('v2 multitrack revisions persist through real owner-qualified SQL with sources immutable and foreign readers denied', async t => {
+  const model = await import('../tools/editor/timeline-model.mjs'), multi = await import('../tools/editor/multitrack-model.mjs');
+  const api = await startApi(t, database.pool), media = await upload(api, 'video', clipProbe({ seconds: 3 }));
+  let document = model.addSource(model.createTimeline('Private multitrack'), source(media)).document;
+  document = model.appendSegment(document, 'v1'); document = multi.migrateMultitrack(document);
+  document = multi.applyMultitrack(document, { type: 'addTrack', kind: 'video', name: 'Overlay' });
+  document = multi.applyMultitrack(document, { type: 'addClip', track: document.tracks.at(-1).id, source: 'v1', start: 15, in: 0, out: 30 });
+  const body = { title: document.name, document }, created = await api.call('/editor/projects', 'POST', body);
+  assert.equal(created.status, 201, JSON.stringify(created.body)); const id = created.body.project.id;
+  assert.deepEqual((await api.call(`/editor/projects/${id}`)).body.project.document, JSON.parse(JSON.stringify(document)));
+  for (const actor of ['bob', 'collision', 'admin']) assert.equal((await api.call(`/editor/projects/${id}`, 'GET', undefined, actor)).status, 404);
+  const changed = multi.applyMultitrack(document, { type: 'clip', id: document.tracks[0].clips[0].id, patch: { brightness: 10 } });
+  const saved = await api.call(`/editor/projects/${id}/revisions`, 'POST', { title: changed.name, document: changed, baseRevision: 1 });
+  assert.equal(saved.status, 201, JSON.stringify(saved.body));
+  assert.equal((await api.call(`/editor/projects/${id}/revisions`, 'POST', { ...body, baseRevision: 1 })).status, 409);
+  assert.deepEqual((await api.call(`/editor/projects/${id}/revisions/1`)).body.project.document, JSON.parse(JSON.stringify(document)));
+});
+
+test('agent tools create multitrack, use owned sources, save atomic linked edits and refuse stale/foreign work', async t => {
+ const api=await startApi(t,database.pool),media=await upload(api);
+ const created=await api.call('/editor/agent-projects','POST',{title:'Agent timeline'});assert.equal(created.status,201,JSON.stringify(created.body));const id=created.body.project.id;
+ const edit=(baseRevision,operations)=>({id,baseRevision,operations}),path=`/editor/projects/${id}/operations`;
+ const metadata=source(media);
+ const changed=await api.call(path,'POST',edit(1,[{type:'addSource',sourceMetadata:metadata},{type:'addClip',track:'video1',sourceKey:'v1',in:0,out:30,start:0}]));
+ assert.equal(changed.status,201,JSON.stringify(changed.body));assert.equal(changed.body.project.revision,2);
+ const clip=changed.body.project.document.tracks[0].clips[0].id;
+ assert.equal((await api.call('/editor/editing-contract')).body.editor,'video');
+ assert.equal((await api.call(path,'POST',edit(1,[{type:'rename',name:'Stale'}]))).status,409);
+ for(const actor of ['bob','collision','admin'])assert.equal((await api.call(path,'POST',edit(2,[{type:'rename',name:'Leak'}]),actor)).status,404);
+ const linked=await api.call(path,'POST',edit(2,[{type:'extractAudio',id:clip,track:'audio1'},{type:'clip',id:clip,patch:{volume:80}}]));assert.equal(linked.status,201,JSON.stringify(linked.body));
+ assert.equal(linked.body.project.document.tracks[0].clips[0].audioEnabled,false);
+ assert.equal((await api.call(path,'POST',edit(3,[{type:'rename',name:'Discard'},{type:'clip',id:'missing',patch:{opacity:50}}]))).status,400);
+ assert.equal((await api.call(`/editor/projects/${id}`)).body.project.revision,3);
+ assert.equal((await api.call(`/editor/projects/${id}/revisions/1`)).body.project.document.tracks[0].clips.length,0);
+ for(const permission of ['editor.read','editor.change']){api.state.denied.add(permission);assert.equal((await api.call(path,'POST',edit(3,[{type:'rename',name:'Denied'}]))).status,403);api.state.denied.delete(permission);}
+ const concurrent=await Promise.all(['First','Second'].map(name=>api.call(path,'POST',edit(3,[{type:'rename',name}]))));assert.deepEqual(concurrent.map(r=>r.status).sort(),[201,409]);
 });

@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Sweep 8: three 'Account API' cards (Adyen, two eBay entries) read the same. The rendered card carries the provider id beneath its name, as Connections does, and omits it when it only restates the name.
  * 2026-09-24 17:35:00 | maintainer@emeraldcoastsystemsgroup.com   | Add 'expiring' to CONNECTION_KEYS and assert that an expiring unrenewable connection renders the Expiring pill and · expiring marker while leaving healthy connections unaffected.
  * 2026-09-16 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Run the shipped surface instead of counting `c.expired` matches in it. Four regex hits could never show that the marker, the pill, the tile and the filter actually RENDER, and they could not see the case the hub missed entirely: a grant the provider has revoked keeps its refresh token, so `expired` is false for it forever and the one screen built to show a broken login showed nothing. The surface script now runs in a vm over a stub DOM and a stub fetch, and the assertions read what it produced.
  * 2026-08-12 20:40:00 | maintainer@emeraldcoastsystemsgroup.com   | Initial BUG-13 guard, consuming half: every per-connection key the Identity Hub surface reads off /api/connect/list is in the response contract core promises, and the access-review inventory derives `expired` from core's shared isConnectionExpired rather than re-deriving `expiry < now`.
@@ -290,3 +291,14 @@ for (const [name, file] of [['source', BRIEFINGS_TS], ['compiled', BRIEFINGS_JS]
   });
 }
 
+test('providers that share a label read apart: the id shows beneath the name', async () => {
+  const shared = (id, auth) => providerFixture({ id, label: 'Account API', category: null, auth, connected: false, status: 'not_connected', connections: [] });
+  const { main } = await renderSurface({
+    providers: [shared('adyen-com-account-service', 'token'), shared('api-ebay-com-sell-account', 'oauth'), shared('ebay-com-sell-account', 'oauth'), providerFixture()],
+    liveness: [],
+  });
+  for (const id of ['adyen-com-account-service', 'api-ebay-com-sell-account', 'ebay-com-sell-account']) {
+    assert.match(main, new RegExp(`<span class="name">Account API</span><span class="provider-id">${id}</span>`));
+  }
+  assert.doesNotMatch(main, /<span class="provider-id">google<\/span>/, 'an id that only restates the name is not repeated');
+});

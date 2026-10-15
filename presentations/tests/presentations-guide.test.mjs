@@ -27,6 +27,7 @@ function fakeRouter() {
 }
 
 const calls = [];
+let cellProposals = [];
 const STUBS = {
   express: { Router: () => fakeRouter(), raw: () => (_req, _res, next) => next?.() },
   '@/shared/logger': { createChildLogger: () => ({ error() {}, warn() {}, info() {}, debug() {} }) },
@@ -53,6 +54,7 @@ const STUBS = {
           { op: 'delete_all', path: '/tmp/should-not-cross' },
           { op: 'update_slide', index: 0, title: 'invalid' },
           { op: 'set_theme', theme: 'executive' },
+          ...cellProposals,
         ],
       }) };
     },
@@ -116,4 +118,50 @@ test('deck-builder guide returns only validated editor operations', async () => 
   assert.equal(calls[0][3].userSub, 'auth0|guide-owner');
   assert.equal(calls[0][3].agenticMode, false);
   assert.equal(calls[0][3].direct, true);
+});
+
+
+test('Guide receives selected workbook cell and preserves protected direct reasoning', async () => {
+  calls.length = 0;
+  const res = response();
+  await guideHandler()({oidc:{user:{sub:'auth0|sheet-owner'}},body:{message:'Explain this cell',kind:'xlsx',slides:[{title:'Budget',bullets:['| Cost | Value |','| Rent | 100 |']}],selection:{index:1,cell:'B2'}}},res);
+  assert.match(calls[0][3].text,/editing a workbook/);
+  assert.match(calls[0][3].text,/section 1: Budget, cell B2/);
+  assert.match(calls[0][3].text,/user reviews actions/i);
+  assert.equal(calls[0][3].direct,true);
+  assert.equal(calls[0][3].userSub,'auth0|sheet-owner');
+});
+
+test('out-of-range or malformed selection does not become trusted context', async () => {
+  calls.length=0;
+  await guideHandler()({oidc:{user:{sub:'owner'}},body:{message:'Help',kind:'invalid',slides:[],selection:{index:999,cell:'A1 injected'}}},response());
+  assert.match(calls[0][3].text,/editing a presentation/);
+  assert.match(calls[0][3].text,/Selected editing context: \(whole draft\)/);
+});
+
+test('workspace assets have a closed filename allow-list and private cache policy', () => {
+  const router=createBotPresentationRoutes({pool:{query:async()=>({rows:[]})},appPackageDir:path.resolve(here,'..')});
+  const handler=router.routes.get('get /assets/:name');
+  for(const name of ['office-workspace.css','office-assistant.mjs','slide-workspace.css','slide-workspace.mjs','sheet-workspace.css','sheet-workspace.mjs']){
+    const res=response();const headers={};let file;
+    res.setHeader=(k,v)=>{headers[k]=v;};res.sendFile=p=>{file=p;};
+    handler({params:{name}},res);
+    assert.equal(file,path.resolve(here,'..','tools',name));assert.equal(headers['Cache-Control'],'private, no-store');
+  }
+  for(const name of ['../oshal-app.yaml','constructor','presentations.html','not-shipped.mjs']){
+    const res=response();res.send=()=>res;handler({params:{name}},res);assert.equal(res.statusCode,404);
+  }
+});
+
+
+test('Guide cell proposals are bounded and cannot insert ambiguous outline delimiters', async () => {
+  cellProposals=[{op:'update_cell',index:1,cell:'B2',value:'250'},
+    {op:'update_cell',index:1,cell:'B10000',value:'large'},
+    {op:'update_cell',index:0,cell:'B2',value:'invalid'},
+    {op:'update_cell',index:1,cell:'A2',value:'two|columns'},
+    {op:'update_cell',index:1,cell:'A2',value:'two\nlines'}];
+  try{
+    const res=response();await guideHandler()({oidc:{user:{sub:'owner'}},body:{message:'Change cost',kind:'xlsx',slides:[{title:'Budget',bullets:['| Item | Cost |','| Rent | 100 |']}]}},res);
+    assert.deepEqual(res.body.actions.filter(a=>a.op==='update_cell'),[{op:'update_cell',index:1,cell:'B2',value:'250'}]);
+  }finally{cellProposals=[];}
 });

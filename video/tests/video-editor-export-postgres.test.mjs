@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Export routes over the compiled router and a disposable forced-RLS PostgreSQL, with the NAMED fixture encoder in place of FFmpeg (real FFmpeg runs in video-edit-export.test.mjs): a job renders exactly its saved revision and downloads only when verified, one job per owner, cancel of a running and of a queued job, another owner sees nothing, a prior-epoch job reads and is recorded as interrupted, revocation before start fails the job, tampered media never encode, each project keeps at most three exports, and revision retention never retires a revision an export is rendering.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Regression: deleting a project removes its finished export files and stops its running job, leaving no file behind.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Verify render/cancel tool envelopes against owned real project/export rows.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -173,4 +174,13 @@ test('deleting a project removes its export files and stops its running job', as
   assert.deepEqual(await readdir(exportsDir), [], 'the stopped job published nothing');
   assert.equal((await api.call(`/editor/exports/${busy.id}`)).status, 404);
   assert.equal((await api.call(`/editor/projects/${running.id}/exports`, 'POST', { revision: 1 })).status, 404);
+});
+
+test('render tool input carries a matching path id; mismatches refuse without creating a job', async t => {
+ const api=await startApi(t,database.pool),saved=await project(api),id=saved.id;
+ const mismatch=await api.call(`/editor/projects/${id}/exports`,'POST',{id:'00000000-0000-4000-8000-000000000001',revision:1,variant:'preview'});
+ assert.equal(mismatch.status,400);assert.deepEqual((await api.call(`/editor/projects/${id}/exports`)).body.exports,[]);
+ const started=await api.call(`/editor/projects/${id}/exports`,'POST',{id,revision:1,variant:'preview'});assert.equal(started.status,202,JSON.stringify(started.body));
+ const job=started.body.export.id;
+ assert.equal((await api.call(`/editor/exports/${job}/cancel`,'POST',{id:job})).status,202);
 });

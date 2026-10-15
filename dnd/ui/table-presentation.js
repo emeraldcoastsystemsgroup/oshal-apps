@@ -11,6 +11,7 @@
  * 2026-07-22 00:15:33 | roger.murphy@emeraldcoastsystemsgroup.com  | Keep the first active actor and their next Move and Choose stages visible while opening or rewind media is presented.
  * 2026-07-23 00:49:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Describe movement and action as simultaneous budgets while the opening temporarily locks both.
  * 2026-07-23 00:01:42 | roger.murphy@emeraldcoastsystemsgroup.com  | Give the opening illustration a stable event identity so reconnecting players cannot purchase duplicate round-one art.
+ * 2026-10-12 05:30:00 | maintainer@emeraldcoastsystemsgroup.com     | K4: a setup board resumed on a TV shows the lobby through showTvLobby, which names the campaign.
  */
 
 'use strict';
@@ -267,7 +268,7 @@ function resumeBoardAfterPresentation(gate) {
   updateInitiativeBar(); renderDock();
   if (board.mode === 'combat') beginTurn();
   else if (board.mode === 'setup') {
-    if (TV) overlay('<h1>The party is gathering…</h1><p class="read">Waiting for the host to start the quest.</p><p><span class="spin"></span></p>', 'tv-lobby');
+    if (TV) showTvLobby();
     else showLobby();
   }
   else if (board.mode === 'resolved' || board.mode === 'complete') showResolvedState();

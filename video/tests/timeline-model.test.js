@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove the manual timeline contract with the shipped browser/server modules: integer frame boundaries, trim/split/reorder/remove never change a source, the 2-clip/20-segment/60-second/one-title-track/one-bed bounds, refusal of unknown fields, unsafe keys, paths, URLs and control text, and bounded independent undo history.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  */
 'use strict';
 const test = require('node:test');
@@ -188,4 +189,38 @@ test('history keeps bounded independent snapshots and records a no-op commit as 
   assert.equal(history.canRedo(), false, 'a new edit discards the redo branch');
   assert.throws(() => createTimelineHistory(document, { limit: 0 }), TypeError);
   assert.throws(() => history.commit({ ...document, owner: 'x' }), TypeError);
+});
+
+test('v2 migration, linked audio and splitting preserve immutable source timing and independent history', async () => {
+  const { model, document } = await twoClips(), multi = await load('multitrack-model.mjs'), validation = await load('timeline-validation.mjs');
+  const migrated = multi.migrateMultitrack(freeze(document)); assert.equal(migrated.version, 2);
+  assert.equal(validation.timelineFrames(migrated), 150); assert.equal(migrated.tracks[0].clips[1].start, 90);
+  const linked = multi.applyMultitrack(migrated, { type: 'extractAudio', id: 's1', track: 'audio1' });
+  assert.equal(linked.tracks[0].clips[0].audioEnabled, false); assert.equal(linked.tracks[1].clips[0].source, 'v1');
+  const moved = multi.applyMultitrack(linked, { type: 'clip', id: 's1', patch: { start: 10 } });
+  assert.equal(moved.tracks[1].clips[0].start, 10); assert.equal(linked.tracks[1].clips[0].start, 0);
+  const split = multi.applyMultitrack(moved, { type: 'split', id: 's1', frame: 40 });
+  assert.equal(split.tracks[0].clips.length, 3); assert.equal(split.tracks[1].clips.length, 2);
+  assert.deepEqual(split.tracks[1].clips.map(clip => [clip.start, clip.in, clip.out]), [[10, 0, 30], [40, 30, 90]]);
+  assert.equal(split.tracks[0].clips[1].link, split.tracks[1].clips[1].link);
+  assert.deepEqual(model.parseTimeline(model.serializeTimeline(split)), split);
+  const locked = multi.applyMultitrack(linked, { type: 'track', id: 'audio1', patch: { locked: true } });
+  assert.throws(() => multi.applyMultitrack(locked, { type: 'clip', id: 's1', patch: { start: 10 } }), /Unlock/);
+});
+
+test('v2 track, clip, keyframe and timed text bounds refuse malformed documents without mutation', async () => {
+  const { document } = await twoClips(), multi = await load('multitrack-model.mjs'), validation = await load('timeline-validation.mjs');
+  const current = multi.migrateMultitrack(document), before = JSON.stringify(current);
+  for (const patch of [{ start: 1800 }, { opacity: 101 }, { fadeIn: 90, fadeOut: 1 },
+    { keys: [{ property: 'opacity', frame: 90, value: 50, interpolation: 'linear' }] },
+    { keys: [{ property: 'movie=/etc/passwd', frame: 0, value: 1, interpolation: 'linear' }] }]) {
+    assert.throws(() => multi.applyMultitrack(current, { type: 'clip', id: 's1', patch })); assert.equal(JSON.stringify(current), before);
+  }
+  let tracks = current;
+  for (let index = 0; index < 3; index++) tracks = multi.applyMultitrack(tracks, { type: 'addTrack', kind: 'video', name: `Overlay ${index}` });
+  assert.throws(() => multi.applyMultitrack(tracks, { type: 'addTrack', kind: 'video', name: 'Too many' }), /budget/);
+  const animated = multi.applyMultitrack(current, { type: 'clip', id: 's1', patch: { keys: [{ property: 'opacity', frame: 0, value: 0, interpolation: 'linear' }, { property: 'opacity', frame: 30, value: 100, interpolation: 'hold' }] } });
+  assert.equal(multi.valueAt(animated.tracks[0].clips[0], 'opacity', 15), 50);
+  const caption = multi.applyMultitrack(animated, { type: 'text', track: 'captions', entry: { text: 'Real caption', start: 10, end: 50, position: 'bottom', size: 'small' } });
+  assert.equal(caption.captions[0].text, 'Real caption'); assert.equal(validation.timelineFrames(caption), 150);
 });

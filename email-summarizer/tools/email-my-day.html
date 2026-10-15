@@ -28,12 +28,11 @@
 <script>
 (function () {
   var A = window.AppView; if (!A) return;
-  var FULL = '/cockpit/?app=email-summarizer', CAP = 25, PROVIDERS = ['', 'google', 'outlook', 'yahoo'];
+  var FULL = '/cockpit/?app=email-summarizer', CAP = 25, PROVIDERS = ['', 'google', 'outlook'];
   var LABELS = { google: 'Google', outlook: 'Outlook', yahoo: 'Yahoo Mail' };
   var NOTICE = {
     no_google_connection: ['No Google account connected', 'Connect Google'],
     no_outlook_connection: ['No Outlook / Microsoft 365 account connected', 'Connect Outlook'],
-    no_yahoo_connection: ['No Yahoo Mail account connected', 'Connect Yahoo Mail'],
     no_mail_connection: ['No mailbox connected', 'Connect a mailbox'],
     reconnect_required: ['This mailbox needs to be reconnected', 'Reconnect']
   };
@@ -112,12 +111,10 @@
   }
   function setup(d, saved) {
     var n = NOTICE[d.error] || NOTICE.no_mail_connection;
-    return { kicker: 'Intelligent Communication', title: n[0], lede: d.message || 'Connect Google, Outlook / Microsoft 365 or Yahoo Mail on the Connections page.',
+    return { kicker: 'Intelligent Communication', title: n[0], lede: d.error === 'no_mail_connection' || !d.message ? 'Connect Google or Outlook / Microsoft 365 on the Connections page.' : d.message,
       actions: [{ label: n[1], primary: true, onClick: function () { A.open('/utilities'); } }], sections: [digestSection(saved, '')] };
   }
   function trouble(e, saved) {
-    if (e.status === 501) return { kicker: 'Intelligent Communication', title: 'Yahoo Mail is not available here', lede: 'This oshal core has no Yahoo Mail reader. Pick another mailbox in My Day.',
-      actions: [{ label: 'Open My Day', primary: true, onClick: function () { A.open(FULL); } }], sections: [digestSection(saved, '')] };
     if (!refused(e)) throw new Error('Intelligent Communication could not read your mailbox (HTTP ' + (e.status || 'error') + ').');
     return { kicker: 'Intelligent Communication', title: e.status === 401 ? 'Sign in to see your inbox' : 'This account cannot open Intelligent Communication',
       lede: e.status === 401 ? 'This view shows the mailbox of whoever is signed in, and this session is not signed in.' : 'The mail routes refused this account (HTTP 403).' };
@@ -172,6 +169,8 @@
   .muted { color:var(--muted); font-size:13px; }
   .notice { color:var(--muted); padding:50px 0; text-align:center; }
   .notice a { color:var(--accent); }
+  .notice .btn { background:var(--accent); color:#fff; border:none; border-radius:7px; padding:10px 14px; min-height:44px; cursor:pointer; font:inherit; font-weight:600; margin:12px 6px 6px 0; }
+  .notice .connect-note { margin-top:8px; }
   .spin { color:var(--muted); font-size:14px; }
   ::-webkit-scrollbar{width:10px;height:10px}
   ::-webkit-scrollbar-track{background:transparent}
@@ -188,7 +187,7 @@
 </head>
 <body>
   <div class="page">
-    <div class="head"><h1>☀️ Good day</h1><select class="mailbox" id="provider" aria-label="Mailbox"><option value="">Any mailbox</option><option value="google">Google</option><option value="outlook">Outlook</option><option value="yahoo">Yahoo</option></select></div>
+    <div class="head"><h1>☀️ Good day</h1><select class="mailbox" id="provider" aria-label="Mailbox"><option value="">Any mailbox</option><option value="google">Google</option><option value="outlook">Outlook</option></select></div>
     <div class="sub" id="sub">Here's your day at a glance.</div>
     <div id="content"><div class="spin">Pulling your inbox and calendar…</div></div>
   </div>
@@ -197,16 +196,48 @@
 const content = document.getElementById('content');
 function esc(s){ return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 const providerEl = document.getElementById('provider');
-// Which mailbox to read: '' lets the server pick the caller's connected one (Google first).
-const PROVIDERS = ['', 'google', 'outlook', 'yahoo'];
+// Which mailbox to read: '' lets the server pick the caller's connected one (Google first). Yahoo is not offered:
+// this installation has no Yahoo connector and its runtime answers a Yahoo read 501 (no Yahoo Mail reader).
+const PROVIDERS = ['', 'google', 'outlook'];
 const NOTICE = {
   no_google_connection: ['No Google account connected.', 'Connect Google →'],
   no_outlook_connection: ['No Outlook / Microsoft 365 account connected.', 'Connect Outlook →'],
-  no_yahoo_connection: ['No Yahoo Mail account connected.', 'Connect Yahoo Mail →'],
-  no_mail_connection: ['No mailbox connected.', 'Connect Google, Outlook or Yahoo →'],
+  no_mail_connection: ['No mailbox connected.', 'Connect a mailbox'],
   reconnect_required: ['This mailbox needs to be reconnected.', 'Reconnect →'],
 };
-function connectNotice(p){ const n = NOTICE[p.error] || NOTICE.no_mail_connection; return '<div class="notice">'+esc(n[0])+'<br><a href="/utilities" target="_top">'+esc(n[1])+'</a></div>'; }
+/* mailbox-connect:start */
+// Which mailbox connectors a notice offers. 'Connect Google or Outlook' used to open the whole Connections page (over
+// a thousand connector declarations, unfiltered); each button now starts that provider's own sign-in directly.
+const MAIL_CONNECTORS = { gmail: 'Connect Google (Gmail)', outlook: 'Connect Outlook / Microsoft 365' };
+function noticeConnectors(error){ return error === 'no_google_connection' ? ['gmail'] : error === 'no_outlook_connection' ? ['outlook'] : ['gmail', 'outlook']; }
+function connectNotice(p){
+  const n = NOTICE[p.error] || NOTICE.no_mail_connection;
+  const buttons = noticeConnectors(p.error).map(function (id) { return '<button type="button" class="btn" data-connect="'+id+'">'+esc(MAIL_CONNECTORS[id])+'</button>'; }).join(' ');
+  return '<div class="notice">'+esc(n[0])+'<br>'+buttons+' <a href="/utilities" target="_top">All connections</a><div class="connect-note" role="status"></div></div>';
+}
+/** Start a mailbox provider's sign-in at the top level; a refusal is said in the notice instead. */
+async function startMailboxConnect(id, noteEl, nav){
+  try {
+    const r = await fetch('/connectors/' + encodeURIComponent(id) + '/authorize', { credentials: 'same-origin' });
+    const b = await r.json().catch(function () { return {}; });
+    if (!r.ok || !b.authorize_url) throw new Error(b.detail || b.message || 'This sign-in is not available right now.');
+    const url = new URL(b.authorize_url);
+    if (url.protocol !== 'https:') throw new Error('The sign-in address is not secure.');
+    nav(url.href);
+    return true;
+  } catch (e) {
+    if (noteEl) noteEl.textContent = e.message + ' You can connect it from All connections.';
+    return false;
+  }
+}
+/* mailbox-connect:end */
+/** Wire the connect buttons a notice just rendered into `root`. */
+function bindConnectButtons(root){
+  if (!root || !root.querySelectorAll) return;
+  root.querySelectorAll('[data-connect]').forEach(function (b) {
+    b.onclick = function () { startMailboxConnect(b.getAttribute('data-connect'), b.parentElement.querySelector('.connect-note'), function (href) { (window.top || window).location.assign(href); }); };
+  });
+}
 function withProvider(url, p){ return p ? url + (url.includes('?') ? '&' : '?') + 'provider=' + encodeURIComponent(p) : url; }
 function savedProvider(){ try { const v = localStorage.getItem('email-provider') || ''; return PROVIDERS.includes(v) ? v : ''; } catch (e) { return ''; } }
 function rememberProvider(v){ try { localStorage.setItem('email-provider', v); } catch (e) { /* per-viewer convenience only */ } }
@@ -218,7 +249,7 @@ async function run(){
   const r = await fetch(withProvider('/api/email/digest?surface=1', providerEl.value));
   if (!r.ok) { content.innerHTML = '<div class="notice">Could not load your day ('+r.status+').</div>'; return; }
   const d = await r.json();
-  if (d.connected === false) { content.innerHTML = connectNotice(d); return; }
+  if (d.connected === false) { content.innerHTML = connectNotice(d); bindConnectButtons(content); return; }
   document.getElementById('sub').textContent = d.date + ' · ' + d.unreadCount + ' unread · ' + d.events.length + ' events today';
 
   const events = d.events.map(e => `<div class="ev"><span class="t">${esc(evTime(e.start))}</span><span class="s">${esc(e.summary)}</span>${e.location?`<span class="loc">${esc(e.location)}</span>`:''}</div>`).join('') || '<div class="muted">No events today.</div>';

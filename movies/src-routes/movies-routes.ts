@@ -22,6 +22,8 @@
  *            | brain via the orchestrator. Mirrors the Spotify concierge, screen-shaped.
  * ---------------------------------------------------------------------------
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove TMDB credentials from generic orchestrator dispatch. The controller resolves TMDB only for its bounded catalog call and sends the model sanitized candidate records.
+ * 2026-10-10 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: the TMDB key is the kernel's (manifest egress credential). A cached configuration read
+ *            | decides `connected`, routes pass the kernel sentinel, and the surface never claims a key it cannot see.
  *
  * @module movies-routes
  */
@@ -36,7 +38,7 @@ import type { Pool } from 'pg';
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
 import {
   tmdbSearch, tmdbTrending, tmdbDetails, tmdbWhereToWatch, tmdbTrailer, tmdbRecommendations,
-  buildTicketsUrl, type TmdbTitle,
+  buildTicketsUrl, tmdbConfiguration, kernelEgress, KERNEL_KEY, type TmdbTitle,
 } from './tmdb-client';
 import { extractEnvelopeJson, asStringArray, sayOr } from '@/app/routes/concierge-envelope';
 import { ConciergeStore } from '@/app/routes/concierge-store';
@@ -72,7 +74,26 @@ function resolveViewerSub(req: Request): string {
  * first, then the TMDB_API_KEY env fallback. TMDB is a shared read-only catalog, so any one
  * configured key serves everyone — connect it once on /utilities, or set the env.
  */
+const KERNEL_PROBE_MS = 5 * 60 * 1000;
+let kernelProbe: { at: number; ok: boolean } | null = null;
+
+/**
+ * Under the native kernel the TMDB key is the kernel's (manifest `egress` credential), never this
+ * package's. One cheap configuration read per five minutes tells whether it is actually connected,
+ * so the surface reports the truth instead of a key it cannot see.
+ */
+async function kernelTmdbConnected(): Promise<boolean> {
+  if (!kernelEgress()) return false;
+  if (kernelProbe && Date.now() - kernelProbe.at < KERNEL_PROBE_MS) return kernelProbe.ok;
+  let ok = false;
+  try { await tmdbConfiguration(); ok = true; } catch (err) { logger.warn({ err }, 'tmdb is not connected through the kernel'); }
+  kernelProbe = { at: Date.now(), ok };
+  return ok;
+}
+
 async function getOperatorTmdbKey(pool: Pool, sub: string): Promise<string | null> {
+  if (await kernelTmdbConnected()) return KERNEL_KEY;
+  if (kernelEgress()) return null;
   try {
     const tok = await getValidAccessToken(pool as unknown as never, sub, 'tmdb');
     if (tok) return tok;

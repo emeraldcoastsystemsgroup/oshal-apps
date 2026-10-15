@@ -2,6 +2,8 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register real finished-export attachment, owner publication and revocation proof with disposable PostgreSQL, filesystem and Chromium boundaries.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register the family audience view contract (ADR-164 D6) as the audience-view case: the static kit contract, the served template, the read-only family view over a stub kit and fetch, and the gated full-page start. The manifest now declares this catalog (testing:, uses: test-catalog); before, the kernel never loaded it.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register the native export case: the export routes are reachable under the native bridge's routing contract (no parameterised use() path) and an attach in the native sandbox is refused 503 export_storage_unavailable with nothing written.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register the public-link handoff case: a published export's token is handed to the kernel's no-login link seam (ctx.publicLinks.publish) after the row commits, a refused publish rolls the row back and answers 503 public_link_unavailable, unpublish revokes the cleared token, and with no seam (the legacy core) nothing is called. The artifact-publication case text now says the legacy core serves the published link from the row alone; natively the kernel serves it only for a handed-over token.
 version: 1
 cases:
   - id: package-readiness
@@ -26,7 +28,7 @@ cases:
     expected:
       - Only the exact owner can attach, preview, publish, revoke or remove a completed artifact.
       - Incomplete or invalid MP4 uploads are refused before an artifact row is persisted.
-      - Anonymous access reaches only the published immutable bytes and returns 404 after revocation.
+      - Anonymous access reaches only the published immutable bytes and returns 404 after revocation (this legacy core serves the link from the row alone; the native kernel serves it only for a token the package handed to its link seam, proven by the public-link-handoff case).
       - Job listings and control routes remain authenticated; no worker-local path or provider is contacted.
     prerequisites: [runner:playwright, runner:vitest, browser:chromium, harness:oshal-core-root, harness:core-test-fixtures, engine-container:disposable-postgres]
     sideEffects: fixture-write
@@ -59,6 +61,55 @@ cases:
       - Each tile names its kind and where it stands, and only a finished video whose export is attached opens its same-origin private preview in a new tab.
       - Signed out, refused, a failed list read, an unreachable server and an answer without a video list each read as what they are.
       - Under the family view the page's inline start binds no control, reads nothing and does not poll, and its module script adds no handoff listener and appends no connected-actions section; the full page still runs every start step.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: native-export
+    name: Export routes reachable natively; a native attach refused honestly
+    purpose: >-
+      Load the compiled Vids router under the native bridge's routing contract (use() paths are literal prefixes) and prove the
+      export routes are reached and that, in the native sandbox, attaching an MP4 is refused with a sentence and writes nothing.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/vids-native-export.test.js
+    expected:
+      - No use() path is parameterised; attach, preview, publish, revoke and remove are method routes at /jobs/:jobId/artifact.
+      - In the native sandbox the artifact record says exports cannot be kept (attach.available false, with the reason); elsewhere it offers the attach with its byte limit.
+      - A native attach answers 503 export_storage_unavailable before any upload parser is built, and no export directory or file is written.
+      - Another owner's job is 404 job_not_found.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: public-link-handoff
+    name: A published export's token reaches the kernel's no-login link seam
+    purpose: >-
+      Load the compiled Vids router under the native bridge's routing contract with a recording SQL double and a recording
+      ctx.publicLinks seam, and prove the token handoff the native kernel needs before it serves GET /api/vids-public/:token/video.mp4
+      anonymously (oshal-kernel docs/apps/package-anonymous-routes.md). Before this, vids never published a token and every live link answered 404.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/vids-public-link.test.js
+    expected:
+      - Publish mints the row's 64-hex token, commits it, then hands exactly that token to ctx.publicLinks.publish, once; a repeat publish hands the same token over again (one link, not two) and never revokes.
+      - A refused publish (the seam rejects) answers 503 public_link_unavailable, the rollback clears only the minted token so the row is unpublished again, the refusal is logged once at error, and the owner's artifact record shows no public link.
+      - Unpublish clears the row first and then revokes the cleared token at the seam; a refused revoke is logged and the owner's revoke still answers 200 with the row cleared.
+      - With no seam (undefined, null, an empty object or a non-function publish) publish and unpublish work from the row alone and nothing is called; revoking an export that was never published tells the seam nothing.
     prerequisites:
       - runner:node-test
     sideEffects: none

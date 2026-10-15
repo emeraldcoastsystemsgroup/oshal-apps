@@ -16,6 +16,7 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-01 20:00:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — employer/employee legal identity with encrypted SSN + EIN and the single audited full-SSN read, direct-deposit accounts, effective-dated deduction elections, per-check earning rows with the v2 recompute, gross-up, payment records, the change-audit reader, and the GL journal / deposit schedule / deduction register / labor distribution reports.
+ * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | Await every sealIdentifier/openIdentifier (now asynchronous, PDATA-01): company EIN and employee SSN saves, the SSN reveal, bank accounts, the ACH entries and the W-2 document.
  *
  * @module payroll-routes-v2
  */
@@ -115,7 +116,7 @@ function identityRoutes(router, ctx, guarded) {
             String(b.stateAccountNumber || '').slice(0, 40),
             b.depositorStatus === 'semiweekly' ? 'semiweekly' : 'monthly',
             Math.min(6, Math.max(0, Math.trunc((0, payroll_store_1.num)(b.workweekStartDay)))),
-            ein ? (0, payroll_identity_1.sealIdentifier)(sub, ein) : null, ein ? (0, payroll_identity_1.last4)(ein) : null]);
+            ein ? await (0, payroll_identity_1.sealIdentifier)(sub, ein) : null, ein ? (0, payroll_identity_1.last4)(ein) : null]);
         await (0, payroll_ledger_1.recordAudit)(ctx.pool, sub, 'company', sub, 'update', sub, before, r.rows[0]);
         res.json({ company: (0, payroll_store_1.scrubSecrets)(r.rows[0]) });
     }));
@@ -142,7 +143,7 @@ function identityRoutes(router, ctx, guarded) {
             String(b.department || '').slice(0, 80), String(b.costCenter || '').slice(0, 80),
             String(b.workLocation || '').slice(0, 80),
             b.payMethod === 'direct_deposit' ? 'direct_deposit' : 'check',
-            ssn ? (0, payroll_identity_1.sealIdentifier)(sub, ssn) : null, ssn ? (0, payroll_identity_1.last4)(ssn) : null]);
+            ssn ? await (0, payroll_identity_1.sealIdentifier)(sub, ssn) : null, ssn ? (0, payroll_identity_1.last4)(ssn) : null]);
         await (0, payroll_ledger_1.recordAudit)(ctx.pool, sub, 'employee', id, 'update', sub, before, r.rows[0]);
         const out = (0, payroll_store_1.normalizeDates)(r.rows[0]);
         out.ssn_masked = (0, payroll_identity_1.maskSsn)(String(out.ssn_last4 || ''));
@@ -160,7 +161,7 @@ function identityRoutes(router, ctx, guarded) {
             res.status(404).json({ error: 'not_found' });
             return;
         }
-        const ssn = (0, payroll_identity_1.openIdentifier)(sub, emp.ssn_encrypted);
+        const ssn = await (0, payroll_identity_1.openIdentifier)(sub, emp.ssn_encrypted);
         if (!ssn) {
             res.status(409).json({ error: 'no_ssn', message: 'No SSN is on file for this employee.' });
             return;
@@ -195,8 +196,8 @@ function identityRoutes(router, ctx, guarded) {
         const accountId = crypto.randomUUID();
         await ctx.pool.query(`INSERT INTO payroll_bank_accounts (account_id, user_sub, employee_id, nickname, routing_encrypted,
           routing_last4, account_encrypted, account_last4, account_type, split_order, split_amount_cents, split_percent)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, [accountId, sub, id, String(b.nickname || '').slice(0, 60), (0, payroll_identity_1.sealIdentifier)(sub, routing), (0, payroll_identity_1.last4)(routing),
-            (0, payroll_identity_1.sealIdentifier)(sub, account), (0, payroll_identity_1.last4)(account),
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, [accountId, sub, id, String(b.nickname || '').slice(0, 60), await (0, payroll_identity_1.sealIdentifier)(sub, routing), (0, payroll_identity_1.last4)(routing),
+            await (0, payroll_identity_1.sealIdentifier)(sub, account), (0, payroll_identity_1.last4)(account),
             b.accountType === 'savings' ? 'savings' : 'checking',
             Math.max(1, Math.trunc((0, payroll_store_1.num)(b.splitOrder, 1))),
             b.splitAmountCents === undefined ? null : (0, payroll_store_1.money)(b.splitAmountCents),
@@ -419,9 +420,9 @@ function artifactRoutes(router, ctx, guarded) {
             });
             return;
         }
-        const entries = rows.map((r) => ({
-            routingNumber: (0, payroll_identity_1.openIdentifier)(sub, r.routing_encrypted) || '',
-            accountNumber: (0, payroll_identity_1.openIdentifier)(sub, r.account_encrypted) || '',
+        const entries = await Promise.all(rows.map(async (r) => ({
+            routingNumber: (await (0, payroll_identity_1.openIdentifier)(sub, r.routing_encrypted)) || '',
+            accountNumber: (await (0, payroll_identity_1.openIdentifier)(sub, r.account_encrypted)) || '',
             accountType: r.account_type === 'savings' ? 'savings' : 'checking',
             amountCents: (0, payroll_store_1.money)(r.amount_cents),
             name: `${r.last_name} ${r.first_name}`,
@@ -433,7 +434,7 @@ function artifactRoutes(router, ctx, guarded) {
             // was permanently unmatchable — the exact failure this feature exists to
             // prevent, hidden because the guard used a two-character fixture id.
             employeeId: String(r.employee_id),
-        }));
+        })));
         const now = new Date();
         // Continue the trace sequence across files. Restarting at 1 would let two
         // runs mint identical traces, and since a return is matched on the trace
@@ -497,8 +498,8 @@ function artifactRoutes(router, ctx, guarded) {
         }
         const company = await (0, payroll_store_1.getCompany)(ctx.pool, sub);
         const doc = await (0, payroll_forms_1.w2Document)(ctx.pool, sub, emp, company, year, {
-            ssn: (0, payroll_identity_1.openIdentifier)(sub, emp.ssn_encrypted),
-            ein: (0, payroll_identity_1.openIdentifier)(sub, company.ein_encrypted),
+            ssn: await (0, payroll_identity_1.openIdentifier)(sub, emp.ssn_encrypted),
+            ein: await (0, payroll_identity_1.openIdentifier)(sub, company.ein_encrypted),
         });
         await (0, payroll_ledger_1.recordAudit)(ctx.pool, sub, 'employee', String(emp.employee_id), 'w2-produced', sub, null, { year, issuable: doc.issuable });
         res.json(doc);

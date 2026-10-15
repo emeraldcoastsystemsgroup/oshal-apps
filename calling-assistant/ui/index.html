@@ -89,4 +89,72 @@ body{font:15px system-ui;margin:0;background:var(--surface-bg,#101722);color:var
 <div class="row wide"><button id="startCall">Start call</button><small>Each submission receives an idempotency key to prevent a retry from dialing twice.</small></div>
 </form></section>
 <section><div class="row"><h2>Call reports</h2><button id="refresh" type="button">Refresh</button></div><div id="tasks"></div><pre id="report"></pre></section>
-</main><script src="/api/calling-assistant/client.js"></script></body></html>
+</main>
+<script>
+/* Plain sentences for what the server answers in codes (client.js uses Plain). A refusal says what to do; the audio test
+   says what was heard and what the assistant would do on a real call. Unknown codes still read as a sentence. */
+var Plain = (function () {
+  var NO_CONNECTION = 'No Twilio connection is set up for your account yet. Connect Twilio on the Connections page (/utilities), then come back to pick it here.';
+  var REFUSALS = {
+    select_connection: 'Choose a Twilio connection first, then load its numbers.',
+    invalid_connection: 'That Twilio connection is not one of yours. Choose a connection from the list.',
+    connection_unavailable: 'The Twilio connection could not be used. Check it on the Connections page (/utilities).',
+    twilio_connection_unavailable: 'The Twilio connection could not be used. Check it on the Connections page (/utilities).',
+    connection_inventory_unavailable: 'Your connections could not be listed right now. Try again in a moment.',
+    selected_sender_unavailable: 'The sender number is not available on that Twilio account. Load the numbers again and pick one.',
+    setup_incomplete: 'Calling is not set up yet: save a connection, a sender number and the required settings, then enable calling.',
+    configuration_disabled_or_changed: 'Calling was switched off or its settings changed. Review the settings and try again.',
+    speech_provider_unavailable: 'The speech-to-text provider is not configured on this installation, so audio cannot be interpreted.',
+    invalid_stt_provider: 'Choose a speech-to-text provider from the list.',
+    invalid_audio: 'That file is not a WAV recording the test can read. Upload a .wav file.',
+    destination_not_allowed: 'That number is not in your allowed numbers. Add it to Allowed numbers and save first.',
+    destination_and_objective_required: 'Enter the number to call and what the call should accomplish.',
+    invalid_responses: 'The approved replies are not valid. Each needs a prompt and either say or digits.',
+    invalid_response: 'One approved reply is not valid: a prompt of 4 to 120 characters and either say (up to 200 characters) or digits.',
+    invalid_menu_keywords: 'The menu keywords are not valid. Separate them with commas.',
+    invalid_allowed_numbers: 'An allowed number is not a valid phone number. Use the +1 format.',
+    invalid_public_origin: 'The public address is not valid. Use the https address people reach this installation at.',
+    public_https_origin_required: 'Calling needs the public https address of this installation in Public origin.',
+    invalid_voice_settings: 'The voice settings are not valid.',
+    invalid_configuration: 'Some settings are not valid. Check the highlighted values and save again.',
+    estimated_budget_exceeded: 'This call could cost more than your limit. Raise the cost limit or shorten the call.',
+    limit_reached: 'The call limit was reached.',
+    idempotency_conflict: 'This task was already started with different details. Change something and start it again.',
+    task_not_found: 'That call report no longer exists.',
+    same_origin_action_required: 'Open this page inside oshal and try again.',
+    signed_in_owner_required: 'Sign in to oshal and try again.',
+    deny_tier: 'Your account does not have access to this part of Calling Assistant. Ask an administrator.'
+  };
+  var DECISIONS = {
+    no_speech: 'Nothing was heard, so the assistant would keep listening.',
+    untrusted_instruction: 'The recording told the assistant to ignore its rules, so it would hang up.',
+    sensitive_request: 'The recording asked for sensitive information, so the call would be handed to you.',
+    matched_menu_option: 'A menu option matched your keywords, so the assistant would press {digits}.',
+    ambiguous_menu: 'More than one menu option matched, so the assistant would keep listening rather than guess.',
+    spoken_response_not_configured: 'A question was asked that has no approved reply, so the assistant would keep listening.',
+    hold_or_announcement: 'This sounds like hold music or a recorded announcement, so the assistant would keep waiting.',
+    human_greeting: 'A person answered, so the call would be handed to you.',
+    no_matching_option: 'A menu was heard but no option matched your keywords, so the assistant would keep listening.',
+    unrecognized_audio: 'The recording did not match a menu, a greeting or a hold message, so the assistant would keep listening.'
+  };
+  function refusal(e) {
+    var code = e && e.code;
+    if (code && REFUSALS[code]) return REFUSALS[code];
+    var text = String((e && e.message) || 'The request did not go through.');
+    return /^[a-z]+(_[a-z]+)+$/.test(text) ? 'Calling Assistant could not do that (' + text.replace(/_/g, ' ') + ').' : text;
+  }
+  function interpretation(r) {
+    var d = (r && r.decision) || {};
+    var said = d.reason === 'approved_response' ? (d.kind === 'say' ? 'An approved reply matched, so the assistant would say "' + d.text + '".' : 'An approved reply matched, so the assistant would press ' + d.digits + '.') : null;
+    var what = said || String(DECISIONS[d.reason] || 'The assistant would ' + (d.kind || 'wait') + '.').replace('{digits}', d.digits || '');
+    return ['Heard: ' + (r && r.transcript ? '"' + r.transcript + '"' : 'nothing'), 'On a call: ' + what,
+      'Transcribed by ' + ((r && r.provider) || 'the speech provider') + '. This test played no call and contacted no one.'].join('\n');
+  }
+  function responses(text) {
+    try { var v = JSON.parse(text); if (Array.isArray(v)) return v; } catch (_) { /* fall through to the sentence */ }
+    throw Object.assign(new Error('Approved replies must be a list like [{"prompt":"say claims","say":"claims"}].'), { code: null });
+  }
+  return { refusal: refusal, interpretation: interpretation, responses: responses, NO_CONNECTION: NO_CONNECTION };
+})();
+</script>
+<script src="/api/calling-assistant/client.js"></script></body></html>

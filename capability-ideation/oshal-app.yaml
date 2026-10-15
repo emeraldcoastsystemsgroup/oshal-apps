@@ -1,0 +1,80 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Store home for the Workflow Studio flow Capability Ideation, which existed only as a migrated declaration in the installation's state directory and opened with no screen and no concierge. Its one-stage graph is written as the equivalent phases (ideate on the imported capability-ideator, then complete), it opens Capability Ideator's review screen, and capability-ideator is its concierge.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Ship the store's canonical service-authenticated package-readiness route (routes/package-smoke.js, byte-identical to the reviewed module) and its smoke expectation, which the store security contract requires of every package except Pumpkin and the four front-door groups. It reads only this manifest; no screen, user data or model call.
+name: capability-ideation
+suite: ai-productivity
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 64, basis: declared }
+  features:
+    - id: capability-ideation-run
+      unit: capability ideation ticket
+      tier: T3
+      generation: none
+      degrade: disable
+displayName: Capability Ideation
+description: >-
+  Describe a business process as a ticket and Capability Ideator proposes up to three tools or
+  integrations for it, each with the inputs, steps, what it needs to verify and how to measure it.
+  Opens Capability Ideator's review screen, where recorded work continues in Presentations or
+  Venture Plan.
+version: 1.0.0
+status: active
+scope: person
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: capability-ideation
+  ref: main
+uses:
+  - app-dependencies
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/capability-ideation/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/capability-ideation/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+dependencies:
+  required:
+    apps: [capability-ideator]
+    bots:
+      - app: capability-ideator
+        name: capability-ideator
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+
+ticketType: capability-ideation
+workflow:
+  name: Capability Ideation
+  phases:
+    - name: ideate
+      bot: capability-ideator
+    - name: deliver
+      action: complete
+chatBot: capability-ideator
+ui:
+  static:
+    - toolName: capability-ideation-review
+      label: Capability Ideation
+      icon: codicon codicon-lightbulb
+      iframeUrl: /api/capability-ideator/review
+      section: top

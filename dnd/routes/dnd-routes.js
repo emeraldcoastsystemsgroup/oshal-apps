@@ -31,6 +31,9 @@
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Serve an adventure catalog and shared pre-combat exploration service across multiple campaign worlds.
  * 2026-07-27 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Fingerprint the served client code, stamp it into the table document, and echo it from /sync so a stale tab can tell its player to refresh; ride the media service into exploration for server-side discovery art.
  * 2026-07-31 11:20:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Ride the story-motion service into the Dungeon Master so free conversation walks the acting hero and earns art the same server-authoritative way lead attempts do.
+ * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | GET /content carries art: { tokens, maps } - the ids of the portraits and maps this package ships - so the table asks only for art that exists. It preloaded a portrait for every monster and drew one for every villain and imported hero, and each id without bundled art answered 404, which the native kernel reports as "application asset not found".
+ * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com     | POST /campaign/delete {campaignId, confirm:true}: the host deletes their own campaign and everything in it.
+ * 2026-10-12 05:10:00 | maintainer@emeraldcoastsystemsgroup.com  | K4: an unexpected route failure is journaled through the framework logger when AppContext supplies none. The native kernel's context carries no logger, so a 500 left no journal line.
  */
 
 'use strict';
@@ -130,6 +133,22 @@ function buildFingerprint(sources) {
   return hash.digest('hex').slice(0, 12);
 }
 
+/**
+ * @description The ids of the bundled art of one kind, exactly as serveArt sanitizes and resolves them.
+ * @param {string} root - Package root.
+ * @param {string} kind - 'tokens' or 'maps' (a directory under data/).
+ * @param {string} extension - The file extension serveArt appends.
+ * @returns {string[]} Sorted ids that serveArt would answer with an image.
+ */
+function bundledArtIds(root, kind, extension) {
+  let names;
+  try { names = fs.readdirSync(path.join(root, 'data', kind)); } catch (_error) { return []; }
+  return names.filter((name) => name.endsWith(extension))
+    .map((name) => name.slice(0, -extension.length))
+    .filter((id) => id && /^[a-z0-9-]+$/i.test(id))
+    .sort();
+}
+
 /** @description Assemble immutable content helpers and bounded backend services. */
 function buildEnvironment(ctx) {
   const context = ctx || {};
@@ -161,6 +180,8 @@ function buildEnvironment(ctx) {
       heroes: content.heroes, defaultParty: content.defaultParty,
       monsters: content.bestiary, adventure: content.adventure,
       adventures: content.adventures,
+      // Which portraits and maps this package ships, so the table asks only for art that exists.
+      art: { tokens: bundledArtIds(root, 'tokens', '.png'), maps: bundledArtIds(root, 'maps', '.jpg') },
     },
     dm: createDmService({
       ...base, root, campaign, storyMotion, orchestrator: context.orchestrator, logger: context.logger,
@@ -221,6 +242,7 @@ function postHandlers(env, sub, displayName) {
     '/characters': (body) => env.campaign.saveCharacter(sub, body),
     '/campaign': (body) => env.campaign.createCampaign(sub, body),
     '/campaign/leave': (body) => env.campaign.leaveCampaign(sub, body),
+    '/campaign/delete': (body) => env.campaign.deleteCampaign(sub, body),
     '/campaign/release-seat': (body) => env.campaign.releaseGuestSeat(sub, body),
     '/join': (body) => env.campaign.joinCampaign(sub, displayName, body),
     '/claim': (body) => env.campaign.claimHero(sub, displayName, body),
@@ -343,9 +365,19 @@ async function dispatchGet(env, sub, res, parsed) {
   return false;
 }
 
-/** @description Log an unexpected route failure only when AppContext supplies a logger. */
+/** @description The framework logger, for a context that carries none (the native kernel's). */
+function frameworkLogger() {
+  try {
+    return require('@/shared/logger').createChildLogger({ module: 'dnd-routes' });
+  } catch (_error) {
+    return null;
+  }
+}
+
+/** @description Log an unexpected route failure through AppContext's logger, or the framework logger when it supplies none. */
 function logRouteError(env, error) {
-  const logger = env.context && env.context.logger;
+  const supplied = env.context && env.context.logger;
+  const logger = supplied && typeof supplied.error === 'function' ? supplied : frameworkLogger();
   if (logger && typeof logger.error === 'function') {
     logger.error({ err: error, code: error && error.code }, 'D&D route request failed');
   }

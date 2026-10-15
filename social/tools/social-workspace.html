@@ -232,15 +232,15 @@ async function loadAccounts(){
   renderNetsel(); syncPub(); setCount();
 }
 
-// ── FEED: trending articles to comment on (/api/content/topics) ──────────────
-async function loadFocus(){ try { const j = await (await fetch('/api/content/focus')).json(); if (j.focus) $('focus').value = j.focus; } catch{} }
+// ── FEED: trending articles to comment on (/api/social/content/topics) ──────────────
+async function loadFocus(){ try { const j = await (await fetch('/api/social/content/focus')).json(); if (j.focus) $('focus').value = j.focus; } catch{} }
 $('focusSave').onclick = async () => {
-  try { await fetch('/api/content/focus', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ focus:$('focus').value.trim() }) }); } catch{}
+  try { await fetch('/api/social/content/focus', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ focus:$('focus').value.trim() }) }); } catch{}
   loadFeed(true);
 };
 async function loadFeed(refresh){
   $('feed').innerHTML='<span class="spin">Scanning the feeds for what\'s hot in your space…</span>';
-  let r; try { r = await fetch('/api/content/topics'+(refresh?'?refresh=1':'')); } catch { $('feed').innerHTML='<div class="empty">Couldn\'t scan feeds.</div>'; return; }
+  let r; try { r = await fetch('/api/social/content/topics'+(refresh?'?refresh=1':'')); } catch { $('feed').innerHTML='<div class="empty">Couldn\'t scan feeds.</div>'; return; }
   if (r.status===401){ $('feed').innerHTML='<div class="empty">Sign in to load your feed.</div>'; return; }
   const j = await r.json().catch(()=>({}));
   if (!r.ok){ $('feed').innerHTML='<div class="empty">'+esc(j.error||('Scan failed ('+r.status+')'))+'</div>'; return; }
@@ -257,7 +257,7 @@ async function loadFeed(refresh){
       </div>
     </div>`).join('');
   $('feed').querySelectorAll('.art').forEach(el=>el.onclick=(e)=>{ if(e.target.classList.contains('dismiss'))return; commentOnArticle(cards[+el.dataset.i]); });
-  $('feed').querySelectorAll('.dismiss').forEach(b=>b.onclick=async(e)=>{ e.stopPropagation(); const c=cards[+b.dataset.d]; b.closest('.art').remove(); try{ await fetch('/api/content/dismiss',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:c.url})});}catch{} });
+  $('feed').querySelectorAll('.dismiss').forEach(b=>b.onclick=async(e)=>{ e.stopPropagation(); const c=cards[+b.dataset.d]; b.closest('.art').remove(); try{ await fetch('/api/social/content/dismiss',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:c.url})});}catch{} });
 }
 
 /** Pick a feed article → set it as the compose context (the draft will LINK it) and prompt for a take. */
@@ -273,17 +273,17 @@ function commentOnArticle(c){
 }
 function clearArticle(){ ARTICLE=null; $('artctx').className='artctx'; $('artctx').innerHTML=''; $('topic').placeholder='Topic or angle for an AI draft (or pick an article / signal on the left)'; }
 
-// ── ENGAGE: email-mined people to engage (/api/content/signals + /settings) ──
+// ── ENGAGE: email-mined people to engage (/api/social/content/signals + /settings) ──
 async function loadSettings(){
-  try { const j = await (await fetch('/api/content/settings')).json(); $('scanToggle').checked = !!j.emailSocialScan; if (j.emailSocialScan) loadSignals(); else $('signals').innerHTML='<div class="empty">Turn on the scan above to surface people worth engaging from your inbox.</div>'; } catch {}
+  try { const j = await (await fetch('/api/social/content/settings')).json(); $('scanToggle').checked = !!j.emailSocialScan; if (j.emailSocialScan) loadSignals(); else $('signals').innerHTML='<div class="empty">Turn on the scan above to surface people worth engaging from your inbox.</div>'; } catch {}
 }
 $('scanToggle').onchange = async () => {
-  try { await fetch('/api/content/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ emailSocialScan: $('scanToggle').checked }) }); } catch {}
+  try { await fetch('/api/social/content/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ emailSocialScan: $('scanToggle').checked }) }); } catch {}
   if ($('scanToggle').checked) loadSignals(); else $('signals').innerHTML='<div class="empty">Scan off. Turn it on to surface people worth engaging.</div>';
 };
 async function loadSignals(){
   $('signals').innerHTML='<span class="spin">Scanning your inbox for social updates…</span>';
-  let r; try { r = await fetch('/api/content/signals'); } catch { $('signals').innerHTML='<div class="empty">Couldn\'t scan.</div>'; return; }
+  let r; try { r = await fetch('/api/social/content/signals'); } catch { $('signals').innerHTML='<div class="empty">Couldn\'t scan.</div>'; return; }
   const j = await r.json().catch(()=>({}));
   if (r.status===409){ $('signals').innerHTML='<div class="empty">Connect Google to scan your social inbox.<br><a href="/utilities" target="_top">Open connectors →</a></div>'; return; }
   if (!r.ok){ $('signals').innerHTML='<div class="empty">'+esc(j.error||'Scan failed')+'</div>'; return; }
@@ -304,7 +304,7 @@ async function loadSignals(){
 async function draftFromSignal(sig, btn){
   btn.disabled=true; const lbl=btn.textContent; btn.textContent='Drafting…';
   try {
-    const r = await fetch('/api/content/note', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ subject: sig.summary||sig.action, type: sig.type, from: sig.person }) });
+    const r = await fetch('/api/social/content/note', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ subject: sig.summary||sig.action, type: sig.type, from: sig.person }) });
     const j = await r.json();
     if (r.ok && j.note){
       clearArticle(); $('text').value = j.note; setCount(); showRefine();
@@ -315,10 +315,10 @@ async function draftFromSignal(sig, btn){
   btn.disabled=false; btn.textContent=lbl;
 }
 
-// ── SAVED: draft history (/api/content/drafts) ───────────────────────────────
+// ── SAVED: draft history (/api/social/content/drafts) ───────────────────────────────
 async function loadSaved(){
   $('saved').innerHTML='<span class="spin">Loading your saved drafts…</span>';
-  let r; try { r = await fetch('/api/content/drafts'); } catch { $('saved').innerHTML='<div class="empty">Couldn\'t load drafts.</div>'; return; }
+  let r; try { r = await fetch('/api/social/content/drafts'); } catch { $('saved').innerHTML='<div class="empty">Couldn\'t load drafts.</div>'; return; }
   const j = await r.json().catch(()=>({}));
   const drafts = Array.isArray(j.drafts) ? j.drafts : [];
   if (!drafts.length){ $('saved').innerHTML='<div class="empty">No saved drafts yet — write one and hit 💾 Save.</div>'; return; }
@@ -341,13 +341,13 @@ $('draftBtn').onclick = async ()=>{
   try {
     let r;
     if (ARTICLE){
-      r = await fetch('/api/content/draft', { method:'POST', headers:{'Content-Type':'application/json'},
+      r = await fetch('/api/social/content/draft', { method:'POST', headers:{'Content-Type':'application/json'},
         body:JSON.stringify({ topic: ARTICLE.title, take: topic, angle: ARTICLE.angle, url: ARTICLE.url, source: ARTICLE.source }) });
     } else {
       r = await fetch('/api/social/draft', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ topic, target: NET }) });
     }
     const j = await r.json();
-    if (r.ok && j.draft){ $('text').value=j.draft; setCount(); showRefine(); } else res('Draft failed: '+esc(j.error||r.status), false);
+    if (r.ok && j.draft){ $('text').value=j.draft; setCount(); showRefine(); if (j.tooLong) res('This draft is '+esc(j.tooLong.length)+' characters; X allows '+esc(j.tooLong.max)+'. Shorten it before publishing.', false); } else res('Draft failed: '+esc(j.error||r.status), false);
   } catch(e){ res('Draft error.', false); }
   $('draftBtn').disabled=false; $('draftBtn').textContent='✨ Draft';
 };
@@ -361,7 +361,7 @@ async function refine(instruction){
   const inst=(instruction||'').trim(); const cur=$('text').value.trim(); if(!inst||!cur) return;
   const ctrls=document.querySelectorAll('.chip, #refineBtn'); ctrls.forEach(b=>b.disabled=true);
   try {
-    const r = await fetch('/api/content/refine', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ draft:cur, instruction:inst, topic: ARTICLE?ARTICLE.title:$('topic').value.trim() }) });
+    const r = await fetch('/api/social/content/refine', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ draft:cur, instruction:inst, topic: ARTICLE?ARTICLE.title:$('topic').value.trim() }) });
     const j = await r.json();
     if (r.ok && j.draft){ $('text').value=j.draft; setCount(); if($('refineInput')) $('refineInput').value=''; } else res('Refine failed: '+esc(j.error||r.status), false);
   } catch(e){ res('Refine error.', false); }
@@ -374,7 +374,7 @@ $('saveBtn').onclick = async ()=>{
   const draft=$('text').value.trim(); if(!draft){ $('text').focus(); return; }
   $('saveBtn').disabled=true; const lbl=$('saveBtn').textContent; $('saveBtn').textContent='Saving…';
   try {
-    const r = await fetch('/api/content/drafts', { method:'POST', headers:{'Content-Type':'application/json'},
+    const r = await fetch('/api/social/content/drafts', { method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({ topic: ARTICLE?ARTICLE.title:$('topic').value.trim(), take: ARTICLE?$('topic').value.trim():'', draft }) });
     if (r.ok){ $('saveBtn').textContent='Saved ✓'; setTimeout(()=>{$('saveBtn').textContent=lbl;$('saveBtn').disabled=false;},1400); }
     else { res('Save failed.', false); $('saveBtn').textContent=lbl; $('saveBtn').disabled=false; }

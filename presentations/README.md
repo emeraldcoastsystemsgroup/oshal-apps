@@ -31,15 +31,14 @@ surface"** carve — only the surface layer ships here:
 
 | Tile | URL | What |
 |---|---|---|
-| AI Office | `/api/presentations/sections/ui` | Guided front door (make → look → start, or talk / upload / one-line draft) over the fine-tune studio: outline → deck/doc/workbook. Deep link: `?kind=pptx\|docx\|xlsx&starter=<id>&theme=<id>&topic=<text>` opens the studio on that purpose (a kind alone lands on the walkthrough's purpose step) |
+| AI Office | `/api/presentations/sections/ui` | Authoring workspace with slides, document sections or a sheet grid, visible file actions and an AI partner; the walkthrough is optional. Deep link: `?kind=pptx\|docx\|xlsx&starter=<id>&theme=<id>&topic=<text>` opens the studio on that purpose (a kind alone opens its editor) |
 | Starters | `GET /api/presentations/sections/starters` | The purpose-first starter catalog (`src-routes/office-starters.ts`): per kind, grouped — a document is a resume, a flyer, a letter, a report; a spreadsheet is a budget, a plan, a tracker, an invoice; a deck tells a story, explains, runs a meeting or sells. Served like `/themes` so the studio and the Create front door render one catalog |
 
-The surface opens on a full-screen visual walkthrough — pick the artifact, pick a look
-(live-drawn theme cards from the real render catalog), then a starter shape, one typed
-line AI drafts end-to-end, a live build with the Guide, or an existing file to remix.
-Skip (or Esc) drops to the studio — the detailed outline editor, syntax reference and
-options — and ✨ Walkthrough in the studio header brings the front door back. Guarded by
-`tests/presentations-surface-parse.test.js` (inline-script parse + walkthrough contract).
+The normal route opens the authoring workspace directly. Select a format, add a slide,
+section or sheet, or open a file. File actions remain above the editor. The slide rail
+scrolls independently, and the phone **AI partner** button opens chat with keyboard
+focus and a **Back to editor** control. **Walkthrough** explicitly opens the optional
+artifact/look/starter flow; audience views retain their separate shell behavior.
 
 ## Where your file goes (ADR-043 item A)
 
@@ -134,3 +133,55 @@ Container memory, MiB low / high: **128 / 512 (declared)**.
 | ai-outline-draft | deck, document or sheet outline | T2 | none | template | not yet measured | none recorded |
 | deck-guide | guide chat turn | T2 | none | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->
+
+## Editing workspace
+
+The presentation editor has a thumbnail rail and a single selected slide with a compact
+edit toolbar. The workbook editor has sheet tabs, a cell grid and a value/formula bar.
+Documents have selectable editable sections. The outline remains the authoritative
+content passed to the existing import/export routes; advanced structured content stays
+available in the outline inspector.
+
+The existing deck-builder Guide stays beside the desktop workspace and opens from
+**AI partner** on a phone. It receives the
+selected slide/section/sheet and cell, and proposes bounded edits. Review the complete
+proposal and choose **Apply changes** or **Discard**. A proposal for an older draft is
+refused after a human changes the content, title, format or theme.
+
+These are structured draft editors. Slide previews approximate the generated artifact;
+the document draft is not a pagination engine. XLSX numeric rows retain exporter-generated
+totals, while formulas typed into pipe-table cells are stored as text and are not evaluated.
+Native PowerPoint object manipulation and a general Excel calculation engine remain open.
+
+Open `/api/presentations/sections/ui?kind=pptx&workspace=1`, `?kind=xlsx&workspace=1` or `?kind=docx&workspace=1` in your
+signed-in OSHAL host. **Generate** uses the existing owner-scoped save destination;
+**My files** opens saved artifacts without hiding the AI partner.
+
+Saved drafts now retain every section and raw body line. Only records marked as complete
+source can be edited or resumed from the list. Older records contain a cropped preview;
+download their original file and use **Open a file** rather than regenerating that preview.
+
+
+
+### Document paragraphs and pending cell edits
+
+Document sections accept ordinary blank-line paragraphs. The outline remains the
+single source: unambiguous drafts use the existing plain block syntax; ambiguous
+paragraphs use a local closed `oshal-office-outline/1` JSON profile with `format` and
+`sections`, each section containing only `title` and `content`. Its bounds are100
+sections,200-character single-line headings,256KiB per body and1MiB total serialized
+source. This profile is parsed by the editor; generation still receives the existing
+`sections[].title/content` payload, never a new renderer directive. Full saved source
+version2 retains blank entries for reload/edit/regenerate. Legacy plain outlines and
+structured slide/table/chart content remain supported. Document Undo/Redo operates
+on the same draft. This is not full Word layout or DOCX import/export fidelity proof.
+
+Pending cell values are committed before another cell/sheet/format, export or Guide
+handoff. Invalid cell text stays available for correction; Escape explicitly discards
+it. Pending source-inspector text blocks switching until Apply source or Escape.
+Formulas remain stored text; no additional calculation engine is claimed.
+
+Actual Chromium source tests exercise default entry,50-slide scrolling/viewport
+geometry, phone chat focus, draft history, paragraph generation payload and saved
+source reopen. Catalog/Guide/generation responses are named HTTP fixtures; these
+cases do not prove installed providers or independently decoded DOCX files.

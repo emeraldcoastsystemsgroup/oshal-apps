@@ -1,0 +1,45 @@
+/* AI Office: editable artifact and its AI partner share one workspace. */
+.split {display:grid;grid-template-columns:minmax(0,1fr) 340px;overflow:auto;align-items:start}
+.pane.left {min-width:0;border-right:1px solid var(--line)}
+.pane.right {width:auto;position:sticky;top:0;max-height:calc(100vh - 90px);display:flex;flex-direction:column;min-width:0}
+#paneGuide {display:flex!important;min-height:320px;border-top:1px solid var(--line);padding-top:14px;margin-top:12px}
+#chat {min-height:100px;max-height:40vh;overflow:auto}
+#panePreview {display:none!important}
+.office-source {margin-top:14px}
+.office-source summary {cursor:pointer;color:var(--muted);padding:10px 0}
+.office-workspace {min-width:0;min-height:440px;margin:16px 0}
+.office-workspace[hidden] {display:none}
+.office-assistant-heading {font-weight:700;margin:12px 0 6px}
+#officeSelection {font-size:12px;color:var(--muted);margin-bottom:6px}
+#guideProposal {padding:12px;border:1px solid var(--accent);border-radius:10px;margin-top:10px;max-height:260px;overflow:auto}
+#guideProposal ul {padding-left:20px;white-space:pre-wrap;overflow-wrap:anywhere}
+#guideProposal button {margin:4px}
+.office-page {max-width:720px;margin:16px auto;padding:40px;background:var(--panel);border:1px solid var(--line);box-shadow:0 6px 22px #0001;min-height:600px}
+.office-page input {font-size:24px;font-weight:700;border:0;background:transparent}
+.office-page textarea {min-height:460px;border:0;resize:vertical;background:transparent;margin-top:16px;line-height:1.65;font-family:inherit}
+.office-page-note {color:var(--muted);font-size:12px;text-align:center}
+.tabs #tabPreview {display:none}
+@media(max-width:1000px){.split{grid-template-columns:minmax(0,1fr) 300px}.pane{padding:14px}}
+@media(max-width:760px){.split{display:flex;flex-direction:column;overflow:visible}.pane.left,.pane.right{width:100%;max-height:none;position:static}.pane.left{border-right:0}.office-page{padding:22px;min-height:420px}.office-page textarea{min-height:320px}#paneGuide{min-height:300px}.office-workspace{min-height:320px}}
+
+.office-top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.office-format-label{display:flex;align-items:center;gap:6px;margin:0}.office-format-label select{width:auto;padding:7px 9px}
+@media(max-width:760px){.top{flex-wrap:wrap}.office-top-actions{width:100%}.office-format-label{font-size:12px}}
+#paneGuide{flex:none!important;min-height:0!important}
+#paneDecks{flex:none;margin-top:20px;padding-top:12px;border-top:1px solid var(--line)}
+#chatIn{min-height:44px;max-height:120px}
+
+/* Authoring stays in view while the slide rail scrolls independently. */
+.office-file-actions{margin-top:0;margin-bottom:12px;position:sticky;top:0;z-index:3;padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:9px}
+#slideWorkspace{height:clamp(350px,calc(100dvh - 380px),740px);min-height:0}
+#officePartnerClose{display:none}
+@media(max-width:760px){
+  .top{position:sticky;top:0;z-index:5;background:var(--panel);padding:12px}
+  .office-file-actions{position:static;gap:6px;padding:6px}
+  .office-file-actions .btn{padding:8px 10px;font-size:12px}
+  #slideWorkspace{height:auto;min-height:320px}
+  .pane.right{display:none}
+  .office-chat-open .pane.right{display:flex;position:fixed;inset:0;z-index:20;max-height:100dvh;width:100%;padding:14px;background:var(--panel);overflow:auto;box-sizing:border-box}
+  .office-chat-open{overflow:hidden}
+  #officePartnerClose{display:block;align-self:flex-start;margin-bottom:12px}
+  #chat{flex:1;max-height:45dvh}
+}

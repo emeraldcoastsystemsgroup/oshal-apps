@@ -28,6 +28,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-23 03:10:00 | roger.murphy@emeraldcoastsystemsgroup.com | Initial Unified Inbox module: GET /inbox (surface) + GET /inbox/items (ranked, normalized triage list across the stored inbox + live Outlook (Graph) + live Slack DMs/mentions). Read-only; no LLM in the controller path. Workspace-scoped by member connection providers; channel-filterable. Surfaces serve from ctx.appPackageDir/tools (D10 load-time fallback).
+ * 2026-10-10 12:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Native kernel (OSHAL_EGRESS=kernel): read Outlook (graph.microsoft.com) and Slack (slack.com) through the kernel egress with no Authorization header, take each source's connected state from connectors.metadata and the kernel's "not connected" refusal, and pull Slack through the package-local reads because the framework slack-client is inert there. The broker path is unchanged outside the kernel.
  *
  * @module switchboard-inbox-routes
  */
@@ -71,6 +72,7 @@ const path = __importStar(require("path"));
 const logger_1 = require("@/shared/logger");
 const connectors_routes_1 = require("@/app/routes/connectors-routes");
 const slack_client_1 = require("@/app/routes/slack-client");
+const switchboard_kernel_egress_1 = require("./switchboard-kernel-egress");
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 const logger = (0, logger_1.createChildLogger)({ module: 'switchboard-inbox-routes' });
@@ -171,11 +173,12 @@ async function storedInboxItems(pool, sub, days) {
  * @description Pull the caller's live Outlook mail via Microsoft Graph and keep the triage-worthy
  * ones (unread, not bulk). hot = high importance or time-sensitive. Throws on a Graph error so the
  * caller can log + skip this source (best-effort).
- * @param token - a Microsoft Graph access token (Mail.Read).
+ * @param token - a Microsoft Graph access token (Mail.Read), or null under the native kernel, whose
+ * egress applies the caller's outlook connection itself.
  * @returns normalized Outlook mail rows.
  */
 async function outlookItems(token) {
-    const r = await fetch(GRAPH_MESSAGES, { headers: { Authorization: `Bearer ${token}` } });
+    const r = await fetch(GRAPH_MESSAGES, { headers: token === null ? {} : { Authorization: `Bearer ${token}` } });
     if (!r.ok)
         throw new Error(`graph ${r.status}: ${(await r.text()).slice(0, 200)}`);
     const j = (await r.json());
@@ -194,19 +197,28 @@ async function outlookItems(token) {
     }
     return out;
 }
+/** The shared slack-client over the caller's Slack USER token (xoxp) from the broker. */
+function brokerSlack(token) {
+    return {
+        identity: () => (0, slack_client_1.slackIdentity)(token),
+        pull: async (opts) => ({ messages: (await (0, slack_client_1.pullSlackFeed)(token, opts)).messages }),
+    };
+}
+/** The package-local Slack reads through the kernel egress (no token in the package). */
+const KERNEL_SLACK = { identity: switchboard_kernel_egress_1.kernelSlackIdentity, pull: switchboard_kernel_egress_1.kernelPullSlackFeed };
 /**
- * @description Pull the caller's live Slack DMs + @-mentions via the shared slack-client. Only
- * messages FROM others are kept: direct/group DMs (hot) and channel messages that @-mention the
- * caller. Throws on a Slack error so the caller can log + skip this source (best-effort).
- * @param token - a Slack USER token (xoxp).
+ * @description Pull the caller's live Slack DMs + @-mentions. Only messages FROM others are kept:
+ * direct/group DMs (hot) and channel messages that @-mention the caller. Throws on a Slack error so
+ * the caller can log + skip this source (best-effort).
+ * @param slack - the Slack reads to use (broker token via the shared slack-client, or the kernel egress).
  * @returns normalized Slack triage rows.
  */
-async function slackItems(token) {
-    const me = await (0, slack_client_1.slackIdentity)(token);
+async function slackItems(slack) {
+    const me = await slack.identity();
     if (!me.ok)
         throw new Error('slack auth failed');
     const mention = me.userId ? `<@${me.userId}>` : null;
-    const { messages } = await (0, slack_client_1.pullSlackFeed)(token, { maxChannels: 15, perChannel: 10, maxUsers: 40 });
+    const { messages } = await slack.pull({ maxChannels: 15, perChannel: 10, maxUsers: 40 });
     const out = [];
     for (const m of messages) {
         if (me.userId && m.userId === me.userId)
@@ -230,31 +242,81 @@ function tallyByChannel(items) {
         by[it.source] = (by[it.source] || 0) + 1;
     return by;
 }
+const NO_SOURCE = { items: [], connected: false };
+/**
+ * @description Read one live source through the kernel egress. A metadata answer of none/reconnect skips
+ * the request; the kernel's "not connected" refusal means no connection; any other failure logs and
+ * yields no rows while the connection still counts (as a failed read on a broker token did).
+ * @param state - the source's state from connectors.metadata, or null when unknown.
+ * @param read - the source read.
+ * @param label - source name for the log.
+ * @returns the rows and the connected flag.
+ */
+async function kernelRead(state, read, label) {
+    if (state === 'none' || state === 'reconnect')
+        return NO_SOURCE;
+    try {
+        return { items: await read(), connected: true };
+    }
+    catch (err) {
+        if ((0, switchboard_kernel_egress_1.isNotConnected)(err))
+            return NO_SOURCE;
+        logger.error({ err }, `${label} read failed`);
+        return { items: [], connected: true };
+    }
+}
+/**
+ * @description The live Outlook + Slack reads under the native kernel: connection state from the
+ * kernel's connectors.metadata, requests through the kernel egress with no credential in the package.
+ * @param ctx - app context (the native bridge carries `intent`).
+ * @param want - the workspace provider gate.
+ * @returns the Outlook and Slack reads, in that order.
+ */
+async function kernelLiveSources(ctx, want) {
+    const meta = await (0, switchboard_kernel_egress_1.readConnections)(ctx, (err) => logger.error({ err }, 'connection metadata read failed'));
+    return Promise.all([
+        (want('microsoft') || want('outlook')) ? kernelRead((0, switchboard_kernel_egress_1.connectionState)(meta, switchboard_kernel_egress_1.OUTLOOK_IDS), () => outlookItems(null), 'outlook') : NO_SOURCE,
+        want('slack') ? kernelRead((0, switchboard_kernel_egress_1.connectionState)(meta, switchboard_kernel_egress_1.SLACK_IDS), () => slackItems(KERNEL_SLACK), 'slack') : NO_SOURCE,
+    ]);
+}
+/**
+ * @description The live Outlook + Slack reads on broker tokens ('microsoft' then 'outlook', and 'slack').
+ * @param ctx - app context (pool for the broker).
+ * @param sub - caller OIDC sub.
+ * @param want - the workspace provider gate.
+ * @returns the Outlook and Slack reads, in that order.
+ */
+async function brokerLiveSources(ctx, sub, want) {
+    const msTok = (want('microsoft') || want('outlook'))
+        ? (await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'microsoft')) || (await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'outlook'))
+        : null;
+    const slackTok = want('slack') ? await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'slack') : null;
+    const [outlook, slack] = await Promise.all([
+        msTok ? outlookItems(msTok).catch((err) => { logger.error({ err }, 'outlook read failed'); return []; }) : Promise.resolve([]),
+        slackTok ? slackItems(brokerSlack(slackTok)).catch((err) => { logger.error({ err }, 'slack read failed'); return []; }) : Promise.resolve([]),
+    ]);
+    return [{ items: outlook, connected: !!msTok }, { items: slack, connected: !!slackTok }];
+}
 /**
  * @description Assemble the unified triage list from the three sources the workspace scope allows.
  * Each source is best-effort (a failure logs + yields []); results are ranked hot→newest, tagged
  * with the workspace id when scoped, and truncated to a sane board size.
- * @param ctx - app context (pool + broker).
+ * @param ctx - app context (pool + broker, or the kernel's metadata intent).
  * @param sub - caller OIDC sub.
  * @param opts - resolved scope: provider gate (null = all), lookback days, active workspace id.
  * @returns the ranked items plus whether any source connection was present.
  */
 async function assembleInbox(ctx, sub, opts) {
     const want = (p) => !opts.providers || opts.providers.has(p);
-    const msTok = (want('microsoft') || want('outlook'))
-        ? (await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'microsoft')) || (await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'outlook'))
-        : null;
-    const slackTok = want('slack') ? await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'slack') : null;
-    const [stored, outlook, slack] = await Promise.all([
+    const [stored, [outlook, slack]] = await Promise.all([
         want('google') ? storedInboxItems(ctx.pool, sub, opts.days).catch((err) => { logger.error({ err }, 'inbox store read failed'); return []; }) : Promise.resolve([]),
-        msTok ? outlookItems(msTok).catch((err) => { logger.error({ err }, 'outlook read failed'); return []; }) : Promise.resolve([]),
-        slackTok ? slackItems(slackTok).catch((err) => { logger.error({ err }, 'slack read failed'); return []; }) : Promise.resolve([]),
+        (0, switchboard_kernel_egress_1.kernelEgress)() ? kernelLiveSources(ctx, want) : brokerLiveSources(ctx, sub, want),
     ]);
-    const items = rankItems([...stored, ...outlook, ...slack]).slice(0, 60);
+    const items = rankItems([...stored, ...outlook.items, ...slack.items]).slice(0, 60);
     if (opts.workspaceId)
         for (const it of items)
             it.workspaceId = opts.workspaceId;
-    return { items, connected: !!(stored.length || msTok || slackTok) };
+    return { items, connected: !!(stored.length || outlook.connected || slack.connected) };
 }
 /**
  * @description Builds the Switchboard Unified Inbox sub-router (mounted at /inbox by the parent

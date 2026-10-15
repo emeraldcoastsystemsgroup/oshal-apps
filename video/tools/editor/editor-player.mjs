@@ -4,8 +4,9 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Immediate in-browser preview for the manual video editor (CREATE-EDIT-05d): a frame-exact playhead over the timeline that shows each segment's own source frame in a media element, the title overlay on its frames and the music bed under everything. A browser that cannot decode a clip says so and keeps the playhead, timing and titles working; the FFmpeg preview render stays the authoritative comparison with export.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  */
-import { PROFILE } from './timeline-validation.mjs';
+import { PROFILE, timelineFrames } from './timeline-validation.mjs';
 import { locateFrame, timelineLayout } from './timeline-model.mjs';
 import { mediaUrl } from './editor-api.mjs';
 import { clock } from './timeline-view.mjs';
@@ -19,12 +20,15 @@ import { clock } from './timeline-view.mjs';
  */
 export function createPlayer(nodes, documentOf, onFrame) {
   let frame = 0, playing = false, started = 0, showing = null, raf = 0;
-  const total = () => timelineLayout(documentOf()).reduce((sum, row) => sum + row.out - row.in, 0);
+  const total = () => timelineFrames(documentOf());
   nodes.viewer.addEventListener('error', () => { nodes.noPicture.hidden = false; });
   nodes.viewer.addEventListener('loadeddata', () => { nodes.noPicture.hidden = true; });
 
   function show(at) {
-    const doc = documentOf(), located = locateFrame(doc, Math.min(at, Math.max(0, total() - 1)));
+    const doc = documentOf();
+    if (doc.version === 2) { nodes.viewer.pause(); nodes.viewer.hidden = true; nodes.noPicture.hidden = false; nodes.noPicture.textContent = 'Use Render preview to inspect the multitrack composition with the same effects as export.'; nodes.overlay.hidden = true; nodes.clock.value = `${clock(at)} / ${clock(total())}`; nodes.playhead.max = String(total()); nodes.playhead.value = String(at); return; }
+    nodes.viewer.hidden = false;
+    const located = locateFrame(doc, Math.min(at, Math.max(0, total() - 1)));
     const title = doc.titles.find(item => at >= item.start && at < item.end);
     nodes.overlay.hidden = !title;
     if (title) { nodes.overlay.textContent = title.text; nodes.overlay.dataset.position = title.position; nodes.overlay.dataset.size = title.size; }

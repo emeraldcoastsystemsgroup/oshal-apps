@@ -19,6 +19,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — an in-progress week is not graded; a week whose lines are not in yet stays open rather than scoring zeros; a completed week is graded from stored actuals with its calls settled first; an ESPN week is graded against the lineup ESPN holds for that week; the record rolls the ledger up; a request naming no league reads the caller's own most recently linked league.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | The own-lineup PAT smoke, read from the manifest as declared (method, path, status, pointer), passes against the real lineup route for a linked league with no query: league name, the P(win) lineup, the mean-maximising lineup beside it and both win probabilities; the week lands in the caller's own ledger and a repeat run keeps one week row and the same calls.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Recording moved off GET /lineup (the native kernel admits a GET as a reader and refuses its writes): the served weeks are recorded through POST /lineup/record, and the own-lineup smoke (still a GET) must now leave the ledger untouched while POST /lineup/record registers the week once however often it runs.
  */
 
 'use strict';
@@ -36,8 +37,8 @@ async function servedWeek4() {
   const { router } = loadRouter({ sub: 'owner-a', secret: null }, pool);
   const created = await drive(router, 'POST /manual-leagues', { body: manualLeague() });
   const id = created.body.id;
-  const q = { query: { manualId: String(id), season: String(SEASON) } };
-  assert.equal((await drive(router, 'GET /lineup', q, publicOnlyEspn(4, []))).code, 200);
+  const q = { body: { manualId: String(id), season: String(SEASON) } };
+  assert.equal((await drive(router, 'POST /lineup/record', q, publicOnlyEspn(4, []))).code, 200);
   return { pool, router, id, key: `owner-a:${SEASON}:manual:${id}:4`, q };
 }
 
@@ -60,7 +61,7 @@ test('A WEEK WHOSE ACTUAL LINES ARE NOT IN YET STAYS OPEN — nobody is graded a
 test('A COMPLETED WEEK IS GRADED FROM STORED ACTUALS AGAINST THE LINEUP STARTED — its calls first', async () => {
   const { pool, router, key, q } = await servedWeek4();
   // Week 5's lineup refreshes the feed, which carries week 4's actual lines; then grade.
-  assert.equal((await drive(router, 'GET /lineup', q, publicOnlyEspn(5, []))).code, 200);
+  assert.equal((await drive(router, 'POST /lineup/record', q, publicOnlyEspn(5, []))).code, 200);
   const res = await drive(router, 'POST /grade', { body: { season: SEASON } }, publicOnlyEspn(5, []));
   assert.deepEqual(res.body, { ok: true, graded: 1, incomplete: 0 });
   const week = pool.tables.weeks.get(key);
@@ -110,11 +111,11 @@ function espnLeague(currentWeek, startedWeek4, seen) {
 test('AN ESPN WEEK IS GRADED AGAINST THE LINEUP ESPN HOLDS FOR THAT WEEK, not the one recorded at lineup time', async () => {
   const pool = memPool();
   const { router } = loadRouter({ sub: 'owner-a', secret: '{SWID-MINE}:my-s2' }, pool);
-  const q = { query: { leagueId: '4242', season: String(SEASON), week: '4' } };
-  assert.equal((await drive(router, 'GET /lineup', q, espnLeague(4, [11, 12, 14]))).code, 200);
+  const q = { body: { leagueId: '4242', season: String(SEASON), week: '4' } };
+  assert.equal((await drive(router, 'POST /lineup/record', q, espnLeague(4, [11, 12, 14]))).code, 200);
   assert.deepEqual(pool.tables.weeks.get(`owner-a:${SEASON}:4242:4`).started, [11, 12, 14]);
   // After the advice the manager did follow it on ESPN: the bench back started instead of RB2.
-  assert.equal((await drive(router, 'GET /lineup', { query: { leagueId: '4242', season: String(SEASON), week: '5' } }, espnLeague(5, [11, 13, 14]))).code, 200);
+  assert.equal((await drive(router, 'POST /lineup/record', { body: { leagueId: '4242', season: String(SEASON), week: '5' } }, espnLeague(5, [11, 13, 14]))).code, 200);
   const res = await drive(router, 'POST /grade', { body: { season: SEASON } }, espnLeague(5, [11, 13, 14]));
   assert.equal(res.body.graded, 1);
   const week = pool.tables.weeks.get(`owner-a:${SEASON}:4242:4`);
@@ -191,9 +192,12 @@ test('THE own-lineup SMOKE, AS DECLARED, PASSES FOR A LINKED LEAGUE: P(win) line
   assert.equal(typeof res.body.matchup.winProbability, 'number', 'the win probability the advice buys');
   assert.equal(typeof res.body.matchup.meanWinProbability, 'number', 'against the mean-maximising lineup\'s own');
   const weekKeys = () => [...pool.tables.weeks.keys()].filter((k) => k.startsWith('owner-a:'));
-  assert.deepEqual(weekKeys(), [`owner-a:${SEASON}:4242:4`], 'the week is registered in the caller\'s own ledger');
+  assert.deepEqual(weekKeys(), [], 'the smoke is a GET: a reader request records nothing');
+  assert.equal(res.body.recorded, false);
+  assert.equal((await drive(router, 'POST /lineup/record', { body: {} }, espnLeague(4, [11, 12, 14]))).code, 200);
+  assert.deepEqual(weekKeys(), [`owner-a:${SEASON}:4242:4`], 'POST /lineup/record registers the week in the caller\'s own ledger');
   const calls = pool.tables.calls.length;
-  assert.equal((await drive(router, key, { query: {} }, espnLeague(4, [11, 12, 14]))).code, smoke.status);
+  assert.equal((await drive(router, 'POST /lineup/record', { body: {} }, espnLeague(4, [11, 12, 14]))).code, 200);
   assert.deepEqual(weekKeys(), [`owner-a:${SEASON}:4242:4`], 'a repeat run re-registers the same week, never a second one');
   assert.equal(pool.tables.calls.length, calls, 'and the same start/sit calls');
 });

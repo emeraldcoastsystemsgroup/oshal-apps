@@ -10,7 +10,7 @@
  *  - **Ingest + aggregate** (cheap, deterministic) runs here in the controller: the user
  *    uploads their Google Takeout `watch-history.json`, we parse it into a compact
  *    aggregate (youtube-takeout.ts) and store it in a `user_sub`-keyed table; the raw
- *    export is kept AES-256-GCM-encrypted at rest.
+ *    export is kept encrypted at rest through @/features/personal-data.
  *  - **Reasoning** (the parent brief: interests, decoded channels, gift ideas, talking
  *    points) ALWAYS runs on the accountable Kid Lens bot via BotNodeClient.execute, so
  *    per-call cost lands in chat_tasks under the bot's own agent_id (ADR-036). The bot is
@@ -33,6 +33,9 @@
  * 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: replace the public SESSION_SECRET fallback with package-local fail-closed encryption while retaining the existing envelope for stored Takeout exports.
  * 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | Register the package's owner-scoped watch-history ingest function with the generic manifest Takeout spine.
  * 2026-09-06 | maintainer@emeraldcoastsystemsgroup.com | ADR-139 wave 2 — POST /import-artifact {ref}: the "Send to…" destination. Redeems via the SHARED kernel-relay helper and feeds the same ingestWatchHistory the raw upload uses (JSON only; zips stay with the Takeout spine).
+ * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | GET /status answers {hasData:false} and GET /brief 404 no_data when the caller has no activity store yet: on the native kernel a GET runs under read admission, where the lazy CREATE TABLE is refused "SQL schema is not provisioned", so everyone who had not uploaded got a 500. The table is now also a declared migration the kernel provisions for a writer.
+ * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | The raw export is sealed through `@/features/personal-data` encryptField (awaited) instead of the package-local SESSION_SECRET helper: on the native kernel the key is held by the kernel, bound to this application and the uploading person (PDATA-01), so an upload no longer fails with "SESSION_SECRET is required for package data encryption".
+ * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | GET /brief only reads: it answers the stored brief, or {brief:null} with hasData/analyzed saying why (a 200, because the kernel replaces a package GET's 404 with "application asset not found"). The analyzer run and the brief UPDATE move to POST /brief. On the native kernel a GET is admitted as a reader and the UPDATE was refused "SQL mutation requires original writer admission" after the analyzer had already run, so a parent never got a brief and every page load paid for an analyzer call. GET /status and GET /brief no longer run the schema bootstrap; the table is a declared migration and the writer ingest path still declares it.
  *
  * @module youtube-kids-routes
  */
@@ -46,7 +49,7 @@ import { redeemArtifactViaRelay } from '@/shared/artifact-exchange';
 import { BotNodeClient, createRegistryEndpointResolver } from '@/features/agent-management';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 import { parseTakeoutWatchHistory, type WatchAggregate } from './youtube-takeout';
-import { encryptSessionValue } from './session-crypto';
+import { encryptField } from '@/features/personal-data';
 
 const logger = createChildLogger({ module: 'youtube-kids-routes' });
 
@@ -58,6 +61,16 @@ const KID_LENS_AGENT_ID = 'a0000000-0000-0000-0000-000000000043';
 const botClient = new BotNodeClient(createRegistryEndpointResolver());
 /** Watch-history exports get large; cap generously (a few years of viewing is ~tens of MB). */
 const MAX_UPLOAD = 64 * 1024 * 1024;
+
+/** POST /brief refusal when the caller has not uploaded a watch history. */
+const NO_DATA = { error: 'no_data', message: 'Upload your Takeout watch-history.json first.' };
+/**
+ * GET /brief answers for "no brief stored" are 200 representations, not 404s: the native kernel
+ * replaces a package GET's 404 with its own "application asset not found" for a package without an
+ * authorization catalog, which would hide why there is no brief from the page.
+ */
+const NO_BRIEF_NO_DATA = { brief: null, hasData: false, analyzed: false, message: NO_DATA.message };
+const NO_BRIEF_NOT_ANALYZED = { brief: null, hasData: true, analyzed: false, message: 'The watch history has not been analyzed yet.' };
 
 /** Signed-in caller's OIDC sub. */
 function callerSub(req: Request): string | null {
@@ -72,6 +85,19 @@ function servePage(surfaceDir: string, file: string): RequestHandler {
       if (err) { logger.error({ err, file }, 'serve failed'); res.status(404).send('Not found'); }
     });
   };
+}
+
+/**
+ * @description Whether a store error means "this caller has no activity table yet": PostgreSQL's
+ * undefined_table, or the native kernel refusing the lazy CREATE TABLE of a read-only request in a
+ * scope where the declared migration has not been provisioned. Either way nothing was uploaded.
+ * @param err - The error a schema bootstrap or activity query threw.
+ * @returns True when the caller simply has no stored watch history.
+ */
+export function isActivityStoreAbsent(err: unknown): boolean {
+  const e = err as { code?: unknown; message?: unknown } | null;
+  if (!e) return false;
+  return e.code === '42P01' || /SQL schema is not provisioned/.test(String(e.message || ''));
 }
 
 /** Create the per-user store if absent. Raw export kept encrypted; aggregate is JSONB. */
@@ -137,7 +163,7 @@ export async function ingestWatchHistory(pool: AppContext['pool'], sub: string, 
      ON CONFLICT (user_sub) DO UPDATE SET
        aggregate = EXCLUDED.aggregate, raw_blob = EXCLUDED.raw_blob,
        total_watched = EXCLUDED.total_watched, brief = NULL, uploaded_at = now(), brief_at = NULL`,
-    [sub, JSON.stringify(agg), encryptSessionValue(rawJson), agg.totalWatched]);
+    [sub, JSON.stringify(agg), await encryptField(sub, rawJson), agg.totalWatched]);
   logger.info({ sub, totalWatched: agg.totalWatched, channels: agg.distinctChannels }, 'kid-lens watch history ingested');
   return { totalWatched: agg.totalWatched, distinctChannels: agg.distinctChannels, dateRange: agg.dateRange, topChannels: agg.topChannels.slice(0, 8) };
 }
@@ -232,7 +258,6 @@ export function createYoutubeKidsRoutes(ctx: AppContext): Router {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
-      await ensureYoutubeKidsSchema(ctx.pool);
       const row = (await ctx.pool.query(
         `SELECT total_watched, aggregate->'dateRange' AS date_range,
                 (brief IS NOT NULL) AS has_brief, uploaded_at, brief_at
@@ -243,6 +268,7 @@ export function createYoutubeKidsRoutes(ctx: AppContext): Router {
         hasBrief: row.has_brief, uploadedAt: row.uploaded_at, briefAt: row.brief_at,
       });
     } catch (err) {
+      if (isActivityStoreAbsent(err)) { res.json({ hasData: false }); return; }
       logger.error({ err }, 'kid-lens status failed');
       res.status(500).json({ error: (err as Error).message });
     }
@@ -289,22 +315,37 @@ export function createYoutubeKidsRoutes(ctx: AppContext): Router {
     }
   });
 
-  /** GET /brief — the parent brief. Cached after first run; ?refresh=1 regenerates. */
+  /** GET /brief — the stored parent brief. Read-only: it never runs the analyzer or writes. */
   router.get('/brief', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
-      await ensureYoutubeKidsSchema(ctx.pool);
       const row = (await ctx.pool.query(
-        'SELECT aggregate, brief FROM oshal_youtube_activity WHERE user_sub = $1', [sub])).rows[0];
-      if (!row || !row.aggregate) { res.status(404).json({ error: 'no_data', message: 'Upload your Takeout watch-history.json first.' }); return; }
-      const refresh = String(req.query.refresh || '') === '1';
-      if (row.brief && !refresh) { res.json({ brief: row.brief, cached: true }); return; }
+        'SELECT (aggregate IS NOT NULL) AS has_data, brief, brief_at FROM oshal_youtube_activity WHERE user_sub = $1', [sub])).rows[0];
+      if (!row || !row.has_data) { res.json(NO_BRIEF_NO_DATA); return; }
+      if (!row.brief) { res.json(NO_BRIEF_NOT_ANALYZED); return; }
+      res.json({ brief: row.brief, briefAt: row.brief_at, hasData: true, analyzed: true, cached: true });
+    } catch (err) {
+      if (isActivityStoreAbsent(err)) { res.json(NO_BRIEF_NO_DATA); return; }
+      logger.error({ err }, 'kid-lens brief read failed');
+      res.status(500).json({ error: 'brief_unavailable', message: (err as Error).message });
+    }
+  });
+
+  /** POST /brief — run the Kid Lens bot over the stored aggregate and store the brief (writer). */
+  router.post('/brief', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    try {
+      const row = (await ctx.pool.query(
+        'SELECT aggregate FROM oshal_youtube_activity WHERE user_sub = $1', [sub])).rows[0];
+      if (!row || !row.aggregate) { res.status(404).json(NO_DATA); return; }
       const brief = await runAnalyzer(ctx, sub, row.aggregate as WatchAggregate);
       if (!brief) { res.status(502).json({ error: 'empty_brief', message: 'The analyzer returned nothing — try again.' }); return; }
       await ctx.pool.query('UPDATE oshal_youtube_activity SET brief = $2, brief_at = now() WHERE user_sub = $1', [sub, brief]);
       res.json({ brief, cached: false });
     } catch (err) {
+      if (isActivityStoreAbsent(err)) { res.status(404).json(NO_DATA); return; }
       logger.error({ err }, 'kid-lens brief failed');
       res.status(502).json({ error: (err as Error).message });
     }

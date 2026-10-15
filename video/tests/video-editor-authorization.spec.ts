@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Video's first named catalog through the REAL core authorization runtime and route mounter: every manifest route mounts, each of the eight roles admits exactly the endpoints this spec independently expects (studio, series, pump, summary and editor), upload needs create OR change, unbound paths, legacy app-admin, a colliding issuer and a revoked grant are refused, and no refused request reaches the business pool. Studio collaborators (renderer, conductor, pump, storage, bots) are forbidden seams: this boundary is admission, not generation.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05c: the five export endpoints join the independently stated admission table.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05d: the editor screen and its module allowlist join the table under editor.view.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  */
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import express, { type Request } from 'express';
@@ -58,6 +59,7 @@ const ROLES: Record<string, string[]> = {
 };
 /** This spec's own statement of what each endpoint needs; the catalog must agree with it. */
 const ENDPOINTS: Array<[string, string, string[]]> = [
+  ['GET', '/editor/editing-contract', ['editor.view']], ['POST', '/editor/agent-projects', ['editor.view', 'editor.create']], ['POST', `/editor/projects/${RECORD}/operations`, ['editor.view', 'editor.read', 'editor.change']],
   ['GET', '/ui', ['studio.view']], ['GET', '/list', ['studio.view', 'studio.read']], ['GET', '/series', ['studio.view', 'studio.read']],
   ['GET', '/home-summary', ['studio.view', 'studio.read']],
   ['POST', '/storyboard', ['studio.view', 'studio.generate']], ['POST', '/generate', ['studio.view', 'studio.generate']],

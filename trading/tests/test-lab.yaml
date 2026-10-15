@@ -4,9 +4,36 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | The package's first Test Lab catalog (trading 1.33.0): the readiness smoke under its existing identity, and the suites of the ADR-052 addendum paper-to-live parity work - the Strategy Lab knob reference and editor, the confirm-gated plan amend control, the yield-sleeve governance readout, and the confirm-gated promotion of the three knobs - each with its real runner and prerequisites. The remaining package suites are still to be registered (trading/BACKLOG.md T1). Registration does not execute a suite or certify a pass.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Two expectations for cases the suites gained before 1.33.0 shipped: sleeve-governance-readout states what the positions table shows for an armed sleeve's fund (the badge style, the sentence in the open in its own block, and that the fund is not counted under the engine-will-not-trade headline), and position-plan-amend states that a life below 1 or a fraction is refused on the card before any request.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register event-plans-native: GET /events/plans on the native kernel answers 200 with the plans and scheduled false without calling the legacy schedule service the kernel bridge refuses.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register rail-guard-native: the watchlist, ledger and book reads answer the honest not-connected state when the host has no broker or market-data rail.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register analyst-conversation: the trading analyst answers a conversational question in prose from its authorized read tools, keeping the json decision block for decision tasks.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register the native paper engine suites (TRADE-01): paper-decide, paper-tick, paper-screen-routes and paper-broker-isolation.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | paper-decide and paper-tick expectations for the engine review fixes: no 1Week regime means hold, every weighed timeframe is reachable from the kernel's bounded windows, the NYSE early closes, rotation only for a buyable candidate and never under the drawdown halt, a mid-tick disarm or re-arm rolls the tick back, a re-arm cannot change an open book's starting cash, and /performance measures SPY over the book's own days or says the benchmark is unavailable.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register autopilot-native (the /api/trading/autopilot switch over the native paper book; arming is never reported as scheduled) and native-paper-ui (the Trading page tells armed and scheduled apart and Start activates the person's own paper-autopilot job).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register research-native-market: Research on a host with no market-data rail prices from the World archive (labelled), keeps the SEC filings, and names each unavailable section's reason; no surface tells the person to set Alpaca keys.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Register paper-facts: the trading bots' specialist facts carry the person's native paper book (present, recorded equity, today's realized sells) instead of reporting no paper book; research-native-market also proves Major events follow the filings read.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | analyst-conversation states that the manifest declares chatBot trading-analyst, so the Intelligent Trades concierge converses instead of opening on futures-research-analyst.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Register research-handoff-summary: the hand-off to another app is the research report in plain sentences, not the screen's control text, and the Settings button shows a glyph.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Register trading-api-person-words: a failed read reaches a panel in a person's words, never a server TypeError or module name (demo sweep 1: the paper book's Protected lots, Timed orders and Earnings rules panels).
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Register paper-landing and paper-landing-browser: with no Schwab and no market-data connector the landing shows the native paper book (balances, day change, holdings) instead of $0 and "No accounts yet", the chart draws the World archive's stored prices as a line, the movers board and the watchlist's Today read the archive's day closes, and the paper book's Allocation/Exits say it needs no broker.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Register off-notes: the earnings watcher and armed event-plan notes say in words what is off, never an environment-variable name (sweep 14).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
+  - id: research-handoff-summary
+    name: The research hand-off is the report, not the screen controls
+    purpose: Run the page's own researchSummaryText over a report and read the hand-off and header source.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/research-handoff-summary.test.js] }
+    expected:
+      - The summary states price, fundamentals, earnings, filings and events, and each unavailable section's reason.
+      - It carries no Buy, + Watchlist or chart timeframe text; connected-actions hands on the summary, not innerText.
+      - The Settings button shows a gear glyph and keeps aria-label Settings.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
   - id: package-readiness
     name: Installed package readiness
     purpose: Verify the existing metadata-only readiness probe without broker, market-data, provider or user-data access.
@@ -116,4 +143,315 @@ cases:
     limits:
       timeoutMs: 120000
       maxMemoryMb: 512
+    installation: never
+  - id: event-plans-native
+    name: The event-plans list loads on the native kernel without the legacy scheduler
+    purpose: Drive GET /events/plans through the package's real event-plan router with a schedule service shaped like the native kernel bridge's (every method refuses), under OSHAL_EGRESS=kernel and off it. The kernel plan store, book resolution and broker reader are in-memory doubles; no broker, market data or order path is touched.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-event-plans-native.spec.ts
+    expected:
+      - Under OSHAL_EGRESS=kernel the list answers 200 with the selected book's plans and every plan, scheduled false, and the schedule service is never called.
+      - Off the native kernel the list still asks the scheduler, and an active schedule owned by the caller reads scheduled true.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: rail-guard-native
+    name: The cockpit-open trading reads answer honestly when no broker or market-data rail exists
+    purpose: Drive GET /watchlist, /ledger, /account, /positions, /performance and /exposure through the package's real research, book-read and order-flow routers with rails shaped like the native kernel bridge's (getMarketData answers {} and the broker reader has no configured() probe). The book, schema bootstrap, world feed and pool are in-memory doubles; no broker, market data or order path is touched.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-rail-guard-native.spec.ts
+    expected:
+      - GET /watchlist answers 200 with every symbol and quote null.
+      - GET /ledger answers 200 with configured false, account null and no positions.
+      - GET /account, /positions, /performance and /exposure answer 409 broker_not_configured with the no-broker sentence, and no rail read is made.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: analyst-conversation
+    name: The trading analyst answers a conversation in prose, not a json decision
+    purpose: Read the shipped trading-analyst persona and prove the json decision block is required only when a task supplies a decision contract, that a conversational question is answered in prose, and that every read tool it names is authorized. No model, broker or database is reached.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/trading-analyst-conversation.test.js] }
+    expected:
+      - The json decision block is required only when the task hands over signals and a decision contract.
+      - A conversational question is answered in plain sentences and never as a json decision block.
+      - trading_status, trading_positions, trading_book_facts and trading_performance are each authorized auto for the bot, and trading_performance reads GET /api/trading/performance for 1W, 1M, 3M or 1Y only.
+      - The manifest declares chatBot trading-analyst, a bot it declares, so the app concierge converses; Finance's money words are not trading routing words.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: paper-decide
+    name: The native paper engine decides deterministically within the person's guardrails
+    purpose: Exercise the paper engine's pure decision rules ported from the legacy engine - the ensemble and multi-timeframe fold, the regime gate, the breakdown signature, stop-loss and take-profit, the trailing stop, the cap trim, rotation, conviction sizing, the drawdown breaker, the New York session clock and the tick planner's stale-quote rule. No database, kernel, broker or network is reached.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/paper-decide.test.js] }
+    expected:
+      - The same closes always produce the same call; an aligned uptrend buys, an aligned downtrend sells and a series too short to vote holds and says so.
+      - A weekly trend leaning against a buy vetoes it; a breakdown needs both short timeframes decisively bearish.
+      - Stops, take-profits, trailing exits, trims and rotation fire by their rules and never on an unpriced position; a trim never flattens.
+      - Entries are clipped by the person's max shares, max notional, cash, the sector cap and the position count; the drawdown breaker halts entries.
+      - A stale quote is never traded and a stale holding is valued at its last recorded price.
+      - Without a 1Week regime view the short timeframes alone hold, and the regime is reported missing rather than 0.
+      - Every timeframe the fold weighs is reachable through readMarket from the kernel's bounded price windows.
+      - The NYSE early closes (day after Thanksgiving, and July 3 / December 24 on Monday to Thursday) end the session at 13:00 New York.
+      - Rotation never benches a holding for a candidate with a stale quote, and never while the drawdown breaker halts entries.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: paper-tick
+    name: The native paper tick arms, trades, stays idempotent and keeps each person's book their own
+    purpose: Drive the package's real paper route handlers and router end to end over an in-memory SQL double that implements exactly the engine's declared statements and a recording prices-intent double - arming, a scheduled tick that buys at the kernel price, the same window again, a later stop-out, the not-armed refusal, the closed-market and price-failure no-ops, disarming, owner scoping and the screen-read answers.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/paper-tick.test.js] }
+    expected:
+      - A person who has not armed is refused 409 paper_not_armed before any price is read.
+      - A scheduled tick buys the uptrend at the latest kernel price and writes the fill, its decision, the position, the account, the daily equity and the tick record together.
+      - A second tick in the same five-minute window, or one that lost the window claim, writes nothing.
+      - A holding that falls past the posture's stop is sold at the kernel price with its realized P&L.
+      - Outside the session, or when the price read fails or is absent, nothing is traded or written.
+      - Person B never reads, sees or moves person A's paper book.
+      - A disarm, or a re-arm with new guardrails, that lands while a tick is reading prices makes that tick roll back as book_changed.
+      - Re-arming an open book with a different startingCash is refused 409 paper_book_open; leaving it out keeps the account's own.
+      - /performance measures SPY from the book's first snapshot date, and reports the benchmark unavailable when the archive has no SPY.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: paper-screen-routes
+    name: The shipped trading screens read the native paper book on a railless paper book
+    purpose: Load the shipped book-read and order-flow route files with the platform imports stood in by local bridge-shaped doubles and prove GET /status, /account, /positions, /performance, /ledger, /orders, /journal and /realized answer from the person's native paper book once it exists, while a person without one and a host without kernel prices keep the existing answers.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/paper-screen-routes.test.js] }
+    expected:
+      - Before arming, /account answers 409 broker_not_configured and /status offers the native paper book.
+      - After a tick, every listed read answers 200 from the native paper book with its cash, position, fill, decision rationale and returns.
+      - Another person and a host without kernel prices keep the existing answers.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: paper-broker-isolation
+    name: No native paper code path can reach a broker
+    purpose: Statically check every paper engine module for broker, platform-engine and network imports and for any intent other than the two price reads, then run a full trading tick with fetch and every broker and network module trapped to throw.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/paper-broker-isolation.test.js] }
+    expected:
+      - No paper engine module requires a broker adapter, the platform's trading engine, a network module or anything outside the package.
+      - The only kernel intents the engine names are prices.latest and prices.series.
+      - A trading tick completes with every trapped path untouched and its fill exists only as a row in the person's own book.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: autopilot-native
+    name: The autopilot switch answers from the native paper book and never claims an armed book is scheduled
+    purpose: Drive the shipped compiled autopilot router over the in-memory SQL double with every framework import refusing, and prove GET/POST/DELETE answer from the person's native paper book, a different cadence is refused, and arming reports armed apart from the person's schedule activation, which the package cannot read.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/autopilot-native.test.js] }
+    expected:
+      - GET answers native status with the manifest's paper-autopilot cadence and never reaches the legacy schedule service.
+      - POST arms the book and answers armed true with enabled and scheduleActive null, never enabled true; DELETE answers enabled false.
+      - A different cron is refused 400 cron_fixed; the newest schedule-fired tick is reported as lastScheduledRunAt.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: native-paper-ui
+    name: The Trading page tells an armed paper book apart from a scheduled one
+    purpose: Load the shipped tools/ui/native-paper.js with a recording fetch for the kernel schedule API and prove the header shows armed vs scheduled from the person's own paper-autopilot job and Start activates that job with class person.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-paper-ui.test.js] }
+    expected:
+      - An armed book whose job is not active shows "armed, not scheduled" and an Activate paper schedule button.
+      - An armed book whose job is active shows "autopilot on" and Stop.
+      - Start arms the book, then POSTs the job's activate with class person, and does not activate a job already active.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: research-native-market
+    name: Research on a host with no market-data rail says what it has and why the rest is missing
+    purpose: Load the shipped research routes with the platform imports stood in by the native bridge's shape (a not-connected rail whose reads reject with market_data_not_connected) and prove GET /research/NVDA prices from the World archive through ctx.intent, keeps the EDGAR filings, and names the reason for each unavailable section, and that the watchlist and the surfaces carry the same truth.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/research-native-market.test.js] }
+    expected:
+      - The NVDA quote is the archive's stored price with its own time, labelled not a live quote.
+      - The SEC filings section is ok; fundamentals and news are unavailable with the host's market-data sentence.
+      - A ticker the archive does not track, and a host without the archive, say so in the quote reason.
+      - The watchlist row carries the archive price labelled as stored.
+      - No shipped Trading surface tells the person to set Alpaca keys; the account view prints the host's broker reason.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: paper-facts
+    name: The trading bots' facts carry the native paper book
+    purpose: Load the shipped trading-book-facts.js with the legacy book store stood in as the native bridge answers it and prove the paper slot reports the person's native paper book after a tick, stays absent for a person without one, and is untouched on a host without the native paper engine.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/paper-facts.test.js] }
+    expected:
+      - After a tick, paper.present is true, books.paper is 1 and today's recorded equity is a number.
+      - Another person reads paper.present false and no figures.
+      - The declared fact key set is unchanged.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: trading-api-person-words
+    name: A failed read reaches the panel in a person's words
+    purpose: Run the shipped tools/ui/app.js api() (sliced verbatim) over recorded failed replies - no browser, network or server.
+    level: unit
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-api-person-words.spec.ts
+    expected:
+      - A server failure (500) reads as one plain sentence, never its TypeError text such as "(0 , trading_pinned_lots_1.pinnedQtyBySymbol) is not a function".
+      - The native not-available refusal reads as "this is not available on this installation yet."
+      - A route's own refusal words (a 503 naming the missing connector, a 428 confirm) are kept, with the status and code on the error.
+    prerequisites:
+      - runner:vitest
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+    installation: never
+  - id: paper-landing
+    name: With no Schwab the landing, charts, movers and watchlist answer from the paper book and the World archive
+    purpose: Load the shipped accounts, book-read, research and chart route files with the platform imports answered as the native kernel bridge answers them (no broker, no market-data connector) and prove the landing lists the person's native paper book with its balances and holdings, and that the chart, the movers board and the watchlist read the World price archive through ctx.intent.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/paper-landing.test.js] }
+    expected:
+      - GET /accounts lists the paper book (no stored book id) before and after it is started; GET /summary says "not started" with no balances, then carries its equity, cash, day change and UPCO in the positions rollup and the total.
+      - Another person, a host without the archive and a connected paper rail keep their own or the existing answers.
+      - GET /api/trading-charts/bars answers a stored-price line for 5Min, 15Min, 1Hour, 1Day and 1Week (no candles), 404 for an untracked ticker and the 503 refusal without the archive.
+      - The movers board ranks the archive's day closes (labelled not live) and the watchlist carries the archive's day change; an untracked ticker has no price.
+      - GET /exposure on the paper book says it needs no broker instead of "Connect one in Settings".
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+  - id: paper-landing-browser
+    name: The Trading page shows the paper book and an archive chart with no Schwab
+    purpose: >-
+      Serve the shipped trading.html and ui scripts with the shipped routes on a native-kernel-shaped host (no broker, no
+      market-data connector, an armed paper book holding UPCO, a World price archive) and drive the page in Chromium.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/paper-landing-browser.test.js] }
+    expected:
+      - The landing shows the Paper (reference book) tile with $100,000 and a PAPER pill, the hero total is $100,000, and the positions rollup lists UPCO in the paper book.
+      - Opening the account and the UPCO row draws a chart from the World archive with its stored-prices note, and Allocation says the paper book needs no broker.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+  - id: off-notes
+    name: An off switch is said in words, never a variable name
+    purpose: >-
+      Run the shipped compiled watcherPosture with the leg off and the watcher off (sweep 14: the Earnings rules panel showed
+      "TRADING_EVENT_PLANS is off on this server"), and read the shipped armed-plan note.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/trading-off-notes.test.js] }
+    expected:
+      - The leg-off note reads "Event trading is switched off on this installation ..." and the watcher-off note "Earnings rules are switched off ...", neither naming a variable.
+      - With both on the posture is enabled with no note.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+
+  - id: native-schwab-reads
+    name: Native Schwab summaries and read-only holdings
+    purpose: Verify shipped native summary and holdings code against explicit owner-scoped provider fixtures.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-schwab-reads.test.js] }
+    expected:
+      - Actual balances and holdings retain missing daily-change values and failed-read dispositions.
+      - Holdings are view-only; failed reads never claim an empty portfolio or offer real orders.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+  - id: native-schwab-browser
+    name: Native Schwab holdings on desktop and phone
+    purpose: Drive actual Trading assets and routes in Chromium with named provider and SQL fixture seams.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/native-schwab-browser.test.js] }
+    expected:
+      - Account balances, holdings and navigation work at desktop and phone widths.
+      - No unsupported book creation or live-order controls appear in native read-only accounts.
+      - Full-year execution CSV exports work on desktop and phone and deduplicate boundary fills.
+      - A failed history chunk withholds the export and replaces the loading status with an error.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+  - id: native-schwab-movers
+    name: Connected native quotes preserve the archive Movers board
+    purpose: Ensure enabling Schwab quotes never calls the unavailable whole-market screener.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-schwab-movers.test.js] }
+    expected:
+      - Connected native quote posture still returns the correctly labelled World archive Movers board.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+
+  - id: native-schwab-history
+    name: Owner-account execution history refuses incomplete reconciliation evidence
+    purpose: Exercise the shipped authenticated history route and native intent input contract without placing orders.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-schwab-history.test.js] }
+    expected:
+      - Only the selected account, connection and date window reach the kernel intent; caller identity is never supplied by route input.
+      - Unauthenticated, invalid and failed reads never return an empty successful history.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
     installation: never

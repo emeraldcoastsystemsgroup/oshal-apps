@@ -6,6 +6,10 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Offer the named image filter looks from the model; choosing one is a single undoable edit of the selected image layer.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Bind region mode (exclusive with drawing), whole-image selection for keyboard users and Clear region.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Bind the Change a region panel and ask which image service would answer once permissions are known.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Bind region-to-mask, invert, enable, remove and source-pixel feather controls to ordinary undoable edits.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Integrate version 3 brush and arithmetic masks plus editable stack/clipped color adjustments with existing project history.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  */
 import { $, state, edit, notify, subscribe, handle, api, error, openDocument } from './editor-state.mjs';
 import { render, fitCanvas, paint } from './editor-view.mjs';
@@ -15,8 +19,10 @@ import { bindInteractions } from './editor-interactions.mjs';
 import { bindTemplates, acceptIncomingTemplate } from './editor-templates.mjs';
 import { bindEditorContext } from './editor-context.mjs';
 import { bindBrand, loadBrand } from './brand-editor.mjs';
+import { bindVectors } from './vector-editor.mjs';
+import { parentGroup } from './group-geometry.mjs';
 import { IMAGE_FILTER_LOOKS } from './model.mjs';
-import { selectionFromLayer } from './region-select.mjs';
+import { resolveSelection, selectionFromLayer } from './region-select.mjs';
 import { bindRegionEditPanel, loadRegionProvider } from './region-edit-panel.mjs';
 
 function addLayer(type) {
@@ -26,7 +32,14 @@ function addLayer(type) {
   edit({ type: 'add', layer }); state.selected = layer.id; notify();
 }
 
-function changeSelected(patch) { if (state.selected) edit({ type: 'update', id: state.selected, patch }); }
+function changeSelected(patch) {
+  const layer = state.project.layers.find(item => item.id === state.selected);
+  if (layer?.type === 'group') {
+    if (patch.w !== undefined) patch.h = patch.w * layer.baseHeight / layer.baseWidth;
+    else if (patch.h !== undefined) patch.w = patch.h * layer.baseWidth / layer.baseHeight;
+  }
+  if (state.selected) edit({ type: 'update', id: state.selected, patch });
+}
 
 function bindProperties() {
   for (const control of document.querySelectorAll('[data-property]')) control.onchange = handle(() => {
@@ -52,13 +65,60 @@ function reorder(direction) {
   edit({ type: 'reorder', id: state.selected, index: Math.max(0, Math.min(state.project.layers.length - 1, index + direction)) });
 }
 
+function bindMasks() {
+  const selected = () => state.project.layers.find(layer => layer.id === state.selected);
+  $('maskFromRegion').onclick = handle(() => {
+    const { layer } = resolveSelection(state.project, state.region);
+    if (layer.id !== state.selected) throw new Error('Select the image that owns this region first.');
+    changeSelected({ mask: { points: state.region.points, enabled: true, inverted: false, feather: 0 } });
+  });
+  $('combineMaskRegion').onclick = handle(() => {
+    const { layer, selection } = resolveSelection(state.project, state.region);
+    if (layer.id !== state.selected || !layer.mask) throw new Error('Select the masked image and a region first.');
+    const operation = { kind: 'polygon', mode: $('maskCombine').value, points: selection.points };
+    changeSelected({ mask: { ...layer.mask, operations: [...(layer.mask.operations ?? []), operation] } });
+  });
+  $('maskBrush').onchange = () => {
+    state.maskBrush = $('maskBrush').value;
+    if (state.maskBrush) { state.draw = false; state.regionMode = false; }
+    notify();
+  };
+  $('invertMask').onclick = handle(() => { const mask = selected()?.mask; if (mask) changeSelected({ mask: { ...mask, inverted: !mask.inverted } }); });
+  $('toggleMask').onclick = handle(() => { const mask = selected()?.mask; if (mask) changeSelected({ mask: { ...mask, enabled: !mask.enabled } }); });
+  $('removeMask').onclick = handle(() => changeSelected({ mask: null }));
+  $('maskFeather').onchange = handle(() => { const mask = selected()?.mask; if (mask) changeSelected({ mask: { ...mask, feather: Number($('maskFeather').value) } }); });
+}
+
+function bindAdjustments() {
+  $('addAdjustment').onclick = handle(() => {
+    const id = crypto.randomUUID(); edit({ type: 'add', layer: { id, type: 'adjustment', name: 'Adjustment',
+      x: 0, y: 0, w: state.project.width, h: state.project.height } }); state.selected = id; notify();
+  });
+  $('adjustmentScope').onchange = handle(() => changeSelected({ scope: $('adjustmentScope').value,
+    ...($('adjustmentScope').value === 'layer' ? { targetId: $('adjustmentTarget').value } : { targetId: undefined }) }));
+  $('adjustmentTarget').onchange = handle(() => { if ($('adjustmentScope').value === 'layer') changeSelected({ targetId: $('adjustmentTarget').value }); });
+  $('applyAdjustmentCurve').onclick = handle(() => {
+    const curve = $('adjustmentCurve').value.split(',').map(pair => {
+      const values = pair.trim().split(':'); if (values.length !== 2) throw new Error('Use input:output pairs separated by commas.');
+      return { x: Number(values[0]), y: Number(values[1]) };
+    }); changeSelected({ curve });
+  });
+}
+
 function bindEditing() {
   for (const [id, type] of [['addText', 'text'], ['addRectangle', 'rect'], ['addEllipse', 'ellipse']]) $(id).onclick = handle(() => addLayer(type));
-  $('drawMode').onclick = () => { state.draw = !state.draw; if (state.draw) state.regionMode = false; notify(); };
-  $('regionMode').onclick = () => { state.regionMode = !state.regionMode; if (state.regionMode) state.draw = false; notify(); };
+  $('drawMode').onclick = () => { state.draw = !state.draw; if (state.draw) { state.regionMode = false; state.maskBrush = ''; state.vectorMode = false; } notify(); };
+  $('regionMode').onclick = () => { state.regionMode = !state.regionMode; if (state.regionMode) { state.draw = false; state.maskBrush = ''; state.vectorMode = false; } notify(); };
   $('selectWholeImage').onclick = handle(() => { state.region = selectionFromLayer(state.project, state.selected); notify(); });
   $('clearRegion').onclick = () => { state.region = null; notify(); };
   $('raiseLayer').onclick = handle(() => reorder(1)); $('lowerLayer').onclick = handle(() => reorder(-1));
+  $('groupBelow').onclick = handle(() => {
+    const parent = parentGroup(state.project, state.selected);
+    const siblings = parent ? parent.children : state.project.layers.filter(layer => !parentGroup(state.project, layer.id)).map(layer => layer.id);
+    const index = siblings.indexOf(state.selected); if (index < 1) throw new Error('Choose a layer with a sibling below it.');
+    const id = crypto.randomUUID(); edit({ type: 'group', ids: [siblings[index - 1], state.selected], id }); state.selected = id; notify();
+  });
+  $('ungroupLayer').onclick = handle(() => edit({ type: 'ungroup', id: state.selected }));
   $('deleteLayer').onclick = handle(() => edit({ type: 'remove', id: state.selected }));
   $('duplicateLayer').onclick = handle(() => {
     const id = crypto.randomUUID(); edit({ type: 'duplicate', id: state.selected, newId: id }); state.selected = id; notify();
@@ -71,9 +131,9 @@ function bindEditing() {
 
 async function start() {
   if (matchMedia('(max-width:720px)').matches) $('canvasOptions').open = false;
-  bindEditing(); bindProperties(); bindProjects(); bindFiles(); bindInteractions(); bindTemplates(); bindBrand(); bindRegionEditPanel();
+  bindEditing(); bindProperties(); bindMasks(); bindAdjustments(); bindProjects(); bindFiles(); bindTemplates(); bindBrand(); bindRegionEditPanel();
   const brandReady = loadBrand();
-  subscribe(render); subscribe(queueAutosave); render();
+  subscribe(render); bindVectors(); bindInteractions(); subscribe(queueAutosave); render();
   void bindEditorContext().catch(() => console.warn('[Create] Shared screen context is unavailable. Manual editing remains available.'));
   try {
     const result = await api('/permissions'); state.permissions = result.permissions || {};

@@ -1,0 +1,23 @@
+name: oshal-publishing-studio-engine
+services:
+  publishing-studio-engine:
+    image: oshal-publishing-studio-engine:local
+    container_name: oshal-publishing-studio-engine
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=512m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 32
+    mem_limit: 1536m
+    cpus: 2
+    labels: {oshal.app: publishing-studio}
+    networks:
+      oshal:
+        aliases: [publishing-studio-engine]
+networks:
+  oshal:
+    external: true
+    name: ${OSHAL_NETWORK:?Set the installation private network explicitly}

@@ -4,6 +4,13 @@
 # -----------------------------------------------------------------------------
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.6.3: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register the native kernel egress case: the Today feed, Inbox and Compose routes under OSHAL_EGRESS=kernel with synthetic connection metadata and a recording fetch.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register native-schema-declarations: every INSERT target is created by a declared migration with a primary key, and the calendar and workspace migrations match the runtime bootstrap's final shape.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register streams-delete: the owner's confirmed DELETE /posts/:id removes the post with its variants and revisions; other people, unconfirmed and scheduled requests remove nothing; the surface offers Delete.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register compose-variants-decline: a comms-bot refusal never lands in a variant's text; Compose and Streams show it as a warning.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | compose-variants-decline: a post opening like a refusal of something else ("I can't help but…", "Unable to make it…?", "I won't share…") is a rewrite; only a refusal of the drafting task is a decline.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | compose-variants-decline: real posts that say "cannot" or "publish" legitimately (carrying the source's topic words, a hashtag or link, an "Unable to …?" hook, or opening "Declined: …") keep their text; the live refusals stay declines against a real source too.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | compose-variants-decline: a refusal that names the author's topic, quotes the text or quotes its link stays a decline; post signs count only outside the refused clause and quotes.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -29,6 +36,99 @@ cases:
     sideEffects: none
     isolation:
       mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: kernel-egress
+    name: Native kernel egress for Today, Inbox and Compose
+    purpose: Drive the compiled Today feed, Inbox and Compose routes with OSHAL_EGRESS=kernel, the bridge's inert framework stand-ins, synthetic connection metadata and a recording fetch - no network or credentials.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/kernel-egress.test.cjs
+    expected:
+      - Gmail, Calendar, Graph, Slack and X requests go to gmail.googleapis.com, www.googleapis.com, graph.microsoft.com, slack.com and api.twitter.com with no Authorization header and no key in the URL.
+      - The answers map to the same Today board, Inbox triage rows and publish result; the framework broker, summarizer and Slack client are never used.
+      - Connected state comes from connectors.metadata; no, a revoked or a lapsed connection, or a kernel "not connected" refusal, answers the same not-connected payloads and 409s.
+      - LinkedIn and Facebook publishing answer 501 with no request; Compose targets mark only X publishable.
+      - Outside the kernel the broker token still travels as a Bearer header.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: native-schema-declarations
+    name: Native schema declarations for every inserted table
+    purpose: Read the manifest's declared migrations and the compiled routes, and capture the calendar and workspace runtime bootstraps through the package's own exported functions with inert framework stand-ins - no database, network or credentials.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/native-schema-declarations.test.cjs
+    expected:
+      - Every table a compiled route inserts into is created by a declared migration with a primary key, so the native kernel can admit the insert.
+      - The scheduled-posts, workspaces and workspace-accounts migrations declare the runtime bootstrap's columns, types, defaults, primary keys and status values.
+      - No newly declared migration index carries an ASC or DESC modifier.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: streams-delete
+    name: Streams posts can be deleted by their owner
+    purpose: Drive the compiled Streams DELETE /posts/:id handler against an in-memory posts, variants and revisions table set with inert framework stand-ins, and read the surface's Delete control - no database, network or credentials.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/switchboard-streams-delete.test.js
+    expected:
+      - The owner's confirmed delete removes the post, its channel variants and its revisions.
+      - An unconfirmed request answers 428 and removes nothing.
+      - Another person's post answers 404, a scheduled post answers 409 naming Unschedule, and neither is removed.
+      - The Streams surface offers Delete for every state but scheduled and sends confirm:true.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: compose-variants-decline
+    name: A bot refusal never becomes a post variant
+    purpose: Drive the compiled POST /compose/variants with a recording bot double; the bot's refusals (plain or as the JSON answer shape) come back as failed bot_declined with the bot's words as a notice and no text, and the Compose and Streams pages keep them out of the editor.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/switchboard-compose-variants.test.js
+    expected:
+      - The live refusals "I can't draft the post without the underlying content" and "I cannot publish to Facebook from this environment." are declined variants with no text.
+      - A JSON rewrite is the text; ok false is a decline carrying its reason; a refusal wrapped as ok true is still a decline.
+      - A post opening "I can't believe" stays a rewrite.
+      - Posts opening "I can't help but smile…", "Unable to make it to DevCon?", "I won't share every detail yet…" stay rewrites; refusals of the drafting task ("I can't draft the post…", "Sorry, I can't help with that.", "I am not able to complete this request.") stay declines.
+      - Real posts that say "cannot" or "publish" legitimately ("I cannot publish this without thanking the team…", "Unable to publish on LinkedIn from your phone?…", a hashtag or link, a post opening "Declined", JSON text without ok false) keep their text; live refusals stay declines.
+      - Refusals that name the author's topic ("I can't write a post about the ticket board without knowing what changed.", "I can't write a hiring post from a single word."), quote the text ("sweep5 test draft" is a placeholder) or quote its link stay declines; a post whose own words carry the topic, a new hashtag or link stays a rewrite.
+      - Compose draws a declined variant with an empty editor and a warning; Streams leaves it unchanged and names it.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: A stubbed router, a recording bot double and an in-memory pool; no model, database or provider is contacted.
     limits:
       timeoutMs: 15000
     installation: never

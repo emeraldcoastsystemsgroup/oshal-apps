@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The physics lane without a container: the MJCF generated from the parts model is exactly the fixture the engine's own tests and self-test load (so the two cannot drift), its numbers are the parts model's (mass, hull, thrust limits, sensor offsets), the sensor specification is the kinematic raycaster's geometry, the plant's compact frames become the sweeps the map integrates with paint by name, and the simulation on a plant double holds a phase until the plant settles, grounds the drone on a reported contact, senses through the plant, clones the plant for a rehearsal, and still validates and runs a drone-first exploration through every unchanged guard.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | The native transport: through the kernel's engine.exchange double the bridge answers reports and its hello without blocking, the request carries no id, an unreachable engine is capability_unavailable, and the synchronous call a stepping world needs refuses by name instead of hanging.
  */
 'use strict';
 const test = require('node:test');
@@ -163,4 +164,21 @@ test('B19: the certification gate replays a recorded flight through the fence an
   assert.equal(island.ok, false, 'a point inside the island is refused by the map guard');
   assert.equal(E.certifyFlight(sim, []).ok, false, 'an empty path is not a flight');
   assert.equal(E.certifyFlight(sim, [[Number.NaN, 0, 0]]).refused[0].reason, 'not a point');
+});
+
+test('native kernel: the bridge reads the engine through engine.exchange; stepping refuses by name', async () => {
+  const sent = [];
+  const hello = { protocol: 1, engine: 'mujoco', version: '3.3.5', buildHash: 'b'.repeat(64) };
+  const bridge = new E.SyncBridge({ transport: 'native', exchange: async (request, timeoutMs) => {
+    sent.push({ request, timeoutMs });
+    return { hello, reply: { id: 1, ok: true, result: request.op === 'status' ? { sessions: 0 } : { dir: '/tmp/embodied-reports', reports: [], policies: [] } } };
+  } });
+  assert.equal(bridge.endpoint, 'native://engine.exchange');
+  assert.deepEqual(await bridge.callAsync('reports'), { dir: '/tmp/embodied-reports', reports: [], policies: [] });
+  assert.deepEqual(sent[0], { request: { op: 'reports' }, timeoutMs: 15000 });
+  assert.equal((await bridge.helloAsync()).buildHash, hello.buildHash);
+  assert.throws(() => bridge.call('step', { session: 's', setpoint: [0, 0, 1], dt: 0.01 }), (e) => e.code === 'capability_unavailable' && /asynchronously/.test(e.reason));
+  const down = new E.SyncBridge({ transport: 'native', exchange: async () => { throw new Error('engine container is not reachable or broke its line protocol'); } });
+  await assert.rejects(down.callAsync('reports'), (e) => e.code === 'capability_unavailable' && /not reachable/.test(e.reason));
+  await assert.rejects(down.callAsync('reports'), (e) => e.code === 'capability_unavailable', 'a failed native call does not poison the next one');
 });

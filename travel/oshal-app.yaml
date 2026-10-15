@@ -298,10 +298,10 @@ routes:
     requiresAuth: true
     requiresContext: true
 
-# No package migrations: 050-travel-platform.sql + 051-seed-travel-bots.sql are
-# framework-owned (scripts/migrations/*, applied by the boot bootstrap) because the
-# travel_* store is swarm-shared — the kernel fare-watch cron and other bots read it.
-# The kernel-resident ensureTravelSchema remains the runtime fallback.
+# The package owns its travel_* tables: the native kernel has no boot bootstrap and its
+# price engine creates nothing, so the concierge's tables exist only because this declares them.
+migrations:
+  - migrations/050-travel-platform.sql
 
 ticketType: travel
 workflow:

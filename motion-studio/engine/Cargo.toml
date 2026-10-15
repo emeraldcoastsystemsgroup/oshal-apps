@@ -1,0 +1,41 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Pin the permissively licensed compositor core for shared human/agent motion workflows.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Decode bounded in-memory owned raster footage through the pinned core source trait.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Embed the source build identity for the original-context native relay.
+[package]
+name = "oshal-motion-engine"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT"
+
+[dependencies]
+effectcraft-automation = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+effectcraft-host = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+effectcraft-project = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+effectcraft-render = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+effectcraft-raster = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+effectcraft-time = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+sha2 = "0.10"
+uuid = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+unimplemented = "deny"
+todo = "deny"
+unreachable = "deny"
+
+[build-dependencies]
+sha2 = "0.10"
+
+[patch."https://github.com/storytold/effectcraft"]
+effectcraft-render = { path = "vendor/effectcraft-render" }

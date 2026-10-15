@@ -4,7 +4,11 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The manual video timeline's one document contract, shared by the browser editor and the server: the EDITOR-PLAN first-slice bounds (two clips of at most 30 s, one WAV bed, 20 segments, 60 s total, one title track, one 1280x720/30 fps H.264/AAC profile), integer frame positions in the 30 fps project time base, and refusal of unknown fields, unsafe keys, paths, URLs and control text.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  */
+
+import { validateMotionSource } from './motion-source.mjs';
+import { validateMultitrack } from './multitrack-validation.mjs';
 
 /** @description The one output profile of the first slice. Frames are counted at `fps`; one frame is
  *  exactly `sampleRate / fps` audio samples, so every audio boundary is an integer sample too.
@@ -75,16 +79,17 @@ export function assetId(value) {
 function validateSource(value, label) {
   demand(value && typeof value === 'object' && (value.kind === 'video' || value.kind === 'audio'), `${label} must be a video clip or an audio bed`);
   const video = value.kind === 'video';
-  exactObject(value, video ? ['kind', 'asset', 'name', 'frames', 'width', 'height', 'audio'] : ['kind', 'asset', 'name', 'frames'], label);
+  exactObject(value, video ? ['kind', 'asset', 'name', 'frames', 'width', 'height', 'audio', 'motion'] : ['kind', 'asset', 'name', 'frames'], label);
   const source = { kind: value.kind, asset: assetId(value.asset), name: plainText(value.name, LIMITS.sourceName, `${label} name`),
     frames: integer(value.frames, 1, video ? LIMITS.sourceFrames : LIMITS.bedFrames, `${label} length in frames`) };
   if (!video) return source;
   demand(typeof value.audio === 'boolean', `${label} must say whether it carries sound`);
   return { ...source, width: integer(value.width, 2, LIMITS.sourceDimension, `${label} width`),
-    height: integer(value.height, 2, LIMITS.sourceDimension, `${label} height`), audio: value.audio };
+    height: integer(value.height, 2, LIMITS.sourceDimension, `${label} height`), audio: value.audio,
+    ...(value.motion === undefined ? {} : {motion: validateMotionSource(value.motion)}) };
 }
 
-function validateSources(value) {
+export function validateTimelineSources(value, limits = LIMITS) {
   exactObject(value, Object.keys(value ?? {}), 'Sources');
   const sources = Object.create(null);
   const counts = { video: 0, audio: 0 };
@@ -93,8 +98,8 @@ function validateSources(value) {
     sources[name] = validateSource(entry, `Source ${name}`);
     counts[sources[name].kind] += 1;
   }
-  demand(counts.video <= LIMITS.videoSources, `A project holds at most ${LIMITS.videoSources} video clips`);
-  demand(counts.audio <= LIMITS.audioSources, `A project holds at most ${LIMITS.audioSources} audio bed`);
+  demand(counts.video <= limits.videoSources, `A project holds at most ${limits.videoSources} video clips`);
+  demand(counts.audio <= limits.audioSources, `A project holds at most ${limits.audioSources} audio bed`);
   const assets = Object.values(sources).map(source => source.asset);
   demand(new Set(assets).size === assets.length, 'Each uploaded file is added once');
   return sources;
@@ -149,10 +154,11 @@ function validateBed(value, sources) {
  *  never overlap (one title track); every frame boundary is an integer inside its source.
  * @param {unknown} value Parsed JSON document. @returns {object} A fresh normalized document. */
 export function validateTimeline(value) {
+  if (value?.version === 2) return validateMultitrack(value);
   exactObject(value, ['version', 'name', 'profile', 'sources', 'segments', 'titles', 'audioBed'], 'Project');
   demand(value.version === 1, 'This project version is not supported');
   demand(value.profile === PROFILE.id, 'This output profile is not supported');
-  const sources = validateSources(value.sources);
+  const sources = validateTimelineSources(value.sources);
   const { segments, total } = validateSegments(value.segments, sources);
   const document = { version: 1, name: plainText(value.name, LIMITS.name, 'Project name'), profile: PROFILE.id,
     sources: { ...sources }, segments, titles: validateTitles(value.titles, total), audioBed: validateBed(value.audioBed, sources) };
@@ -163,6 +169,7 @@ export function validateTimeline(value) {
 /** @description Output length of a validated timeline, in project frames.
  * @param {{segments:Array<{in:number,out:number}>}} document Validated document. @returns {number} Frames. */
 export function timelineFrames(document) {
+  if (document.version === 2) return Math.max(0, ...document.tracks.flatMap(track => track.clips.map(clip => clip.start + clip.out - clip.in)));
   return document.segments.reduce((sum, segment) => sum + segment.out - segment.in, 0);
 }
 

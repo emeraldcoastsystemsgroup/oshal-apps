@@ -316,3 +316,53 @@ editor. Create adds no route, permission or migration. Still open:
 - Installation with the reviewed AUTH-07 catalog migration for Video's first named catalog.
 - A signed-in installed run of the registered cases.
 - AI assistance over a selected clip (plan step 5).
+
+## Functional gap specifications (2026-10-11)
+
+The operator requested functional coverage gaps be backlogged and specified.
+[Creative functional gaps](specs/functional-gaps/README.md) decomposes
+CREATE-EDIT-08 into nine tracked scopes: advanced images, vector illustration,
+multitrack video, motion compositing, RAW photography, publishing, audio production,
+PDF workbench and creative format interchange. Each specifies a first delivery,
+model/engine boundaries, supported formats, acceptance and deferred features.
+They are specified backlog, not implementation or installation claims.
+Existing CREATE-EDIT-04 region work and CREATE-EDIT-05 timeline work retain their
+own outstanding acceptance gates; PDF starts with a coverage inventory.
+
+### CREATIVE-GAP-01 source progress (1.10.0)
+
+Persistent source-space polygon masks are integrated with the existing image
+editor, project validator, revisions/history and Canvas preview/raster export.
+The image properties offer region-to-mask, invert, feather, disable and remove.
+The broader gap remains open for brush masks, adjustment layers and groups;
+installation acceptance is pending. See [release scope](README.md#image-masks-1100-source-delivery).
+
+### Creative agent tools — source delivery
+
+Create 1.14.0 declares `create-editor` with six callable API tools, and Video 1.11.0
+adds `video-editor` with nine. They inspect actual owned project data and the
+installed editing contract, then apply bounded immutable batches against an
+explicit base revision. Edits retain model/source/lock checks and require both
+read and change before commit. Video uses its actual render-job lifecycle.
+Agent write proposals use the existing kernel approval cards. Manifest/persona
+and model-schema parity, atomicity, stale/concurrent edits, owner isolation and
+revocation are covered in source tests. Native installed/model-turn acceptance
+is pending; the separate remaining domain builds are not completed; non-SVG interchange now has the bounded PSD source delivery below.
+
+
+### CREATIVE-GAP-09 bounded PSD source progress (1.15.0)
+
+Editable RGB8 PSDv1 raw/RLE pixel layers, normal isolated fixed-frame groups,
+opacity/placement and immutable original/report storage are implemented in source.
+Existing owner image references/history/revisions support subsequent human and
+agent edits. Human review/explicit flattened loss choice and held original-owner
+agent tools are shipped. Source format/PNG/owner/rollback/original4MiB/quota and
+actual desktop/phone browser/retry proofs pass. Genuine native fixture `1446506`
+with source `915b3a55` passes canonical schemas, PNG/original storage, uploaded
+handles, held original-owner import/edit, immutable revisions, exact pixels,
+original export and actual source/current-role isolation (supervised13.97s, strict
+lint). Installed human and natural-provider acceptance remain required; the
+native fixture uses deterministic model choice and does not certify live capacity.
+Other PSD blends/text/effects/masks/smart objects, ZIP/PSB/high-bitdepth, PSD export,
+AI/IDML/external timeline interchange and exhaustive product parity remain open.
+See [PSD profile](specs/functional-gaps/psd-format-matrix.md) for honest outcomes.

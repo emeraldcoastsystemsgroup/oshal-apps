@@ -7,8 +7,20 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: the director's tools are in-process package tools bound by an ADR-149 catalog. The tool contract now guards the package-tool declaration and the persona's protected-turn opt-in; register the package-tool suite (the real handlers against the fake bridge), the catalog binding guard, and the framework-coupled suite that runs the tools, the HTTP guard and the catalog migration through the real core seam. The route suite names its shared fixture.
 # -----------------------------------------------------------------------------
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Register bounded native transport and held revision transaction compatibility proof.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register director-rules (persona and tool usage rules: named project, read before edit, BoxMesh sub_resources, no capabilities-first read); package-tools also proves scene-get-project reports the live engine.
 version: 1
 cases:
+  - id: director-rules
+    name: The director's working rules
+    purpose: The persona and the tool usage text carry the rules the sweep found broken - create a project only when asked, read a scene before editing it, keep meshes as BoxMesh sub_resources inside the .tscn, and read scene-capabilities only when the engine is reported disconnected.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/director-rules.test.js] }
+    expected: [The persona carries each rule, The tool usage text carries the same rules]
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Reads package source files only; no engine or database. }
+    limits: { timeoutMs: 15000, maxMemoryMb: 128 }
+    installation: never
   - id: package-readiness
     name: Installed package readiness
     purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
@@ -172,6 +184,7 @@ cases:
       - userSub, tenantId, projectPath, blend_file and any other undeclared key are refused invalid_tool_input; another owner's project is project_not_found.
       - A 2 MB file reads back at most 96 KiB on a character boundary; a 600-file project with 4,000-path deltas and a 1,200-project list each stay within 192 KiB with honest counts.
       - A stuck engine is refused tool_deadline_exceeded at the deadline and its late failure is logged; a down engine names install-engine.sh.
+      - scene-get-project from a process with no engine request yet pings once and reports the engine connected; a down engine is reported disconnected with its reason.
     prerequisites:
       - runner:node-test
     sideEffects: fixture-write

@@ -23,6 +23,10 @@
  *
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: retire the SmartThings credential carrier from generic home-bot dispatch. Reasoning now receives a bounded controller-read device/scene snapshot with tools disabled; direct controls/scenes and live refresh resolve the caller's token only at their deterministic SmartThings API boundary.
  *
+ * 2026-10-10 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: with OSHAL_EGRESS=kernel, /control, /scene/run and /refresh call api.smartthings.com through the global fetch with no Authorization header; the kernel applies the caller's smartthings connection declared in the manifest egress block. "Not connected" is decided from the connectors.metadata intent (none, revoked, or lapsed and unrenewable), and a kernel "not connected" refusal answers the same 409 each route gives for a missing token. The legacy broker path is unchanged.
+ * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | The home chat named a raw path, 'under Connections (/utilities)', while the app has its own Hubs tab. The reasoning prompt carries HOME_CONNECT_RULE: a hub is connected on this app's Hubs tab, named in words, never a raw path. Guard: tests/home-connect-copy.test.cjs.
+ * 2026-10-13 15:10:00 | maintainer@emeraldcoastsystemsgroup.com | Sweep 14: the Smart Home assistant's reply began "The snapshot shows no devices or scenes are currently connected.", the prompt's own word. The prompt calls the data what the person's Smart Home app has saved (HOME_JSON) and says to speak of it that way, never with a word of the instructions. Guard: tests/home-connect-copy.test.cjs.
+ *
  * @module home-routes
  */
 
@@ -39,6 +43,7 @@ import { getHomeScheduleService } from '@/app/home-schedule-dispatch';
 import { nextSunEvent, type SunEvent } from '@/shared/utils/sun-times';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
+import { KERNEL_TOKEN, connectionUsable, isNotConnected, kernelEgress, readConnections } from './kernel-egress';
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -102,6 +107,10 @@ function readDeviceIndex(sub: string): HomeDeviceIndex {
   );
 }
 
+/** Where a hub is connected, in the words the person sees: the app's Hubs tab, never a raw path such as /utilities. */
+const HOME_CONNECT_RULE = 'When the Smart Home app has no devices, or the person asks how to connect a hub: a hub is connected on this app\'s Hubs tab (SmartThings connects there; Google Home is set up in Connections from that tab). Name the Hubs tab in words; never give a raw path such as /utilities.';
+/** How to speak of the data (sweep 14: a reply opened "The snapshot shows no devices", the prompt's own word). */
+const HOME_WORDS_RULE = 'Speak of it as what the person\'s Smart Home app has ("your Smart Home app has no devices yet"); never say snapshot, JSON, controller or any other word of these instructions.';
 function homeReasoningPrompt(sub: string, message: string): string {
   const index = readDeviceIndex(sub);
   const scenes = readStore<{ scenes?: Array<{ name?: string; key?: string; steps?: unknown[] }> }>(
@@ -125,9 +134,11 @@ function homeReasoningPrompt(sub: string, message: string): string {
     generatedAt: index.generatedAt || null,
   };
   return [
-    'Reason only over this controller-fetched smart-home snapshot.',
+    'Reason only over HOME_JSON below: the devices and scenes the person\'s Smart Home app has saved.',
+    HOME_WORDS_RULE,
     'Do not invoke tools, request credentials, or claim a device action ran. Direct writes use the deterministic controller endpoints.',
-    `SNAPSHOT_JSON=${JSON.stringify(snapshot)}`,
+    HOME_CONNECT_RULE,
+    `HOME_JSON=${JSON.stringify(snapshot)}`,
     `USER_REQUEST=${message.slice(0, 8_000)}`,
   ].join('\n');
 }
@@ -154,12 +165,26 @@ function resolveDeviceId(sub: string, ref: string): string | null {
   return null;
 }
 
+/** SmartThings request headers: the caller's Bearer token on the legacy path; none under the kernel, which applies the declared connection. */
+function smartThingsHeaders(token: string, extra: Record<string, string> = {}): Record<string, string> {
+  return kernelEgress() ? { ...extra } : { Authorization: `Bearer ${token}`, ...extra };
+}
+
+/**
+ * The caller's SmartThings authorization for one deterministic operation: the brokered token on the legacy path; under
+ * the kernel the sentinel unless the connection metadata says there is no usable smartthings connection (then null).
+ */
+async function smartThingsToken(ctx: AppContext, sub: string): Promise<string | null> {
+  if (!kernelEgress()) return getValidAccessToken(ctx.pool, sub, 'smartthings');
+  return connectionUsable(await readConnections(ctx), 'smartthings') === false ? null : KERNEL_TOKEN;
+}
+
 /** Send one capability command to a SmartThings device. */
 async function smartThingsCommand(token: string, deviceId: string, capability: string, command: string, arg?: unknown): Promise<void> {
   const cmd: { component: string; capability: string; command: string; arguments?: unknown[] } = { component: 'main', capability, command };
   if (arg !== undefined && arg !== null && arg !== '') cmd.arguments = [isNaN(Number(arg)) ? arg : Number(arg)];
   const r = await fetch(`https://api.smartthings.com/v1/devices/${deviceId}/commands`, {
-    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    method: 'POST', headers: smartThingsHeaders(token, { 'Content-Type': 'application/json' }),
     body: JSON.stringify({ commands: [cmd] }),
   });
   if (!r.ok) throw new Error(`smartthings ${r.status}: ${(await r.text()).slice(0, 140)}`);
@@ -168,7 +193,7 @@ async function smartThingsCommand(token: string, deviceId: string, capability: s
 /** Fetch and sanitize the live SmartThings device index without exposing the token to a model or task. */
 async function fetchSmartThingsDeviceIndex(token: string, sub: string): Promise<HomeDeviceIndex> {
   const response = await fetch('https://api.smartthings.com/v1/devices', {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: smartThingsHeaders(token),
   });
   if (!response.ok) throw new Error(`smartthings ${response.status}: ${(await response.text()).slice(0, 140)}`);
   const payload = await response.json() as { items?: Array<Record<string, unknown>> };
@@ -322,7 +347,7 @@ export function createHomeRoutes(ctx: AppContext): Router {
     try {
       const deviceId = resolveDeviceId(sub, device);
       if (!deviceId) { res.status(404).json({ error: 'unknown device — refresh the index' }); return; }
-      const token = await getValidAccessToken(ctx.pool, sub, 'smartthings');
+      const token = await smartThingsToken(ctx, sub);
       if (!token) { res.status(409).json({ error: 'SmartThings not connected — connect it at /utilities' }); return; }
       if (cmd === 'on' || cmd === 'off') await smartThingsCommand(token, deviceId, 'switch', cmd);
       else if (cmd === 'set') await smartThingsCommand(token, deviceId, body.capability || 'switchLevel', body.command || 'setLevel', body.arg);
@@ -330,6 +355,7 @@ export function createHomeRoutes(ctx: AppContext): Router {
       res.json({ ok: true, device, cmd });
     } catch (err) {
       logger.error({ err, sub, device }, 'home control failed');
+      if (isNotConnected(err)) { res.status(409).json({ error: 'SmartThings not connected — connect it at /utilities' }); return; }
       res.status(502).json({ error: (err as Error).message });
     }
   });
@@ -350,7 +376,7 @@ export function createHomeRoutes(ctx: AppContext): Router {
       const want = name.toLowerCase();
       const scene = (store.scenes || []).find((s) => s.key === want || String(s.name).toLowerCase() === want);
       if (!scene) { res.status(404).json({ error: `no scene "${name}"` }); return; }
-      const token = await getValidAccessToken(ctx.pool, sub, 'smartthings');
+      const token = await smartThingsToken(ctx, sub);
       if (!token) { res.status(409).json({ error: 'SmartThings not connected' }); return; }
       for (const step of scene.steps) {
         const deviceId = resolveDeviceId(sub, step.device);
@@ -361,6 +387,7 @@ export function createHomeRoutes(ctx: AppContext): Router {
       res.json({ ok: true, ran: scene.name, steps: scene.steps.length });
     } catch (err) {
       logger.error({ err, sub, name }, 'scene run failed');
+      if (isNotConnected(err)) { res.status(409).json({ error: 'SmartThings not connected' }); return; }
       res.status(502).json({ error: (err as Error).message });
     }
   });
@@ -442,13 +469,14 @@ export function createHomeRoutes(ctx: AppContext): Router {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
-      const token = await getValidAccessToken(ctx.pool, sub, 'smartthings');
+      const token = await smartThingsToken(ctx, sub);
       if (!token) { res.status(409).json({ error: 'SmartThings not connected — connect it at /utilities' }); return; }
       const idx = await fetchSmartThingsDeviceIndex(token, sub);
       refreshedDeviceIndexes.set(sub, idx);
       res.json({ devices: idx.devices || [], deviceCount: idx.deviceCount ?? 0, generatedAt: idx.generatedAt || null });
     } catch (err) {
       logger.error({ err, sub }, 'home refresh failed');
+      if (isNotConnected(err)) { res.status(409).json({ error: 'SmartThings not connected — connect it at /utilities' }); return; }
       res.status(502).json({ error: (err as Error).message });
     }
   });

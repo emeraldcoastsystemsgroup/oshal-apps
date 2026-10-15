@@ -4,6 +4,12 @@
 # -----------------------------------------------------------------------------
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries: the static kit contract plus the family view behaviour over the real home-summary and playlist routes (two reads, plain stats and saved lines, every named state, the module script gated).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.3.3: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register surface-scripts: the pages load the face and voice scripts from this package's own /api/pumpkin/assets routes, and the shipped files define the constructors the pages call.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register room-transport: on a runtime whose response cannot stream (the native kernel bridge) the projector's room link polls instead of a /stream that answered 500.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register live-rooms-hint: a Say/Ask that reached no screen names only other rooms a screen is attached to, never the current room.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | room-transport also proves each speaking door saved its line before answering (sweep 8: Saved responses said 'Nothing saved yet' after a save).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register model-unavailable: a refused bot turn answers 503 with the cause (sweep 9: it was 500 internal_error).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register review-saved-times: Pumpkin Review shows a saved line's time in the viewer's zone, not a raw UTC instant (sweep 13).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -37,4 +43,112 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: surface-scripts
+    name: Surface scripts served by the package
+    purpose: Read the bundled pages' script tags, build the compiled router with inert framework stand-ins, and run the shipped scripts in a VM - no browser, database or provider.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/pumpkin-surface-scripts.test.cjs
+    expected:
+      - No page loads a script from the framework's /pumpkin/ page directory.
+      - pumpkin-face.js and pumpkin-audio.js load from /api/pumpkin/assets/, each answered by a registered GET route that sends the file from the package's tools/.
+      - Running the shipped files defines window.PumpkinFace and window.PumpkinAudio.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: room-transport
+    name: Projector room link on a non-streaming runtime
+    purpose: Build the compiled router with inert framework stand-ins and drive register, /stream and /rooms/poll through a response shaped like the native kernel bridge's (buffered, no writeHead), plus the swarm door and the paired-remote push - no browser, database or provider.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/pumpkin-swarm-push.test.cjs
+    expected:
+      - On a buffered response register answers transport poll with its interval, and GET /stream answers 501 stream_unavailable, never 500.
+      - On a streaming response register keeps the sse transport.
+      - A polling screen starts at the present, receives a remote rooms/say and a swarm /speak in order once each, and counts as one listener for both.
+      - A screen that stopped polling is no longer counted, and a poll for an unknown room answers 409 unknown_room so the projector re-registers.
+      - POST /chat, /rooms/say, /rooms/ask and /speak have each saved the spoken line before they answer, so the page's Saved responses re-read shows it (sweep 8 read 'Nothing saved yet').
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: live-rooms-hint
+    name: Say/Ask status names only rooms a screen is watching
+    purpose: Run the shipped otherWatchedRoomsHint from tools/pumpkin-app.html in a VM - no browser, database or provider.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/pumpkin-live-rooms-hint.test.cjs
+    expected:
+      - The room this remote just registered, live with zero listeners, is not listed as a live room after "no projector is listening".
+      - The current room is never offered as the alternative.
+      - Another room with a screen attached is named with its label and slug.
+      - A missing rooms list reads as no projector screen connected.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: model-unavailable
+    name: A reply the model could not give names its cause
+    purpose: >-
+      Drive the compiled /rooms/ask and /chat with the real room registry and reply parser while the bot turn rejects the way the
+      native bridge rejects a refused intent (an Error carrying the kernel's reason).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/pumpkin-model-unavailable.test.cjs
+    expected:
+      - The answer is 503 model_unavailable, its message says nothing was spoken and gives the reason, its detail is the bounded reason.
+      - Nothing is pushed to the room and nothing is saved; a working reply still reaches the room.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: review-saved-times
+    name: "Pumpkin Review shows a saved line's local time"
+    purpose: "Feed the compiled home-summary route's JSON into the review page's shipped refresh over a stub DOM in the America/Chicago zone - no browser, network or database."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/review-saved-times.test.cjs
+    expected:
+      - "The summary detail carries the saved instant and the page renders it as the local date and time (Oct 13, 2026, 5:55 AM in Chicago) with no raw instant."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
     installation: never

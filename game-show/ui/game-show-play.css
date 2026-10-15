@@ -130,7 +130,9 @@ body[data-gs-show="whammy"] .gp-logo { background-image: linear-gradient(180deg,
 .gp-posters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 8px 0; }
 .gp-poster { cursor: pointer; border-radius: 14px; border: 1px solid var(--gs-line); border-top: 3px solid var(--gp-poster, var(--gs-cyan));
   text-align: center; padding: 16px 10px 12px; background: linear-gradient(180deg, var(--gs-card-hover), var(--gs-card));
-  transition: transform .12s ease, box-shadow .2s ease; }
+  transition: transform .12s ease, box-shadow .2s ease; font: inherit; color: inherit; width: 100%; display: block; }
+.gp-poster > span { display: block; }
+.gp-poster:focus-visible { outline: 2px solid var(--gp-poster, var(--gs-cyan)); outline-offset: 3px; }
 .gp-poster:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 0 26px color-mix(in srgb, var(--gp-poster, var(--gs-cyan)) 45%, transparent); }
 .gp-poster[data-show="family-feud"] { --gp-poster: var(--gs-gold); }
 .gp-poster[data-show="jeopardy"] { --gp-poster: #4f6bd6; }
@@ -154,7 +156,9 @@ body[data-gs-show="whammy"] .gp-logo { background-image: linear-gradient(180deg,
   .gp-torso { width: 72px; height: 24px; }
   .gp-podium { width: 80px; padding: 5px 4px 7px; }
   .gp-charscore { font-size: 13px; }
-  .gp-clock { top: 2px; right: 2px; }
+  /* On a phone the floating clock sat on the end of the question ("Name something you always d[o]"): it
+     takes its own line at the top right of the set instead of floating over the board. */
+  .gp-clock { position: static; display: flex; justify-content: flex-end; margin: 0 0 4px; }
   .gp-clock .gs-bigclock { width: 62px; height: 62px; font-size: 28px; border-width: 3px; }
   .gp-frame.has-dock { padding-bottom: 215px; }
   .gp-dock-inner { max-height: 44vh; overflow-y: auto; }

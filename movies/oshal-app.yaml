@@ -97,6 +97,13 @@ uses:
 # grants come from the operator endpoint (D4).
 guestTier: blocked
 
+# Outbound hosts (native kernel): the sandbox has no network, so every TMDB read goes through the
+# kernel's fenced egress, which applies the tmdb connector's key (the person's saved connection or
+# the installation's OSHAL_CONNECTOR_SECRET_TMDB) as ?api_key=. This package never holds the key.
+egress:
+  - host: api.themoviedb.org
+    credential: { connector: tmdb, query: api_key }
+
 # Compiled-JS route (built from src-routes/ by `oshal-app build`). One OIDC mount;
 # every route resolves the viewer sub itself; the surface serves from this
 # package's tools/ via ctx.appPackageDir.

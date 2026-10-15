@@ -11,6 +11,8 @@
  *
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Redirect a bare require to the framework checkout only when the package itself asks for it. Requires made inside node_modules resolve normally again: redirecting them to core's root broke in the Test Lab sandbox, where the image's pruned node_modules keeps semver only nested under sharp (Cannot find module 'semver'); a developer checkout hoists it, which is why no local run saw it.
  *
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | A create whose first build is refused answers 422 with model null and leaves no row and no files. On the native kernel (a scoped-document pool and an intent port) the routes reach the engine only through engine.exchange, carried here by a kernel double that speaks the real wire to the fake bridge, and the revision records the engine's reported build.
+ *
  * FRAMEWORK-COUPLED: needs a core checkout for express/multer. Not part of the store-CI
  * wildcard; run locally: OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/routes.core.test.js
  */
@@ -153,6 +155,7 @@ function fakeEngine() {
         const req = JSON.parse(line);
         seen.push(req);
         const base = req.args.base;
+        if (base.kind === 'box' && base.sizeX === 13.13) { socket.write(JSON.stringify({ id: req.id, ok: false, error: { code: 'refused', message: 'the kernel refused this base' } }) + '\n'); continue; }
         if (base.kind === 'sphere') { socket.write(JSON.stringify({ id: req.id, ok: false, error: { code: 'refused', message: 'base.kind must be one of box, …' } }) + '\n'); continue; }
         // A feature the worker is still grinding on: never answered (only a cancel or the wall clock ends it).
         if (req.args.features.some((f) => f.enabled !== false && f.params && f.params.diameter === 777)) continue;
@@ -343,6 +346,53 @@ test('deleting a part removes its rows and files', async () => {
   assert.equal((await call('/models/' + modelId)).status, 404);
   assert.ok(fs.readdirSync(dataRoot, { recursive: true }).filter((f) => String(f).endsWith('model.step')).length < before);
   assert.equal(pool.tables.cad_revision.some((r) => r.model_id === modelId), false);
+});
+
+test('a create whose first build fails leaves no part, no revision and no files behind', async () => {
+  const models = pool.tables.cad_model.length, files = fs.readdirSync(dataRoot, { recursive: true }).length;
+  const res = await call('/models', json('POST', { title: 'doomed', base: { kind: 'box', sizeX: 13.13, sizeY: 10, sizeZ: 10 } }));
+  assert.equal(res.status, 422); assert.equal(res.body.model, null); assert.equal(res.body.build.code, 'refused');
+  assert.equal(pool.tables.cad_model.length, models);
+  assert.equal(pool.tables.cad_model.some((m) => m.title === 'doomed'), false);
+  assert.equal(fs.readdirSync(dataRoot, { recursive: true }).length, files);
+});
+
+test('native kernel: the engine is reached only through engine.exchange and the revision records its build', async () => {
+  const intents = [];
+  // The kernel's side of engine.exchange: connect, read the hello, send the request with id 1, return {hello, reply}.
+  const exchange = (request) => new Promise((resolve, reject) => {
+    const socket = net.connect({ host: '127.0.0.1', port: engine.port }); socket.setEncoding('utf8');
+    let tail = '', hello = null;
+    socket.on('error', reject);
+    socket.on('data', (chunk) => {
+      const parts = (tail + chunk).split('\n'); tail = parts.pop();
+      for (const line of parts) {
+        const msg = JSON.parse(line);
+        if (!hello) { hello = msg; socket.write(JSON.stringify({ ...request, id: 1 }) + '\n'); continue; }
+        if (msg.id === 1) { socket.destroy(); resolve({ hello, reply: msg }); }
+      }
+    });
+  });
+  const nativePool = Object.assign(fakePool(), { storageModel: 'kernel-scoped-documents' });
+  const intent = async (name, input) => { intents.push({ name, input }); return exchange(input.request); };
+  const nativeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cad-native-'));
+  const app = express();
+  app.use((req, _res, next) => { req.oidc = { user: { sub: 'native-alice' }, isAuthenticated: () => true }; next(); });
+  app.use(express.json({ limit: '10mb' }));
+  app.use('/api/cad-studio', createCadStudioRoutes({ pool: nativePool, appPackageDir: PKG, intent }, { dataRoot: nativeRoot, env: { CAD_STUDIO_ENGINE_ADDR: '127.0.0.1:1' } }));
+  const nativeServer = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
+  try {
+    const url = `http://127.0.0.1:${nativeServer.address().port}/api/cad-studio`;
+    const caps = await (await fetch(url + '/capabilities')).json();
+    assert.equal(caps.engine.address, 'native://engine.exchange');
+    const res = await fetch(url + '/models', json('POST', { title: 'native part', base: { kind: 'box', sizeX: 10, sizeY: 10, sizeZ: 10 } }));
+    const body = await res.json();
+    assert.equal(res.status, 201); assert.equal(body.model.revision, 1);
+    assert.equal(intents.length, 1); assert.equal(intents[0].name, 'engine.exchange');
+    assert.equal(intents[0].input.request.cmd, 'rebuild'); assert.equal(intents[0].input.request.id, undefined);
+    assert.equal(nativePool.tables.cad_revision[0].engine_build, HASH);
+    assert.equal(fs.readdirSync(nativeRoot, { recursive: true }).filter((f) => String(f).endsWith('model.stl')).length, 1);
+  } finally { nativeServer.close(); fs.rmSync(nativeRoot, { recursive: true, force: true }); }
 });
 
 test('with the bridge gone, a rebuild answers 503 naming the install command and the last revision still serves', async () => {

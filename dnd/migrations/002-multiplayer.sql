@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-20 23:05:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Multi-user shared table: join codes on campaigns, a players/claims table (which user plays which hero), and a revision counter on encounters so every device at the table can cheaply sync the same live board.
+ * 2026-10-10 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | dnd_players carries owner_sub in its final shape for the native kernel, which skips 006 (routes write it).
  */
 
 -- Shareable 6-char join code per campaign (pgcrypto from 001).
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS dnd_players (
     user_sub       text        NOT NULL,
     display_name   text,
     character_slug text,                              -- NULL until they claim a hero
+    owner_sub      text,
     joined_at      timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT uq_dnd_player UNIQUE (campaign_id, user_sub)
 );

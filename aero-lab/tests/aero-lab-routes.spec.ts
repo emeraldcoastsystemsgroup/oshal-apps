@@ -15,6 +15,8 @@
  *                     |                             | adapter double; export downloads allow-listed (a
  *                     |                             | ../ name 404s); /app serves the bundled surface;
  *                     |                             | the concierge degrades bad drafts to say-only.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | /chat drafts only against a sent design, with
+ *                     |                             | "moves" per changed field (see aero-designer-chat.test.cjs).
  * 2026-08-06 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Exercise the geometry-helper asset
  *                     |                             | through the authenticated HTTP mount, not
  *                     |                             | only by static source inspection.
@@ -104,7 +106,7 @@ describe('aero-lab routes — auth, honesty, and the frozen §2a contract', () =
           processMessage: async (_id: string, prompt: string) => {
             if (prompt.includes('give me a bad draft')) return { response: '{"say":"trying","draft":{"area_m2":999}}' };
             if (prompt.includes('give me a hybrid draft')) return { response: '{"say":"hybrid","draft":{"buoyancy_fraction":0.5}}' };
-            return { response: '{"say":"a tighter wing","draft":{"area_m2":1.2,"aspect_ratio":14}}' };
+            return { response: '{"say":"a tighter wing","draft":{"area_m2":1.2,"aspect_ratio":14},"moves":{"area_m2":"up","aspect_ratio":"up"}}' };
           },
         },
       },
@@ -207,17 +209,17 @@ describe('aero-lab routes — auth, honesty, and the frozen §2a contract', () =
   });
 
   it('concierge: validated draft passes through; out-of-bounds and hybrid drafts degrade to say-only', async () => {
-    const good = await post('/api/aero-lab/chat', { message: 'tighter wing please' });
+    const good = await post('/api/aero-lab/chat', { message: 'tighter wing please', design: DEFAULT_DESIGN });
     expect(good.status).toBe(200);
     expect(good.body.draft.area_m2).toBe(1.2);
     expect(good.body.draft.aspect_ratio).toBe(14);
     expect(good.body.draft.taper_ratio).toBe(DEFAULT_DESIGN.taper_ratio);
 
-    const bad = await post('/api/aero-lab/chat', { message: 'give me a bad draft' });
+    const bad = await post('/api/aero-lab/chat', { message: 'give me a bad draft', design: DEFAULT_DESIGN });
     expect(bad.status).toBe(200);
     expect(bad.body.draft).toBeNull();
 
-    const hybrid = await post('/api/aero-lab/chat', { message: 'give me a hybrid draft' });
+    const hybrid = await post('/api/aero-lab/chat', { message: 'give me a hybrid draft', design: DEFAULT_DESIGN });
     expect(hybrid.status).toBe(200);
     expect(hybrid.body.draft).toBeNull();
 
@@ -240,9 +242,9 @@ describe('validateDesign + envelope parsing (pure)', () => {
   it('envelope: malformed JSON degrades to say-only; hybrid gate drops buoyant drafts', () => {
     expect(parseAeroDesignerEnvelope('plain words', false).draft).toBeNull();
     expect(parseAeroDesignerEnvelope('{"say":"x","draft":{"area_m2":"wide"}}', false).draft).toBeNull();
-    const gated = parseAeroDesignerEnvelope('{"say":"x","draft":{"buoyancy_fraction":0.4}}', false);
+    const gated = parseAeroDesignerEnvelope('{"say":"x","draft":{"buoyancy_fraction":0.4},"moves":{"buoyancy_fraction":"up"}}', false, null, DEFAULT_DESIGN);
     expect(gated.draft).toBeNull();
-    const allowed = parseAeroDesignerEnvelope('{"say":"x","draft":{"buoyancy_fraction":0.4}}', true);
+    const allowed = parseAeroDesignerEnvelope('{"say":"x","draft":{"buoyancy_fraction":0.4},"moves":{"buoyancy_fraction":"up"}}', true, null, DEFAULT_DESIGN);
     expect(allowed.draft?.buoyancy_fraction).toBe(0.4);
   });
 });

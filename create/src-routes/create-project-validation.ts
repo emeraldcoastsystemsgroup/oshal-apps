@@ -2,6 +2,7 @@
  * CHANGE LOG
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Validate bounded inert project JSON and canonical immutable raster asset references without trusting identity fields.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  */
 import { ProjectError, PROJECT_ASSET_PREFIX, PROJECT_LIMITS, type ProjectDocument, type ProjectInput, type JsonValue } from './create-project-types';
 import { createHash } from 'node:crypto';
@@ -89,4 +90,11 @@ export function documentAssets(document: ProjectDocument): Array<{ id: string; w
     if (image.src !== PROJECT_ASSET_PREFIX + id) throw new ProjectError(400, 'invalid_project_asset');
     return { id, width: image.width, height: image.height };
   });
+}
+
+/** Load only the installed trusted immutable editor adapter; no request selects executable code. */
+export function loadProjectAgent(packageDir: string): Promise<{ applyAgentOperations: (value: unknown, operations: unknown) => ProjectDocument; blankProject: (value: Record<string, unknown>) => ProjectDocument; editingContract: () => object }> {
+  const file = resolve(packageDir, 'tools/editor/agent-tools.mjs');
+  const url = pathToFileURL(file); url.searchParams.set('revision', createHash('sha256').update(readFileSync(file)).digest('hex'));
+  return import(url.href);
 }

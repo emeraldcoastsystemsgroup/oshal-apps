@@ -5,9 +5,46 @@
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries.
 # 2   | maintainer@emeraldcoastsystemsgroup.com     | Name the family view's schedule-text behaviour the same test now asserts (the trigger object formatted as the full page does, under a fixed US time zone).
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.4: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register the native-kernel egress case: refresh, device control and scene run call the declared SmartThings host with no Authorization header, and a missing or unusable smartthings connection answers each route's own 409.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register the phone layout of the Ask bar (tests/browser/home-phone-layout.test.cjs): no page content paints over Send at any scroll position.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register home-hubs-and-transcript: the chat shows the person's own message above the reply, and the Hubs tab opens the page's hubs view.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register home-connect-copy: the chat names the Hubs tab instead of a raw /utilities path, and every New schedule field is labelled.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register home-reply-words: an assistant reply shows **bold** as bold text without asterisks, markup stays text, and the transcript sits off the screen edge at 412 px (demo sweep 1).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | home-connect-copy also expects the prompt to name the data as the Smart Home app's, never a snapshot (sweep 14).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
+  - id: home-connect-copy
+    name: The chat names the Hubs tab and every schedule field is labelled
+    purpose: Drive the compiled POST /assistant with a recording model double and read the persona and the page's New schedule form.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/home-connect-copy.test.cjs] }
+    expected:
+      - The prompt the home-bot receives names this app's Hubs tab and forbids a raw path such as /utilities.
+      - The prompt calls the data what the person's Smart Home app has saved and never uses the word snapshot (sweep 14).
+      - The persona's not-connected answer names the Hubs tab, not Connections (/utilities).
+      - Action, When, Time, Repeat and the minutes offset each sit in their own label, hidden and shown with it.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: The temporary home-data directory is removed and the module resolver is restored. }
+    limits: { timeoutMs: 20000 }
+    installation: never
+  - id: kernel-egress-smartthings
+    name: Native kernel SmartThings calls through the declared egress
+    purpose: Drive the compiled refresh, control and scene-run handlers with OSHAL_EGRESS=kernel, a recording fetch and synthetic connection metadata.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/kernel-egress.test.cjs] }
+    expected:
+      - Refresh, control and scene run reach api.smartthings.com with no Authorization header and no key in the URL; the device index and command bodies are the same as before.
+      - A kernel "not connected" refusal, or metadata with no usable smartthings connection, answers each route's own 409 without reaching the provider when the metadata says so.
+      - A SmartThings failure under the kernel stays a 502.
+      - Outside the kernel the brokered token is still sent as the Bearer header and a missing token still answers 409.
+      - The manifest declares api.smartthings.com with the smartthings Bearer credential.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: The temporary home-data directory is removed and the module resolver is restored. }
+    limits: { timeoutMs: 20000 }
+    installation: never
   - id: audience-view
     name: Audience view contract
     purpose: >-
@@ -33,4 +70,44 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: home-phone-layout
+    name: Ask bar on a phone
+    purpose: Scroll the real Smart Home page with a synthetic ten-device list in Chromium at 412 x 915 and in the 392 x 641 cockpit frame.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/browser/home-phone-layout.test.cjs] }
+    expected:
+      - At every scroll position a tap on the Ask input or Send lands on it, never on the diagnostic-brief panel.
+      - Nothing is wider than the screen and nothing is written.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none, cleanup: Each case closes its browser context; pages and answers are synthetic and served inside the browser with no network or server. }
+    limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
+    installation: never
+  - id: home-hubs-and-transcript
+    name: Chat transcript and Hubs view on a phone
+    purpose: Drive the real Smart Home page in Chromium at 412 x 915 and in the 392 x 641 cockpit frame with synthetic reads and a synthetic assistant answer.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/browser/home-hubs-and-transcript.test.cjs] }
+    expected:
+      - 'After Send the transcript shows "You: <message>" above the assistant''s answer and the input clears.'
+      - With ?view=hubs the page shows the SmartThings connect link, the Google Home set-up link and the hubs that reported devices, hides the dashboard and chat, fits the screen and writes nothing.
+      - The plain dashboard keeps the hubs panel hidden, and the manifest Hubs tab opens /api/home/ui?view=hubs.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none, cleanup: Each case closes its browser context; pages and answers are synthetic and served inside the browser with no network or server. }
+    limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
+    installation: never
+  - id: home-reply-words
+    name: Assistant reply words on a phone
+    purpose: Run the real Smart Home page's showTurn in Chromium at 412 x 915 with a synthetic reply.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/browser/home-reply-words.test.cjs] }
+    expected:
+      - A reply's **bold** words show as bold text with no asterisks, and markup in a reply stays text.
+      - The You line starts at least 12 px from the screen edge.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none, cleanup: The case closes its browser context; the page and answers are synthetic and served inside the browser with no network or server. }
+    limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
     installation: never

@@ -1,0 +1,81 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Native port of the platform's Bot Forge (codex-packer). The native kernel held only its migrated declaration, so it could not open. The Forge screen (/api/forge) and its one-click Inject were platform TypeScript routes that wrote packs into the platform workspace; neither exists natively, so Bot Forge opens as its concierge: the same interview, ending in a draft package (manifest plus persona) the operator commits to the store and installs from App Loader. The persona no longer teaches workspace paths, the codex CLI or shell commands.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Ship the store's canonical service-authenticated package-readiness route (routes/package-smoke.js, byte-identical to the reviewed module) and its smoke expectation, which the store security contract requires of every package except Pumpkin and the four front-door groups. It reads only this manifest; no screen, user data or model call.
+name: codex-packer
+suite: ai-engineering
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: packing-interview
+      unit: packing interview
+      tier: T4
+      generation: none
+      degrade: disable
+displayName: Bot Forge
+description: >-
+  Describe a task you want automated and the Forge interviews you (the task, its input, what it
+  produces, how you know it worked, the trigger, what it may change and what it must not keep), then
+  drafts a single-purpose application for it: an oshal-app.yaml manifest and the bot's persona. On this
+  installation the Forge does not install anything: you commit the draft to your store checkout and
+  install it from App Loader, which previews its permissions first.
+version: 1.2.0
+status: active
+scope: public
+access:
+  supported: [deny, viewer, editor, admin]
+  defaultTier: editor
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: codex-packer
+  ref: main
+uses:
+  - app-dependencies
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/codex-packer/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/codex-packer/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+
+chatBot: codex-packer
+bots:
+  - agentId: a0000000-0000-0000-0000-000000000030
+    name: codex-packer
+    persona: personas/codex-packer.yaml
+    role: bot-authoring/factory
+    capabilities:
+      - bot-authoring
+      - persona-design
+      - manifest-drafting
+      - interview-driven-spec
+    routingKeywords:
+      - bot forge
+      - create a bot
+      - pack an app
+      - persona design

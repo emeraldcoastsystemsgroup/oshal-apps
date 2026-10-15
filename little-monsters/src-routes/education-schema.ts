@@ -10,6 +10,7 @@
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Make every bootstrap failure observable and stop unsafe follow-on upgrades after an unexpected base-schema error
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | Validate and bootstrap migrations 033-036 security columns, indexes, and tenant-binding triggers
  * 5   | maintainer@emeraldcoastsystemsgroup.com     | Validate and bootstrap the migration-037 append-only authorization audit boundary
+ * 6   | maintainer@emeraldcoastsystemsgroup.com     | On the native kernel (pool.storageModel 'kernel-scoped-documents') provision nothing and probe no PostgreSQL catalog: the kernel applies the manifest's declared migrations per scope and has no pg_class/pg_index/pg_trigger; the PostgreSQL paths are unchanged
  * ---------------------------------------------------------------------------
  *
  * @module education-schema
@@ -373,8 +374,17 @@ async function upgradeAuthorizationAudit(pool: any): Promise<void> {
   ]);
 }
 
+/** True when the pool is the native kernel's SQL bridge, which provisions declared migrations itself. */
+function nativeKernelPool(pool: any): boolean {
+  return pool?.storageModel === 'kernel-scoped-documents';
+}
+
 /** Validate the education schema or apply the supported idempotent bootstrap path. */
 export async function ensureEducationSchema(pool: any): Promise<void> {
+  if (nativeKernelPool(pool)) {
+    logger.info('Education schema is provisioned by the native kernel from the declared migrations; no catalog probe');
+    return;
+  }
   if (!runtimeSchemaBootstrapEnabled()) {
     await validateSchema(pool);
     return;

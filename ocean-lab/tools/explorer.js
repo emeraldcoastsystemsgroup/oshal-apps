@@ -25,6 +25,11 @@
  *                     |                             | price shown as NOT PUBLISHED, never as zero; the displacement
  *                     |                             | budget badge and why; what keeps the model from complete; and
  *                     |                             | the design document link.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | "Delete this explorer": after the person confirms, DELETE
+ *                     |                             | /api/ocean-lab/vehicles/:id (owner-scoped on the server, 204)
+ *                     |                             | and back to the create card. Live 2026-10-11 the route existed
+ *                     |                             | but the tile had no control, so a created explorer could only
+ *                     |                             | be removed through the API.
  */
 
 /* global window, document, fetch */
@@ -293,6 +298,20 @@
     });
   }
 
+  /** @description Delete the open explorer after a confirm, then offer to create one again. @returns {Promise<void>|undefined} Done. */
+  function deleteExplorer() {
+    if (!state.record) return undefined;
+    if (!global.confirm('Delete this explorer with its design, runs and evaluations? This cannot be undone.')) return undefined;
+    say('Deleting the explorer…');
+    return call(recordUrl(''), { method: 'DELETE' }).then(function (a) {
+      if (a.status !== 204 && a.status !== 200) { say('The explorer was not deleted (' + a.status + (a.body && a.body.error ? ': ' + a.body.error : '') + ').'); return; }
+      state.record = null;
+      el('record').hidden = true;
+      el('no-vehicle').hidden = false;
+      say('The explorer is deleted. Create it again from the seed when you want one.');
+    });
+  }
+
   /** @description Load the kinds and the caller's explorer; offer to create it when there is none. @returns {Promise<void>} Done. */
   function load() {
     return Promise.all([call(BASE + '/kinds'), call(BASE)]).then(function (answers) {
@@ -313,6 +332,7 @@
     el('evaluate').addEventListener('click', function () { evaluate('seawater'); });
     el('evaluate-air').addEventListener('click', function () { evaluate('air'); });
     el('record-hull-drop').addEventListener('click', recordHullDrop);
+    el('delete-explorer').addEventListener('click', deleteExplorer);
     el('parts-card').addEventListener('click', function (event) {
       var target = event.target && event.target.closest ? event.target.closest('[data-open-part]') : null;
       if (target) openInCadStudio(target.getAttribute('data-open-part')).catch(function (err) { el('cad-status').textContent = 'CAD Studio could not be reached: ' + err; });

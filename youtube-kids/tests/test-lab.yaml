@@ -1,0 +1,103 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register status-without-store: GET /status and GET /brief for a person with no activity store, and the declared activity migration.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register takeout-unavailable: without the Takeout archive service the upload screen offers watch-history.json only, never shows the Dropbox button, refuses a .zip in words, and prints a refusal's detail instead of undefined.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register brief-read-admission: GET /brief only reads under the kernel's read admission (answering {brief:null} with 200, since the kernel masks a package GET 404), POST /brief produces and stores the brief, and the page posts when GET answers an unanalyzed history or on Re-analyze.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register home-summary-dates: the gift hand-off and the summary detail carry readable dates, never raw ISO stamps.
+version: 1
+cases:
+  - id: kid-lens-status-without-store
+    name: Kid Lens status without an activity store
+    purpose: >-
+      Verify a person who has not uploaded gets {hasData:false} from GET /status and {brief:null,
+      hasData:false} from GET /brief, never a 500, when the store refuses the lazy table (native read admission or
+      PostgreSQL 42P01), and that the activity table is a declared migration matching the routes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/status-without-store.test.cjs
+    expected:
+      - The native "SQL schema is not provisioned" refusal and PostgreSQL 42P01 both answer hasData:false.
+      - Any other store failure still answers 500.
+      - migrations/001-youtube-activity.sql declares exactly the routes' CREATE TABLE.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: In-process route stubs and an in-memory refusing pool, with no persistent data.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: kid-lens-takeout-unavailable
+    name: Kid Lens upload without the Takeout archive service
+    purpose: >-
+      Run the page's own script over DOM and fetch doubles where /api/takeout answers the kernel's
+      "application is not installed" refusal, and where it answers a listing.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/takeout-unavailable.test.cjs
+    expected:
+      - Without the service the Dropbox button never appears and the page offers watch-history.json only, saying why.
+      - A dropped .zip is refused in words with no request to the missing service.
+      - A refusal shows its detail, never undefined.
+      - With the service installed the Dropbox button is offered.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: kid-lens-brief-read-admission
+    name: Kid Lens brief under read and write admission
+    purpose: >-
+      Run the compiled routes against a pool double that refuses SQL mutations under a GET the way the
+      native kernel's read admission does, and the page script over fetch doubles, so the parent brief
+      is read by GET and produced by POST.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/brief-read-admission.test.cjs
+    expected:
+      - GET /brief answers the stored brief, or a 200 {brief:null} whose hasData says whether a history was uploaded, with no analyzer call and no write.
+      - POST /brief runs the analyzer once and stores the brief; it refuses no_data and reports an empty analysis without a write.
+      - The page posts for the analysis when GET answers an unanalyzed history and on Re-analyze, renders a stored brief without posting, and shows the upload screen when there is no history.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: home-summary-dates
+    name: Readable dates in the gift hand-off
+    purpose: >-
+      Run the compiled home summary with only express stubbed and a stub pool, and read the item detail and
+      the hand-off notes a gift plan carries to Shopping.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/home-summary-dates.test.cjs
+    expected:
+      - The import and brief dates read "Oct 12, 2026 00:05 UTC" in the detail and in the hand-off notes, and no ISO stamp appears in any item.
+      - An unreadable stored date reads "date unavailable".
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

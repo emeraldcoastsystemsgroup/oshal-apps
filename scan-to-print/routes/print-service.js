@@ -31,6 +31,9 @@
  *                     |                             | answers "auto-start is off" with no failure recorded and no broker
  *                     |                             | session opened — and read again inside the start right before the
  *                     |                             | command.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Await `@/features/personal-data` decryptField (asynchronous on the
+ *                     |                             | native kernel, which holds the key, PDATA-01) before checking the
+ *                     |                             | printer key.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.evaluateStart = evaluateStart;
@@ -77,7 +80,7 @@ async function loadPrinter(pool, sub, printerId) {
     const row = await (0, job_store_1.getPrinterWithKey)(pool, sub, printerId);
     if (!row)
         return null;
-    const secret = (0, personal_data_1.decryptField)(sub, row.api_key_ciphertext);
+    const secret = await (0, personal_data_1.decryptField)(sub, row.api_key_ciphertext);
     if (!secret || (0, personal_data_1.isEncrypted)(secret))
         throw new Error('Printer key decryption failed closed');
     const { api_key_ciphertext: _ciphertext, ...printer } = row;

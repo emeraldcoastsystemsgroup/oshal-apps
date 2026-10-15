@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Make the unavailable-encoder fixture explicit so installed framework dependencies do not invalidate the compiled-route refusal regression.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The projector link is /api/pumpkin/projector (the page this package now serves; /pumpkin/ was a 404 on the native kernel), and with no configured origin the links keep the request Host's port and use http on loopback (they were https://<hostname> with the port dropped). The request double answers req.get like Express and the native bridge.
  *
  * DEVICE LINKS, QR, AND THE SHORT PROJECTOR URL.
  *
@@ -152,6 +153,7 @@ function makeReq(opts = {}) {
     params: opts.params || {},
     path: opts.path || '/',
     hostname: opts.hostname || 'localhost',
+    get(name) { const k = Object.keys(this.headers).find((h) => h.toLowerCase() === String(name).toLowerCase()); return k ? this.headers[k] : undefined; },
     oidc: opts.oidc || undefined,
   };
 }
@@ -218,7 +220,7 @@ test('PUMPKIN_PUBLIC_ORIGIN wins over APP_URL, and a trailing slash never double
   process.env.PUMPKIN_PUBLIC_ORIGIN = 'https://porch.example.com/';
   const res = await call('GET /links', browserReq('owner-1', { query: { label: 'Front Porch' } }));
   assert.equal(res.body.origin, 'https://porch.example.com');
-  assert.equal(res.body.projectorShortUrl, 'https://porch.example.com/pumpkin/');
+  assert.equal(res.body.projectorShortUrl, 'https://porch.example.com/api/pumpkin/projector');
 });
 
 test('the room in every link is the SERVER slug the push path will actually find', async () => {
@@ -233,12 +235,12 @@ test('the room in every link is the SERVER slug the push path will actually find
   assert.equal(registry.roomSlug(res.body.room), res.body.room);
 });
 
-test('the short form is exactly the origin plus /pumpkin/ — nothing to mistype', async () => {
+test('the short form is exactly the origin plus the served projector path — nothing to mistype', async () => {
   process.env.APP_URL = 'https://oshal.agenticfederal.us';
   const res = await call('GET /links', browserReq('owner-1', {
     query: { label: 'Front Porch', mode: 'autonomous', preset: 'graveyard' },
   }));
-  assert.equal(res.body.projectorShortUrl, 'https://oshal.agenticfederal.us/pumpkin/');
+  assert.equal(res.body.projectorShortUrl, 'https://oshal.agenticfederal.us/api/pumpkin/projector');
   assert.ok(!res.body.projectorShortUrl.includes('?'), 'a query string defeats the whole point');
 });
 
@@ -355,4 +357,61 @@ test('a non-string roomLabel is ignored rather than stringified into a junk room
     body: { activePreset: 'classic', mode: 'mimic', roomLabel: { evil: true } },
   }));
   assert.equal(settingsCalls[0].roomLabel, undefined);
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// NO CONFIGURED ORIGIN: THE LINK IS THE HOST THE REQUEST CAME TO, PORT INCLUDED (2026-10-11)
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+test('loopback with no APP_URL: http and the port are kept (was https://127.0.0.1/ — opens nothing)', async () => {
+  const res = await call('GET /links', browserReq('owner-1', {
+    hostname: '127.0.0.1', headers: { host: '127.0.0.1:38788' }, query: { label: 'Front Porch' },
+  }));
+  assert.equal(res.body.origin, 'http://127.0.0.1:38788');
+  assert.ok(res.body.projectorUrl.startsWith('http://127.0.0.1:38788/api/pumpkin/projector?room=front-porch'), res.body.projectorUrl);
+  assert.equal(res.body.remoteUrl, 'http://127.0.0.1:38788/api/pumpkin/remote?room=front-porch');
+});
+
+test('a public host with no APP_URL stays https', async () => {
+  const res = await call('GET /links', browserReq('owner-1', {
+    hostname: 'oshal.agenticfederal.us', headers: { host: 'oshal.agenticfederal.us' }, query: { label: 'x' },
+  }));
+  assert.equal(res.body.origin, 'https://oshal.agenticfederal.us');
+});
+
+test('the Host header is echoed only when it is a host', () => {
+  assert.equal(links.requestOrigin('[::1]:9000', '::1'), 'http://[::1]:9000');
+  assert.equal(links.requestOrigin('box.lan:8080', 'box.lan'), 'https://box.lan:8080');
+  assert.equal(links.requestOrigin('a b/c@evil', 'localhost'), 'http://localhost', 'a non-host Host header is never echoed');
+  assert.equal(links.requestOrigin('x:99999', 'example.org'), 'https://example.org', 'an impossible port is dropped');
+});
+
+test('the QR encodes the same loopback origin the link card shows', async () => {
+  const req = { label: 'Front Porch', mode: 'mimic', preset: 'inflatable' };
+  const origin = links.requestOrigin('127.0.0.1:38788', '127.0.0.1');
+  assert.equal(links.pumpkinQrTargetUrl(origin, 'projector', req), links.buildPumpkinLinks(origin, req).projectorUrl);
+  assert.ok(links.pumpkinQrTargetUrl(origin, 'projector', req).startsWith('http://127.0.0.1:38788/api/pumpkin/projector?'));
+});
+
+test('GET /projector is registered and serves the packaged projector page with only packaged assets', () => {
+  const fs = require('node:fs');
+  assert.ok(HANDLERS.has('GET /projector'), 'every projector link and Launch opens this path');
+  const html = fs.readFileSync(path.resolve(__dirname, '..', 'tools', 'pumpkin-projector.html'), 'utf8');
+  const served = new Set([...HANDLERS.keys()].filter((k) => k.startsWith('GET /assets/')).map((k) => k.slice('GET /assets/'.length)));
+  const refs = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((m) => m[1]).filter((u) => u.startsWith('/') && !u.startsWith('/shared/'));
+  assert.ok(refs.length >= 4, `the page loads its stylesheet and three scripts: ${refs}`);
+  for (const ref of refs) {
+    assert.ok(ref.startsWith('/api/pumpkin/assets/'), `${ref} is not served by this package (the kernel serves no /pumpkin/)`);
+    const file = ref.slice('/api/pumpkin/assets/'.length);
+    assert.ok(served.has(file), `${file} is not in the /assets/ list`);
+    assert.ok(fs.existsSync(path.resolve(__dirname, '..', 'tools', file)), `tools/${file} is missing`);
+  }
+});
+
+test('the control surface opens and links the served projector, never /pumpkin/', () => {
+  const fs = require('node:fs');
+  const html = fs.readFileSync(path.resolve(__dirname, '..', 'tools', 'pumpkin-app.html'), 'utf8');
+  const code = html.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '');
+  assert.ok(!/['"]\/pumpkin\//.test(code), 'a /pumpkin/ link is a 404 on the native kernel');
+  assert.ok(code.includes("PROJECTOR_PATH='/api/pumpkin/projector'"));
 });

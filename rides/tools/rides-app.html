@@ -755,6 +755,11 @@
       const parentWindow = window.parent && window.parent !== window ? window.parent : null;
       if (!parentWindow) return;
       const computed = parentWindow.getComputedStyle(parentWindow.document.documentElement);
+      // Theme-sync copies the cockpit's tokens ONLY as a matched set: the parent must name both --bg-primary and --text-primary; otherwise the copied properties are removed and this page keeps its own palette (the native cockpit names --text-primary #f8fafc and no --bg-primary, which put near-white text on a light page).
+      if (!computed.getPropertyValue('--bg-primary').trim() || !computed.getPropertyValue('--text-primary').trim()) {
+        for (const localName in map) document.documentElement.style.removeProperty(localName);
+        return;
+      }
       for (const localName in map) {
         const value = computed.getPropertyValue(map[localName]).trim();
         if (value) document.documentElement.style.setProperty(localName, value);
@@ -894,19 +899,50 @@ function toast(message) {
   setTimeout(() => node.classList.remove('show'), 1800);
 }
 
+/** The parsed body, carrying the HTTP status so a refusal is never read as an empty result. */
+async function readBody(response) {
+  const body = await response.json().catch(() => ({}));
+  const value = body && typeof body === 'object' ? body : { value: body };
+  Object.defineProperty(value, 'httpStatus', { value: response.status });
+  return value;
+}
+
 async function getJson(url) {
-  const response = await fetch(url, { credentials: 'same-origin' });
-  return response.json();
+  return readBody(await fetch(url, { credentials: 'same-origin' }));
 }
 
 async function postJson(url, body) {
-  const response = await fetch(url, {
+  return readBody(await fetch(url, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body || {})
-  });
-  return response.json();
+  }));
+}
+
+// Address lookup, fares and the Uber hand-off run on the server: the runtime's Uber Rides helper, or, where the
+// installation has no Uber connector, the package's keyless rail (distance and a modelled fare from the pins).
+// A refusal (HTTP 503) is said as one, never as "did not resolve" and never as advice to add a connector.
+const NOT_CONNECTED = 'Unavailable: this installation has no Uber rail (no Uber connector exists here) and the server refused this request. Drop both pins on the map: the distance and a modelled fare are computed from them.';
+/** The pin for one end, only while its field still names it (a typed new address must not price an old pin). */
+function pinFor(kind) {
+  const point = osm.points[kind];
+  const value = (kind === 'pickup' ? $('#pickup').value : $('#dropoff').value).trim();
+  if (!point || !value) return null;
+  const coords = `${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}`;
+  return (point.label && point.label.trim() === value) || value === coords ? point : null;
+}
+/** The two pins as the routes read them (pickupLat/pickupLon/dropoffLat/dropoffLon); ends without a pin are left out. */
+function pinParams() {
+  const out = {};
+  const pickup = pinFor('pickup');
+  const dropoff = pinFor('dropoff');
+  if (pickup) { out.pickupLat = pickup.lat; out.pickupLon = pickup.lon; }
+  if (dropoff) { out.dropoffLat = dropoff.lat; out.dropoffLon = dropoff.lon; }
+  return out;
+}
+function providerRefused(result) {
+  return Boolean(result && (result.httpStatus === 503 || result.error === 'native_executor_unavailable'));
 }
 
 // ── OpenStreetMap engine (the default) ──────────────────────────────────────────────────────
@@ -1084,6 +1120,14 @@ function fitRoute() {
   else osm.map.fitBounds(window.L.latLngBounds(pts).pad(0.25));
 }
 
+// Address lookups still in flight, one per field, and the estimate generation they belong to.
+// The blur that starts a lookup fires on the same tap as Show rides, so the lookup and /estimate
+// race: a lookup that answers after the estimate used to move the pin through setPoint, which
+// retracted the fares the estimate had just drawn ("Route changed"), and every first tap failed.
+// estimate() now waits for these lookups (bounded) and sends their pins, then bumps the epoch so
+// one that is still out answers into nothing — the estimate placed the pins from its own answer.
+const geocodes = { pending: { pickup: null, dropoff: null }, epoch: 0, waitMs: 4000 };
+
 /** Resolve whatever is typed in a field into a pin. One request, on demand — never per keystroke:
  *  Nominatim's usage policy rules out autocomplete-style querying of the public endpoint. */
 async function geocodeField(kind) {
@@ -1096,14 +1140,34 @@ async function geocodeField(kind) {
     await setPoint(kind, point, { label: value });
     return point;
   }
+  const lookup = lookupAddress(kind, value, geocodes.epoch);
+  geocodes.pending[kind] = lookup;
+  lookup.then(() => { if (geocodes.pending[kind] === lookup) geocodes.pending[kind] = null; });
+  return lookup;
+}
+
+/** One /geocode request for a field; its pin lands only if no estimate has started since. */
+async function lookupAddress(kind, value, epoch) {
   try {
     const hit = await getJson(`${API}/geocode?q=${encodeURIComponent(value)}`);
     if (hit && Number.isFinite(hit.lat)) {
-      await setPoint(kind, { lat: hit.lat, lon: hit.lon }, { label: value });
+      if (epoch === geocodes.epoch) await setPoint(kind, { lat: hit.lat, lon: hit.lon }, { label: value });
       return hit;
     }
   } catch { /* fall through — an unresolvable address is reported by the estimate, honestly */ }
   return null;
+}
+
+/** Let the field lookups already in flight land their pins (bounded), then supersede the rest. */
+async function settleGeocodes() {
+  const pending = Object.values(geocodes.pending).filter(Boolean);
+  if (pending.length) {
+    await Promise.race([
+      Promise.allSettled(pending),
+      new Promise((resolve) => setTimeout(resolve, geocodes.waitMs))
+    ]);
+  }
+  geocodes.epoch += 1;
 }
 
 function loadGoogleMapsScript(key) {
@@ -1230,9 +1294,22 @@ function updateLabels() {
     : 'Search a destination to compare estimates.';
 }
 
+// One row per distinct trip: every Show rides stores another row for the same pickup and destination, and the list showed
+// "Pensacola Beach / Pensacola International Airport" four times (sweep 14). The rows arrive newest first, so the newest
+// copy of a trip is the one kept (its hand-off link included).
+function distinctTrips(trips) {
+  const seen = new Set();
+  return (trips || []).filter((trip) => {
+    const key = [trip.pickup, trip.dropoff].map((v) => String(v || '').trim().toLowerCase().replace(/\s+/g, ' ')).join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function renderSuggestions() {
   const query = $('#dropoff').value.trim().toLowerCase();
-  const recent = state.trips.map((trip) => ({
+  const recent = distinctTrips(state.trips).map((trip) => ({
     label: trip.dropoff || 'Recent destination',
     detail: trip.pickup || 'Recent trip',
     value: trip.dropoff || '',
@@ -1252,7 +1329,7 @@ function renderSuggestions() {
 }
 
 function renderRecentTrips() {
-  const trips = state.trips.slice(0, 5).map((trip) => ({
+  const trips = distinctTrips(state.trips).slice(0, 5).map((trip) => ({
     label: trip.dropoff || 'Recent destination',
     detail: trip.pickup || '',
     value: trip.dropoff || '',
@@ -1399,10 +1476,23 @@ async function estimate() {
     toast('Search a destination first');
     return;
   }
-  $('#options').innerHTML = '<div class="empty">Estimating rides for this route...</div>';
+  const estimating = '<div class="empty">Estimating rides for this route...</div>';
+  $('#options').innerHTML = estimating;
+  $('#requestBtn').disabled = true;
+  // A typed address still being looked up (its blur fired on this same tap) lands its pin first,
+  // so /estimate gets the pins and no late lookup can retract the fares drawn below.
+  await settleGeocodes();
+  $('#options').innerHTML = estimating;
   $('#requestBtn').disabled = true;
   try {
-    const result = await getJson(`${API}/estimate?pickup=${encodeURIComponent(state.pickup || 'my location')}&dropoff=${encodeURIComponent(state.dropoff)}`);
+    const query = new URLSearchParams({ pickup: state.pickup || 'my location', dropoff: state.dropoff, ...pinParams() });
+    const result = await getJson(`${API}/estimate?${query.toString()}`);
+    if (providerRefused(result)) {
+      state.options = [];
+      $('#options').innerHTML = `<div class="empty" role="status">${escapeHtml(NOT_CONNECTED)}</div>`;
+      $('#mapHelp').textContent = NOT_CONNECTED;
+      return;
+    }
     if (result.error) toast(result.error);
     // The server geocoded both ends to measure the trip — reuse those pins instead of asking
     // Nominatim the same two questions from the browser.
@@ -1410,6 +1500,8 @@ async function estimate() {
     if (result.coords?.dropoff) await setPoint('dropoff', result.coords.dropoff, { label: state.dropoff, fromEstimate: true });
     renderDistance(result);
     state.basis = result.basis || 'unresolved';
+    // The keyless rail says how the fare was made (modelled from the pins; no Uber connector here).
+    if (result.rail === 'keyless' && result.basis !== 'unresolved' && result.note) $('#mapHelp').textContent = result.note;
     if (result.basis === 'unresolved') {
       $('#mapHelp').textContent = result.note
         || 'One of these addresses did not resolve to a location, so no fare is shown. Add a street number or a city.';
@@ -1432,11 +1524,14 @@ async function requestRide() {
     dropoff: state.dropoff,
     rideType: option.type,
     fareLow: option.fareLow,
-    fareHigh: option.fareHigh
+    fareHigh: option.fareHigh,
+    ...pinParams()
   });
   $('#requestBtn').disabled = false;
   $('#requestBtn').textContent = 'Open Uber handoff';
-  if (result.rideUrl) {
+  if (providerRefused(result)) {
+    toast('The Uber hand-off was refused on this installation');
+  } else if (result.rideUrl) {
     toast('Opening Uber');
     window.open(result.rideUrl, '_blank');
     loadTrips();
@@ -1466,8 +1561,10 @@ async function sendChat() {
       message: text,
       conversationId: state.conversationId,
       pickup: $('#pickup').value.trim(),
-      dropoff: $('#dropoff').value.trim()
+      dropoff: $('#dropoff').value.trim(),
+      ...pinParams()
     });
+    if (providerRefused(result)) { pending.textContent = NOT_CONNECTED; return; }
     state.conversationId = result.conversationId || state.conversationId;
     if (state.conversationId) localStorage.setItem('oshalRidesConv', state.conversationId);
     pending.textContent = result.reply || 'I could not build that ride yet.';
@@ -1713,7 +1810,11 @@ async function boot() {
   try {
     const config = await getJson(`${API}/config`);
     $('#connDot').classList.toggle('on', Boolean(config.uberRidesConnected));
-    $('#connTxt').textContent = config.uberRidesConnected ? 'Uber connected' : 'Estimate mode';
+    // 'keyless': no Uber connector exists on this installation; fares are modelled here from the pins and the
+    // hand-off is Uber's own link. Say that, not "not connected" (which reads as something to go and connect).
+    $('#connTxt').textContent = config.rail === 'keyless' ? 'No Uber connector here · fares modelled from the pins'
+      : config.uberRidesConnected ? 'Uber connected' : 'Uber not connected';
+    if (config.rail === 'keyless' && config.railNote) $('#connTxt').title = config.railNote;
     const maps = config.maps || {};
     // Google when the operator has keyed it (road-routed polyline + Places autocomplete);
     // OpenStreetMap otherwise — and OSM is a real map, so there is no keyless path that
@@ -1726,7 +1827,7 @@ async function boot() {
       await initOsmMap(maps);
     }
   } catch {
-    $('#connTxt').textContent = 'Estimate mode';
+    $('#connTxt').textContent = 'Connection status unavailable';
     // A failed /config must not cost the rider the map: OSM needs nothing from that response.
     await initOsmMap({});
   }

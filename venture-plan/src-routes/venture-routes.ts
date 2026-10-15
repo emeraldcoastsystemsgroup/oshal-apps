@@ -29,6 +29,9 @@
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — venture CRUD with a synchronous scoping call, the append-only assumption endpoints, BOM/vendor/quote/scenario CRUD, the free recompute and sensitivity endpoints, the 202 run endpoint, and the concierge chat door. Every handler 401s before any query.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Add owner-scoped immutable FX endpoints, fail-closed foreign-quote errors, and integer-micro scenario inputs.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Add owner-scoped default-deny rebaseline policy management and a mutation-free UTC preview endpoint.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | GET /ventures/:id, GET /ventures/:id/runs and GET /runs/:runId answer a native run whose request was abandoned as interrupted (presentRun, no write on a read), so a page closed mid-run is not shown "running" for ever.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | GET /ventures/:id/inversion also answers plannedRunUnits (the model's run quantity), so the console can compare the smallest break-even run with the planned run; the stored snapshot carries no run figure.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | GET /ventures/:id/assumptions and the history answer each row's `grade`, the engine's confidence ladder (quoted .. guessed) for that row (engineConfidence, the same mapping the model computes with). The console tallied the ledger in that ladder while rows carried the store's low/medium/high, so its banner read "0 of 36 registered assumptions are an estimate or an outright placeholder" with 34 model guesses.
  *
  * @module venture-routes
  */
@@ -42,13 +45,13 @@ import { BotNodeClient, createRegistryEndpointResolver } from '@/features/agent-
 import { createChildLogger } from '@/shared/logger';
 import { sensitivitySweep, computeInversions, type Objective } from './venture-sensitivity';
 import { withLedger, buildVentureModel } from './venture-model';
-import { composeModelInput } from './venture-store-compose';
+import { composeModelInput, engineConfidence } from './venture-store-compose';
 import { chat as botChat, scopeIdea } from './venture-bots';
 import { parseScopeOutput } from './venture-bot-contracts';
 import { ensureVentureSchema } from './venture-schema';
 import { guarded, requireSub } from './venture-http';
 import { registerDocumentRoutes } from './venture-routes-docs';
-import { recomputeVenture, startRun } from './venture-run';
+import { presentRun, recomputeVenture, startRun } from './venture-run';
 import {
   assumptionHistory, coverageOf, deleteVenture, getRun, getVenture, insertScenario,
   insertVenture, listRuns, listScenarios, listVentures, liveAssumptions, latestRun,
@@ -70,7 +73,7 @@ import {
 } from './venture-rebaseline';
 import { getRebaselinePolicy, upsertRebaselinePolicy } from './venture-store-rebaseline';
 import { DOC_CATALOG } from './venture-doc-catalog';
-import type { AssumptionInput, RunKind } from './venture-types';
+import type { Assumption, AssumptionInput, RunKind } from './venture-types';
 import { isConfidence, isDomain, isSourceKind } from './venture-types';
 
 const log = createChildLogger({ module: 'venture-routes' });
@@ -221,7 +224,7 @@ function handleVentureRead(pool: Pool): RequestHandler {
         id: model.id, computedAt: model.computedAt, posture: model.posture,
         canPublish: model.canPublish, warnings: model.warnings.length,
       } : null,
-      latestRun: run,
+      latestRun: run ? presentRun(run) : null,
       fxAssumptions,
       documentCatalog: DOC_CATALOG.map((d) => ({ key: d.key, title: d.title, decision: d.decision })),
     });
@@ -265,6 +268,16 @@ function parseAssumptionBody(body: Record<string, unknown>, key: string): { row?
   };
 }
 
+/**
+ * @description An assumption row with its engine grade: where it stands on the ladder the model and the console
+ * use (quoted, observed, benchmarked, estimated, guessed), next to the store's own low/medium/high.
+ * @param a - A stored row.
+ * @returns The row plus `grade`.
+ */
+function graded(a: Assumption): Assumption & { grade: string } {
+  return { ...a, grade: engineConfidence(a) };
+}
+
 /** The assumption endpoints. Writes are append-only; there is no update path. */
 function handleAssumptions(pool: Pool): Record<string, RequestHandler> {
   const write = guarded('write assumption', async (req, res) => {
@@ -288,7 +301,7 @@ function handleAssumptions(pool: Pool): Record<string, RequestHandler> {
       const all = await liveAssumptions(pool, sub, id);
       const domain = req.query.domain ? String(req.query.domain) : null;
       const rows = domain ? all.filter((a) => a.domain === domain) : all;
-      res.json({ assumptions: rows, summary: coverageOf(all) });
+      res.json({ assumptions: rows.map(graded), summary: coverageOf(all) });
     }),
     create: write,
     update: write,
@@ -297,7 +310,7 @@ function handleAssumptions(pool: Pool): Record<string, RequestHandler> {
       if (!sub) return;
       const id = String(req.params.id);
       if (!await getVenture(pool, sub, id)) { res.status(404).json({ error: 'not found' }); return; }
-      res.json({ revisions: await assumptionHistory(pool, sub, id, String(req.params.key)) });
+      res.json({ revisions: (await assumptionHistory(pool, sub, id, String(req.params.key))).map(graded) });
     }),
   };
 }
@@ -632,6 +645,9 @@ function handleInversion(pool: Pool): RequestHandler {
           model: built.model, modelInput: built.input,
           requiredContributionBps: Number(req.query.requiredContributionBps ?? 3000),
         }),
+        // The plan's own run, beside the smallest run that breaks even: the stored model snapshot does not carry it
+        // (it is an input, not a figure), and the console showed "no plan value to compare" for that row.
+        plannedRunUnits: built.model.bom.runQtyUnits,
         posture: built.model.posture,
         canPublish: built.model.canPublish,
       });
@@ -772,14 +788,14 @@ function handleRuns(ctx: AppContext, pool: Pool): Record<string, RequestHandler>
       if (!sub) return;
       const id = String(req.params.id);
       if (!await getVenture(pool, sub, id)) { res.status(404).json({ error: 'not found' }); return; }
-      res.json({ runs: await listRuns(pool, sub, id) });
+      res.json({ runs: (await listRuns(pool, sub, id)).map((run) => presentRun(run)) });
     }),
     read: guarded('GET /runs/:runId', async (req, res) => {
       const sub = requireSub(req, res);
       if (!sub) return;
       const run = await getRun(pool, sub, String(req.params.runId));
       if (!run) { res.status(404).json({ error: 'not found' }); return; }
-      res.json({ run });
+      res.json({ run: presentRun(run) });
     }),
   };
 }

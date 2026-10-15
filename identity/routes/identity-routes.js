@@ -29,6 +29,7 @@
  * 2026-07-19 19:05:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the identity app package (ADR-085 Wave 3, "skill with a surface"). Standard (ctx) factory; the surface serves from ctx.appPackageDir/tools (load-time env fallback, D10). Shared core helpers import via @/ aliases: connector-tenancy's accessibleConnections + inline-bot-execution's executeBotOrInline. The identity-advisor inline node (BOTH swarm-bot-registry blocks), the connector hub (/api/connect/*), and /utilities stay framework-resident (ADR-093).
  * 2026-08-12 20:30:00 | maintainer@emeraldcoastsystemsgroup.com | BUG-13: the access-review inventory computed `expired` as `expiry < now`, which flags every refreshable connection whose hour-long access token has lapsed - 9 of 18 accounts on a real deployment, all healthy - so the advisor was told to reconnect logins that renew themselves. Now uses core's isConnectionExpired (lapsed AND unrenewable), adds `refreshable` so the bot can read a past expiry correctly, and says so in the prompt.
  * 2026-09-24 17:35:00 | maintainer@emeraldcoastsystemsgroup.com | Include expiring (isConnectionExpiring) in the access-review inventory and instruct the advisor to report unrenewable logins that will lapse soon.
+ * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: with OSHAL_EGRESS=kernel the framework connection store is not reachable (accessibleConnections answers an empty list), so the access-review inventory is built from the kernel's connectors.metadata intent instead, with the same expired/expiring rules; a kernel without that intent answers 503 rather than "no accounts connected". The legacy path is unchanged.
  *
  * @module identity-routes
  */
@@ -66,6 +67,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.nativeInventory = nativeInventory;
 exports.createIdentityRoutes = createIdentityRoutes;
 const identity_summary_1 = require("./identity-summary");
 const express_1 = require("express");
@@ -93,6 +95,43 @@ function identityHtml(appPackageDir) {
         path.resolve(__dirname, '../tools/identity.html'),
     ].filter(Boolean);
     return candidates.find((p) => fs.existsSync(p)) || candidates[candidates.length - 1];
+}
+/** Unrenewable grants this close to lapsing count as expiring (the framework's UNRENEWABLE_EXPIRING_WINDOW_MS). */
+const EXPIRING_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+/**
+ * @description Map the kernel's connection metadata onto the advisor inventory with the framework's rules: expired means
+ * revoked, or lapsed with nothing to renew it; expiring means unrenewable and inside the 14-day window.
+ * @param connections - The connectors.metadata `connections` rows.
+ * @param now - Clock seam in milliseconds.
+ * @returns One metadata-only item per connection.
+ */
+function nativeInventory(connections, now = Date.now()) {
+    return connections.map((c) => {
+        const at = c.expires_at_ms == null ? null : Number(c.expires_at_ms);
+        const renewable = c.renewable === true;
+        const lapsed = at !== null && at <= now && !renewable;
+        return {
+            provider: String(c.provider || ''), label: c.label ? String(c.label) : null, account: null, shared: c.shared === true,
+            isDefault: false, expiry: at === null ? null : new Date(at).toISOString(), refreshable: renewable,
+            expired: c.revoked === true || lapsed, expiring: !lapsed && c.revoked !== true && at !== null && !renewable && at - now <= EXPIRING_WINDOW_MS,
+        };
+    });
+}
+/**
+ * @description The access-review inventory: the kernel's connection metadata under the native kernel, else the framework
+ * connection store. Null when the kernel offers no connection metadata, so the route never mistakes it for "none".
+ * @param ctx - App context.
+ * @param sub - The signed-in caller's OIDC sub.
+ * @returns The inventory, or null when unavailable.
+ */
+async function buildCallerInventory(ctx, sub) {
+    if (process.env.OSHAL_EGRESS !== 'kernel')
+        return buildInventory(ctx.pool, sub);
+    const intent = ctx.intent;
+    if (typeof intent !== 'function')
+        return null;
+    const answer = (await intent.call(ctx, 'connectors.metadata', {}));
+    return Array.isArray(answer?.connections) ? nativeInventory(answer.connections) : null;
 }
 /** Signed-in caller's OIDC sub. */
 function callerSub(req) {
@@ -194,7 +233,11 @@ function createIdentityRoutes(ctx) {
             return;
         }
         try {
-            const inventory = await buildInventory(ctx.pool, sub);
+            const inventory = await buildCallerInventory(ctx, sub);
+            if (!inventory) {
+                res.status(503).json({ error: 'connections_unavailable', message: 'Connection details are not available right now — try again.' });
+                return;
+            }
             if (inventory.length === 0) {
                 res.json({ advice: 'You haven\'t connected any accounts yet. Connect the ones you use most — email, calendar, and your main social or storage account — and they\'ll show up here for one-click access.', count: 0, empty: true });
                 return;

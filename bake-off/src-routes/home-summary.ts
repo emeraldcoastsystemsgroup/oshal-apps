@@ -1,8 +1,27 @@
-/** Saved bake-off evidence. GET is owner-scoped, bounded, and side-effect free. */
+/**
+ * Saved bake-off evidence. GET is owner-scoped, bounded, and side-effect free.
+ *
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | The items agree with the metrics. With saved jobs and no run the summary showed "1 Saved benchmarks" beside "No saved work yet"; it now says how many benchmarks are saved and that none has run yet (noRunsText). "No saved work yet" stays for an owner with no job at all. Guard: tests/home-summary-agrees.test.js.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The empty and not-yet-run lines name the AI Bake-Off tab (the app's other screen) instead of 'Open the app to begin.', which the Review tab showed while already inside the app. Guard: tests/home-summary-agrees.test.js.
+ */
 import { Router } from 'express';
 import type { AppContext } from '@/app/composition/app-context';
 const clip = (v: unknown, cap = 400) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0,cap);
 const date = (v: unknown) => { const d = new Date(String(v)); return Number.isFinite(d.getTime()) ? d.toISOString() : 'date unavailable'; };
+/**
+ * @description The item shown when the owner has no run to list: saved jobs are named as saved and not yet run, so the
+ * line never contradicts the "Saved benchmarks" metric beside it.
+ * @param jobs - The owner's saved job count.
+ * @returns The sentence.
+ */
+export function noRunsText(jobs: number): string {
+ if (!(jobs > 0)) return 'No saved work yet. Open the AI Bake-Off tab to save a job and run it.';
+ return (jobs === 1 ? '1 saved benchmark' : jobs + ' saved benchmarks') + ', none run yet. Open the AI Bake-Off tab and run one to compare lanes.';
+}
 export function createHomeSummaryRoutes(ctx: AppContext): Router {
  const router = Router();
  router.get('/', async (req, res) => {
@@ -25,7 +44,7 @@ export function createHomeSummaryRoutes(ctx: AppContext): Router {
   rows(2).forEach(r=>item(r.name,clip(r.status)+' / started '+date(r.started_at),'Recorded lanes '+clip(r.lanes_completed)+' of '+clip(r.lanes_requested)+'. Best recorded successful lane by score: '+clip(r.observed_model||'model not captured')+'; score '+clip(r.judge_score??'unavailable')+'; judge mode '+clip(r.judge_mode||'unknown')+'; observed USD cost '+(Number(r.cost_usd)>0?clip(r.cost_usd):'unknown')+'. Compare rubric and unscored lanes in Bake-Off before selecting a model.', ['prepare-document'],r.status==='failed'?'warn':'neutral'));
   const failed=result.filter(r => r.status==='rejected').length;
   if(failed) items.push({text:'Some saved sources cannot be checked.',tone:'warn',fix:"bake-off-home"});
-  else if(!items.length) items.push({text:'No saved work yet. Open the app to begin.',tone:'neutral',fix:"bake-off-home"});
+  else if(!items.length) items.push({text:noRunsText(Number(rows(0)[0]?.jobs ?? 0)),tone:'neutral',fix:"bake-off-home"});
   items.push({text:"Benchmark jobs and runs are owner-scoped through their parent job, and each result must match the same owner. A missing or zero observed lane cost stays unknown, never free. The selected lane is only the best scored successful observation in that run, not a universal model recommendation. Prepare a comparison document without running a benchmark or changing providers.",tone:'neutral',fix:"bake-off-home"});
   res.status(failed===result.length ? 503 : 200).json({metrics,tiles:metrics,items,asOf:now.toISOString(),partial:failed>0});
  });

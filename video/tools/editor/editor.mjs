@@ -5,7 +5,12 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The manual video editor page controller (CREATE-EDIT-05d): import clips and music with the native picker, trim, split, reorder and remove segments, set clip and music volume, add titles, undo and redo, save and reopen optimistically, and export - every edit a validated document from the shared model, every action also on the keyboard. The unsaved draft lives in memory, survives theme changes and failed requests, and is kept per project in this browser so a reload or a conflict never loses it.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve legacy routes while enabling bounded original-owner native media transport.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Delete project: the open saved project can be deleted (DELETE /editor/projects/:id, already bound to editor.delete) after a confirmation naming it; the button is disabled with the reason when the person's access does not include deleting. The editor had no way to remove a saved project.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | A held Motion import keeps a newly opened draft intact instead of attaching its old source to another project.
  */
+import { motionSourceUrl } from './motion-source.mjs';
+import { createMultitrackEditor } from './multitrack-editor.mjs';
 import * as model from './timeline-model.mjs';
 import { createTimelineHistory } from './timeline-history.mjs';
 import { call, describe, upload, configureMediaTransport } from './editor-api.mjs';
@@ -14,8 +19,19 @@ import { createPlayer } from './editor-player.mjs';
 import { createExporter } from './editor-export.mjs';
 
 const $ = id => document.getElementById(id);
-const state = { history: null, projectId: null, revision: null, savedText: '', selected: null, permissions: {}, busy: false };
-let player, exporter;
+const state = { history: null, projectId: null, revision: null, savedText: '', selected: null, permissions: {}, busy: false, draftEpoch: 0 };
+let player, exporter, multitrack;
+let motionJobs = [], motionPending = null;
+function renderMotion(current,canEdit) {
+  const replace = $('motionReplace'), selected = replace.value;
+  replace.replaceChildren(new Option('Add as a new source',''),...Object.entries(current.sources).filter(([,source]) => source.motion).map(([key,source]) => new Option(`Refresh ${source.name} · source revision ${source.motion.revision}`,key)));
+  replace.value = selected; replace.disabled = !canEdit || state.busy;
+  $('importMotion').disabled = !canEdit || !state.permissions.change || !state.permissions.read || state.busy || !$('motionRender').value;
+  $('motionSources').replaceChildren(...Object.values(current.sources).filter(source => source.motion).map(source => {
+    const item = document.createElement('li'), link = document.createElement('a');
+    link.textContent = `Edit ${source.name} in Motion · source revision ${source.motion.revision}`;link.href=motionSourceUrl(source.motion);link.target='_blank';link.rel='noopener';item.append(link);return item;
+  }));
+}
 
 const doc = () => state.history.current();
 const dirty = () => JSON.stringify(doc()) !== state.savedText;
@@ -38,7 +54,9 @@ function readDraft() {
 }
 
 function render() {
-  const current = doc(), canEdit = editable();
+  const current = doc(), canEdit = editable(), advanced = current.version === 2;
+  $('track').hidden = advanced; $('titleTrack').hidden = advanced; $('timelineHeading').textContent = advanced ? 'Playhead' : 'Timeline';
+  $('segmentControls').closest('section').hidden = advanced;
   renderSources($('sources'), current, canEdit);
   if (state.selected && !current.segments.some(segment => segment.id === state.selected)) state.selected = null;
   renderTrack($('track'), current, state.selected);
@@ -52,9 +70,11 @@ function render() {
   $('undo').disabled = !state.history.canUndo(); $('redo').disabled = !state.history.canRedo();
   $('saveProject').disabled = state.busy || !canEdit || (!!state.projectId && !dirty());
   $('saveAsNew').disabled = state.busy || !state.permissions.create;
+  $('deleteProject').disabled = state.busy || !state.projectId || !state.permissions.delete;
+  $('deleteProject').title = state.permissions.delete ? '' : 'Your access does not include deleting projects.';
   $('addTitle').disabled = !canEdit || !current.segments.length;
   $('dirtyFlag').hidden = !dirty();
-  player.refresh(); exporter.refresh();
+  renderMotion(current,canEdit); multitrack?.render(); player.refresh(); exporter.refresh();
 }
 
 function commit(next) {
@@ -84,6 +104,7 @@ async function uploadFile(kind, input) {
     const media = await upload(kind, file);
     apply(current => {
       const added = model.addSource(current, sourceOf(media, cleanName(file.name, kind)));
+      if (added.document.version === 2) return multitrack.appendSource(added.document, added.key);
       if (kind === 'audio' && !added.document.audioBed) return model.setAudioBed(added.document, added.key, 40);
       return kind === 'video' && remainingFrames(added.document) > 0 ? model.appendSegment(added.document, added.key) : added.document;
     });
@@ -102,6 +123,7 @@ async function loadProjects() {
 }
 
 function adopt(project) {
+  state.draftEpoch += 1;
   state.projectId = project.id; state.revision = project.revision; state.selected = null;
   state.history.reset(project.document); state.savedText = JSON.stringify(doc());
   try { history.replaceState(null, '', `?project=${project.id}`); } catch { /* embedded without history access */ }
@@ -137,7 +159,23 @@ async function save(asNew = false) {
   } finally { state.busy = false; render(); }
 }
 
+/** Delete the open saved project and its exports after the person confirms; their unsaved draft of it goes too. */
+async function deleteProject() {
+  if (state.busy || !state.projectId || !state.permissions.delete) return;
+  const name = doc().name;
+  if (!confirm(`Delete the project "${name}" and its exports? This cannot be undone.`)) return;
+  hideError(); state.busy = true; setStatus('Deleting…'); render();
+  const key = draftKey();
+  try {
+    await call(`/projects/${encodeURIComponent(state.projectId)}`, { method: 'DELETE', body: { baseRevision: state.revision } });
+    try { localStorage.removeItem(key); } catch { /* storage unavailable */ }
+    state.busy = false; startNew(); setStatus(`Deleted ${name}.`);
+  } catch (error) { showError(describe(error)); setStatus('Not deleted.'); }
+  finally { state.busy = false; render(); await loadProjects(); }
+}
+
 function startNew() {
+  state.draftEpoch += 1;
   hideError(); state.projectId = null; state.revision = null; state.selected = null;
   state.history.reset(model.createTimeline('Untitled video')); state.savedText = JSON.stringify(doc());
   try { history.replaceState(null, '', location.pathname); } catch { /* embedded without history access */ }
@@ -179,6 +217,7 @@ function onKey(event) {
   if (modifier && (key === 'y' || (key === 'z' && event.shiftKey))) { event.preventDefault(); redo(); return; }
   if (modifier && key === 'z') { event.preventDefault(); undo(); return; }
   if (modifier || event.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) return;
+  if (doc().version === 2 && editable() && ['s', 'delete', 'backspace'].includes(key)) { event.preventDefault(); if (key === 's') { $('multiSplitFrame').value = player.frame(); $('multiSplit').click(); } else $('multiRemove').click(); return; }
   const actions = { ' ': () => player.toggle(), arrowleft: () => player.step(event.shiftKey ? -30 : -1), arrowright: () => player.step(event.shiftKey ? 30 : 1),
     s: () => editable() && split(), delete: () => editable() && removeSelected(), backspace: () => editable() && removeSelected(),
     '[': () => editable() && move(-1), ']': () => editable() && move(1) };
@@ -196,7 +235,7 @@ function wireTimeline() {
   $('sources').addEventListener('click', event => {
     const remove = event.target.closest('[data-remove-source]')?.dataset.removeSource, append = event.target.closest('[data-append-source]')?.dataset.appendSource;
     if (remove) apply(current => model.removeSource(current, remove));
-    if (append) apply(current => model.appendSegment(current, append));
+    if (append) apply(current => current.version === 2 ? multitrack.appendSource(current, append) : model.appendSegment(current, append));
   });
   $('titles').addEventListener('click', event => {
     const id = event.target.closest('[data-remove-title]')?.dataset.removeTitle;
@@ -223,12 +262,50 @@ function wireInspector() {
   $('projectName').addEventListener('change', () => { if (!apply(current => model.renameTimeline(current, $('projectName').value))) $('projectName').value = doc().name; });
 }
 
+
+async function readyMotionJobs() {
+  $('motionImportStatus').textContent='Finding your ready Motion renders…';
+  try {
+    const response = await fetch('/api/motion-studio/render-jobs',{credentials:'same-origin',cache:'no-store'});
+    if (!response.ok) throw new Error('Motion access or service unavailable');
+    const value=await response.json(); if (!Array.isArray(value.jobs)) throw new Error('Motion service unavailable');
+    motionJobs=value.jobs.filter(job => job.state==='ready' && job.format==='mp4');
+    $('motionRender').replaceChildren(new Option('Choose a ready composition…',''),...motionJobs.map(job => new Option(`${job.title || 'Composition'} · composition ${job.compId} · source revision ${job.revision} · ${(job.frames*job.frameRate.den/job.frameRate.num).toFixed(1)}s`,job.id)));
+    $('motionImportStatus').textContent=motionJobs.length ? 'Choose a render to add, or refresh a linked source.' : 'No ready MP4 renders. Render a composition in Motion first.';
+  } catch {$('motionImportStatus').textContent='Motion renders could not be read. Open Motion and check your access.';}
+  render();
+}
+async function importMotion(event) {
+  event.preventDefault();if(state.busy || !editable() || !state.permissions.change || !state.permissions.read)return;
+  const job=motionJobs.find(item => item.id===$('motionRender').value),key=$('motionReplace').value;
+  if(!job)return;
+  const draftEpoch=state.draftEpoch,signature=JSON.stringify([job.id,key]);
+  if(motionPending?.signature!==signature)motionPending={signature,key:crypto.randomUUID()};
+  const pending=motionPending;state.busy=true;hideError();setStatus('Linking Motion render…');render();
+  try {
+    const response=await fetch('/api/artifacts/handles',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({mode:'motion-render',source:`/api/motion-studio/render-jobs/${job.id}`,type:'video/mp4',name:`Motion composition ${job.compId}`})});
+    if(!response.ok)throw new Error('Motion exchange unavailable');
+    const handle=await response.json(),result=await call('/motion-media',{method:'POST',body:{ref:handle.ref,name:`Motion ${job.compId}`,requestKey:pending.key}});
+    if(state.draftEpoch!==draftEpoch){setStatus('Motion render imported to your media. The newly opened draft was kept; choose the render again to link it here.');return;}
+    const okay=apply(current => {if(key)return model.replaceMotionSource(current,key,result.sourceMetadata);
+      const added=model.addSource(current,result.sourceMetadata);return added.document.version===2 ? multitrack.appendSource(added.document,added.key) : model.appendSegment(added.document,added.key);});
+    if(okay){motionPending=null;setStatus('Motion source linked in your draft. Save to keep this Video revision.');}
+    else setStatus('The verified render is in your media; the draft was kept. Choose compatible source timing or free a source slot.');
+  }catch(error){showError(describe(error));setStatus('Motion link was not confirmed. Your draft is still here; retrying uses the same import key.');}
+  finally{state.busy=false;render();}
+}
+
 function wireProject() {
+  $('refreshMotionJobs').addEventListener('click',readyMotionJobs);
+  $('motionRender').addEventListener('change',render);
+  $('motionImportForm').addEventListener('submit',importMotion);
   $('addClip').addEventListener('change', event => uploadFile('video', event.target));
   $('addBed').addEventListener('change', event => uploadFile('audio', event.target));
   $('undo').addEventListener('click', undo); $('redo').addEventListener('click', redo);
   $('saveProject').addEventListener('click', () => save());
   $('saveAsNew').addEventListener('click', () => save(true));
+  $('deleteProject').addEventListener('click', deleteProject);
   $('reloadSaved').addEventListener('click', () => { try { localStorage.removeItem(draftKey()); } catch { /* unavailable */ } open(state.projectId); });
   $('newProject').addEventListener('click', startNew);
   $('projectList').addEventListener('change', () => { if ($('projectList').value) open($('projectList').value); });
@@ -238,6 +315,7 @@ function wireProject() {
 async function init() {
   state.history = createTimelineHistory(model.createTimeline('Untitled video'));
   state.savedText = JSON.stringify(doc());
+  multitrack = createMultitrackEditor({ doc, apply, editable, frame: () => player?.frame() ?? 0, error: showError });
   player = createPlayer({ viewer: $('viewer'), bed: $('bedAudio'), overlay: $('titleOverlay'), noPicture: $('noPicture'), playhead: $('playhead'),
     clock: $('clock'), play: $('play') }, doc, () => undefined);
   exporter = createExporter({ exportButton: $('exportMp4'), previewButton: $('renderPreview'), cancel: $('cancelExport'), progress: $('exportProgress'),

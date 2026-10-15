@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove the dataset destination through core's REAL artifact-exchange routes and authenticated relay (ApplicationAuthorizationRuntime over a protected fixture source), forced-RLS disposable PostgreSQL with non-bypass owner roles (migrations 058-104 applied twice), the real package routes built with the mounter's package context (applicationAuthorization removed), and Chromium. Session identity, ticket creation and GPU enqueue are named fixture seams; no worker, provider or deployment database is contacted.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The worker download and callbacks now use the callback grant the import dispatch handed its worker (migration 105), read from the recorded command; the fleet secret alone and another owner presenting the grant are refused, and the final callback revokes it.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Worker callbacks now pass the kernel's signed-package-callbacks verifier first: the ingest router is mounted through the lora-callback-rail double (POST only, verifier, then the router as the grant owner; the real kernel is crossed by signed-callback-boundary.core.test.js), grants carry the owner's verified issuer (migration 106) and the dataset download is an empty signed POST to /dataset-download/:id. The import dispatch takes the signed-in owner's issuer, so the grant names the exact principal the relay admitted.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | GET /dataset no longer expires staging (a GET is admitted read-only on the native kernel): the expiry case now expects the listing to report the receipt failed while the expired, unservable bytes remain, and the next import (a writer) to remove them.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import express, { type Request } from 'express';
@@ -318,7 +319,10 @@ describe('LoRA dataset destination through the real core relay', () => {
     const listed = await fetch(`${base}/api/lora/dataset?subject=tin-drummer`, { headers: { cookie: 'dataset-user=owner_a' } });
     expect(listed.status).toBe(200);
     expect((await listed.json()).images).toMatchObject([{ filename: 'portrait-1234abcd.png', status: 'failed' }]);
-    expect(await adminRows('SELECT 1 FROM oshal_lora_dataset_staging')).toHaveLength(0);
+    // The listing is a read (admitted read-only on the native kernel): the expired bytes stay, unservable, until a writer.
+    expect(await adminRows('SELECT 1 FROM oshal_lora_dataset_staging WHERE expires_at <= NOW()')).toHaveLength(1);
+    expect((await importAs('owner_a', { ref: await mint(), subject: 'tin-drummer' })).status).toBe(202);
+    expect(await adminRows('SELECT 1 FROM oshal_lora_dataset_staging WHERE expires_at <= NOW()')).toHaveLength(0);
   });
 
   it('keeps staged bytes invisible and unwritable to another owner at the database', async () => {

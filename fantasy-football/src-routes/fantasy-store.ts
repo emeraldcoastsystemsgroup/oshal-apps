@@ -32,6 +32,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — moved from sports-edge (sports-fantasy-store.ts) into the fantasy-football package (ADR-146 D1) and re-keyed for per-user ownership (Q2): ff_leagues, ff_projections, ff_player_weeks and ff_calls are all user_sub-keyed under FORCED exact-owner row-level security with no operator arm, and every statement takes the owner first. The projection cache and completed weeks, shared per (season, week) in sports-edge, are now per person. The schema self-heal creates the same policies the migration does.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | The self-heal now also creates ff_manual_leagues and ff_weeks (migration 002) and walls them with the same exact-owner policy; OWNED_TABLES lists all six, openCallsForWeek lists one week's open calls so the week ledger can settle them before a week closes, and readProjectionWeeks reads a person's cached feeds over a range of weeks for the season plan.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | gradeCall types its subtraction ($3::numeric - $4::numeric). The statement moved from sports-edge had never run against PostgreSQL, which refuses it with 'operator is not unique: unknown - unknown' (measured on the disposable PostgreSQL of tests/fantasy-isolation.spec.ts); no start/sit call could ever have been graded.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | fantasyRecord and listCalls take an optional league key and then read only that league's calls (league_id), so the record under a league is that league's own; with no key they read every league as before. Round 8 review: GET /record split the week ledger by league but not the call record or the call list.
  *
  * @module fantasy-store
  */
@@ -434,16 +435,17 @@ export interface FantasyRecord {
  * that claimed +3 and delivered +2, and a win rate alone hides that completely.
  * @param pool - Postgres pool.
  * @param userSub - Caller's subject.
+ * @param leagueKey - One league's ledger key (an ESPN league id or `manual:<id>`), or absent for every league.
  * @returns The rollup.
  */
-export async function fantasyRecord(pool: Pool, userSub: string): Promise<FantasyRecord> {
+export async function fantasyRecord(pool: Pool, userSub: string, leagueKey?: string): Promise<FantasyRecord> {
   const r = await pool.query(
     `SELECT count(*) AS graded,
             count(*) FILTER (WHERE actual_gain > 0) AS right_calls,
             coalesce(sum(actual_gain), 0) AS actual_points,
             coalesce(sum(projected_gain), 0) AS projected_points
-     FROM ff_calls WHERE user_sub = $1 AND settled = TRUE`,
-    [userSub],
+     FROM ff_calls WHERE user_sub = $1 AND settled = TRUE${leagueKey ? ' AND league_id = $2' : ''}`,
+    leagueKey ? [userSub, leagueKey] : [userSub],
   );
   const row = r.rows[0] || {};
   return {
@@ -459,14 +461,15 @@ export async function fantasyRecord(pool: Pool, userSub: string): Promise<Fantas
  * @param pool - Postgres pool.
  * @param userSub - Caller's subject.
  * @param limit - Maximum rows.
+ * @param leagueKey - One league's ledger key, or absent for every league.
  * @returns Rows, newest first.
  */
-export async function listCalls(pool: Pool, userSub: string, limit = 100): Promise<any[]> {
+export async function listCalls(pool: Pool, userSub: string, limit = 100, leagueKey?: string): Promise<any[]> {
   const r = await pool.query(
     `SELECT season, league_id, week, start_player_name, sit_player_name, projected_gain,
             settled, actual_start, actual_sit, actual_gain, reason, created_at, graded_at
-     FROM ff_calls WHERE user_sub = $1 ORDER BY created_at DESC LIMIT $2`,
-    [userSub, limit],
+     FROM ff_calls WHERE user_sub = $1${leagueKey ? ' AND league_id = $3' : ''} ORDER BY created_at DESC LIMIT $2`,
+    leagueKey ? [userSub, limit, leagueKey] : [userSub, limit],
   );
   return r.rows;
 }

@@ -10,6 +10,7 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-01 20:45:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — SSN/EIN/routing validation, masking, idempotent sealing, the single confirm-gated audited reveal, the guarantee that no other route returns a full SSN or the stored envelope, audit redaction of encrypted columns, and W-2 readiness as a computed state rather than a hardcoded label.
+ * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | The personal-data stub is asynchronous, as the native kernel's personal_data intents are (PDATA-01), so every seal and open on these paths is proven awaited: a missed await would store or return a Promise, not the envelope or the digits.
  */
 
 import { test } from 'node:test';
@@ -29,8 +30,8 @@ const STUBS = {
   '@/shared/services/database': { buildOwnerRlsPolicyStatements: () => [], runRuntimeSchemaBootstrap: async () => {} },
   '@/features/personal-data': {
     isEncrypted: (v) => typeof v === 'string' && v.startsWith('enc:'),
-    encryptField: (_s, v) => (v === null || v === undefined ? null : `enc:${v}`),
-    decryptField: (_s, v) => (typeof v === 'string' && v.startsWith('enc:') ? v.slice(4) : v),
+    encryptField: async (_s, v) => (v === null || v === undefined ? null : `enc:${v}`),
+    decryptField: async (_s, v) => (typeof v === 'string' && v.startsWith('enc:') ? v.slice(4) : v),
   },
   '@/shared/security/explicit-write-confirmation': {
     hasExplicitWriteConfirmation: (b) => !!b && typeof b === 'object' && b.confirm === true,
@@ -72,11 +73,14 @@ test('masking never reveals more than the last four', () => {
   assert.ok(!id.maskSsn(id.last4(SSN)).includes('12345'));
 });
 
-test('sealing is idempotent — re-saving cannot double-wrap', () => {
-  const once = id.sealIdentifier('user-1', SSN);
-  const twice = id.sealIdentifier('user-1', once);
+test('sealing is idempotent — re-saving cannot double-wrap', async () => {
+  const once = await id.sealIdentifier('user-1', SSN);
+  const twice = await id.sealIdentifier('user-1', once);
+  assert.equal(typeof once, 'string');
   assert.equal(once, twice);
-  assert.equal(id.openIdentifier('user-1', twice), SSN);
+  assert.equal(await id.openIdentifier('user-1', twice), SSN);
+  assert.equal(await id.sealIdentifier('user-1', null), null);
+  assert.equal(await id.openIdentifier('user-1', ''), null);
 });
 
 /* ── the reveal rule ─────────────────────────────────────────────────────── */

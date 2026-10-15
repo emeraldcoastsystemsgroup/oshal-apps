@@ -6,6 +6,7 @@
  * 2026-07-22 00:50:36 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove the dynamic storyteller is persona-grounded, reason-only, timeline-scoped, deduplicated, deadline-bounded, stale-safe, and absent from tactical resolution.
  * 2026-07-22 22:19:02 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove guarded combat highlights dramatize immutable results without directives while legacy resolve requests stay rejected.
  * 2026-07-22 22:49:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove optional combat prose cannot block live table conversation and browser timing covers the player-chat deadline.
+ * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 8: a combat highlight showed 'CHOICES: Bram takes a step forward | ...' in the narration log. Every non-narrate mode strips directive lines from the archived and returned prose and acts on none.
  */
 
 'use strict';
@@ -243,4 +244,21 @@ test('browser story code sends victory as guarded scene prose and never tactical
   assert.match(routes, /['"]\/dm['"]:\s*\(body\)\s*=>\s*env\.dm\.dungeonMaster/);
   assert.match(story, /mode:\s*['"]scene['"][\s\S]{0,180}storyGuard:\s*context\.guard/);
   assert.match(outcomes, /dmScene\(`The party has won/);
+});
+
+test('directive lines never reach the log or the reply in combat and other story modes', async () => {
+  const prose = 'Rikkit\u2019s arrow whistles past Bram, clattering against the oak frame of the cart. CHOICES: Bram steps forward | Della offers healing | Fenwick fires a bolt\nROLL: dexterity | 13';
+  for (const mode of ['combat', 'recap', 'opening']) {
+    const fixtureState = fixture({ processMessage: async () => ({ success: true, response: prose }) });
+    if (mode === 'combat') fixtureState.pool.state.mode = 'combat';
+    const before = clone(fixtureState.pool.state);
+    const result = await fixtureState.service.dungeonMaster('host', {
+      campaignId: 'camp-1', sceneId: 'coast-road', mode, requestId: `strip-${mode}`, message: 'Rikkit misses Bram.',
+    });
+    assert.equal(result.ok, true, mode);
+    assert.equal(result.narration, 'Rikkit\u2019s arrow whistles past Bram, clattering against the oak frame of the cart.', mode);
+    assert.doesNotMatch(fixtureState.archive[0].content, /CHOICES|ROLL:/, mode);
+    assert.deepEqual([result.choices, result.roll, result.grant], [[], null, null], `${mode} acts on no directive`);
+    assert.deepEqual(fixtureState.pool.state, before, `${mode} changes nothing on the table`);
+  }
 });

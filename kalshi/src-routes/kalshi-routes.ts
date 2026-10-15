@@ -21,6 +21,11 @@
  * 2026-09-04 23:40:00 | roger.murphy@emeraldcoastsystemsgroup.com | GET /alerts also returns `record` (alertRecord): the caller's W-L over the ledger, beside the per-alert outcome columns listAlerts now carries.
  * 2026-09-05 06:45:00 | roger.murphy@emeraldcoastsystemsgroup.com | GET /trends — the Trends tab's payload (kalshi-trends.ts): per-strategy daily series with cumulative P&L and rolling hit vs breakeven, the days-to-verdict projection, and the four books. Read-only, caller-scoped, window bounded to 365 days.
  * 2026-09-16 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | /trends is now BANKROLL-based (the Paper · auto book replays the ledger's own stake_fraction as paper fills against KALSHI_PAPER_BANKROLL_START), and GET /alerts/pops answers "price since announced" for the caller's OPEN alerts — kalshi-pops.ts over the framework's getCandles, bounded/spaced/cached for the shared ~3 rps public tier, caller-scoped, read-only.
+ * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | No Kalshi connection answers 409 { error, connected: false } instead of 404 on /portfolio and the order routes. A GET that answers 404 is taken by the native kernel as a request for a static asset, so the surface's /portfolio read reported "application asset not found" rather than the missing connection; the page already treats any non-OK answer as "connect your key".
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | The factory starts no background timer (its ticks ran outside any request and the native kernel refused their SQL). POST /scan/tick runs one scheduled tick inside the request; the manifest's `background-scan` schedule fires it as the person who activated it, and it answers 503 kalshi_scan_unavailable with the installation's reason when a scan cannot run here. "Scan now" (POST /scan/run) now finishes its scan inside the request too and answers 503 with the reason when it fails, instead of 202 and a failure only the status line could show. /calibration and /status read the package's own calibration copy first, and /status reports scan.unavailable. Guard: tests/kalshi-scan-schedule.test.js.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | GET /scan's scan block names the schedule that runs it ({ app, name, route } of the manifest's background-scan), so the page can find the person's own job in the kernel's schedule list and say when it is not activated instead of promising a cadence. Guard: tests/kalshi-scan-schedule.test.js.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Before the first scan, GET /scan carries the calibration table's generatedAt and file time (read from the package's own copy) instead of null, so the page can show the table's age while it waits; the gate reason is the engine's sentence in words, with no file paths. Guard: tests/kalshi-scan-schedule.test.js.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | GET /scan serves only the hands whose market is still open (openHands) and reports closedSinceScan: a snapshot served hours after its scan listed closed markets, and the concierge recommended them.
  *
  * @module kalshi-routes
  */
@@ -41,14 +46,14 @@ import { getValidAccessToken } from '@/app/routes/connectors-routes';
 import { callerSub, servePage } from '@/app/routes/trading-routes-helpers';
 import { isOperator } from '@/shared/middleware/authz';
 import {
-  DEPLOYMENT_SCOPE, SCAN_STRATEGY, alertRecord, listAlerts, loadCalibration, manifestSettingsSchema,
-  readSettingsRow, readSnapshot, resolveConfig, writeSettingsRow,
+  DEPLOYMENT_SCOPE, SCAN_STRATEGY, alertRecord, calibrationMissing, listAlerts, loadCalibration, manifestSettingsSchema,
+  readSettingsRow, readSnapshot, resolveConfig, scanUnavailableReason, writeSettingsRow,
 } from './kalshi-scan-engine';
-import { scanFreshness, keysForScope } from './kalshi-scan-config';
+import { scanFreshness, keysForScope, openHands } from './kalshi-scan-config';
 import { paperBankrollStart, trendSeries } from './kalshi-trends';
 import { createPopCache, fetchPops, readOpenAlerts } from './kalshi-pops';
 import {
-  ALERT_TOPIC, manualRunAllowed, scanNow, scanRuntimeStatus, startKalshiScanCron,
+  ALERT_TOPIC, KALSHI_SCAN_SCHEDULE, manualRunAllowed, scanNow, scanRuntimeStatus, scheduledTick,
 } from './kalshi-scan-cron';
 
 const log = createChildLogger({ module: 'kalshi-routes' });
@@ -97,7 +102,7 @@ async function resolveCreds(pool: Pool, req: Request, res: Response): Promise<{ 
   const sub = callerSub(req);
   if (!sub) { res.status(401).json({ error: 'authentication required' }); return null; }
   const secret = await getValidAccessToken(pool, sub, 'kalshi').catch(() => null);
-  if (!secret) { res.status(404).json({ error: 'no Kalshi connection — paste your API key on /utilities first' }); return null; }
+  if (!secret) { res.status(409).json({ error: 'no Kalshi connection — paste your API key on /utilities first', connected: false }); return null; }
   try {
     return { sub, creds: parseKalshiSecret(secret) };
   } catch (err) {
@@ -121,10 +126,8 @@ export function createKalshiRoutes(ctx: AppContext): Router {
   const toolsDir = surfaceDir(ctx.appPackageDir);
   const router = Router();
   ensureKalshiSchema(pool).catch((err) => log.error({ err }, 'kalshi schema ensure failed'));
-  // "Only if you have the application": the always-on scan is started HERE, by the app's own route
-  // factory, so it exists exactly while this package is installed + active — never on a deployment
-  // that doesn't have kalshi. Idempotent per process (a package reload re-invokes this factory).
-  startKalshiScanCron(ctx);
+  // No background timer: the scan runs only inside an admitted request (POST /scan/tick, which the
+  // manifest's `background-scan` schedule fires as the person who activated it, or "Scan now").
 
   router.get('/', servePage(toolsDir, 'kalshi.html'));
   router.get('/ui', servePage(toolsDir, 'kalshi.html'));
@@ -140,23 +143,31 @@ export function createKalshiRoutes(ctx: AppContext): Router {
       const snap = await readSnapshot(pool);
       const runtime = scanRuntimeStatus();
       const fresh = scanFreshness(snap?.generatedAt ?? null, cfg, Date.now());
+      // Why a scan cannot run on this installation, shown before any tick has tried and failed.
+      const unavailable = scanUnavailableReason(ctx.appPackageDir);
       if (!snap) {
+        const calib = loadCalibration(ctx.appPackageDir);
         res.json({
           generatedAt: null, hands: [], evaluable: 0, openPaged: 0, scorecard: [], awaitingFirstScan: true,
-          exchangeActive: false, calibrationGeneratedAt: null, calibrationFileMtime: null,
+          exchangeActive: false, calibrationGeneratedAt: calib.table?.generatedAt ?? null, calibrationFileMtime: calib.mtime,
           strategy: 'calibration', mayStake: false,
-          gateReason: 'the background scan has not produced its first snapshot yet',
-          scan: { ...fresh, running: runtime.running, intervalMinutes: cfg.scanIntervalMinutes, enabled: cfg.scanEnabled, lastError: runtime.lastError },
+          gateReason: unavailable ?? 'the background scan has not produced its first snapshot yet',
+          scan: { ...fresh, running: runtime.running, intervalMinutes: cfg.scanIntervalMinutes, enabled: cfg.scanEnabled, lastError: runtime.lastError ?? unavailable, unavailable, schedule: KALSHI_SCAN_SCHEDULE },
         });
         return;
       }
+      // A market that closed after the snapshot was taken is no longer a hand: serving it put
+      // closed markets in the table and in the concierge's recommendations.
+      const open = openHands(snap.payload.hands, Date.now());
       res.json({
         ...snap.payload,
+        hands: open.hands,
+        closedSinceScan: open.closedSinceScan,
         awaitingFirstScan: false,
         scan: {
           ...fresh, running: runtime.running, intervalMinutes: cfg.scanIntervalMinutes,
-          enabled: cfg.scanEnabled, lastError: runtime.lastError, lastMs: snap.payload.scanMs ?? runtime.lastMs,
-          lastSource: runtime.lastSource,
+          enabled: cfg.scanEnabled, lastError: runtime.lastError ?? unavailable, lastMs: snap.payload.scanMs ?? runtime.lastMs,
+          lastSource: runtime.lastSource, unavailable, schedule: KALSHI_SCAN_SCHEDULE,
         },
       });
     } catch (err) {
@@ -165,8 +176,9 @@ export function createKalshiRoutes(ctx: AppContext): Router {
     }
   });
 
-  // Out-of-band refresh ("Scan now"). Answers 202 immediately — a 23-second wait is exactly what
-  // this rework removed — and is single-flighted in the cron, so double-clicking costs nothing.
+  // Out-of-band refresh ("Scan now"). Answers 202 once its scan has finished inside this request (work
+  // after the response would run outside its admission), or 503 with the reason it failed; it is
+  // single-flighted in the cron, so double-clicking costs nothing.
   router.post('/scan/run', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'authentication required' }); return; }
@@ -186,9 +198,28 @@ export function createKalshiRoutes(ctx: AppContext): Router {
       });
       return;
     }
-    void scanNow(ctx, 'manual').catch(() => { /* recorded in the runtime status + logged */ });
     log.info({ sub }, 'kalshi manual scan requested');
-    res.status(202).json({ started: true, startedAt: new Date().toISOString() });
+    const startedAt = new Date().toISOString();
+    try {
+      // Finished inside this request: work after the response would run outside its admission.
+      const payload = await scanNow(ctx, 'manual');
+      res.status(202).json({ started: true, finished: true, startedAt, generatedAt: payload.generatedAt });
+    } catch (err) {
+      res.status(503).json({ started: false, error: (err as Error).message });
+    }
+  });
+
+  // One scheduled tick (the `background-scan` schedule's target): scans only when the snapshot is due.
+  router.post('/scan/tick', async (req: Request, res: Response) => {
+    if (!callerSub(req)) { res.status(401).json({ error: 'authentication required' }); return; }
+    try {
+      const outcome = await scheduledTick(ctx);
+      if (!outcome.ran && outcome.reason === 'unavailable') { res.status(503).json({ error: 'kalshi_scan_unavailable', detail: outcome.detail }); return; }
+      res.json(outcome);
+    } catch (err) {
+      log.error({ err }, 'kalshi scheduled tick failed');
+      res.status(502).json({ error: 'kalshi scan failed', detail: (err as Error).message });
+    }
   });
 
   /* ─── Settings (the YAML defaults, overridable per deployment + per user) ────── */
@@ -305,8 +336,8 @@ export function createKalshiRoutes(ctx: AppContext): Router {
 
   router.get('/calibration', (req: Request, res: Response) => {
     if (!callerSub(req)) { res.status(401).json({ error: 'authentication required' }); return; }
-    const { table, mtime } = loadCalibration();
-    if (!table) { res.status(503).json({ error: 'calibration table missing — run scripts/oshal-kalshi-calibration.ts' }); return; }
+    const { table, mtime } = loadCalibration(ctx.appPackageDir);
+    if (!table) { res.status(503).json({ error: calibrationMissing(ctx.appPackageDir) }); return; }
     res.json({ mtime, table });
   });
 
@@ -314,7 +345,7 @@ export function createKalshiRoutes(ctx: AppContext): Router {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'authentication required' }); return; }
     try {
-      const { table, mtime } = loadCalibration();
+      const { table, mtime } = loadCalibration(ctx.appPackageDir);
       const cfg = await resolveConfig(ctx, sub);
       const snap = await readSnapshot(pool);
       const runtime = scanRuntimeStatus();
@@ -328,6 +359,7 @@ export function createKalshiRoutes(ctx: AppContext): Router {
           enabled: cfg.scanEnabled, intervalMinutes: cfg.scanIntervalMinutes,
           running: runtime.running, lastMs: snap?.payload.scanMs ?? runtime.lastMs,
           lastError: runtime.lastError, lastSource: runtime.lastSource, cyclesRun: runtime.cyclesRun,
+          unavailable: scanUnavailableReason(ctx.appPackageDir),
         },
         notify: { jarvis: cfg.notifyJarvis, outward: cfg.notifyOutward, topic: ALERT_TOPIC },
         liveOrdersEnabled: kalshiLiveOrdersEnabled(),

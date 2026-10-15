@@ -6,6 +6,14 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register the family audience view contract (ADR-164 D6): the shared kit after the theme bootstrap, the boot with exactly the family audience, every start path of the full page gated on the kit's decision, and the view's reads confined to this package's routes.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.2: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | GET /cart is read-only under the native admission rule: the route and Chromium cases now expect a fresh diner's cart read to create nothing while the first add still creates the cart.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register the not-connected / honest-state surface test added with the native provider rails.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register the no-rail route suite: with no Uber Eats rail the concierge turn answers without touching the refusing catalog, and /config names the absent rail.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register envelope: a malformed concierge envelope shows its say text, never the raw object, and only stated notes are saved (sweep 8).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register stated-notes: remember notes match by word stem so a stated allergy is always saved, a raw-newline say is the reply, and an empty say never claims options.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register remembered: the profile lists what the concierge remembers and Forget removes a note (sweep 9: an invented "wants spicy food" could not be removed and a remembered allergy left the Dietary card at "No diet set").
+# 10 | maintainer@emeraldcoastsystemsgroup.com | remembered adds the Per-order budget card: a remembered spending note ("budget: cheap") is marked budget and shown while no dollar cap is set (sweep 10: the card read "Budget open").
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Register allergens: every chat dish is checked against the diner's allergies and diet (demo sweep 2: a Vegetarian Pad Thai right after a peanut allergy).
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Register allergy-surface: in Chromium the person's own Send shows the Pad Thai reply with its allergy-check line under it.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -149,4 +157,202 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: not-connected
+    name: Uber Eats not connected
+    purpose: >-
+      A refused Uber Eats call (HTTP 503) reads as not connected on the Eats page, never as no matching restaurants.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-not-connected.test.js
+    expected:
+      - A refused search, menu and concierge turn say the installation has no Uber Eats rail, never that a connection can be added.
+      - A real empty catalog answer still reads as no matches.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: no-rail
+    name: Eats with no Uber Eats rail
+    purpose: >-
+      Where the runtime reports Uber Eats not connected, the compiled chat route answers through the concierge without calling the
+      refusing search or menu operations, and /config names the absent rail; with a rail the turn still searches.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-no-rail.test.js
+    expected:
+      - Only the status probe reaches the provider, the turn answers 200, and the prompt forbids "connect Uber Eats".
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: saved-notes
+    name: Saved notes are earlier preferences, not this request
+    purpose: >-
+      Through the compiled route: the diner's saved concierge notes reach the prompt as preferences from earlier
+      conversations that are never restated as the current request (the concierge answered 'vegetarian and spicy' to a
+      vegetarian request), and a chat turn saves only a note not already saved.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-saved-notes.test.js
+    expected:
+      - The prompt carries SAVED PREFERENCES with 'wants spicy food' and the request on its own DINER line after it.
+      - >-
+        A turn remembering 'Wants  spicy food', a budget note twice and a blank saves only the budget note once.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: envelope
+    name: The concierge reply is its say text
+    purpose: >-
+      Through the compiled route with a scripted concierge: a reply whose fields lack commas (sweep 8 showed
+      the raw object) is shown as its say text, an envelope still unparsable shows only its say text and acts
+      on nothing, and only a remember note the diner stated in this message is saved.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-envelope.test.js
+    expected:
+      - >-
+        The sweep-8 comma-less envelope replies with its say text and saves only 'order for two people' and
+        'vegetarian preference' of seven remember entries.
+      - >-
+        An envelope still unparsable shows its decoded say text and saves nothing; plain prose is still the
+        reply; a valid fenced envelope parses as before.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: stated-notes
+    name: A stated allergy is always saved
+    purpose: >-
+      Through the compiled route with a scripted concierge: remember notes match the diner's message by word stem,
+      so a stated allergy, a paraphrased dislike and a diet are saved while an unstated note is still dropped; a say
+      holding a raw newline is the reply; an empty say is neither the raw object nor a claim of options.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-stated-notes.test.js
+    expected:
+      - >-
+        For "I'm allergic to peanuts, hold the onion, I eat vegan" the turn saves 'peanut allergy', 'no onions' and
+        'vegan', and drops 'spicy preference'.
+      - Short food words (egg, soy) and an allergy stated in other words are kept; with nothing stated none is saved.
+      - A say with a raw newline is the reply, and an empty say with no card shown never names options.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: remembered
+    name: What the concierge remembers, shown and forgettable
+    purpose: >-
+      Drive the compiled GET /profile and POST /notes/forget over the native kernel's real concierge store
+      (crates/host-process/bridge/concierge_store.js) on an in-memory person-scoped documents pool, and read the page's
+      Dietary card and remembered list.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-remembered.test.js
+    expected:
+      - GET /profile lists each remembered note once, marked when it records an allergy, an intolerance or a diet.
+      - POST /notes/forget removes every saved copy of the caller's note and no other diner's; nothing saved answers 404, no note 400.
+      - The Dietary card adds remembered restrictions and every note is listed with Forget, which asks first.
+      - A remembered spending note is marked budget; the page's own loadProfile shows it on the Per-order budget card while no dollar cap is set, and a set cap wins.
+    prerequisites:
+      - runner:node-test
+      - fixture:kernel-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 20000
+    installation: never
+  - id: allergens
+    name: A peanut allergy excludes or flags peanut dishes
+    purpose: >-
+      Through the compiled chat route with a scripted concierge (demo sweep 2: right after "I have noted your peanut
+      allergy" the concierge suggested a Vegetarian Pad Thai with no warning): a remembered or stated allergy holds the
+      dishes that name it or are usually made with it back from the prompt, the cards and the cart, the prompt states the
+      restriction as a fact, and a dish the reply names that usually carries it gets an allergy-check line.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-allergens.test.js
+    expected:
+      - With a saved peanut allergy, Vegetarian Pad Thai and Tofu Peanut Satay are held back; only the spring rolls are shown and added.
+      - The demo's own Pad Thai reply returns unchanged with the line "Pad Thai usually contains peanuts (you avoid peanuts)", saved with the reply.
+      - A reply naming the risk itself gets no line; an allergy in one clause does not restrict a food liked in another; with no restriction Pad Thai is offered.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/eats-routes-harness.js
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: allergy-surface
+    name: The page shows the allergy check under the reply
+    purpose: >-
+      In Chromium at 412x915 the person types the demo's peanut-allergy message into the shipped Eats page and presses Send;
+      the compiled chat route on real express answers with the demo's own Pad Thai reply as the scripted model.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-allergy-surface.test.cjs
+    expected:
+      - The reply bubble is the concierge's words unchanged, and the next line is the status "Allergy and diet check - Pad Thai usually contains peanuts (you avoid peanuts)".
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/eats-routes-harness.js
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
     installation: never

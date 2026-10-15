@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Export routes for the manual video editor (CREATE-EDIT-05c): request an export or a low-resolution preview of one saved revision, read a job and its live progress, cancel only an owned job, and download a verified success. A job resolves and re-hashes the owner's media only after it has re-checked current authority at start; polling never creates or retries work.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve legacy routes while enabling bounded original-owner native media transport.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  */
 import type { Router } from 'express';
 import { lstat, unlink } from 'node:fs/promises';
@@ -57,7 +58,8 @@ function withProgress(env: RouteEnvironment, row: ExportRecord): ExportRecord & 
 export function registerExportRoutes(router: Router, env: RouteEnvironment): void {
   if (nativeExportRoutes(router, env)) return;
   router.post('/editor/projects/:id/exports', admit(env, 'export'), bodyParser, handler(env, 'export', async (req, res, owner) => {
-    exactFields(req.body ?? {}, ['revision', 'variant']);
+    exactFields(req.body ?? {}, ['id', 'revision', 'variant']);
+    if (req.body.id !== undefined && editorId(req.body.id) !== editorId(req.params.id)) throw new EditorError(400, 'invalid_video_edit_id');
     const projectId = editorId(req.params.id), revision = baseRevision(req.body.revision), kind = variant(req.body.variant);
     if (env.exports.holds(owner)) throw new EditorError(409, 'video_edit_export_in_progress');
     const created = await env.exportStore.create(owner, projectId, revision, kind, env.exports.epoch, confirm(env, 'export', owner));
@@ -81,7 +83,8 @@ export function registerExportRoutes(router: Router, env: RouteEnvironment): voi
     await confirm(env, 'read', owner)(); res.json({ export: withProgress(env, row) });
   }));
   router.post('/editor/exports/:id/cancel', admit(env, 'export'), bodyParser, handler(env, 'export', async (req, res, owner) => {
-    exactFields(req.body ?? {}, []);
+    exactFields(req.body ?? {}, ['id']);
+    if (req.body.id !== undefined && editorId(req.body.id) !== editorId(req.params.id)) throw new EditorError(400, 'invalid_video_edit_id');
     const row = await env.exportStore.requestCancel(owner, editorId(req.params.id), env.exports.epoch, confirm(env, 'export', owner));
     if (row.status === 'queued' || row.status === 'running' || row.status === 'cancelled') env.exports.cancel(row.id);
     res.status(202).json({ export: withProgress(env, row) });

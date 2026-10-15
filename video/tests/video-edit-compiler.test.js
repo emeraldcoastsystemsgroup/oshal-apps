@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove the COMPILED timeline compiler (routes/video-edit-compiler.js) emits one fixed argument array whose filter graph carries only integers: exact frame and sample trims, split per reused clip, exact silence for a silent clip, titles from server-named files with expansion off, the bed padded/cut to the timeline, every graph label produced and consumed exactly once, and hostile title text, fractional or textual numbers, relative or multi-line media paths and unsafe font paths refused.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  */
 'use strict';
 const test = require('node:test');
@@ -140,4 +141,20 @@ test('media must be server-resolved absolute single-line paths, the font plain p
   assert.throws(() => compileTimeline({ document: empty, media: MEDIA, variant: 'export', fontFile: FONT }), code('timeline_empty'));
   assert.throws(() => compileTimeline({ document, media: MEDIA, variant: 'lossless', fontFile: FONT }), code('timeline_invalid'));
   assert.throws(() => compileTimeline({ document, media: MEDIA, variant: 'export', fontFile: FONT, threads: 64 }), code('timeline_invalid'));
+});
+
+test('compiled v2 tracks produce bounded overlays, fades, keyframes, captions and sample-aligned mixing', async () => {
+  const document = await reference(), multi = await load('multitrack-model.mjs');
+  let current = multi.migrateMultitrack(document);
+  current = multi.applyMultitrack(current, { type: 'clip', id: 's1', patch: { opacity: 50, fadeIn: 10,
+    keys: [{ property: 'x', frame: 0, value: 0, interpolation: 'linear' }, { property: 'x', frame: 20, value: 50, interpolation: 'hold' }] } });
+  current = multi.applyMultitrack(current, { type: 'text', track: 'captions', entry: { text: HOSTILE, start: 20, end: 40, position: 'bottom', size: 'small' } });
+  const compiled = compileTimeline({ document: current, media: MEDIA, variant: 'preview', fontFile: FONT });
+  assert.equal(compiled.frames, 84); assert.equal(compiled.samples, 84 * SAMPLES_PER_FRAME);
+  assert.match(compiled.filterGraph, /overlay=/); assert.match(compiled.filterGraph, /fade=t=in/);
+  assert.match(compiled.filterGraph, /adelay=delays=\d+S/); assert.match(compiled.filterGraph, /alimiter=/);
+  assert.ok(compiled.files.some(file => file.text === HOSTILE)); assert.ok(!compiled.filterGraph.includes('movie=/etc/passwd'));
+  labelAccounting(compiled.filterGraph);
+  const invalid = structuredClone(current); invalid.tracks[0].clips[0].x = '0;movie=/etc/passwd';
+  assert.throws(() => compileTimeline({ document: invalid, media: MEDIA, variant: 'preview', fontFile: FONT }), TimelineCompileError);
 });

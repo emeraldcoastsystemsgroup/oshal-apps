@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify owned entry/configuration and declared supported references without deployment credentials.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Pin every version-2 role to the complete functional component bundle without optional choices.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Guard that the entry loads the shared routine reader (live-views.js) before homebase-data.js; without it Routines answered routine_reader_missing.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the page title is the application's display name alone (it read '<name> · your swarm', which the concierge repeated as the screen's name).
  */
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
@@ -30,4 +32,22 @@ test('each named application role includes the whole bundle without component se
     assert.deepEqual(apps, ['classroom-experience', ...required]);
     assert.equal(new Set(apps).size, apps.length);
   }
+});
+
+/** The Routines page reads schedules through window.OSHAL_LIVE_VIEWS; homebase-data.js refuses with routine_reader_missing without it. */
+test('entry loads the shared routine reader before the homebase data client', () => {
+  const scripts = [...read('ui/index.html').matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map(match => match[1]);
+  const reader = scripts.indexOf('/experience/live-views.js');
+  const data = scripts.indexOf('/experience/homebase-data.js');
+  assert.ok(data >= 0, 'the entry loads /experience/homebase-data.js');
+  assert.ok(reader >= 0, 'the entry loads /experience/live-views.js');
+  assert.ok(reader < data, 'live-views.js loads before homebase-data.js');
+});
+
+/** Sweep 12: the docked frame's title reaches the concierge as the screen's name, so it is the application's own name. */
+test('the page title is the application display name, nothing more', () => {
+  const fsx = require('node:fs'), px = require('node:path'), dir = px.resolve(__dirname, '..');
+  const name = fsx.readFileSync(px.join(dir, 'oshal-app.yaml'), 'utf8').match(/^displayName: *(.+)$/m)[1].trim();
+  const title = fsx.readFileSync(px.join(dir, 'ui', 'index.html'), 'utf8').match(/<title>([^<]*)<\/title>/)[1];
+  require('node:assert/strict').equal(title, name);
 });

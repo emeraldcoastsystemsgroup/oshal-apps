@@ -9,7 +9,10 @@ pumpkin says your line back; pure voice I/O, no LLM) and **autonomous** (a guest
 speaks and pumpkin-bot — the inline agent `...054` — replies in character via
 `executeBotOrInline`, so cost lands in `chat_tasks`). Two topologies: all-in-one
 (the projector page captures, thinks, speaks) and paired (the projector registers
-a room + SSE-subscribes; a phone remote pushes speak/preset/mode events). Input
+a room and follows it, over SSE where the runtime can hold a response open and by
+polling `GET /api/pumpkin/rooms/poll` on the native kernel, whose responses are
+buffered; `POST /rooms/register` names which. A phone remote pushes
+speak/preset/mode events). Input
 endpoints honor the optional `PUMPKIN_ALLOWED_SUBS`/`PUMPKIN_ALLOWED_EMAILS`
 allowlist; everything is owner-scoped by OIDC sub.
 
@@ -24,9 +27,10 @@ Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface"):
   declares NO `bots:` block — the inline node `...054` is already registered in
   core, and re-declaring it would double-register the agent), and a migrations/
   copy of `084-pumpkin-platform.sql` so fresh installs create the tables at load.
-- **Stays in the OSHAL kernel:** the full-screen **projector framework page** at
-  `/pumpkin/` (`src/pages/pumpkin` via `server-ui-assets` — carved apps keep
-  their framework page mounts), the pumpkin-bot **inline node** (both
+- **Ships in this package too (2026-10-11):** the full-screen **projector page**, served at
+  `/api/pumpkin/projector` from `tools/pumpkin-projector.{html,js,css}`. The native kernel does not
+  serve the old framework page at `/pumpkin/`, so links to it were a 404.
+- **Stays in the OSHAL kernel:** the pumpkin-bot **inline node** (both
   `swarm-bot-registry` blocks + the `ai-lab` persona; it rides api rebuilds),
   the kernel migration `scripts/migrations/084-pumpkin-platform.sql`, the voice
   pipeline (`/api/voice/*`), and the default Pumpkin tile in
@@ -38,7 +42,7 @@ Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface"):
 |---|---|---|
 | Pumpkin | `/api/pumpkin/app` | Control surface: preset + mode, save looks, pair a projector room, and the device links + QR codes (self-served by this package) |
 | (remote) | `/api/pumpkin/remote` | Phone remote for the paired topology (self-served by this package) |
-| (projector) | `/pumpkin/` | Full-screen projector page (kernel framework page) |
+| (projector) | `/api/pumpkin/projector` | Full-screen projector page (self-served by this package) |
 
 ### Device links come from the SERVER, not the browser
 
@@ -46,7 +50,7 @@ The control surface asks `GET /api/pumpkin/links` for every URL it shows, and po
 `<img>` tags at `GET /api/pumpkin/qr`. It does **not** build links from the browser's own address.
 That is the whole point: the cockpit is usually open on `http://localhost:35457`, and a link copied
 from that address is dead on arrival on a phone. The server knows the public origin
-(`PUMPKIN_PUBLIC_ORIGIN` → `APP_URL` → `req.hostname`) and it owns `roomSlug()`, so it is the only
+(`PUMPKIN_PUBLIC_ORIGIN` → `APP_URL` → the request's Host header with its port; http on loopback, https elsewhere, or the scheme of the page's own `origin` when it names that same Host) and it owns `roomSlug()`, so it is the only
 place that can answer "what do I type on the projector, and what do I scan with the phone".
 
 The QR is a server-rendered PNG (the `qrcode` package already in the core image, same pattern as
@@ -98,10 +102,10 @@ account**.
 On the **projector device's** browser, open:
 
 ```
-https://oshal.agenticfederal.us/pumpkin/
+https://oshal.agenticfederal.us/api/pumpkin/projector
 ```
 
-…and sign in. `/pumpkin/` is auth-gated and stays that way: it drives a device and, in autonomous
+…and sign in. `/api/pumpkin/projector` is auth-gated and stays that way: it drives a device and, in autonomous
 mode, spends LLM budget.
 
 The real numbers, so you can plan around them:
@@ -123,13 +127,13 @@ and the mode, then press **Launch Projector**. That also saves those three as yo
 The **Projector link** box now shows the full URL, ready to copy:
 
 ```
-https://oshal.agenticfederal.us/pumpkin/?room=front-porch&mode=mimic&preset=inflatable&listen=ptt
+https://oshal.agenticfederal.us/api/pumpkin/projector?room=front-porch&mode=mimic&preset=inflatable&listen=ptt
 ```
 
 Underneath it is the **short form**, which is what you actually type on the awkward device:
 
 ```
-https://oshal.agenticfederal.us/pumpkin/
+https://oshal.agenticfederal.us/api/pumpkin/projector
 ```
 
 40 characters, nothing after the slash. With no query string the projector reads `roomLabel`, `mode`
@@ -137,7 +141,8 @@ and `activePreset` back from your saved settings — which is exactly what press
 Any query parameter you *do* supply still wins over the stored value.
 
 The projector device **cannot scan its own QR** (no camera pointed at itself), so this one gets
-typed once. After that the control surface pushes look/mode/room changes to it live over SSE; you
+typed once. After that the control surface pushes look/mode/room changes to it live (over SSE, or
+by a 1.5-second poll on the native kernel); you
 never type it again.
 
 ### 4. Get the phone onto the remote
@@ -167,7 +172,7 @@ with `●` for live and `○` for registered-but-quiet.
 |---|---|---|
 | Phone opens with a blank room picker | Nothing is registered yet, or the projector page is not open | Open the projector link on the projector device; the picker fills in within 15s |
 | "no projector is listening on …" | The projector's room and the remote's room differ | Read the live-room list in the status line and match it exactly, or re-press Launch |
-| "Signed out" on the projector | 24-hour absolute session cap was reached | Reload `/pumpkin/` on the projector device and sign in again |
+| "Signed out" on the projector | 24-hour absolute session cap was reached | Reload `/api/pumpkin/projector` on the projector device and sign in again |
 | Launch does nothing | The browser blocked the pop-up | Allow pop-ups for the cockpit host, or copy the Projector link manually |
 | QR box is empty / "QR code unavailable" | `/api/pumpkin/qr` needs the same login, and its encoder must resolve | Make sure you're signed in on the device viewing the cockpit; check the api log for `qr_unavailable` |
 | Link status warns about localhost | `/api/pumpkin/links` was unreachable, so the surface fell back to this browser's address | Fix the api reachability — do **not** carry that link to a phone |

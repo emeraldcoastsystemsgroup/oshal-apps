@@ -27,6 +27,11 @@
       week", a source without events read "Not configured, or it failed on ingest", a cause
       the scorecard week does not record (its sources carry only ok / no_data). It now reads
       "No events recorded this week", still badged No data.
+  4 | maintainer@emeraldcoastsystemsgroup.com   | The campaign card printed its ICP card and MESSAGE MAP
+      as raw JSON; recordFieldsHtml renders each record as labelled fields (keys in words, lists
+      as bullets, nested records indented, every value escaped). The Draft content dialog starts
+      from the campaign's brief (message_map.brief) instead of an empty box that then said
+      'Write a brief'.
 -->
 <!-- Marketing Engine — the campaign cockpit. Bots draft and propose; the human on this
      surface approves, publishes, and spends. Nothing goes out without an explicit
@@ -306,6 +311,15 @@
   .detail.show { display:block; }
   .kv { background:var(--surface); border:1px solid var(--line); border-radius:var(--r-sm); padding:10px 13px;
     font-size:12.5px; white-space:pre-wrap; word-break:break-word; max-height:260px; overflow:auto; }
+  .kv.fields { white-space:normal; }
+  .kv.fields dl.rf { margin:0; }
+  .kv.fields dt { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin-top:8px; }
+  .kv.fields dt:first-child { margin-top:0; }
+  .kv.fields dd { margin:2px 0 0; }
+  .kv.fields dd dl.rf { padding-left:10px; border-left:2px solid var(--line); }
+  .kv.fields ul.rf { margin:2px 0; padding-left:18px; }
+  .kv.fields .rf-item { padding:6px 0 6px 10px; border-left:2px solid var(--line); margin:4px 0; }
+  .kv.fields .rf-none { color:var(--muted); }
   .actions { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; }
 
   /* content items */
@@ -748,8 +762,64 @@
   function refresh(){ loadOverview().then(loadContent); }
   document.addEventListener('marketing:selected-brief', function(event) {
     var campaign=state.campaigns.find(function(c){return c.campaign_id===state.openCamp;});
-    if(campaign) event.detail.context={title:String(campaign.name).slice(0,2000),notes:JSON.stringify({product:campaign.product,icp:campaign.icp,messageMap:campaign.message_map}).slice(0,2000)};
+    if(campaign) event.detail.context={title:String(campaign.name).slice(0,2000),notes:handoffNotes(campaign,contentFor(campaign.campaign_id))};
   });
+  // record-fields:start
+  /* A stored record (the ICP card, the message map) as labelled fields: keys in words, lists as bullets, nested records
+     indented. It was printed as JSON.stringify output. Bounded depth; every value goes through esc. */
+  function humanKey(k){
+    k=String(k);
+    if(k==="icp") return "ICP";
+    return k.replace(/[_-]+/g," ").replace(/([a-z])([A-Z])/g,"$1 $2").replace(/^./,function(c){ return c.toUpperCase(); });
+  }
+  function recordFieldsHtml(v, depth){
+    if(v==null||v==="") return '<span class="rf-none">—</span>';
+    if(typeof v!=="object") return esc(String(v));
+    if(depth>4) return '<span class="rf-none">…</span>';
+    if(Array.isArray(v)){
+      if(!v.length) return '<span class="rf-none">—</span>';
+      if(v.every(function(x){ return x==null||typeof x!=="object"; })) return '<ul class="rf">'+v.map(function(x){ return '<li>'+esc(x==null?"":String(x))+'</li>'; }).join("")+'</ul>';
+      return v.map(function(x){ return '<div class="rf-item">'+recordFieldsHtml(x, depth+1)+'</div>'; }).join("");
+    }
+    var keys=Object.keys(v);
+    if(!keys.length) return '<span class="rf-none">—</span>';
+    return '<dl class="rf">'+keys.map(function(k){ return '<dt>'+esc(humanKey(k))+'</dt><dd>'+recordFieldsHtml(v[k], depth+1)+'</dd>'; }).join("")+'</dl>';
+  }
+  /* The campaign's brief from its message map, to start the Draft content dialog (it started empty). */
+  function campaignBrief(camp){
+    var map=camp&&camp.message_map&&typeof camp.message_map==="object" ? camp.message_map : {};
+    return typeof map.brief==="string" ? map.brief.trim() : "";
+  }
+  // record-fields:end
+  // handoff-notes:start
+  /* The hand-off to another application carries a brief a person can read and edit: the newest drafted copy when the
+     campaign has some, then the product, who it is for, what to say and the brief. Never the stored record as JSON.
+     Clipped to the receiver's 2000-character field at a line or word boundary, never mid-word. */
+  function handoffNotes(campaign, items){
+    var text=function(v){ return typeof v==="string" ? v.trim() : ""; };
+    var icp=campaign&&campaign.icp&&typeof campaign.icp==="object" ? campaign.icp : {};
+    var segs=Array.isArray(icp.segments) ? icp.segments.filter(function(s){ return s&&typeof s==="object"; }) : [];
+    var parts=[], drafted=(items||[]).filter(function(it){ return it&&text(it.body); });
+    if(drafted.length){ var d=drafted[drafted.length-1]; parts.push("Drafted copy"+(text(d.channel)?" ("+text(d.channel)+")":"")+":\n"+text(d.body)); }
+    if(text(campaign.product)) parts.push("Product: "+text(campaign.product));
+    var who=segs.map(function(s){ return [text(s.name),text(s.who)].filter(Boolean).join(": "); }).filter(Boolean);
+    if(who.length) parts.push("Audience:\n"+who.map(function(w){ return "- "+w; }).join("\n"));
+    var angles=[]; segs.forEach(function(s){ (Array.isArray(s.messageAngles)?s.messageAngles:[]).forEach(function(a){ a=text(a); if(a&&angles.indexOf(a)<0) angles.push(a); }); });
+    if(angles.length) parts.push("Key messages:\n"+angles.slice(0,6).map(function(a){ return "- "+a; }).join("\n"));
+    var map=campaign&&campaign.message_map&&typeof campaign.message_map==="object" ? campaign.message_map : {};
+    Object.keys(map).forEach(function(k){
+      var v=map[k], label=k==="brief" ? "Brief" : k.replace(/[_-]+/g," ").replace(/([a-z])([A-Z])/g,"$1 $2").replace(/^./,function(c){ return c.toUpperCase(); });
+      if(text(v)) parts.push(label+": "+text(v));
+      else if(Array.isArray(v)&&v.some(text)) parts.push(label+":\n"+v.filter(text).slice(0,6).map(function(x){ return "- "+text(x); }).join("\n"));
+    });
+    var kw=Array.isArray(icp.keywords) ? icp.keywords.filter(text).slice(0,8) : [];
+    if(kw.length) parts.push("Keywords: "+kw.join(", "));
+    var out=parts.join("\n\n");
+    if(out.length<=2000) return out;
+    var cut=out.slice(0,1999), at=Math.max(cut.lastIndexOf("\n"),cut.lastIndexOf(" "));
+    return (at>1500 ? cut.slice(0,at) : cut).replace(/\s+$/,"")+"…";
+  }
+  // handoff-notes:end
 
   // ── tabs ──────────────────────────────────────────────────────────────────────────────────
   var TABS = ["board","scorecard","channels","experiments","approvals"];
@@ -828,11 +898,12 @@
          + '</div>';
       h += '<div class="inline-err" data-err="1"></div>';
       // ICP + message map
-      var icp = c.icp && Object.keys(c.icp).length ? JSON.stringify(c.icp, null, 2) : "";
-      var mm  = c.message_map && Object.keys(c.message_map).length ? JSON.stringify(c.message_map, null, 2) : "";
+      // Each record reads as labelled fields, never its stored JSON.
+      var icp = c.icp && typeof c.icp==="object" && Object.keys(c.icp).length ? recordFieldsHtml(c.icp, 0) : "";
+      var mm  = c.message_map && typeof c.message_map==="object" && Object.keys(c.message_map).length ? recordFieldsHtml(c.message_map, 0) : "";
       h += '<div class="grid2">';
-      h += '<div><div class="sechead" style="margin-top:4px">ICP card</div>'+(icp? '<div class="kv">'+esc(icp)+'</div>' : '<span class="badge nodata">NO DATA — run Research</span>')+'</div>';
-      h += '<div><div class="sechead" style="margin-top:4px">Message map</div>'+(mm? '<div class="kv">'+esc(mm)+'</div>' : '<span class="badge nodata">NO DATA</span>')+'</div>';
+      h += '<div><div class="sechead" style="margin-top:4px">ICP card</div>'+(icp? '<div class="kv fields">'+icp+'</div>' : '<span class="badge nodata">NO DATA — run Research</span>')+'</div>';
+      h += '<div><div class="sechead" style="margin-top:4px">Message map</div>'+(mm? '<div class="kv fields">'+mm+'</div>' : '<span class="badge nodata">NO DATA</span>')+'</div>';
       h += '</div>';
       // content items
       var items = contentFor(c.campaign_id);
@@ -933,7 +1004,8 @@
   function openDraftModal(camp){
     draftCamp=camp;
     $("dfCamp").textContent=camp.name;
-    $("dfBrief").value=""; clearInlineErr($("dfErr"));
+    // The campaign's own brief starts the dialog; the person edits it or writes another.
+    $("dfBrief").value=campaignBrief(camp); clearInlineErr($("dfErr"));
     $("draftScrim").classList.add("show");
   }
   $("dfCancel").addEventListener("click", function(){ $("draftScrim").classList.remove("show"); });

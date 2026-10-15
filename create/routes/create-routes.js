@@ -12,6 +12,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Serve the Brand Kit page at /brand and its shared brand modules through the same exact allowlist.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Serve the region selection module through the same exact allowlist; the existing editor-assets binding already admits it, so the authorization catalog is unchanged.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Serve the region edit panel module through the same exact allowlist.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Serve the three fixed PSD import/review/worker modules through the existing view-bound editor route.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -104,11 +105,11 @@ function createCreateRoutes(ctx) {
         'editor-files.mjs', 'editor-interactions.mjs', 'model.mjs', 'model-validation.mjs',
         'history.mjs', 'renderer.mjs', 'image-assets.mjs', 'hit-test.mjs', 'editor.css',
         'templates.mjs', 'editor-templates.mjs', 'editor-context.mjs', 'brand-kit.mjs', 'brand-page.mjs', 'brand-editor.mjs', 'brand.css',
-        'region-select.mjs', 'region-edit-panel.mjs'];
+        'region-select.mjs', 'region-edit-panel.mjs', 'group-geometry.mjs', 'vector-geometry.mjs', 'polygon-clipping.mjs', 'vector-worker.mjs', 'vector-editor.mjs', 'vector-svg.mjs',
+        'editor-psd.mjs', 'psd-reader.mjs', 'psd-worker.mjs'];
     for (const file of modules) {
         const type = file.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8';
         router.get('/editor/' + file, (_req, res) => sendBundled(res, path.join(root, 'tools', 'editor', file), type));
     }
     return router;
 }
-//# sourceMappingURL=create-routes.js.map

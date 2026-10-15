@@ -14,6 +14,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Enforce explicit Portrait actions and exact verified owner issuer; protect queued generation and isolate metadata updates.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Mount the closed local face-detector asset set behind the existing view permission.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.15.4, the same image rule as Create (operator 2026-10-02: "it should just be the same everywhere"; core ADR-130 amendment, the render bot's own harness picks the image rail): one provider resolve per decision through portraitProviderFor, never a second provider. The operator-only antigravity-cli rail is accepted when it reports itself available for the caller; a caller the kernel has no provider for (it throws "not configured") or whose provider is not available to them gets portrait_provider_unavailable: 503 before any row is queued on POST /portraits, a failed row without generation in the queued run, and configured:false on GET /provider, instead of the raw resolver error as a 500. codex-cli stays refused by name with portrait_cli_authorization_unavailable. No permission, catalog or authorization.yaml change.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Native kernel (its own local image provider, provider.native): the sandbox's package folder is read-only and the process ends when the request answers, so photos and portraits are kept in the package's lasting directory (OSHAL_PACKAGE_DATA_DIR, manifest lastingStorage) and a generation with the kernel's provider finishes inside POST /portraits: 201 with status done, or 503 portrait_generation_failed whose detail is the provider's own words (for example that the image model is starting). A provider that is not available and says why in its health check is quoted in the refusal detail. Platform runtimes keep the queued background generation unchanged.
  */
 
 import * as fs from 'node:fs';
@@ -94,7 +95,9 @@ async function portraitProviderFor(sub: string): Promise<PortraitProviderChoice>
     return { ok: false, provider, refusal: CLI_REFUSED, detail: 'This image transport cannot carry application permissions. Select a configured platform image provider.' };
   }
   if (!(await provider.available())) {
-    return { ok: false, provider, refusal: PROVIDER_UNAVAILABLE, detail: `the ${provider.id} image provider is not available to you` };
+    // A provider that says why (the native kernel's: its model is not running) is quoted, not paraphrased.
+    const health = provider.healthCheck ? await provider.healthCheck().catch(() => null) : null;
+    return { ok: false, provider, refusal: PROVIDER_UNAVAILABLE, detail: health?.detail || `the ${provider.id} image provider is not available to you` };
   }
   return { ok: true, provider };
 }
@@ -106,7 +109,7 @@ async function portraitProviderFor(sub: string): Promise<PortraitProviderChoice>
  * @returns Absolute directory path (created if missing).
  */
 function userDir(sub: string, issuer: string): string {
-  const root = process.env.CLINE_WORKSPACE_ROOT || path.resolve(process.cwd(), 'workspace-shared');
+  const root = process.env.CLINE_WORKSPACE_ROOT || process.env.OSHAL_PACKAGE_DATA_DIR || path.resolve(process.cwd(), 'workspace-shared');
   const dir = path.join(root, 'portrait-studio', crypto.createHash('sha256').update(JSON.stringify([issuer, sub])).digest('hex'));
   fs.mkdirSync(dir, { recursive: true });
   return dir;
@@ -240,6 +243,23 @@ async function runGeneration(ctx: AppContext, id: string, sub: string, prompt: s
   } finally {
     generationSlots.release();
   }
+}
+
+/**
+ * @description The native kernel's provider (provider.native) runs on the same machine and the
+ * kernel ends the package process once the request answers, so its generation finishes inside the
+ * request and the answer says how it went: 201 done, or 503 with the provider's own words.
+ * @param ctx - App context. @param res - The POST response.
+ * @param job - Row id, owner sub, built prompt and the cropped photo bytes.
+ */
+async function answerNativeGeneration(ctx: AppContext, res: Response, job: { id: string; sub: string; prompt: string; source: Buffer }): Promise<void> {
+  await runGeneration(ctx, job.id, job.sub, job.prompt, job.source);
+  const row = (await ctx.pool.query(`SELECT status, error FROM ps_portraits WHERE portrait_id = $1`, [job.id])).rows[0] as { status?: string; error?: string | null } | undefined;
+  if (row?.status === 'done') {
+    res.status(201).json({ portraitId: job.id, status: 'done' });
+    return;
+  }
+  res.status(503).json({ error: 'portrait_generation_failed', portraitId: job.id, detail: String(row?.error || 'the portrait could not be generated') });
 }
 
 /**
@@ -409,6 +429,10 @@ export function createPortraitStudioRoutes(ctx: AppContext): Router {
       fs.writeFileSync(sourcePath, file.buffer);
       await ctx.pool.query(`UPDATE ps_portraits SET source_path = $2, updated_at = NOW() WHERE portrait_id = $1`, [id, sourcePath]);
 
+      if (selected.provider.native === true) {
+        await answerNativeGeneration(ctx, res, { id, sub, prompt, source: file.buffer });
+        return;
+      }
       void runGeneration(ctx, id, sub, prompt, file.buffer);
       logger.info({ portraitId: id, mode, style, subjects: options.subjects ?? 1, bytes: file.buffer.length, durationMs: Date.now() - started }, 'portrait queued');
       res.status(202).json({ portraitId: id, status: 'queued' });

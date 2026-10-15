@@ -19,6 +19,8 @@
  * 2026-06-17 15:10:00 | roger.murphy@emeraldcoastsystemsgroup.com | Initial — GET /providers (configured + connected per rail), POST /charge (take a payment via the merchant's brokered token, idempotency-keyed), GET /charge/:id (owner-scoped status refresh), GET /history, GET / + /ui surfaces. Square + PayPal rails.
  * 2026-07-05 19:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Tier-1 RLS at the lazy-DDL chokepoint (A1.2 follow-up): ensurePaymentsSchema now appends buildOwnerRlsPolicyStatements for oshal_merchant_payments (tier-1 owner_or_operator shape per migration 060) so a fresh database is never left policy-less between table creation and a 060 re-run.
  * 2026-07-17 20:20:00 | roger.murphy@emeraldcoastsystemsgroup.com | ADR-085 carve-out into the payments store package. Factory is the standard (ctx) shape — the surface serves from this package's tools/ (ctx.appPackageDir, portrait-studio pattern). Core-remaining relative imports rewritten to @/app/routes aliases (connectors-routes, connector-tenancy — the LM pattern); @/features/payments stays a CORE import (kernel skill: finance imports its Stripe half, this app its merchant half). Logic unchanged.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | GET /providers carries configured:false and the rail's detail when the runtime reports the rail not configured (the native kernel's merchant rails), so the Payments page shows that reason instead of a Connect link to a connector that does not exist. Guard: tests/providers-availability.test.cjs, scripts/phone-screens.browser.cjs (payments).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Stripe rail (stripe-rail.ts): GET /providers lists Stripe with its mode from Stripe's own livemode (not connected / key rejected / test / live / unknown); GET /stripe/status; POST /stripe/checkout creates a hosted Checkout Session (confirm:true, and confirmLive:true unless Stripe says the key is test); GET /stripe/checkout/:id refreshes an owned request; GET /stripe/payments lists recent charges; POST /stripe/refund refunds one charge in full behind the same two confirmations. The key is the caller's own pasted Stripe key, placed by the kernel's fenced egress to api.stripe.com (legacy: the caller's brokered token); it is never returned or logged. Guard: tests/stripe-rail.test.cjs (local fake Stripe server).
  *
  * @module payments-routes
  */
@@ -32,6 +34,8 @@ import { getMerchantAdapter, listMerchantProviders, type ChargeResult } from '@/
 import { getValidAccessToken } from '@/app/routes/connectors-routes';
 import { accessibleConnections } from '@/app/routes/connector-tenancy';
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
+import { stripeStatus } from './stripe-rail';
+import { defaultStripeTransport, mountStripeRoutes, stripeProvider, stripeUnavailable, type PaymentsRouteOptions } from './stripe-routes';
 
 const logger = createChildLogger({ module: 'payments-routes' });
 
@@ -119,10 +123,12 @@ async function recordCharge(pool: AppContext['pool'], sub: string, r: ChargeResu
  * @description Builds the payments router (mounted at /api/payments behind OIDC by the
  * app loader). The surface HTML serves from this package's tools/ dir.
  * @param ctx - App context (Postgres pool for the connector tokens + charge store + appPackageDir).
+ * @param options - Tests only: the per-caller Stripe transport (a local fake Stripe server).
  * @returns Express router.
  */
-export function createPaymentsRoutes(ctx: AppContext): Router {
+export function createPaymentsRoutes(ctx: AppContext, options: PaymentsRouteOptions = {}): Router {
   if (ctx.appPackageDir) packageDir = ctx.appPackageDir;
+  const transportFor = options.stripeTransport || ((sub: string) => defaultStripeTransport(ctx, sub));
   const surfaceDir = packageDir ? path.join(packageDir, 'tools') : path.resolve(process.cwd(), 'tools');
   const router = Router();
 
@@ -137,9 +143,13 @@ export function createPaymentsRoutes(ctx: AppContext): Router {
       const out = await Promise.all(listMerchantProviders().map(async (provider) => {
         const adapter = getMerchantAdapter(provider)!;
         const connected = (await accessibleConnections(ctx.pool, sub, provider)).length > 0;
-        return { provider, connected, testMode: adapter.isTestMode(), sourceLabel: adapter.sourceLabel };
+        // A rail the runtime reports as not configured (the native kernel has no merchant connector) carries
+        // its reason, so the surface shows it instead of a Connect link that cannot work.
+        const availability = adapter as { configured?: boolean; detail?: string };
+        const unconfigured = availability.configured === false ? { configured: false, detail: availability.detail } : {};
+        return { provider, connected, testMode: adapter.isTestMode(), sourceLabel: adapter.sourceLabel, ...unconfigured };
       }));
-      res.json({ providers: out });
+      res.json({ providers: [...out, stripeProvider(await stripeStatus(await transportFor(sub)).catch(stripeUnavailable))] });
     } catch (err) {
       logger.error({ err }, 'payments providers failed');
       res.status(500).json({ error: (err as Error).message });
@@ -210,5 +220,6 @@ export function createPaymentsRoutes(ctx: AppContext): Router {
     }
   });
 
+  mountStripeRoutes(router, ctx, transportFor, ensurePaymentsSchema);
   return router;
 }

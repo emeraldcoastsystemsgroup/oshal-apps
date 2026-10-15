@@ -184,6 +184,9 @@
   .drawer { position:fixed; top:0; right:0; height:100%; width:370px; max-width:92vw; background:var(--panel);
     border-left:1px solid var(--line); box-shadow:-12px 0 40px rgba(0,0,0,.35); transform:translateX(100%); transition:.25s; z-index:41; padding:22px 20px; overflow-y:auto; }
   .drawer.open { transform:translateX(0); } .scrim.open { display:block; }
+  /* Closed, the drawer is out of view, out of the tab order and casts no shadow band along the screen edge. */
+  .drawer:not(.open) { visibility:hidden; box-shadow:none; transition:transform .25s, visibility 0s .25s; }
+  .sync-note { margin:10px 0 0; font-size:12.5px; color:var(--muted); } .sync-note.bad { color:var(--neg); }
   .drawer h3 { margin:0 0 4px; font-size:17px; }
   .drawer .sub { font-size:11.5px; color:var(--muted); margin-bottom:18px; }
   .setrow { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 0; border-bottom:1px solid var(--line); }
@@ -198,7 +201,8 @@
 </style>
 <!-- Framework theme-sync: copy the cockpit's active theme tokens onto our locals (light/dark
      aware, reacts to data-theme + cockpit-theme). Same script every in-cockpit surface uses. -->
-<script>(function(){const M={'--bg':'--bg-primary','--panel':'--bg-secondary','--panel2':'--bg-tertiary','--line':'--border-color','--text':'--text-primary','--muted':'--text-secondary','--accent':'--accent-primary','--accent2':'--status-success','--scrollbar-thumb':'--scrollbar-thumb'};function m(){try{const p=(window.parent&&window.parent!==window)?window.parent:null;if(!p)return;const cs=p.getComputedStyle(p.document.documentElement);for(const k in M){const v=cs.getPropertyValue(M[k]).trim();if(v)document.documentElement.style.setProperty(k,v);}}catch(e){}}m();window.addEventListener('storage',e=>{if(e.key==='cockpit-theme')setTimeout(m,30);});try{const p=window.parent;if(p&&p!==window)new MutationObserver(m).observe(p.document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch(e){}document.addEventListener('DOMContentLoaded',m);})();</script>
+<!-- Theme-sync copies the cockpit's tokens ONLY as a matched set: the parent must name both --bg-primary and --text-primary; otherwise the copied properties are removed and this page keeps its own palette (the native cockpit names --text-primary #f8fafc and no --bg-primary, which put near-white text on a light page). -->
+<script>(function(){const M={'--bg':'--bg-primary','--panel':'--bg-secondary','--panel2':'--bg-tertiary','--line':'--border-color','--text':'--text-primary','--muted':'--text-secondary','--accent':'--accent-primary','--accent2':'--status-success','--scrollbar-thumb':'--scrollbar-thumb'};function m(){try{const p=(window.parent&&window.parent!==window)?window.parent:null;if(!p)return;const cs=p.getComputedStyle(p.document.documentElement);if(!cs.getPropertyValue('--bg-primary').trim()||!cs.getPropertyValue('--text-primary').trim()){for(const k in M)document.documentElement.style.removeProperty(k);return;}for(const k in M){const v=cs.getPropertyValue(M[k]).trim();if(v)document.documentElement.style.setProperty(k,v);}}catch(e){}}m();window.addEventListener('storage',e=>{if(e.key==='cockpit-theme')setTimeout(m,30);});try{const p=window.parent;if(p&&p!==window)new MutationObserver(m).observe(p.document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch(e){}document.addEventListener('DOMContentLoaded',m);})();</script>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
@@ -213,6 +217,7 @@
     <button class="btn" id="syncBtn">Sync now</button>
     <button class="btn icon" id="gearBtn" title="Feed settings">&#9881;</button>
   </header>
+  <p id="syncNote" role="status" aria-live="polite" class="sync-note" hidden></p>
 
   <div id="connectBanner" style="display:none" class="card">
     <h2>Connect your Slack</h2>
@@ -247,7 +252,7 @@
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer">
   <h3>Feed settings</h3>
-  <div class="sub">Stored in your account. The cron honors these; the operator can also set them in the DB.</div>
+  <div class="sub">Saved to your account. Scheduled pulls follow these settings.</div>
   <div class="setrow"><div><div class="lab">Auto-index</div><div class="hint">Pull new messages on a schedule</div></div><div class="toggle" id="setPoll"><span class="switch"></span></div></div>
   <div class="setrow"><div><div class="lab">Interval (minutes)</div><div class="hint">How often to auto-index (5–1440)</div></div><input type="number" id="setInterval" min="5" max="1440" /></div>
   <div class="setrow"><div><div class="lab">Max channels</div><div class="hint">Conversations scanned per pull (1–100)</div></div><input type="number" id="setMaxCh" min="1" max="100" /></div>
@@ -320,14 +325,37 @@ async function load(first){
     $('streamSub').textContent=`${msgs.length} indexed messages`+(d.sentimentEnabled?' · sentiment on':''); $('err').innerHTML='';
   }catch(e){ $('loading').style.display='none'; $('content').style.display='block'; $('err').innerHTML=`<div class="err">Could not load feed: ${esc(e.message)}</div>`; }
 }
-async function doSync(){ const b=$('syncBtn'),o=b.textContent; b.textContent='Syncing…'; b.disabled=true; try{await fetch('/api/feeds/sync',{method:'POST',credentials:'same-origin'});await load(false);}catch(e){} b.textContent=o; b.disabled=false; }
+/* Sync now always says what happened, under the header: an unconnected Slack (409) is named with what to do, any other
+   refusal gives its reason and status, and a sync gives its count. It used to ignore the answer and swallow errors. */
+function syncNote(text,bad){ const n=$('syncNote'); n.textContent=text; n.hidden=false; n.classList.toggle('bad',!!bad); }
+async function doSync(){ const b=$('syncBtn'),o=b.textContent; b.textContent='Syncing…'; b.disabled=true;
+  try{
+    const r=await fetch('/api/feeds/sync',{method:'POST',credentials:'same-origin'});
+    const d=await r.json().catch(()=>({}));
+    if(r.status===409||d.error==='not connected') syncNote('Slack is not connected, so there is nothing to sync. Press Connect Slack below, then Sync now again.',true);
+    else if(!r.ok) syncNote('Sync failed: '+(d.detail||d.error||'the server gave no reason')+' (HTTP '+r.status+').',true);
+    else syncNote('Synced: '+(Number.isFinite(d.stored)?d.stored:0)+' new message'+(d.stored===1?'':'s')+' indexed.',false);
+    await load(false);
+  }catch(e){ syncNote('Sync failed: '+e.message,true); }
+  b.textContent=o; b.disabled=false; }
 
 function openDrawer(){ $('drawer').classList.add('open'); $('scrim').classList.add('open'); applyForm(); }
 function closeDrawer(){ $('drawer').classList.remove('open'); $('scrim').classList.remove('open'); $('savedMsg').style.display='none'; }
 function applyForm(){ if(!settings)return; $('setPoll').classList.toggle('on',!!settings.pollEnabled); $('setSenti').classList.toggle('on',!!settings.sentimentEnabled); $('setInterval').value=settings.pollIntervalMinutes; $('setMaxCh').value=settings.maxChannels; }
-async function loadSettings(){ try{settings=await (await fetch('/api/feeds/settings',{credentials:'same-origin'})).json();}catch(e){} }
+/* Settings are only what the server says it stored: a body without the numeric fields is not settings, and
+   "Saved" shows only when the answer carries them back (an empty 200 once read as a successful save). */
+function storedSettings(body){ return body && Number.isFinite(body.pollIntervalMinutes) && Number.isFinite(body.maxChannels) ? body : null; }
+async function loadSettings(){ try{ const r=await fetch('/api/feeds/settings',{credentials:'same-origin'}); settings=r.ok?storedSettings(await r.json()):null; }catch(e){ settings=null; } }
 async function saveSettings(){ const p={pollEnabled:$('setPoll').classList.contains('on'),sentimentEnabled:$('setSenti').classList.contains('on'),pollIntervalMinutes:parseInt($('setInterval').value,10),maxChannels:parseInt($('setMaxCh').value,10)};
-  try{settings=await (await fetch('/api/feeds/settings',{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)})).json(); $('savedMsg').style.display='inline'; setTimeout(()=>{$('savedMsg').style.display='none';},1800); applyForm();}catch(e){} }
+  const msg=$('savedMsg'); let saved=false;
+  try{
+    const r=await fetch('/api/feeds/settings',{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
+    const body=await r.json().catch(()=>({}));
+    const stored=r.ok?storedSettings(body):null;
+    if(!stored) throw new Error(body.error||(r.ok?'the server did not store these settings':'HTTP '+r.status));
+    settings=stored; saved=true; msg.textContent='Saved'; applyForm();
+  }catch(e){ msg.textContent='Not saved: '+(e.message||'the server did not store these settings'); }
+  msg.style.display='inline'; setTimeout(()=>{msg.style.display='none';},saved?1800:5000); }
 
 function schedule(){ clearInterval(timer); if(live) timer=setInterval(()=>load(false),POLL_MS); }
 // External OAuth nav MUST break out of the cockpit iframe (Slack can't be framed) — top window.

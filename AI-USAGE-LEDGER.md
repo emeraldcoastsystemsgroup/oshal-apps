@@ -21,7 +21,7 @@ A package with no model at all shows "none (T0, no model in the loop)".
 Tokens per unit and models verified read "not yet measured" / "none recorded" until the P0 and P1 generators exist;
 a number in those columns is never typed by hand.
 
-Coverage: 75 packages, 75 rated, 0 unrated.
+Coverage: 82 packages, 82 rated, 0 unrated.
 
 | Package | Memory MiB low / high (basis) | Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
 |---|---|---|---|---|---|---|---|---|
@@ -33,9 +33,10 @@ Coverage: 75 packages, 75 rated, 0 unrated.
 | brand-graphics | 32 / 128 (declared) | brand-graphic | brand motion graphic | T2 | hosted | disable | not yet measured | none recorded |
 | business-experience | 16 / 64 (declared) | assistant-handoff | assistant request | T1 | none | disable | not yet measured | none recorded |
 | cad-studio | 800 / 3200 (declared) | cad-designer-chat | designer chat turn | T4 | none | disable | not yet measured | none recorded |
-| calendar | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
+| calendar | 32 / 128 (declared) | calendar-concierge | concierge answer | T1 | none | disable | not yet measured | none recorded |
 | calling-assistant | 32 / 128 (declared) | phone-task-operator | phone task | T2 | none | disable | not yet measured | none recorded |
 | camera | 32 / 128 (declared) | camera-nl-control | camera instruction | T1 | none | disable | not yet measured | none recorded |
+| capability-ideation | 32 / 64 (declared) | capability-ideation-run | capability ideation ticket | T3 | none | disable | not yet measured | none recorded |
 | capability-ideator | 32 / 128 (declared) | capability-discovery | capability discovery report | T3 | none | disable | not yet measured | none recorded |
 | career-hunter | 64 / 256 (declared) | career-assistant | career assistant task | T4 | none | disable | not yet measured | none recorded |
 | career-hunter | 64 / 256 (declared) | job-fit-scoring | job posting fit score | T2 | none | template | not yet measured | none recorded |
@@ -48,8 +49,10 @@ Coverage: 75 packages, 75 rated, 0 unrated.
 | circuit-lab | 288 / 1152 (declared) | circuit-engineer-chat | engineer chat turn | T4 | none | disable | not yet measured | none recorded |
 | classroom-experience | 16 / 64 (declared) | assistant-handoff | assistant request | T1 | none | disable | not yet measured | none recorded |
 | cloud | 64 / 256 (declared) | cloud-op | cloud operation ticket | T4 | none | disable | not yet measured | none recorded |
+| codex-packer | 32 / 128 (declared) | packing-interview | packing interview | T4 | none | disable | not yet measured | none recorded |
 | commons-experience | 16 / 64 (declared) | assistant-handoff | assistant request | T1 | none | disable | not yet measured | none recorded |
-| create | 32 / 128 (declared) | region-regenerate | region regeneration | T0 | hosted | disable | not yet measured | none recorded |
+| create | 32 / 512 (declared) | create-editing-command | editing command | T1 | none | disable | not yet measured | none recorded |
+| create | 32 / 512 (declared) | region-regenerate | region regeneration | T0 | hosted | disable | not yet measured | none recorded |
 | creative-studio | 32 / 128 (declared) | story-video | story video | T2 | hosted | disable | not yet measured | none recorded |
 | daily-trade-recap | 32 / 128 (declared) | daily-recap-production | daily recap production | T4 | hosted | disable | not yet measured | none recorded |
 | dev-workspace-index | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
@@ -82,6 +85,8 @@ Coverage: 75 packages, 75 rated, 0 unrated.
 | identity | 64 / 256 (declared) | access-review | access review | T2 | none | disable | not yet measured | none recorded |
 | identity | 64 / 256 (declared) | identity-review-ticket | identity review ticket | T2 | none | disable | not yet measured | none recorded |
 | intelligent-career | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
+| intelligent-operations | 192 / 768 (declared) | incident-rca | incident ticket | T3 | none | disable | not yet measured | none recorded |
+| intelligent-processing | 32 / 128 (declared) | alert-rca | promoted alert ticket | T3 | none | disable | not yet measured | none recorded |
 | intelligent-sports | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
 | jarvis-experience | 16 / 64 (declared) | assistant-handoff | assistant request | T1 | none | disable | not yet measured | none recorded |
 | job-apply | 64 / 256 (declared) | job-application-ticket | job application submission | T4 | none | disable | not yet measured | none recorded |
@@ -97,16 +102,19 @@ Coverage: 75 packages, 75 rated, 0 unrated.
 | marketing-engine | 32 / 128 (declared) | launch-kit | launch kit | T3 | none | disable | not yet measured | none recorded |
 | marketing-engine | 32 / 128 (declared) | weekly-campaign-review | weekly review ticket | T3 | none | disable | not yet measured | none recorded |
 | marketing-suite | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
+| motion-studio | 32 / 1024 (declared) | motion-editing-command | editing command | T1 | none | disable | not yet measured | none recorded |
 | movies | 64 / 256 (declared) | movie-chat | concierge chat turn | T2 | none | disable | not yet measured | none recorded |
 | movies | 64 / 256 (declared) | movies-ticket | movie or TV request ticket | T4 | none | disable | not yet measured | none recorded |
-| ocean-lab | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
+| ocean-lab | 32 / 128 (declared) | ocean-lab-guide | concierge answer | T1 | none | disable | not yet measured | none recorded |
 | orbit-experience | 16 / 64 (declared) | assistant-handoff | assistant request | T1 | none | disable | not yet measured | none recorded |
 | payments | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
 | payroll | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
+| pdf-workbench | 32 / 768 (declared) | pdf-editing-command | editing command | T1 | none | disable | not yet measured | none recorded |
 | portrait-studio | 32 / 128 (declared) | portrait-generation | portrait | T0 | hosted | disable | not yet measured | none recorded |
 | presentations | 128 / 512 (declared) | ai-outline-draft | deck, document or sheet outline | T2 | none | template | not yet measured | none recorded |
 | presentations | 128 / 512 (declared) | deck-guide | guide chat turn | T2 | none | disable | not yet measured | none recorded |
 | print-ingest | 32 / 128 (declared) | print-queue-classify | printed document | T1 | none | template | not yet measured | none recorded |
+| publishing-studio | 384 / 1536 (declared) | publishing-editing-command | editing command | T1 | none | disable | not yet measured | none recorded |
 | pumpkin | 32 / 128 (declared) | guest-reply | in-character reply | T2 | none | template | not yet measured | none recorded |
 | purchasing | 64 / 256 (declared) | shopping-chat | shopping chat turn | T2 | none | disable | not yet measured | none recorded |
 | purchasing | 64 / 256 (declared) | shopping-ticket | shopping request ticket | T4 | none | disable | not yet measured | none recorded |
@@ -142,6 +150,7 @@ Coverage: 75 packages, 75 rated, 0 unrated.
 | venture-plan | 32 / 128 (declared) | scheduled-rebaseline | scheduled rebaseline run | T2 | none | disable | not yet measured | none recorded |
 | venture-plan | 32 / 128 (declared) | venture-chat | strategist chat turn | T2 | none | disable | not yet measured | none recorded |
 | venture-plan | 32 / 128 (declared) | venture-plan-ticket | venture plan ticket | T3 | none | disable | not yet measured | none recorded |
+| video | 32 / 128 (declared) | video-editing-command | editing command | T1 | none | disable | not yet measured | none recorded |
 | video | 32 / 128 (declared) | storyboard | storyboard | T2 | none | disable | not yet measured | none recorded |
 | video | 32 / 128 (declared) | clip-render | short video | T2 | hosted | disable | not yet measured | none recorded |
 | video | 32 / 128 (declared) | series-episode | series episode | T3 | hosted | disable | not yet measured | none recorded |

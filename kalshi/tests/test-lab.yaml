@@ -33,6 +33,7 @@ cases:
     expected:
       - Configuration layers, authority scopes and value bounds retain the declared defaults.
       - Alert floors, first-seen rules, daily budgets and settlement summaries stay correct.
+      - GET /scan serves only hands whose market is still open and counts the ones that closed after the snapshot was taken.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: none }
@@ -82,6 +83,7 @@ cases:
     expected:
       - Caller settings persist within the caller scope and deployment settings require an operator.
       - Cross-user, anonymous and forged requests fail closed while saved alert results render correctly.
+      - Every Settings label reads its manifest label and allowed range, never a configuration key (sweep 14).
     prerequisites: [runner:node-test, dependency:express, dependency:playwright, browser:chromium]
     sideEffects: fixture-write
     isolation: { mode: disposable, cleanup: The harness closes Chromium and its loopback HTTP server; settings and accounts exist only in fixture memory. }
@@ -115,4 +117,84 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: native-reads
+    name: Scan reads and the portfolio read on the native kernel
+    purpose: Load the compiled scan engine and router with recording ports under OSHAL_EGRESS=kernel and off it - no database, network or Kalshi key.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/kalshi-native-reads.test.js] }
+    expected:
+      - Under OSHAL_EGRESS=kernel ensureScanSchema sends no SQL, so a read issues no ALTER or index declaration the kernel refuses.
+      - Off the kernel the scan tables are still declared, the alert table with batch_id as migration 076 has it.
+      - GET /portfolio, POST /orders and DELETE /orders/:orderId without a Kalshi connection answer 409 connected:false, never a 404 the kernel serves as a missing asset.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+  - id: exchange-state
+    name: Exchange status header
+    purpose: >-
+      The header says trading halted only when a scan read a halted exchange; otherwise the status is unknown.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/kalshi-exchange-state.test.js
+    expected:
+      - No scan yet or a null status reads as unknown.
+      - A scanned halted or active exchange reads as such.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: scan-schedule-and-calibration
+    name: Where the scan runs, and the calibration table it ranks against
+    purpose: >-
+      Load the compiled routes with the native runtime's prediction-markets shape and recording ports - no database,
+      network or Kalshi key - and read the package's own calibration table.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/kalshi-scan-schedule.test.js] }
+    expected:
+      - Loading the package and building its router starts no timer; the background-scan schedule is a person-activated POST to the mounted /scan/tick.
+      - With no market reader the tick and Scan now answer 503 naming the missing reader, before any SQL.
+      - The package ships data/kalshi-calibration.json (generated 2026-07-13, horizons 24/6/1, a provenance block), and with a reader a scan may run against it.
+      - Before the first scan GET /scan carries the table's generatedAt; a missing table's gate reason is words with no file path.
+      - The page says whether the background scan will run and how old the calibration table is.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+  - id: kalshi-phone-layout
+    name: Kalshi tables on a phone
+    purpose: Render a synthetic scan, scorecard and alert history with the page's own code in Chromium at 412 x 915 and in the 392 x 641 cockpit frame.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/browser/kalshi-phone-layout.test.cjs] }
+    expected:
+      - Scan, Scorecard and Alerts never make the page wider than the screen.
+      - The 12-column scan table keeps every column and scrolls sideways in its own box.
+      - Opening the page and switching tabs writes nothing.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none, cleanup: Each case closes its browser context; pages and answers are synthetic and served inside the browser with no network or server. }
+    limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
+    installation: never
+  - id: market-title
+    name: Market titles show no markdown markers
+    purpose: Run the shipped marketTitle() out of the surface and read where titles print (sweep 8 showed 'Will average **gas prices** be above...').
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/kalshi-market-title.test.js] }
+    expected:
+      - A markdown-bold title renders its words in strong with no asterisk; a stray marker is dropped; markup in a title stays escaped.
+      - The scan row and the order dialog print titles through marketTitle.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
     installation: never

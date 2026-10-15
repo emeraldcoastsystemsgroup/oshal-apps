@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Validate editor request envelopes before any database or filesystem work: server-issued UUIDs, exact optimistic revisions, exact field sets, and timeline documents checked by the SAME shipped module the browser editor uses (tools/editor/timeline-validation.mjs), loaded once per installed revision.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -72,4 +73,11 @@ export function projectInput(value: unknown, validate: TimelineValidator, save =
 export function mediaKind(value: unknown): 'video' | 'audio' {
   if (value !== 'video' && value !== 'audio') throw new EditorError(400, 'invalid_video_edit_media_kind');
   return value;
+}
+
+/** Load only the installed trusted immutable editor adapter; no request selects executable code. */
+export function loadTimelineAgent(packageDir: string): Promise<{ applyAgentOperations: (value: unknown, operations: unknown) => TimelineDocument; blankProject: (value: Record<string, unknown>) => TimelineDocument; editingContract: () => object }> {
+  const file = resolve(packageDir, 'tools/editor/agent-tools.mjs');
+  const url = pathToFileURL(file); url.searchParams.set('revision', createHash('sha256').update(readFileSync(file)).digest('hex'));
+  return import(url.href);
 }

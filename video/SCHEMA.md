@@ -107,3 +107,7 @@ Also declared by core (`scripts/migrations/066-video-series.sql`).
 | `created_at` | timestamp with time zone | no | now() |  |
 | `updated_at` | timestamp with time zone | no | now() |  |
 | `intro_clip` | text | yes |  | Filename of the cached intro clip in the render node's stage dir, prepended to every episode of this series at assembly. NULL = no intro. |
+
+## Editable Motion sources
+
+Migration072 adds `video_edit_motion_sources`, keyed by an owned `video_edit_assets` identity with cascading delete. Source lineage and request UUID are immutable; exact issuer+subject RLS has the same package/platform two-arm policy and no administrator bypass. Each project save compares its optional `source.motion` to this owned row. The row records Motion project/revision/composition/document SHA, exact native tick interval/rational rate, and verified render job/SHA; it carries no identity, filesystem path or authority. Ordinary media cannot acquire forged lineage and linked media cannot silently lose its lineage.

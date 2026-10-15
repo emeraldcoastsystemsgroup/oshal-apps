@@ -1,0 +1,101 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Native port of the platform's Intelligent Operations RCA queue. The native kernel held only its migrated declaration (no bots, workflow or queue registered), so activating it opened an empty application. Its bots are now declared here under names the kernel does not own (its fleet already has rca-specialist), and the platform reviewer loop (reviewerBot queue-bot, maxRevisions 2) is written out as explicit phases: investigate, review, revise. It replaces Issue RCA, Incident Remediation and SAP Incident, which the platform retired into it on 2026-06-18. The platform's runbook corpus, log and cluster access are not available to a native bot; the description and personas say so.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Correct entry 1: the platform unified Issue RCA and Incident Remediation into this application (header of its swarm-apps/intelligent-operations.yaml); SAP Incident was not part of that and stays a turned-off migrated declaration, because its sap-rca-specialist persona and sap-runbooks corpus exist in no repository.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Ship the store's canonical service-authenticated package-readiness route (routes/package-smoke.js, byte-identical to the reviewed module) and its smoke expectation, which the store security contract requires of every package except Pumpkin and the four front-door groups. It reads only this manifest; no screen, user data or model call.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Correct entry 2: SAP Incident's sap-rca-specialist persona and its manifest (swarm-apps-incident/sap-incident.yaml) are in the archived core trunk at commit 41da137, not in the current platform tree or the stores, and its sap-runbooks corpus was populated by an operator from SAP documentation; this installation searches no such collection. SAP Incident is not yet ported and stays a turned-off migrated declaration.
+name: intelligent-operations
+suite: ai-engineering
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 192, high: 768, basis: declared }
+  features:
+    - id: incident-rca
+      unit: incident ticket
+      tier: T3
+      generation: none
+      degrade: disable
+displayName: Intelligent Operations
+description: >-
+  File an incident as a ticket. The RCA specialist investigates from what the ticket says and what you
+  attach, a reviewer checks the report against a strict evidence bar, and the specialist revises it.
+  Remediation steps are proposals for an operator to review and run; nothing is applied automatically.
+  On this installation the investigation reasons over the ticket only: it cannot read logs, clusters or
+  the runbook corpus itself, so paste the evidence you have.
+version: 1.0.2
+status: active
+scope: public
+theme: midnight
+access:
+  supported: [deny, viewer, editor, admin]
+  defaultTier: editor
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: intelligent-operations
+  ref: main
+uses:
+  - app-dependencies
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/intelligent-operations/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/intelligent-operations/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+
+# A screenless queue application: the cockpit opens its concierge with this queue one click away.
+ticketType: intelligent-operations
+workflow:
+  name: Intelligent Operations RCA Pipeline
+  phases:
+    - name: investigate
+      bot: ops-rca-specialist
+    - name: review
+      bot: ops-incident-reviewer
+    - name: revise
+      bot: ops-rca-specialist
+chatBot: ops-rca-specialist
+ribbon:
+  defaultView: tickets
+  hideFrameworkItems: []
+
+bots:
+  - agentId: a0000000-0000-0000-0000-000000000016
+    name: ops-rca-specialist
+    persona: personas/ops-rca-specialist.yaml
+    role: incident/rca
+    capabilities:
+      - root-cause-analysis
+      - timeline-reconstruction
+      - impact-assessment
+      - remediation-proposal
+  - agentId: 5b770acf-69d5-4361-8d2e-19a2cd05e181
+    name: ops-incident-reviewer
+    persona: personas/ops-incident-reviewer.yaml
+    role: incident/review
+    capabilities:
+      - deliverable-review
+      - quality-gate

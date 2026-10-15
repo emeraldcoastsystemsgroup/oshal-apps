@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-22 02:40:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Host override plane: the show-agnostic half of stuck-game recovery (clock control, force the window to lapse, end the game) with delegation to the show for anything that touches its own rules. Owner-only; every override lands in the event log so the room can see the host stepped in.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com    | endGame also says the room ends (endsRoom): live, the host desk's End game reached the outro but the room stayed 'live', so it stayed under "Your open games" and never reached the hall of fame.
  */
 
 'use strict';
@@ -83,7 +84,8 @@ function apply(show, state, action, ctx = {}, now = Date.now()) {
     // Route through the show's own finish beat so the winner is decided by its rules.
     const result = show.reduce(state, { type: 'finish' }, {}, now, ctx);
     if (!result.ok) return result;
-    return { ...result, event: { kind: 'milestone', content: 'Host ended the game' } };
+    // The room ends with the show: the route flips its status to 'ended' after this state is saved.
+    return { ...result, endsRoom: true, event: { kind: 'milestone', content: 'Host ended the game' } };
   }
 
   if (typeof show.override !== 'function') return { ok: false, error: 'SHOW_HAS_NO_OVERRIDES' };

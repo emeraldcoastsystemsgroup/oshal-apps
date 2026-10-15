@@ -6,6 +6,16 @@
 <title>OSHAL Drone Ops</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- CHANGE LOG
+     1 | maintainer@emeraldcoastsystemsgroup.com | The Fleet hint told the person to run `npm run drone:node`, a script of the retired
+       platform checkout; the native kernel ships no drone node and refuses the legacy service-secret heartbeat. It now
+       says no drone node or flight simulator ships with this installation (the fleet answers no_drone_node).
+     2 | maintainer@emeraldcoastsystemsgroup.com | K4: with no drone registered the operator chat stays off (input and Send
+       disabled, saying why) instead of answering a raw 'drone.getState is unavailable' error; a no-drone answer from the
+       server prints its plain reply, and any other chat failure reads in plain words, not the raw error.
+     3 | maintainer@emeraldcoastsystemsgroup.com | Draft show is off with the other flight commands while no drone is registered
+       (it stayed on and answered 'pattern generation failed ... needs 2-8 drones, got 0'); a switched-off flight command says
+       why in its title and gets its own hint back when a drone appears. -->
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the signed-in account's OWN saved
      flight plans (how many, which are not flown yet, the latest ones with their shape and where each one stands) from
      the SAME GET /api/drone/missions the full page reads, plus two counts of GET /api/drone/home-summary (plans started
@@ -143,10 +153,14 @@
   .pill.flying { color: var(--dr-accent); border-color: var(--dr-accent); }
   .pill.alert { color: var(--dr-bad); border-color: var(--dr-bad); }
   .pill.ok { color: var(--dr-ok); border-color: var(--dr-ok); }
+  /* No drone connected (GET /fleet answered configured:false): the server's own reason, shown above the console. */
+  .nodrone { padding: 8px 14px; border-bottom: 1px solid var(--dr-bad); color: var(--dr-text, inherit); font-size: 13px; line-height: 1.4; }
+  .nodrone strong { color: var(--dr-bad); }
   .spacer { flex: 1; }
   .batt { display: flex; align-items: center; gap: 6px; color: var(--dr-muted); font-size: 12px; }
   .batt-bar { width: 90px; height: 8px; border-radius: 4px; background: var(--dr-surface-2); border: 1px solid var(--dr-line); overflow: hidden; }
-  .batt-fill { height: 100%; background: var(--dr-ok); width: 100%; transition: width .5s; }
+  /* Empty until telemetry reports a charge: with no drone the bar read full and green beside "–%" (sweep 14). */
+  .batt-fill { height: 100%; background: var(--dr-ok); width: 0; transition: width .5s; }
   .main { display: grid; grid-template-columns: 1fr 380px; min-height: 0; }
   .map-wrap { position: relative; min-width: 0; }
   #map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
@@ -267,6 +281,7 @@
     <div class="spacer"></div>
     <div class="batt"><span id="battPct">–%</span><div class="batt-bar"><div id="battFill" class="batt-fill"></div></div></div>
   </div>
+  <div id="noDroneBanner" class="nodrone" role="status" hidden></div>
   <div class="main">
     <div class="map-wrap">
       <canvas id="map"></canvas>
@@ -291,7 +306,7 @@
         <h2>Fleet</h2>
         <div id="fleetList"></div>
         <div style="color:var(--dr-muted);font-size:11px;margin-top:6px">
-          Add a drone: run <code>npm run drone:node</code> on its companion box with the swarm secret — it appears here on first heartbeat.
+          Real drones join through a drone node on their companion box. No drone node or flight simulator ships with this installation, so none can be added here.
         </div>
       </div>
       <div class="panel-box" id="videoBox" style="display:none">
@@ -444,7 +459,7 @@ async function api(path, opts) {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const detail = Array.isArray(body.errors) ? '\n• ' + body.errors.join('\n• ') : '';
-    throw new Error((body.error || ('HTTP ' + res.status)) + detail);
+    throw new Error((body.detail || body.message || body.error || ('HTTP ' + res.status)) + detail);
   }
   return body;
 }
@@ -588,7 +603,7 @@ function renderFleet() {
       '<div class="grow"><div>' + (f.droneId === selDrone ? '▶ ' : '') + esc(f.droneId) + ' <span class="meta">' + esc(f.kind) + (f.remote ? ' · node' : ' · embedded') + '</span></div>' +
       '<div class="meta">' + (f.online ? (t ? esc(t.status) + ' · ' + t.batteryPct.toFixed(0) + '%' : 'online') : 'OFFLINE') + '</div></div>' +
       '<span class="pill ' + (f.online ? (t && !['disarmed','armed'].includes(t.status) ? 'flying' : 'ok') : 'alert') + '" style="font-size:10px">' + (f.online ? 'LIVE' : 'DOWN') + '</span></div>';
-  }).join('') || '<div class="meta" style="color:var(--dr-muted);font-size:12px">No drones yet.</div>';
+  }).join('') || '<div class="meta" style="color:var(--dr-muted);font-size:12px">' + (fleetUnavailable ? esc(fleetUnavailable) : 'No drones yet.') + '</div>';
   // Live-video card: only when the selected drone's node declared a real feed URL.
   const sel = selInfo();
   const vurl = sel && sel.videoUrl;
@@ -633,15 +648,17 @@ function applyTelemetry(t) {
   const fs = $('failsafePill');
   fs.style.display = state.failsafe ? '' : 'none';
   fs.textContent = state.failsafe ? 'FAILSAFE: ' + state.failsafe : '';
-  $('battPct').textContent = state.batteryPct.toFixed(0) + '%';
+  // A charge the telemetry does not report reads "–%" over an empty bar, never a full green one.
+  const charge = Number.isFinite(state.batteryPct) ? state.batteryPct : null;
+  $('battPct').textContent = charge == null ? '–%' : charge.toFixed(0) + '%';
   const fill = $('battFill');
-  fill.style.width = state.batteryPct + '%';
-  fill.style.background = state.batteryPct > 30 ? 'var(--dr-ok)' : state.batteryPct > 15 ? 'var(--dr-warn)' : 'var(--dr-bad)';
+  fill.style.width = (charge == null ? 0 : charge) + '%';
+  fill.style.background = charge == null ? 'transparent' : charge > 30 ? 'var(--dr-ok)' : charge > 15 ? 'var(--dr-warn)' : 'var(--dr-bad)';
   $('tAlt').textContent = state.position ? state.position.alt.toFixed(1) + ' m' : 'withheld';
   $('tSpd').textContent = state.groundSpeedMps.toFixed(1) + ' m/s';
   $('tDist').textContent = state.distanceFromHomeM.toFixed(0) + ' m';
   $('tHdg').textContent = state.headingDeg + '°';
-  $('tBatt').textContent = state.batteryPct.toFixed(0) + '%';
+  $('tBatt').textContent = charge == null ? '–' : charge.toFixed(0) + '%';
   $('tMission').textContent = state.mission ? (state.mission.index + 1) + '/' + state.mission.total : '–';
   $('tOdo').textContent = state.odometerM != null
     ? (state.odometerM >= 1000 ? (state.odometerM / 1000).toFixed(2) + ' km' : state.odometerM + ' m') : '–';
@@ -653,10 +670,53 @@ function applyTelemetry(t) {
     : '';
   draw();
 }
+// Flight commands that need a connected drone (planning and saving a mission do not).
+const FLIGHT_COMMANDS = /^(takeoff|cmd|doYaw|doLed|doCamera|abortAll|retaskLive|executeMission|draftPattern|draftBallet|stopShow)\(/;
+let fleetUnavailable = null;
+/**
+ * @description Show the fleet's availability marker ({configured:false, reason, detail}) as prose and switch off every
+ * flight command while no drone or simulator is registered, instead of a SIM badge over controls that can only fail.
+ * @param {object} r - GET /fleet answer.
+ * @returns {void}
+ */
+/** Why the map takes no waypoints: every waypoint is an offset from the drone's home inside its geofence, and both come from a registered drone or simulator. */
+const NO_FENCE = 'Planning needs a geofence and a home position, which come from a registered drone or flight simulator; none is known here, so the map takes no waypoints and missions cannot be saved yet.';
+function applyFleetAvailability(r) {
+  fleetUnavailable = r && r.configured === false ? (r.detail || r.reason || 'No drone is connected to this installation.') : null;
+  const banner = $('noDroneBanner');
+  banner.hidden = !fleetUnavailable;
+  if (fleetUnavailable) {
+    banner.innerHTML = '<strong>No drone connected.</strong> ' + esc(fleetUnavailable) + ' Flight commands stay off until a drone node or flight simulator is registered with this installation. '
+      + (r.fence ? 'You can still plan and save missions.' : esc(NO_FENCE));
+    $('providerPill').textContent = 'NOT CONNECTED'; $('providerPill').className = 'pill alert';
+    $('statusPill').textContent = 'NO DRONE';
+  }
+  // A show pattern is laid out over the registered drones (2-8 of them), so Draft show is off with the rest; each keeps its own hint when on.
+  const offHint = 'Needs a registered drone or flight simulator; none is registered with this installation.';
+  document.querySelectorAll('button[onclick]').forEach((b) => {
+    if (!FLIGHT_COMMANDS.test(b.getAttribute('onclick'))) return;
+    if (!('hint' in b.dataset)) b.dataset.hint = b.title || '';
+    b.disabled = !!fleetUnavailable; b.title = fleetUnavailable ? offHint : b.dataset.hint;
+  });
+  $('modeGoto').disabled = !!fleetUnavailable;
+  // The operator chat drafts against a drone's fence and home; with none there is nothing it could draft.
+  const chatOff = fleetUnavailable ? 'The operator chat drafts flights for a registered drone; none is registered with this installation.' : '';
+  $('chatInput').disabled = !!chatOff; $('chatInput').title = chatOff;
+  if (chatOff) $('chatInput').placeholder = 'Register a drone node or flight simulator to draft a flight';
+  for (const b of document.querySelectorAll('button[onclick="sendChat()"]')) { b.disabled = !!chatOff; b.title = chatOff; }
+  // The server validates every saved mission against the fence; with none there is nothing a save could pass.
+  // Save as timeline saves the same fenced waypoints, so it is off for the same reason (keeping its own hint when on).
+  const noFence = !r || !r.fence;
+  for (const b of document.querySelectorAll('button[onclick="saveMission()"], button[onclick="saveTimeline()"]')) {
+    if (!('hint' in b.dataset)) b.dataset.hint = b.title || '';
+    b.disabled = noFence; b.title = noFence ? NO_FENCE : b.dataset.hint;
+  }
+}
 async function pollState() {
   try {
     const r = await api('/fleet');
     fleetList = r.fleet || [];
+    applyFleetAvailability(r);
     fence = r.fence || fence;
     if (!fleetList.find((f) => f.droneId === selDrone) && fleetList.length) selDrone = fleetList[0].droneId;
     // Every airborne drone paints a trail, not just the selected one.
@@ -709,7 +769,8 @@ function css(name) { return getComputedStyle(document.documentElement).getProper
 function draw() { if (view3d) draw3d(); else draw2d(); }
 function draw2d() {
   const c = $('map');
-  if (!fence || !home) return;
+  // The hint says why the map is blank instead of promising "click the map to add waypoints".
+  if (!fence || !home) { $('mapHint').textContent = fleetUnavailable ? NO_FENCE : 'Waiting for the drone\'s home position and geofence…'; return; }
   const g = c.getContext('2d');
   const wrap = c.parentElement.getBoundingClientRect();
   if (c.width !== Math.floor(wrap.width) || c.height !== Math.floor(wrap.height)) {
@@ -1152,7 +1213,8 @@ if (!window.AppView || !AppView.active()) (function wireCamera() {
 
 if (!window.AppView || !AppView.active()) $('map').addEventListener('click', async (e) => {
   if (view3d || viewCam) return; // planning clicks are a top-down (2D) interaction
-  if (!fence || !home) return;
+  // A tap with no fence or home has nowhere to land; say so instead of dropping it.
+  if (!fence || !home) { toast(NO_FENCE); return; }
   const rect = $('map').getBoundingClientRect();
   const my = e.clientY - rect.top;
   if (profileVisible() && my > $('map').height - PROFILE_H) return; // the profile strip owns this area
@@ -1255,6 +1317,7 @@ function clearAllDrafts() { drafts = {}; renderDraftWps(); draw(); }
  *  Same-time waypoints across drones merge into one cue (a formation moment); drones with
  *  no waypoint at that time simply hold. The conductor flies arrivals ON the timestamps. */
 async function saveTimeline() {
+  if (!fence || !home) { toast(NO_FENCE); return; }
   const ids = draftIds();
   if (!ids.length) { toast('Add waypoints first (click the map in Plan mode).'); return; }
   const byTime = {};
@@ -1571,6 +1634,7 @@ async function sendChat() {
     const r = await api('/chat', { method: 'POST', body: JSON.stringify({ message, conversationId, droneId: selDrone }) });
     conversationId = r.conversationId || conversationId;
     pending.textContent = r.reply;
+    if (r.noDrone) return;
     if (r.draft) {
       shownMission = r.draft.plan;
       draw();
@@ -1587,7 +1651,7 @@ async function sendChat() {
     } else if (r.draftErrors && r.draftErrors.length) {
       pending.textContent += '\n(draft rejected: ' + r.draftErrors.join('; ') + ')';
     }
-  } catch (e) { pending.textContent = 'Error: ' + e.message; }
+  } catch (e) { pending.textContent = 'The operator chat could not answer just now. Nothing was drafted or flown; try again in a moment.'; }
 }
 if (!window.AppView || !AppView.active()) $('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
 
@@ -1614,7 +1678,10 @@ if (!window.AppView || !AppView.active()) (async function boot() {
 })();
 </script>
 
-<details id="evidenceReview" style="position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px));max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box;box-shadow:0 8px 30px #0005">
+<style>/* The hand-off panel floats beside a wide screen; on a phone it sits in the page flow after the content, so it never covers the rows above it. */
+.handoff-dock{position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px))}
+@media (max-width:760px){.handoff-dock{position:static;width:auto;margin:16px}}</style>
+<details id="evidenceReview" class="handoff-dock" style="max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box;box-shadow:0 8px 30px #0005">
  <summary style="cursor:pointer;font-weight:600">Prepare a diagnostic brief</summary>
  <p id="evidenceState" role="status">Choose recorded evidence, then review what to share.</p>
  <label>Saved evidence<select id="evidenceChoice" style="width:100%;margin:6px 0"></select></label>

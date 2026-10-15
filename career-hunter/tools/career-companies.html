@@ -30,16 +30,33 @@
   * { box-sizing: border-box; }
   body { margin: 0; font: 14px/1.45 Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); }
   header { padding: 16px 20px 8px; }
+  .head-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .top-nav { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12.5px; }
+  .top-nav a { color: var(--accent); text-decoration: none; font-weight: 600; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); }
+  .top-nav a:hover { border-color: var(--accent); }
   h1 { margin: 0 0 2px; font-size: 18px; font-weight: 650; }
   .sub { color: var(--muted); font-size: 12.5px; }
   .bar { display: flex; gap: 10px; align-items: center; padding: 10px 20px; flex-wrap: wrap; }
   input[type=search], input.url {
     background: var(--panel); border: 1px solid var(--line); color: var(--text);
     border-radius: 8px; padding: 7px 10px; font: inherit; }
-  input[type=search] { width: 280px; }
+  input[type=search] { width: 280px; max-width: 100%; }
   input.url { width: 100%; }
+  .filters { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  button.flt {
+    background: var(--panel); color: var(--muted); border: 1px solid var(--line);
+    border-radius: 999px; padding: 5px 11px; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  button.flt:hover { border-color: var(--accent); color: var(--text); }
+  button.flt.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   label.chk { color: var(--muted); font-size: 12.5px; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
-  .count { color: var(--muted); font-size: 12.5px; margin-left: auto; }
+  .pager { display: inline-flex; gap: 8px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+  .count { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  button.pg {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  button.pg:hover:not(:disabled) { border-color: var(--accent); }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
   th { position: sticky; top: 0; background: var(--bg); color: var(--muted); font-weight: 600; font-size: 12px; z-index: 1; }
@@ -54,21 +71,78 @@
   .msg { font-size: 12px; margin-top: 3px; }
   .msg.ok { color: var(--accent); } .msg.err { color: var(--bad); }
   .empty { padding: 40px 20px; color: var(--muted); }
-  .wrap { max-height: calc(100vh - 118px); overflow: auto; }
+  .wrap { max-height: calc(100vh - 140px); overflow: auto; }
+  @media (max-width: 640px) {
+    header, .bar { padding-left: 12px; padding-right: 12px; }
+    input[type=search] { width: 100%; }
+    .pager { margin-left: 0; width: 100%; justify-content: space-between; }
+  }
 </style>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
-<link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
+<style id="career-theme-inline">
+  :root[data-career-surface] {
+    --career-brand-accent: var(--accent-primary);
+    --bg: var(--bg-primary); --bg2: var(--bg-secondary); --page: var(--bg-primary);
+    --panel: var(--bg-secondary); --panel2: var(--bg-tertiary);
+    --card: var(--bg-card); --card2: var(--bg-card-hover);
+    --control: var(--bg-secondary); --hover: var(--bg-card-hover);
+    --line: var(--border-color); --border: var(--border-color);
+    --ink: var(--text-primary); --text: var(--text-primary);
+    --muted: var(--text-secondary); --sub: var(--text-secondary);
+    --accent: var(--career-brand-accent); --navy: var(--career-brand-accent);
+    --navy2: var(--accent-primary-hover); --teal: var(--career-brand-accent);
+    --accent2: var(--status-success); --green: var(--status-success); --good: var(--status-success);
+    --red: var(--status-error); --bad: var(--status-error); --danger: var(--status-error);
+    --warn: var(--status-warning); --amber: var(--status-warning);
+    --on-accent: var(--text-on-accent, #fff); --teal-ink: var(--text-on-accent, #fff);
+  }
+  html[data-career-surface], html[data-career-surface] body {
+    background-color: var(--bg-primary); color: var(--text-primary);
+  }
+  html[data-career-surface] body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  html[data-career-surface] :is(.wrap > h1, main > header > h1, body > header > h1) {
+    letter-spacing: -.025em; font-weight: 650;
+    border-inline-start: 3px solid var(--career-brand-accent); padding-inline-start: 11px;
+  }
+  html[data-career-surface] :is(button.primary, .btn.primary, .tab.active) {
+    background: var(--career-brand-accent); border-color: var(--career-brand-accent);
+    color: var(--text-on-accent, #fff);
+  }
+  html[data-career-surface] :is(input, select, textarea) { accent-color: var(--career-brand-accent); }
+  html[data-career-surface] :is(button, a, input, select, textarea):focus-visible {
+    outline: 2px solid var(--career-brand-accent); outline-offset: 3px;
+  }
+</style>
 </head>
 <body>
   <header>
-    <h1>Companies <span class="sub">· admin</span></h1>
+    <div class="head-row">
+      <h1>Companies <span class="sub">· admin</span></h1>
+      <nav class="top-nav" aria-label="Career navigation">
+        <a href="/api/career-hunter/board-native">← Job Board</a>
+        <a href="/cockpit/">Cockpit</a>
+      </nav>
+    </div>
     <div class="sub">Every company and its detected job board. Paste the real careers / jobs URL and hit
       <b>Resolve</b> to re-detect the ATS and scrape now. Writes the shared corpus for all users.</div>
   </header>
   <div class="bar">
-    <input type="search" id="q" placeholder="search company…" autocomplete="off" />
+    <input type="search" id="companySearch" placeholder="Search companies by name, token, or ATS…" aria-label="Search companies" autocomplete="off" />
+    <input type="search" id="q" placeholder="search company…" autocomplete="off" hidden aria-hidden="true" />
+    <div class="filters" role="group" aria-label="Filter companies by ATS status">
+      <button type="button" class="flt active" id="fltAll" data-filter="all" aria-pressed="true">All <span id="cntAll"></span></button>
+      <button type="button" class="flt" id="fltActive" data-filter="active" aria-pressed="false">Active ATS <span id="cntActive"></span></button>
+      <button type="button" class="flt" id="fltNeeds" data-filter="needs" aria-pressed="false">Needs URL <span id="cntNeeds"></span></button>
+    </div>
     <label class="chk"><input type="checkbox" id="attn" /> needs attention only (no jobs / not found)</label>
-    <span class="count" id="count"></span>
+    <div class="pager">
+      <span class="count" id="count" role="status" aria-live="polite"></span>
+      <button type="button" class="pg" id="prevPage" disabled>Prev</button>
+      <button type="button" class="pg" id="nextPage" disabled>Next</button>
+    </div>
   </div>
   <div class="wrap">
     <table>
@@ -80,27 +154,71 @@
   </div>
 <script>
 const $ = (s) => document.querySelector(s);
+const PAGE_SIZE = 100;
 let ALL = [];
+let statusFilter = 'all';
+let page = 1;
 
-function needsAttention(c) { return (c.active_jobs || 0) === 0 || (c.discover_status && c.discover_status !== 'found'); }
+function needsAttention(c) { return !c.ats_type || (c.active_jobs || 0) === 0 || (c.discover_status && c.discover_status !== 'found'); }
+
+function matchesSearch(c, q) {
+  if (!q) return true;
+  const hay = [c.name, c.ats_token, c.ats_type, c.careers_url].map(v => String(v || '').toLowerCase()).join(' ');
+  return hay.includes(q);
+}
+
+function updateCounts() {
+  const needs = ALL.filter(needsAttention).length;
+  const active = ALL.length - needs;
+  $('#cntAll').textContent = ALL.length ? '(' + ALL.length.toLocaleString() + ')' : '';
+  $('#cntActive').textContent = ALL.length ? '(' + active.toLocaleString() + ')' : '';
+  $('#cntNeeds').textContent = ALL.length ? '(' + needs.toLocaleString() + ')' : '';
+}
+
+function setStatusFilter(next) {
+  statusFilter = next;
+  $('#attn').checked = (next === 'needs');
+  document.querySelectorAll('button.flt').forEach(b => {
+    const on = b.dataset.filter === next;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+  page = 1;
+  render();
+}
 
 function render() {
-  const q = ($('#q').value || '').trim().toLowerCase();
-  const attn = $('#attn').checked;
-  const rows = ALL.filter(c =>
-    (!q || (c.name || '').toLowerCase().includes(q)) && (!attn || needsAttention(c)));
-  $('#count').textContent = rows.length + ' of ' + ALL.length + ' companies';
+  updateCounts();
+  const q = (($('#companySearch').value || $('#q').value) || '').trim().toLowerCase();
+  const rows = ALL.filter(c => {
+    if (!matchesSearch(c, q)) return false;
+    if (statusFilter === 'active') return !needsAttention(c);
+    if (statusFilter === 'needs' || $('#attn').checked) return needsAttention(c);
+    return true;
+  });
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  if (page > totalPages) page = totalPages;
+  if (page < 1) page = 1;
+  const startIdx = (page - 1) * PAGE_SIZE;
+  const endIdx = Math.min(startIdx + PAGE_SIZE, rows.length);
+  const pageRows = rows.slice(startIdx, endIdx);
+
+  $('#count').textContent = rows.length
+    ? 'Showing ' + (startIdx + 1).toLocaleString() + '–' + endIdx.toLocaleString() + ' of ' + rows.length.toLocaleString() + ' companies'
+    : 'Showing 0 of ' + ALL.length.toLocaleString() + ' companies';
+  $('#prevPage').disabled = page <= 1;
+  $('#nextPage').disabled = endIdx >= rows.length;
+
   const tb = $('#rows'); tb.innerHTML = '';
-  for (const c of rows) {
+  for (const c of pageRows) {
     const tr = document.createElement('tr');
-    const jobsClass = (c.active_jobs || 0) === 0 ? 'pill none' : 'pill';
     tr.innerHTML =
       '<td class="name">' + esc(c.name) + '</td>' +
       '<td class="jobs">' + (c.active_jobs || 0).toLocaleString() + '</td>' +
       '<td><span class="' + (c.ats_type ? 'pill' : 'pill none') + '">' + esc(c.ats_type || 'none') + '</span>' +
       (String(c.source_lists || '').includes('"user:') ? ' <span class="pill" title="added through a user\'s own target list">user-added</span>' : '') + '</td>' +
       '<td><div class="urlcell"><input class="url" value="' + esc(c.careers_url || '') + '" ' +
-      'placeholder="paste careers / jobs search URL…" /><button>Resolve</button></div>' +
+      'placeholder="paste careers / jobs search URL…" aria-label="Careers URL for ' + esc(c.name) + '" /><button type="button">Resolve</button></div>' +
       '<div class="msg" hidden></div></td>';
     const input = tr.querySelector('input.url');
     const btn = tr.querySelector('button');
@@ -125,6 +243,7 @@ async function resolve(c, input, btn, msg, tr) {
       c.active_jobs = d.result.jobs != null ? d.result.jobs : c.active_jobs;
       c.ats_type = d.result.atype || c.ats_type; c.careers_url = url;
       tr.querySelector('td.jobs').textContent = (c.active_jobs || 0).toLocaleString();
+      updateCounts();
       show(msg, d.result.message || 'Done.', 'ok');
     } else {
       show(msg, (d.error || 'Failed — could not resolve.'), 'err');
@@ -145,8 +264,12 @@ async function load() {
     render();
   } catch (e) { $('#empty').hidden = false; $('#empty').textContent = 'Failed to load companies.'; }
 }
-$('#q').addEventListener('input', render);
-$('#attn').addEventListener('change', render);
+$('#companySearch').addEventListener('input', () => { $('#q').value = $('#companySearch').value; page = 1; render(); });
+$('#q').addEventListener('input', () => { $('#companySearch').value = $('#q').value; page = 1; render(); });
+$('#attn').addEventListener('change', () => setStatusFilter($('#attn').checked ? 'needs' : 'all'));
+document.querySelectorAll('button.flt').forEach(b => b.addEventListener('click', () => setStatusFilter(b.dataset.filter)));
+$('#prevPage').addEventListener('click', () => { if (page > 1) { page--; render(); } });
+$('#nextPage').addEventListener('click', () => { page++; render(); });
 load();
 </script>
 </body>

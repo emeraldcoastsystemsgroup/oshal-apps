@@ -28,6 +28,7 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Mount the separate confirmed archive-import controls and receipt view without arming a study.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Add the default-off Futures source-alert control and explain its owner routing and per-run cadence.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | ADR-052 addendum: the Strategy Lab editor gains the three paper-to-live parity knobs the kernel's StrategyConfig carries - market gap-down filter %, exit plan life in sessions and yield sleeve float % - each blank by default. Blank saves null (inherit the account's mode-aware env arm, off unless armed; a Lab walk runs off), 0 saves an explicit off, a number arms it; the kernel's normalizeConfig clamps. GET /lab/knobs explains each under Knobs & formulas. Only renderLabForm and saveLabStrategy change; the Futures sub-view is untouched.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | The native paper book (no stored book id) lists in the roster without a strategy picker: its Set button had no book to act on and did nothing. The row says it runs the paper autopilot's own rules and that its controls are on the account page.
  */
 
 /* ── Account strategies roster — per-book strategy + trading control (ADR-134) ── */
@@ -49,6 +50,7 @@ async function loadRosterTab() {
     if (stale(token) || tabStale(gen)) return;
     BOOKS = j.books || [];
     const stratCell = (b) => {
+      if (!b.bookId) return '<span class="ok">Paper autopilot rules</span> <span class="foot">(start or stop it on the account page)</span>';
       const cur = b.strategy
         ? '<span class="ok">' + esc(b.strategy.name) + '</span> <span class="foot">@ ' + b.strategy.applyPct + '%</span>'
         : '<span class="ok">Production baseline</span> <span class="foot" title="The live-tuned engine configuration (the Strategy Lab tab shows its exact knobs). Every account runs this until you Set a named strategy.">(engine config)</span>';

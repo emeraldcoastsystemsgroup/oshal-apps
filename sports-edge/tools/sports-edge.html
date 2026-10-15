@@ -11,6 +11,11 @@
   line, so the scorecard's verdict is shown with the same prominence as the picks themselves.
 
   Self-contained: no external assets. Framework theme tokens + the shared glass sheet only.
+
+  2026-10-11 — background refresh is a person's own job. The pass runs only when the `refresh-pass`
+  schedule is activated for you (Jobs screen), so the header reads your job from the kernel's schedule
+  list and, when it is off, says so and where to turn it on instead of implying something refreshes on
+  its own. "refreshed" is your last pass as the server stored it, not this process's memory.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -75,6 +80,8 @@
     border-radius: 5px; padding: 6px 9px; font: inherit;
   }
   table { width: 100%; border-collapse: collapse; }
+  /* A wide table scrolls inside its card on a phone; the page itself never scrolls sideways. */
+  .card { overflow-x: auto; }
   th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
   th { color: var(--dim); font-weight: 500; font-size: 12px; }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -121,6 +128,7 @@
   <h1>Sports Edge</h1>
   <span class="sub" id="statusline">loading…</span>
 </header>
+<div class="banner" id="bgRefresh" style="display:none"></div>
 <nav role="tablist">
   <button role="tab" data-tab="teams" aria-selected="true">My Teams</button>
   <button role="tab" data-tab="games" aria-selected="false">Games</button>
@@ -271,6 +279,22 @@ function renderFollowed() {
 }
 
 // ---- games ------------------------------------------------------------------
+/**
+ * What an empty Games list says once the schedule read succeeded: the window it covered and, when
+ * the server found one further ahead, the next game (a bye week read as a broken schedule). The
+ * list is read live from the schedule; background refresh only builds previews.
+ */
+function emptyGamesText(d) {
+  var days = Number(d && d.horizonDays) || 0;
+  var head = 'No games for your teams in the next ' + (days ? days + ' day' + (days === 1 ? '' : 's') : 'few days') + '.';
+  var g = d && d.nextGame;
+  if (g && g.date) {
+    return head + ' Next: ' + g.awayTeam + ' @ ' + g.homeTeam + ', ' + new Date(g.date).toLocaleString(undefined,
+      { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + '.';
+  }
+  var ahead = Number(d && d.nextGameLookaheadDays) || 0;
+  return head + (ahead ? ' None is scheduled in the next ' + ahead + ' days either.' : '');
+}
 function loadGames() {
   el('gamelist').innerHTML = '<span class="muted">loading…</span>';
   jget(API + '/games').then(function (d) {
@@ -285,7 +309,7 @@ function loadGames() {
       el('gamelist').innerHTML = (d.upstreamOk === false)
         ? '<div class="banner hard">Could not reach the schedule service just now, so this list is ' +
           'incomplete — this is NOT "your teams have no games". Try again in a moment.</div>'
-        : '<span class="muted">No games on the schedule for your teams inside the horizon.</span>';
+        : '<span class="muted">' + esc(emptyGamesText(d)) + '</span>';
       return;
     }
     if (d.upstreamOk === false) {
@@ -322,11 +346,24 @@ function openPreview(row) {
   showTab('preview');
   var g = row.game;
   state.currentEvent = g;
-  el('previewBody').innerHTML = '<div class="muted">building the preview for ' +
+  var league = g.league || 'nfl';
+  el('previewBody').innerHTML = '<div class="muted">reading the preview for ' +
     esc(g.awayTeam) + ' @ ' + esc(g.homeTeam) + '…</div>';
-  jget(API + '/preview/' + encodeURIComponent(g.eventId) + '?league=' + encodeURIComponent(g.league || row.game.league || 'nfl'))
+  // GET only reads a stored preview; when none is stored yet the page asks the server to build one.
+  jget(API + '/preview/' + encodeURIComponent(g.eventId) + '?league=' + encodeURIComponent(league))
+    .then(function (d) {
+      if (d.built) return d;
+      el('previewBody').innerHTML = '<div class="muted">building the preview for ' +
+        esc(g.awayTeam) + ' @ ' + esc(g.homeTeam) + '…</div>';
+      return buildPreview(g.eventId, league, false);
+    })
     .then(renderPreview)
     .catch(function (e) { el('previewBody').innerHTML = '<div class="muted">' + esc(e.message) + '</div>'; });
+}
+
+/** Build (or rebuild) a game's preview on the server; it is stored and its calls registered. */
+function buildPreview(eventId, league, refresh) {
+  return jbody('POST', API + '/preview/' + encodeURIComponent(eventId) + '/build', { league: league, refresh: refresh });
 }
 
 function renderPreview(d) {
@@ -440,8 +477,8 @@ function renderPreview(d) {
   if (rb) {
     rb.addEventListener('click', function () {
       rb.disabled = true; rb.textContent = 'rebuilding…';
-      jget(API + '/preview/' + encodeURIComponent(p.eventId) + '?league=' + encodeURIComponent(p.league) + '&refresh=1')
-        .then(renderPreview).catch(function (e) { alert(e.message); });
+      buildPreview(p.eventId, p.league, true)
+        .then(renderPreview).catch(function (e) { rb.disabled = false; rb.textContent = 'Rebuild this preview'; alert(e.message); });
     });
   }
 }
@@ -534,10 +571,43 @@ jget(API + '/follow').then(function (d) {
   loadTeams();
 }).catch(function (e) { el('followed').innerHTML = '<span class="muted">' + esc(e.message) + '</span>'; });
 
+// ---- background refresh: the person's own refresh-pass job ---------------------
+/* What the header says about the background pass, from the person's schedule row (GET /api/v1/agent/schedules).
+   listed=false means the host gave no schedule list at all, so nothing is claimed either way. */
+function backgroundRefreshState(row, listed, hours) {
+  if (!listed) return { on: null, line: 'background refresh: unknown on this host', banner: '' };
+  var active = Boolean(row && row.activation && row.status === 'active');
+  if (active) return { on: true, line: 'background refresh on (every ' + hours + 'h)', banner: '' };
+  var offer = row && row.offer ? row.offer : 'Keep my followed teams\u2019 previews, lines and graded calls fresh';
+  var why = row && row.status && row.status !== 'not-activated' ? ' (your job is ' + esc(row.status) + (row.reason ? ': ' + esc(row.reason) : '') + ')' : '';
+  return { on: false, line: 'background refresh off',
+    banner: '<b>Background refresh is off' + why + '.</b> Lines, grades and previews update only when your ' +
+      'refresh job runs. Turn on \u201c' + esc(offer) + '\u201d on the <a target="_top" href="/swarm-admin/jobs">Jobs screen</a>.' };
+}
+function refreshScheduleRow(sched) {
+  return fetch('/api/v1/agent/schedules', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (j) {
+      var rows = j.schedules || j.jobs || [];
+      return rows.find(function (x) { return x.app === sched.app && x.name === sched.name; }) || null;
+    });
+}
+
 jget(API + '/status').then(function (d) {
-  var r = d.refresh || {};
-  el('statusline').textContent = 'NFL ' + d.season.nfl + ' · NBA ' + d.season.nba +
-    (r.lastRun ? ' · refreshed ' + new Date(r.lastRun).toLocaleTimeString() : ' · not refreshed yet');
+  var r = d.refresh || {}, last = r.lastPassAt || r.lastRun;
+  var head = 'NFL ' + d.season.nfl + ' · NBA ' + d.season.nba +
+    (last ? ' · refreshed ' + new Date(last).toLocaleString() : ' · not refreshed yet');
+  el('statusline').textContent = head;
+  if (!r.schedule) return;
+  var hours = Math.round((Number(r.intervalMinutes) || 180) / 6) / 10;
+  refreshScheduleRow(r.schedule).then(function (row) { return backgroundRefreshState(row, true, hours); },
+    function () { return backgroundRefreshState(null, false, hours); })
+    .then(function (st) {
+      el('statusline').textContent = head + ' · ' + st.line;
+      var b = el('bgRefresh');
+      b.innerHTML = st.banner;
+      b.style.display = st.banner ? '' : 'none';
+    });
 }).catch(function () { el('statusline').textContent = ''; });
 </script>
 </body>

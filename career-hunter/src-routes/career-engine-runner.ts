@@ -23,6 +23,8 @@
  * 18 | maintainer@emeraldcoastsystemsgroup.com  | The 1.12.4 carve never reached Python: bin/oshal-jobhunter.js re-applies its own .brokered-auth-only wall to the engine child, so the live 2026-09-05 pass still raised "No AI auth found". The runner now states its verdict to the launcher as OSHAL_PORTAL_LOGINS=1 (set only under both gates; any caller-supplied copy is stripped) and the launcher honors exactly that flag.
  * 19 | maintainer@emeraldcoastsystemsgroup.com  | Career worker rail: retire the ADR-137 amendment-A portal carve and the brokered model key. The engine child no longer inherits vendor logins or receives a model-provider key under any subject or deployment mode; model work leaves the controller through the package's worker rail to the dedicated Career bot. Every launched child is registered as an engine run (lib/career-engine-runs.js) with a runner-minted, owner-bound rail token in its environment, revoked when the child settles; the run's process tree is attached for owner cancellation and its exit facts settle a visible terminal state. Callers may observe the run id through onRunStarted.
  * 20 | maintainer@emeraldcoastsystemsgroup.com  | Mint a per-run callback grant instead of a bearer token, and stop forwarding the fleet service secret to the engine child (1.25.1). The rail moved onto the kernel's signed-package-callbacks rail because under ADR-149 enforce a service-secret caller was refused before the package ran; a run now records its owner's verified issuer (CliRunOptions.ownerIssuer, which the dispatch reads from the kernel's request identity and the cron from the owner's recorded automation opt-in) and the child gets CAREER_RAIL_GRANT to sign its completions with. A run launched without a verified issuer is registered and cancellable but gets no rail entries, so its model calls stop at rail-not-configured rather than being minted a grant the kernel can never admit. The retired 1.24.0 names (CAREER_RAIL_TOKEN, CAREER_RAIL_SERVICE_SECRET) are stripped from any caller-supplied environment.
+ * 21 | maintainer@emeraldcoastsystemsgroup.com  | Pass an inherited PYTHONPATH to the wrapper. The native kernel's package sandbox names its pinned, read-only Python package runtime there; dropping it left the engine without its dependencies (tenacity, Jinja2) on the native runtime.
+ * 22 | maintainer@emeraldcoastsystemsgroup.com | On the native kernel a background run (runCliAsync) asks the kernel to keep this request's sandbox alive for the run before the route answers 202 (`@/shared/package-runs`), and reports the child's exit so the kernel publishes the owner's writes only on success; if the kernel refuses, the child is stopped and the start fails. nativeRunInProgress() reads the caller's in-flight runs from the kernel for status polls.
  */
 /**
  * Career Hunter engine process boundary.
@@ -117,7 +119,7 @@ const SAFE_INHERITED_ENV_KEYS = new Set([
   'JOBHUNTER_APP_DIR', 'JOBHUNTER_CAREER_DB_DEFAULT', 'JOBHUNTER_UA', 'JOBHUNTER_TIMEOUT',
   'JOBHUNTER_DELAY', 'JOBHUNTER_RETRIES', 'JOBHUNTER_ANTHROPIC_MODEL',
   'JOBHUNTER_SCORE_MODEL', 'JOBHUNTER_OPENAI_MODEL', 'JOBHUNTER_RESUME_PREFIX',
-  'CAREER_HUNTER_MAX_RUNS',
+  'CAREER_HUNTER_MAX_RUNS', 'PYTHONPATH',
 ]);
 
 /** @description Bounded result returned after an engine child reaches a terminal state. */
@@ -189,6 +191,43 @@ export interface CliRunOptions {
 interface ActiveCli {
   proc: ChildProcess;
   timedOut: () => boolean;
+  runId: string;
+}
+
+/** The native kernel's background-run port; absent off the native kernel. */
+interface NativeRuns {
+  native: true;
+  keepRunAlive(runId: string, maxSeconds: number): Promise<unknown>;
+  runFinished(runId: string, code: number): Promise<unknown>;
+  status(): Promise<{ runs?: Array<{ runId: string }> }>;
+}
+
+/** The kernel's background-run port when this package runs on the native kernel. */
+function nativeRuns(): NativeRuns | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const port = require('@/shared/package-runs') as NativeRuns | undefined;
+    return port && port.native === true ? port : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @description The id of a background run of the caller's still in flight on the native kernel,
+ * or null (also null off the native kernel, where the run lease answers instead).
+ * @returns The in-flight run id, or null.
+ */
+export async function nativeRunInProgress(): Promise<string | null> {
+  const runs = nativeRuns();
+  if (!runs) return null;
+  try {
+    const status = await runs.status();
+    return status.runs?.[0]?.runId ?? null;
+  } catch (err) {
+    logger.error({ err }, 'native run status failed');
+    return null;
+  }
 }
 
 interface LaunchClaim {
@@ -608,7 +647,7 @@ function launchCli(
     if (claim.automatic) releaseRun(claim.lease);
     return { ok: false, out: '', err: error instanceof Error ? error.message : String(error) };
   }
-  return { proc, timedOut: bindChildLease(proc, claim, args, options, !captureOutput, runId) };
+  return { proc, timedOut: bindChildLease(proc, claim, args, options, !captureOutput, runId), runId };
 }
 
 /**
@@ -631,9 +670,41 @@ export function runCliAsync(
     return Promise.resolve({ started: false, err: launched.err, limitReason: launched.limitReason });
   }
   const { proc } = launched;
+  const runs = nativeRuns();
+  if (runs) return keepNativeRun(runs, launched, options);
   return new Promise((resolve) => {
     proc.once('spawn', () => resolve({ started: true }));
     proc.once('error', (error) => resolve({ started: false, err: error.message }));
+  });
+}
+
+/**
+ * Native kernel: the request's sandbox ends with its response unless the kernel keeps it for
+ * this run. Ask before acknowledging the start, and report the child's exit (once kept) so the
+ * kernel publishes the run's writes only when it succeeded.
+ */
+function keepNativeRun(runs: NativeRuns, launched: ActiveCli, options: CliRunOptions): Promise<CliStartResult> {
+  const { proc, runId, timedOut } = launched;
+  let kept = false;
+  let exit: number | null | undefined;
+  const report = (): void => {
+    void runs.runFinished(runId, exit === 0 && !timedOut() ? 0 : 1)
+      .catch((err) => logger.error({ err, runId }, 'native run end report failed'));
+  };
+  proc.once('close', (code) => { exit = code; if (kept) report(); });
+  const seconds = Math.min(1800, Math.max(1, Math.ceil(timeoutFor(options) / 1000)));
+  return new Promise((resolve) => {
+    proc.once('error', (error) => resolve({ started: false, err: error.message }));
+    proc.once('spawn', () => {
+      runs.keepRunAlive(runId, seconds).then(() => {
+        kept = true;
+        if (exit !== undefined) report();
+        resolve({ started: true });
+      }, (error: unknown) => {
+        terminateProcessTree(proc);
+        resolve({ started: false, err: `background run refused: ${error instanceof Error ? error.message : String(error)}` });
+      });
+    });
   });
 }
 

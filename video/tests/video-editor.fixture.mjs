@@ -23,7 +23,8 @@ export const express = requireCore('express');
 export const logged = [];
 const record = level => (fields, message) => logged.push({ level, fields, message });
 const logger = { createChildLogger: () => ({ debug: record('debug'), info: record('info'), warn: record('warn'), error: record('error') }) };
-const dependencies = new Map([['express', express], ['multer', requireCore('multer')], ['@/shared/logger', logger]]);
+export const motionExchange = {native:true,metadata:async () => {throw new Error('No Motion fixture');},chunk:async () => {throw new Error('No Motion fixture');}};
+const dependencies = new Map([['@/shared/artifact-exchange',motionExchange], ['express', express], ['multer', requireCore('multer')], ['@/shared/logger', logger]]);
 const requirePackage = createRequire(resolve(packageRoot, 'routes/video-editor-routes.js'));
 const original = Module._load;
 
@@ -133,7 +134,7 @@ export async function startApi(t, pool, options = {}) {
   };
   const app = express();
   app.use((req, _res, next) => scope.run(actors[req.header('x-fixture-actor') || 'alice'], next));
-  app.use('/api/video', createVideoEditorRoutes({ pool, authorization, appPackageDir: packageRoot }, { dataRoot, prober: options.prober ?? fixtureProber,
+  app.use('/api/video', createVideoEditorRoutes({ pool, authorization, appPackageDir: packageRoot, ...(options.intent ? {intent:options.intent} : {}) }, { dataRoot, prober: options.prober ?? fixtureProber,
     exports: options.exports ?? { encoder: async () => { throw new Error('Fixture: this suite starts no export; name a fixture encoder'); } } }));
   options.extend?.(app);
   const server = app.listen(0, '127.0.0.1');

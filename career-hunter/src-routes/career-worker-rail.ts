@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Start the per-call deadline when a call is granted a Career bot slot, not when it starts waiting for one. The wait is bounded separately, by the run's cancellation or exit and by its own ceiling (CAREER_WORKER_RAIL_QUEUE_WAIT_MS; 504 career-worker-queue-timeout, never dispatched), and a call whose run ended while it queued is released without reaching the bot. Before this, a scoring batch queued behind the 2-slot semaphore spent its deadline waiting, so calls granted at the edge of the deadline were still billed on the bot and then abandoned with 504, failing a healthy run.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Put this mount on the kernel's signed-package-callbacks rail (1.25.1). Under ADR-149 enforce the application-authorization layer refused every engine-child request with authorization_identity_required before this handler ran, because a service-secret caller carrying an asserted subject has no verified identity; the 1.24.0 rail passed its own tests and could not complete one call on an enforce box. The manifest's callbackVerifier (createCareerRailCallbackVerifier, career-rail-grants.ts) now runs first and verifies the per-run grant the runner minted; the kernel refreshes the grant owner and requires career.execute before this router runs as that owner. The handler reads the run the verifier admitted and the exact signed body it read, and requires the kernel's request identity to be that run's owner; the service secret, the trusted-subject header and the bearer run token are gone from the contract.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Register the catalog's `career` resource adapter from this factory too: the kernel resolves career.execute for an admitted grant and then asks the adapter, and this mount may be the only one activated (the kernel boundary suite mounts it alone), so the rail must not depend on the studio mount having registered it first.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | On the native kernel (OSHAL_EGRESS=kernel) the engine's completion reaches this route through the sandbox's loopback callback relay, inside the owner's admitted request, and the kernel's bot turn is the only dispatch: it resolves the declared Career bot, refuses when it cannot run, and meters the call to the owner. The legacy dedicated-node and heartbeat preflight has no native counterpart, so it applies only on the legacy controller.
  */
 /**
  * Career worker rail — the engine's only model path in multi-user mode.
@@ -176,6 +177,8 @@ function workerRequest(run: EngineRunRecord, subject: string, input: RailInput):
 
 /** Require a dedicated Career node and a fresh, online heartbeat before any model-bearing call. */
 async function workerPreflight(deps: RailDeps): Promise<{ ok: true } | { ok: false; detail: string }> {
+  // Native kernel: its bot turn resolves the declared bot and refuses when it cannot run.
+  if (process.env.OSHAL_EGRESS === 'kernel') return { ok: true };
   if (!deps.botClient.hasEndpoint(CAREER_AGENT_ID)) return { ok: false, detail: 'no-dedicated-node' };
   const registry = deps.ctx.swarm?.runtimeRegistryService;
   if (!registry) return { ok: false, detail: 'heartbeat-registry-unavailable' };

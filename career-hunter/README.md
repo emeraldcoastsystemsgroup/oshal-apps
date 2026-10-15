@@ -399,14 +399,15 @@ A bullet asserts; a story proves. **Strengthen** now walks your roles one at a t
    the review works on a box with no key at all. Each story records which path wrote it (`source`).
 
 Stories live on the profile as `roles[].stories[]` and surface four ways: `GET /stories` (the
-review state and the next question), `POST /stories/answer` (one answer, one role), the `stories`
+review state and the next question, read from the profile file by `lib/career-stories-state.js`
+with the same projection as the engine's `stories.state()`, so it starts no engine child), `POST /stories/answer` (one answer, one role), the `stories`
 readiness the Intelligent Career group's setup page reads, and an `EVIDENCE:` line per role in
 `profile.summary()` — the dense profile the **scorer** reads, not the generator. A story the model
 flags as carrying no real evidence is kept but never offered as proof.
 
 The whole conversation is guarded by `tests/career-story-review-conversation.test.mjs`. It runs the
 shipped Strengthen script against the compiled story and readiness routes over a three-role profile,
-with no provider. Each turn goes through the real engine path:
+with no provider. Each answer goes through the real engine path (a review read starts none):
 
 - `career-engine-dispatch` claims the store lease, then runs the caller's Firecrawl brokerage query.
 - `career-engine-runner` builds the child environment, hands over the run-lock adoption and registers
@@ -415,7 +416,9 @@ with no provider. Each turn goes through the real engine path:
 
 It answers role by role until the card reads "Every role has a story". It then checks that every role
 holds a verbatim story citing one of its own bullets and that readiness reports 3 of 3. A concurrent
-turn gets 503 before brokerage. Anonymous calls get 401 with no brokerage or engine run. A second user
+answer gets 503 before brokerage while a review read is still served. `tests/career-stories.test.mjs`
+checks that the JavaScript read answers exactly what the engine's `stories.state()` answers for the
+same profile file. Anonymous calls get 401 with no brokerage or engine run. A second user
 reaches only their own store.
 
 The doubles are the page DOM, the Express router and body parser, the OIDC session, the logger, the

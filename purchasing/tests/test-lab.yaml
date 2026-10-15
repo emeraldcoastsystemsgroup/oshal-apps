@@ -6,9 +6,36 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register the audience view contract (ADR-164 D6): the dashboard's family view for the Home shell over the shared kit, its gated start and its reads kept to this package's own routes.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | The audience-view case also covers the concierge chat page, Shopping's first surface, whose company (Studio, Orbit, Commons) and family (Jarvis) views run over the package's real list and home-summary handlers, and its three gated start paths; the case now declares the in-memory route harness it loads as its disposable fixture.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | GET /cart is read-only under the native admission rule: the route and Chromium cases now expect a fresh shopper's cart read to create nothing and the first add to create the list through POST /lists.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register the not-connected / honest-state surface test added with the native provider rails.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register the concierge's list and cart reads: the declared tools reach the real routes under read admission, and Home borrows the inline concierge.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register the no-rail route suite: with no Walmart rail the concierge turn answers without touching the refusing catalog, adds nothing, and /config names the absent rail.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register shopping-chat-markdown: the concierge reply renders its Markdown through the shared escape-first renderer instead of printing it raw.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register shopping-list-add: the approval-held tool that puts an item on the shopping list reaches the real route under writer admission (sweep 9: no concierge could add to the list).
+# 10 | maintainer@emeraldcoastsystemsgroup.com | shopping-list-add also proves the persona emits the tool call in the same reply and asks nothing first, and the tool's prompt line reads as "call it now" (sweep 10: "I propose adding ... Please confirm" with no card, 0 of 5).
+# 11 | maintainer@emeraldcoastsystemsgroup.com | The shopping-list-add case also expects the card named by its item, never by its place (sweep 13).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
+  - id: shopping-chat-markdown
+    name: The concierge reply renders its Markdown
+    purpose: Run the page's own showReply with a renderer double and without the kit, and read how sendChat uses it.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/shopping-chat-markdown.test.cjs
+    expected:
+      - A reply goes through SimpleChat.renderMarkdown, so **bold** is markup, not asterisks.
+      - Without the kit the reply stays plain text; the page loads /shared/ui/js/simple-chat.js once.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
   - id: package-readiness
     name: Installed package readiness
     purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
@@ -176,6 +203,99 @@ cases:
       mode: disposable
       fixtures:
         - tests/shopping-routes-harness.js
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: not-connected
+    name: Walmart not connected
+    purpose: >-
+      A refused Walmart call (HTTP 503) reads as not connected on the shopping page and the dashboard, and no comparison price is invented.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/purchasing-not-connected.test.js
+    expected:
+      - A refused search, deals feed and checkout say the installation has no Walmart rail, never that a Walmart connection can be added.
+      - A real empty search still reads as no matches.
+      - Amazon and Target show no price.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: concierge-list-cart-reads
+    name: The shopping concierge reads the list and cart
+    purpose: >-
+      The Home assistant could not see a shopping list that showed an item. Verify the declared read tools are automatic GETs
+      inside /api/purchasing, that each endpoint rendered as the kernel renders it reaches the real route and returns the item
+      under the native host's read admission, and that the inline shopping-concierge is Home's concierge.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/shopping-concierge-reads.test.cjs
+    expected:
+      - shopping-lists, shopping-list-items and shopping-cart are GET api tools with requiresApproval false and defaultAuthMode auto.
+      - The lists read names list-a with one pending item, the items read and the cart read both return sweep2-milk-test, and nothing is written.
+      - shopping-concierge has posture inline, and home-experience imports it as its chatBot.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: no-rail
+    name: Shopping with no Walmart rail
+    purpose: >-
+      Where the runtime reports Walmart not connected, the compiled chat route answers through the concierge without calling the
+      refusing catalog, adds nothing to the list, and /config names the absent rail.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/purchasing-no-rail.test.js
+    expected:
+      - Only the status probe reaches the provider, the turn answers 200 with nothing added, and the prompt forbids "connect Walmart".
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: shopping-list-add
+    name: The concierge puts an item on the shopping list, with approval
+    purpose: >-
+      Render shopping-list-add's endpoint as the kernel renders it and call the real compiled route under the native writer
+      admission double over the in-memory pool.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/shopping-list-add.test.cjs
+    expected:
+      - "The persona names the card by the item it holds, never by where it sits (sweep 13)."
+      - shopping-list-add is a POST api tool held for approval that needs only the title.
+      - The item lands, as written, on the shopper's first active list (the one Home shows); a shopper with none gets a list first.
+      - Another shopper's list id answers 403 and nothing is written.
+      - The persona calls shopping-list-add in the same reply (words alone make no card), asks for no brand, quantity or typed yes and needs no Walmart rail, says it waits on the card until the tool answers and never quotes its instructions.
+      - The tool's description, the line the kernel puts in the prompt, says to call it as soon as an item is asked for, the card being the confirmation.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
     limits:
       timeoutMs: 15000
     installation: never

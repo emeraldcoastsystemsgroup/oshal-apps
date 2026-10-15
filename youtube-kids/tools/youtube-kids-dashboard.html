@@ -4,6 +4,10 @@
   Self-contained iframe page (served by createYoutubeKidsRoutes at /api/youtube-kids/).
   Two states: upload (no data yet) and brief (renders the bot's Markdown analysis).
   All work is auth-gated server-side; this page just calls the JSON API.
+
+  CHANGE LOG
+  SEQ | AUTHOR                                  | DESCRIPTION
+  1   | maintainer@emeraldcoastsystemsgroup.com | The brief is read with GET /brief (stored brief only) and produced with POST /brief, on Re-analyze or when GET answers {brief:null, hasData:true}; with no watch history the upload screen shows. A GET is admitted read-only on the native kernel, so the old GET that ran the analyzer and stored its brief was always refused.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -96,6 +100,8 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const main = $('main');
+/** Whether the Takeout archive service is installed here: null until the upload screen asks. */
+const state = { takeoutService: null };
 
 /** Tiny Markdown → HTML for the brief (## / ### headings, - bullets, **bold**, paragraphs). */
 function renderMarkdown(md) {
@@ -118,6 +124,35 @@ function renderMarkdown(md) {
 
 function fmtDate(iso) { try { return new Date(iso).toLocaleDateString(); } catch { return iso || '—'; } }
 
+/** A server refusal in words: the route's message, its error, or the kernel's detail — never "undefined". */
+function refusalText(j, fallback) {
+  return (j && (j.message || j.error || j.detail)) || fallback;
+}
+
+/**
+ * Whether the Takeout archive service (/api/takeout: .zip ingest and Dropbox pickup) is installed here.
+ * The kernel answers 404 {refused:'not_found'} for an application that is not installed; any other
+ * answer (a listing, "connect Dropbox", a sign-in refusal) means the service exists.
+ */
+async function takeoutServiceInstalled() {
+  try {
+    const r = await fetch('/api/takeout/dropbox/list');
+    if (r.status !== 404) return true;
+    const j = await r.json().catch(() => ({}));
+    return j.refused !== 'not_found';
+  } catch { return false; }
+}
+
+/** Without the archive service the page offers only what works: the watch-history.json file itself. */
+function jsonOnlyUpload() {
+  state.takeoutService = false;
+  $('zipStep').innerHTML = 'Export, then unzip it and find <code>Takeout/YouTube and YouTube Music/history/watch-history.json</code>.';
+  $('dropLabel').innerHTML = '<strong>Choose your watch-history.json</strong><br/>or drag &amp; drop it here';
+  $('file').setAttribute('accept', '.json,application/json');
+  $('dbxSection').innerHTML = '<div class="sub">Dropbox pickup and .zip unpacking are not available on this installation: '
+    + 'the Takeout archive service is not installed. Upload watch-history.json above instead.</div>';
+}
+
 /** Upload screen — instructions + drag/drop / picker for watch-history.json. */
 function renderUpload() {
   $('actions').style.display = 'none';
@@ -127,16 +162,18 @@ function renderUpload() {
       <ol class="steps">
         <li>Go to <code>takeout.google.com</code> and click <strong>Deselect all</strong>.</li>
         <li>Select only <strong>YouTube and YouTube Music</strong> → its options → keep <strong>history</strong> → set the format to <strong>JSON</strong>.</li>
-        <li>Export. You can drop the whole <strong>.zip</strong> here, or deliver it to your <strong>Dropbox</strong> and pick it up below — no need to dig out a single file.</li>
+        <li id="zipStep">Export. You can drop the whole <strong>.zip</strong> here, or deliver it to your <strong>Dropbox</strong> and pick it up below — no need to dig out a single file.</li>
       </ol>
       <h2>2 · Drop the Takeout zip (or watch-history.json)</h2>
-      <div class="drop" id="drop"><strong>Choose your Takeout .zip</strong><br/>or drag &amp; drop it here — I'll unzip and find the history</div>
+      <div class="drop" id="drop"><span id="dropLabel"><strong>Choose your Takeout .zip</strong><br/>or drag &amp; drop it here — I'll unzip and find the history</span></div>
       <input type="file" id="file" accept=".json,.zip,application/json,application/zip" />
       <div id="upmsg" style="margin-top:12px;font-size:13px;"></div>
-      <h2 style="margin-top:22px">Or · Pick up from Dropbox</h2>
-      <div class="sub" style="margin-bottom:10px">If you told Takeout to deliver to Dropbox (or dropped the zip in your OSHAL Dropbox folder), grab it here.</div>
-      <button class="btn ghost" id="dbxBtn">Find my Takeout in Dropbox</button>
-      <div id="dbxList" style="margin-top:12px;"></div>
+      <div id="dbxSection">
+        <h2 style="margin-top:22px">Or · Pick up from Dropbox</h2>
+        <div class="sub" style="margin-bottom:10px">If you told Takeout to deliver to Dropbox (or dropped the zip in your OSHAL Dropbox folder), grab it here.</div>
+        <button class="btn ghost" id="dbxBtn" hidden>Find my Takeout in Dropbox</button>
+        <div id="dbxList" style="margin-top:12px;"><span class="sub">Checking whether Dropbox pickup is available…</span></div>
+      </div>
     </div>`;
   const drop = $('drop'), file = $('file');
   drop.onclick = () => file.click();
@@ -145,6 +182,12 @@ function renderUpload() {
   drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]); };
   file.onchange = () => { if (file.files[0]) upload(file.files[0]); };
   $('dbxBtn').onclick = listDropbox;
+  takeoutServiceInstalled().then((installed) => {
+    if (!installed) { jsonOnlyUpload(); return; }
+    state.takeoutService = true;
+    $('dbxBtn').hidden = false;
+    $('dbxList').innerHTML = '';
+  });
 }
 
 /** Upload a dropped file — a Takeout .zip (unzip server-side) or a raw watch-history.json. */
@@ -153,6 +196,11 @@ async function upload(f) {
   msg.className = ''; msg.style.color = 'var(--muted)';
   const isZip = /\.zip$/i.test(f.name);
   try {
+    if (isZip && state.takeoutService === false) {
+      msg.className = 'err';
+      msg.textContent = 'This installation cannot unpack a .zip: the Takeout archive service is not installed. Unzip it and choose watch-history.json.';
+      return;
+    }
     if (isZip) {
       msg.innerHTML = '<span class="dot"></span> Uploading & unzipping ' + (f.size/1048576).toFixed(1) + ' MB…';
       const r = await fetch('/api/takeout/ingest-zip', { method:'POST', headers:{ 'Content-Type':'application/octet-stream' }, body:f });
@@ -162,7 +210,7 @@ async function upload(f) {
     msg.innerHTML = '<span class="dot"></span> Uploading & parsing ' + (text.length/1048576).toFixed(1) + ' MB…';
     const r = await fetch('/api/youtube-kids/upload-takeout', { method:'POST', headers:{ 'Content-Type':'text/plain' }, body:text });
     const j = await r.json();
-    if (!r.ok) { msg.className = 'err'; msg.textContent = j.message || j.error || 'Upload failed.'; return; }
+    if (!r.ok) { msg.className = 'err'; msg.textContent = refusalText(j, 'Upload failed.'); return; }
     msg.style.color = 'var(--accent2)';
     msg.textContent = `Parsed ${j.totalWatched.toLocaleString()} watches across ${j.distinctChannels} channels. Analyzing…`;
     await loadBrief(true);
@@ -173,7 +221,7 @@ async function upload(f) {
 
 /** Handle a /api/takeout response (zip ingest or Dropbox pickup): confirm the YouTube slice landed. */
 async function afterIngest(j, ok, msg) {
-  if (!ok) { msg.className = 'err'; msg.textContent = j.message || j.error || 'Could not read that archive.'; return; }
+  if (!ok) { msg.className = 'err'; msg.textContent = refusalText(j, 'Could not read that archive.'); return; }
   const yt = (j.ingested || []).find((s) => s.kind === 'youtube-watch-history' && s.ok);
   if (yt) { msg.style.color = 'var(--accent2)'; msg.textContent = `Found your watch history (${yt.summary}). Analyzing…`; await loadBrief(true); return; }
   const html = (j.htmlHits || []).length;
@@ -188,7 +236,7 @@ async function listDropbox() {
   try {
     const r = await fetch('/api/takeout/dropbox/list');
     const j = await r.json();
-    if (!r.ok) { box.innerHTML = '<span class="err">' + (j.message || j.error) + '</span>'; return; }
+    if (!r.ok) { box.innerHTML = '<span class="err"></span>'; box.firstChild.textContent = refusalText(j, 'Dropbox could not be read (HTTP ' + r.status + ').'); return; }
     if (!j.candidates || !j.candidates.length) { box.innerHTML = '<span class="sub">No .zip files found in your OSHAL Dropbox folder yet. Deliver your Takeout there (or drop the zip in), then try again.</span>'; return; }
     box.innerHTML = j.candidates.map((c, i) =>
       `<div class="stat" style="display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -210,15 +258,30 @@ async function pickup(dropboxPath) {
   } catch (e) { msg.className = 'err'; msg.textContent = e.message; }
 }
 
+const ANALYZING = '<div class="spin"><span class="dot"></span> Kid Lens is reading the watch history… (this calls the analyzer bot, ~30s)</div>';
+
+/** The brief: the stored one (GET reads only), or a new analysis (POST runs the bot and stores it)
+ *  when re-analyze is asked for or GET answers that this history has not been analyzed yet. */
+async function fetchBrief(forceRefresh) {
+  if (!forceRefresh) {
+    const r = await fetch('/api/youtube-kids/brief');
+    const j = await r.json();
+    if (!r.ok || j.brief || !j.hasData) return { r, j };
+  }
+  main.innerHTML = ANALYZING;
+  const r = await fetch('/api/youtube-kids/brief', { method:'POST' });
+  return { r, j: await r.json() };
+}
+
 /** Brief screen — stats + the rendered analysis. */
 async function loadBrief(forceRefresh) {
   $('actions').style.display = 'flex';
-  main.innerHTML = '<div class="spin"><span class="dot"></span> Kid Lens is reading the watch history… (this calls the analyzer bot, ~30s)</div>';
+  main.innerHTML = forceRefresh ? ANALYZING : '<div class="spin"><span class="dot"></span> Loading the brief…</div>';
   try {
     const st = await (await fetch('/api/youtube-kids/status')).json();
-    const r = await fetch('/api/youtube-kids/brief' + (forceRefresh ? '?refresh=1' : ''));
-    const j = await r.json();
-    if (!r.ok) { main.innerHTML = '<div class="notice err">' + (j.message || j.error) + '</div>'; return; }
+    const { r, j } = await fetchBrief(forceRefresh);
+    if (!r.ok) { main.innerHTML = '<div class="notice err"></div>'; main.firstChild.textContent = refusalText(j, 'The brief could not be built (HTTP ' + r.status + ').'); return; }
+    if (!j.brief) { renderUpload(); return; }
     const range = st.dateRange || {};
     main.innerHTML = `
       <div class="stats">

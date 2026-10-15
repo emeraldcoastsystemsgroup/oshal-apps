@@ -18,8 +18,8 @@ import { requireCore, packageRoot } from './video-editor.fixture.mjs';
 const { Pool } = requireCore('pg');
 
 export const MIGRATIONS = ['migrations/066-video-series.sql', 'migrations/067-video-episode-scenes.sql', 'migrations/068-video-edit-projects.sql',
-  'migrations/069-video-edit-exports.sql'];
-export const EDITOR_TABLES = ['video_edit_projects', 'video_edit_revisions', 'video_edit_assets', 'video_edit_revision_assets', 'video_edit_exports'];
+  'migrations/069-video-edit-exports.sql','migrations/072-video-motion-sources.sql'];
+export const EDITOR_TABLES = ['video_edit_projects', 'video_edit_revisions', 'video_edit_assets', 'video_edit_revision_assets', 'video_edit_exports','video_edit_motion_sources'];
 const SLOT_ROOT = join(tmpdir(), 'oshal-fixture-slots');
 
 function docker(args) { return execFileSync('docker', args, { encoding: 'utf8', timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] }).trim(); }
@@ -88,6 +88,7 @@ async function ready(pool) {
  *   the app-role pool, and a factory for further app-role pools (closed with the fixture).
  */
 export async function startPostgres(registerCleanup, options = {}) {
+  if (process.env.VIDEO_TEST_POSTGRES_ADMIN_URL_FILE) return startSharedPostgres(registerCleanup,options);
   const slot = await claimSlot('video-editor-postgres');
   const token = randomUUID(), name = `oshal-video-editor-test-${token.replaceAll('-', '').slice(0, 16)}`;
   let admin, pool;
@@ -118,4 +119,29 @@ export async function startPostgres(registerCleanup, options = {}) {
 /** @description Empty the editor tables between cases (superuser; bypasses the forced policy by design of the fixture only). */
 export async function resetPostgres(admin) {
   await admin.query(`TRUNCATE ${EDITOR_TABLES.join(',')}`);
+}
+
+/** @description One uniquely owned database and role on the shared disposable port; never create/remove a container. */
+async function startSharedPostgres(registerCleanup,options) {
+  const url = new URL((await readFile(process.env.VIDEO_TEST_POSTGRES_ADMIN_URL_FILE,'utf8')).trim());
+  assert.equal(url.hostname,'127.0.0.1'); assert.equal(url.port,'35689');
+  const token = randomUUID().replaceAll('-',''), database = `video_motion_${token}`, role = `video_motion_${token}`, password = randomUUID();
+  const admin = new Pool({connectionString:url.href,max:4}), extras=[]; let pool, ownerAdmin, createdRole=false, createdDatabase=false;
+  registerCleanup(async () => {
+    try {for (const item of extras) await item.end(); await pool?.end(); await ownerAdmin?.end();
+      if (createdDatabase) await admin.query(`DROP DATABASE "${database}"`);
+      if (createdRole) await admin.query(`DROP ROLE "${role}"`);
+    } finally {await admin.end();}
+  });
+  await admin.query(`CREATE ROLE "${role}" LOGIN PASSWORD '${password}' NOSUPERUSER NOBYPASSRLS`); createdRole=true;
+  await admin.query(`CREATE DATABASE "${database}" OWNER "${role}"`); createdDatabase=true;
+  const ownerUrl = new URL(url); ownerUrl.pathname=`/${database}`;
+  ownerAdmin = new Pool({connectionString:ownerUrl.href,max:4});
+  const client = await ownerAdmin.connect();
+  try {await client.query(`SET ROLE "${role}"`); for(const file of MIGRATIONS) {const sql=await readFile(resolve(packageRoot,file),'utf8');await client.query(sql);await client.query(sql);}}
+  finally {try {await client.query('RESET ROLE');} finally {client.release();}}
+  const appUrl = new URL(ownerUrl); appUrl.username=role; appUrl.password=password;
+  const makePool = max => {const item=new Pool({connectionString:appUrl.href,max});extras.push(item);return item;};
+  pool = new Pool({connectionString:appUrl.href,max:options.poolMax??6});
+  return {admin:ownerAdmin,pool,makePool,evidence:{database,role,sharedPort:35689,containerRemoved:false}};
 }

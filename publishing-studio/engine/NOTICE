@@ -1,0 +1,3 @@
+Publishing renderer uses unmodified Typst0.15.1 official arm64 release, Apache License2.0; its original LICENSE and third-party NOTICE are retained in licenses/.
+Unmodified Libertinus Serif faces from typst-assets94dcb990edb36311ef85162baa26e4a8205e0bf0 remain under SIL Open Font License1.1, with original copyright/reserved names in TypstAssets-NOTICE.txt.
+Only private verified runtime binaries are downloaded; no live installation is performed. Preview rasterizes the same final PDF used for export.

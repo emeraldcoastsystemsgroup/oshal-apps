@@ -8,6 +8,9 @@
  * 2026-07-24 11:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog burn-down: audience reactions ride the EVENT LOG (kind 'react' — no rev bump, every surface renders the float, #16); ending a room prunes its presence frames and snapshots final standings into gameshow_seats.score (#13/#19 — the column is now the cross-game leaderboard hook, state jsonb stays authoritative in play); rooms ended 7+ days purge opportunistically on create/list, cascading state/seats/events/presence (#14 — no scheduler, same lazy pattern as the clock).
  * 2026-07-25 22:50:00 | roger.murphy@emeraldcoastsystemsgroup.com  | NPC contestants: addPodium mints npc:<skill>:<uuid> seats (no schema change) and the sync poll drives lib/npc.js — an AI player's due move applies under the room lock on whichever surface polls next, exactly the clock-tick doctrine.
  * 2026-07-31 22:40:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog #11 — the end-of-game score snapshots finally have a reader: leaderboard(sub) returns the top gameshow_seats.score rows across ENDED games the caller hosted or played in (caller-scoped exactly like listRooms, never a global read; zero scores are noise, not fame). Rendered as the lobby's Hall of fame panel.
+ * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com    | GET /rooms is side-effect free: listRooms no longer runs the retention sweep (a DELETE), which the native kernel refuses on a read ("SQL mutation requires original writer admission" on every lobby load). The sweep still runs when a room is created; leaderboard reads only games that ended within the same seven-day window, so its bound no longer depends on a read having swept.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com    | Native kernel fixes. (1) An AI or house podium no longer writes a synthetic subject into user_sub: the native kernel refuses any owner value that is not the admitted principal ("SQL owner field does not match the admitted principal"), so every Solo night / + Team podium answered 500; its identity rides seat_key (see the next entry for where the row lives). (2) sync() only reads: the round clock and the NPC beat moved to advance(), which POST /sync runs before answering the same payload, because a GET is a reader admission and every poll after a show started answered 500 when the lapsed clock tried to write. Guard: tests/native-writes.test.js.
+ * 2026-10-11 00:00:01 | maintainer@emeraldcoastsystemsgroup.com    | AI and house podiums live in gameshow_podiums (migrations/003): live after the first fix every podium still answered 500 ("SQL unique key already exists (23505)"), because the native kernel fills a NULL user_sub with the caller and the host's own seat already holds (room_id, host). A podium row belongs to the host (user_sub) and is identified by seat_key. seatsOf and the mutate lock read both tables and merge them in join order; updateSeat, removeSeat and the score snapshot write the podium's own table; listRooms counts podiums and the hall of fame reads their scores. A person's own seat is the row with their subject and no seat_key.
  */
 
 'use strict';
@@ -52,12 +55,26 @@ async function access(deps, sub, roomId) {
   return result.rows[0] || null;
 }
 
-/** @description Read raw seat rows for a room in join order. */
-async function seatsOf(deps, roomId, db) {
-  const result = await (db || deps.pool).query(
-    'SELECT * FROM gameshow_seats WHERE room_id=$1 ORDER BY joined_at, podium_index NULLS LAST', [roomId]
-  );
-  return result.rows;
+/** @description Join order: when the seat was taken, then its podium slot (unslotted last). */
+function joinOrder(a, b) {
+  const at = (row) => new Date(row.joined_at).getTime() || 0;
+  const slot = (row) => (row.podium_index == null ? Number.MAX_SAFE_INTEGER : Number(row.podium_index));
+  return at(a) - at(b) || slot(a) - slot(b);
+}
+
+/** @description The table a seat row lives in: an AI or house podium carries a seat_key. */
+function seatTable(row) { return row.seat_key ? 'gameshow_podiums' : 'gameshow_seats'; }
+
+/**
+ * @description Read raw seat rows for a room in join order: the people's seats and the host's AI
+ *   and house podiums (gameshow_podiums, each carrying its seat_key). `lock` is appended to both
+ *   reads (' FOR UPDATE' inside the mutate transaction).
+ */
+async function seatsOf(deps, roomId, db, lock = '') {
+  const q = db || deps.pool;
+  const people = await q.query(`SELECT * FROM gameshow_seats WHERE room_id=$1${lock}`, [roomId]);
+  const podiums = await q.query(`SELECT * FROM gameshow_podiums WHERE room_id=$1${lock}`, [roomId]);
+  return [...people.rows, ...podiums.rows].sort(joinOrder);
 }
 
 /** @description Create a room with its opening game state and a host seat for the creator. */
@@ -112,9 +129,11 @@ async function joinByCode(deps, sub, name, body) {
 
 /**
  * @description Create a host-run "house" podium (hotseat/solo) or, with body.npc,
- *   an AI-played NPC podium (skill 'sharp' | 'casual' | 'wild'). NPC seats carry
- *   a synthetic `npc:<skill>:<uuid>` subject — the skill IS the seat identity, so
- *   no schema change is needed and lib/npc.js can read it wherever seats travel.
+ *   an AI-played NPC podium (skill 'sharp' | 'casual' | 'wild'). It is a
+ *   gameshow_podiums row owned by the host (the native kernel admits only the caller
+ *   as an owner, and gameshow_seats holds one row per person per room) and
+ *   identified by its seat_key, `npc:<skill>:<uuid>` or `house:<uuid>`, which
+ *   lib/npc.js reads wherever seats travel.
  */
 async function addPodium(deps, sub, roomId, body) {
   const room = await access(deps, sub, roomId);
@@ -122,12 +141,12 @@ async function addPodium(deps, sub, roomId, body) {
   if (room.user_sub !== sub) return { ok: false, status: 403, error: 'Only the host can add podiums.' };
   const team = ['A', 'B'].includes(body && body.team) ? body.team : null;
   const skill = npc.SKILLS.includes(body && body.npc) ? body.npc : null;
-  const seatSub = skill ? npc.newNpcSub(skill) : `house:${crypto.randomUUID()}`;
+  const seatKey = skill ? npc.newNpcKey(skill) : `house:${crypto.randomUUID()}`;
   const name = String((body && body.name) || (skill ? npc.npcName(skill, await seatsOf(deps, roomId)) : 'Podium')).slice(0, 60);
   const seat = (await deps.pool.query(
-    `INSERT INTO gameshow_seats (room_id, user_sub, display_name, team, role, presence_kind)
-     VALUES ($1,$2,$3,$4,'player','avatar') RETURNING seat_id`,
-    [roomId, seatSub, name, team]
+    `INSERT INTO gameshow_podiums (room_id, user_sub, seat_key, display_name, team, role, presence_kind)
+     VALUES ($1,$2,$3,$4,$5,'player','avatar') RETURNING seat_id`,
+    [roomId, sub, seatKey, name, team]
   )).rows[0];
   await deps.pool.query('UPDATE gameshow_state SET rev=rev+1, updated_at=now() WHERE room_id=$1', [roomId]);
   return { ok: true, seatId: seat.seat_id, name };
@@ -149,10 +168,12 @@ async function updateSeat(deps, sub, roomId, body) {
   values.push(roomId);
   const scope = seatId ? `AND seat_id=$${values.length + 1}` : `AND user_sub=$${values.length + 1}`;
   values.push(seatId || sub);
-  const updated = await deps.pool.query(
-    `UPDATE gameshow_seats SET ${fields.join(', ')} WHERE room_id=$${values.length - 1} ${scope} RETURNING *`,
-    values
+  const update = (table) => deps.pool.query(
+    `UPDATE ${table} SET ${fields.join(', ')} WHERE room_id=$${values.length - 1} ${scope} RETURNING *`, values
   );
+  let updated = await update('gameshow_seats');
+  // The host may also edit one of their AI or house podiums, which live in their own table.
+  if (!updated.rowCount && seatId) updated = await update('gameshow_podiums');
   if (!updated.rowCount) return { ok: false, status: 404, error: 'No podium to update.' };
   await deps.pool.query('UPDATE gameshow_state SET rev=rev+1, updated_at=now() WHERE room_id=$1', [roomId]);
   return { ok: true, seat: seatDto(updated.rows[0], sub) };
@@ -170,10 +191,12 @@ async function leaveRoom(deps, sub, roomId) {
 
 /** @description List the caller's active rooms as compact summaries. */
 async function listRooms(deps, sub) {
-  purgeEnded(deps).catch(() => {});   // opportunistic retention sweep (#14)
+  // A read never sweeps: retention (#14) runs on the write path (createRoom), because a read
+  // admission may not delete — the native kernel refuses the mutation outright.
   const result = await deps.pool.query(
     `SELECT r.*, st.rev, st.state->>'phase' AS phase,
-            (SELECT COUNT(*)::int FROM gameshow_seats s WHERE s.room_id=r.room_id AND s.role='player') AS players
+            (SELECT COUNT(*)::int FROM gameshow_seats s WHERE s.room_id=r.room_id AND s.role='player') AS players,
+            (SELECT COUNT(*)::int FROM gameshow_podiums p WHERE p.room_id=r.room_id) AS podiums
        FROM gameshow_rooms r
        LEFT JOIN gameshow_state st ON st.room_id=r.room_id
       WHERE r.status<>'ended' AND (r.user_sub=$1 OR EXISTS (
@@ -181,7 +204,7 @@ async function listRooms(deps, sub) {
       ORDER BY r.updated_at DESC`,
     [sub]
   );
-  return { ok: true, rooms: result.rows.map((row) => ({ ...roomDto(row, sub), phase: row.phase || 'lobby', players: Number(row.players) || 0 })) };
+  return { ok: true, rooms: result.rows.map((row) => ({ ...roomDto(row, sub), phase: row.phase || 'lobby', players: (Number(row.players) || 0) + (Number(row.podiums) || 0) })) };
 }
 
 /** @description Load a full room snapshot: room, seats, state, scoreboard, and event tail. */
@@ -203,30 +226,39 @@ async function loadState(deps, sub, roomId) {
   };
 }
 
-/** @description Cheap poll: board rev/state, seats (with presence_rev), and the event tail. */
-async function sync(deps, sub, roomId, sinceRev, sinceSeq) {
+/**
+ * @description Move the room forward: resolve a lapsed round clock, then apply one
+ *   due NPC move, each under the room lock. This writes, so it runs only from a
+ *   writer request (POST /sync); a GET is a reader admission on the native kernel.
+ *   The poll IS the tick — any surface watching the room drives it; if nobody is
+ *   watching, nothing needed to move.
+ * @returns {Promise<{ok:boolean, status?:number, error?:string, fired?:boolean}>}
+ */
+async function advance(deps, sub, roomId) {
   const room = await access(deps, sub, roomId);
   if (!room) return { ok: false, status: 404, error: 'Room not found.' };
   let stRes = await deps.pool.query('SELECT state, rev FROM gameshow_state WHERE room_id=$1', [roomId]);
-  // The round clock has no scheduler — the poll IS the tick. Any surface watching the
-  // room resolves a lapsed window; if nobody is watching, nothing needed to move.
-  if (stRes.rowCount && clock.expired(parsedJson(stRes.rows[0].state, {}), Date.now())) {
-    const fired = await tick(deps, sub, roomId);
-    if (fired.fired) stRes = await deps.pool.query('SELECT state, rev FROM gameshow_state WHERE room_id=$1', [roomId]);
+  if (!stRes.rowCount) return { ok: true, fired: false };
+  let fired = false;
+  if (clock.expired(parsedJson(stRes.rows[0].state, {}), Date.now())) {
+    fired = (await tick(deps, sub, roomId)).fired;
+    if (fired) stRes = await deps.pool.query('SELECT state, rev FROM gameshow_state WHERE room_id=$1', [roomId]);
   }
-  let seatRows = await seatsOf(deps, roomId);
   // NPC podiums ride the same tick: when an AI player's moment arrives, whichever
   // surface polls next applies its move under the room lock (racers no-op).
-  if (stRes.rowCount) {
-    const acted = await npc.drive(
-      { registry, mutate: (id, actorSub, apply) => mutate(deps, id, actorSub, apply) },
-      room, sub, parsedJson(stRes.rows[0].state, {}), seatRows, Date.now()
-    ).catch(() => ({ fired: false }));
-    if (acted.fired) {
-      stRes = await deps.pool.query('SELECT state, rev FROM gameshow_state WHERE room_id=$1', [roomId]);
-      seatRows = await seatsOf(deps, roomId);
-    }
-  }
+  const acted = await npc.drive(
+    { registry, mutate: (id, actorSub, apply) => mutate(deps, id, actorSub, apply) },
+    room, sub, parsedJson(stRes.rows[0].state, {}), await seatsOf(deps, roomId), Date.now()
+  ).catch(() => ({ fired: false }));
+  return { ok: true, fired: fired || acted.fired };
+}
+
+/** @description Cheap poll: board rev/state, seats (with presence_rev), and the event tail. Reads only. */
+async function sync(deps, sub, roomId, sinceRev, sinceSeq) {
+  const room = await access(deps, sub, roomId);
+  if (!room) return { ok: false, status: 404, error: 'Room not found.' };
+  const stRes = await deps.pool.query('SELECT state, rev FROM gameshow_state WHERE room_id=$1', [roomId]);
+  const seatRows = await seatsOf(deps, roomId);
   const rev = stRes.rowCount ? Number(stRes.rows[0].rev) : 0;
   // `now` lets each surface measure its own clock skew and count down to the SAME
   // deadline the server will enforce — never to its own idea of the time.
@@ -245,9 +277,17 @@ async function sync(deps, sub, roomId, sinceRev, sinceSeq) {
   return out;
 }
 
+/** @description POST /sync: advance the room (clock, NPC beat), then answer the same payload as GET /sync. */
+async function advanceAndSync(deps, sub, roomId, sinceRev, sinceSeq) {
+  const moved = await advance(deps, sub, roomId);
+  if (moved.ok === false) return moved;
+  return sync(deps, sub, roomId, sinceRev, sinceSeq);
+}
+
 /** @description Resolve which podium the caller is acting as (owner may act as any). */
 function resolveActor(seats, room, sub, actorSeatId) {
-  let seat = seats.find((s) => s.user_sub === sub);
+  // The caller's own seat: their subject and no seat_key (the host's podiums carry the host's subject too).
+  let seat = seats.find((s) => s.user_sub === sub && !s.seat_key);
   if (actorSeatId) {
     const target = seats.find((s) => s.seat_id === String(actorSeatId));
     if (!target) return { error: 'No such podium.' };
@@ -269,7 +309,7 @@ async function mutate(deps, roomId, sub, apply, opts = {}) {
     const room = roomRes.rows[0];
     if (!room) return { ok: false, status: 404, error: 'Room not found.' };
     const isOwner = room.user_sub === sub;
-    const seats = (await db.query(`SELECT * FROM gameshow_seats WHERE room_id=$1${tx ? ' FOR UPDATE' : ''}`, [roomId])).rows;
+    const seats = await seatsOf(deps, roomId, db, tx ? ' FOR UPDATE' : '');
     if (!isOwner && !seats.some((s) => s.user_sub === sub)) return { ok: false, status: 403, error: 'You are not in this room.' };
     if (opts.ownerOnly && !isOwner) return { ok: false, status: 403, error: 'Only the host can do that.' };
     const stRes = await db.query(`SELECT state, rev FROM gameshow_state WHERE room_id=$1${tx ? ' FOR UPDATE' : ''}`, [roomId]);
@@ -318,10 +358,10 @@ async function removeSeat(deps, sub, roomId, seatId) {
   const room = await access(deps, sub, roomId);
   if (!room) return { ok: false, status: 404, error: 'Room not found.' };
   if (room.user_sub !== sub) return { ok: false, status: 403, error: 'Only the host can remove a podium.' };
-  const seat = (await deps.pool.query('SELECT * FROM gameshow_seats WHERE room_id=$1 AND seat_id=$2', [roomId, String(seatId)])).rows[0];
+  const seat = (await seatsOf(deps, roomId)).find((row) => row.seat_id === String(seatId));
   if (!seat) return { ok: false, status: 404, error: 'No such podium.' };
   if (seat.role === 'host') return { ok: false, status: 400, error: 'The host podium cannot be removed.' };
-  await deps.pool.query('DELETE FROM gameshow_seats WHERE seat_id=$1', [seat.seat_id]);
+  await deps.pool.query(`DELETE FROM ${seatTable(seat)} WHERE seat_id=$1`, [seat.seat_id]);
   await deps.pool.query('UPDATE gameshow_state SET rev=rev+1, updated_at=now() WHERE room_id=$1', [roomId]);
   return { ok: true };
 }
@@ -371,7 +411,7 @@ async function snapshotScores(deps, roomId) {
     if (seat.role === 'host') continue;
     const hit = rows.find((r) => r.seatId === seat.seat_id) || rows.find((r) => r.team && r.team === seat.team);
     if (!hit) continue;
-    await deps.pool.query('UPDATE gameshow_seats SET score=$1 WHERE seat_id=$2', [Math.round(Number(hit.score) || 0), seat.seat_id]);
+    await deps.pool.query(`UPDATE ${seatTable(seat)} SET score=$1 WHERE seat_id=$2`, [Math.round(Number(hit.score) || 0), seat.seat_id]);
   }
 }
 
@@ -379,27 +419,23 @@ async function snapshotScores(deps, roomId) {
  * @description Cross-game hall of fame (backlog #11): the top end-of-game score
  *   snapshots (gameshow_seats.score, written by snapshotScores when a room ends)
  *   across ended games the caller hosted or played in. Caller-scoped exactly like
- *   listRooms — never a global read. Zero scores are noise, not fame. Retention
- *   (purgeEnded, 7 days) naturally bounds this to recent glory.
+ *   listRooms — never a global read. Zero scores are noise, not fame. Bounded to
+ *   games that ended in the last 7 days — the same window purgeEnded keeps — so
+ *   the panel shows recent glory whether or not a sweep has run since.
  * @param {object} deps - { pool }.
  * @param {string} sub - The caller whose games are read.
  * @returns {Promise<{ok:boolean, entries:Array}>} Best-first score entries.
  */
 async function leaderboard(deps, sub) {
-  const result = await deps.pool.query(
-    `SELECT s.display_name, s.team, s.score, r.show_id, r.updated_at
-       FROM gameshow_seats s
-       JOIN gameshow_rooms r ON r.room_id = s.room_id
-      WHERE r.status='ended' AND s.role<>'host' AND s.score > 0
-        AND (r.user_sub=$1 OR EXISTS (
-              SELECT 1 FROM gameshow_seats m WHERE m.room_id=r.room_id AND m.user_sub=$1))
-      ORDER BY s.score DESC, r.updated_at DESC
-      LIMIT 10`,
-    [sub]
-  );
+  // People's seats and the host's AI/house podiums keep their end-of-game scores in separate tables.
+  const people = await deps.pool.query(hallOfFame('gameshow_seats'), [sub]);
+  const podiums = await deps.pool.query(hallOfFame('gameshow_podiums'), [sub]);
+  const rows = [...people.rows, ...podiums.rows]
+    .sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0) || (Date.parse(b.updated_at) || 0) - (Date.parse(a.updated_at) || 0))
+    .slice(0, 10);
   return {
     ok: true,
-    entries: result.rows.map((row) => ({
+    entries: rows.map((row) => ({
       name: row.display_name || 'Player',
       team: row.team || null,
       score: Number(row.score) || 0,
@@ -409,10 +445,23 @@ async function leaderboard(deps, sub) {
   };
 }
 
+/** @description The caller-scoped hall-of-fame read over one seat table ($1 is the caller in both arms). */
+function hallOfFame(table) {
+  return `SELECT s.display_name, s.team, s.score, r.show_id, r.updated_at
+       FROM ${table} s
+       JOIN gameshow_rooms r ON r.room_id = s.room_id
+      WHERE r.status='ended' AND s.role<>'host' AND s.score > 0
+        AND r.updated_at >= now() - interval '7 days'
+        AND (r.user_sub=$1 OR EXISTS (
+              SELECT 1 FROM gameshow_seats m WHERE m.room_id=r.room_id AND m.user_sub=$1))
+      ORDER BY s.score DESC, r.updated_at DESC
+      LIMIT 10`;
+}
+
 /**
  * @description Retention: purge rooms ended more than 7 days ago. Cascades take the
  *   state, seats, events, and presence frames with them. Called opportunistically
- *   (create/list) — same no-scheduler pattern as the round clock.
+ *   when a room is created (a write) — never from a read.
  */
 async function purgeEnded(deps) {
   await deps.pool.query("DELETE FROM gameshow_rooms WHERE status='ended' AND updated_at < now() - interval '7 days'");
@@ -467,6 +516,8 @@ function createRoomService(deps) {
     leaderboard: (sub) => leaderboard(deps, sub),
     loadState: (sub, id) => loadState(deps, sub, id),
     sync: (sub, id, rev, seq) => sync(deps, sub, id, rev, seq),
+    advance: (sub, id) => advance(deps, sub, id),
+    advanceAndSync: (sub, id, rev, seq) => advanceAndSync(deps, sub, id, rev, seq),
     mutate: (id, sub, apply, opts) => mutate(deps, id, sub, apply, opts),
     resolveActor,
     storePresence: (sub, id, seatId, bytes, mime) => storePresence(deps, sub, id, seatId, bytes, mime),

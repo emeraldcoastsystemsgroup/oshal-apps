@@ -16,6 +16,9 @@
  *                     |                             | `E*45` last and the rig is disarmed on the server — and the
  *                     |                             | page raises no errors.
  *
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Sweep 6: after Rename the rig list kept the old title until
+ *                     |                             | reload; the rename now shows in the list at once.
+ *
  * FRAMEWORK-COUPLED: needs a core checkout for express and playwright. Not part of the store-CI
  * wildcard; run locally: OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/surface.core.spec.mjs
  */
@@ -82,6 +85,14 @@ test('a rig is created from the skull template and the editor shows its channels
   assert.equal(await page.locator('#jog input[type=range]').count(), 7);
   assert.match(await page.locator('#axes-label').textContent(), /jaw\.open/);
   assert.equal(await page.locator('#armed-pill').textContent(), 'disarmed');
+});
+
+test('a rename shows in the rig list at once, not only after a reload', async () => {
+  await page.fill('#rig-title', 'Renamed skull');
+  await page.click('#save-title');
+  await page.waitForFunction(() => document.querySelector('#rigs .rig-item .rig-title')?.textContent === 'Renamed skull', null, { timeout: 5000 });
+  assert.equal(rig().title, 'Renamed skull');
+  assert.equal(await page.locator('#rigs .rig-item').count(), 1);
 });
 
 test('a jog slider moves the pupil in the drawing, and the slider angles capture as a pose', async () => {

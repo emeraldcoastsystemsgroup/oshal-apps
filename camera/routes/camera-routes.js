@@ -28,6 +28,8 @@
  *            | authz, schema bootstrap). ensureCameraSchema now appends
  *            | buildOwnerRlsPolicyStatements (owner-RLS at the lazy-DDL chokepoint). The engine,
  *            | the camera-node server, and the camera-operator inline node stay framework-resident.
+ * 2026-10-10 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | GET /fleet spreads the engine's availability marker when it has one: the native runtime answers no cameras with { native: true, configured: false, reason, detail } instead of 503, so the surface can show why the fleet is empty.
+ * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | POST /chat asks this package's own declared camera-operator through the bot turn (executeBotOrInline) instead of ctx.orchestrator.processMessage, which the native kernel does not provide, and a runtime with no camera answers its own reason ("No camera node is registered ...") instead of throwing native_executor_unavailable from the default-camera telemetry fallback. Guarded by camera/tests/camera-chat-native.test.cjs and scripts/check-store-bots.test.mjs.
  * ---------------------------------------------------------------------------
  * @module camera-routes
  */
@@ -77,9 +79,12 @@ const database_1 = require("@/shared/services/database");
 const authz_1 = require("@/shared/middleware/authz");
 const camera_1 = require("@/features/camera");
 const concierge_envelope_1 = require("@/app/routes/concierge-envelope");
+const agent_management_1 = require("@/features/agent-management");
+const inline_bot_execution_1 = require("@/app/routes/inline-bot-execution");
 const logger = (0, logger_1.createChildLogger)({ module: 'camera-routes' });
 /** The camera-operator agent (Form B inline concierge; registry + persona + this package's manifest). */
 const OPERATOR_AGENT_ID = 'b0200000-0000-0000-0000-000000000001';
+const botClient = new agent_management_1.BotNodeClient((0, agent_management_1.createRegistryEndpointResolver)());
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 /**
@@ -98,6 +103,18 @@ function surfaceHtml(appPackageDir, fileName) {
     ].filter(Boolean);
     return candidates.find((p) => fs.existsSync(p)) || candidates[candidates.length - 1];
 }
+/**
+ * @description The runtime's own "nothing is configured here" marker, when the camera engine carries
+ * one (the native runtime does; the platform engine does not), so the surface can say why its list
+ * is empty instead of treating an empty list as a fault.
+ * @param engine - The camera engine instance.
+ * @returns The marker's fields ({ native, configured, reason, detail }), or no fields.
+ */
+function runtimeAvailability(engine) {
+    const marker = engine?.availability;
+    return marker && typeof marker === 'object' ? { ...marker } : {};
+}
+
 function resolveViewerSub(req) {
     const trustedSub = (0, authz_1.getTrustedServiceUserSub)(req);
     if (trustedSub)
@@ -249,7 +266,7 @@ function createCameraRoutes(ctx) {
             }
         });
     });
-    router.get('/fleet', viewer(async (_req, res) => { res.json({ fleet: camera.list() }); }));
+    router.get('/fleet', viewer(async (_req, res) => { res.json({ fleet: camera.list(), ...runtimeAvailability(camera) }); }));
     router.get('/state', viewer(async (req, res) => {
         res.json({ telemetry: camera.getTelemetry(String(req.query.cameraId || camera_1.DEFAULT_CAMERA_ID)) });
     }));
@@ -299,6 +316,65 @@ function createCameraRoutes(ctx) {
     registerChatRoutes(router, viewer, ctx, camera, audit);
     return router;
 }
+/** The selected camera's telemetry, else the default camera's, else null when the runtime has no camera. */
+function chatTelemetry(camera, cameraId) {
+    for (const id of [cameraId, camera_1.DEFAULT_CAMERA_ID]) {
+        try {
+            return camera.getTelemetry(id);
+        }
+        catch { /* the next candidate, then none */ }
+    }
+    return null;
+}
+/** Ask this package's own declared camera-operator bot (bot turn), never the platform orchestrator. */
+async function askOperator(ctx, sub, prompt) {
+    try {
+        const result = await (0, inline_bot_execution_1.executeBotOrInline)(ctx, botClient, OPERATOR_AGENT_ID, {
+            text: prompt, taskId: `camera-${sub}-${(0, crypto_1.randomUUID)()}`, workspaceFolderId: `camera-${sub}`,
+            agentId: OPERATOR_AGENT_ID, agenticMode: false, direct: true, userSub: sub,
+        });
+        return String(result?.response || '').trim();
+    }
+    catch (e) {
+        logger.error({ e }, 'camera operator bot turn failed');
+        return '';
+    }
+}
+/** Execute at most one interpreted command; destructive ops wait for the explicit control confirm. */
+async function runChatCommand(camera, audit, sub, cameraId, action) {
+    let executed = null;
+    let actionErrors = [];
+    let confirmNeededOp = null;
+    const { command, errors } = (0, camera_1.normalizeCameraCommand)(action);
+    if (action && !command)
+        actionErrors = errors;
+    if (command) {
+        try {
+            const tele = await camera.execute(cameraId, command);
+            await audit(sub, cameraId, command.op, { command, via: 'chat' }, 'ok');
+            executed = { op: command.op, telemetry: tele };
+        }
+        catch (err) {
+            if (err instanceof camera_1.CameraConfirmationRequiredError) {
+                confirmNeededOp = command.op;
+            }
+            else if (err instanceof camera_1.CameraCommandError) {
+                actionErrors = [err.message];
+                await audit(sub, cameraId, command.op, { command, error: err.message }, 'rejected');
+            }
+            else
+                throw err;
+        }
+    }
+    return { executed, actionErrors, confirmNeededOp };
+}
+/** The honest answer when the runtime has no camera at all: its own reason, no model call, no command. */
+function noCameraReply(camera) {
+    const availability = runtimeAvailability(camera);
+    const detail = availability.detail || 'No camera is registered with this installation.';
+    return { reply: `${detail} Start a camera node for this installation, then ask again.`, executed: null,
+        actionErrors: [], confirmNeededOp: null, available: false, reason: availability.reason || 'no_camera' };
+}
 function registerChatRoutes(router, viewer, ctx, camera, audit) {
     router.post('/chat', viewer(async (req, res, sub) => {
         const message = String(req.body?.message || '').trim();
@@ -307,57 +383,20 @@ function registerChatRoutes(router, viewer, ctx, camera, audit) {
             return;
         }
         const cameraId = String(req.body?.cameraId || camera_1.DEFAULT_CAMERA_ID);
-        let telemetry;
-        try {
-            telemetry = camera.getTelemetry(cameraId);
-        }
-        catch {
-            telemetry = camera.getTelemetry(camera_1.DEFAULT_CAMERA_ID);
+        // The native runtime marks a whole call failed on any unavailable engine read, caught or not, so an
+        // empty fleet is answered before telemetry is touched.
+        const telemetry = camera.list().length ? chatTelemetry(camera, cameraId) : null;
+        if (!telemetry) {
+            res.json(noCameraReply(camera));
+            return;
         }
         const fleetLine = camera.list()
             .map((f) => `${f.cameraId} (${f.kind}, ${f.online ? 'online' : 'OFFLINE'}${f.telemetry ? `, ${f.telemetry.mode}, batt ${f.telemetry.batteryPct ?? '?'}%` : ''})`)
             .join('; ');
-        const prompt = buildOperatorPrompt({ message, telemetry, cameraId, fleetLine });
-        let raw = '';
-        try {
-            const result = await ctx.orchestrator.processMessage(`camera-${sub}-${(0, crypto_1.randomUUID)()}`, prompt, {
-                agenticMode: true, autoApprove: false, source: 'camera', agentId: OPERATOR_AGENT_ID, userSub: sub,
-            });
-            raw = String(result?.response || '').trim();
-        }
-        catch (e) {
-            logger.error({ e }, 'camera operator orchestrate failed');
-        }
-        const env = parseControlEnvelope(raw);
+        const env = parseControlEnvelope(await askOperator(ctx, sub, buildOperatorPrompt({ message, telemetry, cameraId, fleetLine })));
         if (!env.say)
             env.say = "I couldn't reach the camera brain just now — try again in a moment.";
-        // Interpret + execute at most one command. Destructive ops are NOT auto-run — the reply asks
-        // the human to confirm via the explicit control endpoint (confirm:true).
-        let executed = null;
-        let actionErrors = [];
-        let confirmNeededOp = null;
-        const { command, errors } = (0, camera_1.normalizeCameraCommand)(env.action);
-        if (env.action && !command)
-            actionErrors = errors;
-        if (command) {
-            try {
-                const tele = await camera.execute(cameraId, command);
-                await audit(sub, cameraId, command.op, { command, via: 'chat' }, 'ok');
-                executed = { op: command.op, telemetry: tele };
-            }
-            catch (err) {
-                if (err instanceof camera_1.CameraConfirmationRequiredError) {
-                    confirmNeededOp = command.op;
-                }
-                else if (err instanceof camera_1.CameraCommandError) {
-                    actionErrors = [err.message];
-                    await audit(sub, cameraId, command.op, { command, error: err.message }, 'rejected');
-                }
-                else
-                    throw err;
-            }
-        }
-        res.json({ reply: env.say, executed, actionErrors, confirmNeededOp });
+        res.json({ reply: env.say, ...(await runChatCommand(camera, audit, sub, cameraId, env.action)) });
     }));
 }
 //# sourceMappingURL=camera-routes.js.map

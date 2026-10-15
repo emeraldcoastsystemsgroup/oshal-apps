@@ -135,8 +135,8 @@ Counts below were produced by running the command in the last column, not typed 
 |---|---:|---|
 | Modules (source) | 36 | `ls src-routes/*.ts \| wc -l` |
 | Compiled modules (what the framework loads) | 36 | `ls routes/*.js \| wc -l` |
-| Test suites | 20 | `ls tests/*.test.js \| wc -l` |
-| Tests, passing | 276 / 276 | `node --test "tests/*.test.js"` |
+| Test suites | 23 | `ls tests/*.test.js \| wc -l` |
+| Tests, passing | 294 / 294 | `node --test "tests/*.test.js"` |
 | Kernel-boundary tests, passing | 12 / 12 | `OSHAL_CORE_ROOT=<core checkout> node --test tests/venture-catalog-kernel.core.spec.mjs` |
 | Boot-time schema bootstrap on a disposable PostgreSQL, passing | 3 / 3 (20 installed + 20 first-install boots) | `OSHAL_CORE_ROOT=<core checkout> node --test tests/venture-schema-postgres.test.mjs` (Docker, local `postgres:16-alpine` image) |
 | Personas | 4 | `ls personas/*.yaml \| wc -l` |

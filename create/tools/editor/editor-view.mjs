@@ -3,8 +3,14 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Show a filter slider at its neutral value when the selected layer omits that filter, so it never keeps the previous layer's value.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Outline the current region on the overlay (never in exported pixels), preview a region being drawn, and state in words whether the region is ready or must be reselected.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Full JSDoc tags on the region draft painter.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Reflect mask settings and gate controls on the selected editable image and a valid region.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Integrate version 3 brush and arithmetic masks plus editable stack/clipped color adjustments with existing project history.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Enable validated group duplication through the existing human Duplicate control.
  */
 import { $, state, canEdit, dirty, edit, notify, error, status } from './editor-state.mjs';
+import { parentGroup, worldLayer } from './group-geometry.mjs';
 import { renderProject, loadProjectImages } from './renderer.mjs';
 import { resolveSelection, selectionSummary } from './region-select.mjs';
 let imageSignature = '', loadingImages = 0, imageAbort;
@@ -45,11 +51,20 @@ export function paint(project = state.project) {
   if (canvas.width !== project.width || canvas.height !== project.height) {
     canvas.width = overlay.width = project.width; canvas.height = overlay.height = project.height;
   }
-  const preview = { ...project, layers: project.layers.filter(layer => layer.type !== 'image' || state.images.has(layer.assetId)) };
+  let layers = project.layers.filter(layer => layer.type !== 'image' || state.images.has(layer.assetId));
+  for (let pass = 0; pass < 6; pass++) {
+    const present = new Set(layers.map(layer => layer.id));
+    layers = layers.filter(layer => layer.type !== 'adjustment' || layer.scope !== 'layer' || present.has(layer.targetId));
+    const ready = new Set(layers.map(layer => layer.id));
+    layers = layers.map(layer => layer.type === 'group' ? { ...layer, children: layer.children.filter(id => ready.has(id)) } : layer)
+      .filter(layer => layer.type !== 'group' || layer.children.length);
+  }
+  const preview = { ...project, layers };
   renderProject(canvas.getContext('2d'), preview, { images: state.images });
   const ctx = overlay.getContext('2d'); ctx.clearRect(0, 0, overlay.width, overlay.height); paintRegion(ctx, project);
-  const layer = project.layers.find(item => item.id === state.selected);
-  if (!layer?.visible) return;
+  const selected = project.layers.find(item => item.id === state.selected);
+  const layer = selected ? worldLayer(project, selected) : null;
+  if (!layer?.visible || layer.type === 'adjustment') return;
   const scale = canvas.getBoundingClientRect().width / project.width || 1, size = 8 / scale;
   ctx.save(); ctx.translate(layer.x + layer.w / 2, layer.y + layer.h / 2); ctx.rotate(layer.rotation * Math.PI / 180);
   ctx.strokeStyle = '#6d28d9'; ctx.fillStyle = '#ffffff'; ctx.lineWidth = 2 / scale;
@@ -82,7 +97,9 @@ function renderLayers() {
     const row = document.createElement('div'); row.className = 'layer-row' + (state.selected === layer.id ? ' selected' : '');
     row.setAttribute('role', 'listitem'); row.dataset.layerId = layer.id;
     const select = button(layer.name, `Select ${layer.name}`, () => { state.selected = layer.id; notify(); });
-    select.className = 'layer-select'; select.setAttribute('aria-pressed', String(state.selected === layer.id)); row.append(select);
+    select.className = 'layer-select'; if (parentGroup(state.project, layer.id)) select.textContent = '↳ ' + layer.name; select.setAttribute('aria-pressed', String(state.selected === layer.id)); row.append(select);
+    const check = document.createElement('input'); check.type = 'checkbox'; check.checked = state.arrangeIds.includes(layer.id);
+    check.setAttribute('aria-label', `Arrange ${layer.name}`); check.onchange = () => { state.arrangeIds = check.checked ? [...state.arrangeIds, layer.id] : state.arrangeIds.filter(id => id !== layer.id); }; row.append(check);
     row.append(button(layer.visible ? '◉' : '○', `${layer.visible ? 'Hide' : 'Show'} ${layer.name}`, () => edit({ type: 'update', id: layer.id, patch: { visible: !layer.visible } }), !canEdit()));
     row.append(button(layer.locked ? '◆' : '◇', `${layer.locked ? 'Unlock' : 'Lock'} ${layer.name}`, () => edit({ type: 'update', id: layer.id, patch: { locked: !layer.locked } }), !canEdit())); list.append(row);
   }
@@ -91,19 +108,49 @@ function renderLayers() {
 
 function value(id, next) { if (document.activeElement !== $(id)) $(id).value = next; }
 
+function renderMask(layer) {
+  const mask = layer?.mask, editable = canEdit() && layer?.type === 'image' && !layer.locked;
+  let regionReady = false;
+  try { regionReady = resolveSelection(state.project, state.region).layer.id === layer?.id; } catch { /* No ready region. */ }
+  $('maskFromRegion').disabled = !editable || !regionReady;
+  $('combineMaskRegion').disabled = !editable || !regionReady || !mask;
+  $('maskBrush').disabled = !editable; value('maskBrush', state.maskBrush || '');
+  for (const id of ['invertMask', 'toggleMask', 'removeMask', 'maskFeather']) $(id).disabled = !editable || !mask;
+  $('toggleMask').textContent = mask?.enabled ? 'Disable mask' : 'Enable mask';
+  $('invertMask').setAttribute('aria-pressed', String(Boolean(mask?.inverted)));
+  value('maskFeather', mask?.feather ?? 0);
+  $('maskStatus').textContent = mask ? `${mask.enabled ? 'Enabled' : 'Disabled'} · ${mask.inverted ? 'outside' : 'inside'} region · ${mask.feather} source px feather · ${mask.operations?.length ?? 0} edits` : 'No mask. Select a region, then keep it with a mask.';
+}
+
+function renderAdjustment(layer) {
+  $('adjustmentProperties').hidden = layer?.type !== 'adjustment';
+  if (layer?.type !== 'adjustment') return;
+  value('adjustmentScope', layer.scope);
+  const parent = parentGroup(state.project, layer.id);
+  const siblings = parent ? parent.children.map(id => state.project.layers.find(item => item.id === id)) : state.project.layers.filter(item => !parentGroup(state.project, item.id));
+  const lower = siblings.slice(0, siblings.findIndex(item => item.id === layer.id)).filter(item => item.type !== 'adjustment');
+  const target = $('adjustmentTarget'); target.replaceChildren(...lower.map(item => new Option(item.name, item.id)));
+  target.value = layer.targetId ?? lower.at(-1)?.id ?? ''; target.disabled = !canEdit() || layer.locked;
+  value('adjustmentCurve', layer.curve.map(point => `${point.x}:${point.y}`).join(', '));
+}
+
 function renderProperties() {
-  const layer = selectedLayer(); $('noSelection').hidden = Boolean(layer); $('propertyFields').hidden = !layer;
+  renderMask(selectedLayer()); renderAdjustment(selectedLayer());
+  const rawLayer = selectedLayer(), layer = rawLayer ? { ...rawLayer, locked: worldLayer(state.project, rawLayer).locked } : null; $('noSelection').hidden = Boolean(layer); $('propertyFields').hidden = !layer;
   $('properties').disabled = !canEdit() || !layer || layer.locked;
   for (const control of document.querySelectorAll('[data-selected]')) control.disabled = !canEdit() || !layer || layer.locked;
+  $('ungroupLayer').disabled = !canEdit() || layer?.type !== 'group' || layer.locked;
+  $('duplicateLayer').disabled = !canEdit() || !layer || layer.locked;
   if (!layer) return;
   for (const control of document.querySelectorAll('[data-property]')) {
     const neutral = control.dataset.neutral === undefined ? undefined : Number(control.dataset.neutral);
     const next = layer[control.dataset.property] ?? neutral;
+    if (['x', 'y', 'w', 'h', 'rotation'].includes(control.dataset.property)) control.closest('label').hidden = layer.type === 'adjustment';
     if (next !== undefined && document.activeElement !== control) control.value = control.type === 'color' && !/^#[a-f0-9]{6}$/i.test(next) ? '#000000' : next;
   }
   $('textProperties').hidden = layer.type !== 'text'; $('imageProperties').hidden = layer.type !== 'image';
-  $('fillProperty').hidden = !['text', 'rect', 'ellipse'].includes(layer.type);
-  $('strokeProperties').hidden = !['rect', 'ellipse', 'freehand'].includes(layer.type);
+  $('fillProperty').hidden = !['text', 'rect', 'ellipse', 'path'].includes(layer.type);
+  $('strokeProperties').hidden = !['rect', 'ellipse', 'freehand', 'path'].includes(layer.type);
   if (layer.type === 'image') for (const [key, next] of Object.entries(layer.crop)) value(`crop${key.toUpperCase()}`, Math.round(next * 10000) / 100);
 }
 
@@ -111,11 +158,12 @@ function renderProperties() {
 export function render() {
   const editable = canEdit(), busy = state.loading || state.saving;
   for (const control of document.querySelectorAll('[data-edit]')) control.disabled = !editable;
+  $('importVectorSvg').disabled = busy || !state.permissions.create;
   $('importProject').disabled = busy || !state.permissions.create;
   $('newProject').disabled = busy || !state.permissions.create; $('openProjects').disabled = busy || !state.permissions.read;
   $('saveProject').disabled = busy || !editable || state.conflict || !dirty(); $('saveCopy').disabled = busy || !state.permissions.create;
   $('projectName').disabled = !editable; $('canvasSettings').disabled = !editable;
-  for (const id of ['exportPng', 'exportJpeg', 'exportJson']) $(id).disabled = busy || !state.permissions.export || !state.permissions.read || (!state.id && !editable);
+  for (const id of ['exportPng', 'exportJpeg', 'exportJson', 'exportSvg']) $(id).disabled = busy || !state.permissions.export || !state.permissions.read || (!state.id && !editable);
   $('undo').disabled = !editable || !state.history.canUndo(); $('redo').disabled = !editable || !state.history.canRedo();
   $('drawMode').setAttribute('aria-pressed', String(state.draw)); value('projectName', state.project.name);
   value('canvasWidth', state.project.width); value('canvasHeight', state.project.height);

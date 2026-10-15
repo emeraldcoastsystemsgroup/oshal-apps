@@ -39,6 +39,9 @@
  *                     |                             | HTTP host's upload that was not started says why (auto-start off,
  *                     |                             | or it could not be read); a failed print answers with its reason
  *                     |                             | at the top level, which is what the page shows.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | Await `@/features/personal-data` encryptField (asynchronous on the
+ *                     |                             | native kernel, which holds the key, PDATA-01) before checking the
+ *                     |                             | printer key ciphertext.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -116,7 +119,7 @@ function registerGuard(router, deps) {
 /** @description Encrypt a draft's secret and store the printer. */
 async function storeDraft(deps, sub, draft) {
     const { secret, ...printer } = draft;
-    const apiKeyCiphertext = (0, personal_data_1.encryptField)(sub, secret);
+    const apiKeyCiphertext = await (0, personal_data_1.encryptField)(sub, secret);
     if (!apiKeyCiphertext || !(0, personal_data_1.isEncrypted)(apiKeyCiphertext))
         throw new Error('Printer key encryption failed closed');
     return (0, job_store_1.insertPrinter)(deps.pool, sub, { ...printer, apiKeyCiphertext });

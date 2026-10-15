@@ -4,6 +4,9 @@
 # -----------------------------------------------------------------------------
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | 1.1.1: register the audience view contract of the Camera Ops page (ADR-164 D6) with its runner and isolation boundaries: the family view for the Home shell reads only GET /fleet, /captures for each online camera and /home-summary on open, never sends a camera command or loads a thumbnail or feed from a camera, names a captures or command-log read that failed on its own, a refusal and a failure for what they are, and leaves the full page's own start (controls, laptop camera, polling, connected actions) to run only when no audience view renders.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.2: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | The concierge chat case: POST /chat asks the declared camera-operator through the bot turn and answers a camera-less runtime's own reason.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register fleet-hint-native: the Fleet hint names no retired npm script or swarm secret and says no camera node ships with this installation.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register screen-buttons: the kernel's screen snapshot reads the laptop Connect as enabled and the Control panel's Connect as disabled with its hint (sweep 9).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -35,4 +38,97 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: concierge-chat-native
+    name: Concierge chat on the declared bot
+    purpose: >-
+      Verify POST /chat asks this package's own camera-operator through the bot turn rather than the platform
+      orchestrator, runs at most one interpreted command, and answers a runtime with no camera with its own
+      availability reason and no model call.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/camera-chat-native.test.cjs
+    expected:
+      - With no camera the reply is the runtime's own detail, available is false, no bot turn runs and no command executes.
+      - With a camera exactly one bot turn names b0200000-0000-0000-0000-000000000001 and the interpreted command runs once.
+      - The manifest declares camera-operator with that identity.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: fleet-hint-native
+    name: Fleet hint says what this installation sucameraorts
+    purpose: The Camera Ops page must not tell a person to run the retired platform's npm run camera:node; the native kernel ships no camera node.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fleet-hint-native.test.cjs
+    expected:
+      - The visible page names no npm script, camera:node or swarm secret.
+      - The Fleet hint says no camera node ships with this installation, so none can be added here.
+      - An empty fleet shows the fleet route's own detail, not "start a camera node".
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: kind-pill
+    name: Header kind pill only names a selected camera
+    purpose: >-
+      Run the shipped renderKindPill: with no camera selected the header pill is hidden (it read 'SIM' beside 'select a
+      camera' on an installation with no camera), and a selected camera shows only its own kind and NODE.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/kind-pill.test.cjs
+    expected:
+      - The page ships the pill empty and hidden; renderKindPill(null) keeps it hidden.
+      - A remote GoPro reads 'GOPRO · NODE'; a camera with no recorded kind is not called SIM.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: screen-buttons
+    name: The concierge reads each Connect button's own state
+    purpose: >-
+      Load the shipped camera-ops.html in the shell's application frame in Chromium at 412x915 and read it with the kernel's
+      real screen snapshot (crates/api/src/shell_screen_state.js), the text the concierge receives.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/camera-screen-buttons.test.cjs
+    expected:
+      - The button Connect my laptop camera is read as enabled.
+      - The Control panel's Connect and Disconnect are disabled with a hint naming the camera selected in the list.
+      - The persona says a disabled mark belongs only to its own button.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+      - fixture:kernel-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
     installation: never

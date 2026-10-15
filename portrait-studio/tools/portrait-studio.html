@@ -296,6 +296,9 @@ CHANGE LOG
   </header>
 
   <div id="accessBanner" role="status">Checking your Portrait Studio permissions...</div>
+  <!-- Whether images can be generated here, ABOVE the composer: below the Generate button it sat ~6,600px down a
+       phone page, so a person picked a style and a photo before learning nothing could be generated. -->
+  <div id="providerBanner" role="status" style="display:none;margin:0 0 12px;padding:10px 12px;border:1px solid #6b4a1f;background:rgba(255,180,84,.08);border-radius:8px;color:#ffb454;font-size:12.5px;"></div>
   <div class="grid" id="studioComposer" hidden>
     <!-- LEFT: photo + crop -->
     <div class="panel">
@@ -380,7 +383,6 @@ CHANGE LOG
 
       <button id="generateBtn" disabled>Upload a photo first</button>
       <div id="genStatus"></div>
-      <div id="providerBanner" style="display:none;margin-top:10px;padding:10px 12px;border:1px solid #6b4a1f;background:rgba(255,180,84,.08);border-radius:8px;color:#ffb454;font-size:12.5px;"></div>
     </div>
   </div>
 
@@ -498,10 +500,11 @@ if (!window.AppView || !AppView.active()) (function () {
     $('studioComposer').hidden = !can('create');
     $('gallery').hidden = !can('read');
     document.querySelector('.mode-toggle').hidden = !can('create');
-    $('accessBanner').textContent = !can('view') ? 'Access to Portrait Studio is blocked.' :
-      !can('read') ? 'You may view the studio. Reading saved portraits requires the reader role.' :
-      !can('create') ? 'You can read your portraits. Creating portraits requires the creator role.' : '';
-    if (can('email') && state.unavailable.email) $('accessBanner').textContent += ' Email is unavailable until the connection broker supports verified issuer ownership. Download and use your own mail application.';
+    // Plain words: what this person can do, what they cannot, and who can change it (no role or broker names).
+    $('accessBanner').textContent = !can('view') ? 'Portrait Studio is not open to your account. Ask an administrator for access.' :
+      !can('read') ? 'You can open the studio, but your saved portraits are not shown to your account. Ask an administrator for access to them.' :
+      !can('create') ? 'You can see your portraits. To make new ones, ask an administrator for access to create portraits.' : '';
+    if (can('email') && state.unavailable.email) $('accessBanner').textContent += ' Sending a portrait by email is not available here yet: download it and send it from your own mail app.';
     if (!can('read')) $('galleryGrid').replaceChildren();
     updateGenerateBtn();
   }
@@ -1149,6 +1152,7 @@ if (!window.AppView || !AppView.active()) (function () {
   function updateGenerateBtn() {
     var btn = $('generateBtn');
     if (!can('create')) { btn.disabled = true; btn.textContent = 'Creating portraits requires permission'; return; }
+    if (state.engineUnavailable) { btn.disabled = true; btn.textContent = 'Image generation is not available here'; return; }
     if (!state.img) { btn.disabled = true; btn.textContent = 'Upload a photo first'; return; }
     if (state.generating) { btn.disabled = true; btn.textContent = 'Generating…'; return; }
     var total = isGroup() ? totalFaces() : state.crops.length;
@@ -1158,6 +1162,29 @@ if (!window.AppView || !AppView.active()) (function () {
     btn.textContent = state.mode === 'professional' ? '✨ Generate my headshot'
       : state.mode === 'character' ? '🎭 Generate my character portrait'
       : '👥 Generate our group portrait';
+  }
+
+  /**
+   * @description A person-readable sentence for an image engine the server reports as unavailable
+   * (GET /provider configured:false, or a refused POST /portraits), never the bare refusal code.
+   * @param {object} j - The server's answer ({provider, unavailable|error, detail|hint|message}).
+   * @returns {string} The sentence.
+   */
+  function engineUnavailableText(j) {
+    var code = j.unavailable || j.error;
+    if (!j.provider || j.provider === 'native-unconfigured') {
+      return 'Portraits cannot be generated here: no image-generation provider is configured on this installation. Your photos and gallery still work; generation needs an image provider connected by the operator.';
+    }
+    if (code === 'portrait_cli_authorization_unavailable') return 'Portraits cannot be generated here: ' + (j.detail || j.message || 'this image transport cannot carry application permissions.');
+    // A configured engine that said why it cannot run (for example the local image model is not running) is quoted.
+    if (j.detail && j.detail.indexOf('not available to you') < 0) return 'Portraits cannot be generated right now: ' + j.detail.replace(/\.$/, '') + '.';
+    return 'Portraits cannot be generated right now: the ' + j.provider + ' image provider is not available to you' + (j.detail && j.detail.indexOf('not available to you') < 0 ? ' (' + j.detail + ')' : '') + '.';
+  }
+  /** @description The refusal of a failed POST as prose: a provider refusal is explained, else the server's own message. @param {object} j - Error body. @returns {string} Text. */
+  function refusalText(j) {
+    if (!j) return '';
+    if (j.error === 'portrait_provider_unavailable' || j.error === 'portrait_cli_authorization_unavailable' || j.unavailable) return engineUnavailableText(j);
+    return j.detail || j.message || j.error || '';
   }
 
   function setStatus(msg, isErr) {
@@ -1226,7 +1253,9 @@ if (!window.AppView || !AppView.active()) (function () {
         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
         .then(function (res) {
           state.generating = false; updateGenerateBtn();
-          if (!res.ok) { setStatus(res.j.error || 'Generation failed to start.', true); return; }
+          if (!res.ok) { setStatus(refusalText(res.j) || 'Generation failed to start.', true); if (res.j && res.j.portraitId) refreshGallery(); return; }
+          // The native kernel's local image model answers when the portrait is already finished.
+          if (res.j && res.j.status === 'done') { setStatus('Done! Your portrait is in the gallery below.'); refreshGallery(); return; }
           setStatus(isGroup()
             ? 'Queued! Your group portrait will appear in the gallery below (a few minutes for several faces).'
             : 'Queued! Your portrait will appear in the gallery below (usually under a minute).');
@@ -1432,7 +1461,8 @@ if (!window.AppView || !AppView.active()) (function () {
     var b = $('providerBanner');
     if (!j.configured) {
       b.style.display = 'block';
-      b.textContent = '⚠ Image engine not working — generations will fail until the operator fixes it. ' + (j.hint || '');
+      b.textContent = '⚠ ' + engineUnavailableText(j);
+      state.engineUnavailable = true; updateGenerateBtn();
     } else if (j.detail) {
       b.style.display = 'block';
       b.style.borderColor = '#2c5a3f';

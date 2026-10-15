@@ -25,6 +25,9 @@
  * 13 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 S1: the Medium panel — choose a medium, drop the explorer hull as one solid. In air the fall is drawn and the numbers are the analytic free fall the plant reproduces; in seawater the answer is the REFUSAL, rendered by its own name with the reason, because nothing here models a free surface and a plausible float would disprove the contract.
  * 14 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 D5: a run result is displayed only with its medium id and engine fingerprints. The drop result names the medium, the package version, the compiled engine tree's build hash and the plant that answered; a result that arrives without any of them is NOT drawn and the tile says which field is missing instead — a number without its engine is a fabrication, not a result.
  * 15 | maintainer@emeraldcoastsystemsgroup.com   | ADR-164 D6: the surface starts only when no audience view renders. The Jarvis Home shell opens the page with ?audience=family and the shared kit paints the saved robot jobs from the page's head block; the whole surface (every listener, the reads the start makes and the four polls) is now one function called behind the kit's decision, so under the view nothing here runs: GET /state, /world/voxels and /picture would create the owner's simulation (and /state and /picture advance it), and /physics/status and /physics/reports would dial the physics engine. Without the parameter, or on a core without the kit, the surface starts exactly as before.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com   | K4: the native kernel lets only a POST write, so a task the world finished during a GET /state read (or on the timer) was never stored. When the state read reports control.pendingWrites, the surface posts /writes/settle once (one in flight) and refreshes the task; leaving the page with writes pending sends the same POST with keepalive.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com   | The physics status line said 'rail: no node has heartbeat in', which reads as cut off. railStatus() now says 'node rail: no physics node is online (none has sent a heartbeat)', or names the online nodes as before.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com   | Demo sweep 1: with no MuJoCo engine the status line showed the person the engine failure and an operator install command ('— install: docker exec <api-container> sh .../install-engine.sh'). physicsLine() now says 'physics engine: not available on this installation'; the install hint stays in the route's answer for operators.
  */
 /**
  * @description The whole Embodied Swarm surface: binds every control, makes the start reads and starts the polls.
@@ -336,8 +339,23 @@ function embodiedSurface() {
 
   // ── Polling ───────────────────────────────────────────────────────────────
   async function pollState() {
-    try { const s = await call('/state'); state.snapshot = s; drawMap(s); drawNodes(s); drawWorld(s); drawControl(s); draw3d(); } catch (e) { $('holder').textContent = `state unavailable: ${e.message}`; }
+    try { const s = await call('/state'); state.snapshot = s; drawMap(s); drawNodes(s); drawWorld(s); drawControl(s); draw3d(); if (s.control && s.control.pendingWrites > 0) settleWrites(); } catch (e) { $('holder').textContent = `state unavailable: ${e.message}`; }
   }
+  // A read cannot write on the native kernel: what the world produced (a finished task, its step log) is stored by this POST.
+  let settling = null;
+  function settleWrites() {
+    if (settling) return settling;
+    settling = post('/writes/settle')
+      .then((r) => { if (state.task && r && r.persisted) refreshTask(state.task.task_id); })
+      .catch((e) => { $('holder').textContent = `the finished task could not be saved yet: ${e.message}`; })
+      .finally(() => { settling = null; });
+    return settling;
+  }
+  if (typeof window.addEventListener === 'function') window.addEventListener('pagehide', () => {
+    if (state.snapshot && state.snapshot.control && state.snapshot.control.pendingWrites > 0) {
+      try { fetch(API + '/writes/settle', { method: 'POST', credentials: 'same-origin', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch (_) { /* the next visit's first post stores it */ }
+    }
+  });
   async function pollVoxels() { try { const v = await call('/world/voxels'); if (v.version !== state.voxelsVersion) { state.voxels = v; state.voxelsVersion = v.version; draw3d(); } } catch (_) { /* transient */ } }
   async function pollPictures() { try { drawPicture($('pic-drone'), 'cap-drone', await call('/picture?sensor=drone')); drawPicture($('pic-wrist'), 'cap-wrist', await call('/picture?sensor=wrist')); } catch (_) { /* transient */ } }
   async function pollLog() { try { drawLog(await call('/log?limit=60')); } catch (_) { /* transient */ } }
@@ -421,12 +439,22 @@ function embodiedSurface() {
       if ([...sel.options].some((o) => o.value === chosen)) sel.value = chosen;
     } catch (_) { /* the built-in options in the markup stand */ }
   }
+  /** The physics engine in words. A person is told whether it is connected; an engine that is not there is
+   * "not available on this installation", never the failure text or the operator's install command. */
+  function physicsLine(e) {
+    return e.connected ? `physics engine: ${e.engine} ${e.version} connected` : 'physics engine: not available on this installation';
+  }
+  /** The physics node rail in words: the online nodes by id, or that none has reported in (a node joins by heartbeat). */
+  function railStatus(nodes) {
+    if (!nodes.length) return 'node rail: no physics node is online (none has sent a heartbeat)';
+    return `node rail: ${nodes.map((n) => `${n.nodeId} online${n.stale ? ' (STALE build)' : ''}`).join(', ')}`;
+  }
   async function pollPhysics() {
     try {
       const p = await call('/physics/status'); const e = p.engine;
       const nodes = (p.nodes || []).filter((n) => n.online);
-      const rail = nodes.length ? `rail: ${nodes.map((n) => `${n.nodeId} online${n.stale ? ' (STALE build)' : ''}`).join(', ')}` : 'rail: no node has heartbeat in';
-      $('physics-status').textContent = `${e.connected ? `physics engine: ${e.engine} ${e.version} connected` : `physics engine: not reachable (${e.reason || e.code}) — install: ${e.installHint}`} · ${rail}`;
+      const rail = railStatus(nodes);
+      $('physics-status').textContent = `${physicsLine(e)} · ${rail}`;
       $('physics-status').title = `${e.connected ? `container build ${String(e.buildHash).slice(0, 12)}` : `${e.addr}`}; nodes heartbeat ${p.rail && p.rail.heartbeat ? p.rail.heartbeat : ''}`;
       const sel = $('backend'); const chosen = sel.value;
       for (const o of [...sel.options]) if (o.dataset.node) o.remove();

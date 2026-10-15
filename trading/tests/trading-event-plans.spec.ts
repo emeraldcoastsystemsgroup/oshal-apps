@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — ADR-136 D6 guards for event playbooks: every event-plan handler 401-gates via callerSub, the book is resolved QUERY-FIRST (the 2026-09-03 paper-routing class), arm is 428 confirm-gated and 503s BEFORE arming when the scheduler is absent, the per-user schedule is created in America/New_York on the intelligent-trades queue, the route family is registered right after the direct-trade routes, /studio branches on isEventIntent BEFORE the rotation flow with the SAME query-first book resolution, the six IPO findings exist with their exact ids + Google-Scholar urls (no doi.org asserted for them), isEventIntent matches the operator's phrasings and not a rotation ask, and the event prompt/parser carry the manual-vs-automated contract.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | UI pins for the D6 remainder: the event-playbook UI lives in view-events.js (view-strategies.js no longer defines it and is back under the 800-code-line bar), the shell loads view-events.js right after view-strategies.js, the pricing-date Save is a data-act handler that reads the <input> BY ID and PATCHes params.pricingDate only (no inline handler, no order path), and the reminder status is read off the timeline's cotp_* events. The behaviour itself is proven by the kernel's real-DB specs (tests/unit/trading-event-reminders.spec.ts, trading-event-alerts.spec.ts in core).
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Review round 2: pin the pricing-date Save READ-BACK — the response's params.pricingDate is compared to what was sent and a mismatch alerts. A kernel that predates the knob returns 200 and drops the value, so without this pin the surface could ship a control that looks successful and stores nothing.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The dry-run equity read is pinned through railConfigured(reader), the guard that reads a reader without a configured() probe as not connected.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -68,7 +69,7 @@ describe('event-plan routes — auth + book scoping (ADR-136 D6)', () => {
 
   it('equity for the dry-run is read from the broker reader and is NULL on any failure — never fabricated', () => {
     expect(route).toMatch(/getBrokerReader\(book\.kind, s, binding\)/);
-    expect(route).toContain('if (!reader.configured()) return null;');
+    expect(route).toContain('if (!railConfigured(reader)) return null;');
     expect(route).toContain('(await reader.getAccount()).equity');
     expect(route).toMatch(/catch \(err\) \{\s*\n\s*logger\.error\([^\n]*\n\s*return null;/);
     expect(route).not.toMatch(/equity\s*(\?\?|\|\|)\s*\d/);
@@ -102,7 +103,7 @@ describe('arm — confirm-gated, scheduler-checked BEFORE arming, schedule in Ne
     expect(arm).toContain('taskType: eventPlanTaskType(s), schedule: EVENT_PLANS_CRON, timezone: EVENT_PLANS_TIMEZONE, ownerSub: s, queue: \'intelligent-trades\'');
     expect(arm).toContain("taskData: { prompt: 'Event playbooks — IPO watch/entry/exit state machine', userSub: s }");
     expect(arm).toContain('res.json({ plan, scheduled: true, enabled, note: enabled ? null : EXECUTOR_OFF_NOTE })');
-    expect(route).toContain("'TRADING_EVENT_PLANS is off on this server — the plan is armed but the executor will not fire until it is enabled.'");
+    expect(route).toContain("'Event trading is switched off on this installation: the plan is armed, but it will not act until an administrator turns event trading on.'");
   });
 
   it('scheduled in the list response means an ACTIVE schedule owned by the caller — not merely present', () => {

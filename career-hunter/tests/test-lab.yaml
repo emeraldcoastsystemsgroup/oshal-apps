@@ -18,6 +18,13 @@
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Register the engine process-tree stop (1.27.1): engine-stop-tree runs the compiled runner and the real launcher with a stand-in engine on Linux and proves a cancel, the runner deadline and the lease-loss fence leave the engine and its child exited within 5 s (read from /proc, since a killed orphan stays a zombie where node is PID 1), the run settled, and an adopted launcher that outlives the runner fences its own engine. The fixture-procfs suite for the launcher's group fence runs beside it.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Register refresh completion status against the compiled routes and real temporary filesystem markers (1.27.2); engine, graph, scoring, logger and route collaborators remain scoped doubles.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Register compiled native root routes and actual SQLite summary counters without fabricated onboarding state.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | Register the engine Python-runtime path suite: the wrapper keeps the native sandbox's inherited PYTHONPATH after the engine directory and the compiled runner passes it through.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | Give the engine-python-runtime-path case the prerequisites and sideEffects fields the loader requires.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | Register the native background-run suite: a background start is kept by the kernel before it is acknowledged, its end is reported once, a refused keep stops the child, and the status read names the in-flight run.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | Register recruiter-first-write (Add recruiter creates the caller's store with the engine schema instead of answering 404 before a resume exists) and native-read-empty (a person with nothing saved gets an empty snapshot that says to upload a resume, not a 503).
+# 21 | maintainer@emeraldcoastsystemsgroup.com | Register insights-fast (GET /analytics reads only the covering idx_corpus_insights and one pass of the caller's scores; without the index it refuses at once; the engine adds the index on a writable corpus and still opens a read-only one; the page shows a refused read's reason); the BY STATE label guard (now reading career-insights) runs in the same case.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | Give the engine-native-background-run case the prerequisites, sideEffects and isolation fields the loader requires: without prerequisites the kernel's catalog loader refused the whole Career catalog, so insights-fast and every other case stayed unregistered.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | Register recruiters-latest (sweep 10): the All view names the latest added recruiter and its bucket above the list, and the kernel's real screen snapshot carries that line before a long list.
 version: 1
 cases:
   - id: package-readiness
@@ -642,6 +649,62 @@ cases:
       timeoutMs: 300000
       maxMemoryMb: 512
     installation: never
+  - id: engine-native-background-run
+    name: A background engine run is kept by the native kernel and reports its end
+    purpose: >-
+      On the native kernel the request's sandbox ends with its response unless the kernel keeps it for the run. Drive
+      the COMPILED runner's background start with a double of the kernel port (@/shared/package-runs) and a child
+      that never was. Scoped doubles: the kernel logger, the user-store path leaf, the kernel port and the child. The
+      real keep, relay, publish and discard are the kernel's background-run suites.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-native-background-run.test.mjs
+    expected:
+      - A background start is acknowledged only after the kernel keeps it, with a bounded keep of at most 30 minutes.
+      - The child's end is reported once, 0 only on success, even when it ends before the kernel answered.
+      - A refused keep stops the child and fails the start.
+      - The status read names the caller's in-flight run, and none when nothing runs.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    isolation:
+      mode: disposable
+      fixtures: [tests/career-native-background-run.test.mjs]
+      cleanup: The suite removes its temporary fixture directory.
+    sideEffects: fixture-write
+    prerequisites:
+      - runner:node-test
+    installation: never
+  - id: engine-python-runtime-path
+    name: The native sandbox's Python package runtime reaches the engine
+    purpose: >-
+      The native kernel's package sandbox names its pinned, read-only Python package runtime on PYTHONPATH. Run the
+      REAL bin/oshal-jobhunter.js with a stand-in engine (JOBHUNTER_PYTHON) that records the PYTHONPATH it was started
+      with, and the COMPILED runner's child environment builder. Scoped doubles: the kernel logger and the user-store
+      path leaf. The real sandbox and the real engine are the kernel's package-sandbox test and its bridge run.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-engine-pythonpath.test.mjs
+    expected:
+      - The wrapper starts the engine with the engine directory first and the inherited runtime after it.
+      - Without an inherited runtime the engine directory alone is the path.
+      - The compiled runner passes an inherited PYTHONPATH to the wrapper.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    isolation:
+      mode: disposable
+      fixtures: [tests/career-engine-pythonpath.test.mjs]
+      cleanup: The suite removes its temporary engine stand-in and records directory.
+    sideEffects: none
+    prerequisites: []
+    installation: never
   - id: engine-stop-tree
     name: Stopping a run stops its engine process tree (Linux)
     purpose: >-
@@ -732,4 +795,203 @@ cases:
     limits:
       timeoutMs: 30000
       maxMemoryMb: 256
+    installation: never
+  - id: recruiter-first-write
+    name: Recruiter tracker works before a resume exists
+    purpose: >-
+      Drive the compiled recruiter routes over a disposable Career store with no corpus and no per-user
+      database; SQLite is node:sqlite behind the better-sqlite3 interface the native bridge serves.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-recruiter-first-write.test.mjs
+    expected:
+      - The first POST /recruiters creates the caller's database with the engine USER_SCHEMA and answers 201.
+      - The list shows the caller's recruiters and another person sees none.
+      - Editing or deleting with no store answers 404 and creates no database.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: The temporary store root is removed after the suite.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: native-read-empty
+    name: Saved Career reader answers an empty store honestly
+    purpose: >-
+      Read a disposable Career mount with no corpus, no owner store and no owner database through the
+      native saved-source reader and its specialist facts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-native-read-empty.test.mjs
+    expected:
+      - With no corpus the snapshot is empty and says the job corpus is not built.
+      - With no owner store or database the snapshot is empty and says to upload a resume on Career.
+      - The specialist facts are scalar zeros with profile.present false, and a read creates no store.
+      - A saved store with no profile yet reads normally and still carries the upload-a-resume notice.
+      - A corpus that exists but is not SQLite still refuses.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: The temporary Career mount is removed after the suite.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: settings-model-state
+    name: Career Settings reports the installation model as ready
+    purpose: >-
+      Run the shipped modelState from Career Settings: an active installation model (the kernel's provider access)
+      reads as ready without a per-person Claude row, which used to show 'Default LLM not connected' while that model
+      answered every scoring run.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-settings-model-state.test.mjs
+    expected:
+      - hasActive true reads '● Default LLM ready' with the installation's AI model.
+      - hasActive false and an unreadable check are named as what they are.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: company-admin-copy
+    name: Companies refusal speaks to the person
+    purpose: >-
+      Read the administrator-only page in the source and built route: it says to ask the person who runs the
+      installation, with no Docker-era 'recreating the API container' step.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-company-admin-copy.test.mjs
+    expected:
+      - The denial card keeps its heading and names no container, environment variable or deployment step.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: resume-studio-phone
+    name: Resume Studio fits a phone
+    purpose: >-
+      Open the shipped Resume Studio page in headless Chromium at 412x915 with a long resume name: the select and the
+      page stay inside the viewport (the select ran to 487 px) and the composer shows its placeholder whole.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/career-resume-studio-phone.spec.mjs
+    expected:
+      - The select's right edge and the page's scroll width are within 412 px; the composer is as tall as its placeholder.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - harness:oshal-core-root
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+    installation: never
+  - id: persona-wording
+    name: The career concierge speaks in plain words
+    purpose: >-
+      Read the career-hunter persona the intelligent-career rail runs on: it forbids naming tools, fields and context
+      blocks to the person (the concierge said "profile.present is false in your system state") and says how an empty
+      profile is put.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-persona-wording.test.mjs
+    expected:
+      - intelligent-career's chatBot is career-hunter, and its persona's Speaking to the person rule names career_database, profile.present, system state and On Screen Now as never said.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: insights-fast
+    name: Insights answers from covering indexes and says why when it cannot
+    purpose: >-
+      Live 2026-10-12 GET /api/career-hunter/analytics answered 503 "package response stalled before the next
+      protocol message" after ~10 s and Insights showed all zeros: its five aggregates read every in-lane posting row
+      past the inline description (44.3 s cold on a copy of the live corpus). The served readAnalytics runs on real
+      SQLite with the engine's own schema; the index contract runs the production engine's connect().
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-insights-fast.test.mjs
+        - tests/career-insights-state-label.test.mjs
+    expected:
+      - The served answer equals the previous five statements on a seeded store (ties compared as sets).
+      - Every corpus read plans USING COVERING INDEX idx_corpus_insights; without the index the read throws InsightsNotReady before reading a posting.
+      - The production engine adds the index to a writable corpus and still connects to and reads a read-only corpus that lacks it.
+      - Both board routes answer InsightsNotReady as 503 with its reason; the Insights page shows a refused read's reason (the kernel's stall body or the not-ready reason) instead of zeros.
+      - A posting with no state is labelled (remote/—) in BY STATE.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: In-memory SQLite stores; the Python contract writes temporary SQLite files in its own temporary directory and removes them.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: recruiters-latest
+    name: The Recruiters screen says which recruiter was added last
+    purpose: >-
+      Sweep 10: in a fresh conversation "Which recruiter did I just add?" was answered "not visible in the current view"
+      while the row sat at the end of a long list. Draw the real Recruiters page in Chromium at 412 x 915 over synthetic
+      recruiter answers and read it with the kernel's real screen snapshot (crates/api/src/shell_screen_state.js).
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/recruiters-latest.test.cjs
+    expected:
+      - The All view reads "Latest added - <firm>, its bucket and status" for the highest id, above the list.
+      - The concierge's snapshot carries that line before the first listed firm.
+      - Add moves the line to the new recruiter; a status tab hides it.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+      - fixture:kernel-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
     installation: never

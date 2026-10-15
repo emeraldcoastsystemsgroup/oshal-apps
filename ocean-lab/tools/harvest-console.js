@@ -15,7 +15,24 @@
  *                     |                             | search's comment) and worked around it locally; the fix has
  *                     |                             | now landed in @/shared/energy, so the headline verdict uses
  *                     |                             | the same netEnergyWh test and the "server cross-check" row
- *                     |                             | compares like with like instead of disagreeing by design.
+ *                     |                             | compares like with like instead of disagreeing by design. * 3 | maintainer@emeraldcoastsystemsgroup.com   | The server cross-check asked GET
+ *                     |                             | /harvest/simulate?site=…&soil=…, a request the package never
+ *                     |                             | served (the route is POST /simulate with a full design), so it
+ *                     |                             | answered 404 on every load — on the native kernel as "application
+ *                     |                             | asset not found". serverSimulationRequest(state) now builds the
+ *                     |                             | route's own ground design from the console state (the selected
+ *                     |                             | site and soil, the wired junction pairs, the module, the load and
+ *                     |                             | the store, with each site's peak day/hour as the server's phase in
+ *                     |                             | degrees) and the cross-check POSTs it; the row still appears only
+ *                     |                             | when the answer carries a boolean verdict.perpetual.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The server cross-check ran once, at boot, for the default
+ *                     |                             | design, so after any control change its row kept that
+ *                     |                             | design's verdict beside a headline for another one (live:
+ *                     |                             | "not perpetual" under a perpetual headline). A control
+ *                     |                             | change now drops the old verdict, shows "checking…" and
+ *                     |                             | asks again for the current design after the controls
+ *                     |                             | settle (debounced); an answer for an older design is
+ *                     |                             | discarded, and a failed check shows no verdict.
  */
 
 /* global window, document, fetch */
@@ -1585,6 +1602,7 @@
       ['Marine reference — perpetual / deepest charge', (marine.verdict.perpetual ? 'yes' : 'no') + ' / ' + (marine.verdict.minSocFraction * 100).toFixed(1) + '%']
     ];
     if (SERVER.simulate) rows.push(['Server cross-check (/api/ocean-lab/harvest/simulate)', (SERVER.simulate.perpetual ? 'perpetual' : 'not perpetual') + (typeof SERVER.simulate.marginRatio === 'number' ? ' · margin ' + SERVER.simulate.marginRatio.toFixed(2) + '×' : '')]);
+    else if (SERVER.checking) rows.push(['Server cross-check (/api/ocean-lab/harvest/simulate)', 'checking…']);
     var body = document.getElementById('table-body');
     if (!body) return;
     body.innerHTML = '';
@@ -1670,7 +1688,11 @@
    * ====================================================================== */
 
   /** @description Anything the server contributed. Absent keys simply mean the page ran on its own. */
-  var SERVER = { sites: null, simulate: null };
+  var SERVER = { sites: null, simulate: null, checking: false, seq: 0 };
+
+  /** How long the controls must settle before the server is asked about the design they now describe. */
+  var CROSSCHECK_SETTLE_MS = 600;
+  var crossCheckTimer = 0;
 
   /**
    * @description Structured surface log. Browser surfaces have no Pino; this keeps the same shape —
@@ -1693,6 +1715,26 @@
   function getJson(url) {
     if (typeof fetch !== 'function') return Promise.resolve(null);
     return fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .catch(function (err) {
+        surfaceWarn('harvest endpoint unavailable — falling back to the built-in model', { url: url, error: String(err) });
+        return null;
+      });
+  }
+
+  /**
+   * @description POST a JSON body and resolve the parsed answer, or null on any failure. Same
+   * fail-soft contract as {@link getJson}: the server is a cross-check, never a dependency.
+   * @param url - Absolute path to post to.
+   * @param body - JSON-serialisable request body.
+   * @returns Promise of the parsed body, or null.
+   */
+  function postJson(url, body) {
+    if (typeof fetch !== 'function') return Promise.resolve(null);
+    return fetch(url, {
+      method: 'POST', credentials: 'include',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    })
       .then(function (res) { return res.ok ? res.json() : null; })
       .catch(function (err) {
         surfaceWarn('harvest endpoint unavailable — falling back to the built-in model', { url: url, error: String(err) });
@@ -1832,17 +1874,78 @@
   }
 
   /**
+   * @description The server's POST /harvest/simulate body for the console's current ground design.
+   * Every number is the one {@link computeModel} runs on: the selected site and soil as the soil
+   * profile (each site's peak day/hour becomes the server's phase in degrees, because the server's
+   * waves peak at t = 0 unless the profile carries one), the junction pairs the wiring connects,
+   * the module, the constant load and the same store, over the same span and step.
+   * @param state - Control state.
+   * @returns The request body: `{ domain: 'ground', config, options }`.
+   */
+  function serverSimulationRequest(state) {
+    var site = byId(SITES, state.siteId); var soil = byId(SOILS, state.soilId);
+    var teg = {
+      collectorAreaM2: state.collectorAreaM2, moduleResistanceKW: state.rTegKW, ztBar: state.ztBar,
+      ratedPowerW: state.ratedMw / 1000, cutInPowerW: state.cutInMw / 1000
+    };
+    var shallow = { name: 'shallow diurnal pair', hotDepthM: state.shallowHotM, coldDepthM: state.shallowColdM, module: teg };
+    var deep = { name: 'deep annual pair', hotDepthM: state.deepHotM, coldDepthM: state.deepColdM, module: teg };
+    var pairs = state.wiring === 'deep' ? [deep] : state.wiring === 'shallow' ? [shallow] : [shallow, deep];
+    return {
+      domain: 'ground',
+      config: {
+        soil: {
+          name: site.label + ' / ' + soil.label,
+          thermalDiffusivityM2S: soil.alphaM2S, thermalConductivityWmK: soil.kWmK,
+          meanTempC: site.meanC, annualAmplitudeC: site.annualK, diurnalAmplitudeC: site.diurnalK,
+          geothermalGradientKM: state.geothermalKPerM,
+          annualPhaseDeg: (site.annualPeakDay * DAY_S / ANNUAL_PERIOD_S) * 360,
+          diurnalPhaseDeg: (site.diurnalPeakHour * 3600 / DIURNAL_PERIOD_S) * 360
+        },
+        pairs: pairs,
+        loads: [{ name: 'sensor node', watts: state.loadMw / 1000, dutyCycle: 1 }],
+        storage: { capacityWh: state.capacityWh, initialSocFraction: 0.6, roundTripEfficiency: 0.9, usableDepthOfDischarge: 0.8 }
+      },
+      options: { durationHours: SPAN_DAYS * 24, stepSeconds: GROUND_STEP_S, sampleEveryMinutes: 360 }
+    };
+  }
+
+  /**
    * @description Ask the server for its view of the current design, recording it only when the
    * response carries the field this page knows how to display.
    * @returns Nothing; updates SERVER and re-renders when something arrived.
    */
   function refreshServerSimulation() {
-    var q = '?site=' + encodeURIComponent(STATE.siteId) + '&soil=' + encodeURIComponent(STATE.soilId) + '&areaM2=' + STATE.collectorAreaM2 + '&rTeg=' + STATE.rTegKW + '&loadMw=' + STATE.loadMw;
-    getJson('/api/ocean-lab/harvest/simulate' + q).then(function (payload) {
+    readControls();
+    var seq = SERVER.seq += 1;
+    SERVER.checking = true;
+    postJson('/api/ocean-lab/harvest/simulate', serverSimulationRequest(STATE)).then(function (payload) {
+      if (seq !== SERVER.seq) return; // a newer design was asked about; this answer describes an older one
       var v = payload && (payload.verdict || payload);
       SERVER.simulate = v && typeof v.perpetual === 'boolean' ? v : null;
-      if (SERVER.simulate) render();
+      SERVER.checking = false;
+      render();
     });
+  }
+
+  /**
+   * @description A control changed: the server's verdict described the previous design, so it is
+   * dropped at once (the row reads "checking…") and the current design is asked about once the
+   * controls settle. Without this the row kept the boot design's verdict beside a new headline.
+   * @returns Nothing; clears the verdict and schedules one request.
+   */
+  function scheduleServerSimulation() {
+    SERVER.simulate = null;
+    SERVER.checking = true;
+    SERVER.seq += 1;
+    if (crossCheckTimer) global.clearTimeout(crossCheckTimer);
+    crossCheckTimer = global.setTimeout(function () { crossCheckTimer = 0; refreshServerSimulation(); }, CROSSCHECK_SETTLE_MS);
+  }
+
+  /** @description Redraw now and re-ask the server for the changed design. @returns Nothing. */
+  function onControlChange() {
+    scheduleServerSimulation();
+    scheduleRender();
   }
 
   /**
@@ -1853,7 +1956,7 @@
    */
   function matchModuleToSoil() {
     var slider = document.getElementById('c-rteg');
-    if (slider && MODEL) { slider.value = String(Math.round(MODEL.deep.rSoilKW * 10) / 10); scheduleRender(); }
+    if (slider && MODEL) { slider.value = String(Math.round(MODEL.deep.rSoilKW * 10) / 10); onControlChange(); }
   }
 
   /**
@@ -1869,7 +1972,7 @@
     var ids = PICKERS.map(function (p) { return p[0]; }).concat(NUMBERS.map(function (n) { return n[0]; }));
     for (i = 0; i < ids.length; i += 1) {
       el = document.getElementById(ids[i]);
-      if (el) { el.addEventListener('input', scheduleRender); el.addEventListener('change', scheduleRender); }
+      if (el) { el.addEventListener('input', onControlChange); el.addEventListener('change', onControlChange); }
     }
     el = document.getElementById('c-match');
     if (el) el.addEventListener('click', matchModuleToSoil);
@@ -1898,7 +2001,8 @@
     dampingDepthM: dampingDepthM, createSoilField: createSoilField, soilResistanceKW: soilResistanceKW, tegPowerW: tegPowerW,
     preparePair: preparePair, pairStateAt: pairStateAt, makeHarvestSampler: makeHarvestSampler, longestGapHours: longestGapHours,
     simulateEnergyBudget: simulateEnergyBudget, recommendStorageWh: recommendStorageWh, currentSpeedAt: currentSpeedAt,
-    turbinePowerW: turbinePowerW, computeModel: computeModel, computeMarine: computeMarine, boot: boot
+    turbinePowerW: turbinePowerW, computeModel: computeModel, computeMarine: computeMarine,
+    serverSimulationRequest: serverSimulationRequest, boot: boot
   };
 
   global.HarvestConsole = HarvestConsole;

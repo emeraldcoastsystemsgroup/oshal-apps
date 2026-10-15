@@ -31,3 +31,25 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
+  - id: review-links
+    name: Review page hands off to other apps through the cockpit
+    purpose: >-
+      Read the shipped review page: Open Vids Studio goes to /cockpit/?app=vids at the top level (it loaded Vids inside
+      the Brand Graphics frame), and no link opens another app's screen inside this frame.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/review-links.test.cjs
+    expected:
+      - Open Vids Studio has href /cockpit/?app=vids and target _top.
+      - No same-origin link points at another package's /api/ screen, and every /cockpit/ link targets _top.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

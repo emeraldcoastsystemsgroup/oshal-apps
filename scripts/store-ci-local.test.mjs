@@ -82,7 +82,7 @@ function runRunner(root, args = []) {
   // NODE_TEST_CONTEXT must go: a `node --test` child that inherits it reports into THIS test run
   // and exits 0 regardless, which would make both assertions below pass vacuously.
   const {
-    OSHAL_ROOT: _r, OSHAL_CORE_DIR: _c, NODE_TEST_CONTEXT: _n, ...env
+    OSHAL_ROOT: _r, OSHAL_CORE_DIR: _c, NODE_TEST_CONTEXT: _n, STORE_CI_TOOLCHAIN: _t, ...env
   } = process.env;
   const result = spawnSync(process.execPath, [RUNNER, ...args], {
     env: { ...env, STORE_CI_LOCAL_ROOT: root },
@@ -158,5 +158,89 @@ test('hook Git locations never escape into a disposable repository test', () => 
   } finally {
     rmSync(root, { recursive: true, force: true });
     rmSync(victim, { recursive: true, force: true });
+  }
+});
+
+/**
+ * @description Give a fixture store (or any directory) a node_modules that carries a TypeScript the
+ *   runner can find. Only the package.json is probed, so nothing is installed.
+ * @param {string} dir The directory that will own node_modules.
+ */
+function plantCompiler(dir) {
+  mkdirSync(join(dir, 'node_modules', 'typescript'), { recursive: true });
+  writeFileSync(join(dir, 'node_modules', 'typescript', 'package.json'), '{"name":"typescript","version":"0.0.0"}');
+}
+
+/** A suite that fails if the old platform checkout reached it through the environment. */
+const ENV_PROBE = [
+  "const test=require('node:test'),assert=require('node:assert/strict');",
+  "test('no legacy checkout reaches the suite',()=>{",
+  "  for(const key of ['OSHAL_FRAMEWORK','NODE_PATH','OSHAL_CORE_ROOT'])assert.equal(process.env[key],undefined,key);",
+  "  if(process.env.OSHAL_ROOT)assert.match(process.env.OSHAL_ROOT,/scripts[\\/]toolchain$/);",
+  "});",
+].join('\n');
+
+test('the fixture store\'s own scripts/toolchain satisfies the compiler job', () => {
+  const root = buildFixture();
+  try {
+    plantCompiler(join(root, 'scripts', 'toolchain'));
+    writeFileSync(join(root, 'pkg', 'tests', 'a.test.js'), ENV_PROBE);
+    const { status, output } = runRunner(root);
+    assert.match(output, /PASS\s+needs-compiler/, 'the toolchain must satisfy the compiler capability');
+    assert.doesNotMatch(output, /SKIPPED/);
+    assert.equal(status, 0, output);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('an inherited OSHAL_ROOT, OSHAL_FRAMEWORK or NODE_PATH is never used to resolve a checkout', () => {
+  const root = buildFixture();
+  const decoy = mkdtempSync(join(tmpdir(), 'store-ci-legacy-checkout-'));
+  try {
+    plantCompiler(decoy);
+    writeFileSync(join(root, 'pkg', 'tests', 'a.test.js'), ENV_PROBE);
+    const { NODE_TEST_CONTEXT: _n, STORE_CI_TOOLCHAIN: _t, ...env } = process.env;
+    const result = spawnSync(process.execPath, [RUNNER], {
+      env: { ...env, STORE_CI_LOCAL_ROOT: root, OSHAL_ROOT: decoy, OSHAL_FRAMEWORK: decoy, OSHAL_CORE_DIR: decoy,
+        NODE_PATH: join(decoy, 'node_modules') },
+      encoding: 'utf8',
+    });
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+    assert.match(output, /SKIPPED\s+needs-compiler/, 'a compiler in an inherited checkout must not satisfy the job');
+    assert.match(output, /ignoring inherited OSHAL_ROOT, OSHAL_FRAMEWORK, OSHAL_CORE_DIR, NODE_PATH/);
+    assert.match(output, /PASS\s+plain/, 'the probe suite saw no legacy variable');
+    assert.notEqual(result.status, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(decoy, { recursive: true, force: true });
+  }
+});
+
+test('a step that needs the framework checkout is SKIPPED with a LEGACY reason', () => {
+  const root = buildFixture();
+  try {
+    plantCompiler(join(root, 'scripts', 'toolchain'));
+    writeFileSync(join(root, '.github', 'workflows', 'store-ci.yml'), WORKFLOW.split('  needs-compiler:')[0] + [
+      '  framework-coupled:',
+      '    name: a package whose suites read the framework source',
+      '    runs-on: ubuntu-latest',
+      '    steps:',
+      '      - uses: actions/checkout@v4',
+      '      - name: Provide the framework checkout',
+      '        run: npm ci --legacy-peer-deps --no-audit --no-fund --prefix framework',
+      '      - name: Run framework-coupled suites',
+      '        working-directory: pkg',
+      '        env:',
+      '          OSHAL_FRAMEWORK: framework',
+      '        run: node --test "tests/*.test.js"',
+      '',
+    ].join('\n'));
+    const { status, output } = runRunner(root, ['--allow-skips']);
+    assert.match(output, /SKIPPED\s+framework-coupled/);
+    assert.match(output, /LEGACY: needs the old TypeScript platform checkout \(oshal\/src\)/);
+    assert.equal(status, 0, output);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });

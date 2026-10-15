@@ -9,6 +9,7 @@
  * 2026-07-23 00:01:42 | roger.murphy@emeraldcoastsystemsgroup.com  | Generate one deduplicated combat tableau every round and an additional exact kill image when a resolved target falls.
  * 2026-07-23 00:16:04 | roger.murphy@emeraldcoastsystemsgroup.com  | Replace metadata-like "commits to Scimitar" cues with natural weapon phrasing and classify declared melee delivery before generic attacks.
  * 2026-07-23 09:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Derive optional spoken action declarations from authoritative structured outcomes.
+ * 2026-10-13 12:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 13: the combat highlight request carried only the ledger line, which names no target, so the narration put Pip's arrow at Rikkit's feet while Pip targeted Tallow. The request now opens with who acted, with what, at whom (combatNarrationFacts). Guard: tests/dnd-combat-narration.test.js.
  */
 
 'use strict';
@@ -280,6 +281,27 @@ function requestCombatKillCutaway(actor, outcome, narration) {
   requestCutaway(prompt, false, `kill:${board.presentationGate && board.presentationGate.id || 'live'}:${eventId}`);
 }
 
+/**
+ * @description The exact facts a combat highlight narrates: who acted, with what, at whom, then the
+ * ledger line. The ledger line ("Pip Underbough's Shortbow: 1+5=6 vs AC 15 — miss.") names no
+ * target, and the highlight prompt asks the model to preserve the target, so without this line the
+ * model guessed one (sweep 13: Pip targeted Tallow and the narration had the arrow land at Rikkit's
+ * feet).
+ * @param {object} actor - The acting token.
+ * @param {object} outcome - The resolved outcome.
+ * @returns {string} The facts, bounded for the request.
+ */
+function combatNarrationFacts(actor, outcome) {
+  const text = String(outcome && outcome.text || '');
+  const roll = combatPrimaryRoll(outcome);
+  if (!roll || !(roll.targetId || roll.targetName)) return text.slice(0, 1500);
+  const acting = combatToken(roll.actorId) || actor;
+  const name = combatName(acting, roll.actorName);
+  const target = combatName(combatToken(roll.targetId), roll.targetName);
+  const action = String(roll.actionName || 'an attack').replace(/\s+/g, ' ').slice(0, 60);
+  return `${name} uses ${action} on ${target}; ${target} is the target. ${text}`.slice(0, 1500);
+}
+
 /** @description Ask the dynamic DM to dramatize facts while preserving a local fallback. */
 async function requestDungeonMasterCombatNarration(actor, outcome) {
   const fallback = combatOutcomeFallback(actor, outcome);
@@ -291,7 +313,7 @@ async function requestDungeonMasterCombatNarration(actor, outcome) {
       method: 'POST', signal: controller && controller.signal,
       body: JSON.stringify({
         campaignId: campaign && campaign.campaign_id, sceneId: board && board.sceneId,
-        mode: 'combat', message: String(outcome && outcome.text || '').slice(0, 1500),
+        mode: 'combat', message: combatNarrationFacts(actor, outcome),
         requestId: String(eventId || turnKey(actor)).replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 80),
         turnGuard: combatTurnGuard(actor),
       }),
@@ -309,5 +331,6 @@ async function requestDungeonMasterCombatNarration(actor, outcome) {
 
 if (typeof module !== 'undefined') module.exports = {
   combatActionCueNarration, combatAutomatedTurnNarration, combatMovementNarration, combatMovementShouldNarrate,
-  combatOutcomeActionNarration, combatOutcomeFallback, combatRecoveredCueNarration,
+  combatNarrationFacts, combatOutcomeActionNarration, combatOutcomeFallback, combatRecoveredCueNarration,
+  requestDungeonMasterCombatNarration,
 };

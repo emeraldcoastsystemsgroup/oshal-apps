@@ -7,6 +7,8 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The company view asserted as behaviour: the head block runs against a stub kit and a stub fetch, so the tests prove what it reads on open (only GET /home-summary and GET /meeting-briefs; never POST /sync, the one write on this page, which asks Google), that the stats are the route's own saved-event tiles plus the last sync, that the events table names each event's day and its clock time or "All day" from the route's detail string, that the briefs list names the meeting, its time and whether it was cited (newest first as the route orders them, capped at ten), and that not synced, an empty snapshot, no delivered brief, a 401, a 403, a failed summary read and a failed briefs read each read as what they are. The page's module script (top-level await, so run as an async function body) is proved to mount no connected actions and read nothing under the view while the full page still runs every start step.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | The Day column's formatter is asserted per start shape: the stub kit tags AppView.date as T, an all-day start ('YYYY-MM-DD', Google's start.date) must go through AppView.day and a timed start (an RFC3339 instant, Google's start.dateTime) through AppView.date, with a timed midnight-UTC start ('...T00:00:00.000Z', what a UTC-zone calendar emits) in the summary proving it is never read as a calendar day, which would have printed the UTC day beside a local clock time of the evening before.
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | The family view (the Jarvis shell) beside the company view: the boot declares exactly company and family; the family builder is asserted over a stub fetch AND over the package's REAL compiled handlers (routes/home-summary.js and routes/meeting-brief-view.js with only express stubbed, over a seeded pool, every body JSON round-tripped), so its reads are exactly GET /home-summary and GET /meeting-briefs, the routes run only SELECTs pinned to the caller, and the model is proved over the fields the routes really return. Asserted: "Coming up" in plain words with each all-day start through AppView.day and each timed start through AppView.date plus the clock and AppView.when (a midnight-UTC timed start never read as a calendar day), the three-of-N note against the thirty-day tile, the briefs in plain words capped at five, and not synced ("Nothing on the calendar yet", with the full page's own Google link in a new tab), an empty snapshot, nothing in five days, no brief, the real 401, a 403, the real 503 and a non-JSON 500 each named; the page's module script mounts nothing and reads nothing under the family view.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | The real home-summary handler also reads the caller's own events (routes/own-events.js, loaded real with its logger stubbed): the seeded pool answers that owner-pinned SELECT too, so the family view makes three reads, all SELECTs pinned to the caller, and with no own events its model is unchanged.
+ * 6   | maintainer@emeraldcoastsystemsgroup.com     | Sweep 9: own-events.js loads routes/event-time.js (the zone helpers), and the full page also reads GET /api/calendar/events for its "Added in OSHAL" list with Remove.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -283,8 +285,11 @@ test('family: a refusal and a failure each read as what they are, and a failed b
  */
 function realRoute(file, factory, pool) {
   let handler = null;
+  const eventTime = () => { const m = { exports: {} }; new Function('require', 'module', 'exports', fs.readFileSync(path.join(ROOT, 'routes', 'event-time.js'), 'utf8'))((r) => { throw new Error('unexpected require: ' + r); }, m, m.exports); return m.exports; };
   const mod = { exports: {} };
-  const shim = (request) => { if (request === 'express') return { Router: () => ({ get: (_p, h) => { handler = h; } }) }; throw new Error('unexpected require: ' + request); };
+  const logger = { createChildLogger: () => ({ error() {}, info() {} }) };
+  const own = () => { const m = { exports: {} }; new Function('require', 'module', 'exports', fs.readFileSync(path.join(ROOT, 'routes', 'own-events.js'), 'utf8'))((r) => ({ express: { Router: () => ({}) }, crypto: require('node:crypto'), '@/shared/logger': logger, './event-time': eventTime() })[r] || (() => { throw new Error('unexpected require: ' + r); })(), m, m.exports); return m.exports; };
+  const shim = (request) => { if (request === 'express') return { Router: () => ({ get: (_p, h) => { handler = h; } }) }; if (request === '@/shared/logger') return logger; if (request === './own-events') return own(); throw new Error('unexpected require: ' + request); };
   new Function('require', 'module', 'exports', fs.readFileSync(path.join(ROOT, 'routes', file), 'utf8'))(shim, mod, mod.exports);
   mod.exports[factory]({ pool });
   assert.equal(typeof handler, 'function', file + ' registers GET /');
@@ -305,6 +310,7 @@ function seededPool(seed, sql, failing) {
     if (failing === 'all' || (failing === 'briefs' && /calendar_meeting_briefs/.test(q.text))) throw new Error('canceling statement due to statement timeout');
     if (/FROM calendar_preparation_snapshots WHERE user_sub = \$1$/.test(q.text)) return { rows: seed.snapshots[q.values[0]] ? [seed.snapshots[q.values[0]]] : [] };
     if (/FROM calendar_meeting_briefs\s+WHERE user_sub = \$1 ORDER BY starts_at DESC LIMIT \$2$/.test(q.text)) return { rows: (seed.briefs[q.values[0]] || []).slice(0, q.values[1]) };
+    if (/FROM calendar_own_events WHERE user_sub = \$1 AND starts_at >= \$2 ORDER BY starts_at ASC LIMIT 100$/.test(q.text)) return { rows: (seed.own && seed.own[q.values[0]]) || [] };
     throw new Error('seeded pool cannot answer: ' + q.text.slice(0, 90));
   } };
 }
@@ -355,11 +361,11 @@ const SEED = {
   briefs: { 'person-a': [briefRow(0, 2), { event_id: 'evt-x', title: 'Synthetic unreadable', starts_at: new Date(at(40)), built_at: new Date(at(10)), brief: {} }, briefRow(1, 0), briefRow(2, 1), briefRow(3, 3), briefRow(4, 0), briefRow(5, 1)] },
 };
 
-test('family over the real routes: exactly two reads, only SELECTs pinned to the caller, and the model over the fields the routes really return', async () => {
+test('family over the real routes: exactly two requests, only SELECTs pinned to the caller, and the model over the fields the routes really return', async () => {
   const view = loadFamilyReal({ seed: SEED });
   const model = await view.family();
   assert.deepEqual([...view.urls].sort(), ['GET ' + H, 'GET ' + B].sort());
-  assert.equal(view.sql.length, 2);
+  assert.equal(view.sql.length, 3, 'the snapshot, the caller\x27s own events and the briefs');
   for (const s of view.sql) { assert.match(s.text, /^SELECT /, 'a read, never a write'); assert.equal(s.values[0], 'person-a', 'pinned to the caller'); }
   const synced = SYNCED_REAL.toISOString();
   assert.deepEqual([model.title, model.lede], ['3 events in the next 5 days', 'Next: Synthetic standup, W(' + REAL_EVENTS[2].start + '). Saved from your last sync, W(' + synced + ').']);
@@ -412,5 +418,5 @@ async function runModule(activeView) {
 test('under an audience view the page\x27s module script mounts nothing and reads nothing; the full page still runs every start step', async () => {
   assert.deepEqual(await runModule('company'), { mounted: 0, reads: [] });
   assert.deepEqual(await runModule('family'), { mounted: 0, reads: [] });
-  assert.deepEqual(await runModule(null),{ mounted: 1, reads: ['GET /api/calendar/home-summary', 'GET /api/calendar/meeting-briefs'] });
+  assert.deepEqual(await runModule(null),{ mounted: 1, reads: ['GET /api/calendar/home-summary', 'GET /api/calendar/meeting-briefs', 'GET /api/calendar/events'] });
 });

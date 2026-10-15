@@ -4,6 +4,10 @@
 # -----------------------------------------------------------------------------
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.4: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register the not-connected / honest-state surface test added with the native provider rails.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | not-connected also covers the typed-trip offer and the phone-width flow; register the concierge rail suite (no Duffel rail: no search, no fare watch, no "connect Duffel", VPS read as an airport).
+# 5 | maintainer@emeraldcoastsystemsgroup.com | form-state: the place fields carry placeholders, not JFK/LHR values; each tab keeps its typed fields across tab switches; every tab keeps the no-Duffel notice; hand-offs read as a sentence, not JSON; a Rides hand-off fills the form.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | not-connected also expects the persona to say hotels and cars need the Duffel rail (sweep 14: it offered demo hotel searches that answered 503).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -29,6 +33,77 @@ cases:
       - Tripped watches read as Price dropped or Reached target; demo, test-token, live and unknown prices are each named, with the connect action only in demo.
       - An empty radar, a refusal and a failed read each read as what they are.
       - Under an audience view the module script adds no handoff listener, appends no section and fetches no connected-actions offer.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: not-connected
+    name: Duffel not connected and travel tables declared
+    purpose: >-
+      A refused Duffel search (HTTP 503) reads as not connected, and the package migration creates every table its routes query.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/travel-not-connected.test.js
+    expected:
+      - A refused search and concierge turn say the installation has no Duffel rail, never to connect Duffel.
+      - The audience view says None here and offers no Connect button where no Duffel connector exists.
+      - Other apps can plan around the typed trip before a search, labelled not searched; at phone width the page flows.
+      - Every travel_* table the routes query is created by a declared migration.
+      - The persona says hotels and cars need the Duffel rail too and calls only search-marked results demo (sweep 14).
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: chat-rail
+    name: Travel concierge with no Duffel rail
+    purpose: >-
+      Where the runtime reports Duffel not connected, the compiled chat route runs no search and opens no fare watch, and its prompt
+      says fares cannot be searched or watched here, never to connect Duffel, and reads VPS as an airport; with a rail it searches.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/travel-chat-rail.test.js
+    expected:
+      - No search reaches the refusing Duffel operation and no travel_watches row is written.
+      - With a rail the flight search runs and its offer is shown.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: form-state
+    name: Travel form state and hand-off text
+    purpose: >-
+      Execute the shipped FORMS, switchTab(), typedTrip(), tripOfferContext() and applyHandoffTrip() against a DOM double
+      whose form rebuild resets every field to the markup's own value, as a browser does.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/travel-form-state.test.js
+    expected:
+      - The place fields are empty with an example placeholder; an untouched form is no trip and nothing is handed off.
+      - A typed VPS -> DCA trip and a typed hotel city survive a Hotels -> Cars -> Flights round trip.
+      - With no Duffel rail every tab keeps the unavailable notice instead of "Search to see options.".
+      - Hand-off notes read "From VPS to DCA, depart ..., economy cabin." and never JSON; a tab switch drops the other tab's search.
+      - A Rides hand-off to an airport fills the flight From; another destination fills the hotel and car city.
     prerequisites:
       - runner:node-test
     sideEffects: none

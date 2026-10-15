@@ -224,13 +224,13 @@ describe('GET /events/rules — this account\'s rules, with the posture the oper
     process.env.TRADING_EARNINGS_RULES = 'false';
     const watcherOff = (await call('GET', `/events/rules?book=${BOOK_REF}`)).body;
     expect(watcherOff.enabled).toBe(false);
-    expect(String(watcherOff.note)).toContain('TRADING_EARNINGS_RULES');
+    expect(String(watcherOff.note)).toContain('Earnings rules are switched off on this installation');
 
     process.env.TRADING_EARNINGS_RULES = 'true';
     process.env.TRADING_EVENT_PLANS = 'false';
     const legOff = (await call('GET', `/events/rules?book=${BOOK_REF}`)).body;
     expect(legOff.enabled).toBe(false);
-    expect(String(legOff.note)).toContain('TRADING_EVENT_PLANS');
+    expect(String(legOff.note)).toContain('Event trading is switched off on this installation');
   });
 
   it('a garbage book ref is 400 unknown_book — never a silent remap to the paper book', async () => {

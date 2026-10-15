@@ -171,7 +171,9 @@
     border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer;
   }
   button:hover { border-color: var(--accent); }
-  button.primary { background: #14335c; border-color: var(--accent); }
+  /* The navy fill is fixed, so the label colour is fixed too: a host theme's dark --text must not land on it. */
+  button.primary { background: #14335c; border-color: var(--accent); color: #eef4ff; }
+  .sat-row .remove { margin-left: 6px; font-size: 11px; padding: 2px 8px; }
   button.danger { border-color: var(--bad); color: var(--bad); }
   button:disabled { opacity: 0.4; cursor: default; }
   input, select, textarea {
@@ -329,9 +331,9 @@
     <section>
       <h2>Orbit catalog (TLE)</h2>
       <div id="catalogList"><div class="empty">catalog empty</div></div>
-      <label>sat id</label>
-      <input id="catId" placeholder="sat-1" value="sat-1">
-      <label>two-line element set (2 or 3 lines)</label>
+      <label for="catId">New satellite id</label>
+      <input id="catId" placeholder="name a new satellite, e.g. iss">
+      <label for="catTle">two-line element set (2 or 3 lines)</label>
       <textarea id="catTle" rows="3" placeholder="1 25544U ...&#10;2 25544 ..."></textarea>
       <div class="row" style="margin-top:8px">
         <button class="primary" id="catAdd">Register TLE</button>
@@ -547,8 +549,31 @@ function renderCatalog() {
       '<span>' + c.satId + '</span>' +
       '<span class="meta">#' + c.satnum + (c.name ? ' · ' + c.name : '') + '</span>';
     row.onclick = () => { state.selected = c.satId; renderFleet(); renderCatalog(); renderSelected(); };
+    row.appendChild(removeButton(c.satId));
     el.appendChild(row);
   }
+}
+
+/* Remove one element set from the catalog (DELETE /api/sat/catalog/:satId). The first tap arms the button and the
+   second removes, so a stray tap on a phone does not drop an orbit. */
+function removeButton(satId) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'danger remove'; b.textContent = 'Remove';
+  b.setAttribute('aria-label', 'Remove ' + satId + ' from the orbit catalog');
+  b.onclick = async (ev) => {
+    ev.stopPropagation();
+    if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Confirm remove'; return; }
+    b.disabled = true;
+    try {
+      await api('/catalog/' + encodeURIComponent(satId), { method: 'DELETE' });
+      if (state.selected === satId) state.selected = null;
+      state.tracks.delete(satId);
+      toast('removed ' + satId + ' from the catalog');
+      await refreshCatalog();
+      renderSelected();
+    } catch (e) { b.disabled = false; toast('remove ' + satId + ': ' + e.message, true); }
+  };
+  return b;
 }
 
 function fmt(v, d) { return v == null || Number.isNaN(v) ? '—' : Number(v).toFixed(d == null ? 2 : d); }
@@ -953,6 +978,8 @@ if (!window.AppView || !AppView.active()) $('passRun').onclick = async () => {
       station: { latDeg: Number($('gsLat').value), lonDeg: Number($('gsLon').value), altKm: Number($('gsAlt').value) },
     }) });
     const el = $('passOut');
+    // Kept for the Sat Operator chat, so it answers from the table on screen instead of asking for coordinates.
+    state.lastPasses = { satId, passes: rep.passes.map(p => ({ riseUtcMs: p.riseUtcMs, durationS: p.durationS, maxElevationDeg: p.maxElevationDeg })) };
     if (!rep.passes.length) el.innerHTML = '<div class="empty">no passes in 24 h above mask</div>';
     else el.innerHTML = '<table><tr><th>rise (UTC)</th><th>dur</th><th>max el</th></tr>' + rep.passes.map(p =>
       '<tr><td>' + new Date(p.riseUtcMs).toISOString().slice(5, 16).replace('T', ' ') + '</td>' +
@@ -979,7 +1006,9 @@ if (!window.AppView || !AppView.active()) $('chatSend').onclick = async () => {
   chatLine('user', msg);
   $('chatSend').disabled = true;
   try {
-    const r = await api('/chat', { method: 'POST', body: JSON.stringify({ message: msg, history: chatHistory.slice(0, -1) }) });
+    const screen = { station: { latDeg: Number($('gsLat').value), lonDeg: Number($('gsLon').value), altKm: Number($('gsAlt').value) },
+      passes: state.lastPasses || null };
+    const r = await api('/chat', { method: 'POST', body: JSON.stringify({ message: msg, history: chatHistory.slice(0, -1), screen }) });
     chatLine('assistant', r.say);
     const el = $('chatDraft');
     if (r.draft) {
@@ -1048,7 +1077,10 @@ if (!window.AppView || !AppView.active()) {
 }
 </script>
 
-<details id="evidenceReview" style="position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px));max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box;box-shadow:0 8px 30px #0005">
+<style>/* The hand-off panel floats beside a wide screen; on a phone it sits in the page flow after the content, so it never covers the rows above it. */
+.handoff-dock{position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px))}
+@media (max-width:760px){.handoff-dock{position:static;width:auto;margin:16px}}</style>
+<details id="evidenceReview" class="handoff-dock" style="max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box;box-shadow:0 8px 30px #0005">
  <summary style="cursor:pointer;font-weight:600">Prepare a diagnostic brief</summary>
  <p id="evidenceState" role="status">Choose recorded evidence, then review what to share.</p>
  <label>Saved evidence<select id="evidenceChoice" style="width:100%;margin:6px 0"></select></label>

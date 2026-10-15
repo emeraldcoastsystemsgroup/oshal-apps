@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.nativeRunInProgress = nativeRunInProgress;
 exports.resolveEngineCli = resolveEngineCli;
 exports.buildCareerEngineProcessEnv = buildCareerEngineProcessEnv;
 exports.releaseRun = releaseRun;
@@ -91,13 +92,42 @@ const SAFE_INHERITED_ENV_KEYS = new Set([
     'JOBHUNTER_APP_DIR', 'JOBHUNTER_CAREER_DB_DEFAULT', 'JOBHUNTER_UA', 'JOBHUNTER_TIMEOUT',
     'JOBHUNTER_DELAY', 'JOBHUNTER_RETRIES', 'JOBHUNTER_ANTHROPIC_MODEL',
     'JOBHUNTER_SCORE_MODEL', 'JOBHUNTER_OPENAI_MODEL', 'JOBHUNTER_RESUME_PREFIX',
-    'CAREER_HUNTER_MAX_RUNS',
+    'CAREER_HUNTER_MAX_RUNS', 'PYTHONPATH',
 ]);
 /**
  * @description Resolves an operator override, the packaged CLI, then the legacy carve location so
  * upgrades use package-owned code while an explicit deployment override remains testable.
  * @returns Absolute Career engine wrapper path.
  */
+/** The kernel's background-run port when this package runs on the native kernel. */
+function nativeRuns() {
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const port = require('@/shared/package-runs');
+        return port && port.native === true ? port : null;
+    }
+    catch {
+        return null;
+    }
+}
+/**
+ * @description The id of a background run of the caller's still in flight on the native kernel,
+ * or null (also null off the native kernel, where the run lease answers instead).
+ * @returns The in-flight run id, or null.
+ */
+async function nativeRunInProgress() {
+    const runs = nativeRuns();
+    if (!runs)
+        return null;
+    try {
+        const status = await runs.status();
+        return status.runs?.[0]?.runId ?? null;
+    }
+    catch (err) {
+        logger.error({ err }, 'native run status failed');
+        return null;
+    }
+}
 function resolveEngineCli() {
     if (process.env.JOBHUNTER_CLI)
         return process.env.JOBHUNTER_CLI;
@@ -504,7 +534,7 @@ function launchCli(userSub, args, extraEnv, options, captureOutput) {
             releaseRun(claim.lease);
         return { ok: false, out: '', err: error instanceof Error ? error.message : String(error) };
     }
-    return { proc, timedOut: bindChildLease(proc, claim, args, options, !captureOutput, runId) };
+    return { proc, timedOut: bindChildLease(proc, claim, args, options, !captureOutput, runId), runId };
 }
 /**
  * @description Starts a bounded background engine command and acknowledges it only after the OS
@@ -521,9 +551,43 @@ function runCliAsync(userSub, args, extraEnv = {}, options = {}) {
         return Promise.resolve({ started: false, err: launched.err, limitReason: launched.limitReason });
     }
     const { proc } = launched;
+    const runs = nativeRuns();
+    if (runs)
+        return keepNativeRun(runs, launched, options);
     return new Promise((resolve) => {
         proc.once('spawn', () => resolve({ started: true }));
         proc.once('error', (error) => resolve({ started: false, err: error.message }));
+    });
+}
+/**
+ * Native kernel: the request's sandbox ends with its response unless the kernel keeps it for
+ * this run. Ask before acknowledging the start, and report the child's exit (once kept) so the
+ * kernel publishes the run's writes only when it succeeded.
+ */
+function keepNativeRun(runs, launched, options) {
+    const { proc, runId, timedOut } = launched;
+    let kept = false;
+    let exit;
+    const report = () => {
+        void runs.runFinished(runId, exit === 0 && !timedOut() ? 0 : 1)
+            .catch((err) => logger.error({ err, runId }, 'native run end report failed'));
+    };
+    proc.once('close', (code) => { exit = code; if (kept)
+        report(); });
+    const seconds = Math.min(1800, Math.max(1, Math.ceil(timeoutFor(options) / 1000)));
+    return new Promise((resolve) => {
+        proc.once('error', (error) => resolve({ started: false, err: error.message }));
+        proc.once('spawn', () => {
+            runs.keepRunAlive(runId, seconds).then(() => {
+                kept = true;
+                if (exit !== undefined)
+                    report();
+                resolve({ started: true });
+            }, (error) => {
+                terminateProcessTree(proc);
+                resolve({ started: false, err: `background run refused: ${error instanceof Error ? error.message : String(error)}` });
+            });
+        });
     });
 }
 /**

@@ -1,0 +1,794 @@
+# CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Declare exact original PDF contracts using supported native tool schema nodes.
+name: pdf-workbench
+suite: ai-creative
+displayName: PDF Workbench
+description: >-
+  Owned PDF page organization, annotations, supported AcroForm filling and explicit OCR. Preserves
+  original files and saves new derivative revisions.
+version: 0.1.0
+runtime: process
+lastingStorage: true
+status: active
+scope: public
+uses:
+  - application-authorization
+  - test-catalog
+  - app-dependencies
+  - experience-roles
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+authorization:
+  version: 1
+  catalog: authorization.yaml
+  roleTemplates:
+    - id: administrator
+      version: 1
+      label: PDF Workbench Administrator
+      members:
+        - { app: pdf-workbench, role: administrator }
+    - id: editor
+      version: 1
+      label: PDF Editor
+      members:
+        - { app: pdf-workbench, role: creator }
+        - { app: pdf-workbench, role: editor }
+        - { app: pdf-workbench, role: exporter }
+        - { app: pdf-workbench, role: ocr }
+chatBot: pdf-editor
+rating:
+  memoryMb: { low: 32, high: 768, basis: declared }
+  features:
+    - id: pdf-editing-command
+      unit: editing command
+      tier: T1
+      generation: none
+      degrade: disable
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: pdf-workbench
+  ref: main
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/pdf-workbench/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+  - module: routes/application.mjs
+    factory: createPdfRoutes
+    mountPath: /api/pdf-workbench
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/pdf-workbench/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+migrations:
+  - migrations/001-pdf-workbench.sql
+  - migrations/native/001-pdf-workbench.sql
+nativeMigrations:
+  - id: migrations/001-pdf-workbench.sql
+    native: skip
+    reason: >-
+      Native final schema retains original-person physical scope and immutable triggers; PostgreSQL
+      additionally applies forced original-owner RLS policies.
+summary:
+  path: /api/pdf-workbench/home-summary
+  tilesPointer: /metrics
+  itemsPointer: /items
+ui:
+  static:
+    - toolName: pdf-workbench
+      label: PDF workbench
+      icon: codicon codicon-file-pdf
+      iframeUrl: /api/pdf-workbench/app
+      section: top
+ribbon:
+  defaultView: pdf-workbench
+  hideChatPanel: false
+bots:
+  - agentId: b28df8cb-1a16-40a4-9b3e-3da4d8f1c129
+    name: pdf-editor
+    persona: personas/pdf-editor.yaml
+    posture: inline
+    role: creative/pdf-editor
+    capabilities:
+      - pdf-revision-inspection
+      - pdf-page-organization
+      - pdf-form-filling
+      - pdf-annotations
+    selectorDescriptor: >-
+      Choose for owned PDF page reorder/rotate/merge/extract, supported standard forms, annotations
+      and explicit English OCR. Do not claim redaction, signing or arbitrary original content
+      editing.
+    routingKeywords:
+      - PDF
+      - page reorder
+      - fill PDF form
+      - PDF annotation
+tools:
+  - name: pdf-editing-contract
+    displayName: PDF editing contract
+    type: api
+    category: creative
+    description: PDF editing contract under current original-owner permission.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/pdf-workbench/editing-contract
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {}
+      required: []
+    usageInstructions: >-
+      Read the closed operation schemas, coordinate system, bounds and unsupported formats before
+      editing.
+    routingTags:
+      - pdf
+      - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-list-sources
+    displayName: List owned PDF originals
+    type: api
+    category: creative
+    description: List owned PDF originals under current original-owner permission.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/pdf-workbench/sources?receipt=1
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {}
+      required: []
+    usageInstructions: Choose returned owner-scoped original source UUIDs; do not invent paths or owners.
+    routingTags:
+      - pdf
+      - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-list-documents
+    displayName: List owned PDFs
+    type: api
+    category: creative
+    description: List owned PDFs under current original-owner permission.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/pdf-workbench/documents
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {}
+      required: []
+    usageInstructions: Choose an actual owned document and current saved revision.
+    routingTags:
+      - pdf
+      - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-read-document
+    displayName: Read PDF revision receipt
+    type: api
+    category: creative
+    description: Read PDF revision receipt under current original-owner permission.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/pdf-workbench/documents/{input.id}?revision={input.revision}&receipt=1
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 100
+      required:
+        - id
+        - revision
+    usageInstructions: >-
+      Pin this exact revision. Read individual model parts until complete; no truncated observation
+      is a complete model.
+    routingTags:
+      - pdf
+      - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-read-model-part
+    displayName: Read PDF model part
+    type: api
+    category: creative
+    description: Read PDF model part under current original-owner permission.
+    executor:
+      executorType: api
+      apiEndpoint: >-
+        GET
+        /api/pdf-workbench/documents/{input.id}/model/{input.part}/{input.offset}?revision={input.revision}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 100
+        part:
+          enum:
+            - pages
+            - annotations
+            - fields
+            - form-fields
+          type: string
+        offset:
+          type: integer
+          minimum: 0
+          maximum: 1000
+      required:
+        - id
+        - revision
+        - part
+        - offset
+    usageInstructions: >-
+      Offset zero starts one bounded descriptor/value at a time. Follow nextOffset; never mix
+      revisions.
+    routingTags:
+      - pdf
+      - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-read-page-text
+    displayName: Read selectable PDF text
+    type: api
+    category: creative
+    description: Read selectable PDF text under current original-owner permission.
+    executor:
+      executorType: api
+      apiEndpoint: >-
+        GET
+        /api/pdf-workbench/documents/{input.id}/text/{input.page}/{input.offset}?revision={input.revision}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 100
+        page:
+          type: integer
+          minimum: 0
+          maximum: 31
+        offset:
+          type: integer
+          minimum: 0
+          maximum: 1048576
+      required:
+        - id
+        - revision
+        - page
+        - offset
+    usageInstructions: Concatenate exact UTF-16 chunks at nextOffset; a scanned page may have no selectable text.
+    routingTags:
+      - pdf
+      - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-import-artifact
+    displayName: Import owned PDF artifact
+    type: api
+    category: creative
+    description: Import owned PDF artifact under current original-owner permission.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/pdf-workbench/sources/import-artifact
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        ref:
+          type: string
+          minLength: 68
+          maxLength: 68
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - ref
+        - title
+        - requestKey
+    usageInstructions: >-
+      Use a real owned native artifact handle; ordinary PDFs only, at most4MiB. Capture original
+      bytes; do not call the legacy builtin extraction relay.
+    routingTags:
+      - pdf
+      - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-create-document
+    displayName: Create PDF derivative
+    type: api
+    category: creative
+    description: Create PDF derivative under current original-owner permission.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/pdf-workbench/documents
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        source:
+          type: string
+          minLength: 36
+          maxLength: 36
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+        indices:
+          type: array
+          minItems: 1
+          maxItems: 32
+          items:
+            type: integer
+            minimum: 0
+            maximum: 31
+      required:
+        - source
+        - title
+        - requestKey
+    usageInstructions: >-
+      Create a new owned derivative from the returned original source. Optional indices select
+      source pages, zero based. Original remains immutable.
+    routingTags:
+      - pdf
+      - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-apply-operations
+    displayName: Save PDF operations
+    type: api
+    category: creative
+    description: Save PDF operations under current original-owner permission.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/pdf-workbench/documents/{input.id}/revisions
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        baseRevision:
+          type: integer
+          minimum: 1
+          maximum: 100
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+        operations:
+          type: array
+          minItems: 1
+          maxItems: 64
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              op:
+                type: string
+                enum:
+                  - reorder
+                  - rotate
+                  - remove
+                  - extract
+                  - merge
+                  - annotate
+                  - remove-annotation
+                  - fill
+              pageIds:
+                type: array
+                minItems: 1
+                maxItems: 32
+                uniqueItems: true
+                items:
+                  type: string
+                  minLength: 36
+                  maxLength: 36
+              page:
+                type: string
+                minLength: 36
+                maxLength: 36
+              degrees:
+                enum:
+                  - 90
+                  - 180
+                  - 270
+                type: integer
+              source:
+                type: string
+                minLength: 36
+                maxLength: 36
+              position:
+                type: integer
+                minimum: 0
+                maximum: 32
+              indices:
+                type: array
+                minItems: 1
+                maxItems: 32
+                items:
+                  type: integer
+                  minimum: 0
+                  maximum: 31
+              annotation:
+                type: object
+                additionalProperties: false
+                properties:
+                  id:
+                    type: string
+                    minLength: 36
+                    maxLength: 36
+                  page:
+                    type: string
+                    minLength: 36
+                    maxLength: 36
+                  kind:
+                    enum:
+                      - text
+                      - highlight
+                      - ink
+                    type: string
+                  rect:
+                    type: array
+                    minItems: 4
+                    maxItems: 4
+                    items:
+                      type: number
+                  text:
+                    type: string
+                    maxLength: 2000
+                  points:
+                    type: array
+                    minItems: 2
+                    maxItems: 256
+                    items:
+                      type: array
+                      minItems: 2
+                      maxItems: 2
+                      items:
+                        type: number
+                  color:
+                    type: string
+                required:
+                  - id
+                  - page
+                  - kind
+                  - rect
+              id:
+                type: string
+                minLength: 36
+                maxLength: 36
+              name:
+                type: string
+                maxLength: 512
+              value:
+                type: string
+                maxLength: 4096
+            required:
+              - op
+      required:
+        - id
+        - baseRevision
+        - requestKey
+        - operations
+    usageInstructions: >-
+      Explain exact edits and hold approval. Supply closed operations and latest baseRevision.202 is
+      queued, not saved. Poll the returned job; only ready proves a new revision.
+    routingTags:
+      - pdf
+      - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-restore-revision
+    displayName: Restore PDF history
+    type: api
+    category: creative
+    description: Restore PDF history under current original-owner permission.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/pdf-workbench/documents/{input.id}/revisions
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        baseRevision:
+          type: integer
+          minimum: 1
+          maximum: 100
+        restoreRevision:
+          type: integer
+          minimum: 1
+          maximum: 100
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+        - baseRevision
+        - restoreRevision
+        - requestKey
+    usageInstructions: Restore appends a new derivative revision; never overwrite prior history. Poll job to ready.
+    routingTags:
+      - pdf
+      - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-start-ocr
+    displayName: OCR selected PDF pages
+    type: api
+    category: creative
+    description: OCR selected PDF pages under current original-owner permission.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/pdf-workbench/documents/{input.id}/ocr
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 100
+        pageIds:
+          type: array
+          minItems: 1
+          maxItems: 32
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 36
+            maxLength: 36
+        language:
+          const: eng
+          type: string
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+        - revision
+        - pageIds
+        - language
+        - requestKey
+    usageInstructions: >-
+      Select at most10 actual page instance UUIDs from saved revision. Explicit English OCR returns
+      confidence/uncertainty; never silently replace original PDF or assert perfect extraction.
+    routingTags:
+      - pdf
+      - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-job-status
+    displayName: Read PDF job receipt
+    type: api
+    category: creative
+    description: Read PDF job receipt under current original-owner permission.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/pdf-workbench/jobs/{input.id}?receipt=1
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+    usageInstructions: >-
+      queued/rendering remain incomplete. ready revision receipt is committed; OCR text is
+      separately paged. Failed/cancelled identical intents need a fresh requestKey for an explicit
+      retry.
+    routingTags:
+      - pdf
+      - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-read-ocr-text
+    displayName: Read OCR result text
+    type: api
+    category: creative
+    description: Read OCR result text under current original-owner permission.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/pdf-workbench/jobs/{input.id}/ocr/{input.page}/{input.offset}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        page:
+          type: integer
+          minimum: 0
+          maximum: 9
+        offset:
+          type: integer
+          minimum: 0
+          maximum: 1048576
+      required:
+        - id
+        - page
+        - offset
+    usageInstructions: >-
+      Follow nextOffset while preserving the job and returned original pageId. Report
+      language/confidence/quality/uncertainty.
+    routingTags:
+      - pdf
+      - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-cancel-job
+    displayName: Cancel PDF job
+    type: api
+    category: creative
+    description: Cancel PDF job under current original-owner permission.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/pdf-workbench/jobs/{input.id}/cancel
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+    usageInstructions: Cancel an active owned job only when requested. Completed revisions remain saved.
+    routingTags:
+      - pdf
+      - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed
+  - name: pdf-delete-document
+    displayName: Delete PDF derivative history
+    type: api
+    category: creative
+    description: Delete PDF derivative history under current original-owner permission.
+    executor:
+      executorType: api
+      apiEndpoint: DELETE /api/pdf-workbench/documents/{input.id}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+    usageInstructions: >-
+      Delete all derivative history only when explicitly requested. Original sources remain retained
+      and require separate unused-source deletion.
+    routingTags:
+      - pdf
+      - document
+    skills:
+      - pdf-editing
+    tags:
+      - route-backed

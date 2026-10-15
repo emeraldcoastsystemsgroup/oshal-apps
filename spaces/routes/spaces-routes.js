@@ -24,6 +24,7 @@
  * 2026-09-14 01:30:00 | maintainer@emeraldcoastsystemsgroup.com | Spaces → embodied (ADR-151 D3/Q3): GET /scans/:id/scene builds the ready scan into an embodied hidden scene (obstacle boxes from the splat, metres, z-up, drone home on the clearest floor; up/scaleM/ceilingM/maxBoxes/minPoints query, download=1) via the pure embodied-scene module; GET /scenes lists the caller's ready scans as ADR-139 provides artifacts; the surface tags every ready scan as an embodied-scene source and offers the download. The embodied-side accept endpoint is the other half of the contract.
  * 2026-09-14 20:00:00 | maintainer@emeraldcoastsystemsgroup.com | POST /scans/import gates a `.ply` by size WHILE IT STREAMS. The import lane accepted 300 MB of anything and handed it to the kernel converter, which parsed the whole buffer on the api's event loop: a 44 MB `.ply` held the loop for about 14 s and a 117 MB one ran the 7 GB Docker VM out of memory and took the stack down (2026-09-14). multer's `limits.fileSize` is one number for every file and the extension only arrives with the part header, so the second, per-format gate is a storage engine (import-upload-gate.ts) that stops writing at the first chunk past `resolvePlyImportLimits().plyMaxBytes` (OSHAL_SPACES_PLY_MAX_BYTES, default 50 MiB — no number lives in this file) and answers 413 naming the limit. An oversized `.ply` is never fully received, written, or parsed; `.splat` keeps the 300 MB ceiling and both lanes keep their post-multer identity re-entry. Guarded by tests/ply-import-off-loop.core.test.js.
  * 2026-09-29 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | ADR-169 L7 (store half): anchorMap on capture. Both multipart lanes read two optional text fields, `captureSessionId` (the guided-capture session the clip or model came from) and `placeId`. The scan is registered naming its session, the kernel joins that session's capture GPS to the scan (captureAnchorForScan), and the location kernel skill's anchorMap records where the map was captured, so mapsNear finds it on a later visit. The answer carries `anchor` with ids and a reason only, never a coordinate, and nothing here logs one: a refusal is logged through locationSafeError. An upload with no session, a session with no GPS fix, or a refusal by the kernel (an owner whose precision class stores no coordinates, a place that is not theirs, a caller without a verified issuer) registers the scan exactly as before, without an anchor. Guarded by tests/capture-anchor.core.test.js.
+ * 2026-10-10 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | GET /scans spreads the scan service's availability marker when it has one: the native runtime, which has no reconstruction engine and holds no scans, answers an empty list with { native: true, configured: false, reason, detail } instead of 503.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -101,6 +102,17 @@ function surfaceHtml(appPackageDir, fileName) {
         path.resolve(__dirname, '../tools', fileName),
     ].filter(Boolean);
     return candidates.find((p) => fs.existsSync(p)) || candidates[candidates.length - 1];
+}
+/**
+ * @description The runtime's own "nothing is configured here" marker, when the scan service carries
+ * one (the native runtime does; the platform service does not), so the surface can say why its list
+ * is empty instead of treating an empty list as a fault.
+ * @param engine - The scan service instance.
+ * @returns The marker's fields ({ native, configured, reason, detail }), or no fields.
+ */
+function runtimeAvailability(engine) {
+    const marker = engine?.availability;
+    return marker && typeof marker === 'object' ? { ...marker } : {};
 }
 /** Resolve the authenticated caller's sub (mount is requiresAuth). A `Bearer oshal_pat_…`
  *  pairing/PAT token is resolved to this owner sub by the global CLI-token middleware upstream,
@@ -490,7 +502,7 @@ function createSpacesRoutes(ctx) {
             return;
         }
         try {
-            res.json({ scans: await service.listScans(sub) });
+            res.json({ scans: await service.listScans(sub), ...runtimeAvailability(service) });
         }
         catch (err) {
             logger.error({ err }, 'list scans failed');

@@ -4,6 +4,10 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Release 1.3.4: GET /cart is a pure read (a shopper with no list gets listId null) and the chat surface creates the default list through POST /lists before its first add; the native host refuses SQL writes on a GET.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | The concierge reads the shopping list. Route-backed reads shopping-lists (GET /api/purchasing/lists), shopping-list-items (GET /api/purchasing/lists/{listId}/items) and shopping-cart (GET /api/purchasing/cart): the Home assistant answered "I do not have direct access to view your current shopping list or cart ... none provide a read current cart capability" while the Home list showed an item. shopping-concierge runs inline (same UUID b0070000-0000-0000-0000-000000000001) so the Home and Jarvis screens that borrow it, and POST /api/purchasing/chat, are not refused "this bot requires an enrolled node". Guarded by purchasing/tests/shopping-concierge-reads.test.cjs and scripts/check-store-bots.mjs.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | shopping-list-add (POST /api/purchasing/lists/default/items, held for the shopper's approval) puts one item on the shopping list as written. Sweep 9: the Home screen adds to the list, but neither its concierge nor Jarvis could (only read tools), and one reply said "I'll add a single entry" and added nothing. Guarded by purchasing/tests/shopping-list-add.test.cjs.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: shopping-list-add's description says to call it as soon as an item is asked for, the card being the shopper's confirmation (its "Held for the shopper's approval" read as "ask first": the concierge wrote "Please confirm so I can add it" and made no card). Words only; no route, schema or binding change. Guarded by purchasing/tests/shopping-list-add.test.cjs.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: shopping-list-add declares `cardText`, the people-facing sentence its approval card shows under the heading (the card read 'Shopping list add' then 'Add to Shopping List', the same words twice). Words only; no route, schema or binding change. Guarded by purchasing/tests/shopping-list-add.test.cjs.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — purchasing ("Shopping" Concierge)
@@ -171,6 +175,81 @@ tools:
       Call with {} when the shopper asks what they usually buy, what to restock, or what OSHAL remembers.
     routingTags: [shopping, preferences, history]
     skills: [preference-learning, shopping-list-management]
+    tags: [shopping, route-backed]
+
+  - name: shopping-lists
+    displayName: Shopping Lists
+    type: api
+    category: commerce
+    description: The shopper's own shopping lists, each with its id, name and how many items are still to buy.
+    executor: { executorType: api, apiEndpoint: "GET /api/purchasing/lists" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: >-
+      Call with {} whenever the shopper asks what is on their list or what they still need. Then call
+      shopping-list-items with a returned list_id. An empty "lists" array means they have no list yet.
+    routingTags: [shopping, list, groceries]
+    skills: [shopping-list-management]
+    tags: [shopping, route-backed]
+
+  - name: shopping-list-items
+    displayName: Shopping List Items
+    type: api
+    category: commerce
+    description: The items on one of the shopper's lists (title, quantity, price when the catalog priced it, status).
+    executor: { executorType: api, apiEndpoint: "GET /api/purchasing/lists/{input.listId}/items" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        listId: { type: string, description: a list_id returned by shopping-lists }
+      required: [listId]
+    usageInstructions: >-
+      Call with {listId} using a list_id from shopping-lists, never a guess. Name the items exactly as
+      their titles read. An item with no price is a free-text entry ("milk") with no product chosen yet.
+    routingTags: [shopping, list, groceries]
+    skills: [shopping-list-management]
+    tags: [shopping, route-backed]
+
+  - name: shopping-list-add
+    displayName: Add to Shopping List
+    cardText: Puts this item on your shopping list, exactly as written. Nothing is bought.
+    type: api
+    category: commerce
+    description: Put one item on the shopper's shopping list exactly as written (a free-text entry such as "AA batteries", no product chosen), on the list Home shows. Call it as soon as they ask to add an item; the approval card it makes is their confirmation, so never ask them to confirm in words first.
+    executor: { executorType: api, apiEndpoint: "POST /api/purchasing/lists/default/items" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 300, description: "The item exactly as the shopper named it." }
+        quantity: { type: integer, minimum: 1, maximum: 99 }
+      required: [title]
+    usageInstructions: >-
+      Call once per item the shopper asked to put on their list, with {"title"} as they wrote it and "quantity" when they
+      gave one. No product search is needed. The shopper approves the card; until the tool answers with the saved item
+      it is only proposed, so never say it was added before that, and never propose the same item again on a "yes".
+    routingTags: [shopping, list, groceries]
+    skills: [shopping-list-management]
+    tags: [shopping, route-backed]
+
+  - name: shopping-cart
+    displayName: Shopping Cart
+    type: api
+    category: commerce
+    description: The shopper's open cart (their default list's pending items) with the server-computed total.
+    executor: { executorType: api, apiEndpoint: "GET /api/purchasing/cart" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: >-
+      Call with {} for the cart and its total. listId null means no cart yet. unpricedLines counts items
+      with no price, so the total covers only the priced ones; say so when it is not zero.
+    routingTags: [shopping, cart, total]
+    skills: [shopping-list-management, checkout-handoff]
     tags: [shopping, route-backed]
 
   - name: explain-pick
@@ -343,13 +422,11 @@ summary:
   metricsPointer: /metrics
   itemsPointer: /items
 
-# Preserve the existing worker UUID and dedicated-node posture in the package contract.
+# Preserve the existing worker UUID; the native kernel runs it inline with this package's route-backed tools.
 bots:
   - agentId: b0070000-0000-0000-0000-000000000001
     name: shopping-concierge
     persona: personas/shopping-concierge.yaml
-    container: shopping-bot
-    port: 5000
-    requiresOwnNode: true
+    posture: inline   # native kernel: an application bot with the route-backed tools above; no dedicated node
     role: commerce/purchasing
     capabilities: ['product-search', 'retail-price-comparison', 'shopping-list-management', 'cross-retailer-cart-building', 'rollback-deal-tracking', 'retail-checkout-handoff', 'purchase-preference-memory']

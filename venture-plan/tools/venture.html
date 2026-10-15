@@ -39,7 +39,7 @@
     GET    /ventures/:id/model                         -> { model | null }
     GET    /ventures/:id/model/figures/:figureKey      -> { figure, derivation }
     GET    /ventures/:id/sensitivity?target=           -> { targetFigureKey?, tornado|bars }
-    GET    /ventures/:id/inversion                     -> { inversions }
+    GET    /ventures/:id/inversion                     -> { inversions, plannedRunUnits }
     GET    /ventures/:id/documents                     -> { catalog?, documents }
     GET    /ventures/:id/documents/:docKey             -> { document: { bodyMd, ... } }
     POST   /ventures/:id/documents/:docKey/regenerate  -> 202 { runId }
@@ -432,11 +432,13 @@
             <i class="codicon codicon-sync"></i> Recompute</button>
           <button id="researchBtn" class="primary" type="button" title="Runs the analyst bots. This spends model tokens.">
             <i class="codicon codicon-beaker"></i> Run the analysts</button>
+          <button id="deleteVentureBtn" type="button" title="Removes this venture with its assumptions, models, runs and documents.">
+            <i class="codicon codicon-trash"></i> Delete</button>
         </div>
       </div>
+      <div id="runBanner"></div>
       <div class="posture" id="posture" hidden></div>
       <div id="publishBanner"></div>
-      <div id="runBanner"></div>
     </div>
 
     <div class="card" id="stageCard" hidden>
@@ -502,9 +504,20 @@
     estimated: 'reasoned, not sourced — replace it with a quote',
     guessed: 'a placeholder. Nobody has checked this.'
   };
-  var SOURCE_KINDS = ['vendor-quote', 'published-rate', 'operator-input', 'benchmark', 'model-estimate'];
+  /* Store source kinds first (what GET /assumptions answers), then the engine's own (a ledger row in a snapshot). */
+  var SOURCE_KINDS = ['vendor-quote', 'published-source', 'user-entered', 'published-rate', 'operator-input', 'benchmark', 'model-estimate'];
+  /* What a person may state in the editor (the server records a claimed vendor quote as the person's own entry). */
+  var EDIT_SOURCE_KINDS = ['user-entered', 'published-source'];
+  /* The store's own certainty, which the editor writes; the server grades it onto CONFIDENCE. */
+  var STORE_CONFIDENCE = ['high', 'medium', 'low'];
+  var STORE_CONFIDENCE_NOTE = {
+    high: 'checked against a real document or transaction',
+    medium: 'a reasoned figure with some evidence behind it',
+    low: 'a placeholder nobody has checked'
+  };
   var SOURCE_LABEL = {
-    'vendor-quote': 'quote', 'published-rate': 'published', 'operator-input': 'you',
+    'vendor-quote': 'quote', 'published-source': 'published', 'user-entered': 'you',
+    'published-rate': 'published', 'operator-input': 'you',
     'benchmark': 'benchmark', 'model-estimate': 'model guess'
   };
 
@@ -612,7 +625,9 @@
 
   function busy(on) {
     S.busy = on;
-    ['recomputeBtn', 'researchBtn'].forEach(function (id) { var b = $(id); if (b) b.disabled = on; });
+    ['recomputeBtn', 'researchBtn'].forEach(function (id) {
+      var b = $(id); if (b) b.disabled = on || (id === 'researchBtn' && runActive());
+    });
     ['view-plan', 'view-assumptions', 'view-numbers', 'view-documents'].forEach(function (id) {
       var el = $(id); if (el) el.classList.toggle('stale', on);
     });
@@ -624,6 +639,50 @@
      one shape, and anything genuinely missing stays null so it renders as a stated
      gap rather than a zero. */
 
+  /**
+   * The stored snapshot keeps the engine's issues as "[severity] where: message" strings. Read them back as issues:
+   * kept as strings, no issue had a severity, so a model the engine refused printed "0 blocking issue(s)" and the
+   * "What the engine refused" card stayed empty.
+   */
+  function parseWarnings(list) {
+    return (Array.isArray(list) ? list : []).map(function (w) {
+      if (w && typeof w === 'object') return w;
+      var m = /^\[(\w+)\]\s*([^:\s]+(?::[^:\s]+)?):\s*([\s\S]*)$/.exec(String(w));
+      return m ? { severity: m[1], where: m[2], code: '', message: m[3] } : { severity: 'info', where: '', code: '', message: String(w) };
+    });
+  }
+
+  /** A figure's engine value by id, the same registry the tiles read; null when the engine did not compute it. */
+  function figValue(id) {
+    var f = S.model && S.model.figures ? S.model.figures[id] : null;
+    return f && isNum(f.value) ? f.value : null;
+  }
+
+  /**
+   * Provenance counts for the posture strip. The engine's traceability lists are used when the payload carries them;
+   * the stored snapshot does not, so the counts are read from what the page shows: a figure rests on a guess when its
+   * own chip says estimated or guessed, and an input is unsourced when a figure names it and no registered assumption
+   * has that key. Before, both read 0 while every headline tile said "guessed".
+   */
+  function provenanceCounts(m) {
+    var t = m.traceability || {};
+    var figs = m.figures || {};
+    var soft = t.softFigureIds ? t.softFigureIds.length : Object.keys(figs).filter(function (id) {
+      var c = figConfidence(figs[id]); return c === 'estimated' || c === 'guessed';
+    }).length;
+    var unsourced;
+    if (t.unsourcedFigureIds) unsourced = t.unsourcedFigureIds.length;
+    else {
+      var known = {}, missing = {};
+      S.assumptions.forEach(function (a) { known[a.key] = true; });
+      Object.keys(figs).forEach(function (id) {
+        (figs[id].assumptionRefs || []).forEach(function (r) { if (!known[r]) missing[r] = true; });
+      });
+      unsourced = Object.keys(missing).length;
+    }
+    return { soft: soft, unsourced: unsourced };
+  }
+
   function normModel(raw) {
     if (!raw) return null;
     var m = raw.model ? raw.model : raw;
@@ -634,9 +693,9 @@
       figures: m.figures || {},
       posture: m.posture || null,
       canPublish: (typeof m.canPublish === 'boolean') ? m.canPublish : null,
-      issues: m.issues || m.warnings || [],
+      issues: m.issues || parseWarnings(m.warnings),
       traceability: m.traceability || m.coverage || null,
-      waterfalls: m.waterfalls || tables.waterfall || [],
+      waterfalls: m.waterfalls || groupWaterfalls(tables.waterfall, m.figures || {}),
       pnl: fin.pnl || tables.pnl || [],
       cash: fin.cash || tables.cash || [],
       workingCapital: fin.workingCapital || tables.workingCapital || [],
@@ -654,6 +713,32 @@
       computedAt: m.computedAt || null,
       engineVersion: m.engineVersion || null
     };
+  }
+
+  /* The stored snapshot keeps the waterfall as flat rows ({channelId, step, amountMicros,
+     basis}, one per step). Group them back into one waterfall per channel, in first-seen
+     order, and take each channel's contribution from the engine's own figures, never from a
+     re-summed column (returns and salvage make the step sum differ from contribution). */
+  function groupWaterfalls(rows, figures) {
+    if (!Array.isArray(rows)) return [];
+    var byId = {}, order = [];
+    rows.forEach(function (r) {
+      if (!r || typeof r !== 'object') return;
+      if (Array.isArray(r.steps)) { order.push(r.channelId); byId[r.channelId] = r; return; }
+      var id = r.channelId;
+      if (!byId[id]) { byId[id] = { channelId: id, steps: [] }; order.push(id); }
+      byId[id].steps.push({ label: r.step, amountMicros: r.amountMicros, basis: r.basis });
+    });
+    return order.map(function (id) {
+      var w = byId[id];
+      if (w.contributionPerUnitMicros === undefined) {
+        var c = figures['channel.' + id + '.contributionPerUnitMicros'];
+        var b = figures['channel.' + id + '.contributionBps'];
+        w.contributionPerUnitMicros = c && isNum(c.value) ? c.value : null;
+        w.contributionBps = b && isNum(b.value) ? b.value : null;
+      }
+      return w;
+    });
   }
 
   function sourceDetailOf(src) {
@@ -681,11 +766,23 @@
       sourceKind: kind,
       sourceDetail: a.sourceDetail || sourceDetailOf(src),
       sourceUrl: a.sourceUrl || (src && src.url) || '',
-      confidence: a.confidence || 'estimated',
+      confidence: gradeOf(a),
+      storeConfidence: STORE_CONFIDENCE.indexOf(a.confidence) >= 0 ? a.confidence : null,
       domain: a.domain || domainOf(a.key || a.id || ''),
       authoredBy: a.authoredBy || (src && (src.agentId || src.enteredBy || src.vendor || src.publication)) || '',
       supersededBy: a.supersededBy || null
     };
+  }
+
+  /**
+   * Where a row stands on the ladder. A stored row carries the server's `grade` (engineConfidence) next to its own
+   * low/medium/high; an engine ledger row carries a ladder value itself. Anything else is shown as a guess, never
+   * as better evidence than it has.
+   */
+  function gradeOf(a) {
+    if (CONFIDENCE.indexOf(a.grade) >= 0) return a.grade;
+    if (CONFIDENCE.indexOf(a.confidence) >= 0) return a.confidence;
+    return 'guessed';
   }
 
   /** Group key derived from the assumption id — never invented, just its own prefix. */
@@ -728,9 +825,9 @@
       S.model = normModel(res[2] && (res[2].model !== undefined ? res[2].model : res[2])) ||
                 normModel(detail.latestModel);
       S.documents = (res[3] && res[3].documents) || [];
-      S.catalog = (res[3] && res[3].catalog) || [];
-      if (detail.latestRun && detail.latestRun.status === 'running') watchRun(detail.latestRun.id || detail.latestRun.runId);
+      S.catalog = ((res[3] && res[3].catalog) || []).map(normCatalogEntry);
       busy(false);
+      showLatestRun(detail.latestRun || null);
       renderAll();
       loadInversion();
       loadTornado();
@@ -742,6 +839,9 @@
     if (S.model && S.model.inversions) { S.inversions = S.model.inversions; renderPlan(); return; }
     api('GET', '/ventures/' + encodeURIComponent(S.ventureId) + '/inversion').then(function (r) {
       S.inversions = (r && (r.inversions || r)) || null;
+      if (S.inversions && r && isNum(r.plannedRunUnits) && !isNum(S.inversions.plannedRunUnits)) {
+        S.inversions.plannedRunUnits = r.plannedRunUnits;
+      }
       renderPlan();
     }).catch(function () { S.inversions = null; renderPlan(); });
   }
@@ -757,6 +857,30 @@
   }
 
   /* ═══ actions ════════════════════════════════════════════════════════ */
+
+  /* Delete the open venture (DELETE /ventures/:id, owner-scoped on the server) after the
+     person confirms, then return to the empty state and the refreshed list. */
+  function deleteVenture() {
+    if (!S.ventureId) return;
+    var v = (S.ventures || []).filter(function (x) { return x.id === S.ventureId; })[0];
+    var name = (v && v.name) || $('vName').textContent || 'this venture';
+    if (!window.confirm('Delete \u201c' + name + '\u201d with its assumptions, models, runs and documents? This cannot be undone.')) return;
+    var btn = $('deleteVentureBtn'); btn.disabled = true;
+    api('DELETE', '/ventures/' + encodeURIComponent(S.ventureId)).then(function () {
+      S.ventureId = null; S.model = null; S.doc = null; S.tornado = null; S.assumptions = [];
+      // The deleted venture's run banner, posture tiles and publish banner go with it (sweep 14: they stayed under
+      // "VENTURES Nothing yet."), and a run still being watched stops repainting them.
+      clearInterval(S.runTimer); S.run = null;
+      $('runBanner').innerHTML = ''; $('publishBanner').innerHTML = '';
+      $('posture').hidden = true; $('posture').innerHTML = '';
+      ['headActions', 'stageCard', 'tabs'].forEach(function (x) { $(x).hidden = true; });
+      ['plan', 'assumptions', 'numbers', 'documents'].forEach(function (k) { $('view-' + k).hidden = true; $('view-' + k).innerHTML = ''; });
+      $('vName').textContent = HEAD0.name; $('vIdea').innerHTML = HEAD0.idea;
+      $('emptyCard').hidden = false;
+      toast('Deleted \u201c' + name + '\u201d.', 'ok');
+      return loadVentures();
+    }).catch(function (e) { fail(e, 'Delete'); }).then(function () { btn.disabled = false; });
+  }
 
   function newVenture() {
     var idea = $('n_idea').value.trim();
@@ -793,21 +917,93 @@
       }).catch(function (e) { busy(false); fail(e, 'Recompute'); return null; });
   }
 
+  /* ═══ run status (tests/venture-run-ui.test.js runs this block) ═════════
+     The button is disabled and the banner says the analysts are running from the
+     moment Run is pressed: on the native kernel the POST answers only when the run
+     has closed, about half a minute later. A closed run that failed, skipped or
+     deferred a phase says so and keeps saying so on the plan, with each phase's
+     own reason, instead of a plain "Run finished". */
+
+  var DEFERRED_PREFIX = 'deferred: ';
+  var PHASE_LABEL = { bom: 'Bill of materials', market: 'Market', ops: 'Operations', compute: 'Model', narrate: 'Documents' };
+
+  function runActive() { return !!(S.run && S.run.status === 'running'); }
+
+  /**
+   * A deferred phase in words. The Documents phase of a native run is deferred AFTER it stored the documents
+   * rendered from the computed numbers (only their written sections wait), so "Documents not run yet" contradicted
+   * the 17 documents on the Documents tab; its own reason is the sentence.
+   */
+  function deferredText(name, label, why) {
+    if (name === 'narrate') return why.charAt(0).toUpperCase() + why.slice(1);
+    return label + ' not run yet: ' + why;
+  }
+
+  /** What a closed run left undone, phase by phase; null when it finished whole. */
+  function runOutcome(r) {
+    if (!r || r.status === 'running') return null;
+    var lines = [];
+    (r.phases || []).forEach(function (p) {
+      var label = PHASE_LABEL[p.name] || p.name || 'A phase';
+      var why = String(p.error || '');
+      if (p.status === 'failed' && why === 'not run') lines.push({ tone: 'warn', text: label + ' did not run.' });
+      else if (p.status === 'failed') lines.push({ tone: 'bad', text: label + ' failed: ' + (why || 'no reason given') });
+      else if (p.status === 'skipped' && why.indexOf(DEFERRED_PREFIX) === 0) {
+        lines.push({ tone: 'warn', text: deferredText(p.name, label, why.slice(DEFERRED_PREFIX.length)) });
+      } else if (p.status === 'skipped') lines.push({ tone: 'warn', text: label + ' skipped: ' + (why || 'no reason given') });
+    });
+    if (r.status === 'failed' && r.error) lines.unshift({ tone: 'bad', text: String(r.error) });
+    if (!lines.length) return r.status === 'failed' ? { tone: 'bad', title: 'The run failed.', lines: [{ tone: 'bad', text: 'No reason was given.' }] } : null;
+    var bad = r.status === 'failed' || lines.some(function (l) { return l.tone === 'bad'; });
+    // The Documents phase defers its written sections by design (they render on Regenerate prose), so a run
+    // whose only open item is that deferral finished every phase it runs: it is not "not every phase did".
+    var onlyDeferredDocs = !bad && (r.phases || []).every(function (p) {
+      return p.status === 'done' || (p.name === 'narrate' && p.status === 'skipped' && String(p.error || '').indexOf(DEFERRED_PREFIX) === 0);
+    });
+    if (onlyDeferredDocs) return { tone: 'info', lines: lines, title: 'The run finished.', settled: true };
+    return { tone: bad ? 'bad' : 'warn', lines: lines,
+      title: r.status === 'failed' ? 'The run failed.' : 'The run finished, but not every phase did.' };
+  }
+
+  function renderRunBanner() {
+    var r = S.run;
+    var b = $('researchBtn');
+    if (b) b.disabled = !!S.busy || runActive();
+    if (runActive()) {
+      var phases = (r.phases || []).map(function (p) {
+        var icon = p.status === 'done' ? 'check' : p.status === 'failed' ? 'error' : 'loading';
+        return '<span class="chip neutral"><i class="codicon codicon-' + icon + '"></i>' + esc(p.name || '') + '</span>';
+      }).join(' ');
+      $('runBanner').innerHTML = '<div class="banner info"><b>Analysts running…</b> ' +
+        esc(r.phase ? 'phase: ' + r.phase : 'starting') + ' — an analyst can take up to a minute.' +
+        (phases ? ' <div class="row" style="margin-top:6px">' + phases + '</div>' : '') + '</div>';
+      return;
+    }
+    var o = runOutcome(r);
+    if (!o) { $('runBanner').innerHTML = ''; return; }
+    $('runBanner').innerHTML = '<div class="banner ' + o.tone + '"><b>' + esc(o.title) + '</b>' +
+      '<ul style="margin:6px 0 0;padding-left:18px">' + o.lines.map(function (l) { return '<li>' + esc(l.text) + '</li>'; }).join('') +
+      '</ul></div>';
+  }
+
   function startRun(kind, docKey) {
-    if (!S.ventureId) return;
+    if (!S.ventureId || runActive()) return;
     var path = docKey
       ? '/ventures/' + encodeURIComponent(S.ventureId) + '/documents/' + encodeURIComponent(docKey) + '/regenerate'
       : '/ventures/' + encodeURIComponent(S.ventureId) + '/runs';
-    api('POST', path, docKey ? {} : { kind: kind }).then(function (r) {
+    S.run = { id: null, status: 'running', phase: null, phases: [] };
+    renderRunBanner();
+    return api('POST', path, docKey ? {} : { kind: kind }).then(function (r) {
       if (r && r.alreadyRunning) toast('A run is already in flight; watching that one.', 'ok');
-      watchRun(r && r.runId);
-    }).catch(function (e) { fail(e, 'Run'); });
+      if (r && r.runId) watchRun(r.runId);
+      else { S.run = null; renderRunBanner(); toast('Run: the server returned no run id.', 'bad'); }
+    }).catch(function (e) { S.run = null; renderRunBanner(); fail(e, 'Run'); });
   }
 
-  function watchRun(runId) {
+  function watchRun(runId, known) {
     if (!runId) return;
     clearInterval(S.runTimer);
-    S.run = { id: runId, status: 'running', phase: null };
+    S.run = known && known.status === 'running' ? known : { id: runId, status: 'running', phase: null, phases: [] };
     renderRunBanner();
     S.runTimer = setInterval(function () {
       api('GET', '/runs/' + encodeURIComponent(runId)).then(function (r) {
@@ -815,13 +1011,33 @@
         renderRunBanner();
         if (S.run && S.run.status !== 'running') {
           clearInterval(S.runTimer);
-          if (S.run.status === 'failed') toast('Run failed: ' + (S.run.error || 'no reason given'), 'bad');
-          else toast('Run finished. Reloading the model.', 'ok');
-          selectVenture(S.ventureId);
+          var o = runOutcome(S.run);
+          if (!o || o.settled) toast('Run finished. Reloading the model.', 'ok');
+          else toast(o.title + ' The reasons are listed under Run the analysts.', 'bad');
+          // A document open when the run ends (Regenerate prose) is opened again once the venture reloads,
+          // so its regenerated text is on screen instead of "Pick a document".
+          var reopen = S.doc && S.doc.docKey;
+          Promise.resolve(selectVenture(S.ventureId)).then(function () { if (reopen && S.ventureId) loadDoc(reopen); });
         }
-      }).catch(function () { clearInterval(S.runTimer); });
+      }).catch(function (e) {
+        clearInterval(S.runTimer);
+        S.run = null;
+        renderRunBanner();
+        fail(e, 'Run status');
+      });
     }, 3000);
   }
+
+  /** On opening a venture: watch its running run, or show what its latest closed run left undone. */
+  function showLatestRun(run) {
+    if (run && run.status === 'running') { watchRun(run.id || run.runId, run); return; }
+    if (runActive() && !S.run.id) return; // this page's own Run is still being started
+    clearInterval(S.runTimer);
+    S.run = run || null;
+    renderRunBanner();
+  }
+
+  /* ═══ end run status ═════════════════════════════════════════════════ */
 
   /* ═══ render: rail + header ══════════════════════════════════════════ */
 
@@ -854,8 +1070,9 @@
     var t = m.traceability || {};
     var stats = t.ledger || {};
     var byConf = stats.byConfidence || (t.byConfidence) || {};
-    var soft = (t.softFigureIds || []).length;
-    var unsourced = (t.unsourcedFigureIds || []).length;
+    var counts = provenanceCounts(m);
+    var soft = counts.soft;
+    var unsourced = counts.unsourced;
     var computed = isNum(t.computedFigures) ? t.computedFigures : Object.keys(m.figures).length;
     var quotedish = (byConf.quoted || 0) + (byConf.observed || 0);
     var ledgerTotal = isNum(stats.total) ? stats.total : S.assumptions.length;
@@ -871,8 +1088,10 @@
     var blockers = (m.issues || []).filter(function (i) { return i.severity === 'block'; });
     if (m.canPublish === false || blockers.length) {
       $('publishBanner').innerHTML = '<div class="banner bad"><b>This model will not publish.</b> ' +
-        esc(String(blockers.length)) + ' blocking issue(s). The engine refuses rather than printing a document with a ' +
-        'hole in it — the reasons are listed under <b>Numbers → What the engine refused</b>.</div>';
+        (blockers.length ? esc(String(blockers.length)) + ' blocking issue(s). The engine refuses rather than printing a ' +
+          'document with a hole in it — the reasons are listed under <b>Numbers → What the engine refused</b>.'
+        : 'The engine marked it not publishable without stating a blocking issue. Press <b>Recompute</b> to have it ' +
+          'state the reason.') + '</div>';
     } else if (m.posture === 'estimate') {
       $('publishBanner').innerHTML = '<div class="banner warn"><b>Planning instrument, not a quote.</b> ' +
         'Every money figure here rests on at least one input nobody has priced. It is enough to decide whether to spend ' +
@@ -895,18 +1114,23 @@
          : 'at least one money input is an estimate or a guess';
   }
 
-  function renderRunBanner() {
-    var r = S.run;
-    if (!r || r.status !== 'running') { $('runBanner').innerHTML = ''; return; }
-    var phases = (r.phases || []).map(function (p) {
-      var icon = p.status === 'done' ? 'check' : p.status === 'failed' ? 'error' : 'loading';
-      return '<span class="chip neutral"><i class="codicon codicon-' + icon + '"></i>' + esc(p.name || '') + '</span>';
-    }).join(' ');
-    $('runBanner').innerHTML = '<div class="banner info"><b>Analysts running…</b> ' +
-      esc(r.phase ? 'phase: ' + r.phase : '') + ' <div class="row" style="margin-top:6px">' + phases + '</div></div>';
-  }
-
   /* ═══ render: stage strip ════════════════════════════════════════════ */
+
+  /**
+   * Step 4 when the model will not publish. Documents still render (each one opens with "This model will not
+   * publish"), so with documents stored the step says they are there and what keeps them from publishing; it said
+   * "must clear before a document renders" while all 17 documents were open.
+   */
+  function documentsBlockedNeed(blockers) {
+    var named = blockers.slice(0, 2).map(function (b) { return b.code || b.where; }).join(', ') + (blockers.length > 2 ? '…' : '');
+    var n = S.documents.length;
+    if (n) {
+      return n + ' document(s) rendered, each marked not publishable' +
+        (blockers.length ? ' until ' + blockers.length + ' blocking issue(s) clear: ' + named : '') + '.';
+    }
+    return blockers.length ? blockers.length + ' blocking issue(s) must clear before a document renders: ' + named
+      : 'The engine marked the model not publishable. Recompute to have it state why.';
+  }
 
   function renderStages() {
     var m = S.model;
@@ -920,9 +1144,7 @@
         need: 'Nothing computed yet. Recompute is free and takes milliseconds.' },
       { t: 'Documents', ok: !!(m && m.canPublish !== false && S.documents.length),
         need: !m ? 'Needs a computed model first.'
-             : (m.canPublish === false)
-               ? blockers.length + ' blocking issue(s) must clear before a document renders: ' +
-                 blockers.slice(0, 2).map(function (b) { return b.code; }).join(', ') + (blockers.length > 2 ? '…' : '')
+             : (m.canPublish === false) ? documentsBlockedNeed(blockers)
                : 'Model is publishable. Generate the narrative to fill the document set.' },
       { t: 'Export', ok: !!(m && S.documents.length),
         need: 'An export needs a model snapshot and at least one document — it must never be rendered from unresolved inputs.' }
@@ -1035,17 +1257,20 @@
              'is worse than a missing one.</p>';
     } else {
       var rows = [];
+      // The plan's values come from the same figure registry the tiles read (the stored snapshot has no
+      // m.landed / m.bom objects, which left these rows "no plan value to compare"), and the planned run from the
+      // inversion answer itself (the snapshot carries no run figure).
       rows.push(invRow('Highest landed cost per unit the channels can carry',
         inv.maxAffordableLandedUnitMicros, 'micros',
-        m && m.landed ? m.landed.buyerUnitMicros : null, 'the plan’s landed cost', 'lower-is-better'));
+        figValue('landed.buyerUnitMicros'), 'the plan’s landed cost', 'lower-is-better'));
       rows.push(invRow('Highest factory price that implies',
         inv.maxAffordableFactoryUnitMicros, 'micros',
-        m && m.bom ? m.bom.fullyLoadedUnitMicros : null, 'the plan’s factory cost', 'lower-is-better'));
+        figValue('bom.fullyLoadedUnitMicros'), 'the plan’s factory cost', 'lower-is-better'));
       rows.push(invRow('Smallest run that breaks even',
         inv.minViableVolumeUnits, 'units',
-        m ? m.runQtyUnits : null, 'the planned run', 'higher-is-better'));
-      rows.push(invRow('Sell-through the plan has to achieve',
-        inv.breakEvenSellThroughRatio, 'ratio', 1, 'everything you made', 'lower-is-better'));
+        isNum(inv.plannedRunUnits) ? inv.plannedRunUnits : (m ? m.runQtyUnits : null), 'the planned run', 'higher-is-better'));
+      rows.push(sellThroughRow(inv.breakEvenSellThroughRatio, figValue('demand.units'),
+        isNum(inv.plannedRunUnits) ? inv.plannedRunUnits : (m ? m.runQtyUnits : null)));
       body = '<div class="tbl"><table><thead><tr><th>What would have to be true</th>' +
              '<th class="num">Threshold</th><th class="num">The plan</th><th class="num">Gap</th><th>Verdict</th></tr></thead>' +
              '<tbody>' + rows.join('') + '</tbody></table></div>' +
@@ -1063,6 +1288,26 @@
     return '<div class="card"><h2>What would have to be true</h2>' +
            '<p class="muted small" style="margin:-4px 0 12px">Run backwards from the decision: not "what does the plan say" ' +
            'but "what is the worst value of each driver this venture survives".</p>' + body + '</div>';
+  }
+
+  /**
+   * The sell-through row. The threshold is the share of the run that has to sell; the plan's side is the share its
+   * own demand sells, min(demand, run) / run, the same unitsSold the engine books. It was hard-coded to 100%, so a
+   * plan whose demand covers 40% of the run read "+48.9% headroom" against a 51.1% need while it lost money. 100% is
+   * kept only as the ceiling: a threshold above it is impossible whatever the demand. A missing demand or run shows
+   * no plan value rather than a made-up one.
+   */
+  function sellThroughRow(threshold, demandUnits, runUnits) {
+    var label = 'Sell-through the plan has to achieve';
+    var share = isNum(demandUnits) && isNum(runUnits) && runUnits > 0 ? Math.min(demandUnits, runUnits) / runUnits : null;
+    if (isNum(threshold) && threshold > 1) {
+      return '<tr><td>' + esc(label) + '<div class="faint small">vs the share the plan’s demand sells</div></td>' +
+             '<td class="num">' + esc(fmtUnit(threshold, 'ratio')) + '</td>' +
+             '<td class="num">' + (isNum(share) ? esc(fmtUnit(share, 'ratio')) : '—') + '</td>' +
+             '<td class="num neg">—</td>' +
+             '<td class="neg">impossible — more than everything you made would have to sell</td></tr>';
+    }
+    return invRow(label, threshold, 'ratio', share, 'the share the plan’s demand sells', 'higher-is-better');
   }
 
   function invRow(label, threshold, unit, actual, actualLabel, polarity) {
@@ -1263,19 +1508,21 @@
              'no chart.</p>';
     } else {
       var rows = bars.map(function (b) {
+        var fmt = assumptionFormatter(b.assumptionKey || b.assumptionId);
         return '<tr><td>' + esc(b.label || b.assumptionKey || b.assumptionId) + '</td>' +
-          '<td class="num">' + esc(fmtLoose(b.baseValue)) + '</td>' +
-          '<td class="num">' + esc(fmtLoose(b.lowValue)) + ' – ' + esc(fmtLoose(b.highValue)) + '</td>' +
+          '<td class="num">' + esc(fmt(b.baseValue)) + '</td>' +
+          '<td class="num">' + esc(fmt(b.lowValue)) + ' – ' + esc(fmt(b.highValue)) + '</td>' +
+          '<td class="num">' + esc(usd(b.baseObjectiveMicros)) + '</td>' +
           '<td class="num">' + esc(usd(b.lowObjectiveMicros !== undefined ? b.lowObjectiveMicros : b.targetLow)) + '</td>' +
           '<td class="num">' + esc(usd(b.highObjectiveMicros !== undefined ? b.highObjectiveMicros : b.targetHigh)) + '</td>' +
           '<td class="num"><b>' + esc(usd(b.swingMicros !== undefined ? b.swingMicros : b.swing)) + '</b></td></tr>';
       }).join('');
-      body = '<div class="chart" data-chart="tornado"></div>' +
+      body = tornadoBaselineNote(bars[0]) + '<div class="chart" data-chart="tornado"></div>' +
         '<div class="legend"><span><i style="background:var(--vp-info)"></i>at the low end of its range</span>' +
         '<span><i style="background:var(--vp-warn)"></i>at the high end of its range</span>' +
         '<span><i style="background:var(--vp-muted)"></i>the plan’s value</span></div>' +
         '<div class="tbl" style="margin-top:10px"><table><thead><tr><th>Assumption</th><th class="num">Plan value</th>' +
-        '<th class="num">Its range</th><th class="num">Outcome at low</th><th class="num">Outcome at high</th>' +
+        '<th class="num">Its range</th><th class="num">Outcome at plan value</th><th class="num">Outcome at low</th><th class="num">Outcome at high</th>' +
         '<th class="num">Swing</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
         '<div class="footnote">Each bar is the whole model rebuilt at that assumption’s low and high value. The one at ' +
         'the top is the number worth spending money to find out first.</div>';
@@ -1284,6 +1531,30 @@
   }
 
   function fmtLoose(v) { return isNum(v) ? (Math.abs(v) >= 100000 ? usd(v) : String(v)) : '—'; }
+
+  /* An assumption's values read in its own unit (an import duty of 300 bps is 3.00%, not '300'). */
+  function assumptionFormatter(key) {
+    var a = (S.assumptions || []).filter(function (x) { return x.key === key; })[0];
+    if (!a || !a.unit || a.unit === 'raw') return fmtLoose;
+    return function (v) { return fmtUnit(v, a.unit); };
+  }
+
+  /* Every outcome in the sweep is measured against the sweep's own rebuild of the current
+     assumptions. Say what that baseline is, and when the saved model's net income differs
+     (the saved model predates an assumption change) say so instead of letting the two
+     numbers contradict each other silently. */
+  function tornadoBaselineNote(first) {
+    if (!first || !isNum(first.baseObjectiveMicros)) return '';
+    var base = first.baseObjectiveMicros;
+    var saved = S.model && S.model.figures ? S.model.figures['financials.netIncomeMicros'] : null;
+    var note = 'Outcomes are net income across the horizon, rebuilt from the current assumptions. At every plan value it is ' +
+      usd(base) + '.';
+    if (saved && isNum(saved.value) && Math.abs(saved.value - base) >= 10000) {
+      note += ' The saved model shows ' + usd(saved.value) + ': it was computed at its last Recompute, and this sweep ' +
+        'rebuilds from the assumptions as they stand now. Press Recompute to compare like with like.';
+    }
+    return '<p class="muted small" style="margin:-4px 0 10px">' + esc(note) + '</p>';
+  }
 
   function renderPnlCard() {
     var pnl = (S.model && S.model.pnl) || [];
@@ -1344,6 +1615,18 @@
       '<div>' + docReaderHtml() + '</div></div>';
   }
 
+  /**
+   * A catalogue entry keyed the way the stored documents are. GET /documents answers the catalogue as
+   * { key, title, ... } and each stored document as { docKey, ... }; matching on c.docKey alone found no catalogue
+   * entry generated, so every document read "not generated yet" and stayed disabled while all 17 were stored.
+   */
+  function normCatalogEntry(c) {
+    var out = {};
+    Object.keys(c || {}).forEach(function (k) { out[k] = c[k]; });
+    out.docKey = (c && (c.docKey || c.key)) || '';
+    return out;
+  }
+
   /** A document that was never generated is shown as unavailable, not as a blank page. */
   function docListHtml() {
     var known = {};
@@ -1354,8 +1637,9 @@
       var d = known[c.docKey];
       var meta = d
         ? ('v' + (d.version || 1) +
-           (d.generatedAt ? ' · ' + String(d.generatedAt).slice(0, 10) : '') +
-           (d.unverifiedNumbers ? ' · ' + d.unverifiedNumbers + ' unverified' : ''))
+           (d.createdAt ? ' · ' + String(d.createdAt).slice(0, 10) : '') +
+           ((d.unverifiedNumbers || []).length ? ' · ' + d.unverifiedNumbers.length + ' unverified' : '') +
+           (d.stale ? ' · earlier numbers' : ''))
         : 'not generated yet';
       return '<button class="docitem' + ((S.doc && S.doc.docKey === c.docKey) ? ' on' : '') +
              '" type="button" data-doc="' + esc(c.docKey) + '"' + (d ? '' : ' disabled') +
@@ -1400,6 +1684,12 @@
       '<div class="row small muted" style="margin-bottom:10px">version ' + esc(String(d.version || 1)) +
       (d.modelId ? ' · model <code>' + esc(String(d.modelId).slice(0, 8)) + '</code>' : '') +
       (d.assumptionsCited ? ' · cites ' + d.assumptionsCited.length + ' assumption(s)' : '') + '</div>' +
+      (d.stale
+        ? '<div class="banner warn"><b>This document shows numbers from an earlier computation.</b> The model was ' +
+          'computed again' + (d.stale.latestComputedAt ? ' (' + esc(String(d.stale.latestComputedAt)) + ')' : '') +
+          ' after it was rendered, so its figures may differ from the Numbers tab. Press Regenerate prose to render it ' +
+          'from the current numbers; the print view and the exports already use them.</div>'
+        : '') +
       (unv.length
         ? '<div class="banner warn"><b>' + unv.length + ' number(s) in this document’s prose match no figure and no ' +
           'assumption in the model.</b> They were written by the model rather than computed, and are listed so a reader ' +
@@ -1625,15 +1915,16 @@
         : '') +
       '<div class="grid2" style="margin-top:12px">' +
       inp('a_val', 'Value (' + u.label + ')', a.value) +
-      '<label class="f"><span>Confidence</span><select id="a_conf">' +
-        CONFIDENCE.map(function (c) {
-          return '<option value="' + c + '"' + (c === a.confidence ? ' selected' : '') + '>' + c + ' — ' + CONFIDENCE_NOTE[c] + '</option>';
+      '<label class="f"><span>How sure</span><select id="a_conf">' +
+        STORE_CONFIDENCE.map(function (c) {
+          return '<option value="' + c + '"' + (c === (a.storeConfidence || 'low') ? ' selected' : '') + '>' + c + ' — ' +
+            STORE_CONFIDENCE_NOTE[c] + '</option>';
         }).join('') + '</select></label>' +
       inp('a_low', 'Range low (' + u.label + ')', a.low) +
       inp('a_high', 'Range high (' + u.label + ')', a.high) +
       '</div>' +
       '<label class="f"><span>Where it came from</span><select id="a_kind">' +
-        SOURCE_KINDS.map(function (k) {
+        EDIT_SOURCE_KINDS.map(function (k) {
           return '<option value="' + k + '"' + (k === a.sourceKind ? ' selected' : '') + '>' + SOURCE_LABEL[k] + ' (' + k + ')</option>';
         }).join('') + '</select></label>' +
       '<label class="f"><span>Source detail — vendor, quote reference, publication, date</span>' +
@@ -2004,7 +2295,7 @@
       running += s.amountMicros;
       marks.push({ label: s.label || s.key, from: from, to: running, amount: s.amountMicros, basis: s.basis || '' });
     });
-    marks.push({
+    if (isNum(w.contributionPerUnitMicros)) marks.push({
       label: 'Contribution', from: 0, to: w.contributionPerUnitMicros,
       amount: w.contributionPerUnitMicros, total: true, basis: 'engine value'
     });
@@ -2102,6 +2393,8 @@
   $('n_cancel').addEventListener('click', function () { $('newCard').hidden = true; });
   $('n_go').addEventListener('click', newVenture);
   $('recomputeBtn').addEventListener('click', function () { recompute(false); });
+  var HEAD0 = { name: $('vName').textContent, idea: $('vIdea').innerHTML };
+  $('deleteVentureBtn').addEventListener('click', deleteVenture);
   $('researchBtn').addEventListener('click', function () { startRun('full'); });
 
   var rz;

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Behaviour of the company view against a stub kit and a stub fetch: on open it reads only GET /home-summary, GET /prefs and GET /local/list (never POST /assistant, never the Dropbox or GitHub pickers); the title, stats, files table and stores list are asserted as the model it paints; signed out, refused, nothing saved, an empty store, a partial summary, a failed prefs read, a failed listing and a failed summary each read as what they are, and only both the summary and the prefs failing rejects into the kit's failure notice. The page's own script, run against a stub document, adds no greeting under a view and still greets without the audience or without the kit.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Guard for 54e49068 that crosses the route: the compiled routes/home-summary.js runs with a stub Router and a stub pool, and its own output is asserted (nothing saved says the default target is in use; the note says Automatic resolves to OSHAL (local) unless GitHub, Dropbox or Google Drive is connected). The hand-shaped saved and failed summaries are checked against the route's output, and the nothing-saved and failed views are fed the route's JSON. Before this the test fed the view its own NOTE constant and stayed green on the old route.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -77,9 +78,32 @@ function loadCompany(answers) {
   return { company: config.audiences.company, urls };
 }
 
+/**
+ * @description Load the compiled route (routes/home-summary.js) with a stub Router and a stub pool, and answer one GET the
+ * way Express would, so the view is fed exactly what the route builds from database rows.
+ * @param {object[]|Error} rows The oshal_storage_prefs rows (code_provider, files_provider, updated_at Date), or an Error the query throws.
+ * @param {boolean} [signedIn] Whether the session carries a sub (true by default).
+ * @returns {Promise<object>} The body the view would read (after a JSON round trip), as `{ http, body }` when the route did not answer 200.
+ */
+async function fromRoute(rows, signedIn = true) {
+  let handler = null;
+  const deps = { express: { Router: () => ({ get: (_p, f) => { handler = f; } }) } };
+  const mod = { exports: {} };
+  new Function('require', 'module', 'exports', fs.readFileSync(path.join(ROOT, 'routes/home-summary.js'), 'utf8'))((name) => { if (name in deps) return deps[name]; throw new Error('Unexpected dependency ' + name); }, mod, mod.exports);
+  const pool = { query: async (q) => {
+    assert.match(q.text, /^SELECT code_provider, files_provider, updated_at FROM oshal_storage_prefs WHERE user_sub = \$1/); assert.equal(q.values[0], 'synthetic-sub');
+    if (rows instanceof Error) throw rows;
+    return { rows };
+  } };
+  mod.exports.createHomeSummaryRoutes({ pool });
+  const res = { statusCode: 200, setHeader() {}, status(n) { this.statusCode = n; return this; }, json(b) { this.body = JSON.parse(JSON.stringify(b)); } };
+  await handler({ oidc: signedIn ? { user: { sub: 'synthetic-sub' }, isAuthenticated: () => true } : null }, res);
+  return res.statusCode === 200 ? res.body : { http: res.statusCode, body: res.body };
+}
+
 const H = '/api/storage/home-summary', P = '/api/storage/prefs', L = '/api/storage/local/list';
 const SAVED_AT = '2026-09-28T09:00:00.000Z';
-const NOTE = 'Shows explicitly saved target preferences. Automatic means the Files service chooses its configured fallback at use time. A saved target is not evidence of a live connection, a successful export or provider free space. Browse and export through the existing Files surface.';
+const NOTE = 'Shows explicitly saved target preferences. Automatic means nothing is saved, so the default target is in use: OSHAL (local), unless GitHub is connected (code) or Dropbox or Google Drive is connected (files). Storage Settings and the Storage assistant show that default as the current target. A saved target is not evidence of a live connection, a successful export or provider free space. Browse and export through the existing Files surface.';
 /** @returns {object[]} The route's two metrics (routes/home-summary.js), which it mirrors as tiles. */
 const metrics = (code, files) => [{ id: 'code-target', label: 'Saved code target', value: code }, { id: 'files-target', label: 'Saved file target', value: files }];
 /** @returns {object} A home summary as the route shapes it: tiles mirror metrics, the note item last. */
@@ -87,7 +111,7 @@ const summary = (code, files, items, partial) => ({ metrics: metrics(code, files
 const PREF_ITEM = { text: 'Storage preferences', detail: 'Saved ' + SAVED_AT, tone: 'neutral', fix: 'storage-settings', actions: [] };
 const NOTE_ITEM = { text: NOTE, tone: 'neutral', fix: 'storage-settings' };
 const SUMMARY = summary('github', 'dropbox', [PREF_ITEM, NOTE_ITEM]);
-const AUTOMATIC = summary('Automatic', 'Automatic', [{ text: 'No saved work yet. Open the app to begin.', tone: 'neutral', fix: 'storage-settings' }, NOTE_ITEM]);
+const AUTOMATIC = summary('Automatic', 'Automatic', [{ text: 'No storage target saved; the default target is in use. Storage Settings shows it.', tone: 'neutral', fix: 'storage-settings' }, NOTE_ITEM]);
 const PARTIAL = summary('Unavailable', 'Unavailable', [{ text: 'Some saved sources cannot be checked.', tone: 'warn', fix: 'storage-settings' }, NOTE_ITEM], true);
 // connected is every provider on file in oshal_connections; slack is not a store and must not be counted.
 const PREFS = { prefs: { code: { provider: 'github', repo: 'synthetic/oshal-demo', folder: '' }, files: { provider: 'dropbox', folder: '/' } }, connected: ['github', 'dropbox', 'slack'] };
@@ -98,6 +122,25 @@ const KICKER = 'Productivity · Storage';
 const section = (model, id) => model.sections.find((x) => x && x.id === id);
 const stat = (model, id) => model.stats.find((x) => x.id === id);
 const statRow = (s) => [s.id, s.label, s.value, s.hint, s.tone || null];
+
+const NOTHING_SAVED = 'No storage target saved; the default target is in use. Storage Settings shows it.';
+const SAVED_ROW = { code_provider: 'github', files_provider: 'dropbox', updated_at: new Date(SAVED_AT) };
+/** @param {object} body A summary body. @returns {object} It without asOf, which the route stamps with the time of the read. */
+const withoutAsOf = (body) => { const { asOf, ...rest } = body; assert.match(asOf, /^\d{4}-\d\d-\d\dT/); return rest; };
+
+test('the route itself says what Automatic resolves to: nothing saved is the default target, and its note names that default', async () => {
+  const none = await fromRoute([]);
+  assert.deepEqual(withoutAsOf(none), withoutAsOf(AUTOMATIC));
+  assert.deepEqual(none.items.map((i) => i.text), [NOTHING_SAVED, NOTE]);
+  assert.match(none.items[1].text, /Automatic means nothing is saved, so the default target is in use: OSHAL \(local\), unless GitHub is connected \(code\) or Dropbox or Google Drive is connected \(files\)\./);
+  assert.ok(!none.items.some((i) => /No saved work yet|configured fallback/.test(i.text)), 'never the old "no saved work" or "configured fallback" copy');
+  // The hand-shaped saved and failed summaries the view tests below use are what the route answers.
+  assert.deepEqual(withoutAsOf(await fromRoute([SAVED_ROW])), withoutAsOf(SUMMARY));
+  const failed = await fromRoute(new Error('synthetic database outage'));
+  assert.equal(failed.http, 503);
+  assert.deepEqual(withoutAsOf(failed.body), withoutAsOf(PARTIAL));
+  assert.deepEqual(await fromRoute([], false), { http: 401, body: { error: 'not_authenticated' } });
+});
 
 test('on open the view reads only the home summary, the prefs and the local listing: never the chat, never a provider', async () => {
   const view = loadCompany(OK);
@@ -125,7 +168,7 @@ test('the title names the effective targets; the stats, the files table and the 
 });
 
 test('nothing saved, nothing connected and an empty store each read as what they are, and the table caps at twelve', async () => {
-  const none = await loadCompany({ [H]: AUTOMATIC, [P]: DEFAULTS, [L]: { files: [] } }).company({});
+  const none = await loadCompany({ [H]: await fromRoute([]), [P]: DEFAULTS, [L]: { files: [] } }).company({});
   assert.deepEqual([none.title, none.lede], ['Code → oshal local · Files → oshal local', 'No target saved yet: these are the automatic choices from what is connected. ' + NOTE]);
   assert.deepEqual(none.stats.map(statRow), [
     ['code', 'Code target', 'oshal local', 'Automatic', null], ['files', 'Files target', 'oshal local', 'Automatic', null],
@@ -147,7 +190,7 @@ test('signed out and refused read as such, and only both the summary and the pre
   const denied = await loadCompany({ ...OK, [H]: { http: 403, body: {} } }).company({});
   assert.deepEqual([denied.title, denied.lede], ['This account cannot open Storage', 'The Storage routes refused this account (HTTP 403).']);
   await assert.rejects(loadCompany({ [H]: { http: 503, body: { error: 'Storage records unavailable' } }, [P]: { http: 500, body: { error: 'db' } }, [L]: FILES }).company({}), /^Error: Storage records unavailable$/, 'the route\x27s own error');
-  await assert.rejects(loadCompany({ [H]: { http: 503, body: PARTIAL }, [P]: { http: 500, body: undefined }, [L]: FILES }).company({}), /^Error: Storage could not read the saved targets \(HTTP 503\)\.$/);
+  await assert.rejects(loadCompany({ [H]: await fromRoute(new Error('synthetic database outage')), [P]: { http: 500, body: undefined }, [L]: FILES }).company({}), /^Error: Storage could not read the saved targets \(HTTP 503\)\.$/);
 });
 
 test('a partial summary, a failed prefs read, a failed listing and a failed summary each degrade only their own part', async () => {

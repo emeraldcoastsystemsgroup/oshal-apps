@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-22 23:30:56 | roger.murphy@emeraldcoastsystemsgroup.com  | Add a full-surface character, inventory, potential, and current-resource view with explicit spell-slot availability.
+ * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | The sheet portrait asks only for bundled art (tokenArtUrl); a hero without it keeps the plain frame.
  */
 
 'use strict';
@@ -89,7 +90,7 @@ function showCharacterSheet(token) {
   const saves = deathSaveScore(token);
   const condition = isDowned(token) ? `<span>☠ <b>${token.stable ? 'STABLE' : `DOWN · S${saves.successes}/F${saves.failures}`}</b></span>`
     : token.dead ? '<span>☠ <b>FALLEN</b></span>' : '<span class="alive"><b>ALIVE</b></span>';
-  overlay(`<div class="sheet-head"><span class="sheet-portrait" style="background-image:url('${API}/art/token/${encodeURIComponent(token.slug)}')"></span><div><div class="sheet-kicker">Full character · current resources · inventory</div><h1>${esc(sheet.name || token.name)}</h1><p>${esc(`${sheet.race || ''} ${sheet.class || ''}`.trim())} · Level ${Number(sheet.level) || 1}</p></div></div>
+  overlay(`<div class="sheet-head"><span class="sheet-portrait"${artStyle(tokenArtUrl(token.slug))}></span><div><div class="sheet-kicker">Full character · current resources · inventory</div><h1>${esc(sheet.name || token.name)}</h1><p>${esc(`${sheet.race || ''} ${sheet.class || ''}`.trim())} · Level ${Number(sheet.level) || 1}</p></div></div>
     <div class="character-sheet-scroll">
       <section class="sheet-section character-now"><h2>Available right now <small>${ready.length} of ${actions.length} actions ready</small></h2>
         <div class="sheet-vitals"><span>❤ <b>${token.hp}/${token.maxHp}</b> HP</span>${condition}<span>🛡 <b>${token.ac}</b> AC</span><span>👟 <b>${token.speed}</b> ft</span></div>

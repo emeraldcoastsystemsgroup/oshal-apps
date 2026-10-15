@@ -4,9 +4,9 @@
 
   Everything the apply rail does happens on ANOTHER machine, in a browser the operator is not looking
   at. This surface is the window: is the desktop connected and claiming, what is waiting, what is
-  being submitted right now — and, per run, the narrated story the worker reports as it works
-  (captions + the screenshots it took). Polls /api/apply-operator/queue; opening a run pulls its
-  beats from /api/apply-operator/story/:ticketId and streams frames from /shot/:ticketId/:file.
+  being submitted right now. It polls the caller's own application records
+  (/api/career-hunter/applications) and the desktop dispatcher's worker answer
+  (/api/apply-operator/workers), both served by the native kernel, and folds them into the lanes.
 
   Read-only. The only actions live on the Job Board (queue one) — this watches.
 
@@ -17,6 +17,7 @@
   1 | maintainer@emeraldcoastsystemsgroup.com | Merge safe board-feed provenance summaries into completed runs and default missing evidence to unverified.
   2 | maintainer@emeraldcoastsystemsgroup.com | Render exact assigned-worker acknowledgement, callback-pending, no-worker, assist-review, and failed states; animate only confirmed running work.
   3 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
+  4 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: build the queue from the caller's application records and the native worker answer instead of the old platform's /api/apply-operator/queue, /story and /shot, which the native kernel does not serve (the screen showed "Could not reach the queue"). Narrated runs are not retained natively, so a run says so instead of fetching them.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="submissions"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
@@ -151,6 +152,40 @@ function applicationProofHtml(record){
 // APPLICATION_PROVENANCE_END
 const LANES=[['queued','Queued'],['submitting','Submitting'],['applied','Completed'],['needs_you','Needs you'],['failed','Failed'],['dismissed','Dismissed']];
 
+// NATIVE_QUEUE_START
+/** Each application record status, as the lane it belongs in and what it is waiting on. */
+const STATUS_LANES=Object.freeze({
+  approval_required:['needs_you','Waiting for your approval on the Job Board.'],
+  drafting:['queued','Drafting the résumé for this posting.'],
+  drafted:['needs_you','Draft ready: review it, then submit it.'],
+  applied:['applied',''],
+  denied:['dismissed','You declined this one.'],
+  dismissed:['dismissed','Dismissed.'],
+  error:['failed','The draft failed; queue it again from the Job Board.'],
+});
+/** The worker banner from the native dispatcher answer (GET /api/apply-operator/workers). */
+function workerFromNative(w){
+  const workers=Array.isArray(w&&w.workers)?w.workers:[];
+  const available=Boolean(w&&w.available);
+  const observed=Array.isArray(w&&w.observedBrowserNodes)?w.observedBrowserNodes:[];
+  const seen=observed.map(n=>Number(n.lastSeen)).filter(Number.isFinite).sort((a,b)=>b-a)[0];
+  const detail=available?'Ready to claim the next submission.'
+    :w&&w.reason==='application_submission_dispatcher_not_connected'?'The desktop submission dispatcher is not connected, so nothing is submitted automatically. Submit from the Job Board yourself, or connect a desktop worker.'
+    :(w&&w.reason?String(w.reason).replace(/_/g,' '):'No desktop worker answered.');
+  return {available,connected:workers.length>0,detail,lastSeenAt:seen?new Date(seen).toISOString():null};
+}
+/** The lanes, counts and rows from the caller's application records (GET /api/career-hunter/applications). */
+function queueFromNative(applications, workers){
+  const items=(Array.isArray(applications)?applications:[]).map(a=>{
+    const [lane,detail]=STATUS_LANES[a.status]||['failed','Unknown state: '+String(a.status||'none')+'.'];
+    return {ticketId:a.ticket_id||('posting-'+a.posting_id),postingId:a.posting_id,title:a.title,company:a.company,lane,status:a.status,
+      executionState:lane==='queued'?'queued':'settled',executionDetail:detail,updatedAt:a.updated_at,application_source:a.application_source};
+  });
+  const counts={}; items.forEach(it=>{ counts[it.lane]=(counts[it.lane]||0)+1; });
+  return {worker:workerFromNative(workers),counts,items};
+}
+// NATIVE_QUEUE_END
+
 let filter='';            // '' = all lanes
 let openTicket=null;      // the run whose story is expanded
 let stories={};           // ticketId -> beats (kept across polls so an open run doesn't flicker)
@@ -222,7 +257,7 @@ function rowHtml(it){
   const open=openTicket===it.ticketId;
   const n=stories[it.ticketId]?stories[it.ticketId].length:0;
   const proof=it.lane==='applied'
-    ? (applicationProofs.get(Number(it.postingId))||applicationProvenance({status:'applied'})) : null;
+    ? (applicationProofs.get(Number(it.postingId))||applicationProvenance(it)) : null;
   return `<div class="row${live?' live':''}">
     <div class="rtop">
       <div>
@@ -246,12 +281,8 @@ function rowHtml(it){
 
 function zoom(src){ $('lbimg').src=src; $('lb').classList.add('show'); }
 
-async function loadStory(t){
-  try {
-    const r=await fetch('/api/apply-operator/story/'+encodeURIComponent(t));
-    stories[t]=r.ok?((await r.json()).beats||[]):[];
-  } catch(e){ stories[t]=[]; }
-}
+/** Narrated runs are not retained by the native kernel; a run shows its record's state instead. */
+async function loadStory(t){ stories[t]=[]; }
 
 async function toggle(t){
   if(openTicket===t){ openTicket=null; lastSig=''; return poll(); }
@@ -294,8 +325,14 @@ async function poll(){
   let q;
   const node=selectedNode();
   const proofLoad=refreshApplicationProofs();
-  try { q=await (await fetch('/api/apply-operator/queue'+(node?('?clientId='+encodeURIComponent(node)):''))).json(); }
-  catch(e){ $('list').innerHTML='<div class="empty">Could not reach the queue: '+esc(e.message)+'</div>'; return; }
+  try {
+    const [apps,workers]=await Promise.all([
+      fetch('/api/career-hunter/applications').then(r=>{ if(!r.ok) throw new Error('applications HTTP '+r.status); return r.json(); }),
+      fetch('/api/apply-operator/workers'+(node?('?clientId='+encodeURIComponent(node)):'')).then(r=>r.ok?r.json():null).catch(()=>null),
+    ]);
+    q=queueFromNative(apps&&apps.applications,workers);
+  }
+  catch(e){ $('list').innerHTML='<div class="empty">Could not read your applications: '+esc(e.message)+'</div>'; return; }
   if(!q||!q.worker) return;
   await proofLoad;
 

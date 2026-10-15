@@ -6,6 +6,9 @@
  * 2026-07-21 21:18:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Host orchestration: dispatch the accountable host bot to generate surveys, judge guesses, run the interview beat, and deliver spoken lines. The slow LLM call runs OUTSIDE the room lock; its result is applied inside mutate() re-validated against the locked state. Host-bot cost attributes to the room owner (they run the show).
  * 2026-07-24 11:20:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog burn-down: (1) local pre-judge — an exact text/alias match rules WITHOUT spending an LLM call (shows opt in via show.localJudge), which also makes a deterministic browser playthrough possible; (2) manual content — the host may type their own survey/board (mode 'manual'), a real game-night feature that doubles as the no-LLM test rail; (3) host-bot task ids now embed the roomId so chat_tasks answers "what did THIS game cost" (backlog #15) via cost().
  * 2026-07-31 22:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog #4 — the show no longer opens in silence: the FIRST round start (round 0 → 1) auto-dispatches the host's 'intro' spoken line, fire-and-forget so the ▶ response never waits on a second LLM call. The line lands via the normal host-caption path, so the speaker-lease surface voices it with the opening titles and everyone else gets the caption (caption-only is the built-in fallback when TTS is unavailable). Later rounds never re-narrate the open. Guarded in tests/host-guards.test.js.
+ * 2026-10-12 23:58:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 10: during rounds 2 and 3 the HOST caption on Play, Big Screen, Clicker and Host Desk still read round 1's 'Here is your first question: ...'. Only the open is narrated by the host bot, so a later round kept the previous line. A later round's start now captions the show's own round milestone ('Round 2: Name something ...'), with no model call. Guard: tests/host-guards.test.js.
+ * 2026-10-13 14:30:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 14: round 3 asked round 2's question again ('Name something people often find stuck in their hair.'): the recent questions went to the model, but a generated round was played without checking them. generateRound() reads the question the round would play (the show's own milestone, from a dry ingest) and asks the host once more when it was already played; a second repeat is refused with nothing changed. Hand-typed (manual) rounds are the host's own choice and are not checked. Guard: tests/repeat-question.test.js.
+ * 2026-10-13 20:40:00 | maintainer@emeraldcoastsystemsgroup.com     | Round 21 review: the repeat check read every show's "Round N: ..." milestone as its question, but Wheel's milestone is only the category, so a fresh puzzle in a played category ('Phrase / PIECE OF CAKE' after 'Phrase / BREAK A LEG') was refused (502). roundQuestion() now counts the milestone only when it is the generated round's own question field (Family Feud); Wheel puzzles are not checked by category. Guard: tests/repeat-question.test.js (Wheel case).
  */
 
 'use strict';
@@ -103,6 +106,44 @@ async function usedQuestions(deps, roomId) {
   return result.rows.map((row) => (String(row.content).match(/Round \d+:\s*(.+)/) || [])[1]).filter(Boolean);
 }
 
+/** @description Question text compared without case, spacing or punctuation. */
+function questionKey(text) {
+  return String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/**
+ * @description The question a generated round would play: the text after "Round N:" in the milestone the show's own
+ *   ingest emits for it (a dry run over the current state; nothing is stored), only when that milestone IS the
+ *   round's question (the generated `question` field, as Family Feud's is). '' otherwise: Wheel's milestone holds only
+ *   the puzzle's category, so a fresh puzzle in a played category is not a repeat.
+ */
+function roundQuestion(show, state, json) {
+  let dry = null;
+  try { dry = show.ingestGenerated(state, json, Date.now()); } catch (_error) { dry = null; }
+  const content = dry && dry.ok && dry.event && dry.event.kind === 'milestone' ? String(dry.event.content || '') : '';
+  const played = (content.match(/Round \d+:\s*(.+)/) || [])[1] || '';
+  const asked = json && typeof json.question === 'string' ? json.question : '';
+  return played && questionKey(played) === questionKey(asked) ? played : '';
+}
+
+/**
+ * @description Ask the host for this round's content, never a question already played in this room. The recent
+ *   questions go to the model; a round whose question is one of them is asked for once more, and a second repeat is
+ *   reported instead of played (sweep 14: round 3 repeated round 2's question).
+ * @returns {Promise<{json: object|null, repeated?: boolean}>}
+ */
+async function generateRound(deps, room, roomId, show, state) {
+  const used = await usedQuestions(deps, roomId);
+  const played = new Set(used.map(questionKey));
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const json = extractJson(await invokeHost(deps, room.user_sub, roomId, show.generatePrompt(state, { usedQuestions: used })));
+    if (!json) return { json: null };
+    const question = roundQuestion(show, state, json);
+    if (!question || !played.has(questionKey(question))) return { json };
+  }
+  return { json: null, repeated: true };
+}
+
 /**
  * @description Invoke the accountable host bot; cost attributes to the room owner.
  *   The task id embeds the roomId so chat_tasks can answer "what did THIS game
@@ -121,6 +162,21 @@ async function invokeHost(deps, ownerSub, roomId, prompt) {
 }
 
 /**
+ * @description The HOST caption for a round after the first: the show's own round milestone ("Round 2: Name
+ *   something ..."), read aloud by the speaker surface like any host line. Only the open (round 0 to 1) is narrated by
+ *   the host bot, so without this a later round kept the previous round's line on every surface. No model call.
+ * @param {number} previousRound - The round before this start (0 before the open).
+ * @param {object|undefined} event - The show's ingest event.
+ * @param {number} now - Epoch ms.
+ * @returns {object|null} The host caption, or null for the open or a show with no round milestone.
+ */
+function roundCaption(previousRound, event, now) {
+  const milestone = event && event.kind === 'milestone' ? String(event.content || '').replace(/\s*\|\s*/g, ', ').trim() : '';
+  if (!(Number(previousRound) > 0) || !milestone) return null;
+  return { line: milestone.slice(0, 320), mode: 'round', at: now };
+}
+
+/**
  * @description Generate this round's content and open play (host only). When the
  *   host supplies their own content (`manual` — a real game-night feature: play
  *   YOUR questions), the LLM is skipped entirely; the json still goes through the
@@ -136,14 +192,17 @@ async function startRound(deps, sub, roomId, manual) {
   if (!snap) return { ok: false, status: 409, error: 'No game state.' };
   // Each SHOW decides when content may be built — never hard-code one show's phases here.
   if (show.canGenerate && !show.canGenerate(snap.state)) return { ok: false, status: 409, error: 'A round is already in play.' };
-  const json = (manual && typeof manual === 'object') ? manual
-    : extractJson(await invokeHost(deps, room.user_sub, roomId, show.generatePrompt(snap.state, { usedQuestions: await usedQuestions(deps, roomId) })));
+  const generated = (manual && typeof manual === 'object') ? { json: manual } : await generateRound(deps, room, roomId, show, snap.state);
+  if (generated.repeated) return { ok: false, status: 502, error: 'The host came back with a question already played — try starting the round again.' };
+  const json = generated.json;
   if (!json) return { ok: false, status: 502, error: 'The host is warming up — try starting the round again.' };
   const applied = await deps.room.mutate(roomId, sub, async ({ state }) => {
     if (show.canGenerate && !show.canGenerate(state)) return { ok: false, status: 409, error: 'A round is already in play.' };
     const result = show.ingestGenerated(state, json, Date.now());
     if (!result.ok) return { ok: false, status: 502, error: 'That survey did not come through — try again.' };
-    return { ok: true, state: result.state, events: result.event ? [result.event] : [], host: result.host };
+    const caption = roundCaption(state.round, result.event, Date.now());
+    const next = caption ? { ...result.state, host: caption } : result.state;
+    return { ok: true, state: next, events: result.event ? [result.event] : [], host: result.host };
   }, { ownerOnly: true });
   if (applied.ok) {
     await deps.room.setStatus(sub, roomId, 'live').catch(() => {});

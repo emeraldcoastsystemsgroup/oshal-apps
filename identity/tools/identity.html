@@ -12,6 +12,10 @@
     • Connect — start consent for a provider not yet connected.
   Plus an optional Access review (the inline identity-advisor bot, metadata only).
   OSHAL never shows or hands back a password — this only launches/relinks authorized accounts.
+  The native kernel answers the same list with its own connector kinds (oauth, personal_token,
+  api_key) and a per-provider liveness `status` instead of per-account rows; both shapes render.
+  Connect/Reconnect start consent at /api/connect/{id}/start, and fall back to the kernel's JSON
+  /connectors/{id}/authorize answer when that route is not served.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -394,6 +398,16 @@
     white-space: nowrap;
   }
 
+  .provider-id {
+    display: block;
+    margin-top: 2px;
+    overflow: hidden;
+    color: var(--identity-muted, var(--identity-faint));
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .provider-type {
     display: block;
     margin-top: 2px;
@@ -592,8 +606,8 @@ function grantRejected(p) {
 /** Is this account broken - lapsed with nothing to renew it, or rejected by the provider? */
 function accountIsDead(p, c) { return !!c.expired || grantRejected(p); }
 
-/** Does this provider need the user's attention - is any of its accounts broken? */
-function needsAttention(p) { return (p.connections || []).some((c) => accountIsDead(p, c)); }
+/** Does this provider need the user's attention - is any of its accounts broken, or its native grant lapsed? */
+function needsAttention(p) { return lapsed(p) || (p.connections || []).some((c) => accountIsDead(p, c)); }
 
 /** Where "Open" deep-links to per provider (public app URLs — presentation data only). */
 const OPEN_URLS = {
@@ -634,30 +648,101 @@ function renderMarkdown(md) {
 /** Open an OAuth/consent flow (or /utilities) in a new top-level tab — OAuth can't run in an iframe. */
 function openTop(url) { window.open(url, '_blank', 'noopener'); }
 
+/**
+ * The connector kind, folded across both list shapes: the framework says `token` / `llm` for a pasted
+ * credential and anything else for a redirect flow; the native kernel says `oauth`, `personal_token`
+ * or `api_key`. A personal token and an API key are pasted on /utilities like the framework's `token`.
+ */
+function authKind(p) {
+  const kind = String(p.auth || '').toLowerCase();
+  if (kind === 'llm') return 'llm';
+  if (kind === 'token' || kind === 'personal_token' || kind === 'api_key') return 'token';
+  return 'oauth';
+}
+
+/** How the kind reads on a card. */
+const AUTH_LABELS = { oauth: 'sign-in', personal_token: 'personal token', api_key: 'API key', token: 'token', llm: 'AI model' };
+
 /** Is this provider managed on /utilities (pasted token or BYO-LLM) rather than a redirect flow? */
-function isTokenSetup(p) { return p.auth === 'token' || p.auth === 'llm' || (!p.configured && p.tokenFallback); }
+function isTokenSetup(p) { const kind = authKind(p); return kind === 'token' || kind === 'llm' || (!p.configured && p.tokenFallback); }
+
+/**
+ * The native kernel reports the provider's liveness as `status`, with or without per-account rows.
+ * An expired or revoked grant needs a reconnect even though `connected` is false for it: the kernel
+ * renews a lapsed grant with the provider before it answers, so a grant still listed as expired or
+ * revoked is one the provider will not honour (Roger, 2026-10-13: Schwab read Connected here while
+ * Settings > Connections said Expired).
+ */
+function lapsed(p) { return !p.connected && (p.status === 'expired' || p.status === 'revoked'); }
+
+/** Has this provider ever been granted - connected now, or lapsed and waiting for a reconnect? */
+function granted(p) { return !!p.connected || lapsed(p); }
+
+/** A navigable consent URL from a JSON answer: the kernel's `authorize_url`, or a plain `url`. */
+function consentUrl(body) {
+  const url = body && (body.authorize_url || body.url);
+  return typeof url === 'string' && /^https?:\/\//i.test(url) ? url : null;
+}
+
+/**
+ * Start consent for one provider in a new top-level tab (OAuth cannot run in an iframe). The tab is
+ * opened inside the click so it is not blocked, then pointed at the first route that answers:
+ * /api/connect/{id}/start (a redirect to the provider, or JSON naming it), else the kernel's
+ * /connectors/{id}/authorize JSON. When neither answers, the tab closes and the reason is shown.
+ */
+async function startConsent(id) {
+  const tab = window.open('', '_blank');
+  if (tab) tab.opener = null;
+  const go = (url) => { if (tab) tab.location.href = url; else openTop(url); };
+  const startUrl = '/api/connect/' + encodeURIComponent(id) + '/start';
+  try {
+    const start = await fetch(startUrl, { credentials: 'include', redirect: 'manual', headers: { Accept: 'application/json' } });
+    if (start.type === 'opaqueredirect' || (start.status >= 300 && start.status < 400)) { go(startUrl); return; }
+    if (start.status === 401) throw new Error('Please sign in first.');
+    if (start.ok) { const url = consentUrl(await start.json().catch(() => null)); if (url) { go(url); return; } }
+    const authorize = await fetch('/connectors/' + encodeURIComponent(id) + '/authorize', { credentials: 'include', headers: { Accept: 'application/json' } });
+    const body = await authorize.json().catch(() => null);
+    const url = authorize.ok ? consentUrl(body) : null;
+    if (url) { go(url); return; }
+    throw new Error((body && (body.detail || body.message || body.error)) || ('HTTP ' + authorize.status));
+  } catch (e) {
+    if (tab) tab.close();
+    $('review').innerHTML = `<div class="panel review"><span class="err">Could not start the connection: ${esc(e.message)}</span></div>`;
+  }
+}
 
 /** Render the action buttons for one provider card. */
 function actionsFor(p) {
-  const startUrl = '/api/connect/' + encodeURIComponent(p.id) + '/start';
   const openUrl = OPEN_URLS[p.id];
   const btns = [];
   if (p.connected && openUrl) {
     btns.push(`<button class="btn primary sm" data-open="${esc(openUrl)}">Open ↗</button>`);
   }
   if (isTokenSetup(p)) {
-    btns.push(`<button class="btn ghost sm" data-util="1">${p.connected ? 'Manage' : 'Set up'}</button>`);
+    btns.push(`<button class="btn ghost sm" data-util="1">${granted(p) ? 'Manage' : 'Set up'}</button>`);
   } else if (!p.configured) {
     btns.push(`<button class="btn ghost sm" disabled title="This connector's OAuth client isn't configured yet">Not configured</button>`);
-  } else if (p.connected) {
-    btns.push(`<button class="btn ghost sm" data-start="${esc(startUrl)}">Reconnect</button>`);
+  } else if (granted(p)) {
+    btns.push(`<button class="btn ghost sm" data-start="${esc(p.id)}">Reconnect</button>`);
   } else {
-    btns.push(`<button class="btn ghost sm" data-start="${esc(startUrl)}">Connect</button>`);
+    btns.push(`<button class="btn ghost sm" data-start="${esc(p.id)}">Connect</button>`);
   }
   return `<div class="row">${btns.join('')}</div>`;
 }
 
 /** Render one provider card. */
+/**
+ * The provider's id beneath its name, as the Connections page shows it, so providers that share a label read apart
+ * (sweep 8: three 'Account API' cards - Adyen and two eBay entries - looked identical). Omitted when the id only
+ * restates the label (google under Google).
+ */
+function providerIdLine(p) {
+  const id = String(p.id || '');
+  const slug = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  if (!id || slug(id) === slug(p.label)) return '';
+  return `<span class="provider-id">${esc(id)}</span>`;
+}
+
 function cardFor(p) {
   const iconByCategory = {
     identity: 'codicon-key',
@@ -673,8 +758,8 @@ function cardFor(p) {
   const icon = p.id === 'any-llm' ? 'codicon-hubot' : (iconByCategory[p.category] || 'codicon-plug');
   let pill = '<span class="pill off">Not connected</span>';
   const anyExpired = needsAttention(p);
-  const anyExpiring = (p.connections || []).some((c) => !!c.expiring);
-  if (p.connected) {
+  const anyExpiring = (p.connections || []).some((c) => !!c.expiring) || p.status === 'expiring';
+  if (granted(p)) {
     if (anyExpired) pill = '<span class="pill exp">Reconnect</span>';
     else if (anyExpiring) pill = '<span class="pill soon">Expiring</span>';
     else pill = '<span class="pill ok">Connected</span>';
@@ -687,10 +772,10 @@ function cardFor(p) {
     <div class="card">
       <div class="top">
         <span class="ico codicon ${icon}"></span>
-        <span><span class="name">${esc(p.label)}</span><span class="provider-type">${esc(p.category || 'other')} - ${esc(p.auth || 'connection')}</span></span>
+        <span><span class="name">${esc(p.label)}</span>${providerIdLine(p)}<span class="provider-type">${esc(p.category || 'other')} - ${esc(AUTH_LABELS[String(p.auth || '').toLowerCase()] || p.auth || 'connection')}</span></span>
         ${pill}
       </div>
-      ${accts ? `<div class="accts">${accts}</div>` : '<div class="note">Not connected yet.</div>'}
+      ${accts ? `<div class="accts">${accts}</div>` : `<div class="note">${lapsed(p) ? 'Saved sign-in has lapsed.' : p.connected ? 'Connected.' : 'Not connected yet.'}</div>`}
       ${actionsFor(p)}
     </div>`;
 }
@@ -698,7 +783,7 @@ function cardFor(p) {
 /** Wire the data-attribute action buttons inside a container. */
 function wire(container) {
   container.querySelectorAll('[data-open]').forEach((b) => b.onclick = () => openTop(b.getAttribute('data-open')));
-  container.querySelectorAll('[data-start]').forEach((b) => b.onclick = () => openTop(b.getAttribute('data-start')));
+  container.querySelectorAll('[data-start]').forEach((b) => b.onclick = () => startConsent(b.getAttribute('data-start')));
   container.querySelectorAll('[data-util]').forEach((b) => b.onclick = () => openTop('/utilities'));
 }
 
@@ -736,8 +821,56 @@ function providerMatches(p) {
   return haystack.includes(query);
 }
 
+/**
+ * How well a provider answers a search, highest first; 0 means it does not match. The catalog holds
+ * over a thousand declarations (two hundred of them Google Cloud APIs whose id merely starts with
+ * "googleapis"), so a search grouped by category and sorted by name buried the Google sign-in
+ * connector under "Abusive Experience Report API". Exact name or id first, then names that start
+ * with the words typed, then a word inside the name, then the id, then the category or auth kind.
+ */
+function searchRank(p, query) {
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return 1;
+  const id = String(p.id || '').toLowerCase();
+  const label = String(p.label || '').toLowerCase();
+  const words = label.split(/[^a-z0-9]+/).filter(Boolean);
+  const idWords = id.split(/[^a-z0-9]+/).filter(Boolean);
+  const qWords = q.split(/[^a-z0-9]+/).filter(Boolean);
+  const accounts = (p.connections || []).map((c) => String(c.label || c.account || '').toLowerCase()).join(' ');
+  if (label === q || id === q || id === qWords.join('-')) return 100;
+  if (label.startsWith(q)) return 80;
+  if (qWords.length && qWords.every((w) => words.some((x) => x.startsWith(w)))) return 60;
+  if (qWords.length && qWords.every((w) => idWords.includes(w))) return 50;
+  if (label.includes(q)) return 40;
+  if (id.includes(q) || id.includes(qWords.join('-'))) return 20;
+  if (accounts.includes(q)) return 15;
+  if ([p.category, p.auth].join(' ').toLowerCase().includes(q)) return 10;
+  return 0;
+}
+
+/** Search results in rank order: connected first within a rank, then the shorter, plainer name. */
+function rankedMatches(providers, query) {
+  return providers
+    .map((p) => ({ p, rank: searchRank(p, query) }))
+    .filter((x) => x.rank > 0)
+    .sort((a, b) => (b.rank - a.rank) || (Number(b.p.connected) - Number(a.p.connected))
+      || (String(a.p.label || a.p.id).length - String(b.p.label || b.p.id).length)
+      || String(a.p.label || a.p.id).localeCompare(String(b.p.label || b.p.id)))
+    .map((x) => x.p);
+}
+
 function renderProviders() {
   const providers = allProviders.filter(providerMatches);
+  const query = (searchInput?.value || '').trim();
+  if (query) {
+    const ranked = rankedMatches(providers, query);
+    main.innerHTML = (ranked.length
+      ? `<div class="cat">Best matches for “${esc(query)}”</div><div class="grid">${ranked.map(cardFor).join('')}</div>`
+      : '<div class="empty-card">No connections match this search or filter.</div>')
+      + `<div class="foot">${allProviders.filter((p) => p.connected).length} of ${allProviders.length} providers connected.</div>`;
+    wire(main);
+    return;
+  }
   const byCat = new Map();
   for (const p of providers) {
     const cat = p.category || 'other';

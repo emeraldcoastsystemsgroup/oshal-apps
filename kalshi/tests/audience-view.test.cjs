@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The company view asserted as behaviour over a stub kit and a stub fetch, with the browser fixture's synthetic answers as the one source of truth: on open it reads exactly GET /scan, GET /alerts and GET /home-summary and never /status, /portfolio or /alerts/pops (each asks Kalshi live), /trends, /settings or a write; the stats are the playable-hand count, the snapshot age with its freshness, the paper alert record and the five-day alert count; the hands table carries strength, side, market, ask, net edge, stake, close and flags as the snapshot ranks them (a past close reads Closed); the alerts list carries strength, side, edge, delivery and the settlement outcome (Open, Win, Loss, Settled), newest first, capped at eight, under the record line; waiting for the first scan, a running first scan, the scan switched off, a folded scan, a stale or failed snapshot, an open staking gate, 401, 403, a failed snapshot read (the route's own error, or the HTTP status when not JSON), a failed or refused alerts read (which never hides the hands), a failed, unavailable or partial home summary and no alerts at all each read as what they are. The page's main script and its connected-actions script run against a stub DOM to prove that under a view nothing starts (no read, no poller, no mount) while without a view, and without the kit, every start step runs as before.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | The scan cadence is stated as conditional on the person's background-scan job ("scans every 60 min while your background-scan job is on"; the snapshot hint "Every 60 min while your scan job is on"), since the scan runs only when that job is activated, and an installation that cannot scan says so in the title, the lede and the snapshot hint instead of a cadence.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -101,10 +102,10 @@ test('on open the view reads only the saved snapshot, the alert ledger and the h
 test('the hero and stats name the scan state: hands, snapshot age and freshness, the paper record and the five-day alert count', async () => {
   const model = await loadCompany(OK).company({});
   assert.deepEqual([model.kicker, model.title, model.actions.map((a) => a.label)], ['Finance · Kalshi', '2 playable hands', ['Open the scan']]);
-  assert.equal(model.lede, 'Snapshot W(' + GEN + ') over 1387 evaluable markets · scans every 60 min · paper only: strategy calibration is unproven (12 graded, 30 needed).');
+  assert.equal(model.lede, 'Snapshot W(' + GEN + ') over 1387 evaluable markets · scans every 60 min while your background-scan job is on · paper only: strategy calibration is unproven (12 graded, 30 needed).');
   assert.deepEqual(model.stats.map(brief), [
     ['hands', 'Playable hands', 2, 'of 1387 evaluable markets', 'ok'],
-    ['snapshot', 'Last scan', 'W(' + GEN + ')', 'Scans every 60 min', 'ok'],
+    ['snapshot', 'Last scan', 'W(' + GEN + ')', 'Every 60 min while your scan job is on', 'ok'],
     ['record', 'Alert record (paper)', '2–1', '67% hit over 3 settled alerts', 'ok'],
     ['alerts5d', 'Alerts / 5 days', '4', '3 delivered', null],
   ]);
@@ -142,7 +143,12 @@ test('the alerts list carries strength, side, edge, delivery and the settlement 
 test('waiting for the first scan, a running first scan, the scan switched off and a folded scan each read as what they are', async () => {
   const waiting = await loadCompany({ ...OK, [S]: AWAITING }).company({});
   assert.deepEqual([waiting.title, waiting.lede, brief(stat(waiting, 'hands')), brief(stat(waiting, 'snapshot')), section(waiting, 'hands').rows.length, section(waiting, 'hands').empty],
-    ['Waiting for the first scan', 'scans every 60 min · paper only: the background scan has not produced its first snapshot yet.', ['hands', 'Playable hands', 0, null, null], ['snapshot', 'Last scan', 'None yet', 'Scans every 60 min', 'warn'], 0, 'The background scan has not produced its first snapshot yet.']);
+    ['Waiting for the first scan', 'scans every 60 min while your background-scan job is on · paper only: the background scan has not produced its first snapshot yet.', ['hands', 'Playable hands', 0, null, null], ['snapshot', 'Last scan', 'None yet', 'Every 60 min while your scan job is on', 'warn'], 0, 'The background scan has not produced its first snapshot yet.']);
+  const reason = 'No Kalshi market feed is connected on this installation: the runtime provides no prediction-markets market reader.';
+  const cannot = await loadCompany({ ...OK, [S]: scan({ ...AWAITING, gateReason: reason }, { unavailable: reason, lastError: reason }) }).company({});
+  assert.deepEqual([cannot.title, cannot.lede, stat(cannot, 'snapshot').hint],
+    ['The scan cannot run on this installation', 'the scan cannot run on this installation · paper only: ' + reason + '.', 'Cannot scan on this installation']);
+  assert.doesNotMatch(cannot.lede, /scans every/, 'no cadence is promised for a scan that cannot run');
   const running = await loadCompany({ ...OK, [S]: scan(AWAITING, { running: true }) }).company({});
   assert.deepEqual([running.title, stat(running, 'snapshot').value], ['The first scan is running', 'Running']);
   const off = await loadCompany({ ...OK, [S]: scan(AWAITING, { enabled: false }) }).company({});

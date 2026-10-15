@@ -1,0 +1,7 @@
+# Source-only build context. Runtime files used by the identity stay included.
+target/
+node_modules/
+.git/
+*.log
+.env
+.env.*

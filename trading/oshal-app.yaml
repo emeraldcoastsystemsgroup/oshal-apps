@@ -1,3 +1,10 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                    | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | TRADE-01 native paper autopilot: migrations/002-native-paper.sql, the /api/trading/paper mount (routes/trading-paper-routes.js) and the person-activated paper-autopilot schedule. Version unchanged.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Declare www.sec.gov and data.sec.gov as outbound hosts: Research's SEC filings section was refused by the kernel egress ("www.sec.gov is not a declared outbound host") and showed unavailable. Version unchanged.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Declare chatBot: trading-analyst. The Intelligent Trades concierge opened on futures-research-analyst (the first declared bot), which answers a conversation with a json futures study; the analyst answers in prose. Version unchanged.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — trading ("Intelligent Trades", ADR-052)
 #
@@ -90,7 +97,7 @@ description: >-
   reason over it, and place the trade through your broker (Alpaca) — with a full decision
   trail from every order back to the signal that triggered it. Paper-trade and live-trade as
   two separate books. Cash equities. No crypto.
-version: 1.33.0
+version: 1.33.5
 status: active
 
 source:
@@ -152,6 +159,13 @@ testing:
   version: 1
   catalog: tests/test-lab.yaml
 
+# OUTBOUND HOSTS. A native package has no network of its own: the kernel's fenced egress carries
+# Research's SEC filings (the EDGAR ticker table and company submissions; public, keyless, sent with
+# the SEC's required contact User-Agent) and refuses any host not declared here.
+egress:
+  - host: www.sec.gov
+  - host: data.sec.gov
+
 # Dark, focused trading skin.
 theme: midnight
 
@@ -168,6 +182,11 @@ workflow:
   # row (the kernel loops create those tickets whether or not this app is installed).
   pipeline: trading
   workerBot: trading-analyst
+
+# The right-rail chat agent when this app is focused. Without it the cockpit took the first
+# bot below (futures-research-analyst), which only emits a json futures study; the analyst
+# answers a person's question in prose.
+chatBot: trading-analyst
 
 bots:
   # Interactive research-only concierge; omit container to use the kernel's inline default.
@@ -350,6 +369,27 @@ tools:
     routingTags: [trading, performance, summary]
     skills: [trading]
     tags: [intelligent-trades]
+  # How the selected book did over a period, against SPY: the same response the Performance tile reads.
+  - name: trading_performance
+    displayName: Trading Performance
+    type: api
+    category: trading
+    description: >-
+      How the caller's selected book did over a period: start and end equity, total return and the
+      S&P 500 (SPY) return over the same days, from the book's recorded daily equity or the broker's
+      equity curve. Read-only and owner-scoped. Input: {"period": "1W" | "1M" | "3M" | "1Y"}.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/performance?period={input.period}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [period]
+      properties:
+        period: { type: string, enum: ["1W", "1M", "3M", "1Y"], description: "1W for last week, 1M, 3M or 1Y" }
+    usageInstructions: Call with {"period":"1W"} for "how did we do last week", 1M for the month.
+    routingTags: [trading, performance, return]
+    skills: [trading]
+    tags: [intelligent-trades]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ROUTES — the packaged surface routers, dynamic-mounted on activation by the
@@ -367,6 +407,11 @@ tools:
 # The dispatcher runs most-specific mounts first, so autopilot/lab win over
 # /api/trading exactly like the original BEFORE-ordering in server.ts.
 # ─────────────────────────────────────────────────────────────────────────────
+# Declared stores (native kernel): provisioned in a person's scope before the first read.
+migrations:
+  - migrations/001-trading-watchlist.sql
+  - migrations/002-native-paper.sql
+
 routes:
   - module: routes/home-summary.js
     factory: createHomeSummaryRoutes
@@ -380,6 +425,17 @@ routes:
     factory: createPackageSmokeRoutes
     mountPath: /api/intelligent-trades/_smoke
     auth: service
+    requiresContext: true
+    requiresAi: false
+
+  # TRADE-01: the native paper autopilot (arm/disarm/status, the scheduled tick, fills and decisions).
+  # Paper only: fills are simulated at the kernel's prices.latest price in the caller's own scope; nothing
+  # under routes/paper/ reaches a broker. On a host without the kernel price intents a tick answers 503.
+  - module: routes/trading-paper-routes.js
+    factory: createTradingPaperRoutes
+    mountPath: /api/trading/paper
+    auth: service-or-oidc
+    requiresAuth: true
     requiresContext: true
     requiresAi: false
 
@@ -407,6 +463,24 @@ routes:
     auth: service-or-oidc   # what core server.ts ACTUALLY mounted (ADR-085 D2)
     requiresAuth: true
     requiresContext: true
+
+# TRADE-01: the native paper autopilot. A PERSON job: each person who arms their paper book activates
+# it for themselves (the trading page makes the person's own POST /api/v1/agent/schedules/{id}/activate
+# with class person), and the kernel fires the tick as that person every five minutes of the New York
+# session. The tick refuses when the person has not armed, writes nothing outside the regular session,
+# and is idempotent per five-minute window. Deterministic: no model runs in the tick.
+schedules:
+  - id: paper-autopilot
+    cron: "*/5 9-15 * * 1-5"
+    timezone: America/New_York
+    runsAs: user
+    target: service-route
+    route: /api/trading/paper/tick
+    method: POST
+    body: {}
+    timeoutSeconds: 120
+    description: Paper autopilot tick - multi-timeframe decisions from kernel prices, simulated fills in your own paper book (never a broker order).
+    offer: Run my paper trading autopilot every five minutes while the US market is open.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon icon opens the Trading page (served by the

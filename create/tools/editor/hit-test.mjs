@@ -4,7 +4,12 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Pick visible unlocked layers in paint order using rotated shape and stroke geometry.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Integrate version 3 brush and arithmetic masks plus editable stack/clipped color adjustments with existing project history.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  */
+import { traceVector } from './vector-geometry.mjs';
+import { parentGroup } from './group-geometry.mjs';
 import { number, validateProject } from './model-validation.mjs';
 
 /** @description Convert canvas coordinates into the unrotated local layer rectangle.
@@ -40,8 +45,24 @@ function strokeHit(layer, point, tolerance) {
   return points.some((item, index) => segmentDistance(point, index ? points[index - 1] : item, item) <= radius);
 }
 
+function vectorHit(layer, point, tolerance) {
+  if (typeof Path2D !== 'function') return rectangle(point, layer.w, layer.h, tolerance);
+  const canvas = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(1, 1) : globalThis.document?.createElement('canvas');
+  const ctx = canvas?.getContext('2d'); if (!ctx) return false;
+  if (layer.clip) {
+    const clip = new Path2D(); layer.clip.forEach((at, index) => index ? clip.lineTo(at.x * layer.w, at.y * layer.h) : clip.moveTo(at.x * layer.w, at.y * layer.h));
+    clip.closePath(); if (!ctx.isPointInPath(clip, point.x, point.y)) return false;
+  }
+  const path = new Path2D(); traceVector(path, layer);
+  if ((painted(layer.fill) || layer.gradient) && ctx.isPointInPath(path, point.x, point.y, layer.fillRule)) return true;
+  ctx.lineWidth = layer.strokeWidth + tolerance * 2; ctx.lineCap = layer.cap; ctx.lineJoin = layer.join; ctx.setLineDash(layer.dash);
+  return painted(layer.stroke) && layer.strokeWidth > 0 && ctx.isPointInStroke(path, point.x, point.y);
+}
+
 function contains(layer, point, tolerance) {
   if (layer.type === 'freehand') return strokeHit(layer, point, tolerance);
+  if (layer.type === 'path') return vectorHit(layer, point, tolerance);
+  if (layer.type === 'group') return rectangle(point, layer.w, layer.h, tolerance);
   if (layer.type === 'image') return rectangle(point, layer.w, layer.h, tolerance);
   if (layer.type === 'text') return painted(layer.fill) && rectangle(point, layer.w, layer.h, tolerance);
   const shape = layer.type === 'ellipse' ? ellipse : rectangle;
@@ -60,7 +81,7 @@ export function hitTest(project, point, options = {}) {
   number(point?.x, -65536, 65536, 'Pointer x'); number(point?.y, -65536, 65536, 'Pointer y');
   const tolerance = number(options.tolerance ?? 0, 0, 100, 'Hit tolerance'), normalized = validateProject(project);
   for (const layer of normalized.layers.slice().reverse()) {
-    if (!layer.visible || layer.opacity === 0 || (layer.locked && !options.includeLocked)) continue;
+    if (parentGroup(normalized, layer.id) || layer.type === 'adjustment' || !layer.visible || layer.opacity === 0 || (layer.locked && !options.includeLocked)) continue;
     if (contains(layer, worldToLayer(layer, point), tolerance)) return layer;
   }
   return null;

@@ -17,6 +17,11 @@
 #   |                                           | exists. godot-mcp silently replaces the file, so a
 #   |                                           | create on main.tscn wiped the scene (found in the
 #   |                                           | studio's first live test).
+# 3 | maintainer@emeraldcoastsystemsgroup.com   | Sweep 12: Run headless Godot showed godot-mcp's
+#   |                                           | "No active Godot process" error as the run's output with
+#   |                                           | 0 error lines (1 of 3 runs): get_debug_output's isError
+#   |                                           | was discarded. op_godot_run refuses such a run as an
+#   |                                           | engine_error naming the reason; it is never a clean run.
 """scene_ops -- what the Scene Studio engine does to one project (stdlib only).
 
 A project travels as a FILE MAP: [{"path": "main.tscn", "data": "<base64>"}, ...]. The api owns the
@@ -582,8 +587,11 @@ def op_godot_run(cfg, req):
             if is_error:
                 raise OpError("engine_error", f"run_project: {text}")
             time.sleep(seconds)
-            output_text, _ = content_text(session.call_tool("get_debug_output", {}, 30))
+            output_text, output_failed = content_text(session.call_tool("get_debug_output", {}, 30))
             session.call_tool("stop_project", {}, 30)
+            if output_failed:
+                raise OpError("engine_error", "Godot was not running when the run's output was read, so it may have "
+                              f"exited or crashed: {output_text.strip().splitlines()[0][:300] if output_text.strip() else 'no detail'}")
         except McpError as exc:
             raise OpError("engine_error", f"godot run: {exc}") from exc
         finally:

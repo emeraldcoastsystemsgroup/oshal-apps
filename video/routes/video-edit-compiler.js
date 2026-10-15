@@ -5,10 +5,12 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Compile a validated manual timeline into one fixed FFmpeg argument array and filter graph. The only document values that reach the graph are range-checked integers; title text is written to server-named files read with drawtext expansion off, media are server-resolved local files forced through the file protocol and an explicit demuxer, and nothing is ever run through a shell.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OUTPUT_NAME = exports.SAMPLES_PER_FRAME = exports.SAMPLE_RATE = exports.TIMELINE_FPS = exports.TimelineCompileError = void 0;
 exports.compileTimeline = compileTimeline;
+const video_edit_multitrack_compiler_1 = require("./video-edit-multitrack-compiler");
 /** A compile refusal with a stable code; the job layer reports it without echoing document content. */
 class TimelineCompileError extends Error {
     code;
@@ -139,6 +141,8 @@ function audioChain(graph, input, total) {
  */
 function compileTimeline(input) {
     const document = input.document;
+    if (document?.version === 2 && document.profile === 'hd720p30')
+        return (0, video_edit_multitrack_compiler_1.compileMultitrack)(input);
     if (!document || document.version !== 1 || document.profile !== 'hd720p30' || !Array.isArray(document.segments))
         throw new TimelineCompileError('timeline_invalid');
     if (!document.segments.length)

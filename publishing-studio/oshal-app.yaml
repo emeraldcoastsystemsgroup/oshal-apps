@@ -1,0 +1,685 @@
+# CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Declare real bounded Publishing routes and original held agent contracts.
+name: publishing-studio
+suite: ai-creative
+displayName: Publishing Studio
+description: >-
+  Original-owned bounded English print layouts, linked stories, styles, masters and native Typst
+  PDF/PNG output.
+version: 0.1.0
+runtime: process
+lastingStorage: true
+status: active
+scope: public
+uses:
+  - application-authorization
+  - test-catalog
+  - app-dependencies
+  - experience-roles
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+authorization:
+  version: 1
+  catalog: authorization.yaml
+  roleTemplates:
+    - id: administrator
+      version: 1
+      label: Publishing Studio Administrator
+      members:
+        - { app: publishing-studio, role: administrator }
+    - id: creator
+      version: 1
+      label: Publishing Creator
+      members:
+        - { app: publishing-studio, role: creator }
+        - { app: publishing-studio, role: editor }
+        - { app: publishing-studio, role: exporter }
+chatBot: publishing-editor
+rating:
+  memoryMb: { low: 384, high: 1536, basis: declared }
+  features:
+    - id: publishing-editing-command
+      unit: editing command
+      tier: T1
+      generation: none
+      degrade: disable
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: publishing-studio
+  ref: main
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/publishing-studio/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+  - module: routes/application.mjs
+    factory: createPublishingRoutes
+    mountPath: /api/publishing-studio
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/publishing-studio/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+migrations:
+  - migrations/001-publishing-studio.sql
+  - migrations/native/001-publishing-studio.sql
+nativeMigrations:
+  - id: migrations/001-publishing-studio.sql
+    native: skip
+    reason: >-
+      Native final schema retains Person scope and immutable rows; PostgreSQL additionally applies
+      forced original-owner RLS.
+summary:
+  path: /api/publishing-studio/home-summary
+  tilesPointer: /metrics
+  itemsPointer: /items
+ui:
+  static:
+    - toolName: publishing-studio
+      label: Publishing Studio
+      icon: codicon codicon-layout
+      iframeUrl: /api/publishing-studio/app
+      section: top
+ribbon:
+  defaultView: publishing-studio
+  hideChatPanel: false
+bots:
+  - agentId: 04b8a632-2b12-43f2-914b-10d7d6a0c891
+    name: publishing-editor
+    persona: personas/publishing-editor.yaml
+    posture: inline
+    role: creative/publishing-editor
+    capabilities:
+      - publishing-layout
+      - linked-stories
+      - publishing-preflight
+    selectorDescriptor: >-
+      Choose for owned English brochures/publications, linked text frames, page/master/style/image
+      layout and Typst PDF/PNG preflight. Bounded 8 pages; not full InDesign, PDF/X or CMYK.
+    routingKeywords:
+      - publishing
+      - brochure
+      - linked text
+      - master page
+      - print layout
+tools:
+  - name: publishing-editing-contract
+    displayName: Read current publishing contract
+    type: api
+    category: creative
+    description: >-
+      Read current publishing contract. Read the current full operation fields, null transport,
+      font/profile limits before edits. Source model is immutable per revision; never claim a
+      truncated observation complete.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/publishing-studio/editing-contract
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {}
+      required: []
+    usageInstructions: >-
+      Read the current full operation fields, null transport, font/profile limits before edits.
+      Source model is immutable per revision; never claim a truncated observation complete.
+    routingTags:
+      - publishing
+      - brochure
+      - layout
+    skills:
+      - publishing-editing
+    tags:
+      - route-backed
+  - name: publishing-list-documents
+    displayName: List owned publications
+    type: api
+    category: creative
+    description: >-
+      List owned publications. Choose actual returned owned document UUIDs, never invent IDs or
+      owners.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/publishing-studio/documents
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {}
+      required: []
+    usageInstructions: Choose actual returned owned document UUIDs, never invent IDs or owners.
+    routingTags:
+      - publishing
+      - brochure
+      - layout
+    skills:
+      - publishing-editing
+    tags:
+      - route-backed
+  - name: publishing-list-assets
+    displayName: List owned image originals
+    type: api
+    category: creative
+    description: >-
+      List owned image originals. Only owned PNG/JPEG originals. Use returned id/hash/bytes/mime
+      when constructing layout assets.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/publishing-studio/assets
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {}
+      required: []
+    usageInstructions: >-
+      Only owned PNG/JPEG originals. Use returned id/hash/bytes/mime when constructing layout
+      assets.
+    routingTags:
+      - publishing
+      - brochure
+      - layout
+    skills:
+      - publishing-editing
+    tags:
+      - route-backed
+  - name: publishing-read-document
+    displayName: Read publication revision receipt
+    type: api
+    category: creative
+    description: >-
+      Read publication revision receipt. Pin exact immutable saved revision/model SHA. Read every
+      model part needed before proposing edits; counts are not full model.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/publishing-studio/documents/{input.id}?revision={input.revision}&receipt=1
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 100
+      required:
+        - id
+        - revision
+    usageInstructions: >-
+      Pin exact immutable saved revision/model SHA. Read every model part needed before proposing
+      edits; counts are not full model.
+    routingTags:
+      - publishing
+      - brochure
+      - layout
+    skills:
+      - publishing-editing
+    tags:
+      - route-backed
+  - name: publishing-read-model-part
+    displayName: Read exact publication model part
+    type: api
+    category: creative
+    description: >-
+      Read exact publication model part. Read one exact descriptor or part=complete JSON-text
+      fragments at UTF16 offset0, following nextOffset to null at the same revision/modelSHA and
+      textSHA. Reassemble and verify complete model, never treat a truncated observation as
+      complete. Oversized descriptors require complete fragments.
+    executor:
+      executorType: api
+      apiEndpoint: >-
+        GET
+        /api/publishing-studio/documents/{input.id}/model/{input.part}/{input.offset}?revision={input.revision}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 100
+        part:
+          type: string
+          enum:
+            - pages
+            - masters
+            - stories
+            - assets
+            - paragraphStyles
+            - characterStyles
+            - complete
+        offset:
+          type: integer
+          minimum: 0
+          maximum: 524288
+      required:
+        - id
+        - revision
+        - part
+        - offset
+    usageInstructions: >-
+      Read one exact descriptor or part=complete JSON-text fragments at UTF16 offset0, following
+      nextOffset to null at the same revision/modelSHA and textSHA. Reassemble and verify complete
+      model, never treat a truncated observation as complete. Oversized descriptors require complete
+      fragments.
+    routingTags:
+      - publishing
+      - brochure
+      - layout
+    skills:
+      - publishing-editing
+    tags:
+      - route-backed
+  - name: publishing-import-artifact
+    displayName: Import owned publishing image artifact
+    type: api
+    category: creative
+    description: >-
+      Import owned publishing image artifact. Use genuine native art_ handle only; current
+      owner/producer, whole SHA, PNG/JPEG <=4MiB. Original bytes retained immutable; held approval.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/publishing-studio/assets/import-artifact
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        ref:
+          type: string
+          minLength: 68
+          maxLength: 68
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - ref
+        - title
+        - requestKey
+    usageInstructions: >-
+      Use genuine native art_ handle only; current owner/producer, whole SHA, PNG/JPEG <=4MiB.
+      Original bytes retained immutable; held approval.
+    routingTags:
+      - publishing
+      - brochure
+      - layout
+    skills:
+      - publishing-editing
+    tags:
+      - route-backed
+  - name: publishing-create-document
+    displayName: Create owned publication
+    type: api
+    category: creative
+    description: >-
+      Create owned publication. Creates saved initial linked-story layout. A UUID requestKey seals
+      exact inputs; reuse only same-input uncertain retries.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/publishing-studio/documents
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        pageCount:
+          type: integer
+          minimum: 1
+          maximum: 8
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - title
+        - pageCount
+        - requestKey
+    usageInstructions: >-
+      Creates saved initial linked-story layout. A UUID requestKey seals exact inputs; reuse only
+      same-input uncertain retries.
+    routingTags:
+      - publishing
+      - brochure
+      - layout
+    skills:
+      - publishing-editing
+    tags:
+      - route-backed
+  - name: publishing-apply-edits
+    displayName: Save publication operations
+    type: api
+    category: creative
+    description: >-
+      Save publication operations. Read publishing-editing-contract first for complete per-operation
+      JSON schemas. Supply operationsJson as a JSON array of exact canonical operations (raw null
+      allowed), never code. Explain edits and hold approval; latest baseRevision CAS. Native total
+      input <=16KiB, including escaping. Saving appends immutable history; rendering is separate.
+      Preserve every unaffected story/object.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/publishing-studio/documents/{input.id}/edits
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        baseRevision:
+          type: integer
+          minimum: 1
+          maximum: 100
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+        operationsJson:
+          type: string
+          minLength: 2
+          maxLength: 15000
+      required:
+        - id
+        - baseRevision
+        - requestKey
+        - operationsJson
+    usageInstructions: >-
+      Read publishing-editing-contract first for complete per-operation JSON schemas. Supply
+      operationsJson as a JSON array of exact canonical operations (raw null allowed), never code.
+      Explain edits and hold approval; latest baseRevision CAS. Native total input <=16KiB,
+      including escaping. Saving appends immutable history; rendering is separate. Preserve every
+      unaffected story/object.
+    routingTags:
+      - publishing
+      - brochure
+      - layout
+    skills:
+      - publishing-editing
+    tags:
+      - route-backed
+  - name: publishing-restore-revision
+    displayName: Restore publication history
+    type: api
+    category: creative
+    description: >-
+      Restore publication history. Append older model as new revision under latest baseRevision CAS.
+      Never overwrite history.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/publishing-studio/documents/{input.id}/revisions
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        baseRevision:
+          type: integer
+          minimum: 1
+          maximum: 100
+        restoreRevision:
+          type: integer
+          minimum: 1
+          maximum: 100
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+        - baseRevision
+        - restoreRevision
+        - requestKey
+    usageInstructions: Append older model as new revision under latest baseRevision CAS. Never overwrite history.
+    routingTags:
+      - publishing
+      - brochure
+      - layout
+    skills:
+      - publishing-editing
+    tags:
+      - route-backed
+  - name: publishing-start-render
+    displayName: Render pinned publication revision
+    type: api
+    category: creative
+    description: >-
+      Render pinned publication revision. Actual native Typst render retained under original
+      authority.202/queued is incomplete; poll returned job until ready. Preflight/overset/font
+      errors are failures, never completed exports.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/publishing-studio/documents/{input.id}/render
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 100
+        requestKey:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+        - revision
+        - requestKey
+    usageInstructions: >-
+      Actual native Typst render retained under original authority.202/queued is incomplete; poll
+      returned job until ready. Preflight/overset/font errors are failures, never completed exports.
+    routingTags:
+      - publishing
+      - brochure
+      - layout
+    skills:
+      - publishing-editing
+    tags:
+      - route-backed
+  - name: publishing-job-status
+    displayName: Read owned publishing render job
+    type: api
+    category: creative
+    description: >-
+      Read owned publishing render job. Ready identifies complete outputs pinned to immutable model
+      SHA. Failed/cancelled/expired is not a render success.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/publishing-studio/jobs/{input.id}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+    usageInstructions: >-
+      Ready identifies complete outputs pinned to immutable model SHA. Failed/cancelled/expired is
+      not a render success.
+    routingTags:
+      - publishing
+      - brochure
+      - layout
+    skills:
+      - publishing-editing
+    tags:
+      - route-backed
+  - name: publishing-export
+    displayName: Export exact publication revision
+    type: api
+    category: creative
+    description: >-
+      Export exact publication revision. Hold export approval. layout is native JSON; pdf/preview
+      require ready pinned render; preview requires 1-based page, other formats forbid page. Returns
+      current-export-guarded contentUrl and full SHA, not raw bytes.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/publishing-studio/documents/{input.id}/export
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 100
+        format:
+          type: string
+          enum:
+            - layout
+            - pdf
+            - preview
+        page:
+          type: integer
+          minimum: 1
+          maximum: 8
+      required:
+        - id
+        - revision
+        - format
+    usageInstructions: >-
+      Hold export approval. layout is native JSON; pdf/preview require ready pinned render; preview
+      requires 1-based page, other formats forbid page. Returns current-export-guarded contentUrl
+      and full SHA, not raw bytes.
+    routingTags:
+      - publishing
+      - brochure
+      - layout
+    skills:
+      - publishing-editing
+    tags:
+      - route-backed
+  - name: publishing-cancel-render
+    displayName: Cancel owned publishing render
+    type: api
+    category: creative
+    description: >-
+      Cancel owned publishing render. Cancel only explicitly requested owned job; do not claim ready
+      output survives cancellation.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/publishing-studio/jobs/{input.id}/cancel
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+    usageInstructions: Cancel only explicitly requested owned job; do not claim ready output survives cancellation.
+    routingTags:
+      - publishing
+      - brochure
+      - layout
+    skills:
+      - publishing-editing
+    tags:
+      - route-backed
+  - name: publishing-delete-document
+    displayName: Delete owned publication
+    type: api
+    category: creative
+    description: >-
+      Delete owned publication. Only after explicit user request/approval; cannot delete other
+      principals or silently reclaim shared image originals.
+    executor:
+      executorType: api
+      apiEndpoint: DELETE /api/publishing-studio/documents/{input.id}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+    usageInstructions: >-
+      Only after explicit user request/approval; cannot delete other principals or silently reclaim
+      shared image originals.
+    routingTags:
+      - publishing
+      - brochure
+      - layout
+    skills:
+      - publishing-editing
+    tags:
+      - route-backed

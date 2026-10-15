@@ -13,6 +13,13 @@
  *   |                                           | (protocol + build hash) before any request
  *   |                                           | leaves, and unpacks inline export files into
  *   |                                           | the api-side workDir the download route reads.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The native kernel's sandbox has no network: a
+ *   |                                           | native channel sends each request line through
+ *   |                                           | the kernel's engine.exchange intent and hands the
+ *   |                                           | adapter the reply under the request's own id; the
+ *   |                                           | engine's hello is checked for protocol and busy as
+ *   |                                           | on a socket (the sandboxed copy carries no engine
+ *   |                                           | sources, so its build is the engine's own).
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -48,8 +55,9 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LineSplitter = exports.BRIDGE_PROTOCOL = void 0;
+exports.NATIVE_MAX_MS = exports.LineSplitter = exports.BRIDGE_PROTOCOL = void 0;
 exports.unpackExport = unpackExport;
+exports.openNativeChannel = openNativeChannel;
 exports.openContainerChannel = openContainerChannel;
 const fs = __importStar(require("fs"));
 const net = __importStar(require("net"));
@@ -252,6 +260,93 @@ function unpackExport(line, workDir) {
     }
     delete result.bridgeFiles;
     return JSON.stringify(msg);
+}
+/** The kernel relays one engine request within the 60 s process call; keep a margin. */
+exports.NATIVE_MAX_MS = 55_000;
+/**
+ * @description Each written line is one engine request sent through the kernel; requests run
+ * independently and their replies come back under their own ids, as on the socket.
+ */
+class NativeChannel {
+    opts;
+    handlers;
+    ended = false;
+    constructor(opts, handlers) {
+        this.opts = opts;
+        this.handlers = handlers;
+    }
+    get alive() {
+        return !this.ended;
+    }
+    write(line) {
+        if (this.ended)
+            return false;
+        let msg;
+        try {
+            msg = JSON.parse(line);
+        }
+        catch {
+            return false;
+        }
+        const { id, ...request } = msg;
+        void this.send(id, request);
+        return true;
+    }
+    end() {
+        this.ended = true;
+    }
+    kill(why) {
+        if (this.ended)
+            return;
+        this.ended = true;
+        logger.info({ why }, 'native engine channel closed; requests already sent finish in the kernel');
+    }
+    async send(id, request) {
+        let answer;
+        try {
+            answer = await this.opts.exchange(request, exports.NATIVE_MAX_MS);
+        }
+        catch (err) {
+            const message = err.message || String(err);
+            logger.error({ err, stack: err.stack }, 'the kernel could not relay the engine request');
+            this.gone(/deadline/.test(message)
+                ? { code: 'engine_error', message: `engine did not answer within ${Math.round(exports.NATIVE_MAX_MS / 1000)} s` }
+                : this.unavailable(`the kernel could not reach the aerosim engine container (${message})`));
+            return;
+        }
+        const hello = (answer?.hello ?? {});
+        if (hello.error) {
+            const text = String(hello.error.message || 'engine container refused the connection');
+            this.gone(hello.error.code === 'engine_busy' ? { code: 'engine_busy', message: text } : this.unavailable(text));
+            return;
+        }
+        if (hello.bridge?.protocol !== exports.BRIDGE_PROTOCOL) {
+            this.gone(this.unavailable(`aerosim engine container speaks bridge protocol ${String(hello.bridge?.protocol)}, this package needs ${exports.BRIDGE_PROTOCOL}`));
+            return;
+        }
+        if (this.ended)
+            return;
+        const line = JSON.stringify({ ...answer.reply, id });
+        this.handlers.onLine(line.includes('"bridgeFiles"') ? unpackExport(line, this.opts.workDir) : line);
+    }
+    unavailable(message) {
+        return { code: 'capability_unavailable', message, reason: `${message} — ${this.opts.installHint}` };
+    }
+    gone(failure) {
+        if (this.ended)
+            return;
+        this.ended = true;
+        this.handlers.onGone(failure);
+    }
+}
+/**
+ * @description Open the native kernel's engine channel.
+ * @param opts - The exchange intent, workDir and install hint.
+ * @param handlers - Line + gone callbacks.
+ * @returns The channel (each write is one kernel request).
+ */
+function openNativeChannel(opts, handlers) {
+    return new NativeChannel(opts, handlers);
 }
 /**
  * @description Open a channel to the engine container's bridge.

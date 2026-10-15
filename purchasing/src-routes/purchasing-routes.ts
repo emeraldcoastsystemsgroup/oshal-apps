@@ -33,6 +33,8 @@
  * 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove the final credential-bearing subprocess boundary. Walmart catalog/deep-link work now calls the import-safe core provider helper with one explicit request-scoped credential value.
  * 2026-09-26 | maintainer@emeraldcoastsystemsgroup.com | Commerce surfaces (backlog "Consumer commerce native surfaces"): (1) POST /lists/:listId/items no longer trusts the browser's price, title or image — it prices a product line from the Walmart catalog by exact productId (lookupCatalogProduct) and refuses an item the catalog cannot confirm with 422 unknown_product, while a title-only body stays a free-text list entry stored with no product and no price (the Homebase list adds these); the chat's fallback lookup uses the same exact match instead of taking the first search hit. (2) Every total (/cart, the checkout record, the chat proposal) is summed in integer cents by ./cart-totals, and /cart adds totalCents + unpricedLines beside the unchanged listId/items/total. (3) A chat "checkout" no longer builds the hand-off or writes shop_purchase_history in the same request: it returns a `proposal` the surface shows as a confirm card, and only the shopper's confirm calls POST /checkout. `checkout` stays in the reply (always null) so older surfaces keep their shape.
  * 2026-10-08 | maintainer@emeraldcoastsystemsgroup.com | GET /cart is a pure read. It called getOrCreateDefaultList, which INSERTs a list for a shopper who has none; the native host admits a GET read-only and refuses any SQL write, so every first visit answered 500 'SQL mutation requires original writer admission' and the cart rendered empty. readCart now answers the unchanged shape with listId null and no lines when no active list exists; the list is still created by a write request (POST /lists, which the chat surface now calls before its first add, the chat turn, or checkout).
+ * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | No Walmart rail is said, not refused before the concierge speaks. The chat turn probes the runtime's Walmart `status` first; where it answers mode not_connected (the native kernel declares a walmart connector but runs no Walmart operation, refusing search with 503 and failing the whole call) the turn skips the catalog and the concierge answers with that fact, which never tells the shopper to connect Walmart. /config carries `rail` and the sentence. Guard: tests/purchasing-no-rail.test.js.
+ * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | Sweep 9: neither the Home concierge nor Jarvis could put an item on the shopping list the screen adds to (no tool wrote a list). POST /lists/default/items adds to the shopper's default list (the first active one, which Home shows; created on first use), so the approval-held shopping-list-add tool needs no list id. Any other list id is still checked for ownership.
  *
  * @module purchasing-routes
  */
@@ -100,6 +102,22 @@ async function walmartProviderOperation(pool: Pool, sub: string, args: string[])
     'fixed-server-operation',
   );
   return runWalmartProviderOperation(creds.OSHAL_CRED_WALMART, args);
+}
+
+/** What a shopper is told where the installation has no Walmart rail at all. */
+export const PURCHASING_NO_RAIL = 'This installation has no Walmart rail: it runs no Walmart operations, so product search, deals and checkout links are unavailable here, and connecting a Walmart account does not change that.';
+
+/**
+ * @description Whether the runtime runs Walmart operations. The native kernel's `status` answers mode
+ * not_connected and refuses every other operation with 503 (failing the whole call), so a route that only
+ * wants to know asks `status`, never search.
+ * @param pool - The package pool.
+ * @param sub - The caller.
+ * @returns True where there is no Walmart rail.
+ */
+async function walmartRailAbsent(pool: Pool, sub: string): Promise<boolean> {
+  const st = await walmartProviderOperation(pool, sub, ['status']);
+  return !!st && st.mode === 'not_connected';
 }
 
 // ── Conversational concierge helpers ─────────────────────────────────────────
@@ -220,7 +238,7 @@ function buildConciergePrompt(o: {
   message: string; history: Array<{ role: string; content: string }>;
   candidates: any[]; cart: any[]; prefs: any[]; notes: string[];
   profile?: any; suggestions?: any[];
-  catalog?: { source?: string } & WalmartFallbackMetadata;
+  catalog?: { source?: string; rail?: string } & WalmartFallbackMetadata;
 }): string {
   const p = o.profile || {};
   const profileLine = p.onboarded
@@ -236,7 +254,9 @@ function buildConciergePrompt(o: {
     .join('\n') || '(none yet)';
   const notes = (o.notes || []).map((n) => `- ${n}`).join('\n') || '(none yet)';
   const convo = (o.history || []).map((h) => `${h.role === 'assistant' ? 'You' : 'Shopper'}: ${h.content}`).join('\n');
-  const catalogStatus = o.catalog?.fallbackReason === 'provider_error'
+  const catalogStatus = o.catalog?.rail === 'absent'
+    ? `NO WALMART RAIL — ${PURCHASING_NO_RAIL} There are no products to show or add: return add:[] and checkout:false, say this plainly when the shopper wants a product, a price or an order, and never tell them to connect Walmart or add a Walmart connection. Help with their list, their usual brands and what to buy instead.`
+    : o.catalog?.fallbackReason === 'provider_error'
     ? `DEMO FALLBACK — a Walmart credential was present, but the provider request failed${o.catalog.providerError?.status ? ` with HTTP ${o.catalog.providerError.status}` : ''}. Do not describe Walmart as disconnected. These rows are reference-only; return add:[] and checkout:false.`
     : o.catalog?.fallbackReason === 'not_connected'
       ? 'DEMO FALLBACK — Walmart is not connected. These rows are reference-only; return add:[] and checkout:false.'
@@ -534,9 +554,10 @@ export function createPurchasingRoutes(ctx: AppContext): Router {
   router.get('/purchasing.css', serveFile(surfaceDir, 'purchasing.css'));
 
   router.get('/config', shopper(async (_req, res, sub) => {
+    if (await walmartRailAbsent(pool, sub)) { res.json({ walmartConnected: false, rail: 'absent', railNote: PURCHASING_NO_RAIL }); return; }
     const r = await pool.query(
       `SELECT 1 FROM oshal_connections WHERE provider='walmart' AND (user_sub=$1 OR tenant_id IS NOT NULL) LIMIT 1`, [sub]);
-    res.json({ walmartConnected: !!r.rowCount });
+    res.json({ walmartConnected: !!r.rowCount, rail: 'provider' });
   }));
 
   // ── Live retailer reads (via the request-scoped provider helper) ───────────
@@ -620,12 +641,13 @@ export function createPurchasingRoutes(ctx: AppContext): Router {
   // no product and no price, so it can never move a total, and checkout leaves it out.
   router.post('/lists/:listId/items', shopper(async (req, res, sub) => {
     const b = req.body || {};
-    const own = await pool.query(`SELECT 1 FROM shop_lists WHERE list_id = $1 AND user_sub = $2`, [req.params.listId, sub]);
+    const listId = req.params.listId === 'default' ? await getOrCreateDefaultList(pool, sub) : String(req.params.listId);
+    const own = await pool.query(`SELECT 1 FROM shop_lists WHERE list_id = $1 AND user_sub = $2`, [listId, sub]);
     if (!own.rowCount) { res.status(403).json({ error: 'not your list' }); return; }
     const productId = String(b.productId || '').trim();
     const title = String(b.title || '').replace(/\s+/g, ' ').trim().slice(0, 300);
     if (!productId && title) {
-      const note = await addItem(pool, sub, String(req.params.listId), { retailer: 'walmart', title },
+      const note = await addItem(pool, sub, listId, { retailer: 'walmart', title },
         Number(b.quantity) || 1, b.reason || null, b.itemKey || title);
       res.json({ item: note });
       return;
@@ -633,7 +655,7 @@ export function createPurchasingRoutes(ctx: AppContext): Router {
     if (!PRODUCT_ID.test(productId)) { res.status(400).json({ error: productId ? 'productId is invalid' : 'productId or title is required' }); return; }
     const match = await lookupCatalogProduct((args) => walmartProviderOperation(pool, sub, args), productId, b.title);
     if (!match) { res.status(422).json({ error: 'unknown_product', message: 'The catalog could not confirm that product, so it was not added.' }); return; }
-    const item = await addItem(pool, sub, String(req.params.listId), match.product,
+    const item = await addItem(pool, sub, listId, match.product,
       Number(b.quantity) || 1, b.reason || null, b.itemKey || match.product.title || '');
     res.json({ item });
   }));
@@ -673,11 +695,12 @@ export function createPurchasingRoutes(ctx: AppContext): Router {
       `SELECT role, content FROM shop_messages WHERE conversation_id = $1 ORDER BY created_at DESC LIMIT 12`, [conversationId])).rows.reverse();
 
     // Catalog candidates from the connector (live or explicitly diagnosed demo fallback; no keys here).
-    const searchRes = await walmartProviderOperation(pool, sub, ['search', message, '6']);
+    const railAbsent = await walmartRailAbsent(pool, sub);
+    const searchRes = railAbsent ? { items: [], source: 'unavailable' } : await walmartProviderOperation(pool, sub, ['search', message, '6']);
     const candidates: any[] = searchRes.items || [];
     const candById = new Map<string, any>(candidates.map((c: any) => [String(c.productId), c]));
     const catalogActionsAllowed = walmartCatalogAllowsActions(searchRes);
-    const catalog = {
+    const catalog: { source?: string; rail?: string } & WalmartFallbackMetadata = railAbsent ? { source: 'unavailable', rail: 'absent' } : {
       ...(typeof searchRes.source === 'string' ? { source: searchRes.source } : {}),
       ...walmartFallbackMetadata(searchRes),
     };

@@ -13,6 +13,7 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-01 16:30:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — FLSA per-workweek overtime (the 30/50 averaging bug), weighted regular rate across two rates, nondiscretionary-bonus top-up, PTO not creating overtime, per-base pre-tax reduction, imputed income and reported tips taxed-not-paid, reimbursement paid-not-taxed, garnishment priority under one CCPA ceiling with arrears, the shared 402(g) ceiling, unknown-code rejection, and the cash identity.
+ * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | The personal-data stub is asynchronous, as the native kernel's personal_data intents are (PDATA-01), so every seal and open on these paths is proven awaited: a missed await would store or return a Promise, not the envelope or the digits.
  */
 
 import { test } from 'node:test';
@@ -28,8 +29,8 @@ const STUBS = {
   '@/shared/logger': { createChildLogger: () => ({ error() {}, warn() {}, info() {}, debug() {} }) },
   '@/features/personal-data': {
     isEncrypted: (v) => typeof v === 'string' && v.startsWith('enc:'),
-    encryptField: (_s, v) => (v === null || v === undefined ? null : `enc:${v}`),
-    decryptField: (_s, v) => (typeof v === 'string' && v.startsWith('enc:') ? v.slice(4) : v),
+    encryptField: async (_s, v) => (v === null || v === undefined ? null : `enc:${v}`),
+    decryptField: async (_s, v) => (typeof v === 'string' && v.startsWith('enc:') ? v.slice(4) : v),
   },
 };
 const origLoad = Module._load;

@@ -54,11 +54,14 @@
  *                     |                             | ?design=) and the assistant-rail listeners (bridge-ready's
  *                     |                             | context publish and the circuit_action handler) run only
  *                     |                             | when the kit renders no view, or when it is absent.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com  | Demo sweep 1: the engine-down banner and toasts showed the person the kernel's failure text three times with the host's install command. They now say the circuit engine is not answering on this installation (banner once, a short toast), never the address or install command; a solver refusal is still quoted.
  */
 (function () {
   'use strict';
   const BASE = '/api/circuit-lab';
   const $ = (id) => document.getElementById(id);
+  const ENGINE_DOWN = 'The circuit engine is not answering on this installation, so circuits cannot run right now. If this keeps happening, an administrator needs to set the engine up.';
+  const ENGINE_SHORT = 'The circuit engine is not answering on this installation.';
   const Canvas = window.CircuitLabCanvas, Plot = window.CircuitLabPlot, Board = window.CircuitLabBoard;
   const state = { view: 'schematic', caps: null, catalog: [], designs: [], design: null, runs: [], waveforms: null, report: null, picked: [], timeIndex: 0, playing: false, playStart: 0, lastSeen: '', pollTimer: null, saveTimer: null, saving: false, dirty: false, selection: null, epoch: 0, history: { past: [], future: [] }, snapshot: '', clipboard: null };
 
@@ -84,7 +87,7 @@
     const text = await res.text();
     let body = null;
     try { body = text ? JSON.parse(text) : null; } catch (_) { body = { raw: text }; }
-    if (!res.ok) { const err = new Error((body && (body.message || (body.build && (body.build.reason || body.build.error)) || body.error)) || ('HTTP ' + res.status)); err.status = res.status; err.body = body; throw err; }
+    if (!res.ok) { const err = new Error((body && (body.message || (body.build && buildWords(body.build)) || body.error)) || ('HTTP ' + res.status)); err.status = res.status; err.body = body; throw err; }
     return body;
   }
   function el(tag, attrs, children) {
@@ -109,13 +112,17 @@
     pill.textContent = engine.connected ? 'engine: connected' : (engine.lastError ? 'engine: down' : 'engine: idle');
     pill.className = 'badge ' + (engine.connected ? 'ran' : engine.lastError ? 'failed' : '');
     $('engine-banner').hidden = !engine.lastError;
-    $('engine-reason').textContent = engine.lastError || '';
-    $('engine-hint').textContent = engine.installHint || '';
+    $('engine-reason').textContent = engine.lastError ? ENGINE_DOWN : '';
+  }
+  /** A person's words for a failed build: an engine that is not answering is one plain sentence (never the
+   * kernel's address or the host's install command); any other refusal is the engine's own sentence. */
+  function buildWords(build) {
+    return build.code === 'capability_unavailable' ? ENGINE_SHORT : (build.reason || build.error || build.code);
   }
   function showBuild(build) {
     if (!build || build.ok) return;
-    if (build.code === 'capability_unavailable' || build.code === 'engine_busy' || build.code === 'engine_timeout') renderEngine({ connected: false, lastError: build.reason || build.error, installHint: state.caps && state.caps.engine && state.caps.engine.installHint });
-    toast('Run failed: ' + (build.reason || build.error || build.code) + (build.field ? ' [' + build.field + ']' : ''), 'error');
+    if (build.code === 'capability_unavailable' || build.code === 'engine_busy' || build.code === 'engine_timeout') renderEngine({ connected: false, lastError: buildWords(build) });
+    toast('Run failed: ' + buildWords(build) + (build.field ? ' [' + build.field + ']' : ''), 'error');
   }
 
   // ── Capabilities, palette, examples ────────────────────────────────────────

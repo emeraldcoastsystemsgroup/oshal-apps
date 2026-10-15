@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Release 1.3.4: GET /cart is a pure read (a diner with no cart gets the empty cart with null ids); the first add creates the cart. The native host refuses SQL writes on a GET.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | eats-concierge runs inline (posture: inline, same enrolled UUID). The in-page concierge (POST /api/eats/chat) calls it through the native kernel's package bot turn, which refuses a node-posture bot bound to an unreachable node ("this bot requires an enrolled node"), so every message answered "I'm having trouble reaching my assistant". Guarded by scripts/check-store-bots.test.mjs.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — eats ("Eats" Uber Eats Concierge)
@@ -320,8 +321,6 @@ bots:
   - agentId: b0080000-0000-0000-0000-000000000001
     name: eats-concierge
     persona: personas/eats-concierge.yaml
-    container: eats-bot
-    port: 5000
-    requiresOwnNode: true
+    posture: inline   # native kernel: runs with the route-backed tools below; no dedicated node
     role: commerce/food-delivery
     capabilities: ['restaurant-search', 'menu-browse', 'food-order-building', 'uber-eats-checkout-handoff', 'dietary-filtering', 'cuisine-preferences']

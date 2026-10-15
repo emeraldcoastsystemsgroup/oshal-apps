@@ -4,17 +4,20 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Expose private project CRUD, immutable revision history, explicit document export and bounded owner-scoped raster uploads.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Mount the personal brand kit routes on this router, before its shared error handler, with the same personal-scope and error guards.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Mount region editing on this router with the same guards and the shared project validator; a test may name its fixture provider through options.regionEdits, production always uses the media-generation kernel skill.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Compose bounded PSD review/import and immutable original export without replacing existing project routes.
  */
 import { Router, json, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import multer from 'multer';
 import { AsyncResource } from 'node:async_hooks';
 import { resolve } from 'node:path';
 import { ProjectError, PROJECT_LIMITS, type ProjectContext, type ProjectOwner } from './create-project-types';
-import { projectId, baseRevision, exactFields, projectInput, loadProjectValidator, type ProjectValidator } from './create-project-validation';
+import { projectId, baseRevision, exactFields, projectInput, loadProjectValidator, loadProjectAgent, type ProjectValidator } from './create-project-validation';
 import { CreateProjectStore } from './create-project-store';
 import { registerCreateProjectAuthorization, requireProjectAccess, projectPermissions, type ProjectAction } from './create-project-authorization';
 import { projectAssetRoot, saveProjectImage, readProjectImage, removeProjectImage } from './create-project-assets';
 import { registerBrandKitRoutes } from './create-brand-kit-routes';
+import { registerPsdRoutes } from './create-psd-routes';
 import { registerRegionEditRoutes, type RegionEditDependencies, type RegionEditSettings } from './create-region-edit-routes';
 
 interface RouteEnvironment { ctx: ProjectContext; store: CreateProjectStore; validator: Promise<ProjectValidator>; dataRoot: string }
@@ -78,6 +81,32 @@ function projectReads(router: Router, env: RouteEnvironment): void {
 
 /** Save/delete reject stale base revisions while holding the exact project row lock. */
 function projectWrites(router: Router, env: RouteEnvironment): void {
+  const agent = loadProjectAgent(env.ctx.appPackageDir ?? resolve(__dirname, '..'));
+  router.get('/editing-contract', admit(env, 'view'), handler(env, 'view', async (_req, res) => {
+    res.json((await agent).editingContract());
+  }));
+  router.post('/agent-projects', admit(env, 'create'), bodyParser, handler(env, 'create', async (req, res, owner) => {
+    exactFields(req.body, ['title', 'width', 'height', 'background']);
+    let document; try { document = (await agent).blankProject(req.body); } catch { throw new ProjectError(400, 'invalid_project_document'); }
+    const input = projectInput({ title: req.body.title, document }, await env.validator);
+    const project = await env.store.create(owner, input, confirm(env, 'create', owner)); res.status(201).json({ project });
+  }));
+  router.post('/projects/:id/operations', admit(env, 'change'), admit(env, 'read'), bodyParser, handler(env, 'change', async (req, res, owner) => {
+    exactFields(req.body, ['id', 'baseRevision', 'operations']);
+    const id = projectId(req.params.id), expected = baseRevision(req.body.baseRevision);
+    if (req.body.id !== undefined && projectId(req.body.id) !== id) throw new ProjectError(400, 'invalid_project_id');
+    if (Buffer.byteLength(JSON.stringify(req.body)) > 16384) throw new ProjectError(413, 'project_operations_too_large');
+    await requireProjectAccess(env.ctx, 'read', owner);
+    const current = await env.store.get(owner, id);
+    if (current.revision !== expected) throw new ProjectError(409, 'project_revision_conflict');
+    let document; try { document = (await agent).applyAgentOperations(current.document, req.body.operations); }
+    catch { throw new ProjectError(400, 'invalid_project_operations'); }
+    const input = projectInput({ title: document.name, document }, await env.validator);
+    const project = await env.store.save(owner, id, expected, input, async () => {
+      await requireProjectAccess(env.ctx, 'read', owner); await requireProjectAccess(env.ctx, 'change', owner);
+    });
+    res.status(201).json({ project });
+  }));
   router.post('/projects', admit(env, 'create'), bodyParser, handler(env, 'create', async (req, res, owner) => {
     const input = projectInput(req.body, await env.validator);
     const project = await env.store.create(owner, input, confirm(env, 'create', owner)); res.status(201).json({ project });
@@ -117,6 +146,7 @@ export function createCreateProjectRoutes(ctx: ProjectContext, options: { dataRo
     validator: loadProjectValidator(ctx.appPackageDir ?? resolve(__dirname, '..')) };
   router.get('/permissions', admit(env, 'view'), handler(env, 'view', async (_req, res) => { res.json({ permissions: await projectPermissions(ctx) }); }));
   projectReads(router, env); projectWrites(router, env); projectAssets(router, env);
+  registerPsdRoutes(router, { ...env, ctx: { ...ctx, appPackageDir: ctx.appPackageDir ?? resolve(__dirname, '..') }, guards: { personalOnly, sendError } });
   registerBrandKitRoutes(router, { ctx, projects: env.store, dataRoot: env.dataRoot, guards: { personalOnly, sendError } });
   registerRegionEditRoutes(router, { ctx, projects: env.store, dataRoot: env.dataRoot, guards: { personalOnly, sendError }, validator: env.validator,
     dependencies: options.regionEdits?.dependencies, settings: options.regionEdits?.settings });

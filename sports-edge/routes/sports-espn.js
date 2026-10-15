@@ -35,12 +35,16 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Retry transient reads (5xx/429/network, never a 4xx) and fire onError once every attempt is exhausted. Measured live: eight consecutive reads from a fresh process in the same container all succeeded under 1.6s while the long-running api intermittently failed the identical read, and the failure reached the user as "your team has no games this week". A single attempt from a busy event loop is not a reliable read, and a failed read must never render as an answer.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Read a followed team's current head coach from the public roster envelope, refusing mismatched teams, ambiguous staff and unusable names.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Classify a failed read as transport / unavailable / refused, and give callers a way to capture it. Every accessor here degrades to null, which is right at runtime and loses the one thing the surface needs: on 2026-09-09 the box's resolver stopped answering, every ESPN read failed at once, and the fantasy half told the operator to connect an ESPN account he had already connected. Only a refusal is something a credential can fix; the reason string already carried the distinction and nothing read it.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | listTeams rejects with an EspnReadError naming the classified failure when the team list could not be read, instead of resolving []. On the native kernel every read was refused ("site.api.espn.com is not a declared outbound host of sports-edge") and "Load teams" showed an empty grid with no error, and a ratings rebuild walked zero teams. An empty list is now only ever ESPN's answer. Guard: tests/sports-espn.test.js.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Event times are normalised to full ISO-8601 instants (espnDate). ESPN writes minute precision ("2026-10-11T13:30Z"), which the native kernel's SQL adapter refuses ("invalid: invalid timestamp"): the first live refresh pass found 288 games and every capture write that reached SQL failed. Guard: tests/sports-espn.test.js.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | The NFL and NBA scoreboards are read with limit=1000. With no limit ESPN answers at most 100 events, and a month read (dates=YYYYMM, the only date filter ESPN still accepts) starts at the month's first day, so NBA games after about the 15th of a month never reached line capture, previews, followed games or previewFor (measured: NBA 202611 answers 100 events ending 11-15 without a limit, 215 ending 12-01 with it). College football keeps groups=80&limit=400: limit=1000 there answers only 25 events (measured the same day). Guard: tests/sports-refresh-schedule.test.js.
  *
  * @module sports-espn
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.NCAAF_REGULAR_WEEKS = exports.WEEK_TAPE_LEAGUES = exports.LEAGUE_PATHS = void 0;
+exports.EspnReadError = exports.NCAAF_REGULAR_WEEKS = exports.WEEK_TAPE_LEAGUES = exports.LEAGUE_PATHS = void 0;
 exports.getJson = getJson;
+exports.espnDate = espnDate;
 exports.classifyFailure = classifyFailure;
 exports.readWithOutcome = readWithOutcome;
 exports.listTeams = listTeams;
@@ -59,8 +63,13 @@ exports.flattenStats = flattenStats;
 exports.productionStatFor = productionStatFor;
 /** ESPN's URL segments per league. Adding a league is adding a row here plus its constants. */
 exports.LEAGUE_PATHS = {
-    nfl: { sport: 'football', league: 'nfl' },
-    nba: { sport: 'basketball', league: 'nba' },
+    // `limit` on the professional leagues: a scoreboard read with no limit answers at most 100 events,
+    // and upcomingGames reads a whole MONTH (dates=YYYYMM) from its first day. Measured 2026-10-11: NBA
+    // 202611 answers 100 events ending 2026-11-15 without a limit and 215 ending 2026-12-01 with
+    // limit=1000, so every game in the back half of an NBA month was invisible to line capture, previews
+    // and the followed-games list. The NFL's months (48-62 events) answer the same either way.
+    nfl: { sport: 'football', league: 'nfl', scoreboardParams: 'limit=1000' },
+    nba: { sport: 'basketball', league: 'nba', scoreboardParams: 'limit=1000' },
     // `groups=80` is FBS. Without it the college scoreboard answers with a small default subset —
     // 16 games for a week that actually had 53 (measured 2026-09-09) — which would look like a light
     // slate rather than a filtered request. `limit` is needed for the same reason.
@@ -135,6 +144,17 @@ function sleep(ms) {
     return new Promise((resolve) => { setTimeout(resolve, ms); });
 }
 /**
+ * @description An ESPN event time as a full ISO-8601 instant. ESPN writes minute precision
+ * ("2026-10-11T13:30Z"), which the native kernel's SQL adapter refuses as a timestamp ("invalid
+ * timestamp"), so every line capture and preview write for a scoreboard game failed.
+ * @param raw - ESPN's date field.
+ * @returns The instant with seconds and milliseconds, or '' when ESPN gave none or an unreadable one.
+ */
+function espnDate(raw) {
+    const ms = typeof raw === 'string' && raw ? Date.parse(raw) : NaN;
+    return Number.isFinite(ms) ? new Date(ms).toISOString() : '';
+}
+/**
  * @description Classify a failure reason reported through `onError`. The reason is `HTTP <status>`
  * when ESPN answered and the thrown error's message when it did not, so the PRESENCE of a status is
  * the transport distinction — there is nothing else available to infer it from.
@@ -169,15 +189,34 @@ async function readWithOutcome(opts, run) {
     });
     return { value, failure: captured.length ? captured[0] : null };
 }
+/** A read that never produced an answer, carrying why, so a caller cannot mistake it for an empty one. */
+class EspnReadError extends Error {
+    /** The classified failure the read reported. */
+    failure;
+    /**
+     * @description Name the read and its failure.
+     * @param what - What was being read.
+     * @param failure - The classified failure.
+     */
+    constructor(what, failure) {
+        super(`${what} could not be read from ESPN (${failure.kind}: ${failure.reason})`);
+        this.name = 'EspnReadError';
+        this.failure = failure;
+    }
+}
+exports.EspnReadError = EspnReadError;
 /**
  * @description List a league's teams.
  * @param league - League to list.
  * @param opts - Client options.
- * @returns Every team, or an empty array when the endpoint is unavailable.
+ * @returns Every team ESPN lists (empty only when ESPN's answer is empty).
+ * @throws EspnReadError when the list could not be read at all.
  */
 async function listTeams(league, opts = {}) {
     const p = exports.LEAGUE_PATHS[league];
-    const body = await getJson(`${SITE_API}/${p.sport}/${p.league}/teams`, opts);
+    const { value: body, failure } = await readWithOutcome(opts, (o) => getJson(`${SITE_API}/${p.sport}/${p.league}/teams`, o));
+    if (body === null)
+        throw new EspnReadError(`the ${league} team list`, failure ?? classifyFailure('unknown'));
     const groups = body?.sports?.[0]?.leagues?.[0]?.teams || [];
     return groups.map((g) => g.team).filter(Boolean).map((t) => ({
         id: String(t.id),
@@ -252,13 +291,13 @@ async function teamSchedule(league, teamId, season, opts = {}) {
             if (!Number.isFinite(hs) || !Number.isFinite(as))
                 continue;
             results.push({
-                eventId: String(ev.id), date: String(ev.date || comp.date || ''),
+                eventId: String(ev.id), date: espnDate(ev.date || comp.date),
                 homeTeam: home.team.abbreviation, awayTeam: away.team.abbreviation,
                 homeScore: hs, awayScore: as, neutralSite: Boolean(comp.neutralSite),
             });
         }
         else {
-            upcoming.push({ eventId: String(ev.id), date: String(ev.date || comp.date || '') });
+            upcoming.push({ eventId: String(ev.id), date: espnDate(ev.date || comp.date) });
         }
     }
     return { results, upcoming };
@@ -296,7 +335,7 @@ async function leagueResultsByWeek(league, season, weeks, opts = {}) {
                 continue;
             seen.add(String(ev.id));
             out.push({
-                date: String(ev.date || comp.date || ''),
+                date: espnDate(ev.date || comp.date),
                 homeTeam: home.team.abbreviation, awayTeam: away.team.abbreviation,
                 homeScore: hs, awayScore: as, neutralSite: Boolean(comp.neutralSite),
             });
@@ -361,7 +400,7 @@ async function scoreboard(league, opts = {}, dates) {
         if (!home?.team?.abbreviation || !away?.team?.abbreviation)
             continue;
         out.push({
-            eventId: String(ev.id), date: String(ev.date || ''), name: String(ev.name || ''),
+            eventId: String(ev.id), date: espnDate(ev.date), name: String(ev.name || ''),
             homeTeam: home.team.abbreviation, awayTeam: away.team.abbreviation,
             homeTeamId: String(home.team.id), awayTeamId: String(away.team.id),
             neutralSite: Boolean(comp.neutralSite), venue: comp.venue?.fullName,

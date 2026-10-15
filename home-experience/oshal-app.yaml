@@ -6,6 +6,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Release explicitly authorized installed readiness.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Add the owned ticket-attention first screen without changing member roles or data authority.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Include every functional member and required dependency in one reviewed application role; no component selections.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | The Home concierge is the required member purchasing's shopping-concierge (imported under dependencies.required.bots), which reads the person's own shopping lists and cart through purchasing's route-backed tools, instead of the platform general-bot, which answered "I cannot access your personal data, including information from a specific Home app" while the list showed an item. No member, role or authorization change. Guarded by scripts/check-store-bots.mjs (no general-bot concierge).
 name: home-experience
 displayName: Home
 description: Your schedule, shopping list, household updates and explicitly connected applications in the established
@@ -45,6 +46,7 @@ dependencies:
       - presentations
       - calendar
       - circuit-lab
+    bots: [{ app: purchasing, name: shopping-concierge }]   # the screen's concierge (chatBot)
     tools: []
     connectors: []
   optional:
@@ -251,4 +253,4 @@ testing:
   version: 1
   catalog: tests/test-lab.yaml
 connectors: []
-chatBot: general-bot
+chatBot: shopping-concierge # imported from the required member purchasing (dependencies.required.bots)

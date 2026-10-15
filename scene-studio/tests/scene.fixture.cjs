@@ -72,6 +72,7 @@ function fakeEngine(onMcp, buildHash = HASH) {
   const requests = [];
   const files = { godot: [{ path: 'main.tscn', data: b64('[gd_scene format=3]\n[node name="Main" type="Node3D"]\n') }, { path: 'project.godot', data: b64('config_version=5\n') }], blender: [{ path: 'scene.blend', data: b64('BLENDER-v1') }] };
   const ops = {
+    ping: () => ({ pong: true }),
     capabilities: () => ({ versions: { godot: '4.7.2', blender: 'Blender 5.1.0' }, tools: { godot: [{ name: 'add_node' }], blender: [] }, sandbox: { ok: true } }),
     new_project: (req) => ({ files: files[req.kind] }),
     mcp_call: (req) => onMcp.fn(req),

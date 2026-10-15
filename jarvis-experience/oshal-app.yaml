@@ -6,7 +6,9 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Release explicitly authorized installed readiness.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Include the complete shared user product bundle in one reviewed member assignment; retain each component's exact catalog roles and data boundaries.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Map Jarvis to its explicit Editor chat-user catalog role without requiring optional Print or changing the member selection; template version 4 needs normal review.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | The Jarvis screen's concierge is the required member jarvis's oshal-assistant (imported under dependencies.required.bots), the same assistant the page's own composer asks, instead of the platform general-bot, which said "No pending items require your immediate review today" beside "From your queue 3 items to review". No member, role or authorization change. Guarded by scripts/check-store-bots.mjs (no general-bot concierge).
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Scan to Print 0.7.0 adopts an ADR-149 catalog, so its member role is the catalog's `maker` (the whole app, as @app-admin was); template version 3 carries it, and existing version 2 assignments keep their grants until an administrator reviews and applies the upgrade.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Entry 6 is corrected: it said oshal-assistant answers here with the caller's open work, which is not true yet. Asked on 2026-10-11 "What items in my queue need my review today?" with context {app:'jarvis-experience'}, it answered from the schedule alone ("There are no active items in your schedule that require review today") while the screen showed 3 queue items to review. Only the binding changed; an answer that names the queue needs the kernel to give this screen's concierge turn the caller's open work.
 name: jarvis-experience
 displayName: Jarvis
 description: Your assistant briefing, conversations, agenda and admitted applications.
@@ -66,6 +68,11 @@ dependencies:
       - vids
       - creative-studio
       - scan-to-print
+      - brand-graphics
+      - motion-studio
+      - publishing-studio
+      - pdf-workbench
+      - scene-studio
       - storage
       - career-hunter
       - dnd
@@ -76,6 +83,7 @@ dependencies:
       - private-app-2
       - intelligent-sales
       - private-app-3
+    bots: [{ app: jarvis, name: oshal-assistant }]   # the screen's concierge (chatBot)
     tools: []
     connectors: []
   optional:
@@ -177,6 +185,30 @@ experience:
           role: '@app-admin'
         - app: scan-to-print
           role: maker
+        - app: brand-graphics
+          role: '@app-admin'
+        - app: motion-studio
+          role: creator
+        - app: motion-studio
+          role: editor
+        - app: motion-studio
+          role: exporter
+        - app: publishing-studio
+          role: creator
+        - app: publishing-studio
+          role: editor
+        - app: publishing-studio
+          role: exporter
+        - app: pdf-workbench
+          role: creator
+        - app: pdf-workbench
+          role: editor
+        - app: pdf-workbench
+          role: exporter
+        - app: pdf-workbench
+          role: ocr
+        - app: scene-studio
+          role: creator
         - app: storage
           role: '@app-admin'
         - app: career-hunter
@@ -239,4 +271,4 @@ testing:
   version: 1
   catalog: tests/test-lab.yaml
 connectors: []
-chatBot: general-bot
+chatBot: oshal-assistant # imported from the required member jarvis (dependencies.required.bots)

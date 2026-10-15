@@ -24,6 +24,10 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Mount the fantasy routes (/fantasy/*): ESPN Fantasy league link, the lineup advisor, and its graded record.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | GET /games returns upstreamOk, so an unreachable schedule service is never rendered as "your team is not playing" — an empty list is only an answer when the read actually succeeded.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | The fantasy routes moved to the fantasy-football package (ADR-146 D1, operator decisions 2026-09-27): /fantasy/* now answers 410 Gone with the new app's address (sports-fantasy-moved.ts) instead of mounting the league link, lineup advisor and ledger here.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | The factory no longer starts a background timer (its passes ran outside any request and the native kernel refused their SQL). POST /refresh/run runs one pass inside the caller's admitted request; the manifest's `refresh-pass` schedule fires it as the person who activated it. Guard: tests/sports-refresh-schedule.test.js.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | POST /refresh/run is bounded: the pass covers the caller's own followed teams and answers skipped 'not_due' inside refreshIntervalMinutes of the caller's last pass; {force:true} skips that check only for an operator (403 otherwise), the same line POST /ratings/refresh draws. GET /status adds the caller's stored lastPassAt and the interval, so the page can say when the last pass really ran. Guard: tests/sports-refresh-schedule.test.js.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | GET /preview/:eventId only reads: it answers the stored preview with its calls, or 200 {built:false} when none is stored, and never calls ESPN or writes (the native kernel admits a GET as a reader and refused the build's INSERT with 'SQL mutation requires original writer admission', so every preview answered 502). Building and rebuilding moved to POST /preview/:eventId/build, which runs under writer admission. Guard: tests/sports-preview-readonly.test.js.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | GET /games names its window (horizonDays) and, when the window holds no game for the followed teams but the schedule read succeeded, the next game within 35 days (nextGame). After following the Dolphins in their bye week the Games screen said only "No games ... inside the horizon", which read as a broken schedule.
  *
  * @module sports-routes
  */
@@ -123,13 +127,13 @@ function createSportsEdgeRoutes(ctx) {
     const router = (0, express_1.Router)();
     (0, sports_store_1.ensureSchema)(pool).catch((err) => log.error({ err }, 'sports-edge schema ensure failed'));
     (0, sports_line_store_1.ensureLineSchema)(pool).catch((err) => log.error({ err }, 'sports-edge line schema ensure failed'));
-    // Started here, by the app's own factory, so the refresh loop exists exactly while this package
-    // is installed and active — never on a deployment that does not have it.
-    (0, sports_refresh_1.startSportsRefresh)(ctx);
+    // No background timer: a refresh pass runs only inside an admitted request (POST /refresh/run, which
+    // the manifest's `refresh-pass` schedule fires as the person who activated it).
     router.get('/', (0, trading_routes_helpers_1.servePage)(toolsDir, 'sports-edge.html'));
     router.get('/ui', (0, trading_routes_helpers_1.servePage)(toolsDir, 'sports-edge.html'));
     registerTeamRoutes(router, pool);
     registerGameRoutes(router, pool);
+    registerPreviewRoutes(router, pool);
     registerRecordRoutes(router, pool);
     registerSettingsRoutes(router, pool);
     registerLineRoutes(router, pool);
@@ -253,6 +257,57 @@ function registerTeamRoutes(router, pool) {
     });
 }
 /**
+ * @description The preview routes. GET only reads what is stored, because the native kernel admits a
+ * GET as a reader and refuses any SQL write it makes; POST /build builds (or rebuilds) a preview,
+ * stores it and registers its calls under writer admission.
+ * @param router - Router to extend.
+ * @param pool - Postgres pool.
+ * @returns Nothing.
+ */
+function registerPreviewRoutes(router, pool) {
+    router.get('/preview/:eventId', async (req, res) => {
+        if (!requireSub(req, res))
+            return;
+        const eventId = String(req.params.eventId);
+        try {
+            const stored = await (0, sports_store_1.readPreview)(pool, eventId);
+            if (!stored) {
+                res.json({ built: false, eventId, reason: 'no preview has been built for this game yet' });
+                return;
+            }
+            res.json({ built: true, ...stored, calls: await (0, sports_store_1.predictionsForEvent)(pool, eventId) });
+        }
+        catch (err) {
+            log.error({ err, eventId }, 'preview read failed');
+            res.status(500).json({ error: 'could not read the stored preview' });
+        }
+    });
+    router.post('/preview/:eventId/build', async (req, res) => {
+        if (!requireSub(req, res))
+            return;
+        const league = parseLeague(req.body?.league ?? req.query.league, res);
+        if (!league)
+            return;
+        const eventId = String(req.params.eventId);
+        const started = Date.now();
+        try {
+            const built = await (0, sports_refresh_1.previewFor)(pool, league, eventId, req.body?.refresh === true);
+            if (!built) {
+                res.status(404).json({ error: 'that game is not on the upcoming schedule' });
+                return;
+            }
+            log.info({ eventId, league, ms: Date.now() - started }, 'preview built');
+            res.json({ built: true, ...built, calls: await (0, sports_store_1.predictionsForEvent)(pool, eventId) });
+        }
+        catch (err) {
+            log.error({ err, eventId }, 'preview build failed');
+            res.status(502).json({ error: 'could not build the preview', detail: err.message });
+        }
+    });
+}
+/** How far GET /games looks for the next game when the horizon holds none (a bye week, an off-season gap). */
+const NEXT_GAME_LOOKAHEAD_DAYS = 35;
+/**
  * @description The games and previews — what a followed team plays next, and the full picture
  * behind one of those games.
  * @param router - Router to extend.
@@ -271,41 +326,54 @@ function registerGameRoutes(router, pool) {
                 res.json({ teams: [], games: [], awaitingFollow: true });
                 return;
             }
-            const { rows, upstreamOk } = await (0, sports_refresh_1.followedGames)(pool, followed, Number(req.query.days) || undefined);
+            const horizonDays = Number(req.query.days) || sports_refresh_1.FOLLOWED_GAMES_HORIZON_DAYS;
+            const { rows, upstreamOk } = await (0, sports_refresh_1.followedGames)(pool, followed, horizonDays);
+            // An empty window (a bye week) read as "no games" with no hint of when the team plays next:
+            // look further ahead once and name the next game, so the empty list is an answer, not a dead end.
+            const next = !rows.length && upstreamOk ? await (0, sports_refresh_1.followedGames)(pool, followed, NEXT_GAME_LOOKAHEAD_DAYS) : null;
+            const nextGame = next && next.upstreamOk ? next.rows[0]?.game ?? null : null;
             log.info({ sub, teams: followed.length, games: rows.length, upstreamOk, ms: Date.now() - started }, 'games served');
             // `upstreamOk` is what stops an unreachable schedule service from rendering as "your team is
             // not playing". An empty list is only an ANSWER when the read actually succeeded.
-            res.json({ teams: followed, games: rows, awaitingFollow: false, upstreamOk });
+            res.json({ teams: followed, games: rows, awaitingFollow: false, upstreamOk, horizonDays,
+                nextGame, nextGameLookaheadDays: NEXT_GAME_LOOKAHEAD_DAYS });
         }
         catch (err) {
             log.error({ err, sub }, 'games failed');
             res.status(500).json({ error: 'could not assemble upcoming games' });
         }
     });
-    router.get('/preview/:eventId', async (req, res) => {
-        if (!requireSub(req, res))
+    router.get('/status', async (req, res) => {
+        const sub = requireSub(req, res);
+        if (!sub)
             return;
-        const league = parseLeague(req.query.league, res);
-        if (!league)
+        // The caller's last pass is read from the store; a store with no tables yet simply has none.
+        const last = await (0, sports_refresh_1.lastPassAt)(pool, sub).catch(() => null);
+        const deployment = await (0, sports_store_1.readSettings)(pool, sports_store_1.DEPLOYMENT_SCOPE).catch(() => ({}));
+        const intervalMinutes = Number(deployment.refreshIntervalMinutes) || 180;
+        res.json({
+            season: { nfl: (0, sports_refresh_1.currentSeason)('nfl'), nba: (0, sports_refresh_1.currentSeason)('nba') },
+            refresh: { ...(0, sports_refresh_1.refreshStatus)(), lastPassAt: last, intervalMinutes },
+        });
+    });
+    // One refresh pass for the caller, inside this request: the `refresh-pass` schedule's target. Bounded by
+    // the refresh interval; only an operator may force a pass inside it.
+    router.post('/refresh/run', async (req, res) => {
+        const sub = requireSub(req, res);
+        if (!sub)
             return;
+        const force = req.body?.force === true;
+        if (force && !(0, authz_1.isOperator)(req)) {
+            res.status(403).json({ error: 'forcing a refresh pass is operator-only' });
+            return;
+        }
         try {
-            const built = await (0, sports_refresh_1.previewFor)(pool, league, String(req.params.eventId), req.query.refresh === '1');
-            if (!built) {
-                res.status(404).json({ error: 'that game is not on the upcoming schedule' });
-                return;
-            }
-            const calls = await (0, sports_store_1.predictionsForEvent)(pool, String(req.params.eventId));
-            res.json({ ...built, calls });
+            res.json(await (0, sports_refresh_1.runRefreshPass)(pool, sub, { force }));
         }
         catch (err) {
-            log.error({ err, eventId: req.params.eventId }, 'preview failed');
-            res.status(502).json({ error: 'could not build the preview' });
+            log.error({ err }, 'requested refresh pass failed');
+            res.status(502).json({ error: 'refresh pass failed', detail: err.message });
         }
-    });
-    router.get('/status', async (req, res) => {
-        if (!requireSub(req, res))
-            return;
-        res.json({ season: { nfl: (0, sports_refresh_1.currentSeason)('nfl'), nba: (0, sports_refresh_1.currentSeason)('nba') }, refresh: (0, sports_refresh_1.refreshStatus)() });
     });
     router.post('/ratings/refresh', async (req, res) => {
         const sub = requireSub(req, res);

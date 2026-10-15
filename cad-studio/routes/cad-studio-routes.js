@@ -12,11 +12,17 @@
  *                     |                             | client per api process, and composes the model router under
  *                     |                             | the `/api/cad-studio` mount. The manifest's `auth: oidc` wraps
  *                     |                             | the whole mount; every handler still re-derives the caller.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | On the native kernel (no network in the sandbox) the engine is
+ *                     |                             | reached through the kernel's engine.exchange intent and the
+ *                     |                             | revision exports live in the kernel's owner-scoped atomic file
+ *                     |                             | root (/tmp/cad-store), so a part's rows and files commit together.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.NATIVE_DATA_ROOT = void 0;
+exports.nativeContext = nativeContext;
 exports.callerSub = callerSub;
 exports.installHint = installHint;
 exports.createCadStudioRoutes = createCadStudioRoutes;
@@ -33,6 +39,26 @@ const rebuild_service_1 = require("./rebuild-service");
 const logger = (0, logger_1.createChildLogger)({ module: 'cad-studio-routes' });
 const SURFACE_SCRIPTS = ['cad-studio.js', 'cad-studio-gl.js'];
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
+/** The native kernel restores the caller's files here for each request and checkpoints them after a write. */
+exports.NATIVE_DATA_ROOT = '/tmp/cad-store';
+const NATIVE_INSTALL_HINT = 'on the kernel host run cad-studio/engine/install-engine.sh and pin the engine in OSHAL_PACKAGE_ENGINES';
+/** @description True inside the native kernel's sandbox: its pool is the kernel's scoped document store. */
+function nativeContext(ctx) {
+    return ctx.pool.storageModel === 'kernel-scoped-documents';
+}
+/** @description The engine client: the kernel's engine.exchange intent natively, the TCP bridge otherwise. */
+function engineClient(ctx, env, expectedBuildHash) {
+    const addr = (0, engine_client_1.parseEngineAddr)(env.CAD_STUDIO_ENGINE_ADDR || engine_client_1.DEFAULT_ENGINE_ADDR);
+    if (!nativeContext(ctx))
+        return new engine_client_1.EngineClient({ host: addr.host, port: addr.port, expectedBuildHash, installHint: installHint(env) });
+    const intent = ctx.intent;
+    return new engine_client_1.EngineClient({ host: addr.host, port: addr.port, expectedBuildHash: null, installHint: NATIVE_INSTALL_HINT,
+        exchange: async (request, timeoutMs) => {
+            if (typeof intent !== 'function')
+                throw new Error('the kernel intent port is unavailable');
+            return (await intent('engine.exchange', { request, timeoutMs }));
+        } });
+}
 /** @description Resolve the authenticated caller's sub (oidc session, or the mounter's service-rail sub). */
 function callerSub(req) {
     const r = req;
@@ -72,16 +98,15 @@ function installHint(env) {
  */
 function createCadStudioRoutes(ctx, opts = {}) {
     const env = opts.env ?? process.env;
-    const dataRoot = opts.dataRoot ?? (0, data_dir_1.resolveDataRoot)(env);
+    const native = nativeContext(ctx);
+    const dataRoot = opts.dataRoot ?? (native ? exports.NATIVE_DATA_ROOT : (0, data_dir_1.resolveDataRoot)(env));
     const appPackageDir = ctx.appPackageDir;
     const engineDir = packageFile(appPackageDir, 'engine');
-    const engineBuild = opts.engineBuild !== undefined ? opts.engineBuild : (0, engine_build_hash_1.engineBuildHash)(engineDir);
-    const hint = installHint(env);
-    const addr = (0, engine_client_1.parseEngineAddr)(env.CAD_STUDIO_ENGINE_ADDR || engine_client_1.DEFAULT_ENGINE_ADDR);
-    const engine = opts.engine ?? new engine_client_1.EngineClient({ host: addr.host, port: addr.port, expectedBuildHash: engineBuild, installHint: hint });
+    const packageBuild = opts.engineBuild !== undefined ? opts.engineBuild : native ? null : (0, engine_build_hash_1.engineBuildHash)(engineDir);
+    const engine = opts.engine ?? engineClient(ctx, env, packageBuild);
     const router = (0, express_1.Router)();
     const surface = packageFile(appPackageDir, 'tools', 'cad-studio.html');
-    logger.info({ surface, appPackageDir, dataRoot, engine: `${addr.host}:${addr.port}`, engineBuild }, 'Resolved the cad-studio surface');
+    logger.info({ surface, appPackageDir, dataRoot, engine: engine.status().address, engineBuild: packageBuild }, 'Resolved the cad-studio surface');
     router.get('/app', serveFile(surface, 'html'));
     const assets = (0, express_1.Router)();
     for (const file of SURFACE_SCRIPTS)
@@ -94,7 +119,8 @@ function createCadStudioRoutes(ctx, opts = {}) {
             engine: engine.status(),
         });
     });
-    router.use((0, model_routes_1.createModelRoutes)({ pool: ctx.pool, engine, dataRoot, engineBuild, callerSub, timeoutMs: opts.rebuildTimeoutMs }));
+    // Natively the build a revision records is the one the engine reported, since the sandbox holds no engine sources.
+    router.use((0, model_routes_1.createModelRoutes)({ pool: ctx.pool, engine, dataRoot, get engineBuild() { return packageBuild ?? engine.status().buildHash; }, callerSub, timeoutMs: opts.rebuildTimeoutMs }));
     return router;
 }
 //# sourceMappingURL=cad-studio-routes.js.map

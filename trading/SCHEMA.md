@@ -4,7 +4,7 @@
 
 Postgres database `oshal`, schema `public` - shared with the platform and every other installed package. 1 table in the reference database.
 
-**Migrations:** none declared in `oshal-app.yaml`.
+**Migrations:** `migrations/001-trading-watchlist.sql` (the owner-scoped watchlist, provisioned before the first read on a native kernel).
 
 **Created at runtime by package code** (`CREATE TABLE IF NOT EXISTS`): `routes/trading-research-routes.js`, `src-routes/trading-research-routes.ts`
 

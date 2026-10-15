@@ -4,15 +4,19 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Extracted caller-scoped recruiter tracker CRUD routes from the route composition root.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The tracker opens the caller's own database alone (recruiters never read the shared corpus), and the first write creates it with the engine's own per-user schema (engine/jobhunter/db.py USER_SCHEMA). Add recruiter answered 404 {error:'no data'} for anyone who had not ingested a resume, because openUserDb returns null until the corpus AND the per-user database exist. Guard: tests/career-recruiter-first-write.test.mjs.
  */
 
 /**
  * Caller-owned recruiter tracker routes.
  * @module career-recruiter-routes
  */
+import fs from 'fs';
+import path from 'path';
+import Database from 'better-sqlite3';
 import { type Request, type Response, type Router } from 'express';
 import { createChildLogger } from '@/shared/logger';
-import { callerSub, openUserDb } from './career-user-store';
+import { callerSub, userPaths } from './career-user-store';
 
 const logger = createChildLogger({ module: 'career-recruiter-routes' });
 const RECRUITER_FIELDS = new Set([
@@ -20,10 +24,47 @@ const RECRUITER_FIELDS = new Set([
   'status', 'date_contacted', 'followup_date', 'next_action', 'notes',
 ]);
 
+/** The engine module that owns the per-user store schema. */
+const ENGINE_DB_MODULE = path.resolve(__dirname, '..', 'engine', 'jobhunter', 'db.py');
+
+/**
+ * @description The engine's own per-user schema text, so a store created here is the store the
+ * engine creates (every statement is CREATE ... IF NOT EXISTS, so a later ingest completes nothing
+ * twice). Read from the engine module rather than restated, so the two can never drift.
+ * @param file - The engine module to read.
+ * @returns The USER_SCHEMA script.
+ */
+export function engineUserSchema(file: string = ENGINE_DB_MODULE): string {
+  const match = /\nUSER_SCHEMA = """([\s\S]*?)"""/.exec(fs.readFileSync(file, 'utf8'));
+  if (!match || !/CREATE TABLE IF NOT EXISTS recruiter_firms/.test(match[1])) {
+    throw new Error('the engine per-user schema is unavailable');
+  }
+  return match[1];
+}
+
+/**
+ * @description Open the caller's own store database for the recruiter tracker. Recruiters live only
+ * there and never read the shared corpus, so the corpus is not attached and need not exist. A write
+ * creates the database with the engine's schema the first time; a read of a missing one is null.
+ * @param userSub - The caller.
+ * @param write - Whether this request writes.
+ * @returns An open handle, or null for a read before anything was saved.
+ */
+function openRecruiterDb(userSub: string, write: boolean): any {
+  const { userDb, userDir } = userPaths(userSub);
+  if (fs.existsSync(userDb)) return new Database(userDb, { readonly: !write });
+  if (!write) return null;
+  fs.mkdirSync(userDir, { recursive: true });
+  const created = new Database(userDb);
+  try { created.exec(engineUserSchema()); } catch (err) { created.close(); fs.rmSync(userDb, { force: true }); throw err; }
+  logger.info({ userSub }, 'career user store created by its first recruiter write');
+  return created;
+}
+
 function listRecruiters(req: Request, res: Response): void {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
-  const db = openUserDb(userSub);
+  const db = openRecruiterDb(userSub, false);
   if (!db) { res.json({ recruiters: [], buckets: [], byStatus: [], empty: true }); return; }
   try {
     const where: string[] = [];
@@ -55,8 +96,11 @@ function addRecruiter(req: Request, res: Response): void {
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
   const firm = String(req.body?.firm || '').trim();
   if (!firm) { res.status(400).json({ error: 'firm required' }); return; }
-  const db = openUserDb(userSub, false);
-  if (!db) { res.status(404).json({ error: 'no data' }); return; }
+  let db: any;
+  try { db = openRecruiterDb(userSub, true); } catch (err) {
+    logger.error({ err, userSub }, 'career recruiter store could not be opened');
+    res.status(500).json({ error: 'your Career store could not be opened' }); return;
+  }
   try {
     const info = db.prepare(
       `INSERT INTO recruiter_firms
@@ -85,8 +129,9 @@ function updateRecruiter(req: Request, res: Response): void {
   if (!Number.isFinite(id)) { res.status(400).json({ error: 'bad id' }); return; }
   const updates = Object.entries(req.body || {}).filter(([key]) => RECRUITER_FIELDS.has(key));
   if (!updates.length) { res.status(400).json({ error: 'no valid fields' }); return; }
-  const db = openUserDb(userSub, false);
-  if (!db) { res.status(404).json({ error: 'no data' }); return; }
+  const { userDb } = userPaths(userSub);
+  if (!fs.existsSync(userDb)) { res.status(404).json({ error: 'no recruiter saved yet' }); return; }
+  const db = openRecruiterDb(userSub, true);
   try {
     const setSql = `${updates.map(([key]) => `${key}=?`).join(', ')}, updated_at=datetime('now')`;
     const values = updates.map(([, value]) => (value == null ? null : String(value)));
@@ -103,8 +148,9 @@ function deleteRecruiter(req: Request, res: Response): void {
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) { res.status(400).json({ error: 'bad id' }); return; }
-  const db = openUserDb(userSub, false);
-  if (!db) { res.status(404).json({ error: 'no data' }); return; }
+  const { userDb } = userPaths(userSub);
+  if (!fs.existsSync(userDb)) { res.status(404).json({ error: 'no recruiter saved yet' }); return; }
+  const db = openRecruiterDb(userSub, true);
   try {
     const info = db.prepare('DELETE FROM recruiter_firms WHERE id=?').run(id);
     res.json({ ok: info.changes > 0 });

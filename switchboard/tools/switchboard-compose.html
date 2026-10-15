@@ -9,6 +9,10 @@
      DERIVED from a framework token with a hardcoded fallback, so the surface is native to all 11
      themes in-cockpit AND still renders if opened on its own (fallbacks = the midnight palette,
      with a light-scheme set under @media so a bare open respects the OS theme too). -->
+<!-- CHANGE LOG
+     1 | maintainer@emeraldcoastsystemsgroup.com | A variant the comms bot declined (failed:'bot_declined') draws an empty
+       editor with the bot's words as a warning, and Regenerate keeps the editor when the redraft is declined: the bot's
+       refusals were written into the editable post text before. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
@@ -214,6 +218,11 @@
   .footnote { margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:8px; }
   .footnote svg { width:13px; height:13px; color:var(--accent); }
 
+  /* A grid track and a flex row both size to their content by default: the Regenerate / date / Schedule / Publish
+     row made a 587px card on a 412px phone and put Publish off-screen. Cards may shrink and the row wraps. */
+  .vgrid > * { min-width:0; }
+  .vcard .vbar, .vcard .pubwrap { flex-wrap:wrap; }
+  .vcard .pubwrap { min-width:0; max-width:100%; }
   @media (max-width:640px) {
     .wrap { padding:20px 15px 70px; }
     .greet { font-size:23px; }
@@ -410,6 +419,8 @@
     card.className="vcard"+(v.publishable?"":" notpub");
     card.dataset.platform=v.platform; card.dataset.limit=v.limit;
     var m=meterOf((v.text||"").length, v.limit);
+    // A declined variant has no post text: the editor starts empty and the bot's words show as a warning.
+    var declined = v.failed==="bot_declined";
     card.innerHTML=''
       + '<div class="vhead">'
       +   '<span class="mark" style="background:var('+b.v+')"><svg><use href="'+b.icon+'"/></svg></span>'
@@ -433,7 +444,11 @@
             : '<span class="warnpub">Publishing '+esc(b.label)+' not wired yet — copy &amp; post</span>')
       + '</div>';
     wireCard(card, v.platform, v.limit);
+    if(declined) showRes(card, false, declinedMessage(b.label, v.notice));
     return card;
+  }
+  function declinedMessage(label, notice){
+    return "The bot did not write the "+label+" post"+(notice ? ": "+notice : ".")+" Write it yourself or Regenerate.";
   }
   function wireCard(card, platform, limit){
     var ta=card.querySelector("textarea");
@@ -480,9 +495,10 @@
 
   function generate(){
     var text=$("src").value.trim();
-    if(!text){ $("src").focus(); return; }
+    // Both refusals say why instead of a button that silently does nothing.
+    if(!text){ renderVariantsError("Write your message above first — the variants are tailored from it."); $("src").focus(); return; }
     var platforms=selectedList();
-    if(!platforms.length){ return; }
+    if(!platforms.length){ renderVariantsError("Pick at least one network above — tap a network chip to include it."); return; }
     if(state.preview){ renderPreviewVariants(platforms); return; }
     var btn=$("genBtn"); btn.disabled=true; btn.innerHTML='<svg class="spin"><use href="#i-refresh"/></svg> Writing…';
     requestVariants(platforms).then(function(res){
@@ -518,7 +534,11 @@
     if(state.preview){ return; }
     var btn=card.querySelector(".regen"); btn.disabled=true; btn.innerHTML='<svg class="spin"><use href="#i-refresh"/></svg>';
     requestVariants([platform]).then(function(res){
-      if(res.ok && res.j.variants && res.j.variants[0]){
+      var v=res.ok && res.j.variants && res.j.variants[0];
+      if(v && v.failed==="bot_declined"){
+        showRes(card,false, declinedMessage((BRAND[platform]||{label:platform}).label, v.notice));
+      } else if(v){
+        card.querySelector(".res").className="res";
         var ta=card.querySelector("textarea"); ta.value=res.j.variants[0].text||""; ta.dispatchEvent(new Event("input"));
       } else { showRes(card,false, (res.j&&res.j.error)||"Could not redraft"); }
     }).catch(function(){ showRes(card,false,"Offline"); })

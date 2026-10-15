@@ -1,5 +1,6 @@
 'use strict';
 // CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Enqueue native signed audio durably before acknowledgement and resume canonical processing through private worker proof.
+// 2 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 1: a speech provider the kernel reports as not configured is the named speech_provider_unavailable refusal (503), not a rethrown error the route answered as calling_service_unavailable.
 const {randomUUID,createHash} = require('node:crypto');
 const P = require('./policy');
 const terminal = new Set(['completed','failed','cancelled','uncertain','expired']);
@@ -141,7 +142,13 @@ async function interpretAudio(bytes,task,c,transcribe) {
   let result;
   const silence = message => c.sttProvider==='local-stt' && /returned 422:.*"error"\s*:\s*"no_speech_detected"/.test(message||'');
   try { result=await transcribe(bytes,'audio/wav',{providerId:c.sttProvider,enableSegments:true}); }
-  catch(e) { if(!silence(e.message)) throw e; result={text:'',providerId:c.sttProvider}; }
+  catch(e) {
+    // The kernel's speech executor refuses an unconfigured provider in words ("... is not configured"); that is
+    // the named speech_provider_unavailable refusal the page explains, never a bare calling_service_unavailable.
+    if(/not configured/i.test(String(e.message||''))) throw P.fault('speech_provider_unavailable',503);
+    if(!silence(e.message)) throw e;
+    result={text:'',providerId:c.sttProvider};
+  }
   if(result.fallback && silence(result.message)) result={text:'',providerId:c.sttProvider};
   if(result.fallback || typeof result.text!=='string') throw P.fault('speech_provider_unavailable',503);
   const transcript=result.text.slice(0,5000);

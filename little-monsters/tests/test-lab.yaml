@@ -3,8 +3,32 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register tutor-shared-renderer: the Tutor proved as the app consumer of core's shared response renderer in Chromium over a loopback fixture (the framework-coupled gate discovers tests/tutor-renderer.core.spec.mjs by name). The live-port education-e2e case stays as the legacy full-stack variant.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Register lm-artifact-import-behavior: the compiled class-material receiver driven over loopback HTTP (approved/requested outcomes, share-requests listing, and write-free refusals), and name the class-material hand-off in the structural-roles expectations now that the catalog binds it.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Register the enterprise-authorization pilot suites: directory-group grants and the delegated-AI execution guard (authorization-groups-delegation), record rights on a disposable PostgreSQL 16 through the compiled routes (authorization-record-rights-postgres) and the permission-aware pages in Chromium (authorization-permission-ui). All are isolated fixture evidence with installation: never; none is live acceptance.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register native-education-schema: the compiled schema bootstrap sends no query on the native kernel pool and still validates a PostgreSQL pool.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register native-first-visit: first-open learner provisioning through the page frame and the native-applicable migration set.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | authorization-record-rights-postgres also runs calendar-delete-postgres: the compiled calendar router behind the same guard proves DELETE /calendar/:eventId removes only the caller's own personal event.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register lm-greeting: the home greeting ends each sentence with one mark ('Up late?' read 'Up late?.').
 version: 1
 cases:
+  - id: lm-greeting
+    name: Home greeting punctuation
+    purpose: Run the home page's own daypart, greetLine and paintHero at each hour band for a learner and a teacher.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-greeting.test.cjs
+    expected:
+      - A learner up late reads 'Up late? Little Monsters is your study companion', with no stray full stop.
+      - Every greeting and the line under it end each sentence with exactly one mark, with or without a name.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
   - id: lm-artifact-import
     name: Little Monsters class-material artifact receiver
     purpose: Pin the owner-bound Send to… class picker and its authenticated material-import endpoint across source and compiled package artifacts.
@@ -391,6 +415,7 @@ cases:
       scope: package
       files:
         - tests/authorization/record-rights-postgres.test.cjs
+        - tests/authorization/calendar-delete-postgres.test.cjs
     expected:
       - >-
         A teacher's class list, analytics and roster contain only their own class; another teacher's class and the
@@ -400,6 +425,9 @@ cases:
         non-revealing 404; a teacher sees only their class slice of a learner, and aggregates exclude other classes.
       - Roster writes succeed only into the teacher's own class and a refused write leaves no row.
       - Unassigned, denied and revoked actors are refused by the guard before any package handler SQL.
+      - >-
+        DELETE /calendar/:eventId removes the caller's own personal event; another learner's event, a class event and
+        any event for a teacher or admin who does not own it answer the same 404 and stay; study.delete denied is a guard refusal.
     prerequisites:
       - runner:node-test
       - core:dependencies
@@ -413,6 +441,8 @@ cases:
         - tests/authorization/school-postgres.fixture.cjs
         - tests/authorization/fixture.cjs
         - routes/education-routes.js
+        - routes/education-calendar-routes.js
+        - routes/education-calendar-event-routes.js
         - authorization.yaml
       cleanup: >-
         Close the loopback server and remove the uniquely named PostgreSQL container with its anonymous volumes;
@@ -688,4 +718,54 @@ cases:
     limits:
       timeoutMs: 60000
       maxMemoryMb: 512
+    installation: never
+
+  - id: native-education-schema
+    name: Native education schema bootstrap
+    purpose: Verify the compiled education schema bootstrap probes no PostgreSQL catalog on the native kernel pool, which provisions declared migrations itself.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/native-education-schema.test.cjs
+    expected:
+      - A kernel-scoped-documents pool receives no query and no connection from ensureEducationSchema.
+      - A PostgreSQL pool still runs the schema readiness and catalog probes.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: In-memory pool fixtures only, with no persistent data.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+
+  - id: native-first-visit
+    name: Native first visit and native schema
+    purpose: >-
+      Verify a new person on the native kernel gets a learner record on first open (the page frame turns
+      the "complete school setup" refusal into the bound open-time write and re-reads /me) and that every
+      migration the native kernel applies avoids the forms its adapter refuses.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/native-first-visit.test.cjs
+    expected:
+      - A 403 school-setup /me answer makes exactly one POST /check-reminders and answers the re-read identity.
+      - A provisioned learner, any other refusal and a refused write make no further write.
+      - No natively applied migration carries a DO block, PL/pgSQL, DROP INDEX/TRIGGER, COMMENT ON or a platform table.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Scripted in-memory fetch and package files only, with no persistent data.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
     installation: never

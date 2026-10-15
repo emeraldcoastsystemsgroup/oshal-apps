@@ -36,6 +36,7 @@
  * 30 | maintainer@emeraldcoastsystemsgroup.com  | Forward the signed rail contract only (1.25.1): the URL, the per-run callback grant, the run id and the client timeout. The fleet service secret and the 1.24.0 bearer token are no longer names this launcher knows, so even a value present in its own environment never reaches the Python child.
  * 31 | maintainer@emeraldcoastsystemsgroup.com  | Map `packet-remove` (1.26.0): discard the caller's own generated packet for CH_JOB through jobhunter.packets.remove, inside the same leased child that owns the user store, so DELETE /jobs/:id/packet never touches the files or the per-user row from the controller.
  * 32 | maintainer@emeraldcoastsystemsgroup.com  | Keep the Python engine in this wrapper's process group under the runner's adopted lease (1.27.1). The engine was always started detached, so on Linux it led a session and group of its own, and the runner's cancel, deadline and lease-loss fence (process.kill(-wrapperPid)) killed only the wrapper: a cancelled run's engine kept calling the rail and held the inherited pipes, so the run stayed `running` until the engine exited by itself. It now joins the wrapper's group whenever /proc proves the wrapper leads that group (the runner always starts it detached), and the wrapper's own deadline and lease-loss fence kill every other member of that group instead of the engine's group, sparing the wrapper so its lease release and terminal-state write still run. A direct CLI run, or a wrapper that shares its parent's group, keeps the engine in a group of its own as before.
+ * 33 | maintainer@emeraldcoastsystemsgroup.com  | Put an inherited PYTHONPATH after the engine directory instead of replacing it. The native kernel's package sandbox names its pinned, read-only Python package runtime there (/python-runtime); replacing it left `python3 -m jobhunter` without tenacity and Jinja2 on the native runtime. The engine directory stays first, so the engine's own modules always win.
  *
  * Verbs (each forwards extra args to the engine):
  *   pull      -> scrape --all  then  match.rescore_recent  (nightly corpus refresh + keyword index)
@@ -278,7 +279,7 @@ async function resolveFirecrawl(userSub, deadlineAt) {
 async function buildEngineEnv(userSub, tenant, verb, store, deadlineAt) {
   const env = {
     ...inheritedEngineEnv(verb),
-    PYTHONPATH: ENGINE_DIR,
+    PYTHONPATH: [ENGINE_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
     PYTHONIOENCODING: 'utf-8',
     JOBHUNTER_MULTIUSER: '1',
     OSHAL_USER_SUB: userSub,

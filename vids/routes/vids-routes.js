@@ -11,6 +11,8 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Mount private finished-export and explicit publication controls behind the existing exact-owner authentication rail.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Add console controls for attaching, previewing, publishing, revoking and removing finished MP4 exports with explicit confirmation.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | The family audience view for the Home shell (ADR-164 D6): with ?audience=family the surface loads the shared kit right after the theme bootstrap and paints the signed-in account's own saved videos (waiting or being made, finished in the last five days, not finished, whether the video maker is connected, the newest eight with where each one stands; a finished video whose export is attached opens its private preview in a new tab) from GET /jobs, /home-summary and a finished job's artifact record only. The inline start (control bindings, the job-list read, the four-second poll) and the module script (handoff listener, connected-actions section and offer) run only when no audience view renders, so the view never dispatches a job and never attaches, publishes, revokes or removes an export. The block holds no backtick, dollar-brace or backslash, so the template literal serves it byte for byte.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | The Studio page says what a Vids worker is and who starts one (an administrator runs `npx oshal-vids worker` on a computer with a screen and Chrome signed in to Google Vids) whenever none is registered, instead of a lone "no worker registered" beside a disabled Generate.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | The export routes are registered at their full /jobs/:jobId/artifact paths (registerVidsPublishRoutes) instead of a sub-router mounted at a parameterised use() path, which the native kernel's bridge router matched literally, so attach, preview, publish, revoke and remove all answered 404 "No matching application route". The page reads the artifact record's `attach` state: where exports cannot be kept (the native sandbox) a finished job says so instead of offering a file input, and a refused attach shows the server's sentence rather than its code.
  */
 /*
  * CHANGE LOG
@@ -168,7 +170,8 @@ function createVidsRoutes(ctx) {
     // access. Require the separate exact subject and narrow the ambient DB identity before all route
     // work. An independently authenticated browser principal remains authoritative.
     router.use(trusted_service_user_identity_1.requireTrustedServiceUserIdentity);
-    router.use('/jobs/:jobId/artifact', (0, vids_publish_routes_1.createVidsPublishRoutes)(ctx));
+    // Full paths, not router.use('/jobs/:jobId/artifact', ...): the native bridge matches a use() path literally.
+    (0, vids_publish_routes_1.registerVidsPublishRoutes)(router, ctx);
     // Brand Graphics uses the same durable worker and owner ledger as clips/stories.
     // Keep a distinct dispatch door so a brand request can never become a generic clip.
     router.post('/brand', async (req, res) => {
@@ -524,7 +527,7 @@ const SURFACE_HTML = `<!doctype html>
   th{color:var(--muted);font-weight:500} .st{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
   .st.done{color:var(--accent);border-color:var(--accent)} .st.failed{color:var(--bad);border-color:var(--bad)}
   .st.running,.st.queued{color:var(--warn);border-color:var(--warn)} .idea{max-width:380px}
-  .artifact{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.artifact button,.artifact a{font-size:12px;padding:4px 7px}.artifact input{max-width:150px;font-size:11px}
+  .artifact{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.artifact button,.artifact a{font-size:12px;padding:4px 7px}.artifact input{max-width:150px;font-size:11px}.artifact .unkept{font-size:12px;color:var(--muted)}
   .empty{color:var(--muted);text-align:center;padding:18px}
   @media(max-width:640px){
     .wrap{padding:14px}
@@ -548,6 +551,7 @@ const SURFACE_HTML = `<!doctype html>
       <button class="primary" id="go">Generate clip</button>
       <span class="worker"><span class="dot" id="wdot"></span><span id="wtxt">checking worker…</span></span>
     </div>
+    <p class="sub" id="whint" hidden>No Vids worker is registered, so Generate is off. A Vids worker is a computer with a screen and Chrome signed in to Google Vids, started by an administrator with <code>npx oshal-vids worker</code>; it shows here as online once it registers with this installation.</p>
   </div>
   <div class="card">
     <table><thead><tr><th>Status</th><th>Idea</th><th>Orientation</th><th>Worker</th><th>When</th><th>Finished export</th></tr></thead>
@@ -568,16 +572,19 @@ const SURFACE_HTML = `<!doctype html>
       var dot = document.getElementById('wdot'), txt = document.getElementById('wtxt');
       if (w){ dot.className='dot on'; txt.textContent = (w.name||w.clientId)+' · online'; go.disabled=false; }
       else { dot.className='dot'; txt.textContent='no worker registered'; go.disabled=true; }
+      // Say what a worker is and who starts one, instead of a lone "no worker registered" beside a dead button.
+      document.getElementById('whint').hidden = !!w;
       var tb = document.getElementById('rows');
       if (!d.jobs || !d.jobs.length){ tb.innerHTML='<tr><td colspan="6" class="empty">No jobs yet.</td></tr>'; return; }
       var artifacts = await Promise.all(d.jobs.map(async function(j){
         if (j.status !== 'done') return null;
-        try { var ar=await fetch('/api/vids/jobs/'+encodeURIComponent(j.job_id)+'/artifact'); return ar.ok?(await ar.json()).artifact:null; } catch(e){ return null; }
+        try { var ar=await fetch('/api/vids/jobs/'+encodeURIComponent(j.job_id)+'/artifact'); return ar.ok?(await ar.json()):null; } catch(e){ return null; }
       }));
       tb.innerHTML = d.jobs.map(function(j,index){
         var status=statusKey(j.status);
-        var a=artifacts[index], artifact='—';
-        if (status==='done') artifact=a
+        var rec=artifacts[index], a=rec&&rec.artifact, attach=rec&&rec.attach, artifact='—';
+        if (status==='done' && !a && attach && attach.available===false) artifact='<span class="unkept" title="'+esc(attach.detail||'')+'">Exports cannot be kept on this installation yet</span>';
+        else if (status==='done') artifact=a
           ? '<a href="'+esc(a.previewUrl)+'" target="_blank" rel="noreferrer">Preview</a>'+
             (a.publicUrl ? '<a href="'+esc(a.publicUrl)+'" target="_blank" rel="noreferrer">Public link</a><button data-artifact="unpublish" data-job="'+esc(j.job_id)+'">Revoke</button>' : '<button data-artifact="publish" data-job="'+esc(j.job_id)+'">Publish</button>')+
             '<button data-artifact="remove" data-job="'+esc(j.job_id)+'">Remove</button>'
@@ -619,7 +626,7 @@ const SURFACE_HTML = `<!doctype html>
     };
     document.getElementById('rows').onchange = async function(event){
       var input=event.target; if(input.getAttribute('data-artifact')!=='attach' || !input.files[0]) return;
-      try{ var form=new FormData(); form.append('file',input.files[0]); var r=await fetch('/api/vids/jobs/'+encodeURIComponent(input.getAttribute('data-job'))+'/artifact',{method:'POST',body:form}); if(!r.ok) throw new Error((await r.json()).error||'export attach failed'); refresh(); }
+      try{ var form=new FormData(); form.append('file',input.files[0]); var r=await fetch('/api/vids/jobs/'+encodeURIComponent(input.getAttribute('data-job'))+'/artifact',{method:'POST',body:form}); if(!r.ok){ var failed=await r.json().catch(function(){ return {}; }); throw new Error(failed.detail||failed.error||'export attach failed'); } refresh(); }
       catch(e){ window.alert(e.message||'export attach failed'); }
     };
     refresh(); setInterval(refresh, 4000);

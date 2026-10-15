@@ -27,6 +27,7 @@
  * 2026-07-30 03:20:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial — the always-on scan's config resolution (manifest→deployment→user layering with per-key scope enforcement + clamping), snapshot freshness math, and the alert gate (strength/edge floor, first-seen dedup, top-N, per-day budget) + its message formatting.
  * 2026-09-04 23:40:00 | roger.murphy@emeraldcoastsystemsgroup.com   | summarizeAlertRecord — the win/loss fold over alerts joined to their graded predictions (settled/won/one-contract P&L). Pure, so the plain-node suite pins the math: unsettled rows are "open", a record with no settled rows has NULL rates (never 0%), and P&L averages only over rows that were actually graded.
  * 2026-09-04 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | contrarianExtremeRow — the pre-registered "bet against ourselves at the extremes" forward test (operator, 2026-09-04): for a scan hand with our P >= .90 or <= .10, the OPPOSITE side at its own ask (= 1 - our bid, from the hand's spread), claimed +.10 over the market, zero stake. In-sample the 79 such flips made ~6c a contract after spread; that is a hypothesis, so it is registered as one and graded by the same judge. Pure, so the plain-node suite pins the rule.
+ * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | openHands — GET /scan drops the hands whose market closed after the snapshot was taken (the table listed them as closed and the concierge recommended them from a 5.3 h old scan) and reports how many it dropped.
  *
  * @module kalshi-scan-config
  */
@@ -38,6 +39,7 @@ exports.resolveScanConfig = resolveScanConfig;
 exports.clampScanConfig = clampScanConfig;
 exports.scopedPatch = scopedPatch;
 exports.scanFreshness = scanFreshness;
+exports.openHands = openHands;
 exports.selectAlertHands = selectAlertHands;
 exports.formatAlert = formatAlert;
 exports.summarizeAlertRecord = summarizeAlertRecord;
@@ -212,6 +214,24 @@ function scanFreshness(snapshotAtIso, cfg, nowMs) {
         stale: ageSeconds > cfg.staleAfterMinutes * 60,
         nextRunAt: new Date(at + cfg.scanIntervalMinutes * 60_000).toISOString(),
     };
+}
+/**
+ * @description Drop the hands whose market has closed since the snapshot was taken. A snapshot is
+ * served for hours when the background scan is off, and its hands kept markets that closed in the
+ * meantime: the table showed them as "closed" and the concierge recommended them (three of five
+ * "monster" hands on a 5.3 h old scan). A hand with no close time, or one that cannot be read, is
+ * kept: closing cannot be shown for it.
+ * @param hands - The snapshot's hands, each with an optional ISO closeTime.
+ * @param nowMs - Current epoch ms (injected so the suite is deterministic).
+ * @returns The hands still open, and how many were dropped as closed.
+ */
+function openHands(hands, nowMs) {
+    const list = Array.isArray(hands) ? hands : [];
+    const open = list.filter((h) => {
+        const at = h && h.closeTime ? new Date(h.closeTime).getTime() : NaN;
+        return !Number.isFinite(at) || at > nowMs;
+    });
+    return { hands: open, closedSinceScan: list.length - open.length };
 }
 /**
  * @description The alert gate: which of this cycle's hands are worth interrupting a person over.

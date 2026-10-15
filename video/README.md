@@ -345,7 +345,78 @@ Container memory, MiB low / high: **32 / 128 (declared)**.
 
 | Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
 |---|---|---|---|---|---|---|
+| video-editing-command | editing command | T1 | none | disable | not yet measured | none recorded |
 | storyboard | storyboard | T2 | none | disable | not yet measured | none recorded |
 | clip-render | short video | T2 | hosted | disable | not yet measured | none recorded |
 | series-episode | series episode | T3 | hosted | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->
+
+## Multitrack editor (1.10.0, source delivery)
+
+Upgrade a manual timeline explicitly to version 2. Four video/eight audio tracks
+support overlapping clips, track mute/lock, trim/split, drag placement and snapping,
+linked audio extraction/movement, ripple delete, volume/position/scale/opacity
+keyframes, dissolve/black fades, brightness/contrast/saturation and timed titles/
+captions. Source waveform decoding reports measured peaks. Existing private
+projects, immutable media, revisions, undo, export jobs and cancellation are reused.
+
+Limits: 32 clips, eight video/eight audio sources, 60 seconds, 30 fps, 720p H.264/AAC
+export and 640×360 rendered preview. Existing media/owner quotas still apply.
+Preview and export share the FFmpeg compiler; the v2 playhead is a timing control,
+not an inaccurate single-source browser composite. Use **Render preview** for
+the actual composition. The mix limiter caps output at 0.95; volume automation
+uses FFmpeg audio-frame evaluation. Ripple across another crossing clip refuses
+until that clip is split. Splitting inside an active fade refuses rather than
+changing its slope. Linear keyframe splits round to the document's integer
+percentage units. Variable-rate uploads normalize to 30 fps; boundaries use 1600
+audio samples per project frame. AAC has codec padding; the render's source
+trims/mix length are exact, and decoded duration is checked within the codec budget.
+
+Source proof includes actual editor → real routes → disposable PostgreSQL → job
+start, model/argument validation, and a real export/decode inside the runtime image
+covering animated opacity, overlap, captions and mixed audio. Existing cancellation,
+timeout, revocation and cleanup cases pass. Installed acceptance and qualification
+at every declared resource ceiling remain pending; no automatic deployment occurs.
+
+
+## Agent editing — 1.11.0 source delivery
+
+`video-editor` is the package's inline editing concierge. Its manifest declares nine
+original-caller API tools: editing-contract, list/read projects, create a blank
+project and apply bounded edits plus render, list/status and cancel jobs. The existing
+video-director and screenplay-writer remain the prompted/series reasoning agents.
+
+An edit uses the actual saved project id and `baseRevision`. At most 16 operations
+and 16 KiB produce one immutable revision; a failed batch saves nothing. Existing
+model validation, owner/source checks, layer/track locks and optimistic concurrency
+apply. Both read and change permissions are rechecked before commit. The kernel's
+existing write approval cards show the exact proposed input; the agent reports
+success only after the real route response. Open browser drafts need a deliberate
+reload; no agent operation changes or discards an unsaved browser draft.
+
+The installed `/api/video/editor/editing-contract` returns the supported forms, examples, units and limits.
+No shell, arbitrary code, remote fetching or new provider pipeline is exposed.
+The five remaining domain builds and PSD interchange are still unimplemented.
+Catalog bindings and the new personas require a reviewed reload/install and native
+acceptance; source proof does not claim that these agents are live. No deployment
+or service restart is part of this delivery.
+
+## Motion composition exchange
+
+The Video editor now offers **Link a Motion composition**. Render an owned composition in Motion, find a ready MP4 render in Video, and link it. The protected exchange verifies original Motion owner/export grants on every source read, streams bounded chunks into native Video upload/probe, and saves actual H264 bytes with immutable source lineage. No URLs, owner selectors or caller-supplied lineage are accepted. Import requires Video view/read/change plus the current Motion export authority; the new `video-import-motion-render` agent tool requires approval. The returned `sourceMetadata` can be added by `video-apply-edits` or refreshed with `replaceMotionSource`.
+
+The native layer/effect/keyframe graph remains editable in **Motion at the pinned source revision**. Video keeps a rendered cache and the exact project/revision/composition/document hash. Its source link opens that revision in Motion. After editing and rendering a new source revision, choose **Refresh**: trims, splits, linked audio, titles, keyframes and placement remain intact. Source composition, native time interval and rational frame rate must match; an older revision, a too-short replacement or any affected locked track is refused. Browser imports change the current draft and require Save; they never overwrite another open draft. Source deletion or lost Motion access stops source editing/refresh, while previously admitted owned Video bytes remain usable. This is a linked native graph workflow; Video does not clone the graph or offer local Motion node editing.
+
+Current clip limits remain H264 MP4 up to100MiB,30s,1920px/2073600pixels with AAC sound or none. The Video output timeline can be60s. Larger/longer Motion renders are refused, and other output formats are not silently converted. Explicit import retries retain one request UUID and a SHA256 digest of the complete normalized trusted graph/render lineage plus content size and hash. Native keyed begin and status reuse the same live upload, validate its confirmed offset and sealed hashes, and recover uncertain begin/chunk/finish replies. Native chunk acknowledgements contain the confirmed offset only; the sealed begin/status receipt and original native authority bind the upload id, while every append must acknowledge its exact next offset. The consumer freshly authorizes and hashes all source segments while skipping already acknowledged native bytes. Equal media bytes from a different graph cannot reuse the key. A confirmed SQL import replays its exact immutable asset. Unpublished native uploads expire after one hour under the existing owner quota/cleanup policy; expired or changed source generations require a new import intent. Import never uses delete authority to prune them. MP4 encoded dimensions are checked against the verified output dimensions and exact even padding of the native render dimensions; odd159x89 source frames legitimately encode160x90.
+
+Source proof (`tests/video-editor-motion.test.mjs`): real compiled HTTP/store/forced RLS at shared disposable127.0.0.1:35689, genuine ffprobe-checked H264, strict source identities, bounded64KiB exchange/128KiB upload parts, replay, named native begin/chunk/finish acknowledgement loss with one upload and no duplicate bytes, full-lineage digest conflicts, confirmed-offset guards, genuine odd raw-frame padded H264 and tampered dimensions, immutable/foreign/forged/stripped/revoked/corrupt guards and real412px Chromium import/save/reopen/refresh/undo/redo. Native artifact and upload ports in this suite are **named fixtures**. Actual kernel exchange, approval runtime, installed migration/runtime, sandbox grants and deployed acceptance still need installation/review receipts; these source tests do not certify those.
+
+Agents can discover named owned ready Motion MP4 jobs with `video-list-motion-renders`, then propose
+`video-import-motion-render-job` for approval. Discovery is automatic metadata access under the original
+Writer's current Video read/change and Motion export grants; it creates no render, handle or media.
+The complete ready selection is bounded to two jobs; overflow explicitly refuses. Approved import internally
+mints the native typed handle and uses the same verified upload/probe and immutable source publication.
+It returns `sourceMetadata`; a separate approved `video-apply-edits` saves or refreshes the target project.
+Existing trims and effects remain intact. A Reader cannot use the Writer-only discovery or import paths.
+Natural-language installed acceptance remains pending the matching native bridge and package rollout;
+named native port fixtures alone do not prove a deployed agent handoff.

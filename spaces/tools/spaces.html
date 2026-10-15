@@ -188,10 +188,25 @@
   .toast {
     position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
     background: var(--panel); color: var(--text); border: 1px solid var(--line2);
-    padding: 10px 16px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 5;
+    padding: 10px 16px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none;
+    /* Above the floating hand-off panel (z-index 1000), which shares the bottom edge; the toast never takes a tap. */
+    z-index: 1001;
   }
   .toast.show { opacity: 1; }
-  @media (max-width: 720px) { body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } aside { max-height: 55vh; } }
+  /* Phone: one column that scrolls as a page. The desktop pins the body to one screen; on a phone that left the forms
+     a 181px scroll box (aside capped at 55vh, minus the header) above the viewer. Now the forms and scan list take
+     their natural height and the viewer follows with its own height; the toast is pinned to the screen. Guard:
+     tests/browser/spaces-phone-layout.test.cjs. */
+  @media (max-width: 720px) {
+    html, body { height: auto; }
+    body { display: block; height: auto; overflow: visible; }
+    aside { max-height: none; border-right: 0; border-bottom: 1px solid var(--line); }
+    .scroll { overflow: visible; flex: none; }
+    main { height: 70vh; min-height: 320px; }
+    /* The toast belongs to the screen, not to <main>: <main> is below the forms here, so an absolute toast (every
+       success and failure message) was drawn under the visible screen. */
+    .toast { position: fixed; bottom: 18px; }
+  }
 </style>
 </head>
 <body>
@@ -213,11 +228,11 @@
             <input type="file" id="video" name="video" accept="video/*" required />
           </div>
           <button type="submit" id="submit-btn">Reconstruct 3D scene</button>
-          <p class="note" id="phase-note"><strong>No GPU box connected:</strong> this produces a <strong>synthetic demo room</strong> to try the flow — <em>not</em> a reconstruction of your video. Point <code>RECON_URL</code> at a GPU reconstruction box for the real thing. <strong>For an accurate model of your real space right now, use Import below</strong> (iPhone/iPad LiDAR export).</p>
+          <p class="note" id="phase-note" hidden><strong>No GPU box connected:</strong> this produces a <strong>synthetic demo room</strong> to try the flow — <em>not</em> a reconstruction of your video. Point <code>RECON_URL</code> at a GPU reconstruction box for the real thing. <strong>For an accurate model of your real space right now, use Import below</strong> (iPhone/iPad LiDAR export).</p>
         </form>
         <button type="button" id="guide-btn" class="ghost" style="margin-top:10px">Guided capture — tell me where to go</button>
         <div id="guide-panel" style="display:none"></div>
-        <p class="note" style="margin-top:6px">On a phone? <a href="/api/spaces/capture?target=room" target="_blank" rel="noopener" style="color:var(--accent)">Open LIVE guided capture</a> — camera view with pan/walk arrows driven by your compass + motion sensors.</p>
+        <p class="note" style="margin-top:6px">On a phone? <a id="live-capture" href="/api/spaces/capture?target=room" target="_blank" rel="noopener" style="color:var(--accent)">Open LIVE guided capture</a> — camera view with pan/walk arrows driven by your compass + motion sensors.</p>
         <p class="note" style="text-align:center;margin:12px 0 4px;opacity:.55">— or —</p>
         <form id="import-form">
           <div class="row">
@@ -239,7 +254,7 @@
     <div class="placeholder" id="placeholder">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
       <h3>Your 3D space appears here</h3>
-      <p>Upload a walk-through video on the left. When its reconstruction is ready, open it to explore the scene in 3D.</p>
+      <p>Choose a walk-through video under Walk-through video and press Reconstruct 3D scene. When its reconstruction is ready, open it from Your scans to explore the scene in 3D.</p>
     </div>
     <iframe id="viewer" title="3D scene viewer" allow="fullscreen" style="display:none"></iframe>
     <div class="toast" id="toast"></div>
@@ -265,7 +280,7 @@ if (!window.AppView || !AppView.active()) (() => {
 
   const j = async (url, opts) => {
     const r = await fetch(url, Object.assign({ credentials: "same-origin" }, opts));
-    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || ("HTTP " + r.status));
+    if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.detail || b.message || b.error || ("HTTP " + r.status)); }
     return r.json();
   };
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -321,9 +336,34 @@ if (!window.AppView || !AppView.active()) (() => {
     finally { dimsLoading.delete(id); }
   }
 
+  // The scan list's availability marker ({ configured:false, reason, detail }) when this installation has no
+  // reconstruction engine: every capture control is switched off and the server's own sentence is shown,
+  // instead of offering an upload (and a demo room) that can only fail.
+  let unavailable = null;
+  function applyAvailability(data) {
+    unavailable = data && data.configured === false ? (data.detail || data.reason || "This installation has no scan engine.") : null;
+    const note = document.getElementById("phase-note");
+    ["submit-btn", "import-btn", "drone-scan-btn", "guide-btn"].forEach((id) => { const b = document.getElementById(id); if (b) b.disabled = !!unavailable; });
+    ["video", "model", "title"].forEach((id) => { const i = document.getElementById(id); if (i) i.disabled = !!unavailable; });
+    if (unavailable) { note.innerHTML = "<strong>Not available here:</strong> " + esc(unavailable) + " Video reconstruction, import, guided capture and the drone scan need a scan engine connected to this installation."; }
+    note.hidden = false;
+    setLiveCapture(!unavailable);
+  }
+  // The LIVE guided capture page steps through the same capture plan; where this installation cannot run it the
+  // link is switched off like the buttons (it stayed a live link that opened a page with no plan).
+  function setLiveCapture(on) {
+    const link = document.getElementById("live-capture");
+    if (!link) return;
+    if (on) { link.setAttribute("href", "/api/spaces/capture?target=room"); link.removeAttribute("aria-disabled"); link.removeAttribute("title"); link.style.pointerEvents = ""; link.style.opacity = ""; return; }
+    link.removeAttribute("href");
+    link.setAttribute("aria-disabled", "true");
+    link.title = "Not available here: live guided capture needs a scan engine connected to this installation.";
+    link.style.pointerEvents = "none";
+    link.style.opacity = ".55";
+  }
   function render() {
     if (!scans.length) {
-      listEl.innerHTML = '<div class="empty">No scans yet.<br />Upload a video to make your first 3D space.</div>';
+      listEl.innerHTML = unavailable ? '<div class="empty">No scans on this installation.<br />' + esc(unavailable) + '</div>' : '<div class="empty">No scans yet.<br />Upload a video to make your first 3D space.</div>';
       return;
     }
     listEl.innerHTML = scans.map((s) => {
@@ -380,6 +420,7 @@ if (!window.AppView || !AppView.active()) (() => {
     try {
       const data = await j(API + "/scans");
       scans = data.scans || [];
+      applyAvailability(data);
       render();
       // keep polling any scan still in flight
       scans.forEach((s) => { if ((s.status === "queued" || s.status === "reconstructing") && !polling.has(s.id)) pollScan(s.id); });
@@ -487,7 +528,7 @@ if (!window.AppView || !AppView.active()) (() => {
     try {
       if (!guidePlan) guidePlan = (await j(API + "/capture-plan?target=room")).plan;
       guideStep = 0; guidePanel.style.display = "block"; renderGuide();
-    } catch (e) { toast("Capture plan unavailable: " + e.message); }
+    } catch (e) { setLiveCapture(false); toast("Capture plan unavailable: " + e.message); }
   });
 
   // Drone scan (sim) — the mapper-drafted orbit flown by the sim drone.
@@ -512,7 +553,11 @@ if (!window.AppView || !AppView.active()) (() => {
 })();
 </script>
 
-<details id="evidenceReview" style="position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px));max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box;box-shadow:0 8px 30px #0005">
+<style>/* The hand-off panel floats beside the viewer on a wide screen; on a phone (the one-column page below 720px) it sits
+   in the page flow after the viewer, so it never covers the capture forms or the toast. Guard: tests/browser/spaces-phone-layout.test.cjs. */
+.handoff-dock{position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px))}
+@media (max-width:720px){.handoff-dock{position:static;width:auto;margin:16px}}</style>
+<details id="evidenceReview" class="handoff-dock" style="max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box;box-shadow:0 8px 30px #0005">
  <summary style="cursor:pointer;font-weight:600">Prepare a diagnostic brief</summary>
  <p id="evidenceState" role="status">Choose recorded evidence, then review what to share.</p>
  <label>Saved evidence<select id="evidenceChoice" style="width:100%;margin:6px 0"></select></label>

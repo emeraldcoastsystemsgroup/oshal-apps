@@ -259,7 +259,11 @@
     { tool: 'create-vids',     app: 'vids',            name: 'Vids Studio',     swatch: '#00b8c4', tint: 'sky',   art: 'clip',      url: '/api/vids/app',                 blurb: 'The render queue for clips and episodes.' },
     { tool: 'create-story',    app: 'creative-studio', name: 'Stories',         swatch: '#ffb020', tint: 'lemon', art: 'film',      url: '/api/creative-studio/review',   blurb: 'Kid-safe story episodes, produced on a schedule.' },
     { tool: 'create-scan-to-print', app: 'scan-to-print', name: '3D Scan-to-Print', swatch: '#00b8c4', tint: 'mint', art: 'cube', url: '/api/scan-to-print/app', blurb: 'Capture an object, review its 3D model and prepare a print.' },
-    { tool: 'create-brand-graphics', app: 'brand-graphics', name: 'Brand Graphics', swatch: '#1d4ed8', tint: 'sky', art: 'clip', url: '/api/brand-graphics/review', blurb: 'An on-brand oshal intro clip from a short brief, made in Google Vids.' }
+    { tool: 'create-brand-graphics', app: 'brand-graphics', name: 'Brand Graphics', swatch: '#1d4ed8', tint: 'sky', art: 'clip', url: '/api/brand-graphics/review', blurb: 'An on-brand oshal intro clip from a short brief, made in Google Vids.' },
+    { tool: 'create-motion-studio', app: 'motion-studio', name: 'Motion Studio', swatch: '#8b5cf6', tint: 'lilac', art: 'clip', url: '/api/motion-studio/app', blurb: 'Keyframe animations, motion graphics and visual effects on a layered timeline.' },
+    { tool: 'create-publishing-studio', app: 'publishing-studio', name: 'Publishing Studio', swatch: '#e11d48', tint: 'rose', art: 'doc', url: '/api/publishing-studio/app', blurb: 'Multi-page brochures, reports, booklets and print-ready publications.' },
+    { tool: 'create-pdf-workbench', app: 'pdf-workbench', name: 'PDF Workbench', swatch: '#dc2626', tint: 'peach', art: 'doc', url: '/api/pdf-workbench/app', blurb: 'Inspect, reorder, merge, redact, OCR and export PDF documents.' },
+    { tool: 'create-scene-studio', app: 'scene-studio', name: 'Scene Studio', swatch: '#0284c7', tint: 'sky', art: 'cube', url: '/api/scene-studio/app', blurb: '3D scenes and games in Godot and models in Blender with live previews.', summary: false }
   ];
   var byTool = {}; STUDIOS.forEach(function (s) { byTool[s.tool] = s; });
   byTool['create-new'] = { tool: 'create-new', name: 'Create', url: '/api/create/new' };
@@ -271,16 +275,20 @@
     { id: 'deck',      label: 'Presentation',       hint: 'Themed deck',          cat: 'documents', tool: 'create-office',   tint: 'peach', art: 'deck',      query: 'kind=pptx' },
     { id: 'doc',       label: 'Document',           hint: 'Word document',        cat: 'documents', tool: 'create-office',   tint: 'lilac', art: 'doc',       query: 'kind=docx' },
     { id: 'sheet',     label: 'Spreadsheet',        hint: 'Live workbook',        cat: 'documents', tool: 'create-office',   tint: 'mint',  art: 'sheet',     query: 'kind=xlsx' },
+    { id: 'publication', label: 'Publication layout', hint: 'Multi-page layout & print', cat: 'documents', tool: 'create-publishing-studio', tint: 'rose', art: 'doc' },
+    { id: 'pdf-workbench', label: 'PDF workbench',  hint: 'Edit, OCR & merge PDFs', cat: 'documents', tool: 'create-pdf-workbench', tint: 'peach', art: 'doc' },
     { id: 'headshot',  label: 'Headshot',           hint: 'Studio portrait',      cat: 'images',    tool: 'create-portrait', tint: 'sky',   art: 'portrait' },
     { id: 'character', label: 'Character portrait', hint: 'You, in a scene',      cat: 'images',    tool: 'create-portrait', tint: 'rose',  art: 'character' },
     { id: 'group',     label: 'Group portrait',     hint: 'Everyone in one shot', cat: 'images',    tool: 'create-portrait', tint: 'lemon', art: 'group' },
     { id: 'short',     label: 'Short video',        hint: 'Reels, Shorts, TikTok', cat: 'video',    tool: 'create-video',    tint: 'lilac', art: 'video' },
     { id: 'clip',      label: 'Video clip',         hint: 'Rendered on the node', cat: 'video',     tool: 'create-vids',     tint: 'sky',   art: 'clip' },
     { id: 'edit-video', label: 'Edit video',        hint: 'Trim and join clips',  cat: 'video',     tool: 'create-video-editor', tint: 'rose', art: 'clip' },
+    { id: 'motion-composition', label: 'Motion composition', hint: 'Keyframes & motion graphics', cat: 'video', tool: 'create-motion-studio', tint: 'lilac', art: 'clip' },
     { id: 'brand-intro', label: 'Brand intro clip', hint: 'On-brand motion graphic', cat: 'video', tool: 'create-brand-graphics', tint: 'sky', art: 'clip' },
     { id: 'episode',   label: 'Story episode',      hint: 'Kid-safe animation',   cat: 'story',     tool: 'create-story',    tint: 'peach', art: 'film' },
     { id: 'lora',      label: 'LoRA character',     hint: 'Train your own look',  cat: 'training',  tool: 'create-lora',     tint: 'mint',  art: 'nodes' },
-    { id: 'scan-to-print', label: '3D scan to print', hint: 'Photos to a 3D model', cat: '3d', tool: 'create-scan-to-print', tint: 'mint', art: 'cube' }
+    { id: 'scan-to-print', label: '3D scan to print', hint: 'Photos to a 3D model', cat: '3d', tool: 'create-scan-to-print', tint: 'mint', art: 'cube' },
+    { id: 'scene-3d',  label: '3D scene & model',   hint: 'Godot scene or Blender mesh', cat: '3d', tool: 'create-scene-studio', tint: 'sky', art: 'cube' }
   ];
 
   /* ── Tiny illustrations (static markup, no user data) ────────────────────── */
@@ -514,7 +522,7 @@
           if (!it || typeof it !== 'object' || !Array.isArray(it.actions) || !it.actions.length) return;   // footnotes carry no actions
           cards.push({ studio: studio, item: it, t: (function () { var m = ISO.exec(String(it.detail || '')); return m ? Date.parse(m[0]) : 0; })() });
         });
-        (Array.isArray(data.metrics) ? data.metrics : []).slice(0, 3).forEach(function (m) { if (m && typeof m.label === 'string' && typeof m.value === 'string') pills.push({ studio: studio, m: m }); });
+        (Array.isArray(data.metrics) ? data.metrics : []).slice(0, 3).forEach(function (m) { if (m && typeof m.label === 'string' && (typeof m.value === 'string' || typeof m.value === 'number')) pills.push({ studio: studio, m: { label: m.label, value: String(m.value) } }); });
         if (data.partial === true) cantCheck.push(studio.name);
       }).catch(function () { cantCheck.push(studio.name); });
     })).then(function () {

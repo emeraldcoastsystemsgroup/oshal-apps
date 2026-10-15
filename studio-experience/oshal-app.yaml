@@ -65,6 +65,11 @@ dependencies:
       - vids
       - creative-studio
       - scan-to-print
+      - brand-graphics
+      - motion-studio
+      - publishing-studio
+      - pdf-workbench
+      - scene-studio
       - storage
       - career-hunter
       - dnd
@@ -176,6 +181,30 @@ experience:
           role: '@app-admin'
         - app: scan-to-print
           role: maker
+        - app: brand-graphics
+          role: '@app-admin'
+        - app: motion-studio
+          role: creator
+        - app: motion-studio
+          role: editor
+        - app: motion-studio
+          role: exporter
+        - app: publishing-studio
+          role: creator
+        - app: publishing-studio
+          role: editor
+        - app: publishing-studio
+          role: exporter
+        - app: pdf-workbench
+          role: creator
+        - app: pdf-workbench
+          role: editor
+        - app: pdf-workbench
+          role: exporter
+        - app: pdf-workbench
+          role: ocr
+        - app: scene-studio
+          role: creator
         - app: storage
           role: '@app-admin'
         - app: career-hunter

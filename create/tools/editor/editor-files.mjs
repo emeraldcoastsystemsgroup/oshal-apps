@@ -3,11 +3,15 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep the current canvas protected throughout asynchronous portable-file reads and restore controls on parse failure.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Leave clipboard input inside dialogs without uploading it into the canvas behind them.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Consume authorized artifact handoffs once and fence delayed reads/uploads to their original canvas.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Bind reviewed PSD import/original controls alongside existing raster and native project files.
  */
 import { $, state, canEdit, dirty, api, edit, openDocument, notify, handle } from './editor-state.mjs';
+import { importVectorSvg, exportVectorSvg } from './vector-svg.mjs';
 import { parseProject, serializeProject, validateProject, LIMITS } from './model.mjs';
 import { exportProjectImage, makePortableProject } from './renderer.mjs';
 import { saveProject, mayReplace } from './editor-projects.mjs';
+import { bindPsd } from './editor-psd.mjs';
 const incomingArtifacts = new Set();
 
 /** Capture the actual editable document, including a saved-project identity or revision change. */
@@ -55,6 +59,18 @@ async function importProject(file) {
   } finally { state.loading = false; notify(); }
 }
 
+async function importSvg(file) {
+  if (!state.permissions.create || !mayReplace()) return;
+  if (file.size > 2097152) throw new Error('SVG import is limited to 2 MiB.');
+  state.loading = true; notify();
+  try {
+    const permissions = await api('/permissions'); if (!permissions.permissions?.create) throw new Error('Creating a project is no longer permitted.');
+    const { project, warnings } = importVectorSvg(await file.text());
+    if (warnings.length && !confirm(warnings.join('\n') + '\nContinue importing?')) return;
+    openDocument(project);
+  } finally { state.loading = false; notify(); }
+}
+
 async function sourceArtifact(ref) {
   if (!ref || ref.length > 500) throw new Error('This file reference is invalid.');
   const response = await fetch('/api/artifacts/handles/' + encodeURIComponent(ref) + '/content', { credentials: 'same-origin', redirect: 'error', signal: AbortSignal.timeout(20000) });
@@ -98,6 +114,7 @@ async function exportFile(type) {
   state.loading = true; notify();
   try {
     if (type === 'json') download(new Blob([serializeProject(await makePortableProject(document))], { type: 'application/json' }), '.create.json');
+    else if (type === 'svg') download(new Blob([exportVectorSvg(document)], { type: 'image/svg+xml' }), '.svg');
     else download(await exportProjectImage(document, { type }), type === 'image/png' ? '.png' : '.jpg');
     $('exportMenu').open = false;
   } finally { state.loading = false; notify(); }
@@ -134,11 +151,14 @@ export async function acceptIncomingArtifact() {
 }
 
 export function bindFiles() {
+  bindPsd();
   $('uploadImage').onclick = () => $('imageFile').click(); $('chooseArtifact').onclick = handle(chooseArtifact);
   $('imageFile').onchange = handle(async () => { const file = $('imageFile').files[0]; $('imageFile').value = ''; if (file) await addImage(file, file.name); });
+  $('importVectorSvg').onclick = () => $('vectorSvgFile').click();
+  $('vectorSvgFile').onchange = handle(async () => { const file = $('vectorSvgFile').files[0]; $('vectorSvgFile').value = ''; if (file) await importSvg(file); });
   $('importProject').onclick = () => $('projectFile').click();
   $('projectFile').onchange = handle(async () => { const file = $('projectFile').files[0]; $('projectFile').value = ''; if (file) await importProject(file); });
-  for (const [id, type] of [['exportPng', 'image/png'], ['exportJpeg', 'image/jpeg'], ['exportJson', 'json']]) $(id).onclick = handle(() => exportFile(type));
+  for (const [id, type] of [['exportPng', 'image/png'], ['exportJpeg', 'image/jpeg'], ['exportJson', 'json'], ['exportSvg', 'svg']]) $(id).onclick = handle(() => exportFile(type));
   document.addEventListener('paste', handle(async event => {
     if (event.target.closest('input,textarea,[contenteditable]') || document.querySelector('dialog[open]') || !canEdit()) return;
     const file = Array.from(event.clipboardData?.files ?? []).find(item => item.type.startsWith('image/'));

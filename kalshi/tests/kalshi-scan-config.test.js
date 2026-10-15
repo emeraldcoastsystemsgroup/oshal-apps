@@ -6,6 +6,8 @@
  * 2026-07-30 04:45:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial guard for the always-on scan: config layering + per-scope authority + clamping, the manifest-is-the-config contract (every knob must be declared in oshal-app.yaml), snapshot freshness, the alert gate (floors, first-seen dedup, top-N, daily budget), and two structural checks that the scan can never crawl back onto the request path.
  * 2026-09-04 23:40:00 | roger.murphy@emeraldcoastsystemsgroup.com   | summarizeAlertRecord: settled-only counting, null rates until decided, P&L averaged over graded rows only; and a structural check that the compiled listAlerts/alertRecord really join kalshi_predictions on SCAN_STRATEGY (the outcome column is only as real as that join).
  * 2026-09-04 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | contrarianExtremeRow: the rule as pre-registered (inclusive .90/.10 threshold, flip priced at 1 - our bid from the spread, +.10 claim capped at .99, zero stake, no-bid/edge-of-book refusals, fee rounding matches the engine) and a structural check that the compiled scan really registers CONTRARIAN_EXTREME_STRATEGY rows right after its own.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | The scan is no longer started by a timer from the route factory: the structural guards now require the request-bound POST /scan/tick (scheduledTick) and forbid setInterval/setTimeout in the cron module; the globalThis started flag it needed is gone with the timer.
+ * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | openHands: GET /scan serves only hands whose market is still open (a 5.3 h old snapshot listed closed markets and the concierge recommended them), counts the dropped ones, keeps a hand whose close time is missing or unreadable, and the route applies it to the served hands.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install) over the
  * COMPILED pure module — the same bytes the running framework requires.
@@ -190,7 +192,8 @@ test('the scan can never crawl back onto the request path (structural)', () => {
       `kalshi-routes must not touch ${banned} — the feed walk belongs to the background poller`);
   }
   assert.ok(routes.includes('readSnapshot'), 'GET /scan must serve the stored snapshot');
-  assert.ok(routes.includes('startKalshiScanCron'), 'the poller must start from the app route factory');
+  assert.ok(routes.includes('scheduledTick') && routes.includes("'/scan/tick'"), 'the scheduled tick is a route the schedule fires, inside a request');
+  assert.ok(!routes.includes('startKalshiScanCron'), 'the route factory starts no background timer');
 });
 
 test('the poller really notifies Jarvis and honours the audience gate (structural)', () => {
@@ -224,7 +227,7 @@ test('the poller cannot run for a toggled-off app, and cannot double-scan a depl
   assert.match(cron, /\.withScanLease\)\s*\(/, 'a cycle must RUN under the deployment-wide lease');
   assert.ok(engine.includes('pg_try_advisory_lock') && engine.includes('pg_advisory_unlock'),
     'the lease must be a real advisory lock, taken and released');
-  assert.ok(cron.includes('globalThis'), 'the started flag must survive a require-cache bust');
+  assert.ok(!/\bset(Interval|Timeout)\(/.test(cron), 'no timer: a tick outside a request is refused its SQL by the native kernel');
 });
 
 test('a failed cycle backs off, and manual runs are throttled', () => {
@@ -403,3 +406,30 @@ test('the compiled scan registers the contrarian sibling right after its own pre
   assert.match(fn, /ON CONFLICT \(strategy, ticker\) DO NOTHING/);
   assert.match(fn, /row\.stakeFraction/);
 });
+
+test('openHands drops markets that closed after the snapshot and counts them', () => {
+  const now = Date.parse('2026-10-12T04:00:00Z');
+  const hands = [
+    { ticker: 'KXBIGGESTQUAKE-12OCT26-5.6', closeTime: '2026-10-13T04:00:00Z' },
+    { ticker: 'KXTEMPLAXHS-26OCT1119-T71.99', closeTime: '2026-10-11T23:00:00Z' },
+    { ticker: 'KXTEMPNYCHS-26OCT1119-T58.99', closeTime: '2026-10-11T23:00:00Z' },
+    { ticker: 'AT-NOW', closeTime: '2026-10-12T04:00:00Z' },
+    { ticker: 'NO-CLOSE' },
+    { ticker: 'BAD-CLOSE', closeTime: 'not a time' },
+  ];
+  const out = cfg.openHands(hands, now);
+  assert.deepEqual(out.hands.map((h) => h.ticker), ['KXBIGGESTQUAKE-12OCT26-5.6', 'NO-CLOSE', 'BAD-CLOSE']);
+  assert.equal(out.closedSinceScan, 3);
+  assert.deepEqual(cfg.openHands(undefined, now), { hands: [], closedSinceScan: 0 });
+});
+
+test('GET /scan serves the open hands, not the snapshot\'s hands verbatim', () => {
+  for (const file of ['routes/kalshi-routes.js', 'src-routes/kalshi-routes.ts']) {
+    const src = fs.readFileSync(path.join(PKG, file), 'utf8');
+    const scan = src.slice(src.indexOf("router.get('/scan'"), src.indexOf("router.post('/scan/run'"));
+    assert.match(scan, /openHands\)?\(snap\.payload\.hands, Date\.now\(\)\)/, file);
+    assert.match(scan, /hands: open\.hands,/, file);
+    assert.match(scan, /closedSinceScan: open\.closedSinceScan/, file);
+  }
+});
+

@@ -3,12 +3,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createVidsPublishRoutes = createVidsPublishRoutes;
-/**
- * CHANGE LOG
- * 1 | maintainer@emeraldcoastsystemsgroup.com | Add exact-owner private export upload/preview and separately confirmed publish, revoke and private removal controls. Multipart completion preserves verified identity.
- */
-const express_1 = require("express");
+exports.NATIVE_EXPORT_DETAIL = void 0;
+exports.exportsKept = exportsKept;
+exports.registerVidsPublishRoutes = registerVidsPublishRoutes;
 const multer_1 = __importDefault(require("multer"));
 const node_crypto_1 = require("node:crypto");
 const promises_1 = require("node:fs/promises");
@@ -73,32 +70,55 @@ async function attachExport(ctx, req, res) {
         await (0, promises_1.unlink)(uploaded).catch(() => undefined);
     }
 }
-function createVidsPublishRoutes(ctx) {
-    const router = (0, express_1.Router)({ mergeParams: true });
-    router.use((req, res, next) => {
-        const sub = (0, authz_1.getCaller)(req).sub ?? (0, authz_1.getTrustedServiceUserSub)(req);
-        if (!sub) {
-            res.status(401).json({ error: 'user_identity_required' });
-            return;
-        }
-        if (!uuid.test(job(req))) {
-            res.status(404).json({ error: 'job_not_found' });
-            return;
-        }
-        req.exportOwner = sub;
-        res.set('Cache-Control', 'private, no-store');
-        next();
-    });
-    router.get('/', async (req, res) => {
+/** @description Where the export routes live under the Vids router. */
+const BASE = '/jobs/:jobId/artifact';
+/** @description Why attaching an export is refused in the native sandbox, in words. */
+exports.NATIVE_EXPORT_DETAIL = 'Video exports cannot be kept on this installation yet: it has no lasting file store for Vids, so an attached MP4 would be lost when the request ends. Nothing was uploaded or saved.';
+/**
+ * @description Whether this installation keeps an attached export file. The native kernel's bridge sets
+ * OSHAL_EGRESS=kernel; there the package's files outside the sandbox temp dir are discarded with the process.
+ * @returns True when an attached MP4 is kept where the preview and public routes read it.
+ */
+function exportsKept() {
+    return process.env.OSHAL_EGRESS !== 'kernel';
+}
+/** @description The exact-owner guard every export route runs first. */
+function ownerGuard(req, res, next) {
+    const sub = (0, authz_1.getCaller)(req).sub ?? (0, authz_1.getTrustedServiceUserSub)(req);
+    if (!sub) {
+        res.status(401).json({ error: 'user_identity_required' });
+        return;
+    }
+    if (!uuid.test(job(req))) {
+        res.status(404).json({ error: 'job_not_found' });
+        return;
+    }
+    req.exportOwner = sub;
+    res.set('Cache-Control', 'private, no-store');
+    next();
+}
+/** @description What the page needs to offer (or not offer) an attach control. */
+function attachState() {
+    return exportsKept() ? { available: true, maxBytes: vids_artifact_files_1.MAX_VIDEO_BYTES } : { available: false, detail: exports.NATIVE_EXPORT_DETAIL };
+}
+/**
+ * @description Register the owner's export routes on the Vids router at their full paths. A sub-router mounted at
+ * a parameterised use() path is never reached on the native kernel, whose bridge router matches use() paths literally.
+ * @param router - The Vids router (after its identity middleware).
+ * @param ctx - The package context.
+ * @returns Nothing; the routes are added to `router`.
+ */
+function registerVidsPublishRoutes(router, ctx) {
+    router.get(BASE, ownerGuard, async (req, res) => {
         try {
             await (0, vids_artifacts_1.requireFinishedJob)(ctx, owner(req), job(req));
-            res.json({ artifact: (0, vids_artifacts_1.artifactView)(await (0, vids_artifacts_1.ownedArtifact)(ctx, owner(req), job(req))) });
+            res.json({ artifact: (0, vids_artifacts_1.artifactView)(await (0, vids_artifacts_1.ownedArtifact)(ctx, owner(req), job(req))), attach: attachState() });
         }
         catch (error) {
             refusal(res, error);
         }
     });
-    router.get('/video.mp4', async (req, res) => {
+    router.get(`${BASE}/video.mp4`, ownerGuard, async (req, res) => {
         try {
             const row = await (0, vids_artifacts_1.ownedArtifact)(ctx, owner(req), job(req));
             if (!row) {
@@ -111,9 +131,13 @@ function createVidsPublishRoutes(ctx) {
             refusal(res, error);
         }
     });
-    router.post('/', async (req, res, next) => {
+    router.post(BASE, ownerGuard, async (req, res, next) => {
         try {
             await (0, vids_artifacts_1.requireFinishedJob)(ctx, owner(req), job(req));
+            if (!exportsKept()) {
+                res.status(503).json({ error: 'export_storage_unavailable', detail: exports.NATIVE_EXPORT_DETAIL });
+                return;
+            }
             next();
         }
         catch (error) {
@@ -131,7 +155,6 @@ function createVidsPublishRoutes(ctx) {
         refusal(res, error);
     }))), (req, res) => { void attachExport(ctx, req, res); });
     registerControls(router, ctx);
-    return router;
 }
 function registerControls(router, ctx) {
     const confirm = (req, res, next) => {
@@ -141,7 +164,7 @@ function registerControls(router, ctx) {
         }
         next();
     };
-    router.post('/publish', confirm, async (req, res) => {
+    router.post(`${BASE}/publish`, ownerGuard, confirm, async (req, res) => {
         try {
             if (typeof req.body.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(req.body.sha256))
                 throw new vids_artifacts_1.ArtifactRefusal(400, 'reviewed_digest_required');
@@ -158,7 +181,7 @@ function registerControls(router, ctx) {
             refusal(res, error);
         }
     });
-    router.post('/unpublish', confirm, async (req, res) => {
+    router.post(`${BASE}/unpublish`, ownerGuard, confirm, async (req, res) => {
         try {
             res.json({ artifact: (0, vids_artifacts_1.artifactView)(await (0, vids_artifacts_1.unpublishArtifact)(ctx, owner(req), job(req))) });
         }
@@ -166,7 +189,7 @@ function registerControls(router, ctx) {
             refusal(res, error);
         }
     });
-    router.delete('/', confirm, async (req, res) => {
+    router.delete(BASE, ownerGuard, confirm, async (req, res) => {
         try {
             const row = await (0, vids_artifacts_1.removeArtifact)(ctx, owner(req), job(req));
             await (0, promises_1.unlink)((0, vids_artifact_files_1.artifactPath)(row.artifact_id)).catch(() => undefined);

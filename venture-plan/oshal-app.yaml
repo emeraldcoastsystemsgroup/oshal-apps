@@ -7,6 +7,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3, ADR-164 D6: tools/venture.html provides the company audience view the Business shell requests with ?audience=company — the caller's own saved ventures as a portfolio (at most eight headers joined), what needs attention, recent analyst runs and the evidence mix, over the existing GET routes, read-only; the console's start and both module scripts run only without a view. No route, schema or permission change. Guarded by tests/audience-view.test.cjs (test-lab.yaml).
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0, ADR-149/ADR-157: import an authorization catalog (authorization.yaml) and declare `requires: [venture.rebaseline]` on the rebaseline tick. A system activation of a protected package with no catalog is refused 409 authorization_service_catalog_required, so the tick could never be turned on. The catalog binds every mounted route once, the four bots, and the tick as a `jobs` operation; venture.rebaseline is granted by no role, only to the application's service principal by a swarm administrator's system activation. Installing this version on a box where 1.4.x is installed is a catalog ADOPTION: the kernel refuses the load and records a breaking AUTH-07 review, so the package is not mounted until that review is approved and the package is loaded again; the old @app-admin assignment is not carried, so people are granted the `member` role afterwards. Guarded by tests/venture-catalog-bindings.test.js and tests/venture-catalog-kernel.core.spec.mjs.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: the schema bootstrap runs under a package-owned advisory lock (VENTURE_SCHEMA_LOCK_KEY in src-routes/venture-schema.ts). Every api boot builds the console and rebaseline-tick routers in one synchronous loop and each starts the whole bootstrap; unserialised, the pair deadlocked in PostgreSQL (40P01 on a pg_proc row, "venture rebaseline schema bootstrap failed" at boot) and raced CREATE TABLE IF NOT EXISTS on a first install. No route, migration, persona or authorization catalog change.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Native provisioning: declare migrations/native/001-venture-plan.sql (every table and index of 001-005 in final shape, with 004's quote FX columns and checks and 005's run schedule/cost columns and checks folded in) and skip 001-005 natively, whose RLS DO blocks, pg_constraint-guarded ALTERs and PL/pgSQL triggers the native kernel refuses; the declared migrations stayed pending for every person. PostgreSQL still applies 001-005 and the native file is a no-op there.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — venture-plan ("Venture Plan")
@@ -368,6 +369,24 @@ migrations:
   - migrations/003-venture-outputs.sql
   - migrations/004-venture-fx.sql
   - migrations/005-venture-rebaseline.sql
+  - migrations/native/001-venture-plan.sql
+# The native kernel applies the native file above in place of 001-005, whose DO blocks and PL/pgSQL triggers are PostgreSQL-only.
+nativeMigrations:
+  - id: migrations/001-venture-core.sql
+    native: skip
+    reason: "Its tables and indexes are in migrations/native/001-venture-plan.sql; its owner-or-operator RLS DO blocks are PostgreSQL-only, and the native per-person scope and its owner-field check keep each person's ventures their own."
+  - id: migrations/002-venture-supply-chain.sql
+    native: skip
+    reason: "Its tables and indexes are in migrations/native/001-venture-plan.sql; its owner-or-operator RLS DO blocks are PostgreSQL-only, and the native per-person scope and its owner-field check keep each person's ventures their own."
+  - id: migrations/003-venture-outputs.sql
+    native: skip
+    reason: "Its tables and indexes are in migrations/native/001-venture-plan.sql; its owner-or-operator RLS DO blocks are PostgreSQL-only, and the native per-person scope and its owner-field check keep each person's ventures their own."
+  - id: migrations/004-venture-fx.sql
+    native: skip
+    reason: "Its FX table, quote FX columns, FX foreign key and FX binding check are in migrations/native/001-venture-plan.sql; its PL/pgSQL FX owner/currency, quote FX binding and FX append-only triggers and its RLS DO blocks are PostgreSQL-only."
+  - id: migrations/005-venture-rebaseline.sql
+    native: skip
+    reason: "Its policy table, run schedule/cost columns, checks and indexes are in migrations/native/001-venture-plan.sql; its PL/pgSQL rebaseline-owner, run-owner and cost-transition triggers and its RLS DO block are PostgreSQL-only."
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon icon opens the venture console: the venture

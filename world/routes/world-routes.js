@@ -10,6 +10,8 @@
  * 2026-07-19 16:20:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Surface HTML bundled INTO the package (./world-app-html): the deep module @/features/world-data/world-app-html lost its only importer at the carve and tsc pruned it from dist independently of the (well-anchored) rest of the slice - the packaged route failed at mount. Deep modules prune per-file; surface content rides with the surface (pumpkin f0e4ed1 doctrine).
  * 2026-08-05 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Retired URL query-token authentication for every World machine write; accept bearer/dedicated headers with constant-time comparison and log only credential-source booleans
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: the disabled-state /sentiment answer has the observed-rating shape (lean axis, bySource, ratings: null) instead of the retired political/econ/kind axes, and the /seed-outlets doc says what core's seed now does (identity nodes, retired rating props cleared). No route, guard or auth change.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | K4: GET /pulls answered 500 'read failed' on the first load after the kernel starts. Traced in the kernel journal: the first world.pulls read ran past the World archive's 1.6 s read bound ('World archive read timed out', duration_ms 1602) and the next reads took 404 ms, then about 50 ms - a cold read, not a broken one. The route now retries a timed-out read once, and when the archive still does not answer it says so: 503 archive_unavailable with a plain message, never 500 'read failed'. Other failures keep their 500 and log line.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: GET /sentiment answered 500 'read failed' on a cold read (kernel journal: 'unavailable: World archive read timed out', package world); the retry added for /pulls was not applied to it. /sentiment retries a timed-out read once and answers 503 archive_unavailable in plain words when the archive still does not answer; other failures keep their 500.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createWorldRoutes = createWorldRoutes;
@@ -43,6 +45,25 @@ function readWriteCredentials(req) {
     const auth = req.header('authorization') || '';
     const bearer = /^Bearer\s+(.+)$/i.exec(auth)?.[1]?.trim() || '';
     return { bearer, dedicated: (req.header(WORLD_TOKEN_HEADER) || '').trim() };
+}
+/** @description Whether a World archive read failed on the kernel's read bound rather than on its query. */
+function archiveTimedOut(error) {
+    return /World archive read timed out/i.test(String(error?.message ?? error));
+}
+/**
+ * @description Run a World archive read, and once more if the first ran past the archive's read bound: the
+ * first read after the kernel starts is cold (observed 1602 ms against a 1.6 s bound, then 404 ms, then ~50 ms).
+ * @param read - The read.
+ * @param operation - What is read, for the log.
+ * @returns The read's answer; a second timeout or any other failure rejects as before.
+ */
+function retryColdRead(read, operation) {
+    return read().catch((error) => {
+        if (!archiveTimedOut(error))
+            throw error;
+        logger.warn({ operation }, 'World archive read timed out on a cold read; retrying once');
+        return read();
+    });
 }
 function createWorldRoutes() {
     const router = (0, express_1.Router)();
@@ -190,9 +211,16 @@ function createWorldRoutes() {
             res.status(400).json({ error: 'entity required' });
             return;
         }
-        svc.sentimentBreakdown(entity, days)
+        retryColdRead(() => svc.sentimentBreakdown(entity, days), 'sentiment')
             .then((r) => res.json(r))
-            .catch((e) => { logger.error({ err: e }, 'world sentiment read failed'); res.status(500).json({ error: 'read failed' }); });
+            .catch((e) => {
+            logger.error({ err: e }, 'world sentiment read failed');
+            if (archiveTimedOut(e)) {
+                res.status(503).json({ error: 'archive_unavailable', message: 'The World archive did not answer in time. Try again in a moment.' });
+                return;
+            }
+            res.status(500).json({ error: 'read failed' });
+        });
     });
     /** GET /api/world/pulls?entity=&days= — pull-rate accounting: per source, fetched vs unique vs new. */
     router.get('/pulls', (req, res) => {
@@ -206,9 +234,16 @@ function createWorldRoutes() {
             res.status(400).json({ error: 'entity required' });
             return;
         }
-        svc.pullStats(entity, days)
+        retryColdRead(() => svc.pullStats(entity, days), 'pulls')
             .then((r) => res.json(r))
-            .catch((e) => { logger.error({ err: e }, 'world pulls read failed'); res.status(500).json({ error: 'read failed' }); });
+            .catch((e) => {
+            logger.error({ err: e }, 'world pulls read failed');
+            if (archiveTimedOut(e)) {
+                res.status(503).json({ error: 'archive_unavailable', message: 'The World archive did not answer in time. Try again in a moment.' });
+                return;
+            }
+            res.status(500).json({ error: 'read failed' });
+        });
     });
     /** POST /api/world/backtest?entity=&days= — replay archived items through the current classifier and
      *  report sentiment drift, directional agreement, and entity-extraction stability. (Uses the swarm

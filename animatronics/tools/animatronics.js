@@ -31,6 +31,11 @@
  *                     |                             | poll, no wire-up (controller link, arm/play/jog handlers,
  *                     |                             | the disarm beacon on unload). Without the parameter, or on
  *                     |                             | a core without the kit, the page starts exactly as before.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | A rename showed in the title field but the rig list kept the old
+ *                     |                             | title until reload: adopt() updated state.rig while renderRigs()
+ *                     |                             | draws state.rigs. adopt() now updates the list entry too. Guarded
+ *                     |                             | by tests/surface.core.spec.mjs (rename) and
+ *                     |                             | tests/surface-adopt.test.js.
  */
 (function () {
   'use strict';
@@ -93,6 +98,10 @@
     renderRigs(); renderEditor();
   }
   function adopt(res) {
+    // The rig list draws from state.rigs: keep its entry in step with the rig just read or saved, or a
+    // rename (PATCH) leaves the old title in the list until reload.
+    const i = (state.rigs || []).findIndex((r) => r.rig_id === res.rig.rig_id);
+    if (i >= 0) state.rigs[i] = Object.assign({}, state.rigs[i], res.rig);
     state.rig = res.rig; state.runs = res.runs || state.runs; state.power = res.power || state.power; state.lastSeen = res.rig.updated_at;
     if (!state.frames) state.angles = Object.assign({}, res.rig.current_pose);
     if (res.rig.last_report && !state.report) state.report = res.rig.last_report;

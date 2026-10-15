@@ -6,6 +6,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Drive the Inbox and My Day surface scripts in a node:vm context with a minimal DOM and a recording fetch: the mailbox switch reaches the API as ?provider=, reads and drafts stay on the mailbox the list used, the summary follows the digest's mailbox, and a missing connection shows the matching Connect notice. Not a browser receipt.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Yahoo: the mailbox switch offers it, a Yahoo row opens from the list data without a message or draft request, and the connect notice names Yahoo Mail.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The vm global is its own `window`: My Day now carries the audience-view head script and gates its start on `window.AppView`, so the context needs the browser's self-reference. With no kit loaded the head script steps aside and every assertion below still runs the full page.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Yahoo is no longer offered: this installation has no Yahoo connector and its runtime answers every Yahoo read 501. The switch has no Yahoo option, a saved 'yahoo' falls back to the server's pick, and the no-mailbox notice (Inbox, My Day and its audience view) names Google and Outlook only. A Yahoo list the server picks on its own (a core that reads Yahoo) still opens list-only.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The connect notices offer one sign-in button per mailbox provider (tests/mailbox-connect.test.cjs) and keep an All connections link, instead of one link to the unfiltered Connections page.
  */
 
 import assert from 'node:assert/strict';
@@ -56,7 +58,8 @@ test('the inbox asks for the saved mailbox and shows the Outlook connect notice 
   ], 'outlook');
   assert.equal(calls[0].url, '/api/email/messages?max=30&surface=1&provider=outlook');
   assert.match(byId('items').innerHTML, /No Outlook \/ Microsoft 365 account connected\./);
-  assert.match(byId('items').innerHTML, /href="\/utilities"[^>]*>Connect Outlook/);
+  assert.match(byId('items').innerHTML, /data-connect="outlook">Connect Outlook \/ Microsoft 365</);
+  assert.match(byId('items').innerHTML, /href="\/utilities" target="_top">All connections</);
 });
 
 test('the inbox lets the server pick, then reads and drafts on the mailbox the list used', async () => {
@@ -76,11 +79,11 @@ test('the inbox lets the server pick, then reads and drafts on the mailbox the l
   assert.deepEqual([calls[2].url, calls[2].method], ['/api/email/draft?provider=outlook', 'POST']);
 });
 
-test('a Yahoo row opens from the list data alone, because Yahoo is read list-only', async () => {
+test('a Yahoo list the server picks still opens from the list data alone, because Yahoo is read list-only', async () => {
   const { calls, byId, settle } = await runSurface('email-inbox.html', [
     { provider: 'yahoo', messages: [{ id: '1079', from: 'Sender <sender@mail.example.com>', subject: 'Yahoo hello', snippet: '', date: '2026-09-27T14:05:00.000Z' }] },
   ], 'yahoo');
-  assert.equal(calls[0].url, '/api/email/messages?max=30&surface=1&provider=yahoo');
+  assert.equal(calls[0].url, '/api/email/messages?max=30&surface=1', 'a saved Yahoo choice is not requested: the switch no longer offers it');
   assert.equal(byId('count').textContent, '1 shown · Yahoo');
   byId('items').children[0].onclick();
   await settle();
@@ -89,9 +92,14 @@ test('a Yahoo row opens from the list data alone, because Yahoo is read list-onl
   assert.match(byId('reader').innerHTML, /read list-only here/);
 });
 
-test('the Yahoo connect notice names Yahoo Mail', async () => {
-  const { byId } = await runSurface('email-my-day.html', [{ connected: false, provider: 'yahoo', error: 'no_yahoo_connection' }], 'yahoo');
-  assert.match(byId('content').innerHTML, /No Yahoo Mail account connected\.<br><a href="\/utilities" target="_top">Connect Yahoo Mail/);
+test('no surface offers Yahoo: no switch option, no saved Yahoo request, no "or Yahoo" in the notices', async () => {
+  for (const file of ['email-inbox.html', 'email-my-day.html']) {
+    const html = readFileSync(new URL(`../tools/${file}`, import.meta.url), 'utf8');
+    assert.doesNotMatch(html, /<option value="yahoo">/, `${file} offers no Yahoo mailbox`);
+    assert.doesNotMatch(html, /\bor Yahoo/, `${file} never says to connect Yahoo`);
+    const { calls } = await runSurface(file, [{ connected: false, provider: null, error: 'no_mail_connection' }], 'yahoo');
+    assert.doesNotMatch(calls[0].url, /provider=yahoo/);
+  }
 });
 
 test("My Day summarizes the digest's own mailbox and names the missing one", async () => {
@@ -104,5 +112,5 @@ test("My Day summarizes the digest's own mailbox and names the missing one", asy
   assert.equal(ready.byId('aiBody').textContent, 'Busy day');
   const none = await runSurface('email-my-day.html', [{ connected: false, provider: null, error: 'no_mail_connection' }]);
   assert.equal(none.calls[0].url, '/api/email/digest?surface=1');
-  assert.match(none.byId('content').innerHTML, /No mailbox connected\.<br><a href="\/utilities" target="_top">Connect Google, Outlook or Yahoo/);
+  assert.match(none.byId('content').innerHTML, /No mailbox connected\.<br><button type="button" class="btn" data-connect="gmail">Connect Google \(Gmail\)<\/button> <button type="button" class="btn" data-connect="outlook">/);
 });

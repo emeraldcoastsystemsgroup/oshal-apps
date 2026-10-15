@@ -35,6 +35,13 @@
  *
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: retire connector credentials from the comms-bot variant request. The model receives only the source copy and platform constraints; confirmed publishing remains deterministic and resolves one provider token immediately before its API call.
  *
+ * 2026-10-10 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | Native kernel (OSHAL_EGRESS=kernel): publish to X (api.twitter.com) through the kernel egress with no Authorization header, answering the kernel's "not connected" refusal with the same 409; /targets takes connected state from connectors.metadata. LinkedIn and Facebook publishing answer an explicit 501 there: LinkedIn's ugcPosts needs the X-Restli-Protocol-Version header the egress refuses, and a Facebook Page post needs the Page access token in the request. The broker path is unchanged outside the kernel.
+ *
+ * 2026-10-11 20:00:00 | maintainer@emeraldcoastsystemsgroup.com | POST /variants no longer stores the comms bot's reply verbatim as the variant text: live, its refusals ("I can't draft the post without the underlying content…", "I cannot publish to Facebook from this environment.") became post variants in Compose and Streams. The prompt asks for the post or one line `DECLINED: <why>`; a decline (that line, a reply opening as a refusal, or a JSON ok:false) comes back as failed:'bot_declined' with the bot's words in `notice` and no `text` (switchboard-variant-reply).
+ *
+ * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | POST /variants hands the author's text to the variant reader, whose topic words mark a reply that opens like a refusal ("I cannot publish this without thanking the team: the new board is live.") as the post it is, not a decline.
+ * 2026-10-12 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | Sweep 7: the LinkedIn variant changed the master's facts (the master said the team 'fixed the concierge answers'; the variant said '15 app layouts. 1 concierge fix. Done.'). Every variant prompt now carries VARIANT_FACTS_RULE: the rewrite keeps every fact, number and claim as the source states it and adds none, changing only form and length. Guard: tests/switchboard-compose-variants.test.js.
+ *
  * @module switchboard-compose-routes
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
@@ -84,6 +91,8 @@ const connectors_routes_1 = require("@/app/routes/connectors-routes");
 const inline_bot_execution_1 = require("@/app/routes/inline-bot-execution");
 const explicit_write_confirmation_1 = require("@/shared/security/explicit-write-confirmation");
 const video_generation_1 = require("@/features/video-generation");
+const switchboard_kernel_egress_1 = require("./switchboard-kernel-egress");
+const switchboard_variant_reply_1 = require("./switchboard-variant-reply");
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 const logger = (0, logger_1.createChildLogger)({ module: 'switchboard-compose-routes' });
@@ -104,6 +113,16 @@ exports.PLATFORMS = {
 const VARIANT_PLATFORMS = ['x', 'linkedin', 'facebook', 'instagram', 'threads'];
 /** Platforms with a REAL publish binding here (mirrors social-routes POST /post exactly). */
 exports.PUBLISHABLE = new Set(['x', 'twitter', 'linkedin', 'facebook']);
+/** The publish bindings the native kernel's egress can carry (no package-held credential, no refused header). */
+const KERNEL_PUBLISHABLE = new Set(['x', 'twitter']);
+/** Whether a platform can be published to on this installation. */
+function publishableHere(platform) {
+    return exports.PUBLISHABLE.has(platform) && (!(0, switchboard_kernel_egress_1.kernelEgress)() || KERNEL_PUBLISHABLE.has(platform));
+}
+/** The honest answer for a publish binding the native kernel's egress cannot carry. */
+function kernelPublishUnavailable(label) {
+    return { ok: false, code: 501, error: 'publish_unavailable', message: `Publishing to ${label} is not available on this installation. Copy the approved text and post it on ${label}.` };
+}
 /** Signed-in user's OIDC sub, or null. */
 function callerSub(req) {
     const u = req.oidc?.user;
@@ -145,6 +164,20 @@ async function workspaceProviders(pool, sub, workspaceId) {
       WHERE a.user_sub = $1 AND a.workspace_id = $2`, [sub, workspaceId])).rows;
     return new Set(rows.map((r) => String(r.provider)));
 }
+/**
+ * @description The connector providers the caller has a usable connection for: the broker's connected rows, or under
+ * the native kernel the usable connections from connectors.metadata (metadata only).
+ * @param ctx - App context (pool, or `intent` on the native bridge). @param sub - Caller sub.
+ * @returns The provider set.
+ */
+async function connectedProviders(ctx, sub) {
+    if ((0, switchboard_kernel_egress_1.kernelEgress)()) {
+        const meta = await (0, switchboard_kernel_egress_1.readConnections)(ctx, (err) => logger.error({ err }, 'connection metadata read failed'));
+        return new Set((0, switchboard_kernel_egress_1.usableConnections)(meta).map((c) => String(c.provider).toLowerCase()));
+    }
+    const connectedRows = (await ctx.pool.query("SELECT provider FROM oshal_connections WHERE user_sub = $1 AND status = 'connected'", [sub])).rows;
+    return new Set(connectedRows.map((r) => String(r.provider)));
+}
 /** Run a reasoning prompt on the comms bot (cost captured there). Mirrors social-routes' runOnBot. */
 async function runOnBot(ctx, kind, sub, prompt) {
     const result = await (0, inline_bot_execution_1.executeBotOrInline)(ctx, botClient, COMMS_BOT_AGENT_ID, {
@@ -158,10 +191,12 @@ async function runOnBot(ctx, kind, sub, prompt) {
     });
     return result.response;
 }
+/** A variant changes the form of the post, never its facts: the bot added counts and claims the master did not make. */
+const VARIANT_FACTS_RULE = 'Keep every fact, number, name and claim exactly as the source states it. Add no fact, count, result or claim the source does not make, and drop none that matters; change only the wording, form and length for the platform. If the source gives no number, the post gives none.';
 /** Build the platform-appropriate rewrite prompt (X = one tweet, LinkedIn = post, else concise). */
 function variantPrompt(platform, source) {
     const p = exports.PLATFORMS[platform];
-    const tail = ['Keep the author’s meaning and voice. Output ONLY the post text — no preamble, no quotes.', '', '---', source];
+    const tail = ['Keep the author’s meaning and voice; no preamble and no quotes in the post.', VARIANT_FACTS_RULE, switchboard_variant_reply_1.VARIANT_ANSWER_SHAPE, '', '---', source];
     if (platform === 'x' || platform === 'twitter') {
         return [`Rewrite the following into a single ${p.label} post (a tweet).`, 'HARD LIMIT 280 characters. One punchy hook, no thread, 0–2 hashtags.', ...tail].join('\n');
     }
@@ -207,12 +242,23 @@ async function generateComposeImage(ctx, sub, prompt) {
 async function publishToX(ctx, sub, text) {
     if (text.length > 280)
         return { ok: false, code: 400, error: 'too_long', message: `Tweet is ${text.length} chars (max 280).` };
-    const token = await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'twitter');
-    if (!token)
-        return { ok: false, code: 409, error: 'no_twitter_connection', message: 'Connect X at /utilities first.' };
-    const r = await fetch('https://api.twitter.com/2/tweets', {
-        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
-    });
+    const kernel = (0, switchboard_kernel_egress_1.kernelEgress)();
+    const noConnection = { ok: false, code: 409, error: 'no_twitter_connection', message: 'Connect X at /utilities first.' };
+    const token = kernel ? null : await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'twitter');
+    if (!kernel && !token)
+        return noConnection;
+    let r;
+    try {
+        // Under the kernel the egress applies the caller's twitter connection; the package sends no Authorization.
+        r = await fetch('https://api.twitter.com/2/tweets', {
+            method: 'POST', headers: kernel ? { 'Content-Type': 'application/json' } : { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
+        });
+    }
+    catch (err) {
+        if (kernel && (0, switchboard_kernel_egress_1.isNotConnected)(err))
+            return noConnection;
+        throw err;
+    }
     const j = (await r.json().catch(() => ({})));
     if (r.status >= 200 && r.status < 300)
         return { ok: true, target: 'x', tweetId: j?.data?.id ?? null };
@@ -220,6 +266,8 @@ async function publishToX(ctx, sub, text) {
 }
 /** Publish approved text to LinkedIn via the connector token (UGC Posts / w_member_social). Mirrors social-routes. */
 async function publishToLinkedIn(ctx, sub, text) {
+    if ((0, switchboard_kernel_egress_1.kernelEgress)())
+        return kernelPublishUnavailable('LinkedIn');
     const token = await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'linkedin');
     if (!token)
         return { ok: false, code: 409, error: 'no_linkedin_connection', message: 'Connect LinkedIn at /utilities first.' };
@@ -240,6 +288,8 @@ async function publishToLinkedIn(ctx, sub, text) {
 }
 /** Publish approved text to the caller's first managed Facebook Page via the meta-business token. Mirrors social-routes. */
 async function publishToFacebook(ctx, sub, text) {
+    if ((0, switchboard_kernel_egress_1.kernelEgress)())
+        return kernelPublishUnavailable('Facebook');
     const graph = `https://graph.facebook.com/${process.env.FACEBOOK_API_VERSION || 'v21.0'}`;
     const userTok = await (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'meta-business');
     if (!userTok)
@@ -299,8 +349,7 @@ function createComposeRoutes(ctx) {
         }
         const workspaceId = String(req.query.workspace || '').trim() || null;
         try {
-            const connectedRows = (await ctx.pool.query("SELECT provider FROM oshal_connections WHERE user_sub = $1 AND status = 'connected'", [sub])).rows;
-            const connected = new Set(connectedRows.map((r) => String(r.provider)));
+            const connected = await connectedProviders(ctx, sub);
             const ws = await workspaceProviders(ctx.pool, sub, workspaceId);
             const targets = VARIANT_PLATFORMS.map((platform) => {
                 const provs = platformProviders(platform);
@@ -308,7 +357,7 @@ function createComposeRoutes(ctx) {
                 const inWorkspace = !ws || provs.some((p) => ws.has(p));
                 return {
                     platform, label: exports.PLATFORMS[platform].label, limit: exports.PLATFORMS[platform].limit,
-                    publishable: exports.PUBLISHABLE.has(platform), connected: isConnected, inWorkspace,
+                    publishable: publishableHere(platform), connected: isConnected, inWorkspace,
                 };
             });
             res.json({ targets, workspaceScoped: Boolean(workspaceId) });
@@ -340,8 +389,10 @@ function createComposeRoutes(ctx) {
         try {
             const variants = [];
             for (const platform of platforms) {
-                const draft = await runOnBot(ctx, `variant-${platform}`, sub, variantPrompt(platform, text));
-                variants.push({ platform, label: exports.PLATFORMS[platform].label, limit: exports.PLATFORMS[platform].limit, publishable: exports.PUBLISHABLE.has(platform), text: draft.trim() });
+                const draft = (0, switchboard_variant_reply_1.readVariantReply)(await runOnBot(ctx, `variant-${platform}`, sub, variantPrompt(platform, text)), text);
+                const base = { platform, label: exports.PLATFORMS[platform].label, limit: exports.PLATFORMS[platform].limit, publishable: exports.PUBLISHABLE.has(platform) };
+                // A decline carries the bot's words as a notice and no text, so no surface can put it in a post.
+                variants.push(draft.text !== null ? { ...base, text: draft.text } : { ...base, failed: 'bot_declined', notice: draft.declined });
             }
             res.json({ variants });
         }

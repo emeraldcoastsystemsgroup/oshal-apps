@@ -29,6 +29,8 @@
  * 1 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial implementation — owner-scoped venture CRUD, the transactional supersede-not-overwrite ledger write, bulk bot-authored assumption insertion, coverage roll-up, scenarios, and the run log the out-of-band orchestrator drives.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Persist non-negative scenario prices as integer micros and expose the transactional assumption primitive compound quote writes require.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Bind run creation and progress updates to venture plus owner, and expose scheduled trigger/cost evidence without floating-point conversion.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | An analyst's batch no longer supersedes a live row a person entered or that carries evidence (heldAgainstAnalysts): each row locks the live row for its key, keeps it when it is held and reports that key as kept, not failed. The required slots write the keys the model computes with, and pressing Run again replaced a recorded freight quote with the ops analyst's guess.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | retireAnalystRows: when the BOM analyst redrafts the bill of materials, its own live model-estimate rows under keys the redraft no longer writes (a line or vendor that is gone) are closed (superseded_by = their own id: kept in the history, out of the live ledger). Live, a second BOM run left six lowercase bom.bl-*.unit-cost rows beside six uppercase bom.BL-*.unit-cost rows, 13 BOM costs for one product.
  *
  * @module venture-store
  */
@@ -39,6 +41,7 @@ exports.insertVenture = insertVenture;
 exports.updateVenture = updateVenture;
 exports.deleteVenture = deleteVenture;
 exports.liveAssumptions = liveAssumptions;
+exports.retireAnalystRows = retireAnalystRows;
 exports.assumptionHistory = assumptionHistory;
 exports.upsertAssumption = upsertAssumption;
 exports.upsertAssumptionOnClient = upsertAssumptionOnClient;
@@ -215,6 +218,37 @@ async function liveAssumptions(pool, ownerSub, ventureId) {
     return rows.map(toAssumption);
 }
 /**
+ * @description Close an analyst's own live rows that a redraft no longer writes. Only rows that analyst authored as a
+ * model estimate are touched, so a person's entry, a quote or a published source is never closed here. A closed row
+ * points at itself (superseded_by = id): it stays in the key's history and leaves the live ledger.
+ * @param pool - Shared pool.
+ * @param ownerSub - The authenticated caller's sub.
+ * @param ventureId - Venture id.
+ * @param authoredBy - The analyst's agentId.
+ * @param keyPatterns - SQL LIKE patterns of the keys that analyst owns (e.g. 'bom.%.unit-cost').
+ * @param keep - The keys the redraft wrote.
+ * @returns The keys closed.
+ */
+async function retireAnalystRows(pool, ownerSub, ventureId, authoredBy, keyPatterns, keep) {
+    if (!keyPatterns.length)
+        return [];
+    const likes = keyPatterns.map((_, i) => `key LIKE $${i + 4}`).join(' OR ');
+    const { rows } = await pool.query(`SELECT id, key FROM venture_assumptions
+     WHERE venture_id = $1 AND owner_sub = $2 AND authored_by = $3 AND superseded_by IS NULL
+       AND source_kind = 'model-estimate' AND (${likes})`, [ventureId, ownerSub, authoredBy, ...keyPatterns]);
+    const closed = [];
+    for (const r of rows) {
+        if (keep.has(String(r.key)))
+            continue;
+        const done = await pool.query('UPDATE venture_assumptions SET superseded_by = id WHERE id = $1 AND owner_sub = $2 AND superseded_by IS NULL', [r.id, ownerSub]);
+        if (done.rowCount)
+            closed.push(String(r.key));
+    }
+    if (closed.length)
+        log.info({ ownerSub, ventureId, authoredBy, closed }, 'analyst rows the redraft no longer writes closed');
+    return closed.sort();
+}
+/**
  * @description Every revision of one assumption key, newest first.
  * @param pool - Shared pool.
  * @param ownerSub - The authenticated caller's sub.
@@ -304,11 +338,51 @@ async function upsertAssumptionOnClient(client, ownerSub, ventureId, a, authored
     return { assumption: created, supersededId };
 }
 /**
+ * @description Write one analyst-authored revision unless the live row for its key is held against analysts.
+ *
+ * The live row is locked first, so a quote or a person's entry that commits in between is either seen here or
+ * supersedes the analyst's row afterwards; never the reverse.
+ *
+ * @param pool - Shared pool.
+ * @param ownerSub - The authenticated caller's sub.
+ * @param ventureId - Venture id.
+ * @param a - The analyst's row.
+ * @param authoredBy - The authoring agentId.
+ * @param runId - The run it belongs to.
+ * @returns 'written', or 'kept' when the live row stood.
+ */
+async function analystRevision(pool, ownerSub, ventureId, a, authoredBy, runId) {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const { rows } = await client.query(`SELECT source_kind, authored_by FROM venture_assumptions
+       WHERE venture_id = $1 AND owner_sub = $2 AND key = $3 AND superseded_by IS NULL FOR UPDATE`, [ventureId, ownerSub, a.key]);
+        if (rows.length && (0, venture_types_1.heldAgainstAnalysts)({ sourceKind: rows[0].source_kind, authoredBy: rows[0].authored_by })) {
+            await client.query('ROLLBACK');
+            log.info({ ownerSub, ventureId, key: a.key, heldBy: rows[0].source_kind }, 'analyst row kept out: the live row is held');
+            return 'kept';
+        }
+        const written = await upsertAssumptionOnClient(client, ownerSub, ventureId, a, authoredBy, runId);
+        await client.query('COMMIT');
+        log.info({ ownerSub, ventureId, key: a.key, supersededId: written.supersededId, sourceKind: a.sourceKind }, 'assumption revision written');
+        return 'written';
+    }
+    catch (err) {
+        await client.query('ROLLBACK').catch(() => undefined);
+        throw err;
+    }
+    finally {
+        client.release();
+    }
+}
+/**
  * @description Write a batch of bot-authored assumptions, one revision each.
  *
  * Sequential rather than a single multi-row insert: each key needs its own
  * supersede, and a batch that partially fails must leave the keys it did write
  * correct rather than rolling back a whole research phase over one bad row.
+ * A key whose live row a person entered or that carries evidence is kept as it
+ * is (heldAgainstAnalysts): an analyst's guess never replaces a quote.
  *
  * @param pool - Shared pool.
  * @param ownerSub - The authenticated caller's sub.
@@ -316,22 +390,25 @@ async function upsertAssumptionOnClient(client, ownerSub, ventureId, a, authored
  * @param rows - Parsed assumptions from a bot contract.
  * @param authoredBy - The authoring agentId.
  * @param runId - The run these belong to.
- * @returns How many revisions landed and the keys that failed.
+ * @returns How many revisions landed, the keys that failed, and the keys kept because their live row is held.
  */
 async function bulkInsertAssumptions(pool, ownerSub, ventureId, rows, authoredBy, runId) {
     let written = 0;
     const failed = [];
+    const kept = [];
     for (const a of rows) {
         try {
-            await upsertAssumption(pool, ownerSub, ventureId, a, authoredBy, runId);
-            written += 1;
+            if (await analystRevision(pool, ownerSub, ventureId, a, authoredBy, runId) === 'kept')
+                kept.push(a.key);
+            else
+                written += 1;
         }
         catch (err) {
             log.error({ err, stack: err?.stack, ventureId, key: a.key }, 'assumption row rejected');
             failed.push(a.key);
         }
     }
-    return { written, failed };
+    return { written, failed, kept };
 }
 /**
  * @description Roll the live ledger up into the coverage headline.

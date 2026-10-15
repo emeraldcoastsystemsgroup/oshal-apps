@@ -7,6 +7,7 @@
  * 2026-09-23 01:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Pin YAML parser parity: implicit non-string scalars never count on any concierge rail, quoted equivalents remain strings, and valid anchor/alias/merge/anchored-key shapes plus nested duplicate keys are refused rather than invisibly misgraded.
  * 2026-09-23 02:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Pin the shared surface matrix: only group toolbars count, empty dynamic declarations stay headless, and non-empty dynamic declarations require coverage.
  * 2026-09-23 03:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Exercise exact scalar/indicator boundaries, complex and YAML-escaped keys, nested flow-bot lookalikes, and unsupported root shapes so valid YAML cannot evade or falsely trip the zero-dependency projection.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | A surfaced package whose only concierge is an imported workflow.workerBot is release-blocking until it declares chatBot; an owned workerBot still counts.
  */
 
 import test from 'node:test';
@@ -385,6 +386,39 @@ ui:
 `));
   assert.equal(projection.concierge, 'domain-worker');
   assert.equal(projection.rail, 'workflow.workerBot');
+});
+
+test('an imported workerBot is no concierge until the package declares chatBot', (t) => {
+  const imported = `
+dependencies:
+  required:
+    apps: [vids]
+    bots:
+      - app: vids
+        name: vids-operator
+workflow:
+  workerBot: vids-operator
+ui:
+  static:
+    - { toolName: home, iframeUrl: /api/example }
+`;
+  const blocked = conciergeCoverage(createFixture(t, { example: manifest(imported) }));
+  assert.equal(blocked.coveredCount, 0);
+  assert.equal(blocked.problems.length, 1);
+  assert.match(blocked.problems[0], /^example\/oshal-app\.yaml: its only concierge is workflow\.workerBot vids-operator/);
+  const fixed = conciergeCoverage(createFixture(t, { example: manifest(`chatBot: vids-operator\n${imported}`) }));
+  assert.deepEqual(fixed.problems, []);
+  assert.equal(fixed.coveredCount, 1);
+  const owned = conciergeCoverage(createFixture(t, { example: manifest(`
+bots:
+  - name: domain-worker
+workflow:
+  workerBot: domain-worker
+ui:
+  static:
+    - { toolName: home }
+`) }));
+  assert.deepEqual(owned.problems, [], 'an owned workerBot is offered by the shell and still counts');
 });
 
 test('the first bots item is a valid concierge rail', () => {

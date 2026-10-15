@@ -20,6 +20,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — lineup, season, waivers and trades all answer from a hand-typed league with no connection, no connection lookup, no broker call and no league read; validation names each problem; another person cannot read, list, replace, delete or build on the league; the lineup records the week and the calls under the league's own key.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The hand-typed lineup is recorded through POST /lineup/record (a GET is a reader request on the native kernel and records nothing).
  */
 
 'use strict';
@@ -70,8 +71,9 @@ test('the hand-typed lineup records the week and its calls under the league\'s o
   const pool = memPool();
   const { router } = unconnected('owner-a', pool);
   const id = await create(router);
-  const res = await drive(router, 'GET /lineup', { query: { manualId: String(id), season: String(SEASON) } }, publicOnlyEspn(4, []));
+  const res = await drive(router, 'POST /lineup/record', { body: { manualId: String(id), season: String(SEASON) } }, publicOnlyEspn(4, []));
   assert.equal(res.code, 200);
+  assert.equal(res.body.recorded, true);
   const week = pool.tables.weeks.get(`owner-a:${SEASON}:manual:${id}:4`);
   assert.ok(week, 'the week\'s decision is recorded before kickoff');
   assert.equal(week.source, 'manual');

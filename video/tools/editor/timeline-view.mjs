@@ -4,8 +4,9 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Paint the manual video editor from one timeline document (CREATE-EDIT-05d): media list, the segment track sized by duration, the title track, the selected segment's controls, the music bed and the clock. Every string from a document or a file name goes in as text, never as markup; nothing here edits the document.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  */
-import { LIMITS, PROFILE } from './timeline-validation.mjs';
+import { LIMITS, PROFILE, timelineFrames } from './timeline-validation.mjs';
 import { timelineLayout } from './timeline-model.mjs';
 
 /** @description Seconds for a frame count, as the person reads them (0:04.50). @param {number} frames Frames. @returns {string} Clock text. */
@@ -32,7 +33,7 @@ function element(tag, properties = {}, children = []) {
  * @returns {void}
  */
 export function renderSources(list, doc, editable) {
-  const used = new Set([...doc.segments.map(segment => segment.source), doc.audioBed?.source].filter(Boolean));
+  const used = new Set(doc.version === 2 ? doc.tracks.flatMap(track => track.clips.map(clip => clip.source)) : [...doc.segments.map(segment => segment.source), doc.audioBed?.source].filter(Boolean));
   list.replaceChildren(...Object.entries(doc.sources).map(([key, source]) => {
     const detail = source.kind === 'video' ? `${clock(source.frames)} · ${source.width}×${source.height}${source.audio ? '' : ' · no sound'}` : `${clock(source.frames)} · music`;
     const remove = element('button', { type: 'button', text: 'Remove', disabled: !editable || used.has(key), dataset: { removeSource: key } });
@@ -65,7 +66,7 @@ export function renderTrack(track, doc, selected) {
  * @returns {void}
  */
 export function renderTitles(track, list, doc, editable) {
-  const total = Math.max(1, timelineLayout(doc).reduce((sum, row) => sum + row.out - row.in, 0));
+  const total = Math.max(1, timelineFrames(doc));
   track.replaceChildren(...doc.titles.map(title => {
     const bar = element('span', { className: 'title-bar', text: title.text });
     bar.style.left = `${(title.start / total) * 100}%`; bar.style.width = `${((title.end - title.start) / total) * 100}%`;
@@ -106,4 +107,4 @@ export function renderBed(select, volume, output, doc, editable) {
 }
 
 /** @description The frames still available on the 60-second track. @param {object} doc Document. @returns {number} Frames. */
-export function remainingFrames(doc) { return LIMITS.totalFrames - timelineLayout(doc).reduce((sum, row) => sum + row.out - row.in, 0); }
+export function remainingFrames(doc) { return LIMITS.totalFrames - timelineFrames(doc); }

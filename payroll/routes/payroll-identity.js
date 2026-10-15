@@ -10,11 +10,13 @@
  * package a holder of the most sensitive identifier a person has, so the storage
  * decision comes with the field.
  *
- * ENCRYPTION: SSNs and bank account numbers are encrypted at rest with the
- * framework's vault crypto (AES-256-GCM under a key derived HKDF-SHA256 from
- * SESSION_SECRET, salted per owner). That is a declared kernel skill (`memory`
- * → `@/features/personal-data`), so a package may import it, and it means a
- * leaked database or backup volume is opaque without SESSION_SECRET.
+ * ENCRYPTION: SSNs and bank account numbers are encrypted at rest through the
+ * declared kernel skill (`memory` → `@/features/personal-data`). On the native
+ * kernel the key never enters this package: the kernel seals each value under a
+ * key bound to this application and the signed-in person, so a leaked database
+ * or backup volume is opaque without the installation's vault key. (The earlier
+ * platform used AES-256-GCM under a key derived from SESSION_SECRET; those
+ * envelopes are refused natively and must be entered again.)
  *
  * THE RULES, which the code enforces rather than merely documents:
  *   - A full SSN is returned by exactly ONE route, and that route logs the read.
@@ -28,6 +30,7 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-01 17:15:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — encrypted SSN + bank account storage over the kernel vault crypto, masking, SSN/EIN/routing validation and normalization, and the employer-identity completeness check that decides whether a W-2 may be issued at all rather than previewed.
+ * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | sealIdentifier/openIdentifier are asynchronous and await `@/features/personal-data`: on the native kernel the key is held by the kernel and bound to this application and the signed-in person (PDATA-01), reached over an asynchronous host call. An envelope the earlier platform sealed under SESSION_SECRET is refused as needing re-entry rather than read.
  *
  * @module payroll-identity
  */
@@ -113,26 +116,26 @@ function maskAccount(last) {
  * cannot double-wrap it.
  * @param ownerSub - The owning OIDC sub; salts the derived key.
  * @param plain - The normalized digits, or null.
- * @returns The encrypted envelope, or null.
+ * @returns The encrypted envelope, or null (asynchronous: the native kernel seals it).
  */
-function sealIdentifier(ownerSub, plain) {
+async function sealIdentifier(ownerSub, plain) {
     if (!plain)
         return null;
     if ((0, personal_data_1.isEncrypted)(plain))
         return plain;
-    return (0, personal_data_1.encryptField)(ownerSub, plain);
+    return await (0, personal_data_1.encryptField)(ownerSub, plain);
 }
 /**
  * @description Decrypt a stored identifier. Used ONLY by the audited full-read
  * path and by document generation — never by a list or detail route.
  * @param ownerSub - The owning OIDC sub.
  * @param stored - The stored envelope.
- * @returns The plaintext digits, or null.
+ * @returns The plaintext digits, or null (asynchronous: the native kernel opens it).
  */
-function openIdentifier(ownerSub, stored) {
+async function openIdentifier(ownerSub, stored) {
     if (stored === null || stored === undefined || stored === '')
         return null;
-    const out = (0, personal_data_1.decryptField)(ownerSub, String(stored));
+    const out = await (0, personal_data_1.decryptField)(ownerSub, String(stored));
     return out ? String(out) : null;
 }
 /**

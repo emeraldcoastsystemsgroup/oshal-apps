@@ -6,6 +6,7 @@
  * 2026-07-22 22:19:02 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove cinematic combat prose preserves actors, targets, outcomes, and compass direction without reading exact rules math.
  * 2026-07-22 22:55:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove stationary position filler stays silent and repeated action cues rotate across turns.
  * 2026-07-23 00:16:04 | roger.murphy@emeraldcoastsystemsgroup.com  | Reproduce and prohibit metadata-like "commits to Scimitar, bearing down" narration.
+ * 2026-10-13 12:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 13: the combat highlight request names the resolved target (the narration had Pip's arrow land at Rikkit's feet while Pip targeted Tallow); the shipped request function is run with a recording api.
  */
 
 'use strict';
@@ -27,7 +28,9 @@ const {
   combatAutomatedTurnNarration,
   combatMovementNarration,
   combatMovementShouldNarrate,
+  combatNarrationFacts,
   combatOutcomeFallback,
+  requestDungeonMasterCombatNarration,
 } = require('../ui/table-combat-narration');
 
 /** @description Build one exact structured result without coupling prose to math text. */
@@ -114,4 +117,25 @@ test('a defeated target remains defeated in fallback narration', () => {
   }, "Snaggletooth's Javelin hits Bram."));
   target.hp = original; delete target.dead;
   assert.match(result, /Bram.*(?:crumples|out of the fight)/i);
+});
+
+test('the combat highlight request names who acted, with what, at whom (sweep 13)', async () => {
+  const resolved = outcome({
+    kind: 'attack', actorId: 'archer', actorName: 'Goblin Archer',
+    targetId: 'bram', targetName: 'Bram', actionName: 'Shortbow', outcome: 'miss',
+  }, "Goblin Archer's Shortbow: 1+5=6 vs AC 15 — miss.");
+  assert.equal(combatNarrationFacts(global.board.tokens[0], resolved),
+    "Goblin uses Shortbow on Bram; Bram is the target. Goblin Archer's Shortbow: 1+5=6 vs AC 15 — miss.");
+  const posted = [];
+  Object.assign(global, {
+    campaign: { campaign_id: 'c1' }, combatTurnGuard: () => ({}), turnKey: () => 'turn-1', requestCutaway() {}, SC: () => ({ title: 't' }),
+    acceptCombatNarration: (r) => ({ text: r.narration, archived: true }),
+    api: async (path, init) => { posted.push({ path, body: JSON.parse(init.body) }); return { ok: true, narration: 'The arrow hisses past Bram.' }; },
+  });
+  await requestDungeonMasterCombatNarration(global.board.tokens[0], resolved);
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0].path, '/chat');
+  assert.match(posted[0].body.message, /^Goblin uses Shortbow on Bram; Bram is the target\. /, 'the request carries the target the ledger line omits');
+  const untargeted = { text: 'Pip takes no action.', rollEvent: { rolls: [] } };
+  assert.equal(combatNarrationFacts(global.board.tokens[0], untargeted), 'Pip takes no action.');
 });

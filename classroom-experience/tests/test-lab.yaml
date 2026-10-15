@@ -3,6 +3,7 @@
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register readiness and isolated source checks; deployed acceptance remains separate.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register surface-labels: every composed surface has its own tab label (sweep 10: two tabs were labelled Classroom).
 version: 1
 cases:
   - id: package-readiness
@@ -95,4 +96,24 @@ cases:
     limits:
       timeoutMs: 90000
       maxMemoryMb: 512
+    installation: never
+  - id: surface-labels
+    name: Every Classroom tab has its own label
+    purpose: Read the experience's composed surfaces and each component's real manifest; no tab repeats another's label or the experience's own.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-labels.test.cjs
+    expected:
+      - Every composed surface is declared by its component and has a label distinct from the others and from Classroom.
+      - Little Monsters' dashboard tab reads Class dashboard.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

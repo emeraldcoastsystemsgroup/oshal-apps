@@ -66,6 +66,11 @@
  *                     |                             | counted as a present local engine, so the
  *                     |                             | transport went local and every spawn failed
  *                     |                             | ENOEXEC while the engine container sat idle.
+ * 2026-10-10 16:00:00 | maintainer@emeraldcoastsystemsgroup.com | NATIVE KERNEL. The sandbox has no
+ *                     |                             | network; with `exchange` the container transport
+ *                     |                             | sends each request through the kernel's
+ *                     |                             | engine.exchange intent (one request per call,
+ *                     |                             | bounded by the kernel's 55 s relay).
  */
 
 import * as fs from 'fs';
@@ -74,7 +79,7 @@ import * as path from 'path';
 import { spawn, type ChildProcess } from 'child_process';
 import { createChildLogger } from '@/shared/logger';
 import { engineBuildHash } from './engine-build-hash';
-import { LineSplitter, openContainerChannel, type ChannelFailure, type ChannelHandlers, type EngineChannel } from './engine-channel';
+import { LineSplitter, openContainerChannel, openNativeChannel, type ChannelFailure, type ChannelHandlers, type EngineChannel, type NativeChannelOptions } from './engine-channel';
 
 const logger = createChildLogger({ module: 'aero-engine-adapter' });
 
@@ -196,6 +201,8 @@ export interface AeroEngineAdapterOptions {
   idleTimeoutMs?: number;
   queueCap?: number;
   timeoutsMs?: Partial<Record<AeroCmd, number>>;
+  /** Native kernel: send requests through the kernel's `engine.exchange` intent (forces the container transport). */
+  exchange?: NativeChannelOptions['exchange'];
 }
 
 interface QueuedRequest {
@@ -295,6 +302,7 @@ interface TransportChoice { transport: AeroTransport; engineAddr?: string }
  * @returns The transport choice.
  */
 function resolveTransport(opts: AeroEngineAdapterOptions, localPresent: () => boolean): TransportChoice {
+  if (opts.exchange) return { transport: 'container', engineAddr: 'native://engine.exchange' };
   if (opts.engineAddr) return { transport: 'container', engineAddr: opts.engineAddr };
   const explicitLocal = opts.engineDir || opts.pythonPath || opts.workerPath
     || process.env.AERO_LAB_ENGINE_DIR || process.env.AERO_LAB_PYTHON;
@@ -383,6 +391,7 @@ export class AeroEngineAdapter {
   /** The package's own engine tree: what the container image bakes in and must match. */
   private readonly packageEngineDir: string;
   private readonly engineAddr?: string;
+  private readonly exchange?: NativeChannelOptions['exchange'];
   private readonly pythonOverride?: string;
   private readonly workerOverride?: string;
   private readonly appPackageDir?: string;
@@ -399,6 +408,7 @@ export class AeroEngineAdapter {
   private capsCache: { at: number; value: unknown } | null = null;
 
   constructor(opts: AeroEngineAdapterOptions = {}) {
+    this.exchange = opts.exchange;
     this.appPackageDir = opts.appPackageDir;
     this.engineDir = resolveEngineDir(opts.appPackageDir, opts.engineDir);
     this.pythonOverride = opts.pythonPath;
@@ -568,6 +578,10 @@ export class AeroEngineAdapter {
 
   /** Connect to the engine container's bridge; the channel verifies its build before any write. */
   private openContainer(handlers: ChannelHandlers): EngineChannel | null {
+    if (this.exchange) {
+      return openNativeChannel({ exchange: this.exchange, workDir: this.workDir,
+        installHint: 'on the kernel host run aero-lab/engine/install-engine.sh and pin the engine in OSHAL_PACKAGE_ENGINES' }, handlers);
+    }
     const addr = parseEngineAddr(this.engineAddr || DEFAULT_ENGINE_ADDR);
     if (!addr) {
       logger.error({ engineAddr: this.engineAddr }, 'engine container address is not host:port');

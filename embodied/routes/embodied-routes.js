@@ -29,6 +29,9 @@
  * 14 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 S1 "the boat falls": `GET /physics/media` (the three medium records, the force models' declared requirements and validity envelopes, the named refusals), `GET /physics/hull?medium=` (the explorer hull as one solid dropped in a chosen medium: the analytic fall the plant must reproduce, the MJCF it loads, and the flotation question refused by name in the same answer) and `GET /physics/hull/mjcf?medium=`. A medium this lab does not implement is 400 `unknown_medium` and is never substituted; a refusal is 422 carrying its own name (`model_not_valid_in_medium`, `medium_property_unavailable`, `medium_outside_validity`).
  * 15 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 D5: every run result carries its medium id and engine fingerprints, or it is not displayed. `GET /physics/hull` answers as `oshal.run-result/1` with `engine` — the installed package version read from the manifest, the compiled engine tree's build hash, which plant answered (analytic) and the MuJoCo tree the scene targets by its hash — beside the medium the run used. A package whose manifest version cannot be read answers 503 `run_unfingerprinted` rather than producing a run nothing may display. `GET /physics/media` publishes the same fingerprints so the tile can show which engine is answering before a run.
  * 16 | maintainer@emeraldcoastsystemsgroup.com  | ADR-175 hardening: a world flown on a rail node no longer hands the node SWARM_SERVICE_SECRET (the command key comes from the fleet record), and /physics/status describes the device-credential rail and the allowed endpoint hosts.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com  | Native kernel (no network in the sandbox): the physics bridge goes through the kernel's engine.exchange intent. `/physics/status`, `/physics/reports`, `/physics/certify` and the arm check read the engine without blocking (both links); a physics world, which steps synchronously, answers an honest 503 natively.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com  | Lost completion writes (K4): the native pool is bound to the admitted request and only a writer (non-GET) admission may mutate, so the execution timer's fire-and-forget status update, every command-log insert made between requests and any write from a GET read were refused: a finished task stayed `executing` at step 0 and Home counted 0 completed. The world's writes now queue on the session; every POST (draft, execute, abort, control, command, scan, certify and the new POST /writes/settle) persists them in order before it answers, the state read reports `control.pendingWrites` so the surface posts the settle, and GET /tasks, /tasks/:id and the Home summary overlay a queued outcome instead of answering a stale `executing`. E-stop closes the task through the same queue. Off the native kernel the timer still settles on its own.
+ * 19 | maintainer@emeraldcoastsystemsgroup.com  | K4 review: POST /tasks/:id/abort left the task `executing` at step 0 for good. The plan executor sets `aborted` inside abort(), so the advance that followed never saw running->aborted and nothing queued the final status (Home counted 0 stopped). The abort route now closes the task through finishTask with the executor's step and failure ("aborted by a human") before it settles, the same way e-stop does.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -36,6 +39,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ArmMountRefused = exports.NODE_MANIFESTS = void 0;
 exports.callerSub = callerSub;
+exports.nativeExchange = nativeExchange;
 exports.createEmbodiedRoutes = createEmbodiedRoutes;
 const node_path_1 = __importDefault(require("node:path"));
 const express_1 = require("express");
@@ -94,8 +98,25 @@ class ArmMountRefused extends Error {
     constructor(message) { super(message); this.name = 'ArmMountRefused'; }
 }
 exports.ArmMountRefused = ArmMountRefused;
+/** A write that keeps failing is dropped (and logged) after this many admitted attempts. */
+const MAX_WRITE_ATTEMPTS = 3;
+/** Command-log rows held for one owner between requests; a finished task's status is never dropped. */
+const MAX_PENDING_LOG_WRITES = 2000;
 /** @description Reads a plain string body field. */
 const str = (v, fallback) => (typeof v === 'string' && v.trim() ? v.trim() : fallback);
+/**
+ * @description The native kernel's engine path, when this package runs in its sandbox: the pool is
+ * the kernel's scoped document store and the context carries the intent port.
+ * @param ctx - The package context.
+ * @returns The exchange function, or undefined off the native kernel.
+ */
+function nativeExchange(ctx) {
+    const c = ctx;
+    if (c?.pool?.storageModel !== 'kernel-scoped-documents' || typeof c.intent !== 'function')
+        return undefined;
+    const intent = c.intent;
+    return async (request, timeoutMs) => (await intent('engine.exchange', { request, timeoutMs }));
+}
 /**
  * @description Build the `/api/embodied` router.
  * @param ctx - The per-package AppContext (ADR-085 D10) — `pool` and `appPackageDir` are read.
@@ -130,11 +151,15 @@ function createEmbodiedRoutes(ctx, opts = {}) {
     const engineFingerprints = () => (packageVersion
         ? { package: 'embodied', packageVersion, routesBuildHash, plant: { kind: 'analytic', mujocoEngineTreeBuildHash: expectedBuildHash } }
         : null);
-    const engineAddr = opts.engineAddr ?? process.env.EMBODIED_ENGINE_ADDR ?? engine_1.DEFAULT_ENGINE_ADDR;
+    const exchange = nativeExchange(ctx);
+    const engineAddr = exchange ? 'native://engine.exchange' : opts.engineAddr ?? process.env.EMBODIED_ENGINE_ADDR ?? engine_1.DEFAULT_ENGINE_ADDR;
     let bridge = null;
     const getBridge = () => {
-        if (!bridge)
-            bridge = new engine_1.SyncBridge({ ...(0, engine_1.parseEngineAddr)(engineAddr), expectedBuildHash, timeoutMs: 30000 });
+        if (!bridge) {
+            bridge = exchange
+                ? new engine_1.SyncBridge({ transport: 'native', exchange, timeoutMs: 30000 })
+                : new engine_1.SyncBridge({ ...(0, engine_1.parseEngineAddr)(engineAddr), expectedBuildHash, timeoutMs: 30000 });
+        }
         return bridge;
     };
     const dropBridge = () => { if (bridge) {
@@ -184,7 +209,7 @@ function createEmbodiedRoutes(ctx, opts = {}) {
         logger.warn({ code: e.code, reason: e.reason, node }, 'Rail node unavailable');
         return { status: 503, body: { error: 'node_unavailable', code: e.code, nodeId: node, message: e.message, reason: e.reason ?? null } };
     };
-    const readReports = () => (opts.reportReader ? opts.reportReader() : getBridge().call('reports'));
+    const readReports = async () => (opts.reportReader ? opts.reportReader() : getBridge().callAsync('reports'));
     const certifiedOf = (sub) => { let m = certifiedBySub.get(sub); if (!m) {
         m = new Map();
         certifiedBySub.set(sub, m);
@@ -219,9 +244,14 @@ function createEmbodiedRoutes(ctx, opts = {}) {
         const holder = { current: null };
         const sink = (record) => {
             const taskId = holder.current?.taskId ?? null;
-            void (0, task_store_1.insertLog)(pool, sub, taskId, record).catch((error) => logger.error({ err: error, sub, command: record.command }, 'Command log insert failed'));
+            const write = () => (0, task_store_1.insertLog)(pool, sub, taskId, record);
+            if (holder.current) {
+                queueWrite(sub, holder.current, 'command-log', taskId, write);
+                return;
+            }
+            void write().catch((error) => logger.error({ err: error, sub, command: record.command }, 'Command log insert failed'));
         };
-        s = { sim, control: new engine_1.ControlAuthority(sim, sink), taskId: null, lastWallMs: now(), timer: null };
+        s = { sim, control: new engine_1.ControlAuthority(sim, sink), taskId: null, lastWallMs: now(), timer: null, writes: [], flushing: null };
         holder.current = s;
         sessions.set(sub, s);
         return s;
@@ -238,13 +268,93 @@ function createEmbodiedRoutes(ctx, opts = {}) {
         const after = s.control.executor.state;
         if (before === 'running' && after !== 'running' && s.taskId) {
             const status = after === 'done' ? 'done' : after === 'failed' ? 'failed' : after === 'aborted' ? 'aborted' : 'executing';
-            if (status !== 'executing') {
-                void (0, task_store_1.updateTaskStatus)(pool, sub, s.taskId, status, s.control.executor.stepIndex, s.control.executor.failure).catch((error) => logger.error({ err: error, sub }, 'Task status update failed'));
-                s.taskId = null;
-                stopTimer(s);
-            }
+            if (status !== 'executing')
+                finishTask(sub, s, status, s.control.executor.stepIndex, s.control.executor.failure);
         }
     };
+    /**
+     * Queue one store write the world produced. On the native kernel the pool is bound to the admitted
+     * request and only a writer (non-GET) admission may mutate: a write started by the execution timer,
+     * left running after a response, or issued from a GET read is refused, which is how a finished task
+     * stayed `executing` at step 0. Every write is therefore queued here and persisted, in order, by
+     * `settle` inside a POST; reads overlay the queued outcome so they never report a stale task.
+     */
+    const queueWrite = (sub, s, label, taskId, run, outcome) => {
+        if (label === 'command-log' && s.writes.filter((w) => w.label === 'command-log').length >= MAX_PENDING_LOG_WRITES) {
+            logger.error({ sub, taskId, pending: s.writes.length }, 'Command log backlog full; a log row was not kept');
+            return;
+        }
+        s.writes.push({ label, taskId, run, attempts: 0, outcome });
+    };
+    /** Close the session's task: queue its final status and step, and stop driving it. */
+    const finishTask = (sub, s, status, stepIndex, failure) => {
+        const taskId = s.taskId;
+        if (!taskId)
+            return;
+        queueWrite(sub, s, 'task-status', taskId, () => (0, task_store_1.updateTaskStatus)(pool, sub, taskId, status, stepIndex, failure), { taskId, status, stepIndex, failure });
+        s.taskId = null;
+        stopTimer(s);
+        logger.info({ sub, taskId, status, stepIndex }, 'Physical task finished; its status is queued for the store');
+    };
+    /** Persist the session's queued writes in order, inside the current admitted request. Never throws. */
+    const settle = async (sub, s) => {
+        while (s.flushing)
+            await s.flushing;
+        if (!s.writes.length)
+            return;
+        const started = now();
+        s.flushing = (async () => {
+            while (s.writes.length) {
+                const w = s.writes[0];
+                try {
+                    await w.run();
+                    s.writes.shift();
+                }
+                catch (error) {
+                    w.attempts += 1;
+                    logger.error({ err: error, sub, taskId: w.taskId, write: w.label, attempts: w.attempts }, 'Embodied store write failed');
+                    if (w.attempts < MAX_WRITE_ATTEMPTS)
+                        return;
+                    s.writes.shift();
+                    logger.error({ sub, taskId: w.taskId, write: w.label }, 'Embodied store write dropped after repeated failures');
+                }
+            }
+        })();
+        try {
+            await s.flushing;
+        }
+        finally {
+            s.flushing = null;
+        }
+        logger.debug({ sub, pending: s.writes.length, durationMs: now() - started }, 'Embodied store writes settled');
+    };
+    /** Advance the owner's world and persist what it produced before the request answers. */
+    const advanceAndSettle = async (sub, s) => {
+        advance(sub, s);
+        await settle(sub, s);
+    };
+    /** The owner's finished-but-not-yet-stored task outcomes (advancing the live world first), for reads that cannot write. */
+    const pendingOutcomes = (sub) => {
+        const s = sessions.get(sub);
+        if (!s)
+            return [];
+        advance(sub, s);
+        return s.writes.filter((w) => w.outcome).map((w) => w.outcome);
+    };
+    (0, task_store_1.registerPendingTaskStatuses)(pendingOutcomes);
+    /** A stored row with the world's queued outcome laid over it, so a read never reports a finished task as executing. */
+    const withOutcome = (row, outcomes) => {
+        const o = outcomes.find((x) => x.taskId === row.task_id);
+        return o && row.status === 'executing' ? { ...row, status: o.status, current_step: o.stepIndex, failure: o.failure } : row;
+    };
+    /** A read advances the world; off the native kernel (a plain pool) it may also store what that produced. */
+    const advanceForRead = async (sub, s) => {
+        advance(sub, s);
+        if (!requestBoundPool)
+            await settle(sub, s);
+    };
+    /** The pool is the native kernel's request-bound store: only a request may carry a write. */
+    const requestBoundPool = pool?.storageModel === 'kernel-scoped-documents';
     const stopTimer = (s) => { if (s.timer) {
         clearInterval(s.timer);
         s.timer = null;
@@ -252,12 +362,16 @@ function createEmbodiedRoutes(ctx, opts = {}) {
     const startTimer = (sub, s) => {
         if (opts.noTimer || s.timer)
             return;
-        s.timer = setInterval(() => { try {
-            advance(sub, s);
-        }
-        catch (error) {
-            logger.error({ err: error, sub }, 'Execution tick failed');
-        } }, TICK_MS);
+        s.timer = setInterval(() => {
+            try {
+                advance(sub, s);
+            }
+            catch (error) {
+                logger.error({ err: error, sub }, 'Execution tick failed');
+            }
+            if (!requestBoundPool)
+                void settle(sub, s);
+        }, TICK_MS);
         if (typeof s.timer === 'object' && s.timer && 'unref' in s.timer)
             s.timer.unref();
     };
@@ -265,6 +379,7 @@ function createEmbodiedRoutes(ctx, opts = {}) {
         mode: s.control.mode, holder: s.control.holder, executor: s.control.executor.state, taskId: s.taskId,
         stepIndex: s.control.executor.stepIndex, currentStep: s.control.executor.currentStep?.label ?? null, stepsTotal: s.control.executor.current?.steps.length ?? 0,
         failure: s.control.executor.failure, lastObservation: s.control.executor.lastObservation,
+        pendingWrites: s.writes.length,
     });
     const withSub = (req, res) => {
         const sub = callerSub(req);
@@ -290,30 +405,30 @@ function createEmbodiedRoutes(ctx, opts = {}) {
             limits: { base: engine_1.DEFAULT_BASE_LIMITS, drone: engine_1.DEFAULT_DRONE_LIMITS }, tickMs: TICK_MS,
         });
     });
-    router.get('/state', (req, res) => {
+    router.get('/state', async (req, res) => {
         const sub = withSub(req, res);
         if (!sub)
             return;
         const s = session(sub);
-        advance(sub, s);
+        await advanceForRead(sub, s);
         res.setHeader('Cache-Control', 'no-store');
         res.json({ ...s.sim.snapshot(), control: controlView(s) });
     });
-    router.get('/camera', (req, res) => {
+    router.get('/camera', async (req, res) => {
         const sub = withSub(req, res);
         if (!sub)
             return;
         const s = session(sub);
-        advance(sub, s);
+        await advanceForRead(sub, s);
         res.setHeader('Cache-Control', 'no-store');
         res.json(s.sim.viewFrame());
     });
-    router.get('/world', (req, res) => {
+    router.get('/world', async (req, res) => {
         const sub = withSub(req, res);
         if (!sub)
             return;
         const s = session(sub);
-        advance(sub, s);
+        await advanceForRead(sub, s);
         s.sim.world.refresh();
         res.setHeader('Cache-Control', 'no-store');
         res.json({ simulated: true, ...s.sim.world.snapshot() });
@@ -359,7 +474,7 @@ function createEmbodiedRoutes(ctx, opts = {}) {
         res.setHeader('Cache-Control', 'no-store');
         res.json({ res: map.res, bounds: map.bounds, version: map.version, occupied: map.occupiedList(), stats: map.stats() });
     });
-    router.get('/picture', (req, res) => {
+    router.get('/picture', async (req, res) => {
         const sub = withSub(req, res);
         if (!sub)
             return;
@@ -369,12 +484,12 @@ function createEmbodiedRoutes(ctx, opts = {}) {
             return;
         }
         const s = session(sub);
-        advance(sub, s);
+        await advanceForRead(sub, s);
         const pic = s.sim.picture(sensor);
         res.setHeader('Cache-Control', 'no-store');
         res.json({ simulated: true, sensor, width: pic.width, height: pic.height, rgb: Buffer.from(pic.rgb).toString('base64'), camera: pic.camera, returns: pic.sweep.hits.length });
     });
-    router.post('/scan', (req, res) => {
+    router.post('/scan', async (req, res) => {
         const sub = withSub(req, res);
         if (!sub)
             return;
@@ -385,12 +500,14 @@ function createEmbodiedRoutes(ctx, opts = {}) {
             return;
         }
         const s = session(sub);
-        advance(sub, s);
+        await advanceAndSettle(sub, s);
         try {
             const result = s.control.manual({ nodeId: sensor === 'drone' ? engine_1.DRONE_NODE_ID : engine_1.UNIT_NODE_ID, command: 'scan', params: { sensor } }, sub);
+            await settle(sub, s);
             res.json({ ok: true, result, world: s.sim.world.snapshot() });
         }
         catch (error) {
+            await settle(sub, s);
             res.status(409).json({ error: 'scan_refused', message: error instanceof Error ? error.message : String(error) });
         }
     });
@@ -529,13 +646,13 @@ function createEmbodiedRoutes(ctx, opts = {}) {
         logger.info({ sub, scenario: fresh.sim.scene.name, sensorSet: fresh.sim.sensorSet.id, backend, arm: armBackend, node: node || null, seed, controller: (0, engine_1.controllerName)(controller.spec) }, 'World reset');
         res.json({ ok: true, ...fresh.sim.snapshot(), control: controlView(fresh) });
     });
-    router.get('/physics/status', (req, res) => {
+    router.get('/physics/status', async (req, res) => {
         const sub = withSub(req, res);
         if (!sub)
             return;
         let engine;
         try {
-            engine = { connected: true, ...getBridge().hello() };
+            engine = { connected: true, ...(await getBridge().helloAsync()) };
         }
         catch (error) {
             const f = physicsFailure(error);
@@ -635,12 +752,12 @@ function createEmbodiedRoutes(ctx, opts = {}) {
             ? opts.armChecker(input)
             : getBridge().callAsync('arm-check', input, embodied_arm_routes_1.ARM_CHECK_TIMEOUT_MS)),
     });
-    router.get('/physics/reports', (req, res) => {
+    router.get('/physics/reports', async (req, res) => {
         const sub = withSub(req, res);
         if (!sub)
             return;
         try {
-            const listing = readReports();
+            const listing = await readReports();
             const certified = certifiedOf(sub);
             res.json({ ...listing, reports: listing.reports.map((r) => ({ ...r, certified: r.report?.policyFile ? (certified.get(r.report.policyFile)?.certification ?? null) : null })) });
         }
@@ -649,7 +766,7 @@ function createEmbodiedRoutes(ctx, opts = {}) {
             res.status(f.status).json(f.body);
         }
     });
-    router.post('/physics/certify', (req, res) => {
+    router.post('/physics/certify', async (req, res) => {
         const sub = withSub(req, res);
         if (!sub)
             return;
@@ -662,7 +779,7 @@ function createEmbodiedRoutes(ctx, opts = {}) {
         const which = body.which === 'baseline' ? 'baseline' : 'policy';
         let listing;
         try {
-            listing = readReports();
+            listing = await readReports();
         }
         catch (error) {
             const f = physicsFailure(error);
@@ -680,7 +797,7 @@ function createEmbodiedRoutes(ctx, opts = {}) {
             return;
         }
         const s = session(sub);
-        advance(sub, s);
+        await advanceAndSettle(sub, s);
         const certification = (0, engine_1.certifyFlight)(s.sim, trajectory);
         const policyFile = which === 'policy' ? entry.report.policyFile : undefined;
         if (policyFile)
@@ -699,7 +816,7 @@ function createEmbodiedRoutes(ctx, opts = {}) {
             return;
         }
         const s = session(sub);
-        advance(sub, s);
+        await advanceAndSettle(sub, s);
         let plan;
         try {
             plan = task === 'explore' ? (0, engine_1.planExplore)(s.sim, Math.min(30, Math.max(1, Number(body.maxScans) || 12)), { droneFirst: body.droneFirst === true })
@@ -725,8 +842,9 @@ function createEmbodiedRoutes(ctx, opts = {}) {
         const sub = withSub(req, res);
         if (!sub)
             return;
+        const outcomes = pendingOutcomes(sub);
         try {
-            res.json(await (0, task_store_1.listTasks)(pool, sub));
+            res.json((await (0, task_store_1.listTasks)(pool, sub)).map((row) => withOutcome(row, outcomes)));
         }
         catch (error) {
             logger.error({ err: error, sub }, 'Task list failed');
@@ -737,12 +855,13 @@ function createEmbodiedRoutes(ctx, opts = {}) {
         const sub = withSub(req, res);
         if (!sub)
             return;
+        const outcomes = pendingOutcomes(sub);
         const row = await (0, task_store_1.getTask)(pool, sub, String(req.params.id)).catch(() => null);
         if (!row) {
             res.status(404).json({ error: 'task_not_found' });
             return;
         }
-        res.json(row);
+        res.json(withOutcome(row, outcomes));
     });
     router.post('/tasks/:id/execute', async (req, res) => {
         const sub = withSub(req, res);
@@ -762,7 +881,7 @@ function createEmbodiedRoutes(ctx, opts = {}) {
             return;
         }
         const s = session(sub);
-        advance(sub, s);
+        await advanceAndSettle(sub, s);
         const rehearsal = (0, engine_1.validatePlan)(s.sim, row.plan);
         if (!rehearsal.ok) {
             res.status(409).json({ error: 'rehearsal_failed', rehearsal });
@@ -777,6 +896,7 @@ function createEmbodiedRoutes(ctx, opts = {}) {
         }
         s.taskId = row.task_id;
         await (0, task_store_1.updateTaskStatus)(pool, sub, row.task_id, 'executing', 0, null).catch((error) => logger.error({ err: error, sub }, 'Task status update failed'));
+        await settle(sub, s);
         startTimer(sub, s);
         logger.info({ sub, taskId: row.task_id }, 'Executing a physical task after a fresh rehearsal');
         res.json({ ok: true, taskId: row.task_id, rehearsal, control: controlView(s) });
@@ -791,25 +911,27 @@ function createEmbodiedRoutes(ctx, opts = {}) {
             return;
         }
         s.control.abort(sub);
-        advance(sub, s);
+        // abort() flips the executor to `aborted` itself, so advance() never sees running->aborted: close the task here, as e-stop does.
+        if (s.taskId && s.control.executor.state === 'aborted')
+            finishTask(sub, s, 'aborted', s.control.executor.stepIndex, s.control.executor.failure);
+        await advanceAndSettle(sub, s);
         res.json({ ok: true, control: controlView(s) });
     });
-    const controlAction = (action) => (req, res) => {
+    const controlAction = (action) => async (req, res) => {
         const sub = withSub(req, res);
         if (!sub)
             return;
         const s = session(sub);
-        advance(sub, s);
+        await advanceAndSettle(sub, s);
         try {
             s.control[action](sub);
-            if (action === 'estop' && s.taskId) {
-                void (0, task_store_1.updateTaskStatus)(pool, sub, s.taskId, 'aborted', s.control.executor.stepIndex, 'e-stop').catch(() => undefined);
-                s.taskId = null;
-                stopTimer(s);
-            }
+            if (action === 'estop' && s.taskId)
+                finishTask(sub, s, 'aborted', s.control.executor.stepIndex, 'e-stop');
+            await settle(sub, s);
             res.json({ ok: true, control: controlView(s) });
         }
         catch (error) {
+            await settle(sub, s);
             res.status(409).json({ error: `${action}_refused`, message: error instanceof Error ? error.message : String(error), control: controlView(s) });
         }
     };
@@ -817,20 +939,32 @@ function createEmbodiedRoutes(ctx, opts = {}) {
     router.post('/control/release', controlAction('release'));
     router.post('/control/estop', controlAction('estop'));
     router.post('/control/reset', controlAction('reset'));
-    router.post('/control/command', (req, res) => {
+    router.post('/control/command', async (req, res) => {
         const sub = withSub(req, res);
         if (!sub)
             return;
         const body = (req.body ?? {});
         const s = session(sub);
-        advance(sub, s);
+        await advanceAndSettle(sub, s);
         try {
             const result = s.control.manual({ nodeId: str(body.nodeId, ''), command: str(body.command, ''), params: (body.params && typeof body.params === 'object' ? body.params : {}) }, sub);
+            await settle(sub, s);
             res.json({ ok: true, result, control: controlView(s) });
         }
         catch (error) {
+            await settle(sub, s);
             res.status(409).json({ error: 'command_refused', message: error instanceof Error ? error.message : String(error), control: controlView(s) });
         }
+    });
+    /** Persist what the world produced since the last write (finished task status, step log rows). A GET cannot write on the native kernel, so the surface posts here when a read reports pending writes. */
+    router.post('/writes/settle', async (req, res) => {
+        const sub = withSub(req, res);
+        if (!sub)
+            return;
+        const s = session(sub);
+        const before = s.writes.length;
+        await advanceAndSettle(sub, s);
+        res.json({ ok: s.writes.length === 0, persisted: Math.max(0, before - s.writes.length), pending: s.writes.length, control: controlView(s) });
     });
     router.get('/log', async (req, res) => {
         const sub = withSub(req, res);

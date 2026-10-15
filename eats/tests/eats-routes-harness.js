@@ -5,6 +5,10 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — load the COMPILED Eats route module (the bytes the framework mounts) with every framework import stubbed, an in-memory pool that answers exactly the SQL the cart, order, history and chat routes issue, a recording Uber Eats provider over a two-restaurant curated menu, and a scripted concierge. Shared by the route suite and the browser smoke's fixture (which passes the framework's real express); not a suite itself (no .test.js name, so the package glob never runs it).
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Native admission double: admittedPool applies the native host's rule (crates/packages/src/sql_transaction.rs) to every statement, so while callAdmitted runs a GET only a query or idempotent table setup reaches the pool and any other statement is refused with the host's own message; a per-request mode resolver serves the browser fixture's concurrent requests.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | opts.notes seeds the diner's saved concierge notes and store() returns the route's concierge store, so a test can see the notes the prompt carries and the notes a chat turn saves.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | A string reply is passed through as the model's raw text, so a test can send a malformed envelope.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | The route module now requires ./remembered-notes (the remembered-notes list and forget); the harness serves the compiled module.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | The route module now requires ./allergen-check (the diner's allergies and diet against every dish); the harness serves the compiled module.
  */
 'use strict';
 const fs = require('node:fs');
@@ -83,11 +87,11 @@ function fakePool(seed = {}) {
 
 /** The shared conversation store the route uses, as an in-memory double. */
 class FakeConciergeStore {
-  constructor() { this.messages = []; this.notes = []; }
+  constructor() { this.messages = []; this.notes = []; FakeConciergeStore.last = this; }
   async ensureConversation() { return 'conv-1'; }
   async addMessage(conversationId, sub, role, content) { this.messages.push({ conversationId, sub, role, content }); }
   async loadHistory() { return []; }
-  async loadNotes() { return []; }
+  async loadNotes() { return [...(FakeConciergeStore.seedNotes || [])]; }
   async saveNote(_sub, note) { this.notes.push(note); }
   async touch() {}
   async resume() { return { conversationId: null, messages: [] }; }
@@ -96,8 +100,8 @@ class FakeConciergeStore {
 /**
  * @description Load the compiled route module with stubbed framework imports and return its handlers.
  * @param {{ pool?: object, provider?: object, reply?: object|Function, express?: object }} opts - `express`:
- *   a real express module (the browser fixture's); `reply`: the concierge's JSON envelope, or a
- *   function of the prompt returning one.
+ *   a real express module (the browser fixture's); `reply`: the concierge's JSON envelope (a string
+ *   is sent as the model's raw text), or a function of the prompt returning one.
  * @returns {{ handlers: object, pool: object, provider: object, prompts: string[], router: object }}
  */
 function loadRoutes(opts = {}) {
@@ -105,6 +109,7 @@ function loadRoutes(opts = {}) {
   const pool = opts.pool || fakePool();
   const provider = opts.provider || fakeProvider();
   const prompts = [];
+  FakeConciergeStore.seedNotes = opts.notes || [];
   const router = {
     get(p, h) { handlers.get.set(p, h); return this; },
     post(p, h) { handlers.post.set(p, h); return this; },
@@ -116,6 +121,8 @@ function loadRoutes(opts = {}) {
     path,
     crypto: { randomUUID: () => 'test-uuid' },
     './cart-totals': require(path.join(PKG, 'routes', 'cart-totals.js')),
+    './remembered-notes': require(path.join(PKG, 'routes', 'remembered-notes.js')),
+    './allergen-check': require(path.join(PKG, 'routes', 'allergen-check.js')),
     '@/shared/logger': { createChildLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }) },
     '@/shared/services/database': { buildOwnerRlsPolicyStatements: () => [], runRuntimeSchemaBootstrap: async () => {} },
     '@/shared/middleware/authz': { getTrustedServiceUserSub: () => undefined },
@@ -128,7 +135,7 @@ function loadRoutes(opts = {}) {
       executeBotOrInline: async (_ctx, _client, _agent, input) => {
         prompts.push(input.text);
         const reply = typeof opts.reply === 'function' ? opts.reply(input.text) : opts.reply;
-        return { response: JSON.stringify(reply || { say: 'ok' }) };
+        return { response: typeof reply === 'string' ? reply : JSON.stringify(reply || { say: 'ok' }) };
       },
     },
   };
@@ -140,7 +147,7 @@ function loadRoutes(opts = {}) {
   new Function('require', 'module', 'exports', '__filename', '__dirname', fs.readFileSync(ROUTE_FILE, 'utf8'))(
     shimRequire, mod, mod.exports, ROUTE_FILE, path.dirname(ROUTE_FILE));
   const mounted = mod.exports.createEatsRoutes({ pool, appPackageDir: PKG });
-  return { handlers, pool, provider, prompts, exports: mod.exports, router: mounted };
+  return { handlers, pool, provider, prompts, exports: mod.exports, router: mounted, store: () => FakeConciergeStore.last };
 }
 
 /** A recording response. */

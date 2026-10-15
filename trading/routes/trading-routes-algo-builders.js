@@ -14,6 +14,8 @@
  * 2026-07-11 05:05:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Extracted from trading-routes.ts (1000-line cap decomposition): POST /scan + /signal-latest + /decide-algo, GET /recommendations + /algo-stats, the tuning routes (GET /strategy-params, GET /recommendations-tuning, POST approve/reject, POST /optimize-now), and the recordPredictions/resolveMaturedPredictions/algoEnsembleDecision helpers. Code moved verbatim — zero behavior change.
  * 2026-07-19 16:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Trading engine extraction (ADR-085 pre-carve): resolveMaturedPredictions moved VERBATIM to app/trading-engine.ts (the review/assess loops import the engine, not this carvable surface); this builder now imports it back from the engine, and ensureTradingSchema from its moved home app/trading-schema.ts. Pure code motion — zero behavior change.
  * 2026-07-19 23:30:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Carved out of OSHAL core into the trading app package (ADR-085 Wave 3). Relative kernel imports flip to @/ aliases (helpers/schema/engine/strategy-params/optimize-dispatch/schedule-dispatch ALL stay kernel with the dispatch loops). Handler bodies byte-identical — zero behavior change.
+ * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Rail guard: the algo reads ask railConfigured(md) instead of calling md.configured() directly, so a host whose market-data source has no configured() probe (the native kernel bridge answers getMarketData with {}) answers market_data_not_configured instead of a TypeError.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | A market-data refusal prints the host's own reason (railReason: on the native kernel, no Alpaca connector and Schwab not used for market data) before falling back to the platform's set-the-keys advice, which this installation has no place for.
  *
  * @module trading-routes-algo-builders
  */
@@ -62,6 +64,7 @@ const trading_engine_1 = require("@/app/trading-engine");
 const trading_strategy_params_1 = require("@/app/trading-strategy-params");
 const trading_optimize_dispatch_1 = require("@/app/trading-optimize-dispatch");
 const trading_schedule_dispatch_1 = require("@/app/trading-schedule-dispatch");
+const trading_rail_guard_1 = require("./trading-rail-guard");
 // Same module tag as the entry file so structured log output is unchanged by the split.
 const logger = (0, logger_1.createChildLogger)({ module: 'trading-routes' });
 /** Default universe the market-analysis recommendation scan assesses. */
@@ -82,8 +85,8 @@ async function algoEnsembleDecision(pool, sub, book, symbol) {
     const mode = book.kind;
     // Per-mode data source: paper reads Alpaca (IEX), the live book reads the caller's Schwab feed.
     const md = (0, trading_1.getMarketData)(mode, sub);
-    if (!md.configured())
-        throw new trading_routes_helpers_1.TradingError(503, 'market_data_not_configured', md.kind === 'schwab' ? 'Connect your Charles Schwab account for live market data.' : 'Set Alpaca data keys (ALPACA_PAPER_KEY_ID/_SECRET).');
+    if (!(0, trading_rail_guard_1.railConfigured)(md))
+        throw new trading_routes_helpers_1.TradingError(503, 'market_data_not_configured', (0, trading_rail_guard_1.railReason)(md) || (md.kind === 'schwab' ? 'Connect your Charles Schwab account for live market data.' : 'Set Alpaca data keys (ALPACA_PAPER_KEY_ID/_SECRET).'));
     const SYM = symbol.toUpperCase();
     const closes = await md.dailyCloses(SYM);
     if (!closes.length)
@@ -137,7 +140,7 @@ function registerTradingAlgoRoutes(router, ctx) {
         try {
             await (0, trading_schema_1.ensureTradingSchema)(ctx.pool);
             if (!(0, trading_1.marketDataConfigured)()) {
-                res.status(503).json({ error: 'market_data_not_configured', message: 'Set Alpaca data keys.' });
+                res.status(503).json({ error: 'market_data_not_configured', message: (0, trading_rail_guard_1.railReason)((0, trading_1.getMarketData)((0, trading_routes_helpers_1.resolveMode)((req.body || {}).mode), sub)) || 'Set Alpaca data keys.' });
                 return;
             }
             const b = (req.body || {});
@@ -272,8 +275,8 @@ function registerTradingAlgoRoutes(router, ctx) {
             const mode = (0, trading_routes_helpers_1.resolveMode)(req.query.mode);
             // Per-mode data source: the live book scans on the Schwab feed, paper on Alpaca IEX.
             const md = (0, trading_1.getMarketData)(mode, sub);
-            if (!md.configured()) {
-                res.status(503).json({ error: 'market_data_not_configured', message: md.kind === 'schwab' ? 'Connect your Charles Schwab account for live data.' : 'Set Alpaca data keys.' });
+            if (!(0, trading_rail_guard_1.railConfigured)(md)) {
+                res.status(503).json({ error: 'market_data_not_configured', message: (0, trading_rail_guard_1.railReason)(md) || (md.kind === 'schwab' ? 'Connect your Charles Schwab account for live data.' : 'Set Alpaca data keys.') });
                 return;
             }
             const universe = (req.query.universe ? String(req.query.universe).split(',') : RECO_UNIVERSE).map((s) => s.trim().toUpperCase()).filter(Boolean).slice(0, 40);

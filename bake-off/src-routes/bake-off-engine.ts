@@ -19,6 +19,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial implementation — caller-scoped lane discovery off getActiveRegistry() (ADR-087 isBotAccessibleTo, operator sees wider), sequential lane execution through executeBotOrInline with per-lane failure isolation, grading through JudgeService on the quality-judge concierge, single-flight per job, and a best-effort completion notification through the kernel notification router.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | laneAvailability(): the bot registry's own "nothing to race here" marker when it carries one (the native runtime runs every bot on one metered inference rail, so it lists no lanes and says why), for GET /lanes to return beside the empty roster.
  *
  * @module bake-off-engine
  */
@@ -30,6 +31,7 @@ import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
 import { BotNodeClient, createRegistryEndpointResolver } from '@/features/agent-management';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
+import * as swarmBotRegistry from '@/app/extensions/swarm/swarm-bot-registry';
 import { getActiveRegistry, isBotAccessibleTo } from '@/app/extensions/swarm/swarm-bot-registry';
 import { JudgeService, QUALITY_JUDGE_AGENT_ID } from '@/features/quality-judge';
 import { buildNotificationRouter } from '@/app/routes/notify-routes';
@@ -85,6 +87,17 @@ export function discoverLanes(req: Request): Lane[] {
     lanes.push({ agentId, bot: bot.name, harness: bot.harnessType, provider: bot.apiType, role: bot.role });
   }
   return lanes.sort((a, b) => a.bot.localeCompare(b.bot));
+}
+
+/**
+ * @description The bot registry's own "nothing to race here" marker, when it carries one. The
+ * native runtime does (every bot answers through its one metered inference rail, so there are no
+ * separate lanes); the platform registry does not, and then this adds nothing.
+ * @returns The marker's fields ({ native, configured, reason, detail }), or no fields.
+ */
+export function laneAvailability(): Record<string, unknown> {
+  const marker = (swarmBotRegistry as { availability?: unknown }).availability;
+  return marker && typeof marker === 'object' ? { ...(marker as Record<string, unknown>) } : {};
 }
 
 /**

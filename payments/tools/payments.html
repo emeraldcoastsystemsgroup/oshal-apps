@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <!--
-  Payments surface — take payments through a connected merchant account (Square / PayPal).
+  CHANGE LOG
+  1 | maintainer@emeraldcoastsystemsgroup.com | Stripe panel: the mode Stripe reports for the person's own pasted key
+    (not connected / key rejected / TEST / LIVE / unknown = treated as LIVE) is shown on the tab and the panel; a
+    Stripe payment page is created for an amount + description; recent Stripe payments with a full Refund. Every
+    money action asks to confirm, and a non-test key asks a second time naming LIVE (the server enforces both).
+  2 | maintainer@emeraldcoastsystemsgroup.com | 'Open Connections' replaced the whole tab (target=_top) while the panel said
+    'Then reload this page', so the docked app was gone. Connections (and each Connect link) opens in a new tab and this
+    page offers 'I have connected it: check again', which re-reads /providers in place.
+  Payments surface — take payments through a connected merchant account (Stripe / Square / PayPal).
   Self-contained iframe page served by createPaymentsRoutes at /api/payments/. The merchant
   connects their account on /utilities (Payments category); this page picks a connected rail,
   takes a payment (Square: a card token; PayPal: a customer email → invoice), and lists history.
@@ -42,6 +50,18 @@
   function cents(v) { return (Number(v) || 0) / 100; }
   function kind(status) { var s = String(status || '').toLowerCase(); return /fail|declin|cancel|void|error/.test(s) ? 'failed' : /complet|paid|succeed|captur|settled/.test(s) ? 'done' : 'pending'; }
   function within(c, hours) { var t = new Date(c.created_at || 0).getTime(); return t && Date.now() - t <= hours * 36e5; }
+  // The heading and the one action match the rails /providers listed: "Take a payment" only with a connected rail,
+  // "Connect" only for a rail this installation has a connector for, and neither when it offers no rail at all.
+  function railHead(providers, connected) {
+    if (connected.length) return { title: 'Money in', lede: '', action: 'Take a payment' };
+    var connectable = providers.filter(function (p) { return p.configured !== false; });
+    if (connectable.length) return { title: 'Connect a payment provider', action: 'Open Payments to connect',
+      lede: 'Connect ' + connectable.map(function (p) { return LABEL[p.provider] || p.provider; }).join(' or ') + ' in Payments to take a payment and see it here.' };
+    if (providers.length) return { title: 'No payment rail here', action: 'Open Payments',
+      lede: providers.map(function (p) { return p.detail; }).filter(Boolean)[0] || 'This installation has no merchant connector configured for its payment rails, so no payment can be taken here.' };
+    return { title: 'No payment rail here', action: 'Open Payments',
+      lede: 'This installation runs no payment rail (no Square or PayPal merchant operations), so no payment can be taken here, and connecting an account does not change that.' };
+  }
   function company(ctx) {
     return Promise.all([call('/providers'), call('/history').catch(function () { return { charges: [] }; })]).then(function (r) {
       var providers = r[0].providers || [], charges = (r[1].charges || []).slice().sort(function (a, b) { return new Date(b.created_at || 0) - new Date(a.created_at || 0); });
@@ -49,10 +69,11 @@
       var sum = function (list) { return list.reduce(function (m, c) { return m + cents(c.amount_cents); }, 0); };
       var done24 = live.filter(function (c) { return kind(c.status) === 'done' && within(c, 24); }), done5d = live.filter(function (c) { return kind(c.status) === 'done' && within(c, 120); });
       var pending = live.filter(function (c) { return kind(c.status) === 'pending'; }), failed5d = live.filter(function (c) { return kind(c.status) === 'failed' && within(c, 120); }), test5d = charges.filter(function (c) { return c.test_mode && within(c, 120); });
+      var head = railHead(providers, connected);
       return {
-        kicker: 'Payments', title: connected.length ? 'Money in' : 'Connect a payment provider',
-        lede: connected.length ? connected.length + ' of ' + providers.length + ' providers connected' + (charges[0] ? ' \u00b7 last charge ' + A.when(charges[0].created_at) : '') : 'Link Square, PayPal or Stripe in Payments to take a payment and see it here.',
-        actions: [{ label: 'Take a payment', primary: true, onClick: function () { openFull(); } }],
+        kicker: 'Payments', title: head.title,
+        lede: connected.length ? connected.length + ' of ' + providers.length + ' providers connected' + (charges[0] ? ' \u00b7 last charge ' + A.when(charges[0].created_at) : '') : head.lede,
+        actions: [{ label: head.action, primary: true, onClick: function () { openFull(); } }],
         stats: [
           { id: 'done24h', label: 'Completed / 24h', value: done24.length, hint: done24.length ? A.money(sum(done24)) : null, tone: done24.length ? 'ok' : null },
           { id: 'done5d', label: 'Completed / 5 days', value: done5d.length, hint: done5d.length ? A.money(sum(done5d)) : null },
@@ -61,7 +82,7 @@
           { id: 'test5d', label: 'Test charges / 5 days', value: test5d.length }
         ],
         sections: [
-          { kind: 'tiles', id: 'providers', title: 'Providers', empty: 'No providers available.', items: providers.map(function (p) { return { title: LABEL[p.provider] || p.provider, text: p.connected ? (p.testMode ? 'Connected \u00b7 test mode' : 'Connected') + (p.sourceLabel ? ' \u00b7 ' + p.sourceLabel : '') : 'Not connected', badge: p.connected ? (p.testMode ? 'test' : 'live') : 'connect', tone: p.connected ? (p.testMode ? 'info' : 'ok') : null, onClick: function () { openFull(); } }; }) },
+          { kind: 'tiles', id: 'providers', title: 'Providers', empty: 'This installation offers no payment rail.', items: providers.map(function (p) { return { title: LABEL[p.provider] || p.provider, text: p.connected ? (p.testMode ? 'Connected \u00b7 test mode' : 'Connected') + (p.sourceLabel ? ' \u00b7 ' + p.sourceLabel : '') : p.configured === false ? 'Not available here' : 'Not connected', badge: p.connected ? (p.testMode ? 'test' : 'live') : p.configured === false ? 'unavailable' : 'connect', tone: p.connected ? (p.testMode ? 'info' : 'ok') : null, onClick: function () { openFull(); } }; }) },
           { kind: 'table', id: 'charges', title: 'Recent charges', wide: true, empty: 'No charges yet.', columns: ['When', 'Provider', { label: 'Amount', align: 'right' }, 'Note', 'Status'],
             rows: charges.slice(0, 12).map(function (c) { var k = kind(c.status); return [A.date(c.created_at), LABEL[c.provider] || c.provider, { text: A.money(cents(c.amount_cents), c.currency || 'USD') }, (c.note || '') + (c.test_mode ? ' (test)' : ''), { text: c.status || '', tone: k === 'failed' ? 'bad' : k === 'done' ? 'ok' : 'warn' }]; }) }
         ]
@@ -97,6 +118,10 @@
   .field span { display:block; font-size:12px; color:var(--muted); margin-bottom:5px; }
   .field input { width:100%; padding:9px; background:var(--panel2); border:1px solid var(--line); border-radius:8px; color:var(--text); font-size:14px; }
   .chip { display:inline-block; background:#3a2a10; border:1px solid #6b4a18; border-radius:20px; padding:3px 10px; font-size:11px; margin-left:8px; }
+  .chip.live { background:#5a1010 !important; border-color:#ff5c5c !important; color:#fff !important; font-weight:700; letter-spacing:.4px; }
+  .chip.test { background:#10314a !important; border-color:#3aa0ff !important; color:#fff !important; }
+  .stripe-link { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px; word-break:break-all; }
+  .field input, .field textarea { max-width:100%; }
   table { width:100%; border-collapse:collapse; font-size:13px; }
   th { text-align:left; color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.4px; padding:6px 8px; border-bottom:1px solid var(--line); }
   td { padding:7px 8px; border-bottom:1px solid var(--line); }
@@ -237,14 +262,15 @@
   td {
     border-bottom-color: var(--pay-line);
   }
+  #paymentReview[hidden] { display:none; }
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
 <div class="page">
   <div class="head"><span style="font-size:20px">💳</span><h1>Payments</h1></div>
-  <div class="sub">Take a payment through your connected merchant account. Pick a provider, enter the amount, and charge — the payment runs on your own Square / PayPal account.</div>
-  <section class="panel" id="paymentReview"><h2>Continue from a payment</h2><p id="paymentSelection" class="sub" role="status">Select a saved payment below to review its evidence in Finance or prepare a document.</p><div class="connected-app-actions" style="display:flex;gap:12px;flex-wrap:wrap" aria-label="Connected application actions"></div></section>
+  <div class="sub">Take a payment through your own account: Stripe (paste your Stripe key on the Connections page, then create a payment page for an amount), or Square / PayPal where this installation runs those rails.</div>
+  <section class="panel" id="paymentReview" hidden><h2>Continue from a payment</h2><p id="paymentSelection" class="sub" role="status">Press Review on a payment under Recent payments to review its evidence in Finance or prepare a document.</p><div class="connected-app-actions" style="display:flex;gap:12px;flex-wrap:wrap" aria-label="Connected application actions"></div></section>
   <div id="main"><div class="spin"><span class="dot"></span> Loading…</div></div>
 </div>
 <script>
@@ -252,7 +278,8 @@ const $ = (id) => document.getElementById(id);
 const main = $('main');
 const money = (c) => '$' + (Number(c||0)/100).toLocaleString(undefined, { minimumFractionDigits: 2 });
 const fmtDate = (iso) => { try { return new Date(iso).toLocaleString(); } catch { return iso || '—'; } };
-const PROVIDER_LABEL = { square: 'Square', paypal: 'PayPal' };
+const PROVIDER_LABEL = { square: 'Square', paypal: 'PayPal', stripe: 'Stripe' };
+const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 async function api(path, opts) {
   const r = await fetch('/api/payments' + path, Object.assign({ credentials: 'include' }, opts || {}));
@@ -274,27 +301,59 @@ if (!window.AppView || !AppView.active()) (async function init() {
   } catch (e) { main.innerHTML = '<div class="panel err">Could not load: ' + e.message + '</div>'; }
 })();
 
+/** The page when this installation offers no merchant rail at all (GET /providers answered an empty list). */
+function noRails() {
+  return `<div class="panel"><h2>No payment rail on this installation</h2>
+    <div class="sub">This installation runs no payment rail (no Square or PayPal merchant operations), so no payment can be taken here, and connecting an account does not change that.
+    A rail appears on this page once this installation runs one.</div></div>`;
+}
+
 function render() {
+  if (!providers.length) { main.innerHTML = noRails(); return; }
   const tabs = providers.map((p) => `
     <div class="tab ${p.provider === active ? 'active' : ''}" data-p="${p.provider}">
       ${PROVIDER_LABEL[p.provider] || p.provider}
-      <span class="st">${p.connected ? '● connected' : '○ not connected'}</span>
+      <span class="st">${p.provider === 'stripe' ? stripeTabState(p) : p.connected ? '● connected' : '○ not connected'}</span>
     </div>`).join('');
   const p = providers.find((x) => x.provider === active) || {};
   main.innerHTML = `
     <div class="tabs">${tabs}</div>
-    <div class="panel" id="formPanel">${p.connected ? chargeForm(p) : connectPrompt(p)}</div>
+    <div class="panel" id="formPanel">${p.provider === 'stripe' ? stripePanel(p) : p.connected ? chargeForm(p) : connectPrompt(p)}</div>
     <div class="panel" id="histPanel"><h2>Recent payments</h2><div id="hist"><div class="spin"><span class="dot"></span> Loading…</div></div></div>`;
   document.querySelectorAll('.tab').forEach((t) => t.onclick = () => { active = t.getAttribute('data-p'); render(); });
-  if (p.connected) $('chargeBtn').onclick = submitCharge;
+  if (p.provider === 'stripe') bindStripe(p);
+  else if (p.connected) $('chargeBtn').onclick = submitCharge;
+  if ($('recheckBtn')) $('recheckBtn').onclick = recheckProviders;
   loadHistory();
 }
 
+/** Connecting happens in a new tab and this page stays open, so it offers to check again in place (it said "Then
+ *  reload this page" while the link replaced the whole tab, leaving no page to reload). */
+function recheckControl() {
+  return `<button class="btn" id="recheckBtn" type="button">I have connected it: check again</button>
+    <div class="sub" style="margin-top:10px">The connection opens in a new tab; this page stays here.</div>`;
+}
+async function recheckProviders() {
+  const btn = $('recheckBtn'); if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
+  try {
+    providers = (await api('/providers')).providers || [];
+    render();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'I have connected it: check again'; }
+    main.insertAdjacentHTML('afterbegin', '<div class="panel err">Could not check the connection: ' + esc(e.message) + '</div>');
+  }
+}
+
 function connectPrompt(p) {
+  // A rail the server reports as not configured here gets its reason, not a Connect link that cannot work.
+  if (p.configured === false || p.detail) {
+    return `<h2>${PROVIDER_LABEL[p.provider] || p.provider} is not available here</h2>
+      <div class="sub">${esc(p.detail || 'This rail\'s merchant connector is not configured on this installation.')}</div>`;
+  }
   return `<h2>Connect ${PROVIDER_LABEL[p.provider] || p.provider}</h2>
     <div class="sub">To take payments through ${PROVIDER_LABEL[p.provider] || p.provider}, connect your merchant account first.</div>
     <a class="btn primary" href="/api/connect/${p.provider}/start" target="_blank" rel="noopener">Connect ${PROVIDER_LABEL[p.provider] || p.provider}</a>
-    <div class="sub" style="margin-top:10px">After connecting, reload this page.</div>`;
+    ${recheckControl()}`;
 }
 
 function chargeForm(p) {
@@ -326,14 +385,122 @@ async function submitCharge() {
   } catch (e) { msg.className = 'sub err'; msg.textContent = e.message; btn.disabled = false; }
 }
 
+// ── Stripe ──────────────────────────────────────────────────────────────────────────────────────────────
+// The mode is what Stripe answered for the person's own key; the page never sees the key. The server refuses
+// a money action without confirm:true, and a non-test key without confirmLive:true as well.
+const STRIPE_MODE = {
+  test: { chip: '<span class="chip test">TEST MODE — no real money</span>', tab: '● test mode' },
+  live: { chip: '<span class="chip live">LIVE — real money</span>', tab: '● LIVE' },
+  unknown: { chip: '<span class="chip live">MODE UNKNOWN — treated as LIVE</span>', tab: '● mode unknown' },
+};
+function stripeTabState(p) { return p.connected ? (STRIPE_MODE[p.mode] || STRIPE_MODE.unknown).tab : p.mode === 'key_rejected' ? '○ key rejected' : '○ not connected'; }
+function stripeLive(p) { return p.mode !== 'test'; }
+
+function stripePanel(p) {
+  if (!p.connected) {
+    return `<h2>${p.mode === 'key_rejected' ? 'Stripe rejected your saved key' : 'Connect Stripe'}</h2>
+      <div class="sub">${esc(p.detail || 'Stripe is not connected.')}</div>
+      <div class="sub">On the Connections page choose <b>Stripe</b> and paste a Stripe <b>restricted key</b> (starts with <code>rk_test_</code> for test mode). oshal seals it for you alone; this page and the assistant never see it.</div>
+      <a class="btn primary" href="/utilities" target="_blank" rel="noopener">Open Connections</a> ${recheckControl()}`;
+  }
+  const chip = (STRIPE_MODE[p.mode] || STRIPE_MODE.unknown).chip;
+  return `<h2>Stripe ${chip}</h2>
+    ${p.detail ? `<div class="sub">${esc(p.detail)}</div>` : ''}
+    ${stripeLive(p) ? '<div class="sub err">This key takes REAL money. Every action below asks you to confirm twice.</div>' : '<div class="sub">Test mode: pay the page with Stripe\'s test card 4242 4242 4242 4242, any future date, any CVC.</div>'}
+    <label class="field"><span>Amount (${esc('USD')})</span><input id="sAmt" type="number" min="0.50" step="0.01" placeholder="25.00"></label>
+    <label class="field"><span>What it is for (the customer sees this)</span><input id="sDesc" maxlength="200" placeholder="Consulting — 1 hour"></label>
+    <label class="field"><span>After paying, send the customer to (optional, https)</span><input id="sBack" placeholder="https://your-site.example/thanks — blank returns to this page"></label>
+    <button class="btn primary" id="sCreate">Create Stripe payment page</button> <span id="sMsg" class="sub" role="status"></span>
+    <div id="sResult"></div>
+    <h2 style="margin-top:22px">Recent Stripe payments</h2><div id="sPays"><div class="spin"><span class="dot"></span> Loading…</div></div>`;
+}
+
+function bindStripe(p) {
+  if (!p.connected) return;
+  $('sCreate').onclick = () => createStripePage(p);
+  loadStripePayments(p);
+  const params = new URLSearchParams(location.search);
+  if (/^cs_(test|live)_/.test(params.get('session') || '')) refreshStripeSession(params.get('session'));
+}
+
+/** Two confirmations for a non-test key; the second names LIVE. Returns the confirmation fields or null. */
+function stripeConfirm(p, question) {
+  if (!confirm(question)) return null;
+  if (!stripeLive(p)) return { confirm: true };
+  if (!confirm('LIVE STRIPE KEY — this is REAL money.\n\n' + question + '\n\nPress OK only if you mean it.')) return null;
+  return { confirm: true, confirmLive: true };
+}
+
+async function createStripePage(p) {
+  const msg = $('sMsg'); const amountCents = Math.round(Number($('sAmt').value) * 100); const description = $('sDesc').value.trim();
+  if (!(amountCents >= 50)) { msg.className = 'sub err'; msg.textContent = 'Enter an amount of at least 0.50.'; return; }
+  if (!description) { msg.className = 'sub err'; msg.textContent = 'Say what the payment is for.'; return; }
+  const ok = stripeConfirm(p, 'Create a Stripe payment page for ' + money(amountCents) + ' — "' + description + '"?');
+  if (!ok) return;
+  const returnUrl = $('sBack').value.trim() || (location.origin + location.pathname);
+  $('sCreate').disabled = true; msg.className = 'sub'; msg.innerHTML = '<span class="dot"></span> Creating…';
+  try {
+    const r = await api('/stripe/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ amountCents, currency: 'usd', description, returnUrl, requestId: 'req-' + Date.now() }, ok)) });
+    const s = r.session; msg.className = 'sub ok'; msg.textContent = (s.livemode ? 'LIVE' : 'Test') + ' payment page created. Send this link to your customer:';
+    const box = $('sResult'); box.className = 'stripe-link'; box.replaceChildren();
+    const a = document.createElement('a'); a.href = s.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = s.url;
+    const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'btn ghost'; copy.textContent = 'Copy link';
+    copy.onclick = () => { try { navigator.clipboard.writeText(s.url); copy.textContent = 'Copied'; } catch { copy.textContent = 'Copy failed'; } };
+    box.append(a, copy); loadHistory();
+  } catch (e) { msg.className = 'sub err'; msg.textContent = e.message; }
+  $('sCreate').disabled = false;
+}
+
+async function refreshStripeSession(id) {
+  const msg = $('sMsg');
+  try { const r = await api('/stripe/checkout/' + encodeURIComponent(id)); msg.className = 'sub ok'; msg.textContent = 'Stripe payment page ' + id + ': ' + r.status + '.'; loadHistory(); }
+  catch (e) { msg.className = 'sub err'; msg.textContent = e.message; }
+}
+
+async function loadStripePayments(p) {
+  const host = $('sPays'); if (!host) return;
+  try {
+    const pays = (await api('/stripe/payments')).payments || [];
+    if (!pays.length) { host.innerHTML = '<div class="sub">No Stripe payments yet.</div>'; return; }
+    const table = document.createElement('table');
+    table.innerHTML = '<thead><tr><th>Date</th><th class="num">Amount</th><th>Status</th><th>For</th><th></th></tr></thead>';
+    const body = document.createElement('tbody');
+    for (const x of pays) {
+      const row = document.createElement('tr');
+      const status = x.refunded ? 'refunded' : x.amountRefundedCents ? 'partly refunded' : x.status;
+      for (const [text, cls] of [[fmtDate(x.created), ''], [money(x.amountCents) + ' ' + x.currency, 'num'], [status + (x.livemode ? ' · LIVE' : ' · test'), ''], [x.description || '—', '']]) {
+        const td = document.createElement('td'); td.textContent = text; if (cls) td.className = cls; row.append(td);
+      }
+      const act = document.createElement('td');
+      if (x.paid && !x.refunded && !x.amountRefundedCents) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ghost'; b.textContent = 'Refund';
+        b.onclick = () => refundStripe(p, x, b); act.append(b);
+      }
+      row.append(act); body.append(row);
+    }
+    table.append(body); host.replaceChildren(table);
+  } catch (e) { host.innerHTML = '<div class="sub err">' + esc(e.message) + '</div>'; }
+}
+
+async function refundStripe(p, x, button) {
+  const ok = stripeConfirm(p, 'Refund ' + money(x.amountCents) + ' ' + x.currency + ' IN FULL to the customer (Stripe payment ' + x.id + ')?');
+  if (!ok) return;
+  button.disabled = true;
+  try { await api('/stripe/refund', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ chargeId: x.id }, ok)) }); loadStripePayments(p); }
+  catch (e) { button.disabled = false; alert(e.message); }
+}
+
 async function loadHistory() {
   const host = $('hist');
   if (!host) return;
   try {
     const charges = (await api('/history')).charges || [];
+    // The "Continue from a payment" panel offers the recorded payments below it, so it shows only when there is one.
+    $('paymentReview').hidden = !charges.length;
     if (!charges.length) { host.innerHTML = '<div class="sub">No payments yet.</div>'; return; }
     host.innerHTML = `<table><thead><tr><th>Date</th><th>Provider</th><th class="num">Amount</th><th>Status</th><th>Note</th></tr></thead><tbody>` +
-      charges.map((c) => `<tr><td>${fmtDate(c.created_at)}</td><td>${PROVIDER_LABEL[c.provider] || c.provider}${c.test_mode ? ' <span class="sub">(test)</span>' : ''}</td><td class="num">${money(c.amount_cents)}</td><td>${c.status}${c.payer_url ? ' · <a href="' + c.payer_url + '" target="_blank" rel="noopener">invoice</a>' : ''}</td><td>${c.note || '—'}</td></tr>`).join('') +
+      charges.map((c) => `<tr><td>${fmtDate(c.created_at)}</td><td>${esc(PROVIDER_LABEL[c.provider] || c.provider)}${c.test_mode ? ' <span class="sub">(test)</span>' : ' <span class="sub">(LIVE)</span>'}</td><td class="num">${money(c.amount_cents)}</td><td>${esc(c.status)}${/^https:\/\//.test(c.payer_url || '') ? ' · <a href="' + esc(c.payer_url) + '" target="_blank" rel="noopener">' + (c.provider === 'stripe' ? 'payment page' : 'invoice') + '</a>' : ''}</td><td>${esc(c.note || '—')}</td></tr>`).join('') +
       `</tbody></table>`;
     host.querySelectorAll('tbody tr').forEach((row,index)=>{
       const record=charges[index],cell=document.createElement('td'),button=document.createElement('button');
@@ -364,6 +531,11 @@ async function loadHistory() {
       '--ok':'--status-success',
       '--danger':'--status-error'
     };
+    // Theme-sync copies the cockpit's tokens ONLY as a matched set: the parent must name both --bg-primary and --text-primary; otherwise the copied properties are removed and this page keeps its own palette (the native cockpit names --text-primary #f8fafc and no --bg-primary, which put near-white text on a light page).
+    if (!cs.getPropertyValue('--bg-primary').trim() || !cs.getPropertyValue('--text-primary').trim()) {
+      for (const local of Object.keys(map)) document.documentElement.style.removeProperty(local);
+      return;
+    }
     for (const [local, parentVar] of Object.entries(map)) { const v = cs.getPropertyValue(parentVar); if (v && v.trim()) document.documentElement.style.setProperty(local, v.trim()); }
   } catch { /* standalone — keep defaults */ }
 })();

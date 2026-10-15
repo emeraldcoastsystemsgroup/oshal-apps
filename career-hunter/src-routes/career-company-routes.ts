@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Content-negotiate the admin denial. The Companies ribbon entry points an iframe at the /companies-admin SURFACE route, but the gate answered every caller with res.status(403).json(...) — so with CAREER_HUNTER_ADMIN_SUBS unset in the deployment the operator saw a raw JSON body wrapped in the browser's built-in JSON viewer ("Pretty print" checkbox) instead of a page. Browser navigations now get a themed 403 HTML page naming the env var an operator sets; fetch/XHR callers keep the JSON 403, and the status is unchanged because this is a real authorization boundary. Also logs the EMPTY-allowlist case distinctly from "caller is not an admin" — an unset env var was previously indistinguishable from a normal denial and took a live container inspection to diagnose.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Denial log records req.path, not req.originalUrl — the query string on a DENIED request is unbounded caller-controlled input (seturl carries a whole URL) and was being written into the WARN line.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The admin list carries each company's source_lists so the portal table shows which rows arrived through a user's own target list (`user:<sub>` provenance) rather than the seeds.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | The administrator-only page speaks to the person: it told them an operator adds their subject to CAREER_HUNTER_ADMIN_SUBS 'and recreating the API container', a Docker-era step that does not exist on the native runtime. It now says to ask the person who runs the installation; the operator log line names the empty allow-list without the container step. Guard: tests/career-company-admin-copy.test.mjs.
  */
 
 /**
@@ -75,11 +76,10 @@ const ADMIN_DENIED_HTML = `<!DOCTYPE html>
 <body>
 <main class="card">
   <h1>Companies is administrator only</h1>
-  <p>The shared company corpus is restricted to Career Hunter administrators, and this account is
-     not one of them on this deployment.</p>
-  <p class="last">An operator grants access by adding the account&rsquo;s subject to
-     <code>CAREER_HUNTER_ADMIN_SUBS</code> in the deployment environment and recreating the API
-     container.</p>
+  <p>The shared company list is open only to Career Hunter administrators, and this account is
+     not one of them on this installation.</p>
+  <p class="last">To get access, ask the person who runs this installation to make your account a
+     Career Hunter administrator.</p>
 </main>
 </body>
 </html>
@@ -102,8 +102,8 @@ function logAdminDenial(req: Request, authenticated: boolean): void {
   if (CAREER_ADMIN_SUBS.size === 0) {
     logger.warn(
       detail,
-      'career admin route denied: NO administrators are configured on this deployment '
-      + '— set CAREER_HUNTER_ADMIN_SUBS and recreate the api',
+      'career admin route denied: NO administrators are configured for this application '
+      + '(CAREER_HUNTER_ADMIN_SUBS is empty in its environment)',
     );
     return;
   }

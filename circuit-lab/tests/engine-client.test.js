@@ -14,6 +14,10 @@
  *                     |                             | queued request; the address parser. The framework
  *                     |                             | logger is stubbed through the module loader. A refusal's
  *                     |                             | `field` from the bridge rides on the typed failure.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Native kernel: with `exchange` set a request goes through the
+ *                     |                             | kernel intent's {hello, reply}; results resolve, refusals keep
+ *                     |                             | their field, a wrong protocol and an unreachable engine are
+ *                     |                             | capability_unavailable and the kernel deadline is engine_timeout.
  */
 'use strict';
 const test = require('node:test');
@@ -139,4 +143,21 @@ test('the queue is bounded and the address parser is strict', async () => {
   assert.deepEqual(parseEngineAddr(undefined), { host: 'circuit-lab-engine', port: 7413 });
   assert.deepEqual(parseEngineAddr('10.0.0.5:7000'), { host: '10.0.0.5', port: 7000 });
   assert.throws(() => parseEngineAddr('nope'), /host:port/);
+});
+
+test('native kernel: requests travel through the exchange intent and are judged like the socket wire', async () => {
+  const sent = [];
+  const native = (answer) => new EngineClient({ host: 'circuit-lab-engine', port: 7413, expectedBuildHash: null, installHint: 'pin the engine', exchange: async (request, timeoutMs) => { sent.push({ request, timeoutMs }); return answer(request); } });
+  const good = native((r) => ({ hello: { bridge: { protocol: BRIDGE_PROTOCOL, buildHash: HASH } }, reply: { id: 1, ok: true, result: { echo: r.args } } }));
+  assert.deepEqual(await good.request('simulate', { n: 1 }), { echo: { n: 1 } });
+  assert.deepEqual(sent[0], { request: { cmd: 'simulate', args: { n: 1 } }, timeoutMs: 55_000 });
+  assert.equal(good.status().buildHash, HASH); assert.equal(good.status().address, 'native://engine.exchange');
+  const refused = native(() => ({ hello: { bridge: { protocol: BRIDGE_PROTOCOL, buildHash: HASH } }, reply: { id: 1, ok: false, error: { code: 'refused', message: 'no ground', field: 'circuit.ground' } } }));
+  await assert.rejects(refused.request('simulate', {}), (e) => e instanceof EngineFailure && e.code === 'refused' && e.field === 'circuit.ground');
+  const stale = native(() => ({ hello: { bridge: { protocol: 99 } }, reply: null }));
+  await assert.rejects(stale.request('simulate', {}), (e) => e.code === 'capability_unavailable');
+  const down = native(() => { throw new Error('engine container is not reachable or broke its line protocol'); });
+  await assert.rejects(down.request('simulate', {}), (e) => e.code === 'capability_unavailable' && /pin the engine/.test(e.reason));
+  const slow = native(() => { throw new Error('engine did not answer within the request deadline'); });
+  await assert.rejects(slow.request('simulate', {}), (e) => e.code === 'engine_timeout');
 });

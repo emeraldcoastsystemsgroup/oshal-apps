@@ -1,0 +1,13 @@
+{
+  "name": "oshal-pdf-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bounded owned PDF workbench source package",
+  "scripts": {
+    "test": "node --test \"tests/*tools.test.mjs\""
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {}
+}

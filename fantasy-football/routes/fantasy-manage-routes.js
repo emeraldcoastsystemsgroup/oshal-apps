@@ -17,6 +17,8 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — GET /season (SV, the drop candidate, replacement levels), GET /waivers (rest-of-season board with bid and drop, streaming lane), GET /trades (two-sided proposals, both gains shown), and owner-scoped hand-typed league CRUD (/manual-leagues).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | With no projection for the current week (the feed answered no players and there is no cached copy), /season, /waivers and /trades answer the league, the team and projectionFeed {ok:false, reason} with no numbers, instead of a season value of 0.0, an empty waiver board read as "nobody improves your lineup" and weeks claimed as priced from their own projection. Every board also carries projectionFeed so an older cached copy is named. Guard: tests/fantasy-boards-no-projection.test.js.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | /season, /waivers and /trades refuse a league whose scoring gives every stat 0 points with scoring {ok:false, reason} and no numbers, before any feed is read (sweep 9: "Nobody on the wire improves your starting lineup" on all-0.0 projections). Guard: tests/fantasy-zero-scoring.test.js.
  *
  * @module fantasy-manage-routes
  */
@@ -24,13 +26,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerManageRoutes = registerManageRoutes;
 const logger_1 = require("@/shared/logger");
 const fantasy_context_1 = require("./fantasy-context");
+const fantasy_manual_1 = require("./fantasy-manual");
 const fantasy_http_1 = require("./fantasy-http");
 const fantasy_feed_1 = require("./fantasy-feed");
 const fantasy_plan_1 = require("./fantasy-plan");
 const fantasy_season_1 = require("./fantasy-season");
 const fantasy_waivers_1 = require("./fantasy-waivers");
 const fantasy_trades_1 = require("./fantasy-trades");
-const fantasy_manual_1 = require("./fantasy-manual");
+const fantasy_manual_2 = require("./fantasy-manual");
 const log = (0, logger_1.createChildLogger)({ module: 'fantasy-football-manage' });
 /**
  * @description Build the season plan for a league from the caller's cached feeds.
@@ -38,17 +41,17 @@ const log = (0, logger_1.createChildLogger)({ module: 'fantasy-football-manage' 
  * @param sub - Caller's subject.
  * @param ctx - The league.
  * @param q - Query (playoffWeight).
- * @returns The plan, the current week's pool and its cache age.
+ * @returns The plan, the current week's pool, its cache age and the feed's state.
  */
 async function planFor(pool, sub, ctx, q) {
-    const { feeds, generatedAt } = await (0, fantasy_feed_1.seasonFeeds)(pool, sub, ctx.season, ctx.week, ctx.lastWeek);
+    const { feeds, generatedAt, feed } = await (0, fantasy_feed_1.seasonFeeds)(pool, sub, ctx.season, ctx.week, ctx.lastWeek);
     const weight = Number(q.playoffWeight);
     const built = (0, fantasy_plan_1.buildSeasonPlan)({
         currentWeek: ctx.week, lastWeek: ctx.lastWeek, playoffStart: ctx.playoffStart,
         playoffWeight: Number.isFinite(weight) && weight > 0 && weight <= 5 ? weight : undefined,
         feeds, byes: ctx.byes, slots: ctx.settings.slots, scoring: ctx.settings.scoring,
     });
-    return { built, pool: feeds.get(ctx.week) || {}, generatedAt };
+    return { built, pool: feeds.get(ctx.week) || {}, generatedAt, feed };
 }
 /**
  * @description What every management response says about its league and its numbers' provenance.
@@ -64,6 +67,27 @@ function header(ctx, p) {
         weeks: { fromFeed: p.built.fromFeed, fromRate: p.built.fromRate, lastWeek: ctx.lastWeek, playoffStart: ctx.playoffStart },
         byesKnown: Object.keys(ctx.byes).length > 0,
         projectionsGeneratedAt: p.generatedAt,
+        projectionFeed: p.feed,
+    };
+}
+/**
+ * @description The answer when the current week has no projection at all: the league, the team and why, and no
+ * numbers. Every board prices from projections, so an empty feed would read as a season value of zero and a
+ * waiver wire that improves nothing.
+ * @param ctx - The league.
+ * @param p - The plan (its feed state).
+ * @param what - The board, for the log.
+ * @returns The body.
+ */
+function unavailableBoard(ctx, p, what) {
+    log.warn({ what, season: ctx.season, week: ctx.week, reason: p.feed.reason }, 'management board served without projections');
+    return {
+        source: ctx.source,
+        league: { name: ctx.settings.name, leagueId: ctx.key, season: ctx.season, week: ctx.week },
+        team: { teamId: ctx.own.teamId, name: ctx.own.name },
+        projectionFeed: p.feed,
+        projectionsAvailable: 0,
+        projectionsGeneratedAt: null,
     };
 }
 /**
@@ -103,7 +127,17 @@ function leagueRoute(pool, what, build) {
                 (0, fantasy_http_1.sendContextFailure)(res, result);
                 return;
             }
+            const zero = (0, fantasy_manual_1.zeroScoringReason)(result.ctx.settings.scoring);
+            if (zero) {
+                log.warn({ what, source: result.ctx.source }, 'management board refused: the league scoring scores nothing');
+                res.json((0, fantasy_manual_1.scoringRefusedBody)(result.ctx, zero));
+                return;
+            }
             const planned = await planFor(pool, sub, result.ctx, q);
+            if (!planned.feed.ok) {
+                res.json(unavailableBoard(result.ctx, planned, what));
+                return;
+            }
             const body = await build(result.ctx, planned);
             log.info({ what, source: result.ctx.source, weeks: planned.built.plan.weeks.length, ms: Date.now() - started }, 'management board served');
             res.json({ ...header(result.ctx, planned), ...body });
@@ -199,10 +233,10 @@ function registerManualRoutes(router, pool) {
         }
     };
     router.get('/manual-leagues', guarded('list your hand-typed leagues', async (sub, _req, res) => {
-        res.json({ leagues: await (0, fantasy_manual_1.listManualLeagues)(pool, sub) });
+        res.json({ leagues: await (0, fantasy_manual_2.listManualLeagues)(pool, sub) });
     }));
     router.get('/manual-leagues/:id', guarded('read that league', async (sub, req, res) => {
-        const found = idOf(req) === null ? null : await (0, fantasy_manual_1.readManualLeague)(pool, sub, idOf(req));
+        const found = idOf(req) === null ? null : await (0, fantasy_manual_2.readManualLeague)(pool, sub, idOf(req));
         if (!found) {
             res.status(404).json({ error: 'no hand-typed league with that id is yours' });
             return;
@@ -210,12 +244,12 @@ function registerManualRoutes(router, pool) {
         res.json(found);
     }));
     const save = (replace) => guarded('save that league', async (sub, req, res) => {
-        const parsed = (0, fantasy_manual_1.parseManualLeague)(req.body);
+        const parsed = (0, fantasy_manual_2.parseManualLeague)(req.body);
         if (!parsed.ok) {
             res.status(400).json({ error: 'the league is not valid', problems: parsed.errors });
             return;
         }
-        const id = await (0, fantasy_manual_1.saveManualLeague)(pool, sub, parsed.league, replace ? idOf(req) : null);
+        const id = await (0, fantasy_manual_2.saveManualLeague)(pool, sub, parsed.league, replace ? idOf(req) : null);
         if (id === null) {
             res.status(404).json({ error: 'no hand-typed league with that id is yours' });
             return;
@@ -226,7 +260,7 @@ function registerManualRoutes(router, pool) {
     router.put('/manual-leagues/:id', save(true));
     router.delete('/manual-leagues/:id', guarded('delete that league', async (sub, req, res) => {
         const id = idOf(req);
-        res.json({ ok: true, removed: id === null ? 0 : await (0, fantasy_manual_1.deleteManualLeague)(pool, sub, id) });
+        res.json({ ok: true, removed: id === null ? 0 : await (0, fantasy_manual_2.deleteManualLeague)(pool, sub, id) });
     }));
 }
 //# sourceMappingURL=fantasy-manage-routes.js.map

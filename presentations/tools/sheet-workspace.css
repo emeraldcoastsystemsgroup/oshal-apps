@@ -1,0 +1,23 @@
+/* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Scoped responsive outline-backed sheet workspace. */
+.sheet-workspace{--sheet-line:#ccd7df;--sheet-accent:#137d67;min-width:0;color:var(--ink,#182b37);font:14px/1.4 system-ui,sans-serif;background:var(--panel,#fff);border:1px solid var(--sheet-line);border-radius:12px;overflow:hidden}
+.sheet-workspace button,.sheet-workspace input,.sheet-workspace textarea{font:inherit;box-sizing:border-box}
+.sheet-workspace button{padding:7px 11px;border:1px solid var(--sheet-line);border-radius:6px;background:var(--panel,#fff);color:inherit;cursor:pointer;white-space:nowrap}
+.sheet-workspace button:disabled{opacity:.45;cursor:default}
+.sheet-workspace :focus-visible{outline:3px solid var(--sheet-accent);outline-offset:2px}
+.sheet-toolbar,.sheet-paging{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:10px;background:var(--panel-alt,#f3f7f8)}
+.sheet-title{width:150px;min-width:80px;padding:7px;border:1px solid var(--sheet-line);border-radius:6px;background:var(--panel,#fff);color:inherit}
+.sheet-tabs{display:flex;gap:4px;padding:6px 10px;overflow:auto;border-block:1px solid var(--sheet-line)}
+.sheet-tabs button[aria-selected=true]{background:var(--sheet-accent);color:#fff;border-color:var(--sheet-accent)}
+.sheet-formula{display:flex;gap:8px;align-items:center;padding:10px;min-width:0}
+.sheet-formula[hidden]{display:none}.sheet-address{min-width:52px;font-variant-numeric:tabular-nums;text-align:center}
+.sheet-fx{font-style:italic;color:var(--sheet-accent)}.sheet-value{flex:1;min-width:0;padding:8px;border:1px solid var(--sheet-line);border-radius:6px;color:inherit;background:var(--panel,#fff)}
+.sheet-notice,.sheet-status{margin:0;padding:0 12px 8px;font-size:12px}.sheet-notice{color:var(--muted,#526570)}.sheet-status:empty{display:none}
+.sheet-grid-scroll{overflow:auto;max-height:560px;max-width:100%;border-block:1px solid var(--sheet-line);background:var(--panel,#fff)}
+.sheet-grid{border-collapse:separate;border-spacing:0;table-layout:fixed;width:max-content;min-width:100%}
+.sheet-grid th,.sheet-grid td{height:30px;border-right:1px solid var(--sheet-line);border-bottom:1px solid var(--sheet-line);padding:5px 8px;min-width:125px;max-width:220px;white-space:pre-wrap;overflow-wrap:anywhere;vertical-align:top}
+.sheet-grid th{background:var(--panel-alt,#edf3f5);font-size:12px;font-weight:600;text-align:center;position:sticky;z-index:1}
+.sheet-grid thead th{top:0}.sheet-grid tbody th,.sheet-corner{left:0;min-width:42px;width:42px;max-width:42px}.sheet-grid .sheet-corner{z-index:2}
+.sheet-header-cell{font-weight:600;background:var(--panel-alt,#f6fafb)}.sheet-grid td[aria-selected=true]{outline:2px solid var(--sheet-accent);outline-offset:-2px;background:#e0f4ed;color:#142d27}
+.sheet-empty,.sheet-fallback{padding:20px;margin:0}.sheet-source{padding:10px}.sheet-source summary{cursor:pointer;font-weight:600}.sheet-source textarea{display:block;width:100%;min-height:160px;margin:10px 0;padding:10px;border:1px solid var(--sheet-line);border-radius:6px;font-family:ui-monospace,monospace;color:inherit;background:var(--panel,#fff)}
+.sheet-paging:empty{display:none}.sheet-paging span{font-size:12px}
+@media(max-width:600px){.sheet-toolbar{gap:5px;padding:8px}.sheet-workspace button{min-height:36px;padding:6px 9px}.sheet-title{flex:1;min-width:100px}.sheet-grid-scroll{max-height:440px}.sheet-formula{gap:5px;padding:8px}.sheet-address{min-width:38px}.sheet-notice{font-size:11px}}

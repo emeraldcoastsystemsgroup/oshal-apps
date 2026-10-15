@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Guard the queue/deadline split: eight concurrent calls at concurrency 2 with a bot faster than the deadline all answer 200 even though the last pair queued longer than the deadline; the wait for a slot has its own ceiling (504 career-worker-queue-timeout, never dispatched); a queued call whose run is cancelled answers 409 without reaching the bot; and the engine's client timeout covers the queue ceiling plus the deadline. Name the scoped stand-ins accurately: the harness mirrors the kernel authz decoder and service mount guard, and doubles the Express Router, BotNodeClient.hasEndpoint, the endpoint resolver, the heartbeat registry and executeBotOrInline.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The signed rail (1.25.1): every admitted call is signed with the runner-minted per-run grant, and the refusals are the ones the kernel's signed-package-callbacks rail answers before package code — unsigned, the retired 1.24.0 service-secret-plus-subject-plus-token contract, a browser cookie, a tampered body, a replayed request, a foreign owner, a wrong method, a settled or cancelled run, a run without a recorded owner issuer, an owner the directory no longer holds and an owner without the bound permission all fail with no bot call; the route alone refuses a request the verifier never admitted and one whose kernel identity is not the run owner. The body's content type and ceiling are now verifier refusals (the signature covers the bytes), so they answer as the kernel does; JSON and document validation still answer 400 from the handler.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Preserve signed-rail version/catalog checks for the composite-bearing authorization block.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | On the native kernel (OSHAL_EGRESS=kernel) the legacy node/heartbeat preflight does not apply: with no dedicated node and no heartbeat registry the admitted completion still reaches the accounted bot call once, as the run owner.
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -196,6 +197,24 @@ test('no dedicated node, a missing, offline or stale heartbeat, or a heartbeat r
     assert.equal(state.calls.length, 0, `${detail}: the bot must not be reached`);
     const terminal = runs.settleEngineRun(run.runId, { code: 1 });
     assert.deepEqual([terminal.state, terminal.reason], ['failed', 'career-worker-unavailable'], detail);
+  }
+});
+
+test('on the native kernel the completion reaches the bot turn without the legacy node preflight', async () => {
+  healthyWorker();
+  state.hasEndpoint = false;
+  state.registration = () => null;
+  const saved = process.env.OSHAL_EGRESS;
+  process.env.OSHAL_EGRESS = 'kernel';
+  try {
+    const run = newRun('user-a');
+    const answer = await postCompletion(server.url, auth(run));
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    assert.equal(state.calls.length, 1);
+    assert.equal(state.calls[0].request.userSub, 'user-a', 'cost is attributed to the run owner');
+    runs.settleEngineRun(run.runId, { code: 0 });
+  } finally {
+    if (saved === undefined) delete process.env.OSHAL_EGRESS; else process.env.OSHAL_EGRESS = saved;
   }
 });
 

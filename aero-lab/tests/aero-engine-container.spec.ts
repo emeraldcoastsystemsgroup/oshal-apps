@@ -14,6 +14,12 @@
  *   |                                           | copies of the baked file set together (TS hash,
  *   |                                           | Python hash, .dockerignore whitelist) and the
  *   |                                           | self-test design to DEFAULT_DESIGN.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The native kernel transport: a kernel double
+ *   |                                           | that relays each request to the REAL bridge the
+ *   |                                           | way engine.exchange does (hello, one request with
+ *   |                                           | id 1, the matching reply); results, worker errors
+ *   |                                           | and exports come back unchanged, and a kernel that
+ *   |                                           | cannot reach the engine is capability_unavailable.
  */
 
 import * as fs from 'fs';
@@ -26,7 +32,7 @@ import type { Server } from 'http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AeroEngineAdapter, AeroEngineError, engineInstallHint } from '../src-routes/engine-adapter';
 import { ENGINE_RUNTIME_FILES, ENGINE_RUNTIME_TREES, engineBuildHash } from '../src-routes/engine-build-hash';
-import { createAeroLabRoutes, DEFAULT_DESIGN } from '../src-routes/aero-lab-routes';
+import { createAeroLabRoutes, DEFAULT_DESIGN, nativeExchange } from '../src-routes/aero-lab-routes';
 
 const PACKAGE_DIR = path.resolve(__dirname, '..');
 const ENGINE_DIR = path.join(PACKAGE_DIR, 'engine');
@@ -283,4 +289,75 @@ describe('container transport — honest refusal (absent, stale, full)', () => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   });
+});
+
+/** The kernel's side of engine.exchange: hello, then the request with id 1, then the reply with id 1. */
+function kernelExchange(port: number) {
+  return (request: Record<string, unknown>): Promise<{ hello: unknown; reply: unknown }> => new Promise((resolve, reject) => {
+    const socket = net.connect({ host: '127.0.0.1', port });
+    socket.setEncoding('utf8');
+    let tail = '';
+    let hello: unknown = null;
+    socket.on('error', (err) => reject(new Error(`engine container is not reachable or broke its line protocol (${err.message})`)));
+    socket.on('data', (chunk: string) => {
+      const parts = (tail + chunk).split('\n');
+      tail = parts.pop() ?? '';
+      for (const line of parts.filter((l) => l.trim())) {
+        const msg = JSON.parse(line) as { id?: unknown };
+        if (hello === null) { hello = msg; socket.write(JSON.stringify({ ...request, id: 1 }) + '\n'); continue; }
+        if (msg.id === 1) { socket.destroy(); resolve({ hello, reply: msg }); }
+      }
+    });
+  });
+}
+
+describe('native kernel transport — engine.exchange relays each request to the real bridge', () => {
+  let bridge: RunningBridge;
+  let adapter: AeroEngineAdapter;
+  let workDir: string;
+  const calls: Array<{ name: string; input: { request: Record<string, unknown>; timeoutMs: number } }> = [];
+
+  beforeAll(async () => {
+    bridge = await startBridge();
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aero-native-work-'));
+    const relay = kernelExchange(bridge.port);
+    const ctx = { pool: { storageModel: 'kernel-scoped-documents' }, intent: async (name: string, input: { request: Record<string, unknown>; timeoutMs: number }) => { calls.push({ name, input }); return relay(input.request); } };
+    adapter = new AeroEngineAdapter({ appPackageDir: PACKAGE_DIR, workDir, exchange: nativeExchange(ctx) });
+  }, 30_000);
+
+  afterAll(() => {
+    adapter?.dispose();
+    bridge?.stop();
+  });
+
+  it('only the native context yields an exchange', () => {
+    expect(nativeExchange({ pool: { storageModel: 'pg' }, intent: async () => null })).toBeUndefined();
+    expect(nativeExchange({ pool: { storageModel: 'kernel-scoped-documents' } })).toBeUndefined();
+    expect(adapter.engineStatus().engineAddr).toBe('native://engine.exchange');
+  });
+
+  it('round-trips through the kernel intent; worker errors keep their codes', async () => {
+    const r = (await adapter.request('polar', { design: { area_m2: 2 } })) as { echo: { cmd: string; args: { design: { area_m2: number } } } };
+    expect(r.echo.cmd).toBe('polar');
+    expect(r.echo.args.design.area_m2).toBe(2);
+    expect(calls[0].name).toBe('engine.exchange');
+    expect(calls[0].input.request.id).toBeUndefined();
+    expect(calls[0].input.timeoutMs).toBe(55_000);
+    const e = await rejectionOf(adapter.request('evaluate', { __fail: { code: 'inadmissible_input', message: 'mass does not close' } }));
+    expect(e.code).toBe('inadmissible_input');
+  }, 20_000);
+
+  it('export files arrive through the kernel and land in the api workDir', async () => {
+    const r = (await adapter.request('export', { __export: { files: { 'wing.stl': 'native-wing' } } })) as { exportId: string; bridgeFiles?: unknown };
+    expect(r.bridgeFiles).toBeUndefined();
+    expect(fs.readFileSync(path.join(workDir, 'exports', r.exportId, 'wing.stl'), 'utf8')).toBe('native-wing');
+  }, 20_000);
+
+  it('a kernel that cannot reach the engine answers capability_unavailable', async () => {
+    const closed = await freePort();
+    const down = new AeroEngineAdapter({ appPackageDir: PACKAGE_DIR, workDir, exchange: (request) => kernelExchange(closed)(request) });
+    const e = await rejectionOf(down.request('polar', { design: { area_m2: 1 } }));
+    expect(e.code).toBe('capability_unavailable');
+    down.dispose();
+  }, 20_000);
 });

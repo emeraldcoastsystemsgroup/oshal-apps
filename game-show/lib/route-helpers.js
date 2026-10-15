@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-21 20:52:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Shared HTTP, identity, body-reading, transaction, and DTO helpers for the Game Show route factory and services.
  * 2026-07-25 22:50:00 | roger.murphy@emeraldcoastsystemsgroup.com  | seatDto exposes the NPC skill (derived from the synthetic subject, which itself never leaks) so surfaces can mark AI players.
+ * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com    | seatDto reads the NPC skill from seat_key (an AI or house podium is now the host's gameshow_podiums row, migrations/003), falling back to user_sub for rows written before it; `me` is only the caller's own unkeyed seat, so the host's AI players are never marked as theirs.
  */
 
 'use strict';
@@ -110,13 +111,14 @@ function roomDto(row, sub) {
 
 /** @description Project one seat with a caller-relative `me` flag; never leaks user_sub. */
 function seatDto(row, sub) {
-  const npcParts = String(row.user_sub || '').startsWith('npc:') ? String(row.user_sub).split(':') : null;
+  const key = String(row.seat_key || '') || String(row.user_sub || '');
+  const npcParts = key.startsWith('npc:') ? key.split(':') : null;
   return {
     seatId: row.seat_id, name: row.display_name || 'Player', team: row.team || null,
     podiumIndex: row.podium_index == null ? null : Number(row.podium_index),
     role: row.role || 'player', presenceKind: row.presence_kind || 'avatar',
     avatarId: row.avatar_id || null, presenceRev: Number(row.presence_rev) || 0,
-    score: Number(row.score) || 0, me: row.user_sub === sub,
+    score: Number(row.score) || 0, me: row.user_sub === sub && !row.seat_key,
     npc: npcParts ? npcParts[1] : null,
   };
 }

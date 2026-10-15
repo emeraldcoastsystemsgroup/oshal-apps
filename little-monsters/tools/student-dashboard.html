@@ -16,6 +16,7 @@
   5   | maintainer@emeraldcoastsystemsgroup.com   | Entry-screen invite: open classes strip + join chips inside the first-run overlay, fed by the published catalog
   6   | maintainer@emeraldcoastsystemsgroup.com   | ADR-139 class-material destination: keep the receiving action id and let the owner choose an accessible class before importing
   7   | maintainer@emeraldcoastsystemsgroup.com   | The home page of the Little Monsters UX: one page, two honest views by real role (learner: progress, coming up, study actions, classes; teacher: classes you teach with rosters and quiz averages, lecture and class actions). Design system + shared theme bootstrap + page frame replace the per-page theme reader, glass and inline palettes; recording is offered only to teachers/admins because lecture writes are teacher-only; the streak tile shows only when a streak exists
+  8   | maintainer@emeraldcoastsystemsgroup.com   | The greeting read 'Up late?. Little Monsters is ...': greetLine() ends 'Up late' with a question mark and every other part with a full stop, with or without a name.
   ---------------------------------------------------------------------------
 -->
 <script>
@@ -299,14 +300,16 @@ var $ = function (id) { return document.getElementById(id); };
 var show = function (id, on) { var el = $(id); if (el) el.classList.toggle('hide', !on); };
 var isTeacher = function () { return Boolean(ME && (ME.role === 'teacher' || ME.role === 'admin')); };
 var firstName = function () { return ME && ME.name ? String(ME.name).split(' ')[0] : ''; };
-var daypart = function () { var h = new Date().getHours(); return h < 5 ? 'Up late?' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; };
+var daypart = function () { var h = new Date().getHours(); return h < 5 ? 'Up late' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; };
+/* The greeting as one sentence: 'Up late' is a question, the others end with a full stop (it read 'Up late?.'). */
+var greetLine = function (part, name) { return part + (name ? ', ' + name : '') + (part === 'Up late' ? '?' : '.'); };
 
 /* ── Hero and role framing ─────────────────────────────────────────────── */
 function paintHero() {
   var name = firstName(), teacher = isTeacher();
   $('heroEyebrow').textContent = teacher ? 'Teacher · your classroom' : 'Your classroom';
-  $('greeting').textContent = teacher ? (name ? daypart() + ', ' + name + '.' : daypart() + '.') : (name ? 'Ready to explore, ' + name + '?' : 'Ready to explore?');
-  $('greetingSub').textContent = teacher ? 'Your classes, their progress and what needs you today.' : daypart() + '. Little Monsters is your study companion: ask, practise, play, grow.';
+  $('greeting').textContent = teacher ? greetLine(daypart(), name) : (name ? 'Ready to explore, ' + name + '?' : 'Ready to explore?');
+  $('greetingSub').textContent = teacher ? 'Your classes, their progress and what needs you today.' : greetLine(daypart(), '') + ' Little Monsters is your study companion: ask, practise, play, grow.';
   var count = ME && typeof ME.classCount === 'number' ? ME.classCount : null;
   $('heroActions').innerHTML = ME ? '<span class="lm-pill">' + (teacher ? (ME.role === 'admin' ? 'Admin' : 'Teacher') : 'Student') + (count !== null ? ' · ' + count + (count === 1 ? ' class' : ' classes') : '') + '</span>' : '';
   $('actionsHeading').textContent = teacher ? 'What needs doing?' : 'What would you like to do?';

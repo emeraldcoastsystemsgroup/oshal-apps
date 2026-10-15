@@ -4,6 +4,8 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Serve only real editor modules and synthetic owner-qualified raster responses for native canvas proof.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  */
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -16,7 +18,7 @@ const coreRoot = resolve(process.env.OSHAL_CORE_ROOT || resolve(packageRoot, '..
 const requireCore = createRequire(resolve(coreRoot, 'package.json'));
 export const { chromium } = requireCore('playwright');
 export const ASSET = '/api/create/project-assets/12345678-1234-1234-1234-123456789abc';
-const MODULES = new Set(['model.mjs', 'model-validation.mjs', 'history.mjs', 'renderer.mjs', 'hit-test.mjs', 'image-assets.mjs']);
+const MODULES = new Set(['model.mjs', 'model-validation.mjs', 'history.mjs', 'renderer.mjs', 'hit-test.mjs', 'image-assets.mjs', 'group-geometry.mjs', 'vector-geometry.mjs', 'polygon-clipping.mjs', 'vector-worker.mjs', 'vector-editor.mjs', 'vector-svg.mjs']);
 
 /** @description Use local synthetic image responses; no installed application or account is contacted.
  * @param {object} options Asset response status, MIME type and optional held response.
