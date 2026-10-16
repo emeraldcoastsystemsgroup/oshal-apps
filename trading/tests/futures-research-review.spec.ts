@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Exercise frozen forward cohort rendering, missing-evidence honesty, skipped review spending and escaped citations.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Read the shipped manifest through the actual kernel validator and runtime mapper so invalid inline declarations cannot pass as YAML-only fixtures.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Render real loop handlers with escaped computation receipts and honest legacy states.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Separate reviewer compatibility mapping from whole native manifest validation in Rust.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Render all notification receipt states without implying delivery, recomputation or writes.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -18,7 +19,7 @@ import { resolve } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
 import type { AppContext } from '@/app/composition-root';
 import { createTradingAutopilotRoutes } from '../src-routes/trading-autopilot-routes';
-import { readManifest } from '@/features/swarm-apps';
+import type { SwarmAppManifest } from '@/features/swarm-apps';
 import { manifestBotDefinition } from '@/app/extensions/swarm/manifest-bot-definition';
 import yaml from 'js-yaml';
 
@@ -128,8 +129,10 @@ describe('Futures review console', () => {
     expect(fields.futRuns.innerHTML).toContain('stale source');
     expect(context.money).not.toHaveBeenCalled();
   });
-  it('loads the actual package through the kernel and registers the tool-less reviewer inline', () => {
-    const manifest = readManifest(resolve(__dirname, '../oshal-app.yaml'));
+  it('keeps the actual reviewer declaration tool-less with an inline compatibility mapping', () => {
+    // The native kernel validates this entire manifest in jarvis_trading_data. The old
+    // framework schedule validator cannot interpret native timezone/method/offer fields.
+    const manifest = yaml.load(source('oshal-app.yaml')) as SwarmAppManifest;
     const bot = manifest.bots!.find(item => item.name === 'futures-research-analyst')!;
     const persona = yaml.load(source(bot.persona!)) as any;
     expect(persona.agent_id).toBe(bot.agentId);

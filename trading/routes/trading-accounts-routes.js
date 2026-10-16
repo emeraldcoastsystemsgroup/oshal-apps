@@ -25,6 +25,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | ADR-052 addendum (paper-to-live parity): the three parity knobs — marketGapFilterPct, exitPlanSessions, yieldSleeveFloatPct — reach a book only through the confirm-gated applies, normalized by the kernel's own normalizeConfig (parityKnobsOf: absent or junk = inherit the book's env default, a number clamped to the kernel's range, 0 = an explicit off). POST /strategy normalized them already on its strategyId path; its full-snapshot body path now overlays the normalized knobs instead of storing whatever was posted. POST /mix accepts them beside the mix keys and normalizes the merged snapshot's knobs, so an edit that does not name a knob keeps the applied strategy's value. Both paths are still 428 without confirm:true before any read.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | Rail guard: the accounts summary and discovery reads ask railConfigured(reader) instead of calling reader.configured() directly, so a reader with no configured() probe (the native kernel bridge) reports broker_not_configured for that book instead of failing the request.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | The native paper book on the landing: on the native kernel the book store lists no books, so GET /accounts and GET /summary answered an empty roster and $0 ("No accounts yet - connect a Schwab login") while the person's paper book held $100,000. GET /accounts now lists that paper book (paper/landing.js rosterBook) and GET /summary carries its balances, day change and held names in the total and the positions rollup, or says it has not been started. A host that lists a stored paper book, or whose paper rail is connected, keeps its answers exactly.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | GET /summary counts each native Schwab account's measured day change toward totalDayChange; the headline read "$0 today" while the account cards showed their Day P&L.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PARITY_KNOBS = void 0;
@@ -46,6 +47,7 @@ const trading_rail_guard_1 = require("./trading-rail-guard");
 const screen_1 = require("./paper/screen");
 const landing_1 = require("./paper/landing");
 const trading_native_reads_1 = require("./trading-native-reads");
+const trading_native_reconciliation_workflow_1 = require("./trading-native-reconciliation-workflow");
 const logger = (0, logger_1.createChildLogger)({ module: 'trading-accounts-routes' });
 /** The ADR-052 paper-to-live parity knobs a per-book apply carries (the dispatch reads each through one resolver). */
 exports.PARITY_KNOBS = ['marketGapFilterPct', 'exitPlanSessions', 'yieldSleeveFloatPct'];
@@ -113,6 +115,45 @@ function registerTradingAccountRoutes(router, ctx) {
             res.status(502).json({ error: 'history_read_failed', message: 'Schwab execution history could not be verified. No reconciliation or ledger changes were made.' });
         }
     });
+    for (const action of ['preview', 'apply'])
+        router.post('/reconciliation/' + action, async (req, res) => {
+            res.setHeader('Cache-Control', 'no-store');
+            const s = sub(req, res);
+            if (!s)
+                return;
+            if (!(0, trading_native_reads_1.nativeSchwabReads)()) {
+                res.status(503).json({ error: 'reconciliation_unavailable', message: 'Native reconciliation is unavailable on this host.' });
+                return;
+            }
+            const { accountId, connection, fingerprint, confirm } = req.body || {};
+            if (![accountId, connection].every(v => typeof v === 'string' && v.length > 0 && v.length <= 200)) {
+                res.status(400).json({ error: 'account_required', message: 'Select an account and connection.' });
+                return;
+            }
+            if (action === 'apply' && (confirm !== true || typeof fingerprint !== 'string' || !/^[0-9a-f]{64}$/.test(fingerprint))) {
+                res.status(428).json({ error: 'preview_confirmation_required', message: 'Review a current preview and confirm its historical ledger corrections.' });
+                return;
+            }
+            try {
+                if (action === 'apply') {
+                    res.json(await (0, trading_native_reconciliation_workflow_1.nativeReconciliationApply)(ctx, { accountId, connection }, fingerprint, s));
+                    return;
+                }
+                const report = await (0, trading_native_reconciliation_workflow_1.nativeReconciliationPreview)(ctx, { accountId, connection });
+                // The private witness remains on the server; the browser sees proposed corrections and exceptions.
+                const { ledger: ignored, ...publicReport } = report;
+                void ignored;
+                res.json(publicReport);
+            }
+            catch (error) {
+                if (error instanceof trading_native_reconciliation_workflow_1.ReconciliationError) {
+                    res.status(error.status).json({ error: error.code, message: error.message });
+                    return;
+                }
+                logger.error({ error }, 'native reconciliation failed');
+                res.status(502).json({ error: 'reconciliation_failed', message: 'Reconciliation could not be verified. Refresh the preview before retrying.' });
+            }
+        });
     /** GET /accounts — the roster: discovered accounts LEFT-joined with their books, plus link
      *  state. connectionMissing flags a book whose login's connection row is gone (a dropped Schwab
      *  login otherwise fail-closed-skips every fire invisibly — the watchdog counts these). */
@@ -550,8 +591,17 @@ function registerTradingAccountRoutes(router, ctx) {
                     }
                 }
             }
-            if ((0, trading_native_reads_1.nativeSchwabReads)())
+            if ((0, trading_native_reads_1.nativeSchwabReads)()) {
+                const first = rows.length;
                 totalValue += (0, trading_native_reads_1.appendNativeSummary)(await (0, trading_native_reads_1.readNativeAccounts)(ctx), rows, rollup);
+                // Each native account's measured day change counts toward the total, like every other book's.
+                for (const row of rows.slice(first)) {
+                    if (typeof row.dayChange === 'number') {
+                        totalDayChange += row.dayChange;
+                        sawDayChange = true;
+                    }
+                }
+            }
             res.json({
                 totalValue, totalDayChange: sawDayChange ? totalDayChange : null,
                 accounts: rows,

@@ -17,6 +17,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — ticker→CIK lookup over company_tickers.json (10-digit zero-padded), submissions parse over the parallel recent arrays (form/filingDate/accessionNumber/primaryDocument/items), document url builder (numeric CIK + un-dashed accession + primaryDocument), the 8-K item decoder (1.01…9.01; 9.01 Exhibits dropped from the plain list when other items exist), an event kind per item code, past results = item-2.02 dates, and the next-earnings cadence estimate.
  *
+ * 2026-10-15 | maintainer@emeraldcoastsystemsgroup.com | Match bounded company identities from actual SEC ticker rows and reject unusable or conflicting snapshots.
  * @module trading-edgar-filings
  */
 
@@ -105,6 +106,30 @@ export function cikFromTickerTable(table: unknown, symbol: string): string | nul
     return cik ? cik.padStart(10, '0') : null;
   }
   return null;
+}
+
+/** Search company identity data only; directory entries do not prove broker tradability. */
+export function companyMatches(table: unknown, query: string): Array<{symbol: string; name: string; cik: string}> {
+  if (!table || typeof table !== 'object' || Array.isArray(table)) throw new Error('SEC company directory is malformed.');
+  const rows = new Map<string, {symbol: string; name: string; cik: string}>();
+  for (const value of Object.values(table as Record<string, unknown>)) {
+    if (!value || typeof value !== 'object') continue;
+    const row = value as {ticker?: unknown; title?: unknown; cik_str?: unknown};
+    if (typeof row.ticker !== 'string' || typeof row.title !== 'string') continue;
+    const symbol = row.ticker.trim().toUpperCase(), name = row.title.trim(), cik = String(row.cik_str ?? '');
+    if (symbol.includes('..') || !/^[A-Z0-9][A-Z0-9.\/-]{0,15}$/.test(symbol) || !name || name.length > 300 || !/^\d{1,10}$/.test(cik)) continue;
+    const item = {symbol, name, cik:cik.padStart(10,'0')};
+    const prior = rows.get(symbol);
+    if (prior && (prior.name !== item.name || prior.cik !== item.cik)) throw new Error('SEC company directory has conflicting tickers.');
+    rows.set(symbol,item);
+  }
+  if (!rows.size) throw new Error('SEC company directory has no usable entries.');
+  const normalize = (value: string): string => value.normalize('NFKD').replace(/\p{M}/gu,'').toUpperCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+  const want = normalize(query);
+  if (!want) return [];
+  const rank = (row: {symbol:string;name:string}): number => normalize(row.symbol) === want ? 0 : normalize(row.name) === want ? 1 : normalize(row.name).startsWith(want) ? 2 : 3;
+  return [...rows.values()].filter(row => normalize(row.symbol).includes(want) || normalize(row.name).includes(want))
+    .sort((a,b) => rank(a)-rank(b) || a.symbol.localeCompare(b.symbol)).slice(0,25);
 }
 
 /**

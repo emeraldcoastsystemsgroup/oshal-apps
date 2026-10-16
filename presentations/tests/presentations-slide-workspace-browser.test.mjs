@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Genuine Chromium walks the exact slide controller and existing parser/draft/action functions through explicitly named root DOM adapters.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Close fixture HTTP connections before waiting for server shutdown so the earlier server after-hook cannot wait on the later browser cleanup.
  * This is source UI evidence. The in-memory outline, deterministic Guide action
  * input and export-payload capture are named seams, not backend/provider/native proof.
  */
@@ -33,7 +34,7 @@ window.officeFixture={read:()=>parseOutline($('outline').value),selection:()=>wo
 </script></body></html>`;}
 async function fixture(t){
  const server=createServer((req,res)=>{const name=req.url?.split('?')[0];if(name==='/'){res.writeHead(200,{'content-type':'text/html'});res.end(html());}else if(name==='/slide-workspace.mjs'||name==='/slide-workspace.css'){res.writeHead(200,{'content-type':name.endsWith('.mjs')?'text/javascript':'text/css'});res.end(readFileSync(new URL('tools'+name,packageRoot)));}else{res.writeHead(404);res.end();}});
- await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));return'http://127.0.0.1:'+server.address().port;
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>{server.closeAllConnections();return new Promise(resolve=>server.close(resolve));});return'http://127.0.0.1:'+server.address().port;
 }
 async function browserPage(t,width=1280){const url=await fixture(t),browser=await chromium.launch({headless:true});t.after(()=>browser.close());const page=await browser.newPage({viewport:{width,height:900}}),errors=[];page.on('pageerror',error=>errors.push(error.message));await page.goto(url);await page.waitForFunction(()=>!!window.officeFixture);t.after(()=>assert.deepEqual(errors,[]));return page;}
 

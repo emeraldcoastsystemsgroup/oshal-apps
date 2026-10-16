@@ -724,10 +724,15 @@ async function drawPerformance() {
       sp.setData(spy.filter(d=>d.t).map(d => ({ time: d.t, value: Number(d.pct.toFixed(3)) }))); }
     PCHART.timeScale().fitContent();
     const s = j.summary || {};
-    sum.innerHTML = '<strong style="font-size:14px;color:'+(s.totalReturnPct>=0?'var(--buy)':'var(--sell)')+'">' + pct(s.totalReturnPct) + '</strong> you · ' +
+    // A missing benchmark is "unavailable" with its reason, never a flat +0.00% S&P.
+    const bm = s.benchmark || {};
+    const market = s.spyReturnPct == null ? '<span style="color:var(--muted)">S&P unavailable</span>' :
       '<span style="color:var(--muted)">' + pct(s.spyReturnPct) + ' S&P</span> · ' +
-      '<strong style="color:'+(s.vsSpyPct>=0?'var(--buy)':'var(--sell)')+'">' + pct(s.vsSpyPct) + ' vs market</strong> <span class="foot">(' + PERF_PERIOD + ', cumulative)</span>';
-    msg.textContent = '';
+      '<strong style="color:'+(s.vsSpyPct>=0?'var(--buy)':'var(--sell)')+'">' + pct(s.vsSpyPct) + ' vs market</strong>';
+    sum.innerHTML = '<strong style="font-size:14px;color:'+(s.totalReturnPct>=0?'var(--buy)':'var(--sell)')+'">' + pct(s.totalReturnPct) + '</strong> you · ' +
+      market + ' <span class="foot">(' + PERF_PERIOD + ', cumulative)</span>';
+    msg.textContent = s.spyReturnPct == null ? (bm.reason || 'No S&P 500 prices cover this period.') :
+      (bm.source === 'schwab' ? 'S&P 500 line from Schwab daily closes.' : '');
     try { new ResizeObserver(()=>{ if (PCHART && el.clientWidth) PCHART.applyOptions({ width: el.clientWidth }); }).observe(el); } catch {}
   } catch (e) { if (!stale(token)) msg.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; }
 }

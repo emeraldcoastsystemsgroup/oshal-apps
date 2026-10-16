@@ -40,6 +40,7 @@ exports.appendNativeSummary = appendNativeSummary;
 exports.readNativeHistory = readNativeHistory;
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Read the native caller's Schwab roster, balances and charts without legacy credentials, imported account bindings or live-order activation.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Carry the kernel's account day change (the sum of Schwab's per-position day P&L) to the landing; it was forced to null, so every Schwab card read "Day P&L n/a".
  */
 const runtime = __importStar(require("@/features/trading"));
 /** The native bridge explicitly declares this read contract; legacy runtimes keep their own paths. */
@@ -64,12 +65,12 @@ async function readNativeChart(ctx, symbol, timeframe, connection) {
         return null;
     return intent(ctx, 'trading.bars', { symbol, timeframe, ...(connection ? { connection } : {}) });
 }
-/** Add every real account to the landing summary exactly once; unknown daily changes stay unknown. */
+/** Add every real account to the landing summary exactly once; a day change the kernel could not measure stays unknown. */
 function appendNativeSummary(accounts, rows, rollup) {
     let total = 0;
     for (const account of accounts.accounts) {
         total += account.equity;
-        rows.push({ ...account, nativeReadOnly: true, dayChange: null, dayChangePct: null });
+        rows.push({ ...account, nativeReadOnly: true, dayChange: account.dayChange ?? null, dayChangePct: account.dayChangePct ?? null });
         for (const p of account.positions) {
             const key = p.symbol.toUpperCase();
             const current = rollup.get(key) || { symbol: key, qty: 0, marketValue: 0, perBook: [] };

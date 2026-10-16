@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | TRADE-01 native paper autopilot: migrations/002-native-paper.sql, the /api/trading/paper mount (routes/trading-paper-routes.js) and the person-activated paper-autopilot schedule. Version unchanged.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Declare www.sec.gov and data.sec.gov as outbound hosts: Research's SEC filings section was refused by the kernel egress ("www.sec.gov is not a declared outbound host") and showed unavailable. Version unchanged.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Declare chatBot: trading-analyst. The Intelligent Trades concierge opened on futures-research-analyst (the first declared bot), which answers a conversation with a json futures study; the analyst answers in prose. Version unchanged.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | migrations/003-native-predictions.sql: the Algorithms scan recorded into oshal_trading_predictions, which the native kernel never provisioned, so every scanned symbol failed and the scan showed an empty table.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — trading ("Intelligent Trades", ADR-052)
 #
@@ -93,11 +94,10 @@ rating:
       degrade: disable
 displayName: Intelligent Trades
 description: >-
-  Turn market signals into justified trades. Capture a tweet or headline, let the analyst
-  reason over it, and place the trade through your broker (Alpaca) — with a full decision
-  trail from every order back to the signal that triggered it. Paper-trade and live-trade as
-  two separate books. Cash equities. No crypto.
-version: 1.33.5
+  Research stocks, track connected brokerage accounts and test strategies in a separate
+  paper book, with a decision trail from signals to orders. Trading actions follow the
+  connected account's supported controls. Cash equities. No crypto.
+version: 1.33.20
 status: active
 
 source:
@@ -131,7 +131,7 @@ dependencies:
   optional:
     apps: [world, futures-research]   # optional World surface and opt-in scheduled Futures reviewer
     tools: []
-    connectors: []
+    connectors: [finnhub]   # Optional company news; the kernel retains the caller's key.
 
 # Kernel skills this app declares (ADR-090 uses: contract, fail-closed at load).
 # `app-dependencies` is the compatibility floor for the tiered dependencies block above: a core
@@ -160,11 +160,13 @@ testing:
   catalog: tests/test-lab.yaml
 
 # OUTBOUND HOSTS. A native package has no network of its own: the kernel's fenced egress carries
-# Research's SEC filings (the EDGAR ticker table and company submissions; public, keyless, sent with
+# Research's SEC filings and annual financial statements (the ticker table, submissions and concepts; public, keyless, sent with
 # the SEC's required contact User-Agent) and refuses any host not declared here.
 egress:
   - host: www.sec.gov
   - host: data.sec.gov
+  - host: finnhub.io
+    credential: { connector: finnhub, header: x-finnhub-token }
 
 # Dark, focused trading skin.
 theme: midnight
@@ -369,6 +371,95 @@ tools:
     routingTags: [trading, performance, summary]
     skills: [trading]
     tags: [intelligent-trades]
+  # Named read-only module tools for Jarvis and the Trading concierge. The API adapter
+  # preserves the original caller and percent-encodes symbol/query placeholders.
+  - name: trading_stock_info
+    displayName: Stock quote and research
+    type: api
+    category: trading
+    description: >-
+      Read a stock ticker's current quote and company research from the Trading module.
+      Includes source, timestamp, delay status, SEC filings and an explicit availability
+      reason for each missing section. Never invent company financials or news when a
+      section is unavailable. Read-only. Input: {"symbol":"NVDA"}.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/research/{input.symbol}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [symbol]
+      properties:
+        symbol: { type: string, description: "Stock ticker, such as NVDA, ANET or BRK.B" }
+    usageInstructions: Use for stock prices and company research; retain the source, as-of timestamp and availability reasons in your answer.
+    routingTags: [trading, stock, stocks, quote, price, ticker, company, research]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_stock_chart
+    displayName: Stock price history
+    type: api
+    category: trading
+    description: >-
+      Read actual OHLCV candle bars for a stock ticker through the Trading module and
+      the caller's connected market-data source. Read-only. Input: {"symbol":"NVDA",
+      "timeframe":"1Day"}. Reports missing data as unavailable; never places orders.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading-charts/bars?symbol={input.symbol}&timeframe={input.timeframe}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [symbol]
+      properties:
+        symbol: { type: string, description: "Stock ticker" }
+        timeframe: { type: string, enum: [5Min, 15Min, 1Hour, 1Day, 1Week] }
+    usageInstructions: Use actual returned bars for price-history questions; disclose missing or delayed data.
+    routingTags: [trading, stock, stocks, chart, candles, price, history]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_company_search
+    displayName: Find companies by name
+    type: api
+    category: trading
+    description: >-
+      Find company names and tickers in the public SEC company directory, up to 25
+      matches. Includes source and cache fetch time; this directory does not prove
+      broker tradability, current prices or financial fundamentals. Read-only.
+      Input: {"q":"NVIDIA"}. Ask which company when several matches are plausible.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/companies/search?q={input.q}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [q]
+      properties:
+        q: { type: string, description: "Company name or ticker, 1–80 characters" }
+    usageInstructions: Resolve a company name before stock research. Use returned tickers without inventing a match; disclose unavailable directory reads and ambiguous companies.
+    routingTags: [trading, stock, stocks, company, name, ticker, search]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_symbol_search
+    displayName: Find stock tickers
+    type: api
+    category: trading
+    description: >-
+      Search stock ticker prefixes through the Trading module using the caller's
+      connected source. This native search matches symbols, not company names.
+      Read-only. Input: {"q":"NVD"}.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/symbols/search?q={input.q}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [q]
+      properties:
+        q: { type: string, description: "Ticker prefix, such as NVD" }
+    usageInstructions: Look up a ticker prefix, then call trading_stock_info with a returned ticker. For company names use trading_company_search first.
+    routingTags: [trading, stock, stocks, symbol, ticker, company, search]
+    skills: [trading]
+    tags: [intelligent-trades]
+
   # How the selected book did over a period, against SPY: the same response the Performance tile reads.
   - name: trading_performance
     displayName: Trading Performance
@@ -411,6 +502,7 @@ tools:
 migrations:
   - migrations/001-trading-watchlist.sql
   - migrations/002-native-paper.sql
+  - migrations/003-native-predictions.sql
 
 routes:
   - module: routes/home-summary.js

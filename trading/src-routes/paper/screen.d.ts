@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: types for the native paper screen reads. The module itself is plain JavaScript at routes/paper/screen.js (the native paper engine has no TypeScript source); the book-read and order-flow builders import it as './paper/screen', which resolves to that file once compiled into routes/.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Declare nativeHost, which the autopilot switch (trading-autopilot-routes.ts) uses to answer from the native paper book on the native kernel.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Declare paperBook, which GET /exposure uses to tell the native paper book apart, and the accountOf/positionsOf/dayOf helpers paper/landing.js reuses.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Declare withSpyCloses, which /performance uses to fill an unavailable SPY benchmark from Schwab day closes.
  *
  * @module paper/screen
  */
@@ -57,3 +58,14 @@ export function nativeHost(ctx: unknown): boolean;
  * @returns True for the paper book.
  */
 export function paperBook(book: unknown): boolean;
+
+/**
+ * @description Fill an unavailable SPY benchmark of a paper /performance payload from day closes the route read
+ * elsewhere; an available benchmark, or closes with nothing on or before the base date, leave the payload unchanged.
+ * @param perf - The paper /performance payload.
+ * @param points - Ascending day closes, date YYYY-MM-DD.
+ * @param source - Where the closes came from.
+ * @returns The payload, with SPY's line and the summary's SPY figures when filled.
+ */
+export function withSpyCloses(perf: Record<string, unknown>, points: Array<{ date: string; price: number }>,
+  source: string): Record<string, unknown>;

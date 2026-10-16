@@ -47,6 +47,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | One book per key, not one KIND per key. Grouping by kind put the operator's three live books behind a single freshness gate, so a sibling account that had not been snapshotted since the previous session withheld the engine book's real recorded equity and the answer came back unknown. Facts are now fixed per-book slots (paper, live, live2..live4) filled in listBooks order, each with its own present flag and its own equity and realized figures; books.live / books.paper / books.unreported carry the shape of the account set, and an owner with more books than slots reads incomplete rather than silently short.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | The native paper book fills the paper slot. On the native kernel the person's paper book lives in the package's trading_paper_* tables, which listBooks does not see, so the analyst read paper.present false and told the person they had no paper book while it held $100,000. When no listed book took the paper slot and the host is native, paper/facts.js reads that book (recorded equity today and at the prior close, today's realized sells) and books.paper counts it.
  *
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Import the shipped paper reader through the source test resolver with an explicit declaration type.
  * @module trading-book-facts
  */
 
@@ -56,8 +57,7 @@ import { createChildLogger } from '@/shared/logger';
 import { listBooks } from '@/app/trading-books-store';
 import { loadDailyEquitySeries } from '@/app/trading-daily-equity-store';
 import { realizedReport } from './trading-realized';
-// eslint-disable-next-line @typescript-eslint/no-require-imports -- plain-JavaScript paper engine module (routes/paper/facts.js)
-const { nativePaperFacts } = require('./paper/facts') as { nativePaperFacts: (ctx: unknown, sub: string, now: Date) => Promise<BookFacts | null> };
+import { nativePaperFacts } from './paper/facts';
 
 const logger = createChildLogger({ module: 'trading-book-facts' });
 

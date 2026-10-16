@@ -52,6 +52,8 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | With no market-data rail, two more reads use the kernel's World price archive instead of showing nothing: the movers board ranks the universe and the watchlist by their stored day closes (archiveDailyBars: the latest stored price against the previous session's, labelled as the archive's and not live; names stay null, the asset directory is a market-data read), and the watchlist's Today column carries the same stored day change (archiveDayChanges) instead of a dash. A ticker the archive does not track has no row and no change; a failed archive read keeps the existing answers.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Movers distinguishes missing archived prices from insufficient session history without fabricating comparisons or volatility.
  *
+ * 2026-10-15 | maintainer@emeraldcoastsystemsgroup.com | Expose authenticated SEC company-name lookup with public cache provenance and explicit unavailable reads.
+ * 2026-10-15 | maintainer@emeraldcoastsystemsgroup.com | Native research reads coherent annual SEC financial statements independently of broker connectivity.
  * @module trading-research-routes
  */
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -67,6 +69,8 @@ const trading_pinned_lots_1 = require("@/app/trading-pinned-lots");
 const trading_movers_1 = require("./trading-movers");
 const trading_edgar_filings_1 = require("./trading-edgar-filings");
 const trading_rail_guard_1 = require("./trading-rail-guard");
+const trading_sec_financial_reader_1 = require("./trading-sec-financial-reader");
+const trading_company_news_1 = require("./trading-company-news");
 const trading_archive_quotes_1 = require("./trading-archive-quotes");
 const logger = (0, logger_1.createChildLogger)({ module: 'trading-research-routes' });
 const SYMBOL_RE = /^[A-Z.\-]{1,10}$/;
@@ -224,6 +228,15 @@ async function cikForSymbol(symbol) {
     }
     return (0, trading_edgar_filings_1.cikFromTickerTable)(tickerTable.table, symbol);
 }
+/** Native financial statements are public SEC evidence, independent of broker connectivity. */
+async function financialsFor(symbol) {
+    if (!(0, trading_native_reads_1.nativeSchwabReads)())
+        return (0, trading_1.fundamentalsSummary)(symbol);
+    const cik = await cikForSymbol(symbol);
+    if (!cik)
+        throw new Error('No SEC company identity was found for this ticker.');
+    return (0, trading_sec_financial_reader_1.readSecFinancialSummary)(cik, symbol);
+}
 /**
  * @description The company's recent filings from EDGAR submissions: latest 10-K/10-Q, the decoded
  * 8-Ks, and the past results dates the earnings estimate steps from.
@@ -282,10 +295,11 @@ async function earningsFor(symbol, resultsDates) {
  */
 async function researchSymbol(ctx, s, book, symbol) {
     const sections = {}, reasons = {};
-    const [quote, fundamentals, news, filings] = await Promise.all([
+    const [quote, fundamentals, newsRead, filings] = await Promise.all([
         section('quote', symbol, null, () => quoteFor(ctx, book, s, symbol), sections, reasons),
-        section('fundamentals', symbol, null, () => (0, trading_1.fundamentalsSummary)(symbol), sections, reasons),
-        section('news', symbol, [], () => (0, trading_1.recentNews)([symbol], NEWS_WINDOW_MIN, NEWS_LIMIT), sections, reasons),
+        section('fundamentals', symbol, null, () => financialsFor(symbol), sections, reasons),
+        section('news', symbol, { items: [], coverage: null }, async () => (0, trading_native_reads_1.nativeSchwabReads)()
+            ? (0, trading_company_news_1.readCompanyNews)(symbol) : { items: await (0, trading_1.recentNews)([symbol], NEWS_WINDOW_MIN, NEWS_LIMIT), coverage: null }, sections, reasons),
         section('filings', symbol, EMPTY_FILINGS, () => filingsFor(symbol), sections, reasons),
     ]);
     if (!quote && sections.quote === 'ok') {
@@ -298,7 +312,7 @@ async function researchSymbol(ctx, s, book, symbol) {
     }
     const noEarnings = { nextExpected: null, source: null, pastResults: filings.resultsDates };
     const earnings = await section('earnings', symbol, noEarnings, () => earningsFor(symbol, filings.resultsDates), sections, reasons);
-    return { symbol, book: book.ref, quote, fundamentals, news, filings: filings.summary, events: (0, trading_edgar_filings_1.filingEvents)(filings.summary.recent8K), earnings, sections, reasons };
+    return { symbol, book: book.ref, quote, fundamentals, news: newsRead.items, newsCoverage: newsRead.coverage, filings: filings.summary, events: (0, trading_edgar_filings_1.filingEvents)(filings.summary.recent8K), earnings, sections, reasons };
 }
 /* ─── watchlist ────────────────────────────────────────────────────────────── */
 /**
@@ -536,6 +550,30 @@ function registerResearchRead(router, ctx) {
 /* ─── symbol search + movers (market-wide; no book needed) ───────────────────── */
 /** GET /symbols/search — market-wide type-ahead over the Alpaca asset directory (no book). */
 function registerSymbolSearch(router) {
+    router.get('/companies/search', async (req, res) => {
+        const s = sub(req, res);
+        if (!s)
+            return;
+        const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+        if (!q || q.length > 80 || !/[\p{L}\p{N}]/u.test(q)) {
+            res.status(400).json({ error: 'company_query_invalid', message: 'Enter a company name or ticker of 1–80 characters.' });
+            return;
+        }
+        try {
+            if (!tickerTable || Date.now() - tickerTable.at > trading_edgar_filings_1.EDGAR_TICKER_CACHE_MS) {
+                const table = await edgarJson(trading_edgar_filings_1.EDGAR_TICKERS_URL);
+                (0, trading_edgar_filings_1.companyMatches)(table, q); // Validate before publishing a shared directory cache.
+                tickerTable = { at: Date.now(), table };
+            }
+            const results = (0, trading_edgar_filings_1.companyMatches)(tickerTable.table, q);
+            res.json({ query: q, results, source: 'sec-company-directory', fetchedAt: new Date(tickerTable.at).toISOString(), cacheAgeMs: Math.max(0, Date.now() - tickerTable.at), note: 'SEC company and ticker identity directory; this does not verify broker tradability, a current quote or company financials.' });
+        }
+        catch (err) {
+            tickerTable = null;
+            logger.error({ err }, 'SEC company lookup unavailable');
+            res.status(503).json({ error: 'company_directory_unavailable', message: 'The SEC company directory could not be read. Retry or supply a known ticker.' });
+        }
+    });
     router.get('/symbols/search', async (req, res) => {
         const s = sub(req, res);
         if (!s)

@@ -26,6 +26,8 @@
  * 16 | maintainer@emeraldcoastsystemsgroup.com  | GET /status carries brokerReason and marketDataReason: the host's own sentence when the selected book has no broker or market-data rail (on the native kernel, no Alpaca connector and Schwab not used for market data), so the account view prints it instead of "Set the Alpaca paper keys".
  * 17 | maintainer@emeraldcoastsystemsgroup.com  | GET /exposure on the native paper book (the native kernel, no broker rail) says what the panel reads and where the paper book's holdings and the autopilot's decisions are, instead of "No broker is connected for this account. Connect one in Settings → Connections." - the paper book needs no broker. Same 409 and error code; every other book keeps the existing answer.
  *
+ * 2026-10-15 | maintainer@emeraldcoastsystemsgroup.com | Explain readiness through the exact selected-book reader without an unbound fallback.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com  | GET /performance on the native paper book fills an unavailable SPY benchmark from the caller's Schwab day bars (withSchwabBenchmark); the World archive only holds SPY since the 2026-10-12 cutover.
  * @module trading-routes-book-read-builders
  */
 
@@ -64,6 +66,7 @@ import { loadDailyEquitySeries } from '@/app/trading-daily-equity-store';
 import { buildSettlementView, settlementApplies, unsettledLedgerSells } from '@/app/trading-settlement';
 import { NO_BROKER_STATUS, NO_BROKER_MESSAGE, railConfigured, railReason } from './trading-rail-guard';
 import { screenRead, statusFields, readerConnected, nativeHost, paperBook } from './paper/screen';
+import { withSchwabBenchmark } from './trading-paper-benchmark';
 
 // Same module tag as the entry file so structured log output is unchanged by the split.
 const logger = createChildLogger({ module: 'trading-routes' });
@@ -596,10 +599,12 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
       // a b-book's Schwab connection can be healthy while the legacy-rail liveConfigured is false,
       // and vice-versa — the hub's broker-not-connected gate must key on the selected book, not the
       // env rail. The SPA prefers this field.
-      try { bookConfigured = railConfigured(getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined)); } catch { /* rail unset */ }
+      let bookReader: ReturnType<typeof getBrokerReader> | undefined;
+      try { bookReader = getBrokerReader(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined); bookConfigured = railConfigured(bookReader); } catch { /* rail unset */ }
       // What the surface prints when this book has no broker or market-data rail (the host's own reason).
       let brokerReason: string | null = null, marketDataReason: string | null = null;
-      try { if (!bookConfigured) brokerReason = railReason(getBrokerReader(mode, sub)); marketDataReason = railReason(getMarketData(mode, sub)); } catch { /* rail unset */ }
+      if (!bookConfigured) brokerReason = railReason(bookReader);
+      try { marketDataReason = railReason(getMarketData(mode, sub)); } catch { /* rail unset */ }
       const counts = (await ctx.pool.query(
         `SELECT
            (SELECT COUNT(*)::int FROM oshal_trading_signals  WHERE user_sub=$1 AND book_id=$2) AS signals,
@@ -699,7 +704,7 @@ export function registerTradingBookReadRoutes(router: Router, ctx: AppContext, a
       if (!railConfigured(broker)) {
         // TRADE-01: a paper book with no broker rail answers from the person's native paper book when one exists.
         const paper = await screenRead(ctx, sub, book, false, 'performance', { period: String(req.query.period || '1M') });
-        if (paper) { res.json(paper); return; }
+        if (paper) { res.json(await withSchwabBenchmark(ctx, paper)); return; }
         res.status(NO_BROKER_STATUS).json({ error: 'broker_not_configured', message: NO_BROKER_MESSAGE }); return;
       }
       const periodReq = String(req.query.period || '1M').toUpperCase();

@@ -18,6 +18,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — ticker→CIK lookup over company_tickers.json (10-digit zero-padded), submissions parse over the parallel recent arrays (form/filingDate/accessionNumber/primaryDocument/items), document url builder (numeric CIK + un-dashed accession + primaryDocument), the 8-K item decoder (1.01…9.01; 9.01 Exhibits dropped from the plain list when other items exist), an event kind per item code, past results = item-2.02 dates, and the next-earnings cadence estimate.
  *
+ * 2026-10-15 | maintainer@emeraldcoastsystemsgroup.com | Match bounded company identities from actual SEC ticker rows and reject unusable or conflicting snapshots.
  * @module trading-edgar-filings
  */
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -25,6 +26,7 @@ exports.EIGHT_K_ITEMS = exports.EARNINGS_CADENCE_DAYS = exports.EDGAR_TICKER_CAC
 exports.edgarSubmissionsUrl = edgarSubmissionsUrl;
 exports.edgarDocumentUrl = edgarDocumentUrl;
 exports.cikFromTickerTable = cikFromTickerTable;
+exports.companyMatches = companyMatches;
 exports.parseItemCodes = parseItemCodes;
 exports.decode8kItems = decode8kItems;
 exports.eventKindForItem = eventKindForItem;
@@ -105,6 +107,36 @@ function cikFromTickerTable(table, symbol) {
         return cik ? cik.padStart(10, '0') : null;
     }
     return null;
+}
+/** Search company identity data only; directory entries do not prove broker tradability. */
+function companyMatches(table, query) {
+    if (!table || typeof table !== 'object' || Array.isArray(table))
+        throw new Error('SEC company directory is malformed.');
+    const rows = new Map();
+    for (const value of Object.values(table)) {
+        if (!value || typeof value !== 'object')
+            continue;
+        const row = value;
+        if (typeof row.ticker !== 'string' || typeof row.title !== 'string')
+            continue;
+        const symbol = row.ticker.trim().toUpperCase(), name = row.title.trim(), cik = String(row.cik_str ?? '');
+        if (symbol.includes('..') || !/^[A-Z0-9][A-Z0-9.\/-]{0,15}$/.test(symbol) || !name || name.length > 300 || !/^\d{1,10}$/.test(cik))
+            continue;
+        const item = { symbol, name, cik: cik.padStart(10, '0') };
+        const prior = rows.get(symbol);
+        if (prior && (prior.name !== item.name || prior.cik !== item.cik))
+            throw new Error('SEC company directory has conflicting tickers.');
+        rows.set(symbol, item);
+    }
+    if (!rows.size)
+        throw new Error('SEC company directory has no usable entries.');
+    const normalize = (value) => value.normalize('NFKD').replace(/\p{M}/gu, '').toUpperCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const want = normalize(query);
+    if (!want)
+        return [];
+    const rank = (row) => normalize(row.symbol) === want ? 0 : normalize(row.name) === want ? 1 : normalize(row.name).startsWith(want) ? 2 : 3;
+    return [...rows.values()].filter(row => normalize(row.symbol).includes(want) || normalize(row.name).includes(want))
+        .sort((a, b) => rank(a) - rank(b) || a.symbol.localeCompare(b.symbol)).slice(0, 25);
 }
 /**
  * @description Split an 8-K `items` field ("2.02,9.01") into its item codes.
@@ -224,4 +256,3 @@ function estimateNextEarnings(resultsDates, today) {
         next += exports.EARNINGS_CADENCE_DAYS * 24 * 60 * 60 * 1000;
     return next < todayStart ? null : isoDate(new Date(next));
 }
-//# sourceMappingURL=trading-edgar-filings.js.map

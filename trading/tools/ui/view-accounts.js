@@ -539,9 +539,10 @@ function nativeAccountView(model) {
     return;
   }
   const rows = (model.positions || []).map(p => '<tr><td>' + esc(p.symbol) + '</td><td>' + esc(String(p.qty)) + '</td><td>' + money(p.marketValue) + '</td></tr>').join('');
-  $('main').innerHTML = '<div class="panel"><button class="btn ghost sm" id="nativeAccountBack">← All accounts</button><h2>' + esc(model.label) + '</h2><p class="foot">Schwab account · view only. Holdings are not managed by the paper autopilot.</p><div class="t-eq">' + money(model.equity) + '</div><p>Cash: ' + money(model.cash) + '</p><button class="btn sm" id="nativeHistoryOpen">View execution history</button><div style="overflow-x:auto"><table><thead><tr><th>Symbol</th><th>Quantity</th><th>Market value</th></tr></thead><tbody>' + (rows || '<tr><td colspan="3">Schwab reports no open positions.</td></tr>') + '</tbody></table></div></div>';
+  $('main').innerHTML = '<div class="panel"><button class="btn ghost sm" id="nativeAccountBack">← All accounts</button><h2>' + esc(model.label) + '</h2><p class="foot">Schwab account · view only. Holdings are not managed by the paper autopilot.</p><div class="t-eq">' + money(model.equity) + '</div><p>Cash: ' + money(model.cash) + '</p><button class="btn sm" id="nativeHistoryOpen">View execution history</button> <button class="btn sm" id="nativeReconcileOpen">Reconcile ledger</button><div style="overflow-x:auto"><table><thead><tr><th>Symbol</th><th>Quantity</th><th>Market value</th></tr></thead><tbody>' + (rows || '<tr><td colspan="3">Schwab reports no open positions.</td></tr>') + '</tbody></table></div></div>';
   $('nativeAccountBack').onclick = () => navigate('accounts', {sub:null});
   if ($('nativeHistoryOpen')) $('nativeHistoryOpen').onclick = () => nativeHistoryView(model);
+  if ($('nativeReconcileOpen')) $('nativeReconcileOpen').onclick = () => nativeReconciliationView(model);
 }
 
 /** Account-bound venue evidence; a failed chunk never becomes an empty or complete history. */
@@ -585,4 +586,36 @@ async function nativeHistoryView(model) {
     if (!stale(token) && $('nativeHistoryBody') === host && $('nativeHistoryStatus')) $('nativeHistoryStatus').textContent = 'Execution history unavailable.';
     if (!stale(token) && $('nativeHistoryBody') === host) host.innerHTML = '<p class="err">' + esc(error.message || 'Execution history could not be verified.') + '</p><p>No reconciliation or ledger changes were made.</p>';
   }
+}
+
+/** Preview current venue evidence and confirm only proved historical native-ledger closes. */
+async function nativeReconciliationView(model) {
+  const token=RENDER_TOKEN;
+  $('main').innerHTML='<div class="panel"><button class="btn ghost sm" id="reconcileBack">← Holdings</button><h2>'+esc(model.label)+' ledger reconciliation</h2><p>Compare the native historical ledger with current Schwab holdings and the last year of executions. Corrections record past sales; they do not place orders or turn on trading. Legacy automation has a separate ledger.</p><div id="nativeReconcileBody" role="status">Verifying account, book and execution history…</div></div>';
+  $('reconcileBack').onclick=()=>{++RENDER_TOKEN;nativeAccountView(model);};
+  const host=$('nativeReconcileBody'),selector={accountId:model.accountId,connection:model.connectionKey};
+  const current=()=>!stale(token)&&$('nativeReconcileBody')===host;
+  try {
+    const report=await api('/reconciliation/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(selector)});
+    if(!current())return;
+    if(report.accountId!==model.accountId||!Array.isArray(report.symbols)||!Array.isArray(report.corrections))throw new Error('The reconciliation preview could not be verified.');
+    if(report.status==='no-ledger'){host.innerHTML='<p>No filled engine ledger was found for this account. Manual holdings will not be enrolled automatically.</p>';return;}
+    const exceptions=report.symbols.filter(s=>s.action==='refuse');
+    host.innerHTML='<p>'+report.corrections.length+' verified historical closes to record · '+exceptions.length+' symbols need review.</p>'+(!report.corrections.length&&!exceptions.length?'<p>The native ledger matches the verified venue history and holdings.</p>':'')+
+      (exceptions.length?'<p class="err">Review exceptions will remain unchanged. Missing purchases, transfers and ambiguous matches require separate investigation.</p>':'')+
+      '<div style="overflow-x:auto"><table><thead><tr><th>Symbol</th><th>Result</th><th>Detail</th></tr></thead><tbody>'+report.symbols.map(s=>'<tr><td>'+esc(s.symbol)+'</td><td>'+esc(s.action==='book'?'Verified close':s.action==='refuse'?'Needs review':'Matches')+'</td><td>'+esc(s.reason||(s.action==='book'?s.corrections.map(c=>c.filled_qty+' shares sold at '+c.filled_avg_price+' on '+c.created_at).join('; '):'Ledger '+s.ledgerNet+' · Schwab '+s.venueQty))+'</td></tr>').join('')+'</tbody></table></div>'+
+      (report.corrections.length?'<p><label><input type="checkbox" id="nativeReconcileConfirm"> I reviewed these historical closes and want to record them in the native ledger.</label></p><button class="btn" id="nativeReconcileApply" disabled>Record verified closes</button>':'');
+    if(!$('nativeReconcileApply'))return;
+    const apply=$('nativeReconcileApply');
+    $('nativeReconcileConfirm').onchange=()=>{apply.disabled=!$('nativeReconcileConfirm').checked;};
+    apply.onclick=async()=>{
+      apply.disabled=true;
+      try {
+        const result=await api('/reconciliation/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...selector,fingerprint:report.fingerprint,confirm:true})});
+        if(!current())return;
+        host.innerHTML='<p>'+esc(String(result.bookedRows))+' historical closes recorded in the native ledger. No broker orders were placed.</p><p>'+esc(String(result.reviewExceptions))+' review exceptions remain. Run another preview to verify the current ledger.</p><button class="btn sm" id="nativeReconcileAgain">Preview again</button>';
+        $('nativeReconcileAgain').onclick=()=>nativeReconciliationView(model);
+      }catch(error){if(current()){host.innerHTML='<p class="err">'+esc(error.message||'The repair could not be verified.')+'</p><p>Refresh the preview before retrying. A committed repair is idempotent on the next comparison.</p><button class="btn sm" id="nativeReconcileAgain">Refresh preview</button>';$('nativeReconcileAgain').onclick=()=>nativeReconciliationView(model);}}
+    };
+  }catch(error){if(current())host.innerHTML='<p class="err">'+esc(error.message||'Reconciliation preview unavailable.')+'</p><p>No historical ledger changes were requested.</p>';}
 }

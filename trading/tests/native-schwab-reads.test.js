@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify the shipped native Schwab summary and holdings view use actual owned balances, retain failed-read dispositions and offer no unsupported live book writes.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The kernel's measured account day change (Schwab per-position day P&L) reaches the landing row; an unmeasured one stays null, never zero.
  */
 'use strict';
 const test = require('node:test');
@@ -30,6 +31,16 @@ test('native account summaries retain real money, missing daily changes and fail
   const result = await native.readNativeAccounts({intent:async (name,input) => {seen.push({name,input});return {accounts:[],errors:[]};}});
   assert.deepEqual(result,{accounts:[],errors:[]});
   assert.deepEqual(seen,[{name:'trading.accounts',input:{}}]);
+});
+
+test('a measured Schwab day change reaches the landing row; an unmeasured one stays unknown',() => {
+  const native = helpers(); const rows = [];
+  const input = {accounts:[
+    {accountId:'a',accountMasked:'…1111',equity:10100,cash:2000,dayChange:100,dayChangePct:1,positions:[{symbol:'NVDA',qty:10,marketValue:5000}]},
+    {accountId:'b',accountMasked:'…2222',equity:5000,cash:5000,dayChange:0,dayChangePct:0,positions:[]},
+    {accountId:'c',accountMasked:'…3333',equity:900,cash:0,dayChange:null,dayChangePct:null,positions:[{symbol:'MSFT',qty:2,marketValue:900}]}],errors:[]};
+  native.appendNativeSummary(input,rows,new Map());
+  assert.deepEqual(rows.map(r => [r.dayChange,r.dayChangePct]),[[100,1],[0,0],[null,null]]);
 });
 
 test('the actual account view offers holdings, preserves escaping and never fabricates a failed empty portfolio',() => {

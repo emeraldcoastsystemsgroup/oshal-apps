@@ -222,7 +222,7 @@ function classify(step, jobId) {
  *   the modules it reads, and its declared framework variables are pointed at the toolchain.
  */
 const TOOLCHAIN_SUFFICES = [
-  { workingDirectory: 'trading', match: /^node\s+--test\s+"tests\/native-schwab\*\.test\.js"$/, modules: ['express', 'playwright'] },
+  { workingDirectory: 'trading', match: /^node\s+--test\s+"tests\/\*native\*\.test\.js"$/, modules: ['express', 'playwright', 'js-yaml'] },
   { workingDirectory: '', match: /^node\s+--test\s+scripts\/run-trading-specs\.test\.mjs$/, modules: ['vitest'] },
   { workingDirectory: 'futures-research', match: /^node\s+--test\s+"tests\/\*\.test\.cjs"$/, modules: ['express', 'js-yaml'] },
   { workingDirectory: 'intelligent-sports', match: /^node\s+--test\s+tests\/toolbar\.test\.cjs$/, modules: ['js-yaml'] },

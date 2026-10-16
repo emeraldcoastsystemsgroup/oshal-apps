@@ -262,7 +262,7 @@ describe('GET /exposure - the route contract', () => {
     const start = ROUTE.indexOf("router.get('/exposure'");
     const handler = ROUTE.slice(start, ROUTE.indexOf('\n  });', start));
     expect(handler).toContain('getBrokerReader(book.kind, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined)');
-    expect(handler).toContain("if (!railConfigured(broker)) { res.status(NO_BROKER_STATUS).json({ error: 'broker_not_configured', message: NO_BROKER_MESSAGE }); return; }");
+    expect(handler).toMatch(/if \(!railConfigured\(broker\)\) \{[\s\S]*?res\.status\(NO_BROKER_STATUS\)\.json\(\{ error: 'broker_not_configured', message: paper \? PAPER_EXPOSURE_MESSAGE : NO_BROKER_MESSAGE \}\); return;/);
   });
 
   it('is READ-ONLY: it places no order, arms no adapter and never persists a peak', () => {

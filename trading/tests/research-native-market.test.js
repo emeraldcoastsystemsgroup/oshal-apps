@@ -167,3 +167,63 @@ test('connected native research and watchlists retain Schwab timestamps, delay a
   vm.runInContext(src+'\nthis.render=researchTopHtml;',ui);
   assert.match(ui.render(research.body),/Delayed Schwab quote/);
 });
+
+
+test('company lookup returns SEC identities with provenance, caches the directory and never calls a broker',async t => {
+ let reads=0; const original=global.fetch; t.after(()=>{global.fetch=original;});
+ global.fetch=async url=>{reads++;assert.equal(url,'https://www.sec.gov/files/company_tickers.json');return {ok:true,json:async()=>({0:{cik_str:1045810,ticker:'NVDA',title:'NVIDIA CORP'}})};};
+ const routes=shippedResearch({pool:{query:async()=>{throw new Error('company lookup must not query accounts');}}});
+ const first=await call(routes,'/companies/search',{}, {q:'nvidia'});
+ assert.equal(first.code,200);assert.deepEqual(first.body.results,[{symbol:'NVDA',name:'NVIDIA CORP',cik:'0001045810'}]);
+ assert.equal(first.body.source,'sec-company-directory');assert.ok(Number.isFinite(Date.parse(first.body.fetchedAt)));assert.ok(first.body.cacheAgeMs>=0);assert.match(first.body.note,/does not verify broker tradability/);
+ assert.equal((await call(routes,'/companies/search',{}, {q:'not a registrant'})).body.results.length,0);assert.equal(reads,1);
+});
+
+test('company lookup refuses missing identity and invalid queries before egress and keeps failed reads unavailable',async t => {
+ let reads=0;const original=global.fetch;t.after(()=>{global.fetch=original;});global.fetch=async()=>{reads++;throw new Error('fixture SEC outage');};
+ const routes=shippedResearch({}); const out={code:200};const res={status(c){out.code=c;return res;},json(body){out.body=body;return res;}};
+ await routes.get('/companies/search')({query:{q:'NVIDIA'},params:{},headers:{},body:{}},res);assert.equal(out.code,401);
+ for(const q of ['', 'x'.repeat(81), ['NVDA'],'...'])assert.equal((await call(routes,'/companies/search',{}, {q})).code,400);
+ assert.equal(reads,0);
+ const failed=await call(routes,'/companies/search',{}, {q:'NVIDIA'});assert.equal(failed.code,503);assert.equal(failed.body.error,'company_directory_unavailable');assert.equal(failed.body.results,undefined);
+ global.fetch=async()=>({ok:true,json:async()=>({})});assert.equal((await call(routes,'/companies/search',{}, {q:'NVIDIA'})).code,503);
+ global.fetch=async()=>({ok:true,json:async()=>({0:{cik_str:1045810,ticker:'NVDA',title:'NVIDIA CORP'}})});assert.equal((await call(routes,'/companies/search',{}, {q:'NVIDIA'})).code,200,'failed data is never cached as an empty success');
+});
+
+/** Synthetic SEC concept responses, separate from quotes and the broker rail. */
+function financialTransport(t, unavailable=false) {
+  const {documents}=require('./support/sec-financial-fixture');const docs=documents(),calls=[];
+  const original=global.fetch;t.after(()=>{global.fetch=original;});
+  global.fetch=async(url,init)=>{
+    calls.push({url:String(url),init});
+    if(String(url).startsWith('https://finnhub.io/'))return {ok:false,status:401};
+    if(String(url).includes('/companyconcept/')) {
+      if(unavailable)return {ok:false,status:503};
+      const doc=docs.find(d=>String(url).endsWith('/'+d.taxonomy+'/'+d.tag+'.json'));
+      assert.ok(doc,'only declared financial concept paths');return {ok:true,status:200,json:async()=>doc};
+    }
+    if(String(url).includes('company_tickers'))return {ok:true,status:200,json:async()=>({0:{cik_str:1045810,ticker:'NVDA',title:'SYNTHETIC fixture company'}})};
+    return {ok:true,status:200,json:async()=>({filings:{recent:{form:[],filingDate:[],accessionNumber:[],primaryDocument:[],items:[]}}})};
+  };
+  return calls;
+}
+test('native Research reads annual financial facts independently of an absent broker and retains provenance',async t=>{
+  const calls=financialTransport(t);const routes=shippedResearch({pool:{query:async()=>({rows:[]})},intent:archive},{nativeSchwabReads:true});
+  const r=await call(routes,'/research/:symbol',{symbol:'NVDA'});assert.equal(r.code,200);assert.equal(r.body.sections.fundamentals,'ok');
+  assert.equal(r.body.fundamentals.revenue,100);assert.equal(r.body.fundamentals.netIncome,25);assert.equal(r.body.fundamentals.fiscalYear,null);
+  assert.equal(r.body.fundamentals.source,'sec-companyconcept');assert.equal(r.body.fundamentals.metrics.revenue.accession,'0001045810-26-000021');
+  assert.equal(r.body.quote.source,'world-archive');assert.equal(r.body.sections.news,'unavailable');
+  assert.equal(calls.filter(x=>x.url.includes('/companyconcept/')).length,7);
+  assert.ok(calls.filter(x=>!x.url.startsWith('https://finnhub.io/')).every(x=>x.init.headers['User-Agent'].includes('maintainer@')));
+  assert.match(r.body.reasons.news,/authorization was refused/);
+  await call(routes,'/research/:symbol',{symbol:'NVDA'});assert.equal(calls.filter(x=>x.url.includes('/companyconcept/')).length,7,'public cached facts keep their original fetch time');
+});
+test('native Research refuses unbound or invalid requests before SEC reads and isolates failed financial sections',async t=>{
+  const calls=financialTransport(t,true);const routes=shippedResearch({pool:{query:async()=>({rows:[]})},intent:archive},{nativeSchwabReads:true});
+  let status=200;const res={status(n){status=n;return this;},json(){return this;}};
+  await routes.get('/research/:symbol')({params:{symbol:'NVDA'},query:{},headers:{}},res);assert.equal(status,401);assert.equal(calls.length,0);
+  const bad=await call(routes,'/research/:symbol',{symbol:'../bad'});assert.equal(bad.code,400);assert.equal(calls.length,0);
+  const r=await call(routes,'/research/:symbol',{symbol:'NVDA'});assert.equal(r.code,200);assert.equal(r.body.sections.fundamentals,'unavailable');
+  assert.equal(r.body.fundamentals,null);assert.match(r.body.reasons.fundamentals,/503/);assert.equal(r.body.quote.price,191.25);
+  assert.equal(r.body.sections.filings,'ok');assert.equal(calls.filter(x=>x.url.includes('/companyconcept/')).length,1,'stop on failure instead of repeatedly hitting a failed service');
+});

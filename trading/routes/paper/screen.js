@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: the existing trading screen reads (status, account, positions, ledger, performance, orders, journal, realized) answered from the person's native paper book, in the payload shapes those routes already return. It applies only when all of these hold: the host is the native kernel (the route context carries the kernel intent call), the selected book is the paper book, the book has no connected broker rail, and the person has a native paper account. Anything else, including a read that fails, answers null so the route keeps its existing behaviour exactly - a live or broker-connected book never reaches this module.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Review fixes to /performance. SPY is normalized to its close on the book's first equity snapshot date in the period and drawn from that date on, so a book younger than the period is compared with SPY over the same days (before, SPY ran over the whole period and a flat book armed today showed several percent behind the S&P). When the kernel has no SPY day closes for that date (the World archive does not carry SPY today), the summary says so in `benchmark` and the S&P figures stay null.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | withSpyCloses: the route can fill an unavailable SPY benchmark from day closes it read elsewhere (the native World archive only holds SPY since the 2026-10-12 cutover, so 1M/3M/1Y had no base close and the screen showed +0.00% S&P). An unavailable benchmark now carries its baseDate; SPY alignment is one pure helper both sources share; this module still names only the prices intents.
  *
  * @module paper/screen
  */
@@ -218,17 +219,36 @@ function realizedOf(orders, now) {
     last30d: tally(closes.filter((o) => Date.parse(o.created_at) >= since)) };
 }
 
+/** Epoch seconds of a New York session date's close; both lines are drawn on these instants. */
+const closeT = (date) => Math.floor(Date.parse(`${date}T21:00:00Z`) / 1000);
+
 /**
- * @description SPY's line aligned to the book's own window: normalized to SPY's close on the base date (the last
- * day bucket on or before it) and drawn from there on, with the base date at 0%.
+ * @description SPY's line from a list of day closes, normalized to the last close on or before the base date and
+ * drawn from there on with the base date at 0%. Pure: the caller supplies the closes and names where they came from.
+ * @param {Array<{date:string, price:number}>} points - Ascending day closes, date YYYY-MM-DD.
+ * @param {string} baseDate - YYYY-MM-DD (New York) of the portfolio's base snapshot.
+ * @param {string} source - Where the closes came from ('world-archive' | 'schwab').
+ * @returns {{spy:Array<{t:number,pct:number}>, benchmark:object}|null} The line, or null with no close on or before the base date.
+ */
+function spyFromCloses(points, baseDate, source) {
+  const before = points.filter((p) => p.date <= baseDate);
+  const base = before.length ? before[before.length - 1].price : 0;
+  if (!(base > 0)) return null;
+  const after = points.filter((p) => p.date > baseDate);
+  const spy = [{ t: closeT(baseDate), pct: 0 }, ...after.map((p) => ({ t: closeT(p.date), pct: (p.price / base - 1) * 100 }))];
+  return { spy, benchmark: { symbol: 'SPY', available: true, baseDate, baseClose: base, source } };
+}
+
+/**
+ * @description SPY's line aligned to the book's own window from the World price archive's day buckets.
  * @param {object} ctx - Route context (its intent call reads SPY's day closes).
  * @param {string} baseDate - YYYY-MM-DD (New York) of the portfolio's base snapshot.
  * @param {number} days - Days of day buckets to read (the period, bounded by the kernel's 365).
- * @param {(date:string) => number} t - Epoch seconds of a session date's close.
  * @returns {Promise<{spy:Array<{t:number,pct:number}>, benchmark:object}>} The line and whether it is available.
  */
-async function spyAligned(ctx, baseDate, days, t) {
-  const unavailable = (reason) => ({ spy: [], benchmark: { symbol: 'SPY', available: false, reason } });
+async function spyAligned(ctx, baseDate, days) {
+  // baseDate travels with an unavailable benchmark so the route can fill it from another price source.
+  const unavailable = (reason) => ({ spy: [], benchmark: { symbol: 'SPY', available: false, baseDate, reason } });
   let points;
   try {
     const answer = await ctx.intent('prices.series', { symbol: 'SPY', interval: 'day', days: Math.min(365, days + 1) });
@@ -239,12 +259,27 @@ async function spyAligned(ctx, baseDate, days, t) {
     return unavailable('The kernel price read for SPY failed.');
   }
   if (!points.length) return unavailable('The World price archive has no SPY prices.');
-  const before = points.filter((p) => p.date <= baseDate);
-  const base = before.length ? before[before.length - 1].price : 0;
-  if (!(base > 0)) return unavailable(`The World price archive has no SPY close on or before ${baseDate}.`);
-  const after = points.filter((p) => p.date > baseDate);
-  const spy = [{ t: t(baseDate), pct: 0 }, ...after.map((p) => ({ t: t(p.date), pct: (p.price / base - 1) * 100 }))];
-  return { spy, benchmark: { symbol: 'SPY', available: true, baseDate, baseClose: base } };
+  return spyFromCloses(points, baseDate, 'world-archive')
+    || unavailable(`The World price archive has no SPY close on or before ${baseDate}.`);
+}
+
+/**
+ * @description Fill an unavailable SPY benchmark of a paper /performance payload from day closes another source
+ * supplied (the route reads them; this module names no broker read). An available benchmark is kept as it is.
+ * @param {object} perf - The paper /performance payload.
+ * @param {Array<{date:string, price:number}>} points - Ascending day closes, date YYYY-MM-DD.
+ * @param {string} source - Where the closes came from.
+ * @returns {object} The payload with SPY's line and the summary's SPY figures, or the payload unchanged.
+ */
+function withSpyCloses(perf, points, source) {
+  const benchmark = perf && perf.summary && perf.summary.benchmark;
+  if (!benchmark || benchmark.available !== false || !benchmark.baseDate || !perf.portfolio.length) return perf;
+  const filled = spyFromCloses(points.filter((p) => p.date && p.price > 0), benchmark.baseDate, source);
+  if (!filled) return perf;
+  const endPct = perf.portfolio[perf.portfolio.length - 1].pct;
+  const spyPct = filled.spy[filled.spy.length - 1].pct;
+  return { ...perf, spy: filled.spy, summary: { ...perf.summary, spyReturnPct: round2(spyPct),
+    vsSpyPct: round2(endPct - spyPct), benchmark: filled.benchmark } };
 }
 
 /**
@@ -265,10 +300,9 @@ async function performanceOf(ctx, sub, state, periodReq, now) {
   const base = series.length ? series[0].equity : state.account.startingCash;
   // Both lines start on the same date: the first snapshot in the period, or today for a book with none yet.
   const baseDate = series.length ? series[0].date : etParts(now).date;
-  const t = (date) => Math.floor(Date.parse(`${date}T21:00:00Z`) / 1000);
-  const portfolio = series.map((r) => ({ t: t(r.date), pct: (r.equity / base - 1) * 100 }));
+  const portfolio = series.map((r) => ({ t: closeT(r.date), pct: (r.equity / base - 1) * 100 }));
   portfolio.push({ t: Math.floor(now.getTime() / 1000), pct: (equity / base - 1) * 100 });
-  const { spy, benchmark } = await spyAligned(ctx, baseDate, days, t);
+  const { spy, benchmark } = await spyAligned(ctx, baseDate, days);
   const endPct = portfolio[portfolio.length - 1].pct;
   const spyPct = spy.length ? spy[spy.length - 1].pct : null;
   const inceptionBase = state.account.startingCash;
@@ -277,4 +311,4 @@ async function performanceOf(ctx, sub, state, periodReq, now) {
     inceptionReturnPct: inceptionBase > 0 ? round2((equity / inceptionBase - 1) * 100) : null, inceptionBase: round2(inceptionBase), benchmark } };
 }
 
-module.exports = { nativeHost, paperBook, readerConnected, paperState, statusFields, screenRead, positionsOf, accountOf, realizedOf, dayOf };
+module.exports = { nativeHost, paperBook, readerConnected, paperState, statusFields, screenRead, positionsOf, accountOf, realizedOf, dayOf, withSpyCloses };

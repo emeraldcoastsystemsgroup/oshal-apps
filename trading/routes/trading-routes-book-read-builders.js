@@ -27,6 +27,8 @@
  * 16 | maintainer@emeraldcoastsystemsgroup.com  | GET /status carries brokerReason and marketDataReason: the host's own sentence when the selected book has no broker or market-data rail (on the native kernel, no Alpaca connector and Schwab not used for market data), so the account view prints it instead of "Set the Alpaca paper keys".
  * 17 | maintainer@emeraldcoastsystemsgroup.com  | GET /exposure on the native paper book (the native kernel, no broker rail) says what the panel reads and where the paper book's holdings and the autopilot's decisions are, instead of "No broker is connected for this account. Connect one in Settings → Connections." - the paper book needs no broker. Same 409 and error code; every other book keeps the existing answer.
  *
+ * 2026-10-15 | maintainer@emeraldcoastsystemsgroup.com | Explain readiness through the exact selected-book reader without an unbound fallback.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com  | GET /performance on the native paper book fills an unavailable SPY benchmark from the caller's Schwab day bars (withSchwabBenchmark); the World archive only holds SPY since the 2026-10-12 cutover.
  * @module trading-routes-book-read-builders
  */
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -61,6 +63,7 @@ const trading_daily_equity_store_1 = require("@/app/trading-daily-equity-store")
 const trading_settlement_1 = require("@/app/trading-settlement");
 const trading_rail_guard_1 = require("./trading-rail-guard");
 const screen_1 = require("./paper/screen");
+const trading_paper_benchmark_1 = require("./trading-paper-benchmark");
 // Same module tag as the entry file so structured log output is unchanged by the split.
 const logger = (0, logger_1.createChildLogger)({ module: 'trading-routes' });
 /**
@@ -505,15 +508,17 @@ function registerTradingBookReadRoutes(router, ctx, apiDir) {
             // a b-book's Schwab connection can be healthy while the legacy-rail liveConfigured is false,
             // and vice-versa — the hub's broker-not-connected gate must key on the selected book, not the
             // env rail. The SPA prefers this field.
+            let bookReader;
             try {
-                bookConfigured = (0, trading_rail_guard_1.railConfigured)((0, trading_1.getBrokerReader)(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined));
+                bookReader = (0, trading_1.getBrokerReader)(mode, sub, book.accountNumber ? { accountNumber: book.accountNumber, connectionKey: book.connectionKey } : undefined);
+                bookConfigured = (0, trading_rail_guard_1.railConfigured)(bookReader);
             }
             catch { /* rail unset */ }
             // What the surface prints when this book has no broker or market-data rail (the host's own reason).
             let brokerReason = null, marketDataReason = null;
+            if (!bookConfigured)
+                brokerReason = (0, trading_rail_guard_1.railReason)(bookReader);
             try {
-                if (!bookConfigured)
-                    brokerReason = (0, trading_rail_guard_1.railReason)((0, trading_1.getBrokerReader)(mode, sub));
                 marketDataReason = (0, trading_rail_guard_1.railReason)((0, trading_1.getMarketData)(mode, sub));
             }
             catch { /* rail unset */ }
@@ -641,7 +646,7 @@ function registerTradingBookReadRoutes(router, ctx, apiDir) {
                 // TRADE-01: a paper book with no broker rail answers from the person's native paper book when one exists.
                 const paper = await (0, screen_1.screenRead)(ctx, sub, book, false, 'performance', { period: String(req.query.period || '1M') });
                 if (paper) {
-                    res.json(paper);
+                    res.json(await (0, trading_paper_benchmark_1.withSchwabBenchmark)(ctx, paper));
                     return;
                 }
                 res.status(trading_rail_guard_1.NO_BROKER_STATUS).json({ error: 'broker_not_configured', message: trading_rail_guard_1.NO_BROKER_MESSAGE });
@@ -805,4 +810,3 @@ function registerTradingBookReadRoutes(router, ctx, apiDir) {
     // read has no business making that worse. Same router, same mount, same auth posture.
     registerExposureRoute(router, ctx);
 }
-//# sourceMappingURL=trading-routes-book-read-builders.js.map

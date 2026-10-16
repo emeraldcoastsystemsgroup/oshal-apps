@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Read the native caller's Schwab roster, balances and charts without legacy credentials, imported account bindings or live-order activation.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Carry the kernel's account day change (the sum of Schwab's per-position day P&L) to the landing; it was forced to null, so every Schwab card read "Day P&L n/a".
  */
 import * as runtime from '@/features/trading';
 import type { AppContext } from '@/app/composition/app-context';
@@ -12,6 +13,8 @@ export function nativeSchwabReads(): boolean {
 export interface NativeAccount {
   accountId: string; connectionKey: string; accountMasked: string; accountType: string | null;
   equity: number; cash: number; buyingPower: number; kind: string; notTrading: boolean;
+  /** Schwab's own day P&L summed over the positions; null when any position does not report it. */
+  dayChange?: number | null; dayChangePct?: number | null;
   positions: Array<{ symbol: string; qty: number; marketValue: number }>;
 }
 export interface NativeAccounts {
@@ -37,12 +40,12 @@ export async function readNativeChart(ctx: AppContext, symbol: string, timeframe
   return intent(ctx,'trading.bars', {symbol, timeframe, ...(connection ? {connection} : {})});
 }
 
-/** Add every real account to the landing summary exactly once; unknown daily changes stay unknown. */
+/** Add every real account to the landing summary exactly once; a day change the kernel could not measure stays unknown. */
 export function appendNativeSummary(accounts: NativeAccounts, rows: Array<Record<string, unknown>>, rollup: Map<string, {symbol:string; qty:number; marketValue:number; perBook:Array<{ref:string; qty:number; marketValue:number}>}>): number {
   let total = 0;
   for (const account of accounts.accounts) {
     total += account.equity;
-    rows.push({...account, nativeReadOnly:true, dayChange:null, dayChangePct:null});
+    rows.push({...account, nativeReadOnly:true, dayChange:account.dayChange ?? null, dayChangePct:account.dayChangePct ?? null});
     for (const p of account.positions) {
       const key = p.symbol.toUpperCase();
       const current = rollup.get(key) || {symbol:key,qty:0,marketValue:0,perBook:[]};

@@ -16,7 +16,7 @@ import { registerTradingOrderFlowRoutes } from '../src-routes/trading-routes-ord
 const SUB = 'k-rail-guard-native-spec-sub';
 const BOOK = { bookId: 'book-rail-guard', ref: 'paper', kind: 'paper', enabled: true, accountNumber: null, connectionKey: null };
 
-const rails = vi.hoisted(() => ({ touched: [] as string[] }));
+const rails = vi.hoisted(() => ({ touched: [] as string[], bound: false, readers: [] as Array<{mode:string,binding:unknown}> }));
 
 vi.mock('@/features/trading', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -25,7 +25,10 @@ vi.mock('@/features/trading', async (importOriginal) => {
   return {
     ...actual,
     // The bridge's shapes: a reader with reads but no configured() probe, and an empty market-data object.
-    getBrokerReader: () => ({ getPositions: record('getPositions', []), getAccount: record('getAccount', { balances: {} }), getOrders: record('getOrders', []) }),
+    getBrokerReader: (mode: string, _sub: string, binding?: {connectionKey?:string}) => {
+      rails.readers.push({mode,binding});
+      if (rails.bound) return {configured:()=>false,notConnectedReason:binding?.connectionKey === 'selected-login' ? 'Selected account needs reconnection.' : 'Unbound account is offline.'};
+      return ({ getPositions: record('getPositions', []), getAccount: record('getAccount', { balances: {} }), getOrders: record('getOrders', []) }); },
     getMarketData: () => ({}),
   };
 });
@@ -34,7 +37,7 @@ vi.mock('@/app/routes/trading-routes-helpers', async (importOriginal) => {
   return {
     ...actual,
     callerSub: (req: { oidc?: { user?: { sub?: string } } }) => req.oidc?.user?.sub ?? null,
-    resolveBook: async () => BOOK,
+    resolveBook: async () => rails.bound ? {...BOOK,kind:'live',ref:'b-selected',accountNumber:'selected-account',connectionKey:'selected-login'} : BOOK,
   };
 });
 vi.mock('@/app/trading-schema', () => ({ ensureTradingSchema: async () => undefined }));
@@ -80,7 +83,7 @@ async function get(url: string): Promise<{ status: number; body: Record<string, 
   return { status, body };
 }
 
-beforeEach(() => { rails.touched = []; });
+beforeEach(() => { rails.touched = []; rails.bound = false; rails.readers=[]; });
 
 describe('railConfigured', () => {
   it('reads an absent rail, a rail without a probe and a false probe as not connected; only true is connected', () => {
@@ -115,4 +118,16 @@ describe('cockpit-open trading reads when the host has no broker or market-data 
       expect(rails.touched).toEqual([]);
     });
   }
+});
+
+describe('selected-book readiness', () => {
+  it('explains a disconnected bound account using the exact reader checked for that book', async () => {
+    rails.bound = true;
+    const reply = await get('/status?book=b-selected');
+    expect(reply.status).toBe(200);
+    expect(reply.body.bookConfigured).toBe(false);
+    expect(reply.body.brokerReason).toBe('Selected account needs reconnection.');
+    expect(rails.readers.filter(call => call.binding)).toEqual([{mode:'live',binding:{accountNumber:'selected-account',connectionKey:'selected-login'}}]);
+    expect(rails.touched).toEqual([]);
+  });
 });

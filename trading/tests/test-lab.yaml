@@ -17,6 +17,7 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Register trading-api-person-words: a failed read reaches a panel in a person's words, never a server TypeError or module name (demo sweep 1: the paper book's Protected lots, Timed orders and Earnings rules panels).
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Register paper-landing and paper-landing-browser: with no Schwab and no market-data connector the landing shows the native paper book (balances, day change, holdings) instead of $0 and "No accounts yet", the chart draws the World archive's stored prices as a line, the movers board and the watchlist's Today read the archive's day closes, and the paper book's Allocation/Exits say it needs no broker.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Register off-notes: the earnings watcher and armed event-plan notes say in words what is off, never an environment-variable name (sweep 14).
+# 16 | maintainer@emeraldcoastsystemsgroup.com | Register coherent SEC annual financial statements and desktop/phone route-renderer acceptance.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -177,6 +178,7 @@ cases:
         - tests/trading-rail-guard-native.spec.ts
     expected:
       - GET /watchlist answers 200 with every symbol and quote null.
+      - GET /status explains selected-book readiness using that exact bound reader, without reading an unrelated account.
       - GET /ledger answers 200 with configured false, account null and no positions.
       - GET /account, /positions, /performance and /exposure answer 409 broker_not_configured with the no-broker sentence, and no rail read is made.
     prerequisites:
@@ -379,6 +381,7 @@ cases:
       - Opening the account and the UPCO row draws a chart from the World archive with its stored-prices note, and Allocation says the paper book needs no broker.
     prerequisites:
       - runner:node-test
+      - dependency:express
       - dependency:playwright
       - browser:chromium
     sideEffects: none
@@ -424,6 +427,7 @@ cases:
       - No unsupported book creation or live-order controls appear in native read-only accounts.
       - Full-year execution CSV exports work on desktop and phone and deduplicate boundary fills.
       - A failed history chunk withholds the export and replaces the loading status with an error.
+      - Reconciliation preview and confirmation work on desktop and phone; accounts without engine history are not enrolled.
     prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: none }
@@ -454,4 +458,774 @@ cases:
     sideEffects: none
     isolation: { mode: none }
     limits: { timeoutMs: 15000 }
+    installation: never
+
+  - id: native-schwab-reconciliation
+    name: Exact historical close planning and atomic native ledger repair
+    purpose: Verify the shipped account-bound planner and preview/apply routes using owned provider and transactional SQL fixtures.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-schwab-reconciliation.test.js, tests/native-schwab-reconciliation-workflow.test.js] }
+    expected:
+      - Fractional shares, partial fills, fees and rejected twins produce deterministic separate historical closes without changing original rows.
+      - Manual purchases, incomplete history and ambiguous allocation remain explicit review exceptions.
+      - Apply requires a confirmed current preview, refetches venue evidence and rolls back changed ledgers or incomplete writes.
+      - Changed holdings during history reads refuse before any write; no broker orders or book activation occurs.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+
+  - id: native-jarvis-stock-tools
+    name: Jarvis stock research, chart and symbol tools
+    purpose: Verify read-only module tools and analyst data instructions without trading authority.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-schwab-tools.test.js] }
+    expected:
+      - Stock research, candles and symbol search use the declared Trading API mounts.
+      - Inputs select data only and preserve the current caller; no orders or account-owner overrides.
+      - The analyst requests actual data and discloses unavailable sections and quote provenance.
+    prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+
+  - id: native-company-directory
+    name: Company-name lookup uses real public directory identities
+    purpose: Exercise bounded directory matching and authenticated shipped routes using named SEC response fixtures.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-company-directory.test.js, tests/research-native-market.test.js] }
+    expected:
+      - Names and tickers come from actual directory rows with source and cache fetch time, capped at 25 matches.
+      - Missing identity and malformed queries refuse before egress; failed or malformed directory reads remain unavailable.
+      - Lookup reads no accounts, places no orders and never claims a directory entry proves broker tradability or a quote.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+
+  - id: suite-futures-archive-import
+    name: futures archive import
+    purpose: Run the maintained futures archive import assertions with their declared source fixtures and test doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/futures-archive-import.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-futures-predictions
+    name: futures predictions
+    purpose: Run the maintained futures predictions assertions with their declared source fixtures and test doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/futures-predictions.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-futures-research-review
+    name: futures research review
+    purpose: >-
+      Run the maintained futures research review assertions with their declared source fixtures and test
+      doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/futures-research-review.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-futures-schwab-capture
+    name: futures schwab capture
+    purpose: Run the maintained futures schwab capture assertions with their declared source fixtures and test doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/futures-schwab-capture.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-futures-schwab-probe
+    name: futures schwab probe
+    purpose: Run the maintained futures schwab probe assertions with their declared source fixtures and test doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/futures-schwab-probe.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-native-test-catalog
+    name: native test catalog
+    purpose: Run the maintained native test catalog assertions with their declared source fixtures and test doubles.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/native-test-catalog.test.js
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:node-test
+      - dependency:js-yaml
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: suite-realized-core
+    name: realized.core
+    purpose: >-
+      Verify shipped realized-profit helpers using the suite’s recording kernel double; this does not certify
+      engine ledger replay.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/realized.core.test.js
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: suite-trading-accounts-surface
+    name: trading accounts surface
+    purpose: >-
+      Run the maintained trading accounts surface assertions with their declared source fixtures and test
+      doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-accounts-surface.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-arm-acknowledgement
+    name: trading arm acknowledgement
+    purpose: >-
+      Run the maintained trading arm acknowledgement assertions with their declared source fixtures and test
+      doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-arm-acknowledgement.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-basis-divergence
+    name: trading basis divergence
+    purpose: >-
+      Run the maintained trading basis divergence assertions with their declared source fixtures and test
+      doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-basis-divergence.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-congress-disclosures
+    name: trading congress disclosures
+    purpose: >-
+      Run the maintained trading congress disclosures assertions with their declared source fixtures and test
+      doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-congress-disclosures.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-dated-orders-ui
+    name: trading dated orders ui
+    purpose: >-
+      Run the maintained trading dated orders ui assertions with their declared source fixtures and test
+      doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-dated-orders-ui.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-direct-trade
+    name: trading direct trade
+    purpose: Run the maintained trading direct trade assertions with their declared source fixtures and test doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-direct-trade.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-earnings-rules-surface
+    name: trading earnings rules surface
+    purpose: >-
+      Run the maintained trading earnings rules surface assertions with their declared source fixtures and test
+      doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-earnings-rules-surface.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-event-plans
+    name: trading event plans
+    purpose: Run the maintained trading event plans assertions with their declared source fixtures and test doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-event-plans.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-html-syntax
+    name: trading html syntax
+    purpose: Run the maintained trading html syntax assertions with their declared source fixtures and test doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-html-syntax.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-lab-book-scope
+    name: trading lab book scope
+    purpose: Run the maintained trading lab book scope assertions with their declared source fixtures and test doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-lab-book-scope.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-market-facts
+    name: trading market facts
+    purpose: Run the maintained trading market facts assertions with their declared source fixtures and test doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-market-facts.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-movers-screener
+    name: trading movers screener
+    purpose: >-
+      Run the maintained trading movers screener assertions with their declared source fixtures and test
+      doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-movers-screener.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-performance-fallback
+    name: trading performance fallback
+    purpose: >-
+      Run the maintained trading performance fallback assertions with their declared source fixtures and test
+      doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-performance-fallback.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-quote-stream-client
+    name: trading quote stream client
+    purpose: >-
+      Run the maintained trading quote stream client assertions with their declared source fixtures and test
+      doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-quote-stream-client.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-quote-stream
+    name: trading quote stream
+    purpose: Run the maintained trading quote stream assertions with their declared source fixtures and test doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-quote-stream.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-research-lots
+    name: trading research lots
+    purpose: Run the maintained trading research lots assertions with their declared source fixtures and test doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-research-lots.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-settlement-ticket
+    name: trading settlement ticket
+    purpose: >-
+      Run the maintained trading settlement ticket assertions with their declared source fixtures and test
+      doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-settlement-ticket.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-specialist-context
+    name: trading specialist context
+    purpose: >-
+      Run the maintained trading specialist context assertions with their declared source fixtures and test
+      doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-specialist-context.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-strategy-studio-refine
+    name: trading strategy studio refine
+    purpose: >-
+      Run the maintained trading strategy studio refine assertions with their declared source fixtures and test
+      doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-strategy-studio-refine.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-surface-expansion
+    name: trading surface expansion
+    purpose: >-
+      Run the maintained trading surface expansion assertions with their declared source fixtures and test
+      doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-surface-expansion.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-surface-live-gate
+    name: trading surface live gate
+    purpose: >-
+      Run the maintained trading surface live gate assertions with their declared source fixtures and test
+      doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-surface-live-gate.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: suite-trading-ui-loader-guards
+    name: trading ui loader guards
+    purpose: >-
+      Run the maintained trading ui loader guards assertions with their declared source fixtures and test
+      doubles.
+    level: integration
+    runner:
+      kind: vitest
+      scope: package
+      files:
+        - tests/trading-ui-loader-guards.spec.ts
+    expected:
+      - The registered suite executes nonzero assertions successfully without skips.
+    prerequisites:
+      - runner:vitest
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+
+  - id: native-sec-financial-summary
+    name: SEC annual financial statements and source consistency
+    purpose: Run actual annual-fact selection and bounded concept-reader contracts with explicit synthetic SEC evidence.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-sec-fundamentals.test.js, tests/research-native-market.test.js] }
+    expected:
+      - Period-first selection handles changed revenue tags, amendments and comparative filing labels without inventing fiscal years.
+      - Revenue, net income and derived ratios retain exact period, currency, concept and accession; incoherent values stay missing.
+      - Public reads use fixed SEC paths and contact headers; missing identity and invalid inputs refuse before reads; failed sections stay independent.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 20000 }
+    installation: never
+  - id: native-sec-financial-browser
+    name: Annual financial research on desktop and phone
+    purpose: Render the shipped Research financial route and component in Chromium with named SEC, quote and SQL fixtures.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/native-sec-financial-browser.test.js] }
+    expected:
+      - Annual figures retain currency, period, filing and retrieval dates and an exact SEC source link at desktop and phone widths.
+      - Financial source failure shows its reason instead of invented zero values, with no page errors or horizontal overflow.
+    prerequisites: [runner:node-test, dependency:express, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: native-company-news
+    name: Caller-scoped company news contracts
+    purpose: Verify exact-symbol recent Finnhub items, bounded safe URLs, provenance and honest transport failure handling using synthetic responses.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-company-news.test.js, tests/research-native-market.test.js] }
+    expected:
+      - Each read uses the fixed Finnhub endpoint without exposing credentials or sharing cached results across callers.
+      - Old, future, mismatched, duplicate or unsafe items are excluded; provider errors stay unavailable.
+      - News provenance appears in the research handoff and hostile links cannot execute.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: native-company-news-browser
+    name: Company news on desktop and phone
+    purpose: Drive the actual Research route and news renderer with synthetic Finnhub, SEC and price transport.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/native-company-news-browser.test.js] }
+    expected:
+      - Publisher, date, retrieval provenance and source coverage remain readable at desktop and phone widths.
+      - A refused provider authorization is unavailable rather than an empty successful feed.
+    prerequisites: [runner:node-test, dependency:express, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+  - id: native-paper-benchmark
+    name: The paper book's S&P comparison comes from Schwab when the archive cannot cover the period
+    purpose: Load the shipped trading-paper-benchmark route module with injected Schwab reads and prove an unavailable SPY benchmark (the World archive only holds SPY since the 2026-10-12 cutover) is filled from the caller's SPY day bars, and left unchanged when Schwab cannot cover the period.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-paper-benchmark.test.js] }
+    expected:
+      - SPY is measured from the last Schwab close on or before the base date and vs-market is the portfolio end minus SPY.
+      - Native reads off, no connection, a failed read, malformed bars or bars that start after the base date keep the unavailable reason.
+      - An available benchmark is not re-read.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: native-performance-summary
+    name: Reports says "S&P unavailable" instead of a flat +0.00% when there is no benchmark
+    purpose: Run the shipped tools/ui/view-account.js Performance summary with stood-in page globals and prove a null benchmark reads as unavailable with the server's reason, and a Schwab-filled benchmark shows its figures and names the source.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-performance-summary.test.js] }
+    expected:
+      - A null spyReturnPct shows "S&P unavailable" and the reason, with no +0.00% and no vs-market figure.
+      - A filled benchmark shows the S&P and vs-market percentages and "S&P 500 line from Schwab daily closes."
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: native-congress-filters
+    name: Research Congress chamber/party filters ask the server
+    purpose: Run the shipped tools/ui/view-research.js Congress panel with stood-in page globals and prove a chamber/party choice re-reads GET /reports/congress with those filters, shows the matching trades with their filer, and says no trades match instead of showing the unfiltered summary.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-congress-filters.test.js] }
+    expected:
+      - Choosing Senate requests /reports/congress?limit=50&chamber=Senate&view=trades and shows only the Senate trades.
+      - A party choice adds party= to the same request.
+      - A filter with no matching trades says "No congressional trades match your filter criteria." and never shows the unfiltered rows.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: native-predictions-migration
+    name: The Algorithms prediction ledger is a declared migration
+    purpose: Prove every oshal_trading_predictions column that recordPredictions inserts and /algo-stats reads is created by a migration the manifest declares, since the native kernel provisions only declared tables.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-predictions-migration.test.js] }
+    expected:
+      - A declared migration creates oshal_trading_predictions with user_sub NOT NULL.
+      - Every inserted column plus resolved, hit, mode, algo and created_at exists.
+    prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
     installation: never

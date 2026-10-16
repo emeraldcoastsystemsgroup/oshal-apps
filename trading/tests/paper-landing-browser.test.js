@@ -3,7 +3,8 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: in Chromium over the shipped tools/trading.html and ui scripts, served with the SHIPPED accounts, book-read, order-flow, research and chart routes on a native-kernel-shaped host (no broker, no market-data connector, the person's armed paper book holding UPCO, a World price archive). The landing shows the Paper tile with its $100,000 and a PAPER pill, the hero total is the paper book's (it said "$0 · No accounts yet - connect a Schwab login"), and the positions rollup lists UPCO in the paper book; opening the account and the UPCO row draws the archive's stored prices as a chart line with its note, and Allocation says the paper book needs no broker. Seams: the shell's shared theme assets are empty stand-ins and the kernel schedule list answers none. Needs the store toolchain (express, playwright, chromium).
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: in Chromium over the shipped tools/trading.html and ui scripts, served with the SHIPPED accounts, book-read, order-flow, research and chart routes on a native-kernel-shaped host (no broker, no market-data connector, the person's armed paper book holding UPCO, a World price archive). The landing shows the Paper tile with its $100,000 and a PAPER pill, the hero total is the paper book's (it said "$0 · No accounts yet - connect a Schwab login"), and the positions rollup lists UPCO in the paper book; opening the account and the UPCO row draws the archive's stored prices as a chart line with its note, and Allocation says the paper book needs no broker. Seams: the shell's shared theme assets are empty stand-ins and the kernel schedule list answers none. Needs declared Express, Playwright and Chromium dependencies, supplied by either the Store toolchain or the isolated native runtime.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Resolve declared dependencies in package-only native fixtures as well as Store checkouts.
  */
 'use strict';
 
@@ -15,9 +16,11 @@ const { standIns, loadShipped, nativeLandingPool, worldArchive } = require('./su
 const { paperHandlers } = require('../routes/trading-paper-routes');
 
 const PKG = path.resolve(__dirname, '..');
-const TOOLCHAIN = process.env.STORE_CI_TOOLCHAIN || path.join(PKG, '..', 'scripts', 'toolchain', 'node_modules');
-const express = require(path.join(TOOLCHAIN, 'express'));
-const { chromium } = require(path.join(TOOLCHAIN, 'playwright'));
+const dependencyRoots = [__dirname, path.join(PKG, '..', 'scripts', 'toolchain'),
+  ...(process.env.STORE_CI_TOOLCHAIN ? [process.env.STORE_CI_TOOLCHAIN] : []),
+  ...(process.env.OSHAL_FRAMEWORK ? [process.env.OSHAL_FRAMEWORK] : [])];
+const express = require(require.resolve('express', { paths: dependencyRoots }));
+const { chromium } = require(require.resolve('playwright', { paths: dependencyRoots }));
 
 const SUB = 'browser-alice';
 const NOW = new Date();
@@ -74,7 +77,7 @@ test('with no Schwab the landing shows the paper book, and its chart draws the W
   const { server, base } = await serve({ pool: nativeLandingPool(sql), intent: archive.intent });
   const browser = await chromium.launch();
   t.after(async () => { await browser.close(); await new Promise((r) => server.close(r)); });
-  const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+  const page = await (await browser.newContext({ locale: 'en-US', viewport: { width: 1280, height: 900 } })).newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
 

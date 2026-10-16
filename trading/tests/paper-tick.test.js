@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: the native paper tick end to end (TRADE-01) through the package's real route handlers and router, over the in-memory SQL double and a recording prices-intent double: arming, a scheduled tick that buys, the same window again writing nothing, a later window stopping out a fallen holding, the not-armed refusal, the closed-market and price-failure no-ops, disarming, person B never seeing or moving person A's book, and the existing screen reads answering from the paper book only on the native host's railless paper book.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Review regression guards: a disarm or a tighter re-arm that lands while a tick is reading prices makes that tick roll back (book_changed) instead of trading; re-arming an open book with a different startingCash is refused; /performance compares SPY over the book's own days, and says the benchmark is unavailable when the archive has no SPY (the real World universe has none).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | An unavailable SPY benchmark carries its baseDate, and withSpyCloses fills it from supplied day closes (Schwab on the native kernel): SPY measured from the last close on or before the base date, vs-market from the portfolio's own end, and nothing changes when the closes start after the base date or the benchmark is already available.
  */
 'use strict';
 
@@ -12,7 +13,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createSqlDouble, createIntentDouble } = require('./support/paper-doubles');
 const { paperHandlers, createTradingPaperRoutes } = require('../routes/trading-paper-routes');
-const { screenRead, statusFields } = require('../routes/paper/screen');
+const { screenRead, statusFields, withSpyCloses } = require('../routes/paper/screen');
 
 const MON_1035 = new Date('2026-10-05T14:35:15Z');     // Monday 10:35 New York
 const MON_1040 = new Date('2026-10-05T14:40:15Z');
@@ -285,4 +286,15 @@ test('/performance compares SPY over the book\'s own days, and says so when the 
   assert.deepEqual(none.spy, []);
   assert.deepEqual([none.summary.spyReturnPct, none.summary.vsSpyPct, none.summary.benchmark.available], [null, null, false]);
   assert.match(none.summary.benchmark.reason, /no SPY/);
+  assert.equal(none.summary.benchmark.baseDate, '2026-10-01', 'the unavailable benchmark names the date another source must cover');
+
+  // Day closes from another source (Schwab on the native kernel) fill it: SPY from the last close on or before the base date.
+  const closes = [{ date: '2026-09-30', price: 500 }, { date: '2026-10-02', price: 505 }, { date: '2026-10-05', price: 510 }];
+  const filled = withSpyCloses(none, closes, 'schwab');
+  assert.deepEqual([filled.summary.spyReturnPct, filled.summary.benchmark.source, filled.summary.benchmark.baseClose], [2, 'schwab', 500]);
+  assert.equal(filled.summary.vsSpyPct, Math.round((none.portfolio[none.portfolio.length - 1].pct - 2) * 100) / 100);
+  assert.deepEqual(filled.spy.map((p) => Math.round(p.pct * 100) / 100), [0, 1, 2]);
+  assert.equal(filled.summary.totalReturnPct, none.summary.totalReturnPct, 'the portfolio side is untouched');
+  assert.equal(withSpyCloses(none, closes.slice(1), 'schwab'), none, 'closes that start after the base date fill nothing');
+  assert.equal(withSpyCloses(older, closes, 'schwab'), older, 'an available benchmark is kept as it is');
 });

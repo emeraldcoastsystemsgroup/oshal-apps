@@ -30,6 +30,8 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Congress disclosures panel on the stock tab (GET /reports/congress): the names the STOCK Act feed reported lately, each with "disclosed <report day>", and an explicit owner "Add to watchlist" that posts the symbol only through the existing POST /watchlist. The disclosure day is now printed as its UTC calendar day in both places (cgDay): the watchlist column passed the midnight-UTC timestamp through toLocaleDateString, which shows the previous day in any timezone west of UTC.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Each unavailable research section prints the report's reason (`reasons[name]`: no market-data source connected, an EDGAR failure) instead of a bare "unavailable" (Major events follow the filings read they are decoded from; they had read an 'events' state the report never sets, so they always said unavailable), and a quote from the World archive says it is the last stored price with its own time, not a live quote. The watchlist's Last column marks an archive price the same way.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | The hand-off to another app (Finance) carried the screen's control text ('Buy AAPL / + Watchlist / Chart / 5Min / 1Hour ...'). researchLoad keeps the painted report in RS_REPORT and researchSummaryText(j) states it in plain sentences (price, fundamentals, earnings, headlines, filings, events, or each section's unavailable reason); connected-actions.js hands that on. Guard: tests/research-handoff-summary.test.js.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Show SEC financial periods, currencies, filing/fetch dates and missing metrics in the screen and research hand-off.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Congress chamber/party filters ask the server (GET /reports/congress?chamber=&party=) instead of filtering only the newest 50 trades in the page, which showed "no trades match" for Senate while the archive held hundreds; a filter with no match says so instead of showing the unfiltered summary.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | researchSummaryText ends an unavailable section's sentence once: a reason that already ends with a full stop read 'through the Schwab connection..'.
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.3 - this file predates the log and its earlier history is in git. Sub-tab race close-out (ADR-136 D2 tail): loadScoreboard and loadFeed now capture RENDER_TOKEN and tabGen() before their first await and bail after it, matching loadMovers and loadWatchlistPanel; loadAlgos is a plain function because it awaits nothing (its caller ignores the return). No handler attribute existed here and none is introduced - every action stays a delegated data-* listener.
  */
@@ -115,17 +117,17 @@ function researchSummaryText(j) {
   const f = j.fundamentals;
   if (rsOk(j, 'fundamentals') && f) {
     const parts = [];
-    if (f.revenue != null) parts.push('revenue ' + rsBig(f.revenue) + (f.revenueYoYPct != null ? ' (' + Number(f.revenueYoYPct).toFixed(1) + '% year on year)' : ''));
-    if (f.netIncome != null) parts.push('net income ' + rsBig(f.netIncome));
+    if (f.revenue != null) parts.push('revenue ' + financialAmount(f, f.revenue) + (f.revenueYoYPct != null ? ' (' + Number(f.revenueYoYPct).toFixed(1) + '% year on year)' : ''));
+    if (f.netIncome != null) parts.push('net income ' + financialAmount(f, f.netIncome));
     if (f.netMarginPct != null) parts.push('net margin ' + Number(f.netMarginPct).toFixed(1) + '%');
-    out.push('Fundamentals' + (f.fiscalYear ? ' FY' + f.fiscalYear : '') + ': ' + (parts.join(', ') || 'no figures') + '.' + (f.summary ? ' ' + f.summary : ''));
+    out.push('Fundamentals' + (f.fiscalYear ? ' FY' + f.fiscalYear : '') + ': ' + (parts.join(', ') || 'no figures') + '.' + (f.summary ? ' ' + f.summary : '') + financialSourceWords(f));
   } else out.push(sentence('Fundamentals unavailable' + why('fundamentals')));
   const e = j.earnings;
   if (rsOk(j, 'earnings') && e) out.push(e.nextExpected ? 'Next earnings expected ' + rsDay(e.nextExpected) + (e.source === 'cadence-estimate' ? ' (estimated from cadence)' : '') + '.' : 'Next earnings date unknown.');
   else out.push(sentence('Earnings unavailable' + why('earnings')));
   if (rsOk(j, 'news')) {
     const heads = (j.news || []).slice(0, 5).map((n) => n.headline).filter(Boolean);
-    out.push(heads.length ? 'Recent headlines: ' + heads.join('; ') + '.' : 'No recent headlines.');
+    out.push((heads.length ? 'Recent headlines: ' + heads.join('; ') + '.' : 'No recent headlines.') + newsSourceWords(j));
   } else out.push(sentence('News unavailable' + why('news')));
   if (rsOk(j, 'filings')) {
     const fl = j.filings || {}, eights = (fl.recent8K || []).slice(0, 3).map((k) => rsDay(k.date) + ' ' + ((k.itemsPlain && k.itemsPlain.length ? k.itemsPlain : k.items || []).join('; ') || '8-K'));
@@ -172,14 +174,35 @@ function researchChartHtml() {
     '<div class="tf-switch" id="rsTf" style="margin-left:auto">' + tfs.map(t => '<button data-tf="' + t + '"' + (t === FOC_TF ? ' class="on"' : '') + '>' + t + '</button>').join('') + '</div></div>' +
     '<div class="det-chart" id="focChart"></div>';
 }
+function financialAmount(f, value) {
+  const amount = rsBig(value);
+  if (f.currency && !/^[A-Z]{3}$/.test(f.currency)) return '—';
+  return f.currency && f.currency !== 'USD' ? amount.replace(/\$/g, '') + ' ' + f.currency : amount;
+}
+function financialSourceWords(f) {
+  if (f.source !== 'sec-companyconcept') return '';
+  const metric = f.metrics && (f.metrics.revenue || f.metrics.netIncome);
+  const missing = Object.values(f.missing || {}).filter(Boolean).join(' ');
+  return ' Source: SEC annual financial statements; currency ' + f.currency +
+    '; period ' + f.period.start + ' through ' + f.period.end +
+    (metric ? '; filed ' + metric.filed : '') + '; retrieved ' + f.fetchedAt + '.' + (missing ? ' ' + missing : '');
+}
+function financialSourceHtml(f) {
+  const words = financialSourceWords(f);
+  if (!words) return '';
+  const metric = f.metrics && (f.metrics.revenue || f.metrics.netIncome);
+  const link = metric && /^https:\/\/data\.sec\.gov\/api\/xbrl\/companyconcept\/CIK\d{10}\/(us-gaap|ifrs-full)\/[A-Za-z]+\.json$/.test(metric.url)
+    ? ' <a target="_blank" rel="noopener noreferrer" href="' + esc(metric.url) + '">SEC financial source</a>' : '';
+  return '<div class="sub" style="margin-top:10px">' + esc(words) + link + '</div>';
+}
 function researchFundHtml(j) {
   const f = j.fundamentals;
   const head = '<div class="panel" style="margin-top:14px"><h2>Fundamentals' + (f && f.fiscalYear ? ' <span class="foot" style="margin:0">FY' + esc(f.fiscalYear) + '</span>' : '') + '</h2>';
   if (!rsOk(j, 'fundamentals') || !f) return head + rsUnavail(j, 'fundamentals') + '</div>';
   const p = (v) => v == null ? '—' : '<span class="' + (Number(v) >= 0 ? 'ok' : 'err') + '">' + pct(v) + '</span>';
   return head + (f.summary ? '<div class="sub" style="margin-bottom:10px">' + esc(f.summary) + '</div>' : '') +
-    '<div class="det-stats" style="margin:0">' + st('Revenue', rsBig(f.revenue)) + st('Revenue YoY', p(f.revenueYoYPct)) +
-    st('Net income', rsBig(f.netIncome)) + st('Net margin', f.netMarginPct == null ? '—' : Number(f.netMarginPct).toFixed(1) + '%') + '</div></div>';
+    '<div class="det-stats" style="margin:0">' + st('Revenue', financialAmount(f, f.revenue)) + st('Revenue YoY', p(f.revenueYoYPct)) +
+    st('Net income', financialAmount(f, f.netIncome)) + st('Net margin', f.netMarginPct == null ? '—' : Number(f.netMarginPct).toFixed(1) + '%') + '</div>' + financialSourceHtml(f) + '</div>';
 }
 /* Next expected report + WHERE that date came from — 'calendar' or 'estimated from cadence', always
    said plainly — and the past result dates the estimate rests on. */
@@ -195,12 +218,20 @@ function researchEarnHtml(j) {
     : '';
   return head + next + past + '</div>';
 }
+function newsSourceWords(j) {
+  const c = j.newsCoverage;
+  return c ? ' Source: ' + c.source + '; published between ' + c.from + ' and ' + c.through + '; retrieved ' + c.fetchedAt + '. ' + c.note + (c.excluded ? ' Excluded ' + c.excluded + ' duplicate or unusable returned items.' : '') : '';
+}
+function newsArticleUrl(raw) {
+  try { const u = new URL(raw); return /^https?:$/.test(u.protocol) && !u.username && !u.password ? u.href : ''; } catch (_) { return ''; }
+}
 function researchNewsHtml(j) {
   const items = j.news || [], head = '<div class="panel"><h2>News</h2>';
   if (!rsOk(j, 'news')) return head + rsUnavail(j, 'news') + '</div>';
-  if (!items.length) return head + '<div class="foot" style="margin:0">No recent headlines.</div></div>';
-  return head + items.slice(0, 25).map(n =>
-    '<div class="news-item"><div>' + (n.url ? '<a href="' + esc(n.url) + '" target="_blank" rel="noopener">' + esc(n.headline) + '</a>' : '<b>' + esc(n.headline) + '</b>') + '</div>' +
+  const provenance = '<div class="foot">' + esc(newsSourceWords(j)) + '</div>';
+  if (!items.length) return head + '<div class="foot" style="margin:0">No recent headlines.</div>' + provenance + '</div>';
+  return head + provenance + items.slice(0, 25).map(n =>
+    '<div class="news-item"><div>' + (newsArticleUrl(n.url) ? '<a href="' + esc(newsArticleUrl(n.url)) + '" target="_blank" rel="noopener">' + esc(n.headline) + '</a>' : '<b>' + esc(n.headline) + '</b>') + '</div>' +
     (n.summary ? '<div class="sub" style="margin-top:2px">' + esc(n.summary) + '</div>' : '') +
     '<div class="foot" style="margin-top:2px">' + esc(n.source || '') + (n.createdAt ? ' · ' + esc(fmtDate(n.createdAt)) : '') + '</div></div>').join('') + '</div>';
 }
@@ -326,13 +357,21 @@ let CG_SORT_COL = 'disclosureDate';
 let CG_SORT_DIR = 'desc';
 let CG_DATA = null;
 
+/* The panel's read: the chamber/party choices travel to the server, which filters every stored trade. */
+function cgQuery() {
+  const q = ['limit=50'];
+  if (CG_CHAMBER) q.push('chamber=' + encodeURIComponent(CG_CHAMBER));
+  if (CG_PARTY) q.push('party=' + encodeURIComponent(CG_PARTY));
+  if (CG_CHAMBER || CG_PARTY) q.push('view=trades');
+  return '/reports/congress?' + q.join('&');
+}
 /* GET /reports/congress → the names and granular trades the disclosure feed reported lately. */
 async function loadCongressPanel(hostId) {
   const token = RENDER_TOKEN, gen = tabGen();
   const host = $(hostId); if (!host) return;
   cgWire(host);
   let j = null, err = null;
-  try { j = await api('/reports/congress?limit=50'); } catch (e) { err = e; }
+  try { j = await api(cgQuery()); } catch (e) { err = e; }
   if (stale(token) || tabStale(gen) || !$(hostId)) return;
   CG_DATA = j;
   host.innerHTML = cgShellHtml(err ? '<div class="err" style="font-size:13px">' + esc(err.message) + '</div>' : cgRowsHtml(j));
@@ -357,7 +396,11 @@ function cgRowsHtml(j) {
   const note = j && j.note ? '<div class="foot" style="margin:8px 0 0">' + esc(j.note) + '</div>' : '';
   if (!j || j.status !== 'ok') return '<div class="foot" style="margin:0">unavailable' + (j && j.reason ? ' &mdash; ' + esc(j.reason) : '') + '</div>' + note;
 
-  if (CG_VIEW === 'trades' && j.trades && j.trades.length) {
+  // A chamber/party choice is about trades; with none matching, never fall back to the unfiltered summary.
+  if ((CG_CHAMBER || CG_PARTY) && !(j.trades && j.trades.length)) {
+    return '<div class="foot" style="margin:0">No congressional trades match your filter criteria.</div>' + note;
+  }
+  if ((CG_VIEW === 'trades' || CG_CHAMBER || CG_PARTY) && j.trades && j.trades.length) {
     let list = j.trades.slice();
     if (CG_SEARCH) {
       const q = CG_SEARCH.toLowerCase().trim();
@@ -463,10 +506,10 @@ function cgWire(host) {
   host.addEventListener('change', (e) => {
     if (e.target && e.target.id === 'cgChamber') {
       CG_CHAMBER = e.target.value;
-      cgRepaint(host);
+      loadCongressPanel(host.id);
     } else if (e.target && e.target.id === 'cgParty') {
       CG_PARTY = e.target.value;
-      cgRepaint(host);
+      loadCongressPanel(host.id);
     }
   });
   host.addEventListener('click', (e) => {

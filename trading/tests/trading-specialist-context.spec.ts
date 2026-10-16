@@ -582,8 +582,9 @@ describe('honest when the numbers are not there', () => {
       'latestPrice', 'latestTrade', 'fetch(', 'marketData', 'http']) {
       expect(code, `the facts reader must not reach ${forbidden}`).not.toContain(forbidden);
     }
-    // Its whole import surface: the pool's own stores and this package's realized helper.
+    // Its whole import surface: owned stores, realized results and the native paper reader.
     expect(code.match(/from '[^']+'/g)?.sort()).toEqual([
+      "from './paper/facts'",
       "from './trading-realized'",
       "from '@/app/composition/app-context'",
       "from '@/app/trading-books-store'",

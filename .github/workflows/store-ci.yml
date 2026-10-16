@@ -1200,11 +1200,11 @@ jobs:
         run: node scripts/run-trading-specs.mjs
       - name: Install Chromium for native Trading screen proofs
         run: node framework/node_modules/playwright/cli.js install --with-deps chromium
-      - name: Run native Schwab read and desktop/phone holdings contracts
+      - name: Run native Trading data, company lookup and desktop/phone holdings contracts
         working-directory: trading
         env:
           OSHAL_FRAMEWORK: ../framework
-        run: node --test "tests/native-schwab*.test.js"
+        run: node --test "tests/*native*.test.js"
       - name: Run Futures Research workflow and compiled readiness contract
         working-directory: futures-research
         env:

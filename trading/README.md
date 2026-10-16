@@ -21,7 +21,30 @@ read adapter. A disconnected caller keeps the World archive fallback, labelled a
 Movers retain the explicitly labelled World archive; no whole-market Schwab screener is claimed.
 Version 1.33.3 distinguishes missing archive prices from insufficient daily history for volatility.
 Schwab product permissions and renewed connection validity are still required at execution.
-Company financial summaries, news and real-money order execution remain outside this adapter.
+Annual financial summaries come separately from public SEC financial statements (1.33.14);
+company news separately uses your optional Finnhub connection (1.33.15). Real-money order
+execution remains outside the native read adapter.
+
+Paper Reports benchmark (1.33.16): the native World archive only holds SPY prices from the
+2026-10-12 cutover onward, so a 1M/3M/1Y comparison has no starting close there. In that case
+`/performance` measures SPY from your Schwab daily closes over the same days, and the screen
+says so. With no Schwab connection, or no close on or before the period start, the Reports
+summary shows "S&P unavailable" with the reason, not a flat +0.00%.
+
+Congress disclosures (1.33.17): the Research list and the watchlist CONGRESS column read the
+kernel's congressional feed (`feeds.recent` / `feeds.latest`). The chamber and party filters ask
+the server for matching trades (`feeds.congress_trades`), so a Senate choice lists Senate filings,
+not just whatever was among the newest 50; with none matching the panel says so.
+
+Day P&L on Schwab accounts (1.33.18): each account card shows the change today as the sum of
+Schwab's own per-position day P&L (kernel `trading.accounts`), zero for a cash-only account, and
+"n/a" only when a position does not report it. The headline total adds each measured account day
+change (1.33.19).
+
+Algorithms scan (1.33.20): `migrations/003-native-predictions.sql` declares the prediction ledger
+the scan records into; without it the native kernel refused every scanned symbol and the scan
+showed an empty table. Recommendations and the scan run on the deterministic engine the kernel
+bridge now carries.
 
 The source's native bridge route tests, caller/isolation/withdrawal guards, and desktop/phone
 holdings tests cover these contracts. Installation and genuine provider acceptance are separate
@@ -1050,3 +1073,137 @@ History status (1.33.5): a completed or failed history read replaces the loading
 The October 14 reconciliation appended only venue-proven missing closes and preserved
 original rejected records. The current ledger is mirrored into native owner scope; remaining
 historical exceptions are documented in `BACKLOG.md`. No live orders or arming were performed.
+
+
+Native historical reconciliation (1.33.6): open an owned Schwab account and choose
+**Reconcile ledger**. The preview resolves recovered historical books against a fresh
+Schwab account binding, reads the last year of equity executions, and checks current
+holdings both before and after the history read. It shows matching symbols, proved
+missing historical closes, and review exceptions. An account without filled engine
+history is identified separately; its manual holdings are not enrolled.
+
+To record proposed closes, review the details, select the acknowledgement and choose
+**Record verified closes**. Apply refetches venue evidence, requires the same preview
+fingerprint, witnesses the native ledger in an atomic transaction and records a paired
+historical decision and close. Changed evidence or ledger rows require another preview.
+The native correction leaves original rejected rows, historical exceptions and book
+arming unchanged. It never places a broker order. These corrections affect the native
+ledger; legacy automation has a separate ledger. Real broker order execution on the
+native kernel remains unavailable. A lost apply response requires a new preview;
+deterministic identities and ledger replay prevent booking the same close twice.
+
+The required native Schwab gate includes the pure planner, shipped route workflow and
+desktop/phone contracts. Test Lab lists those cases. A separate kernel PostgreSQL
+integration case checks paired native writes, rollback, caller isolation and concurrent
+snapshot refusal. Synthetic provider evidence is labelled fixture data in these tests;
+it does not replace original-session installed acceptance.
+
+Jarvis stock data (1.33.7): ask Jarvis or the Trading analyst for a stock quote,
+company research, or price history. The analyst uses the Trading module's declared
+`trading_symbol_search`, `trading_stock_info`, and `trading_stock_chart` API tools;
+symbol search currently matches ticker prefixes, not company names. These reads use the caller's own
+connected market-data source and require Trading access. They cannot place orders.
+Research reports the quote source, exchange timestamp and delay note, alongside
+explicit reasons for unavailable sections. Native annual financial summaries use public SEC statements (1.33.14); company news uses the caller’s optional Finnhub connection (1.33.15). Missing values are never a successful zero result.
+Chart intervals are 5Min, 15Min, 1Hour, 1Day (default), and 1Week.
+The Test Lab case `native-jarvis-stock-tools` checks declarations and persona rules;
+the native kernel's `jarvis_trading_data` integration exercises real Jarvis HTTP,
+actual Trading process routes and per-caller normalized provider fixtures. The
+scripted model and provider data are test seams, not a live Schwab acceptance run.
+
+Source-suite loading (1.33.8): `OSHAL_FRAMEWORK=<framework checkout> node
+scripts/run-trading-specs.mjs` now resolves the actual shipped JavaScript archive
+and paper helpers. All 34 suites load, exposing 501 cases instead of 287. The
+book-facts TypeScript import now matches its existing compiled peer. The full
+source gate remains red on four separately tracked T7/T10 cases; loading the
+suites is not a claim that those remaining checks pass.
+
+Selected-book readiness (1.33.9): the status explanation now comes from the same
+account-bound broker reader used to check the selected book. It no longer asks an
+unbound default reader for the reason, which could describe a different login.
+The existing Test Lab rail-guard case includes an actual-router regression for
+this behavior; no broker data read or order is needed to report readiness.
+The full source run now executes 502 cases: 499 pass, with three T10 guard/fixture
+failures still open. The native shipped-handler checks and strict compilation are
+separate from that remaining legacy-source gate.
+
+Source gate restored (1.33.10): all 34 suites pass all 502 cases with no skips.
+This supersedes the remaining T7/T10 failures recorded in 1.33.8 and 1.33.9 above.
+The Futures source case checks the shipped reviewer/persona and legacy inline
+bot mapping. Whole native manifest admission is tested by the Rust kernel's
+`jarvis_trading_data` and `home_summaries` integration tests, rather than the old
+TypeScript schedule parser. Signed-in live-provider acceptance remains separate.
+
+Company-name lookup (1.33.11): Jarvis can call `trading_company_search` with a name
+such as NVIDIA before requesting a quote. The authenticated
+`GET /api/trading/companies/search?q=NVIDIA` route reads the existing [SEC company
+directory](https://www.sec.gov/files/company_tickers.json), returns at most 25 real
+matches and labels the source, cache fetch time and age. Cache fetch time is not
+the company's filing time. Ambiguous names require the person to choose a company.
+A directory entry does not prove broker tradability, a current quote, or financial
+fundamentals; those remain separate reads. A failed or malformed directory is a
+503 unavailable result, never a successful empty search. No accounts or orders
+are read or written by this lookup.
+
+The `native-company-directory` Test Lab registration includes actual shipped
+route tests with explicit SEC fixtures. Stock-tool metadata names its YAML
+runtime dependency and runs in a package-only layout. Native Test Lab catalog
+registration is separate from sealed suite execution, which remains tracked in T1.
+The mandatory Store native Trading glob includes these directory, Research and
+native paper UI cases, with no live DB or broker orders involved.
+
+Native Test Lab execution: all maintained suites are registered in `tests/test-lab.yaml`.
+The kernel's **Run suite** action executes supported package Node/browser tests in a
+separate pinned container and retains the operator's measured results and source
+provenance. Readiness is a separate action. Unsupported runners or missing fixtures
+remain pending; skipped cases are partial. See `BACKLOG.md` T1 for remaining scope.
+
+Jarvis model selection and local-account proof (2026-10-15): kernel `6ccfcb1`
+adds provider-independent defaults for exact package/bot pairs running inline, with
+caller choice and unrelated fleet/worker routing preserved. The actual local Codex
+account received the declared stock tools and completed the native Jarvis → Trading
+integration with synthetic market data. This proves that tested instruction/tool path,
+not live brokerage acceptance or universal model reliability. Managed CLI sign-in
+remains a local experiment: [OpenAI's authentication guidance](https://learn.chatgpt.com/docs/app-server#auth-endpoints)
+excludes hosted services from that mechanism. Shared OSHAL needs a suitable API provider
+or registered Sign in with ChatGPT integration before activation. Production selection
+is unchanged; signed-in live-data conversation acceptance remains T14.
+
+Annual financial summaries (1.33.14): Research reads the SEC's public standard US-GAAP
+and IFRS revenue/net-income concepts through existing admitted egress. It displays annual
+reporting dates, currency, filing date, retrieval time and an exact source link. Revenue,
+net income, growth and margin keep their individual missing reasons. Ratios require the
+same annual context and currency; growth also needs an adjacent prior-year comparison
+in the same filing/concept. Comparative filing `fy` is not presented as the period's
+fiscal-year label. Newer annual periods outrank old revenue tags. Custom/unsupported
+facts, conflicting values, failed sources and missing concepts stay unavailable.
+
+This public statement read needs no new key or broker connection. Quotes and charts
+still require their own market-data access. The component and route tests use synthetic
+financial data; a separate probe verifies the reader against real SEC responses.
+Installed 1.33.14 acceptance on 2026-10-15 verified actual NVDA annual figures and SEC
+provenance in the original signed-in Chrome session. The installed Test Lab measured
+22 summary tests and one desktop/phone browser test, all passing without skips and
+with verified cleanup (artifact `3a008cd694df`, before this documentation-only update).
+The embedded cases
+`native-sec-financial-summary` and `native-sec-financial-browser` exercise these contracts;
+the browser case drives the actual financial route and renderer at desktop/phone widths.
+
+
+Company news (1.33.15): native Research uses your optional Finnhub connection from
+Settings → Connections. The kernel places its credential on the declared Finnhub host;
+Trading never receives the key. Each request reads the last seven days for one symbol,
+returns up to 25 newest matching articles and retains publisher, publication date,
+source coverage and retrieval time in the screen and handoff. Finnhub limits this
+endpoint to North American companies. Duplicate, invalid, old, future or mismatched
+items are excluded and counted. Successful empty results and provider/authorization/
+throttling failures are distinct. No cached result bypasses a caller's current connection.
+The embedded `native-company-news` and `native-company-news-browser` cases verify the
+actual reader/route/renderer with named synthetic data, including desktop/phone layouts
+and unsafe links. On 2026-10-15, original signed-in Chrome acceptance displayed actual
+Finnhub NVDA headlines with publication/publisher and retrieval/coverage provenance.
+The installed Test Lab measured 18 summary checks and one desktop/phone browser check:
+all passed without skips and with verified cleanup, artifact `756b740c5e78` before this
+documentation-only update. See BACKLOG.md T5 for remaining native market-data scope.
+Provider contract: https://finnhub.io/docs/api/company-news and the official client
+https://github.com/Finnhub-Stock-API/finnhub-go/blob/master/api/openapi.yaml.

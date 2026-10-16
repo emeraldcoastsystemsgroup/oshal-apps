@@ -26,7 +26,7 @@ describe('research / watchlist / lots routes — auth + book scoping (ADR-138)',
   const route = src('src-routes/trading-research-routes.ts');
   const handlers = route.split(/\n  router\.(?=get|post|patch|delete)/).slice(1);
 
-  it('registers exactly the nine handlers', () => {
+  it('registers exactly the ten handlers', () => {
     const heads = handlers.map((h) => h.split('\n')[0]);
     expect(heads.filter((h) => h.startsWith("get('/research/:symbol'"))).toHaveLength(1);
     expect(heads.filter((h) => h.startsWith("get('/symbols/search'"))).toHaveLength(1);
@@ -37,7 +37,8 @@ describe('research / watchlist / lots routes — auth + book scoping (ADR-138)',
     expect(heads.filter((h) => h.startsWith("delete('/watchlist/:symbol'"))).toHaveLength(1);
     expect(heads.filter((h) => h.startsWith("get('/lots'"))).toHaveLength(1);
     expect(heads.filter((h) => h.startsWith("post('/lots/:id/release'"))).toHaveLength(1);
-    expect(handlers).toHaveLength(9);
+    expect(heads.filter((h) => h.startsWith("get('/companies/search'"))).toHaveLength(1);
+    expect(handlers).toHaveLength(10);
   });
 
   it('every handler 401-gates via callerSub before any work', () => {
@@ -97,10 +98,10 @@ describe('research / watchlist / lots routes — auth + book scoping (ADR-138)',
   it('every research section is wrapped: a failure is logged, reported unavailable, and never thrown', () => {
     const wrapped = route.match(/section\('(quote|fundamentals|news|filings|earnings)', symbol,/g) ?? [];
     expect(new Set(wrapped)).toHaveProperty('size', 5);
-    expect(route).toMatch(/catch \(err\) \{\s*\n\s*logger\.error\(\{ err, symbol, section: name \}[^\n]*\n\s*sections\[name\] = 'unavailable';\s*\n\s*return fallback;/);
+    expect(route).toMatch(/catch \(err\) \{\s*logger\.error\(\{ err, symbol, section: name \}[^\n]*\n\s*sections\[name\] = 'unavailable';\s*if \(reasons\) reasons\[name\] = sectionReason\(name, err, TradingError\);\s*return fallback;/);
     expect(route).toContain("type SectionState = 'ok' | 'unavailable'");
-    expect(route).toContain("if (!quote) sections.quote = 'unavailable';");
-    expect(route).toContain("if (!fundamentals) sections.fundamentals = 'unavailable';");
+    expect(route).toMatch(/if \(!quote && sections\.quote === 'ok'\) \{\s*sections\.quote = 'unavailable';/);
+    expect(route).toMatch(/if \(!fundamentals && sections\.fundamentals === 'ok'\) \{\s*sections\.fundamentals = 'unavailable';/);
   });
 
   it('never fabricates: the calendar is labelled world-calendar, the estimate cadence-estimate, and no price is defaulted', () => {
@@ -128,10 +129,15 @@ describe('research / watchlist / lots routes — auth + book scoping (ADR-138)',
     expect(release).toContain('res.json({ lot })');
   });
 
-  it('every handler maps a TradingError to its own status/code and logs + 502s anything else', () => {
+  it('handlers preserve TradingError mapping and explicitly report directory outages as unavailable', () => {
     expect(route).toContain('if (err instanceof TradingError) { res.status(err.httpStatus).json({ error: err.code, message: err.message }); return; }');
     expect(route).toMatch(/logger\.error\(\{ err, what \}, 'research route failed'\);\s*\n\s*res\.status\(502\)/);
-    for (const h of handlers) expect(h).toMatch(/catch \(err\) \{ fail\(res, err, '/);
+    for (const h of handlers) {
+      if (h.startsWith("get('/companies/search'")) {
+        expect(h).toContain("res.status(503).json({error:'company_directory_unavailable'");
+        expect(h).toContain("logger.error({err},'SEC company lookup unavailable')");
+      } else expect(h).toMatch(/catch \(err\) \{ fail\(res, err, '/);
+    }
     expect(route).not.toMatch(/catch\s*\{\s*\}/);
     expect(route).not.toMatch(/catch \([a-z]+\) \{\s*return/);
     expect(route).not.toMatch(/console\.log/);

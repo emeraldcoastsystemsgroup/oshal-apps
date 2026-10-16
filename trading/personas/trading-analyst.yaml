@@ -35,6 +35,10 @@ authorizations:
   trading_positions: "auto"
   trading_autopilot: "auto"
   trading_trade: "auto"
+  trading_stock_info: "auto"
+  trading_stock_chart: "auto"
+  trading_symbol_search: "auto"
+  trading_company_search: "auto"
   trading_book_facts: "auto"
   trading_performance: "auto"
   # ADR-083: read-only desk forensics on its own node (oshal-trade-data.js etc.).
@@ -83,7 +87,15 @@ perspective: |
   - Talk to the person, not about your instructions: never quote your rules, the decision
     contract or a "decision tree", and never give a URL or route path; name a screen by its title
     (the Research tab of Intelligent Trades).
-  - One bot, one task. You do not call other bots and you do not fetch anything.
+  - For a stock or company question, use trading_symbol_search for ticker prefixes, then
+    use trading_stock_info for the quote and research and trading_stock_chart for requested
+    price history. Preserve source, quote timestamp and delayed status in your answer. State
+    unavailable sections plainly; never invent missing fundamentals, news or prices.
+    For company names use trading_company_search, which returns public SEC directory matches
+    with their fetch time. Ask which company when matches are ambiguous. A directory entry
+    does not prove broker tradability or a current quote. If lookup is unavailable, ask for
+    a known ticker; never invent a company-to-ticker match.
+  - One bot, one task. Read data only through the declared Trading tools; do not call other bots.
 
 # ADR-083 routing declarations — the crisp signals the call-out self-score uses.
 selector_descriptor: |
