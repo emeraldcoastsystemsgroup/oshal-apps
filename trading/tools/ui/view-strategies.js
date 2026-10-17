@@ -29,6 +29,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Add the default-off Futures source-alert control and explain its owner routing and per-run cadence.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | ADR-052 addendum: the Strategy Lab editor gains the three paper-to-live parity knobs the kernel's StrategyConfig carries - market gap-down filter %, exit plan life in sessions and yield sleeve float % - each blank by default. Blank saves null (inherit the account's mode-aware env arm, off unless armed; a Lab walk runs off), 0 saves an explicit off, a number arms it; the kernel's normalizeConfig clamps. GET /lab/knobs explains each under Knobs & formulas. Only renderLabForm and saveLabStrategy change; the Futures sub-view is untouched.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | The native paper book (no stored book id) lists in the roster without a strategy picker: its Set button had no book to act on and did nothing. The row says it runs the paper autopilot's own rules and that its controls are on the account page.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | The Futures source list starts with the person's Schwab connection (schwab), the native study's only source.
  */
 
 /* ── Account strategies roster — per-book strategy + trading control (ADR-134) ── */
@@ -801,7 +802,7 @@ function loadTuning() {
     '<div id="futMsg" class="sub" style="min-height:18px"></div>' +
     '<div class="grid2"><label class="f">Roots (comma-separated)<input id="futRoots" value="ES,CL" /></label><label class="f">Nightly cron<input id="futCron" value="0 2 * * *" /></label>' +
     '<label class="f">Chart timeframe<select id="futTf"><option>1Hour</option><option>1Day</option><option>5Min</option><option>1Week</option><option>3Month</option></select></label><label class="f">Higher timeframe<select id="futLtf"><option>1Day</option><option>1Hour</option><option>1Week</option><option>3Month</option></select></label>' +
-    '<label class="f">Source<select id="futSource"><option value="kibot-file">Kibot files</option><option value="schwab-capture">Schwab private captured bars</option><option value="kibot">Kibot API (endpoint verification pending)</option></select></label><label class="f">Container data directory<input id="futDir" placeholder="/app/data/kibot" /></label>' +
+    '<label class="f">Source<select id="futSource"><option value="schwab">Schwab connection (your account)</option><option value="kibot-file">Kibot files</option><option value="schwab-capture">Schwab private captured bars</option><option value="kibot">Kibot API (endpoint verification pending)</option></select></label><label class="f">Container data directory<input id="futDir" placeholder="/app/data/kibot" /></label>' +
     '<div id="futSourceNote" class="foot" style="grid-column:1/-1"></div>' +
     '<label class="f">Start date<input id="futStart" type="date" value="2021-01-01" /></label><label class="f">End policy<select id="futEndMode"><option value="latest">Latest completed day (New York for Schwab)</option><option value="fixed">Fixed end date</option></select></label>' +
     '<label class="f">Fixed end date (used only for fixed policy)<input id="futEnd" type="date" value="2025-12-31" /></label>' +

@@ -4,6 +4,9 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: the SHIPPED research routes on a host with no market-data rail (the native kernel's bridge: a rail whose configured() is false and whose reads reject with TradingError 503 market_data_not_connected). GET /research/NVDA prices the quote from the World archive (prices.latest through ctx.intent) and labels it a stored price with its own time, keeps the SEC filings it can read, and names the reason for each unavailable section; a ticker the archive does not track says so; the watchlist carries archive prices; GET /status carries the host's broker and market-data reasons; and no shipped surface tells the person to set Alpaca keys. The page's Major events card shows the 8-K events the filings read decoded instead of always "unavailable". Red on the previous sources (quote null with no reason, bare "unavailable", set-the-keys advice, events never shown).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The next earnings date is read from the recorded World calendar for the lower-case subject (world:ticker:nvda), labelled world-calendar.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Company news is read from the World archive's headlines (feeds.news) on the native kernel, deduplicated, unsafe links dropped.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Finnhub is asked first; when it refuses (401) the World archive's headlines answer.
  */
 'use strict';
 
@@ -45,10 +48,11 @@ const standIn = (request) => new Proxy(STAND_INS[request] || {}, {
  * @param {object} ctx - Route context.
  * @returns {Map<string, Function>} GET path → handler.
  */
-function shippedResearch(ctx, tradingOverride) {
+function shippedResearch(ctx, tradingOverride, worldOverride) {
   const original = Module._load;
   Module._load = function load(request, ...rest) {
     if (request === '@/features/trading' && tradingOverride) return {...STAND_INS[request],...tradingOverride};
+    if (request === '@/features/world-data' && worldOverride) return worldOverride;
     return request.startsWith('@/') ? standIn(request) : original.call(this, request, ...rest);
   };
   try {
@@ -73,6 +77,14 @@ async function call(routes, p, params = {}, query = {}) {
 
 /** The kernel's prices.latest: NVDA stored Friday's close; anything else is missing. */
 const archive = async (name, input) => {
+  if (name === 'feeds.news') {
+    assert.equal(input.entity, 'world:ticker:nvda', 'the lower-case World subject');
+    return { items: [
+      { itemHash: 'a', title: 'Nvidia moat deepens', summary: 'AI demand', outlet: 'Yahoo Finance', link: 'https://example.com/a', firstSeenAt: '2026-10-16T15:20:49Z', pubDate: null },
+      { itemHash: 'b', title: 'Nvidia moat deepens', summary: '', outlet: 'Repeat', link: 'https://example.com/b', firstSeenAt: '2026-10-16T15:10:00Z', pubDate: null },
+      { itemHash: 'c', title: 'Unsafe link', summary: '', outlet: 'X', link: 'javascript:alert(1)', firstSeenAt: '2026-10-16T15:00:00Z', pubDate: null },
+    ] };
+  }
   assert.equal(name, 'prices.latest');
   const prices = input.symbols.includes('NVDA') ? [{ symbol: 'NVDA', at: '2026-10-09T20:00:00Z', price: 191.25, volume: 1 }] : [];
   return { prices, missing: input.symbols.filter((s) => s !== 'NVDA'), readAt: '2026-10-11T12:00:00Z' };
@@ -99,10 +111,26 @@ test('research prices from the archive, keeps the filings, and names each unavai
   assert.match(r.body.quote.note, /not a live quote/);
   assert.equal(r.body.sections.filings, 'ok');
   assert.equal(r.body.filings.latest10Q.form, '10-Q');
-  for (const name of ['fundamentals', 'news']) {
-    assert.equal(r.body.sections[name], 'unavailable');
-    assert.equal(r.body.reasons[name], NO_MD);
-  }
+  assert.equal(r.body.sections.fundamentals, 'unavailable');
+  assert.equal(r.body.reasons.fundamentals, NO_MD);
+  // Company news comes from the World archive's headlines: repeated headlines and unsafe links are dropped.
+  assert.equal(r.body.sections.news, 'ok', JSON.stringify(r.body.reasons));
+  assert.deepEqual(r.body.news.map((n) => [n.headline, n.source, n.url]), [['Nvidia moat deepens', 'Yahoo Finance', 'https://example.com/a']]);
+  assert.equal(r.body.newsCoverage.source, 'World archive headlines');
+});
+
+test('the next earnings date comes from the recorded World calendar for the lower-case subject', async (t) => {
+  edgar(t);
+  const asked = [];
+  const world = { createWorldIntelligenceService: () => ({ upcomingEvents: async (days, entity) => {
+    asked.push(entity);
+    return entity === 'world:ticker:nvda' ? [{ entityId: entity, eventType: 'earnings', scheduledAt: '2026-11-19T21:00:00+00:00', title: 'NVDA earnings' }] : [];
+  } }) };
+  const routes = shippedResearch({ pool: { query: async () => ({ rows: [] }) }, intent: archive }, null, world);
+  const r = await call(routes, '/research/:symbol', { symbol: 'NVDA' });
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+  assert.ok(asked.includes('world:ticker:nvda'), JSON.stringify(asked));
+  assert.deepEqual([r.body.earnings.nextExpected, r.body.earnings.source], ['2026-11-19', 'world-calendar']);
 });
 
 test('a ticker the archive does not track, and a host without the archive, say so', async (t) => {
@@ -212,10 +240,10 @@ test('native Research reads annual financial facts independently of an absent br
   const r=await call(routes,'/research/:symbol',{symbol:'NVDA'});assert.equal(r.code,200);assert.equal(r.body.sections.fundamentals,'ok');
   assert.equal(r.body.fundamentals.revenue,100);assert.equal(r.body.fundamentals.netIncome,25);assert.equal(r.body.fundamentals.fiscalYear,null);
   assert.equal(r.body.fundamentals.source,'sec-companyconcept');assert.equal(r.body.fundamentals.metrics.revenue.accession,'0001045810-26-000021');
-  assert.equal(r.body.quote.source,'world-archive');assert.equal(r.body.sections.news,'unavailable');
+  assert.equal(r.body.quote.source,'world-archive');assert.equal(r.body.sections.news,'ok');assert.equal(r.body.newsCoverage.source,'World archive headlines');
   assert.equal(calls.filter(x=>x.url.includes('/companyconcept/')).length,7);
   assert.ok(calls.filter(x=>!x.url.startsWith('https://finnhub.io/')).every(x=>x.init.headers['User-Agent'].includes('maintainer@')));
-  assert.match(r.body.reasons.news,/authorization was refused/);
+  assert.ok(calls.some(x=>x.url.startsWith('https://finnhub.io/')),'Finnhub is asked first');
   await call(routes,'/research/:symbol',{symbol:'NVDA'});assert.equal(calls.filter(x=>x.url.includes('/companyconcept/')).length,7,'public cached facts keep their original fetch time');
 });
 test('native Research refuses unbound or invalid requests before SEC reads and isolates failed financial sections',async t=>{

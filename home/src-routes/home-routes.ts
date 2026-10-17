@@ -26,6 +26,7 @@
  * 2026-10-10 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: with OSHAL_EGRESS=kernel, /control, /scene/run and /refresh call api.smartthings.com through the global fetch with no Authorization header; the kernel applies the caller's smartthings connection declared in the manifest egress block. "Not connected" is decided from the connectors.metadata intent (none, revoked, or lapsed and unrenewable), and a kernel "not connected" refusal answers the same 409 each route gives for a missing token. The legacy broker path is unchanged.
  * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | The home chat named a raw path, 'under Connections (/utilities)', while the app has its own Hubs tab. The reasoning prompt carries HOME_CONNECT_RULE: a hub is connected on this app's Hubs tab, named in words, never a raw path. Guard: tests/home-connect-copy.test.cjs.
  * 2026-10-13 15:10:00 | maintainer@emeraldcoastsystemsgroup.com | Sweep 14: the Smart Home assistant's reply began "The snapshot shows no devices or scenes are currently connected.", the prompt's own word. The prompt calls the data what the person's Smart Home app has saved (HOME_JSON) and says to speak of it that way, never with a word of the instructions. Guard: tests/home-connect-copy.test.cjs.
+ * 2026-10-16 | maintainer@emeraldcoastsystemsgroup.com | GET /weather?location= answers the National Weather Service forecast for a US place (./home-weather): Jarvis said no weather source was installed. Guard: tests/home-weather.test.js.
  *
  * @module home-routes
  */
@@ -44,6 +45,7 @@ import { nextSunEvent, type SunEvent } from '@/shared/utils/sun-times';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
 import { KERNEL_TOKEN, connectionUsable, isNotConnected, kernelEgress, readConnections } from './kernel-egress';
+import { forecast } from './home-weather';
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -288,6 +290,18 @@ export function createHomeRoutes(ctx: AppContext): Router {
 
   /** GET /api/home/devices — the caller's cached, deduped device index. Cheap (no LLM).
    *  Empty list (not an error) when the bot hasn't built the index yet. */
+  // The forecast for a place the person names (National Weather Service; ./home-weather).
+  router.get('/weather', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    try {
+      const answer = await forecast(globalThis.fetch as never, req.query.location || req.query.q);
+      res.status(answer.ok ? 200 : answer.error === 'location_required' ? 400 : 404).json(answer);
+    } catch (err) {
+      logger.error({ err }, 'home weather forecast failed');
+      res.status(502).json({ ok: false, error: 'forecast_unavailable', message: 'The National Weather Service could not be reached just now.' });
+    }
+  });
   router.get('/devices', (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }

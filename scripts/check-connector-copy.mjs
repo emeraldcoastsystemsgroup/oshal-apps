@@ -13,6 +13,8 @@
  *   sends them to Connections for one. A sentence that forbids it ("Never tell the rider to connect Uber") is not an
  *   instruction and passes. Known violators outside this change are named in PENDING and must still violate, so the list
  *   cannot go stale.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The pending Intelligent Communication persona sentence moved to line 49 when its tool list gained email-send; same sentence, same violation.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | The pending Intelligent Communication persona sentence moved to line 52 (its email-send rule grew); same sentence.
  *
  * Usage: node scripts/check-connector-copy.mjs [repositoryRoot]
  */
@@ -44,7 +46,7 @@ const FORBIDS = /\b(?:never|do not|don't)\b[^.\n]*\b(?:tell|ask|send|say|offer|s
 /** Known violators in other lanes' files: `<file>: <provider sentence>`; each must still violate. */
 export const PENDING = new Set([
   // Intelligent Communication's persona (Switchboard carries a copy) still names Yahoo Mail under Connections.
-  'email-summarizer/personas/email-summarizer.yaml:44',
+  'email-summarizer/personas/email-summarizer.yaml:52',
   'switchboard/personas/email-summarizer.yaml:44',
 ]);
 

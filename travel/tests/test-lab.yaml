@@ -8,6 +8,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | not-connected also covers the typed-trip offer and the phone-width flow; register the concierge rail suite (no Duffel rail: no search, no fare watch, no "connect Duffel", VPS read as an airport).
 # 5 | maintainer@emeraldcoastsystemsgroup.com | form-state: the place fields carry placeholders, not JFK/LHR values; each tab keeps its typed fields across tab switches; every tab keeps the no-Duffel notice; hand-offs read as a sentence, not JSON; a Rides hand-off fills the form.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | not-connected also expects the persona to say hotels and cars need the Duffel rail (sweep 14: it offered demo hotel searches that answered 503).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register search-handoff: with no Duffel rail the searches answer the booking-site links for the trip and never call the refusing provider.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -109,6 +110,26 @@ cases:
     sideEffects: none
     isolation:
       mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: search-handoff
+    name: Search handoff with no Duffel rail
+    purpose: With no Duffel rail, /flights, /hotels and /cars answer the Google Flights, Booking.com and Kayak links for the
+      exact trip with no fares; with a rail the provider answers.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/travel-search-handoff.test.js
+    expected:
+    - Exact links, no items, no provider call; the provider answers when a rail exists.
+    prerequisites:
+    - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
     limits:
       timeoutMs: 15000
     installation: never

@@ -35,6 +35,7 @@
  * 2026-10-08 | maintainer@emeraldcoastsystemsgroup.com | GET /cart is a pure read. It called getOrCreateDefaultList, which INSERTs a list for a shopper who has none; the native host admits a GET read-only and refuses any SQL write, so every first visit answered 500 'SQL mutation requires original writer admission' and the cart rendered empty. readCart now answers the unchanged shape with listId null and no lines when no active list exists; the list is still created by a write request (POST /lists, which the chat surface now calls before its first add, the chat turn, or checkout).
  * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | No Walmart rail is said, not refused before the concierge speaks. The chat turn probes the runtime's Walmart `status` first; where it answers mode not_connected (the native kernel declares a walmart connector but runs no Walmart operation, refusing search with 503 and failing the whole call) the turn skips the catalog and the concierge answers with that fact, which never tells the shopper to connect Walmart. /config carries `rail` and the sentence. Guard: tests/purchasing-no-rail.test.js.
  * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | Sweep 9: neither the Home concierge nor Jarvis could put an item on the shopping list the screen adds to (no tool wrote a list). POST /lists/default/items adds to the shopper's default list (the first active one, which Home shows; created on first use), so the approval-held shopping-list-add tool needs no list id. Any other list id is still checked for ownership.
+ * 2026-10-16 | maintainer@emeraldcoastsystemsgroup.com | Several free-text items in one call. Asked from Jarvis to "add milk, eggs, bread and bananas to my grocery cart", the concierge proposed one card (milk) and stopped: shopping-list-add takes one item, and the model did not chain four approvals. POST /lists/:listId/items also takes {items:[{title, quantity?}]} (1 to 30 free-text entries, each stored exactly as a single title-only add is) and answers {items}; shopping-list-add-many is its approval-held tool, one card for the whole list. Guard: tests/shopping-list-add-many.test.cjs.
  *
  * @module purchasing-routes
  */
@@ -57,6 +58,22 @@ const logger = createChildLogger({ module: 'purchasing-routes' });
 /** The shopping-concierge agent (seeded by migration 036; inline bot run via the orchestrator). */
 const CONCIERGE_AGENT_ID = 'b0070000-0000-0000-0000-000000000001';
 
+/**
+ * @description The free-text entries of a several-item add, each as a single title-only add stores it.
+ * @param raw - The body's `items`.
+ * @returns 1 to 30 {title, quantity} entries, or null when any entry has no title or the count is out of range.
+ */
+function freeTextItems(raw: unknown): Array<{ title: string; quantity: number }> | null {
+  if (!Array.isArray(raw) || raw.length < 1 || raw.length > 30) return null;
+  const out: Array<{ title: string; quantity: number }> = [];
+  for (const entry of raw as Array<{ title?: unknown; quantity?: unknown }>) {
+    const title = String((entry && entry.title) || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+    if (!title) return null;
+    const q = Math.floor(Number(entry.quantity));
+    out.push({ title, quantity: q >= 1 && q <= 99 ? q : 1 });
+  }
+  return out;
+}
 /** Serve a static surface file from the package tools dir (ctx.appPackageDir — D10). */
 function serveFile(surfaceDir: string, fileName: string): RequestHandler {
   return (_req: Request, res: Response) => {
@@ -644,6 +661,14 @@ export function createPurchasingRoutes(ctx: AppContext): Router {
     const listId = req.params.listId === 'default' ? await getOrCreateDefaultList(pool, sub) : String(req.params.listId);
     const own = await pool.query(`SELECT 1 FROM shop_lists WHERE list_id = $1 AND user_sub = $2`, [listId, sub]);
     if (!own.rowCount) { res.status(403).json({ error: 'not your list' }); return; }
+    if (Array.isArray(b.items)) {
+      const titles = freeTextItems(b.items);
+      if (!titles) { res.status(400).json({ error: 'items must hold 1 to 30 entries, each with a title' }); return; }
+      const added = [];
+      for (const one of titles) added.push(await addItem(pool, sub, listId, { retailer: 'walmart', title: one.title }, one.quantity, null, one.title));
+      res.json({ items: added });
+      return;
+    }
     const productId = String(b.productId || '').trim();
     const title = String(b.title || '').replace(/\s+/g, ' ').trim().slice(0, 300);
     if (!productId && title) {

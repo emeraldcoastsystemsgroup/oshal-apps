@@ -12,6 +12,7 @@
  * 2026-07-19 23:30:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Carved out of OSHAL core into the trading app package (ADR-085 Wave 3). Standard (ctx) factory; the vendored chart lib now serves from the package's tools/vendor (ctx.appPackageDir per D10, load-time env fallback, then the relative dev fallback) — the kernel src/api/vendor copy ripped with the app. The split posture is UNCHANGED and declared auth: public in the manifest (EXACTLY what core server.ts mounted, ADR-085 D2): the lib is a public MIT JS asset, GET /bars self-gates via callerSub → 401.
  * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | With no Alpaca data keys, GET /bars answers market_data_not_connected with a sentence that says there is no market-data source (and no Alpaca connector natively) instead of telling the person to set keys this installation has no place for.
  * 2026-10-13 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | With no Alpaca data keys on a host that has the World price archive (the native kernel's prices.series intent), GET /bars answers the archive's stored prices for the symbol as a line ({bars: [], line: [{t, v}], source: 'world-archive', note}) instead of 503: 5Min/15Min from raw points, 1Hour from hour buckets, 1Day from day buckets, 1Week from the last day of each week. Never invented candles: the archive keeps one price per point. A ticker the archive does not track answers 404 not_in_price_archive in words; a failed archive read keeps the 503 sentence. A host without the archive keeps the existing 503.
+ * 2026-10-16 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | GET /bars keeps a futures root or dated contract (/ES, /ESZ26) intact for the Schwab rail; the symbol filter stripped the slash, so /ES charted Eversource stock (ES) at about $65. Without a Schwab rail a futures chart is refused in words.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -87,6 +88,8 @@ async function archiveBars(ctx, res, symbol, tfKey) {
         res.status(503).json({ error: 'market_data_not_connected', message: NO_SOURCE + ' The World price archive could not be read either.' });
     }
 }
+/** A futures root (/ES) or dated contract (/ESZ26): slash, 1-3 letter root, optional month code and two-digit year. */
+const FUTURES_SYMBOL = /^\/[A-Z]{1,3}(?:[FGHJKMNQUVXZ]\d{2})?$/;
 function createTradingChartsRoutes(ctx) {
     const router = (0, express_1.Router)();
     const appPackageDir = ctx.appPackageDir;
@@ -123,11 +126,19 @@ function createTradingChartsRoutes(ctx) {
             res.status(401).json({ error: 'not_authenticated' });
             return;
         }
-        const symbol = String(req.query.symbol || '').toUpperCase().replace(/[^A-Z.\-]/g, '');
+        const raw = String(req.query.symbol || '').trim().toUpperCase();
+        // A futures root or dated contract (/ES, /ESZ26) reaches Schwab as written; it must never be
+        // stripped to the stock ticker ES (Eversource), which is what charting "/ES" used to draw.
+        const futures = FUTURES_SYMBOL.test(raw);
+        const symbol = futures ? raw : raw.replace(/[^A-Z.\-]/g, '');
         const tfKey = String(req.query.timeframe || '1Day');
         const tf = TIMEFRAMES[tfKey] || TIMEFRAMES['1Day'];
         if (!symbol) {
             res.status(400).json({ error: 'symbol_required' });
+            return;
+        }
+        if (futures && !(0, trading_native_reads_1.nativeSchwabReads)()) {
+            res.status(400).json({ error: 'futures_chart_unavailable', message: 'Futures charts read your Schwab connection; this installation has no Schwab market-data rail.' });
             return;
         }
         if ((0, trading_native_reads_1.nativeSchwabReads)()) {

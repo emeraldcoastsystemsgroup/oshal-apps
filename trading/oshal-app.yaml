@@ -5,6 +5,12 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | TRADE-01 native paper autopilot: migrations/002-native-paper.sql, the /api/trading/paper mount (routes/trading-paper-routes.js) and the person-activated paper-autopilot schedule. Version unchanged.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Declare www.sec.gov and data.sec.gov as outbound hosts: Research's SEC filings section was refused by the kernel egress ("www.sec.gov is not a declared outbound host") and showed unavailable. Version unchanged.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Declare chatBot: trading-analyst. The Intelligent Trades concierge opened on futures-research-analyst (the first declared bot), which answers a conversation with a json futures study; the analyst answers in prose. Version unchanged.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | trading_accounts reads GET /api/trading/accounts (every connected Schwab account with balances and holdings): asked to pull up the owner's Schwab accounts, Jarvis answered there were none, because its account and positions tools read only the paper book.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | migrations/006-native-futures-predictions.sql: forward research calls of the native Futures study (FUT-01 slice 4).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | migrations/005-native-futures-reviews.sql: research reviews of native Futures runs (FUT-01 slice 3).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Declare the futures-research schedule (02:15 New York, Tuesday-Saturday, runsAs user): it runs the person's saved native Futures study once a night through POST /api/trading/autopilot/futures/tick.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | migrations/004-native-futures-research.sql: the native Futures study's saved settings and run ledger (FUT-01).
+# 5 | maintainer@emeraldcoastsystemsgroup.com | trading_status and trading_positions read their routes (GET /api/trading/status, /positions) instead of a cli script the native kernel never runs, and trading_account reads GET /api/trading/account for cash and buying power: asked what the paper book holds and its cash, the concierge answered with equity only and never named the holding or the cash.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | migrations/003-native-predictions.sql: the Algorithms scan recorded into oshal_trading_predictions, which the native kernel never provisioned, so every scanned symbol failed and the scan showed an empty table.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — trading ("Intelligent Trades", ADR-052)
@@ -97,7 +103,7 @@ description: >-
   Research stocks, track connected brokerage accounts and test strategies in a separate
   paper book, with a decision trail from signals to orders. Trading actions follow the
   connected account's supported controls. Cash equities. No crypto.
-version: 1.33.20
+version: 1.33.44
 status: active
 
 source:
@@ -239,14 +245,12 @@ bots:
 tools:
   - name: trading_status
     displayName: Trading Status
-    type: cli
+    type: api
     category: trading
     description: >-
       The whole trading book at a glance: paper/live broker config + the autopilot legs
       (technical/research/fast/assess/review) — enabled?, cron, next/last run. Read-only. Input: {}.
-    executor:
-      executorType: cli
-      cliCommand: node /app/scripts/oshal-trade-ops.js status {input}
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/status" }
     defaultAuthMode: auto
     requiresApproval: false
     inputSchema:
@@ -307,19 +311,55 @@ tools:
 
   - name: trading_positions
     displayName: Trading Positions
-    type: cli
+    type: api
     category: trading
     description: >-
-      The paper book's equity, cash, and open positions with unrealized P&L. Read-only. Input: {}.
-    executor:
-      executorType: cli
-      cliCommand: node /app/scripts/oshal-trade-ops.js positions {input}
+      The selected book's open positions: symbol, quantity, average cost, last price, market value
+      and unrealized P&L. Read-only and owner-scoped. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/positions" }
     defaultAuthMode: auto
     requiresApproval: false
     inputSchema:
       type: object
       properties: {}
     routingTags: [trading, positions, ledger]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_account
+    displayName: Trading Account
+    type: api
+    category: trading
+    description: >-
+      The selected book's cash, buying power, equity and portfolio value. Read-only and
+      owner-scoped. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/account" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    usageInstructions: Call with {} for how much cash the book has and its buying power.
+    routingTags: [trading, account, cash]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_accounts
+    displayName: Trading Accounts (Schwab)
+    type: api
+    category: trading
+    description: >-
+      Every connected brokerage account (Schwab) with its masked number, type, equity, cash, buying power,
+      day change and current holdings (symbol, quantity, market value). Read-only, owner-scoped and view-only:
+      it never places an order. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/accounts" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    usageInstructions: Call with {} for the person's Schwab accounts and what they hold; trading_account and trading_positions read only the selected (paper) book.
+    routingTags: [trading, accounts, schwab, holdings]
     skills: [trading]
     tags: [intelligent-trades]
 
@@ -503,6 +543,9 @@ migrations:
   - migrations/001-trading-watchlist.sql
   - migrations/002-native-paper.sql
   - migrations/003-native-predictions.sql
+  - migrations/004-native-futures-research.sql
+  - migrations/005-native-futures-reviews.sql
+  - migrations/006-native-futures-predictions.sql
 
 routes:
   - module: routes/home-summary.js
@@ -573,6 +616,17 @@ schedules:
     timeoutSeconds: 120
     description: Paper autopilot tick - multi-timeframe decisions from kernel prices, simulated fills in your own paper book (never a broker order).
     offer: Run my paper trading autopilot every five minutes while the US market is open.
+  - id: futures-research
+    cron: "15 2 * * 2-6"
+    timezone: America/New_York
+    runsAs: user
+    target: service-route
+    route: /api/trading/autopilot/futures/tick
+    method: POST
+    body: {}
+    timeoutSeconds: 300
+    description: Futures study - your saved ES/CL walk-forward study over your Schwab connection, once a night after the session (research only, never an order).
+    offer: Run my saved Futures study every night after the market session.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon icon opens the Trading page (served by the

@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: Intelligent Trades with no Schwab and no market-data connector (the native kernel, 2026-10-13: the landing said "$0 · No accounts yet - connect a Schwab login" while the person's paper book held $100,000, and every chart, the movers board and the watchlist's Today column were empty). Over the SHIPPED route files with the platform imports answered as the kernel bridge answers them: GET /accounts lists the native paper book and GET /summary carries its equity, day change and held names (or says it is not started); GET /api/trading-charts/bars draws the World archive's stored prices as a line per timeframe; the movers board ranks the archive's day closes and the watchlist carries their day change; the paper book's Allocation/Exits say it needs no broker. A host without the archive and a connected paper rail keep the existing answers. Red on the parent sources.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | The movers board names symbols from a stubbed SEC ticker table (no network), and keeps working with blank names when the directory read fails.
  */
 'use strict';
 
@@ -134,7 +135,13 @@ test('chart bars draw the World archive as a line for every timeframe, never inv
   assert.ok(archive.calls.every((c) => c.name === 'prices.series' && c.input.symbols.length <= 50), 'only bounded price reads');
 });
 
-test('the movers board and the watchlist read the archive\'s stored day closes', async () => {
+test('the movers board and the watchlist read the archive\'s stored day closes', async (t) => {
+  const original = global.fetch;
+  t.after(() => { global.fetch = original; });
+  global.fetch = async (url) => {
+    assert.match(String(url), /^https:\/\/www\.sec\.gov\/files\/company_tickers\.json$/);
+    return { ok: true, status: 200, json: async () => ({ 0: { cik_str: 1, ticker: 'UPCO', title: 'Upward Company Inc' }, 1: { cik_str: 2, ticker: 'SPY', title: 'SPDR S&P 500 ETF Trust' } }) };
+  };
   const archive = worldArchive(MARKET, NOW);
   const { api } = shipped({ pool: nativeLandingPool(createSqlDouble(), { 'mv-alice': ['UPCO', 'ZZZZ'] }), intent: archive.intent });
   const winners = await call(api, '/reports/movers', 'mv-alice', { kind: 'winners', limit: '3' });
@@ -142,7 +149,9 @@ test('the movers board and the watchlist read the archive\'s stored day closes',
   assert.deepEqual(winners.body.rows.map((r) => r.symbol), ['UPCO', 'SPY', 'FLAT']);
   assert.match(winners.body.source, /World price archive/);
   assert.match(winners.body.note, /Not live quotes/);
-  assert.ok(winners.body.rows.every((r) => r.name === null && r.price > 0 && Number.isFinite(r.changePct)));
+  assert.ok(winners.body.rows.every((r) => r.price > 0 && Number.isFinite(r.changePct)));
+  assert.equal(winners.body.rows.find((r) => r.symbol === 'UPCO').name, 'Upward Company Inc', 'named from the SEC directory');
+  assert.equal(winners.body.rows.find((r) => r.symbol === 'FLAT').name, null, 'a ticker the directory does not list stays unnamed');
   const losers = await call(api, '/reports/movers', 'mv-alice', { kind: 'losers', limit: '1' });
   assert.deepEqual(losers.body.rows.map((r) => r.symbol), ['DNCO']);
   const volatile = await call(api, '/reports/movers', 'mv-alice', { kind: 'volatile', limit: '4' });
@@ -164,4 +173,15 @@ test('the paper book\'s Allocation and Exits say it needs no broker', async () =
   assert.doesNotMatch(r.body.message, /Connect one in Settings/);
   const { api: legacy } = shipped({ pool: nativeLandingPool(createSqlDouble()) });
   assert.match((await call(legacy, '/exposure', 'exp-alice', { book: 'paper' })).body.message, /Connect one in Settings/, 'a host without the archive keeps the old words');
+});
+
+test('the movers board keeps working with blank names when the SEC directory cannot be read', async (t) => {
+  const original = global.fetch;
+  t.after(() => { global.fetch = original; });
+  global.fetch = async () => ({ ok: false, status: 503, json: async () => ({}) });
+  const archive = worldArchive(MARKET, NOW);
+  const { api } = shipped({ pool: nativeLandingPool(createSqlDouble(), { 'mv-bob': ['UPCO'] }), intent: archive.intent });
+  const winners = await call(api, '/reports/movers', 'mv-bob', { kind: 'winners', limit: '3' });
+  assert.equal(winners.code, 200, JSON.stringify(winners.body));
+  assert.ok(winners.body.rows.length > 0 && winners.body.rows.every((r) => r.name === null));
 });

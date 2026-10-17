@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — load the COMPILED Rides route module (the bytes the framework mounts) with every framework import stubbed, an in-memory pool that answers the SQL the chat, request, history and profile routes issue, a recording Uber Rides provider whose estimate prices a fixed 10 km trip with the same per-type formula shape as the core helper, and a scripted concierge. Shared by the chat-proposal suite and the browser smoke's fixture (which passes the framework's real express); not a suite itself (no .test.js name, so the package glob never runs it).
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | The routes probe the provider's `status` to choose between the provider and the package's keyless rail: the double answers that probe (connected, or `overrides.status`) without recording it, and the route's own ./rides-keyless module loads for real.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | fakePool(profile) answers the rider's saved profile row (home/work addresses), so a test can price a trip from a saved place.
  */
 'use strict';
 const fs = require('node:fs');
@@ -58,12 +59,12 @@ function fakeProvider(overrides = {}) {
 }
 
 /** An in-memory pool answering the Rides route SQL; every statement is recorded. */
-function fakePool() {
+function fakePool(profile = null) {
   const t = { requests: [] };
   const sql = [];
   const rows = (r) => ({ rows: r, rowCount: r.length });
   const handlers = [
-    [/^SELECT \* FROM rides_profile WHERE user_sub = \$1/, () => rows([])],
+    [/^SELECT \* FROM rides_profile WHERE user_sub = \$1/, (p) => rows(profile ? [{ user_sub: p[0], onboarded: true, ...profile }] : [])],
     [/^INSERT INTO rides_requests/, (p) => { t.requests.push({ user_sub: p[0], pickup: p[1], dropoff: p[2], ride_type: p[3], est_fare_low: p[4], est_fare_high: p[5], deep_link: p[6] }); return rows([]); }],
     [/^SELECT pickup, dropoff, ride_type, est_fare_low, est_fare_high, deep_link, created_at FROM rides_requests/, (p) => rows(t.requests.filter((r) => r.user_sub === p[0]))],
     [/^SELECT 1 FROM oshal_connections WHERE provider='uber-rides'/, () => rows([])],

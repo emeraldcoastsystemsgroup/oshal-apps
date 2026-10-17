@@ -5,6 +5,8 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Release 1.3.4: GET /cart is a pure read (a diner with no cart gets the empty cart with null ids); the first add creates the cart. The native host refuses SQL writes on a GET.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | eats-concierge runs inline (posture: inline, same enrolled UUID). The in-page concierge (POST /api/eats/chat) calls it through the native kernel's package bot turn, which refuses a node-posture bot bound to an unreachable node ("this bot requires an enrolled node"), so every message answered "I'm having trouble reaching my assistant". Guarded by scripts/check-store-bots.test.mjs.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Release 1.3.5: on the native kernel (no Uber Eats provider) the package answers search, menu and the order handoff from its own curated catalog and ubereats.com deep link (routes/uber-catalog.js). Asked to order food, Jarvis had no restaurant to offer and invented an order. The tool descriptions name food delivery and say ordering ends at the Uber Eats link the diner opens.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.6: declare eats-concierge as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — eats ("Eats" Uber Eats Concierge)
@@ -45,7 +47,7 @@ description: >-
   AI food-delivery concierge — search Uber Eats restaurants, browse menus, build
   an order, and hand off a ready Uber Eats checkout. Other swarm bots can ask it
   to order food.
-version: 1.3.4
+version: 1.3.6
 status: active
 
 source:
@@ -101,7 +103,7 @@ tools:
     displayName: Search Restaurants
     type: api
     category: commerce
-    description: Search the diner's food-delivery catalog for restaurants or cuisines.
+    description: Find restaurants and dishes for food delivery through Uber Eats. Use it for "order food", "get me delivery", "I want tacos" and any restaurant or cuisine request.
     executor: { executorType: api, apiEndpoint: "GET /api/eats/search?q={input.query}" }
     defaultAuthMode: auto
     requiresApproval: false
@@ -112,6 +114,8 @@ tools:
       required: [query]
     usageInstructions: >-
       Call with {query}. Use returned restaurants as the only source of restaurants, prices, and delivery context.
+      Then browse-menu, add-food-item for the dishes the diner chose, and prepare-food-order for the Uber Eats
+      link. Nothing is ordered or paid in oshal: never say an order was placed; the diner places it in Uber Eats.
     routingTags: [food, restaurants, delivery]
     skills: [restaurant-search, dietary-awareness]
     tags: [eats, route-backed]
@@ -251,6 +255,9 @@ migrations:
   - migrations/040-eats-platform.sql
 
 # WORKFLOW — tickets of type 'eats' route to the concierge.
+# The bot a Jarvis creation request goes to (its own workflow bot).
+chatBot: eats-concierge
+
 ticketType: eats
 workflow:
   name: Eats Concierge Pipeline

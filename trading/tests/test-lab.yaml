@@ -199,7 +199,8 @@ cases:
     expected:
       - The json decision block is required only when the task hands over signals and a decision contract.
       - A conversational question is answered in plain sentences and never as a json decision block.
-      - trading_status, trading_positions, trading_book_facts and trading_performance are each authorized auto for the bot, and trading_performance reads GET /api/trading/performance for 1W, 1M, 3M or 1Y only.
+      - trading_status, trading_positions, trading_account, trading_book_facts and trading_performance are each authorized auto for the bot, and trading_performance reads GET /api/trading/performance for 1W, 1M, 3M or 1Y only.
+      - trading_status, trading_positions and trading_account are route reads (GET /api/trading/status, /positions, /account), never a cli script the native kernel does not run.
       - The manifest declares chatBot trading-analyst, a bot it declares, so the app concierge converses; Finance's money words are not trading routing words.
     prerequisites: [runner:node-test]
     sideEffects: none
@@ -1225,6 +1226,52 @@ cases:
       - A declared migration creates oshal_trading_predictions with user_sub NOT NULL.
       - Every inserted column plus resolved, hit, mode, algo and created_at exists.
     prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: native-paper-manual
+    name: Buy a stock on the native paper book fills in the paper engine
+    purpose: Prove a reviewed manual market order on the native paper book is filled once by the native paper engine at the latest price (cash, holding, order, equity), sells realize P&L, and limits, cash, holding, order types, market hours and other people's decisions refuse in words, both directly and through the shipped /decisions/manual and /orders routes, never a broker.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-paper-manual.test.js] }
+    expected:
+      - A reviewed 10-share buy fills at the stored price and a second fill is a duplicate.
+      - A sell realizes its P&L and closes the holding.
+      - Over-limit, unaffordable, unheld, non-market, after-hours and foreign fills refuse with nothing written.
+      - The shipped routes reach the paper engine, never the broker path.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: native-futures-study
+    name: The Futures study runs on the native kernel over the person's Schwab connection
+    purpose: Prove Save keeps one Futures study per person, Run once builds each root's series from dated contracts through paged trading.bars reads (never the bare stock ticker), optimizes walk-forward windows with the platform's staged optimizer and settles the run in the ledger, and that non-Schwab sources, impossible windows, a concurrent run, a failed read and another person's study refuse or settle in words, directly and through the shipped autopilot routes.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-futures-study.test.js] }
+    expected:
+      - Save keeps the person's study and refuses kibot, a daily chart, an unknown root and a window with no complete out-of-sample period.
+      - Run once pages intraday history with an end and settles completed with per-root bars, windows and OOS figures.
+      - A thin sample settles insufficient_sample, a running run blocks a second, a failed Schwab read settles failed in words.
+      - The shipped GET, POST and DELETE /futures reach the native study.
+      - The nightly tick skips without a study, runs a saved study once per New York day, and the manifest's futures-research schedule targets it as the person.
+      - A research review must cite each market's exact evidence fingerprint, may propose only grid changes inside the settings envelope, and settles failed (retryable) on an invalid answer; another person cannot review the run.
+      - Forward calls are frozen from the locked strategy over the live contract's completed bars, are owner-scoped, and are graded by directional ticks (matched, missed, flat, revised, out of window); the Schwab check reads the live contracts; capture, catch-up and archive import say they are not needed.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+  - id: native-futures-chart
+    name: A futures chart reaches Schwab as a futures contract
+    purpose: Prove GET /api/trading-charts/bars keeps a futures root or dated contract (/ESZ26, /CL) intact for the native Schwab bars read instead of stripping it to the stock ticker, leaves stock symbols unchanged, and refuses a futures chart in words when there is no Schwab rail.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-futures-chart.test.js] }
+    expected:
+      - /ESZ26 and /CL reach trading.bars with the slash; NVDA and BRK.B are unchanged.
+      - Without a Schwab rail /ES answers 400 futures_chart_unavailable and no bars are read.
+    prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: none }
     limits: { timeoutMs: 30000 }

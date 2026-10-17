@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: test doubles for the native paper engine. An in-memory SQL double that implements exactly the statements routes/paper/store.js declares (any other text is refused, so a new statement cannot slip past the tests) over ONE shared set of tables for every person, with BEGIN/COMMIT/ROLLBACK snapshots; and a recording kernel-intent double that answers prices.latest / prices.series from a synthetic market and refuses every other intent name. No database, kernel, broker or network is reached.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Implement ACCOUNT_BUMP (arm and disarm move the account version), and read the day-bucket window up to the kernel's own 365-day cap instead of 200, so a test sees what the real price view can serve.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | DECISION_GET and ORDER_FOR_DECISION for the manual paper orders.
  */
 'use strict';
 
@@ -116,6 +117,8 @@ function statementHandlers(db) {
       return ok([], 1);
     }],
     [SQL.DECISIONS_LIST, ([sub]) => ok(mine('decisions', sub).sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 200))],
+    [SQL.DECISION_GET, ([sub, id]) => ok(mine('decisions', sub).filter((r) => r.decision_id === id))],
+    [SQL.ORDER_FOR_DECISION, ([sub, id]) => ok(mine('orders', sub).filter((r) => r.decision_id === id))],
     [SQL.EQUITY_UPSERT, ([sub, date, equity, cash, at]) => {
       const row = db.equity.find((r) => r.user_sub === sub && r.session_date === date);
       if (row) Object.assign(row, { equity, cash, recorded_at: at }); else db.equity.push({ user_sub: sub, session_date: date, equity, cash, recorded_at: at });

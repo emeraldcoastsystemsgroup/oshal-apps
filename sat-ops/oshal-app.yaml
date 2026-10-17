@@ -1,3 +1,8 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.4: sat-operator declares routing words (satellite, orbit, TLE, ground station, pass windows, conjunction, ADCS). It declared none, so Jarvis could never hand it a satellite request ("When is the next ISS pass?" went to an unrelated app on a 2-point match).
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — sat-ops ("Sat Ops")
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -54,7 +59,7 @@ description: >-
   from SGP4, pairwise conjunction screening, and an approval-gated command
   console (point / detumble / desat / safe). Sim engines only: the in-process
   RK4 gyrostat or the NASA 42 referee. Commands cannot leave simulation.
-version: 1.2.3
+version: 1.2.4
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -116,6 +121,18 @@ bots:
       - sat-telemetry-briefing
       - pass-window-awareness
       - conjunction-awareness
+    routingKeywords:
+      - satellite
+      - satellites
+      - sat ops
+      - orbit
+      - tle
+      - ground station
+      - satellite pass
+      - pass windows
+      - conjunction
+      - adcs
+      - detumble
 
 tools:
   - name: sat-fleet-status

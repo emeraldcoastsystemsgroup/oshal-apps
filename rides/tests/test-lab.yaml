@@ -12,6 +12,7 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: keyless expects the hand-off answer to carry url and where (the approved card had no link); persona-approval expects the fixed proposing sentence with no proposal id and named places used as given.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | The persona-approval case also expects a named trip asked to be prepared to get its card and a done card to point to its link (sweep 13).
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register recent-distinct: Recent trips and the destination suggestions list each trip once, newest copy first (sweep 14: one row per Show rides).
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Register saved-places: home and work come from the rider's profile, a missing one is asked for, and a dropoff farther than a car ride is refused.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -288,4 +289,24 @@ cases:
     limits:
       timeoutMs: 120000
       maxMemoryMb: 1024
+    installation: never
+  - id: saved-places
+    name: Saved places and car-ride distance
+    purpose: On the keyless rail, "home" and "work" come from the rider's profile (refused and asked for when not saved), and
+      a dropoff that geocodes farther than a car ride is refused naming where it landed.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/rides-saved-places.test.js
+    expected:
+    - No lookup of the word home; Helsinki is refused; a nearby airport builds the link.
+    prerequisites:
+    - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
     installation: never

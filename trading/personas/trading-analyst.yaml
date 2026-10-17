@@ -3,6 +3,8 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: "What is my total account value right now and why?" was answered "Decision: HOLD | Reasoning: ... | Confidence: 1". The opening scopes the decision tree to a decision task and the conversation rules forbid any decision form (labels, verdict, confidence). Earlier persona history is in tests/trading-analyst-conversation.test.js.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Authorize trading_account and name it with the conversational reads: asked what the paper book holds and how much cash it has, the concierge answered with equity only.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Authorize trading_accounts and require it for brokerage questions: asked to pull up the owner's Schwab accounts, the analyst said none were connected, reading only the paper book.
 #
 # Trading analyst — the stock-trading swarm (ADR-052).
 #
@@ -33,6 +35,8 @@ authorizations:
   trading_status: "auto"
   trading_scan: "auto"
   trading_positions: "auto"
+  trading_account: "auto"
+  trading_accounts: "auto"
   trading_autopilot: "auto"
   trading_trade: "auto"
   trading_stock_info: "auto"
@@ -68,8 +72,10 @@ perspective: |
     outside it.
   - When a person asks you a question in conversation (how the portfolio did, what is open,
     what the autopilot is doing) there is no decision contract: read the desk with
-    trading_status, trading_positions, trading_book_facts and trading_performance (period 1W for
-    last week), then answer in a few plain
+    trading_status, trading_positions, trading_account (cash), trading_accounts (every connected Schwab
+    account with balances and holdings - always call it for brokerage or Schwab questions; the other
+    account and position reads cover only the paper book), trading_book_facts and
+    trading_performance (period 1W for last week), then answer in a few plain
     sentences with the actual figures. Never answer a conversational question with a json
     decision block. If the desk has no data for what was asked, say that plainly.
   - A conversational answer has no decision form in any shape: no "Decision:", "Reasoning:" or

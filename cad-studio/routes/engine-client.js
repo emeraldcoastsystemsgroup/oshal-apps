@@ -25,6 +25,7 @@
  *                     |                             | The hello is checked exactly as on a socket (protocol, busy);
  *                     |                             | the build hash is recorded from the engine, because the
  *                     |                             | sandboxed copy of this package carries no engine sources.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Native status: the kernel's engine.exchange link is known only at request time, so `connected` is true until a request through it fails (lastError then says why) and `contacted` says whether one has run. Jarvis's CAD request had answered "the CAD engine is currently not connected" because nothing had asked the engine yet.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -91,7 +92,7 @@ class EngineClient {
     /** @description What the surface shows about the engine. */
     status() {
         const native = Boolean(this.opts.exchange);
-        return { connected: this.ready, buildHash: this.helloHash, expectedBuildHash: native ? this.helloHash : this.opts.expectedBuildHash, lastError: this.lastFailure ? this.lastFailure.reason || this.lastFailure.message : null, installHint: this.opts.installHint, address: native ? 'native://engine.exchange' : `${this.opts.host}:${this.opts.port}` };
+        return { connected: native ? !this.lastFailure : this.ready, contacted: this.ready || Boolean(this.lastFailure), buildHash: this.helloHash, expectedBuildHash: native ? this.helloHash : this.opts.expectedBuildHash, lastError: this.lastFailure ? this.lastFailure.reason || this.lastFailure.message : null, installHint: this.opts.installHint, address: native ? 'native://engine.exchange' : `${this.opts.host}:${this.opts.port}` };
     }
     /**
      * @description Send one command and await its result.

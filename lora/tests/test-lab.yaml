@@ -15,6 +15,7 @@
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Register native-sql-admission: GET /dataset answers under the kernel's read admission without a SQL write (it used to expire staging first and was refused, 502 "dataset receipts unavailable"), and character creation uses only the native bridge's transaction forms (BEGIN ISOLATION LEVEL READ COMMITTED was refused "unsupported SQL statement", 502). The relay case now expects expired staged bytes to be removed by the next writer, not by the listing.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Register character-delete: DELETE /characters/:subject over real HTTP against disposable forced-RLS PostgreSQL as owner roles.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Register character-required-fields: Save character names an empty required field instead of doing nothing.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | Register lora-read-tools: the director's character and model reads bound to lora.read.
 version: 1
 cases:
   - id: character-required-fields
@@ -306,4 +307,24 @@ cases:
     sideEffects: none
     isolation: { mode: none }
     limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: lora-read-tools
+    name: The director reads characters and models
+    purpose: lora-characters and lora-models are read tools on the mounted routes, catalog-bound to the permission each route
+      needs, and the persona calls them.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/lora-read-tools.test.cjs
+    expected:
+    - Every assertion passes.
+    prerequisites:
+    - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the actual Research company-news route and renderer at desktop/phone widths with named SEC/broker fixtures, retaining provenance and failure words.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The native host also carries the World archive (feeds.news): with a working Finnhub connection the Finnhub headlines still render, and when Finnhub refuses and the archive cannot answer either, the page keeps Finnhub's reason.
  */
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs');
@@ -25,7 +26,12 @@ function application() {
   if(String(url).includes('company_tickers'))return {ok:true,status:200,json:async()=>({0:{cik_str:1045810,ticker:'NVDA'},1:{cik_str:9999,ticker:'MPC'}})};
   return {ok:true,status:200,json:async()=>({filings:{recent:{form:[],filingDate:[],accessionNumber:[],primaryDocument:[],items:[]}}})};
  };
- const ctx={pool:{query:async()=>({rows:[]})},intent:async name=>{assert.equal(name,'prices.latest');return {prices:[{symbol:'NVDA',price:125,at:'2026-10-15T15:00:00Z'}],missing:[]};}};
+ const ctx={pool:{query:async()=>({rows:[]})},intent:async (name,input)=>{
+  if(name==='feeds.news'){
+   if(input.entity==='world:ticker:mpc')throw new Error('unavailable: World archive read timed out');
+   return {items:[{itemHash:'h17',title:'Synthetic <company> news',summary:'Synthetic news summary',outlet:'Fixture publisher',link:'https://publisher.example/news',firstSeenAt:new Date(Date.now()-60000).toISOString(),pubDate:null}]};
+  }
+  assert.equal(name,'prices.latest');return {prices:[{symbol:'NVDA',price:125,at:'2026-10-15T15:00:00Z'}],missing:[]};}};
  const app=express();app.use((req,_res,next)=>{req.oshalCallerSub='owned-component-fixture';next();});
  const api=express.Router();loadShipped(modules,load=>load('trading-research-routes').registerTradingResearchRoutes(api,ctx));app.use('/api/trading',api);
  app.get('/view.js',(_req,res)=>res.type('js').send(fs.readFileSync(path.join(PKG,'tools/ui/view-research.js'),'utf8')));

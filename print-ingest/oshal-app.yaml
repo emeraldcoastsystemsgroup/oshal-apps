@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare explicit Print roles and optional existing Jarvis bot authority without inferring kernel operator admission.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Sweep 11: the description began "Print a document to the swarm" and Jarvis offered home printing ("choose your home printer as the destination", "queue it for printing"). It now says what the package is: an inbound virtual printer whose documents are filed into the swarm's inbox, never printed on paper, and that it cannot print to a home or office printer. Wording only; no capability, version or authorization change. Guarded by print-ingest/tests/description.test.cjs.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.3.7: declare print-ingest-bot as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — Print Ingest
 #
@@ -36,7 +37,7 @@ description: >-
   paper. Everything lands in one inbox with a recommended filing — a bot's corpus, the
   swarm's shared knowledge, or private to you — and nothing is written until you
   approve it. It cannot print to a home or office printer.
-version: 0.3.6
+version: 0.3.7
 
 # ADR-139 wave 1 — "Send to…" destination: any document becomes a print-inbox intake
 # (extracted to text on the kernel rail, then the normal dedupe/rules/approval queue).
@@ -168,6 +169,9 @@ ragCollections:
 # confirm it; ingestion is what happens after approval. `graph` is the pipeline
 # that actually executes an approval gate — the interim `staged` executor was
 # retired and silently drops its gates.
+# The bot a Jarvis creation request goes to (its own workflow bot).
+chatBot: print-ingest-bot
+
 ticketType: print-queue
 workflow:
   name: Print Queue

@@ -9,6 +9,10 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Retain the communications bot as the single application-owned identity with its dedicated-node execution posture.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Declare the mail, calendar, Graph and Facebook hosts for the native kernel's egress, each with the caller's own connection (gmail, google-calendar, outlook, facebook) applied as a Bearer token by the kernel.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | communications-bot runs inline on the native kernel with route-backed reads (email-digest, email-messages, email-message) over this package's own /api/email routes. As a dedicated-node bot with no enrolled node it answered as a tool-free completion that printed `node /app/scripts/oshal-gmail.js` and fetched nothing, and every app that imports it (Switchboard compose and concierge, Social) was refused "this bot requires an enrolled node". Its persona no longer instructs the retired CLI scripts. Guarded by scripts/check-store-bots.test.mjs.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.4: declare communications-bot as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.4.5: email-send (POST /api/email/send, held for approval, confirm const true) so Jarvis can send an email; it answered "I cannot send emails directly". Guarded by email-summarizer/tests/email-send-tool.test.cjs.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.6: email-send takes no recipient for "email it to me" (the route sends to the person's own address) and puts an earlier step's file link in the body; asked to email a deck to the person, it asked for their address. Guarded by email-summarizer/tests/email-send-tool.test.cjs.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.4.7: a sent email makes this installation's own /cockpit/ and /api/ links absolute (the kernel's x-oshal-public-origin), so a deck emailed from a Jarvis chain opens from the inbox. Guarded by email-summarizer/tests/kernel-egress.test.cjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — email-summarizer (Intelligent Communication, ADR-037)
@@ -70,7 +74,7 @@ description: >-
   communications bot — sending is a single explicit-confirm gated action ("email
   me a copy"). The bot does the reasoning on its own harness/model with cost
   captured per user.
-version: 1.4.3
+version: 1.4.7
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -123,6 +127,9 @@ egress:
 
 # Per-app skin (approved palette) — gray so the comms workspace reads distinct.
 theme: gray
+
+# The bot a Jarvis creation request goes to (its own workflow bot).
+chatBot: communications-bot
 
 ticketType: email-summarizer
 
@@ -221,6 +228,30 @@ tools:
       required: [id]
     usageInstructions: Call with {id} taken from email-messages or email-digest; never guess an id.
     tags: [email, route-backed]
+
+  - name: email-send
+    displayName: Send Email
+    cardText: Sends this email from your own mailbox.
+    type: api
+    category: communication
+    description: Send one email from the person's own connected mailbox (Gmail, Outlook or Yahoo). Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/email/send" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        confirm: { type: boolean, const: true }
+        to: { type: string, minLength: 3, maxLength: 320, description: The recipient address as the person gave it; leave it out to send to the person themselves ("email it to me"). }
+        subject: { type: string, maxLength: 300 }
+        body: { type: string, maxLength: 20000 }
+      required: [confirm, body]
+    usageInstructions: >-
+      Call once with {"confirm":true,"to","subject","body"} when the person asks to send an email; write the subject and
+      body from what they asked. For "email it to me" leave "to" out: it goes to their own address. To send something an
+      earlier step made (a deck, a document), put its title and its link in the body. The approval card is their confirmation. Say it was sent only when the tool answers ok;
+      an insufficient_scope answer means their mailbox connection does not allow sending: say to reconnect it with send access.
+    tags: [email, route-backed, approval-required]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — ribbon icons open the email client pages (served by the

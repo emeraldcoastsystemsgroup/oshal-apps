@@ -42,14 +42,20 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — GET /research/:symbol (five independently guarded sections: quote via latestTrade/latestPrice, fundamentalsSummary, recentNews 7d/25, EDGAR submissions → latest 10-K/10-Q + 12 decoded 8-Ks + events, earnings from the world calendar else a labelled cadence estimate), the per-user FORCE-RLS watchlist (GET with book-rail quotes / POST 201 upsert / DELETE), GET /lots + POST /lots/:id/release (428 confirm-gated) over the kernel pinned-lot store; TradingError → its status/code else logger.error + 502.
- * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-143 D5: GET /reports/movers gains the Alpaca REST screener as a SECOND, labelled source — winners/losers from screener/stocks/movers, active from screener/stocks/most-actives, over the whole US-equity board instead of the ~30-symbol bounded universe. The payload carries source 'Alpaca screener', the vendor's own last_updated verbatim, and the filter that ran (minimum price / asset directory) as a stated note; 'volatile' keeps the bounded daily-bar board because the vendor has no such kind. Every screener failure shape (no key, non-200, unusable body, empty board) falls through to the bounded report, which is unchanged — the surface degrades, never blanks.
- * 2 | maintainer@emeraldcoastsystemsgroup.com   | Add GET /symbols/search (400 query_required, limit capped 25, searchSymbols over the market-wide asset directory — no book) and GET /reports/movers (kind ∈ winners|losers|volatile|active, 400 kind_invalid, limit default 15/cap 50) over the honest bounded universe DEFAULT_UNIVERSE ∪ the caller's watchlist — one daily-bar batch fetch of 30 bars, the PURE computeMovers ranking (trading-movers.ts), best-effort per-row names, an empty batch → an honest empty board with a note, never a fabricated row.
- * 3 | maintainer@emeraldcoastsystemsgroup.com   | Project feed-only congressional world_metrics points into each caller's owner-scoped watchlist, preserving the Quiver source and disclosure date; unavailable world data stays explicitly unavailable.
- * 4 | maintainer@emeraldcoastsystemsgroup.com   | GET /reports/congress lists the names the congressional disclosure feed reported lately (core recentFeedMetricPoints, bounded: limit default 25 / cap 100, 90-day window), each with its disclosure date and when the collector observed it, newest disclosure first. It sits under /reports because /research/:symbol would swallow /research/congress. The surface's Add button posts the existing POST /watchlist with the symbol only, so a watchlist row never stores a holding. The projection now also requires a recorded observedAt: rows written before core recorded it were keyed on the trade day and must not be labelled "disclosed". A core without the read answers 'unavailable', never an error.
- * 5 | maintainer@emeraldcoastsystemsgroup.com   | Rail guard: the research quote and GET /watchlist quotes ask railConfigured(md) instead of calling md.configured(). The native kernel bridge answers getMarketData with {}, so a watchlist with any symbol answered 502 "md.configured is not a function"; it now answers 200 with every symbol and quote null, the honest state when no market-data source is connected.
- * 6 | maintainer@emeraldcoastsystemsgroup.com   | Say why a research section is unavailable, and price from the archive when there is no market-data rail. The report carries `reasons` (section → sentence: the host's market_data_not_connected refusal, a refused outbound host, an EDGAR failure) beside `sections`, which the page printed only as a bare "unavailable". With no rail on the selected book, the research quote and the watchlist quotes read the kernel's World price archive (prices.latest via ctx.intent, trading-archive-quotes.js), labelled as a stored price with its own timestamp; a ticker the archive does not track says so.
- * 7 | maintainer@emeraldcoastsystemsgroup.com   | With no market-data rail, two more reads use the kernel's World price archive instead of showing nothing: the movers board ranks the universe and the watchlist by their stored day closes (archiveDailyBars: the latest stored price against the previous session's, labelled as the archive's and not live; names stay null, the asset directory is a market-data read), and the watchlist's Today column carries the same stored day change (archiveDayChanges) instead of a dash. A ticker the archive does not track has no row and no change; a failed archive read keeps the existing answers.
- * 8 | maintainer@emeraldcoastsystemsgroup.com | Movers distinguishes missing archived prices from insufficient session history without fabricating comparisons or volatility.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-143 D5: GET /reports/movers gains the Alpaca REST screener as a SECOND, labelled source — winners/losers from screener/stocks/movers, active from screener/stocks/most-actives, over the whole US-equity board instead of the ~30-symbol bounded universe. The payload carries source 'Alpaca screener', the vendor's own last_updated verbatim, and the filter that ran (minimum price / asset directory) as a stated note; 'volatile' keeps the bounded daily-bar board because the vendor has no such kind. Every screener failure shape (no key, non-200, unusable body, empty board) falls through to the bounded report, which is unchanged — the surface degrades, never blanks.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Add GET /symbols/search (400 query_required, limit capped 25, searchSymbols over the market-wide asset directory — no book) and GET /reports/movers (kind ∈ winners|losers|volatile|active, 400 kind_invalid, limit default 15/cap 50) over the honest bounded universe DEFAULT_UNIVERSE ∪ the caller's watchlist — one daily-bar batch fetch of 30 bars, the PURE computeMovers ranking (trading-movers.ts), best-effort per-row names, an empty batch → an honest empty board with a note, never a fabricated row.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Project feed-only congressional world_metrics points into each caller's owner-scoped watchlist, preserving the Quiver source and disclosure date; unavailable world data stays explicitly unavailable.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | GET /reports/congress lists the names the congressional disclosure feed reported lately (core recentFeedMetricPoints, bounded: limit default 25 / cap 100, 90-day window), each with its disclosure date and when the collector observed it, newest disclosure first. It sits under /reports because /research/:symbol would swallow /research/congress. The surface's Add button posts the existing POST /watchlist with the symbol only, so a watchlist row never stores a holding. The projection now also requires a recorded observedAt: rows written before core recorded it were keyed on the trade day and must not be labelled "disclosed". A core without the read answers 'unavailable', never an error.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | Rail guard: the research quote and GET /watchlist quotes ask railConfigured(md) instead of calling md.configured(). The native kernel bridge answers getMarketData with {}, so a watchlist with any symbol answered 502 "md.configured is not a function"; it now answers 200 with every symbol and quote null, the honest state when no market-data source is connected.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | Say why a research section is unavailable, and price from the archive when there is no market-data rail. The report carries `reasons` (section → sentence: the host's market_data_not_connected refusal, a refused outbound host, an EDGAR failure) beside `sections`, which the page printed only as a bare "unavailable". With no rail on the selected book, the research quote and the watchlist quotes read the kernel's World price archive (prices.latest via ctx.intent, trading-archive-quotes.js), labelled as a stored price with its own timestamp; a ticker the archive does not track says so.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | With no market-data rail, two more reads use the kernel's World price archive instead of showing nothing: the movers board ranks the universe and the watchlist by their stored day closes (archiveDailyBars: the latest stored price against the previous session's, labelled as the archive's and not live; names stay null, the asset directory is a market-data read), and the watchlist's Today column carries the same stored day change (archiveDayChanges) instead of a dash. A ticker the archive does not track has no row and no change; a failed archive read keeps the existing answers.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com   | Movers distinguishes missing archived prices from insufficient session history without fabricating comparisons or volatility.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com   | The archive movers board names each symbol from the SEC company directory (the same 24h-cached ticker table as the CIK lookup); every row had shown a blank NAME. A failed directory read leaves the names null and the board unchanged.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com   | The earnings calendar is asked for the lower-case World subject (`world:ticker:nvda`); the upper-case ticker never matched a recorded row, so every next-earnings date fell back to the cadence estimate.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com   | Company news on the native kernel reads the World archive's headlines for the ticker (feeds.news, trading-archive-news.js); it had required a Finnhub connection this installation does not have, so news was always unavailable.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com   | Company news asks the person's Finnhub connection first and reads the World archive's headlines only when Finnhub does not answer; 1.33.27 had made the archive answer first, skipping a working Finnhub connection (the owner's account showed Finnhub headlines on 1.33.15).
+ * 14 | maintainer@emeraldcoastsystemsgroup.com   | The Movers board's whole-market source on the native kernel is Schwab movers across all US equities (readNativeMovers / kernel trading.movers), ahead of the vendor screener and the bounded archive board; BACKLOG T5's screener had no native source.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com   | The Schwab movers board merges the S&P 500, NASDAQ and NYSE lists, keeps prices of $5 or more and ranks the rows itself: live, Schwab ordered EQUITY_ALL by volume whatever the sort, so 1.33.39's winners board showed sub-dollar most-active symbols and a -27% row.
  *
  * 2026-10-15 | maintainer@emeraldcoastsystemsgroup.com | Expose authenticated SEC company-name lookup with public cache provenance and explicit unavailable reads.
  * 2026-10-15 | maintainer@emeraldcoastsystemsgroup.com | Native research reads coherent annual SEC financial statements independently of broker connectivity.
@@ -57,7 +63,7 @@
  */
 
 import type { Router, Request, Response } from 'express';
-import { nativeSchwabReads } from './trading-native-reads';
+import { nativeSchwabReads, readNativeMovers } from './trading-native-reads';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
 import { buildOwnerRlsPolicyStatements, runRuntimeSchemaBootstrap } from '@/shared/services/database';
@@ -71,12 +77,13 @@ import { callerSub, resolveBook, TradingError } from '@/app/routes/trading-route
 import { ensurePinnedLotsSchema, listPinnedLots, pinnedQtyBySymbol, releasePinnedLot } from '@/app/trading-pinned-lots';
 import { computeMovers, isMoverKind, type MoverKind } from './trading-movers';
 import {
-  EDGAR_TICKER_CACHE_MS, EDGAR_TICKERS_URL, EDGAR_UA, cikFromTickerTable, companyMatches, earningsResultDates, edgarSubmissionsUrl,
+  EDGAR_TICKER_CACHE_MS, EDGAR_TICKERS_URL, EDGAR_UA, cikFromTickerTable, companyMatches, namesFromTickerTable, earningsResultDates, edgarSubmissionsUrl,
   estimateNextEarnings, filingEvents, summarizeSubmissions, type FilingEvent, type FilingsSummary,
 } from './trading-edgar-filings';
 import { railConfigured } from './trading-rail-guard';
 import { readSecFinancialSummary } from './trading-sec-financial-reader';
 import { readCompanyNews, type NewsCoverage } from './trading-company-news';
+import { readArchiveNews } from './trading-archive-news';
 import { archiveAvailable, archiveQuote, archiveQuotes, archiveDailyBars, archiveDayChanges, sectionReason } from './trading-archive-quotes';
 
 const logger = createChildLogger({ module: 'trading-research-routes' });
@@ -111,6 +118,9 @@ const MOVERS_ARCHIVE_NOTE = 'From oshal\'s World price archive (Yahoo chart, col
 const MOVERS_SCREENER_OVERFETCH = 3;
 /** What the screener board actually spans — printed beside the vendor's label, never implied. */
 const MOVERS_SCREENER_SCOPE = 'Whole US-equity board from the Alpaca screener.';
+/** The Schwab movers lists the native board merges, and the price floor the vendor screener also used. */
+const SCHWAB_MOVERS_INDEXES = ['$SPX', 'NASDAQ', 'NYSE'];
+const MOVERS_MIN_PRICE = 5;
 
 /** Whether a research section produced its data or is reported as missing. */
 type SectionState = 'ok' | 'unavailable';
@@ -270,10 +280,15 @@ async function edgarJson<T>(url: string): Promise<T> {
  * @returns The zero-padded CIK, or null for a non-registrant.
  */
 async function cikForSymbol(symbol: string): Promise<string | null> {
+  return cikFromTickerTable(await secTickerTable(), symbol);
+}
+
+/** The SEC ticker table, cached in-module for 24h (shared by the CIK lookup and the movers names). */
+async function secTickerTable(): Promise<unknown> {
   if (!tickerTable || Date.now() - tickerTable.at > EDGAR_TICKER_CACHE_MS) {
     tickerTable = { at: Date.now(), table: await edgarJson<unknown>(EDGAR_TICKERS_URL) };
   }
-  return cikFromTickerTable(tickerTable.table, symbol);
+  return tickerTable.table;
 }
 
 /** Native financial statements are public SEC evidence, independent of broker connectivity. */
@@ -307,12 +322,35 @@ async function calendarEarnings(symbol: string): Promise<string | null> {
   const svc = createWorldIntelligenceService();
   if (!svc) return null;
   try {
-    const events = await svc.upcomingEvents(CALENDAR_DAYS, `world:ticker:${symbol}`);
+    // World subjects are lower-case (`world:ticker:txn`); the upper-case ticker never matched a calendar row.
+    const events = await svc.upcomingEvents(CALENDAR_DAYS, `world:ticker:${symbol.toLowerCase()}`);
     const hit = events.find((e) => e.eventType === 'earnings');
     return hit ? hit.scheduledAt.slice(0, 10) : null;
   } catch (err) {
     logger.error({ err, symbol }, 'world calendar earnings read failed — falling back to the cadence estimate');
     return null;
+  }
+}
+
+/**
+ * @description Company news: the person's Finnhub connection when it answers, else the World archive's headlines
+ * (native kernel), else the platform rail. A Finnhub failure with no archive keeps its own reason.
+ * @param ctx - App context.
+ * @param symbol - The ticker.
+ * @returns The headlines and their coverage.
+ */
+async function newsFor(ctx: AppContext, symbol: string): Promise<{items: NewsItem[]; coverage: NewsCoverage | null}> {
+  if (!nativeSchwabReads()) {
+    if (archiveAvailable(ctx)) return readArchiveNews(ctx, symbol);
+    return {items: await recentNews([symbol], NEWS_WINDOW_MIN, NEWS_LIMIT), coverage: null};
+  }
+  try {
+    return await readCompanyNews(symbol);
+  } catch (err) {
+    if (!archiveAvailable(ctx)) throw err;
+    logger.info({ symbol, reason: (err as Error).message }, 'Finnhub company news unavailable - reading the World archive headlines');
+    // When the archive cannot answer either, the page keeps Finnhub's own reason (the connection the person can fix).
+    try { return await readArchiveNews(ctx, symbol); } catch { throw err; }
   }
 }
 
@@ -344,8 +382,7 @@ async function researchSymbol(ctx: AppContext, s: string, book: TradingBook, sym
   const [quote, fundamentals, newsRead, filings] = await Promise.all([
     section('quote', symbol, null, () => quoteFor(ctx, book, s, symbol), sections, reasons),
     section('fundamentals', symbol, null, () => financialsFor(symbol), sections, reasons),
-    section('news', symbol, {items:[] as NewsItem[],coverage:null as NewsCoverage | null}, async () => nativeSchwabReads()
-      ? readCompanyNews(symbol) : {items:await recentNews([symbol], NEWS_WINDOW_MIN, NEWS_LIMIT),coverage:null}, sections, reasons),
+    section('news', symbol, {items:[] as NewsItem[],coverage:null as NewsCoverage | null}, () => newsFor(ctx, symbol), sections, reasons),
     section('filings', symbol, EMPTY_FILINGS, () => filingsFor(symbol), sections, reasons),
   ]);
   if (!quote && sections.quote === 'ok') { sections.quote = 'unavailable'; reasons.quote = 'The market-data rail has no recent print for ' + symbol + '.'; }
@@ -676,7 +713,45 @@ async function withNames<T extends { symbol: string }>(rows: T[]): Promise<Array
  * @returns The board payload, labelled with the source that actually produced it.
  */
 async function moversReport(ctx: AppContext, s: string, kind: MoverKind, limit: number): Promise<Record<string, unknown>> {
-  return (await screenerMoversReport(kind, limit)) ?? boundedMoversReport(ctx, s, kind, limit);
+  return (await schwabMoversReport(ctx, kind, limit)) ?? (await screenerMoversReport(kind, limit)) ?? boundedMoversReport(ctx, s, kind, limit);
+}
+
+/**
+ * @description The whole-market board from the person's Schwab connection on the native kernel (Schwab movers across
+ * all US equities), or null to fall back: no Schwab rail, the 'volatile' board (Schwab has none), a refused read or an
+ * empty board.
+ * @param ctx - App context.
+ * @param kind - The board.
+ * @param limit - Max rows.
+ * @returns The board payload, or null.
+ */
+async function schwabMoversReport(ctx: AppContext, kind: MoverKind, limit: number): Promise<Record<string, unknown> | null> {
+  if (kind === 'volatile' || !nativeSchwabReads()) return null;
+  const sort = kind === 'active' ? 'VOLUME' : kind === 'winners' ? 'PERCENT_CHANGE_UP' : 'PERCENT_CHANGE_DOWN';
+  // Schwab answers at most ten movers per index and, live on 2026-10-16, ordered EQUITY_ALL by volume whatever the sort.
+  // So the board merges three equity lists, keeps the screener's $5 floor and ranks the rows itself.
+  const seen = new Map<string, { symbol: string; name: string | null; price: number; changePct: number | null; dayVolume: number | null; volatilityPct: null }>();
+  let answered = false;
+  for (const index of SCHWAB_MOVERS_INDEXES) {
+    let movers;
+    try { movers = await readNativeMovers(ctx, sort, index); }
+    catch (err) { logger.info({ kind, index, reason: (err as Error).message }, 'Schwab movers index unavailable'); continue; }
+    if (!movers) return null;
+    answered = true;
+    for (const m of movers) {
+      if (!(m.price >= MOVERS_MIN_PRICE) || seen.has(m.symbol)) continue;
+      seen.set(m.symbol, { symbol: m.symbol, name: m.name || null, price: m.price, changePct: m.changePct, dayVolume: m.volume, volatilityPct: null });
+    }
+  }
+  if (!answered || !seen.size) return null;
+  const pct = (r: { changePct: number | null }) => r.changePct ?? 0;
+  const rows = [...seen.values()]
+    .filter((r) => kind === 'active' || (kind === 'winners' ? pct(r) > 0 : pct(r) < 0))
+    .sort((a, b) => kind === 'active' ? (b.dayVolume ?? 0) - (a.dayVolume ?? 0) : kind === 'winners' ? pct(b) - pct(a) : pct(a) - pct(b))
+    .slice(0, limit);
+  if (!rows.length) return null;
+  return { kind, source: 'Schwab movers (S&P 500, NASDAQ and NYSE)', asOf: new Date().toISOString(), lastUpdated: null, filter: { minPrice: MOVERS_MIN_PRICE },
+    rows, note: `Schwab's movers for the S&P 500, NASDAQ and NYSE through your Schwab connection (at most ten per list), priced at $${MOVERS_MIN_PRICE} or above, ranked here by ${kind === 'active' ? 'volume' : 'percent change'}; percent is computed from Schwab's net change and last price.` };
 }
 
 /**
@@ -742,7 +817,8 @@ async function boundedMoversReport(ctx: AppContext, s: string, kind: MoverKind, 
 
 /**
  * @description The movers board from the World archive's stored day closes (no market-data rail on this host).
- * Names stay null: the asset directory is a market-data read too. An empty archive is an honest empty board.
+ * Names come from the SEC company directory (public, no market-data rail); a failed directory read leaves them null.
+ * An empty archive is an honest empty board.
  * @param ctx - App context (its intent call reads prices.series).
  * @param kind - The board.
  * @param limit - Max rows.
@@ -755,7 +831,10 @@ async function archiveMoversReport(ctx: AppContext, kind: MoverKind, limit: numb
   if (!bars.size) return { ...base, rows: [], note: 'No stored daily prices for this universe in the requested window. ' + MOVERS_ARCHIVE_NOTE };
   // computeMovers reads only each bar's close and volume; the archive keeps one price per day, never an open/high/low.
   const closes = bars as unknown as Parameters<typeof computeMovers>[0];
-  const rows = computeMovers(closes, kind, limit).map((row) => ({ ...row, name: null }));
+  let names = new Map<string, string>();
+  try { names = namesFromTickerTable(await secTickerTable(), [...bars.keys()]); }
+  catch (err) { logger.warn({ err }, 'SEC company directory read failed — movers names stay blank'); }
+  const rows = computeMovers(closes, kind, limit).map((row) => ({ ...row, name: names.get(String(row.symbol).toUpperCase()) ?? null }));
   const shortage = rows.length ? '' : kind === 'volatile'
     ? 'Not enough stored daily history to calculate volatility for this universe yet. '
     : 'Not enough stored daily history to compare sessions for this universe yet. ';

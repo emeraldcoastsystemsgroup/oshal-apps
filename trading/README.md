@@ -46,6 +46,14 @@ the scan records into; without it the native kernel refused every scanned symbol
 showed an empty table. Recommendations and the scan run on the deterministic engine the kernel
 bridge now carries.
 
+Buy a stock on the paper book (1.33.22): on the native kernel the ticket's Review and Place are answered by
+the native paper engine (`routes/paper/manual.js`): a market order is priced at the kernel's latest price,
+checked against the book's own share and dollar limits and its cash or holding, and filled once during the
+regular session. Limit, stop, timed and protected orders say they are not available on the paper book yet.
+The ticket's Look up on that book (1.33.24) shows the same stored price the order is priced at.
+The Trading concierge (1.33.25) reads the book's holdings and cash through route tools (`trading_positions`, `trading_account`), so "what does my paper account hold" is answered with the holding and the cash.
+The Futures study (1.33.29, Strategies → Tuning) runs on the native kernel over your Schwab connection: Save keeps your study, Run once builds ES/CL from dated contracts (30-minute bars combined into hours, daily or weekly for the higher timeframe), optimizes walk-forward windows with the platform's staged optimizer and records the run with its out-of-sample figures. Research only. Save / enable switches on your own nightly schedule (02:15 New York, Tuesday to Saturday, 1.33.31); Pause, Resume and Stop switch it in the kernel. Review this study (1.33.32) asks the futures-research-analyst for a research-only review that must cite the run's exact evidence and may only propose bounded grid changes. Forward research calls (1.33.34, off by default) freeze a long/short bias from each run's locked strategy over the live contract and grade it later by directional ticks; the Schwab check reads the live contracts, and capture, catch-up and archive import are not needed on the native kernel.
+
 The source's native bridge route tests, caller/isolation/withdrawal guards, and desktop/phone
 holdings tests cover these contracts. Installation and genuine provider acceptance are separate
 and remain required before declaring the user's connected account verified.

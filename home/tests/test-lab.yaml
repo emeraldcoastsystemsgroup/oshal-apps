@@ -11,6 +11,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Register home-connect-copy: the chat names the Hubs tab instead of a raw /utilities path, and every New schedule field is labelled.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register home-reply-words: an assistant reply shows **bold** as bold text without asterisks, markup stays text, and the transcript sits off the screen edge at 412 px (demo sweep 1).
 # 9 | maintainer@emeraldcoastsystemsgroup.com | home-connect-copy also expects the prompt to name the data as the Smart Home app's, never a snapshot (sweep 14).
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Register home-weather: the NWS forecast chain and its egress and tool declaration.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -110,4 +111,24 @@ cases:
     sideEffects: none
     isolation: { mode: none, cleanup: The case closes its browser context; the page and answers are synthetic and served inside the browser with no network or server. }
     limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
+    installation: never
+  - id: home-weather
+    name: Weather forecast from the National Weather Service
+    purpose: The compiled weather module answers NWS forecast periods with the source named, refuses a missing, unknown or uncovered
+      place in words, and the manifest declares the keyless egress, the tool and weather routing words.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/home-weather.test.js
+    expected:
+    - Every case passes with a stand-in fetch; no network is used.
+    prerequisites:
+    - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

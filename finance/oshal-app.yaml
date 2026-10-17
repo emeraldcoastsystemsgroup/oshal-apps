@@ -7,6 +7,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Declare the three finance stores as a package migration so a native kernel provisions them before the first read; the status route had answered 500 on an unprovisioned scope.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | uses: specialist-context and the finance_facts read tool. Jarvis now hands "how is my finance doing?" to the finance-analyst, which had no data channel and asked the person to provide their data; routes/finance-routes.js registers a reader of the caller's saved finance state (routes/finance-facts.js) under finance_facts. Version unchanged.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.2.5: finance-summary (GET /api/finance/summary) gives the analyst the saved aggregate, so a spending question is answered from the person's categorized transactions; it had only finance_facts and said it could not query transactions. Guarded by finance/tests/finance-summary-tool.test.cjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — finance ("Finance")
@@ -67,7 +68,7 @@ description: >-
   Link your banks and brokerages (via Plaid — OSHAL never sees your bank password)
   and see everything in one place: net worth, accounts, holdings, and spending, with
   a plain-English brief. Read-only — nothing is traded or moved. No crypto.
-version: 1.2.4
+version: 1.2.5
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -148,6 +149,25 @@ tools:
       properties: {}
     usageInstructions: Call with {} to read what Finance holds for the caller before answering.
     routingTags: [finance, net-worth, accounts]
+    tags: [finance]
+
+  - name: finance-summary
+    displayName: Finance Summary
+    type: api
+    category: finance
+    description: >-
+      The caller's saved finance aggregate from their last sync: accounts and balances, net worth,
+      holdings, top spending, spend and income by month, and recent categorized transactions (for
+      "how much did I spend on restaurants", a month or an account). Read-only and owner-scoped; it
+      never syncs, calls Plaid or moves money. A 404 means nothing is synced yet. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/finance/summary" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    usageInstructions: Call with {} for any spending, transaction, category, month or account question, then answer from what it returns.
+    routingTags: [finance, spending, transactions]
     tags: [finance]
 
 ticketType: finance-brief

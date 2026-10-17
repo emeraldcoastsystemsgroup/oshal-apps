@@ -36,6 +36,7 @@
 # 32 | maintainer@emeraldcoastsystemsgroup.com | Release bounded candidate-first SQLite board lookups as version 1.27.4, preserving ranking, filters, pagination and exhaustive search while eliminating the foreground corpus scan.
 # 33 | maintainer@emeraldcoastsystemsgroup.com | Register owner-scoped native saved Career reads and required facts without enabling any engine mutation as version 1.27.5.
 # 34 | maintainer@emeraldcoastsystemsgroup.com | Native provisioning: declare migrations/native/001-career-hunter.sql (every table, column, index, view and pg_constraint-guarded CHECK of 090-107) and skip 090-107 natively, whose RLS DO loops, relkind/app-role DO guards and capture triggers the native kernel refuses; 031, 077 and 082 still apply natively. The declared migrations stayed pending for every person. PostgreSQL still applies 031-107.
+# 35 | maintainer@emeraldcoastsystemsgroup.com | 1.27.6: Jarvis's job questions no longer time out. The Career specialist facts ran the full AI board ranking (2.1 to 3.0 s on a 2.1M-signal store) inside the kernel's 3 s specialist deadline; they now count the board's first page in one query (0.6 s). Guarded by career-hunter/tests/career-native-read-facts.test.mjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -129,7 +130,7 @@ description: >-
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.27.5
+version: 1.27.6
 
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent

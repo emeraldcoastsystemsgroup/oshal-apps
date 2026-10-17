@@ -7,6 +7,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | The Workspace and Composer call the package's own /api/social/content routes (routes/social-content-routes.js, migrations/001-social-content.sql, credential-free egress to the public topic feeds) instead of the old platform's /api/content/*, which the native kernel does not serve; social-daily-digest targets the imported communications-bot by name (the agent id was neither declared nor imported, so the kernel refused the schedule).
 # 4 | maintainer@emeraldcoastsystemsgroup.com | social-daily-digest targets social-writer (a0...0040), the phase bot of the one workflow social owns (linkedin-content-post): a fire opens the workflow whose bot is the target, and the imported communications-bot runs only email-summarizer's workflow, so every fire was refused WorkflowNotLoaded.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | social-writer runs inline (posture: inline, same UUID a0000000-0000-0000-0000-000000000040). As a dedicated-node bot bound to enrolled node 9a367ce4, every Composer and Workspace AI Draft and Refine (POST /api/social/draft, /api/social/content/*) was refused 502 "social-writer is bound to enrolled node ..., which answers it; this request cannot run it here" (live 2026-10-11): the kernel runs a route-called node bot only when no node is bound. The node binding itself is unchanged. Guarded by scripts/check-store-bots.mjs: the four social route entries left its PENDING list, so a node posture fails the store gate again.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.5.5: declare social-writer as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — social (Social swarm, ADR-038)
@@ -61,7 +62,7 @@ description: >-
   input — then publishes to multiple platforms at once (LinkedIn + Facebook + X).
   AI drafting runs on the comms bot; publishing uses your per-user connector
   tokens. Human-approved — nothing posts until you click Publish.
-version: 1.5.4
+version: 1.5.5
 status: active
 
 source:
@@ -157,6 +158,9 @@ theme: light-blue
 # refine under SOCIAL_JUDGE_BAR -> pending-approval); the interactive path does not need a ticket.
 # Nothing publishes without an explicit human Publish click.
 # ─────────────────────────────────────────────────────────────────────────────
+# The bot a Jarvis creation request goes to (its own workflow bot).
+chatBot: social-writer
+
 ticketType: linkedin-content-post
 workflow:
   name: LinkedIn Content Assistant

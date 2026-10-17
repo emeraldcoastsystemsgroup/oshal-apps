@@ -32,6 +32,7 @@
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove Duffel credentials from generic orchestrator dispatch. Flight search resolves a fixed-server-operation credential only inside the deterministic CLI helper; the model receives bounded offers and price intelligence, never a credential map.
  * 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: replace the final credential-bearing Duffel subprocess. Travel operations now call the bounded import-safe provider helper with the current request's explicit token.
  * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | The concierge knows the installation. The chat turn probes the Duffel `status`; where it answers mode not_connected (no Duffel connector exists on the native kernel) the turn runs no search (a search there refuses 503 and fails the call), opens no fare watch, and the prompt says fares cannot be searched or watched here and never tells the traveller to connect Duffel. Three-letter airport codes are read as IATA codes (VPS was taken for a server). Guard: tests/travel-chat-rail.test.js.
+ * 2026-10-16 | maintainer@emeraldcoastsystemsgroup.com | Search handoff with no Duffel rail. "Find me flights from Seattle to Denver next Friday" answered that nothing could be searched: the native kernel has no Duffel provider and refuses every search. Where its status says not_connected (asked once per process), flights, hotels and cars answer the Google Flights, Booking.com and Kayak search links for the exact trip (./travel-handoff) with no items and no prices, and each answer carries the note that no fares are searched here. Guard: tests/travel-search-handoff.test.js.
  *
  * @module travel-routes
  */
@@ -80,6 +81,7 @@ const authz_1 = require("@/shared/middleware/authz");
 const connector_token_broker_1 = require("@/app/routes/connector-token-broker");
 const provider_operation_clients_1 = require("@/app/routes/provider-operation-clients");
 const travel_farewatch_1 = require("@/app/routes/travel-farewatch");
+const travel_handoff_1 = require("./travel-handoff");
 const logger = (0, logger_1.createChildLogger)({ module: 'travel-routes' });
 /** The travel-concierge agent (seeded by migration 051; inline bot run via the orchestrator). */
 const CONCIERGE_AGENT_ID = 'b00c0000-0000-0000-0000-000000000001';
@@ -127,8 +129,21 @@ function resolveViewerSub(req) {
 // ── Duffel provider helper (fixed-operation request token, never model-visible) ─────────
 async function duffelProviderOperation(pool, sub, args) {
     const creds = await (0, connector_token_broker_1.resolveServerOperationCreds)(pool, sub, ['duffel'], 'fixed-server-operation');
-    return (0, provider_operation_clients_1.runDuffelProviderOperation)(creds.OSHAL_CRED_DUFFEL, args);
+    const run = (a) => (0, provider_operation_clients_1.runDuffelProviderOperation)(creds.OSHAL_CRED_DUFFEL, a);
+    if (runtimeRail === null || args[0] === 'status') {
+        const st = await run(['status']);
+        runtimeRail = !!st && st.mode === 'not_connected' ? 'handoff' : 'provider';
+        if (args[0] === 'status')
+            return st;
+    }
+    return runtimeRail === 'handoff' ? travel_handoff_1.run(args) : run(args);
 }
+/**
+ * Which rail answers Duffel in this process: 'provider' where the runtime has one, 'handoff' (./travel-handoff:
+ * Google Flights, Booking.com and Kayak search links, no prices) where its `status` answers not_connected. Asked
+ * once: a refused provider operation fails the whole native call even when it is caught.
+ */
+let runtimeRail = null;
 /** What a traveller is told where the installation has no Duffel rail at all. */
 exports.TRAVEL_NO_RAIL = 'This installation has no Duffel rail (no Duffel connector exists here), so flights, hotels and cars cannot be searched, priced or watched for fare drops here.';
 /**
@@ -263,7 +278,7 @@ function createTravelRoutes(ctx) {
         const routeKey = (0, travel_farewatch_1.routeKeyFor)('flight', q);
         const price = await (0, travel_farewatch_1.priceRead)(pool, 'flight', routeKey, best);
         await pool.query(`INSERT INTO travel_searches (user_sub, kind, route_key, query, best_price) VALUES ($1,'flight',$2,$3,$4)`, [sub, routeKey, JSON.stringify(q), best]).catch(() => { });
-        res.json({ items, source: r.source || 'demo', deepLink: r.deepLink, price, routeKey, error: r.error });
+        res.json({ items, source: r.source || 'demo', deepLink: r.deepLink, note: r.note, price, routeKey, error: r.error });
     }));
     router.get('/hotels', traveller(async (req, res, sub) => {
         const q = { city: String(req.query.city || ''), checkIn: String(req.query.checkIn || ''), checkOut: String(req.query.checkOut || ''), guests: Number(req.query.guests) || 2 };
@@ -275,7 +290,7 @@ function createTravelRoutes(ctx) {
         await (0, travel_farewatch_1.recordObservations)(pool, 'hotel', q, r.items || [], r.source || 'demo');
         const routeKey = (0, travel_farewatch_1.routeKeyFor)('hotel', q);
         const best = (r.items || []).length ? Math.min(...r.items.map((i) => Number(i.price))) : null;
-        res.json({ items: r.items || [], source: r.source || 'demo', deepLink: r.deepLink, price: await (0, travel_farewatch_1.priceRead)(pool, 'hotel', routeKey, best), routeKey });
+        res.json({ items: r.items || [], source: r.source || 'demo', deepLink: r.deepLink, note: r.note, price: await (0, travel_farewatch_1.priceRead)(pool, 'hotel', routeKey, best), routeKey });
     }));
     router.get('/cars', traveller(async (req, res, sub) => {
         const q = { city: String(req.query.city || ''), pickupDate: String(req.query.pickupDate || ''), dropoffDate: String(req.query.dropoffDate || ''), carClass: String(req.query.carClass || 'midsize') };
@@ -287,7 +302,7 @@ function createTravelRoutes(ctx) {
         await (0, travel_farewatch_1.recordObservations)(pool, 'car', q, r.items || [], r.source || 'demo');
         const routeKey = (0, travel_farewatch_1.routeKeyFor)('car', q);
         const best = (r.items || []).length ? Math.min(...r.items.map((i) => Number(i.price))) : null;
-        res.json({ items: r.items || [], source: r.source || 'demo', deepLink: r.deepLink, price: await (0, travel_farewatch_1.priceRead)(pool, 'car', routeKey, best), routeKey });
+        res.json({ items: r.items || [], source: r.source || 'demo', deepLink: r.deepLink, note: r.note, price: await (0, travel_farewatch_1.priceRead)(pool, 'car', routeKey, best), routeKey });
     }));
     // ── Fare watches ─────────────────────────────────────────────────────────────
     router.get('/watches', traveller(async (_req, res, sub) => {

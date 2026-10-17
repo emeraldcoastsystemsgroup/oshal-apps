@@ -59,7 +59,7 @@
       { id: 'links', label: 'Checkout links, 5 days', value: known(five) ? five.value : '—', hint: known(five) ? 'Not placed orders' : 'Could not check' },
       { id: 'saved', label: 'Saved checkouts', value: !orders ? '—' : orders.length >= LIMIT ? LIMIT + '+' : orders.length, hint: orders ? null : 'Could not check' },
       // rail 'absent': no Uber Eats connector exists on this installation, so there is nothing to link.
-      { id: 'uber', label: 'Uber Eats', value: !cfg ? '—' : cfg.rail === 'absent' ? 'None here' : cfg.uberConnected ? 'Linked' : 'Not linked', hint: !cfg ? 'Could not check' : cfg.rail === 'absent' ? 'This installation has no Uber Eats connector' : cfg.uberConnected ? null : 'Restaurant search needs an Uber Eats connection' }
+      { id: 'uber', label: 'Uber Eats', value: !cfg ? '—' : cfg.rail === 'catalog' ? 'Handoff' : cfg.rail === 'absent' ? 'None here' : cfg.uberConnected ? 'Linked' : 'Not linked', hint: !cfg ? 'Could not check' : cfg.rail === 'catalog' ? 'Ordering opens Uber Eats on your own sign-in' : cfg.rail === 'absent' ? 'This installation has no Uber Eats connector' : cfg.uberConnected ? null : 'Restaurant search needs an Uber Eats connection' }
     ];
   }
   // Nothing waiting and no checkout link to name: "Nothing saved yet" only when the history answered empty AND the
@@ -1405,8 +1405,9 @@ async function boot() {
   await search('');
   try {
     const config = await getJson(`${API}/config`);
-    $('#connDot').classList.toggle('on', Boolean(config.uberConnected));
-    $('#connTxt').textContent = config.rail === 'absent' ? 'No Uber Eats connector here'
+    $('#connDot').classList.toggle('on', Boolean(config.uberConnected) || config.rail === 'catalog');
+    $('#connTxt').textContent = config.rail === 'catalog' ? 'Uber Eats handoff ready'
+      : config.rail === 'absent' ? 'No Uber Eats connector here'
       : config.uberConnected ? 'Uber Eats connected' : 'Uber Eats not connected';
   } catch {
     $('#connTxt').textContent = 'Demo catalog';

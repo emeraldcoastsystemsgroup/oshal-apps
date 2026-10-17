@@ -31,6 +31,11 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Mount owner-private Schwab Futures capture controls without crossing the trading order rail.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: GET/POST/DELETE /api/trading/autopilot answer from the native paper autopilot (routes/paper/: the caller's armed paper book, its recent ticks and the manifest's person-activated paper-autopilot schedule) instead of the legacy schedule service, which the native kernel lacks (every call answered 503 native_executor_unavailable). POST arms the paper book, DELETE disarms it; the schedule's activation stays the person's own on the kernel.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Native status reports armed and schedule-active apart: POST answered enabled:true on arming although the person's paper-autopilot schedule was not activated, so nothing traded. `enabled` is now false while disarmed and null while armed (the activation lives in the kernel, which a package cannot read), `scheduleActive` is null, and `lastScheduledRunAt` names the newest tick the schedule fired. This source now carries the native handlers the compiled routes/trading-autopilot-routes.js already ran (entry 11 had changed only the compiled file).
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: the Futures panel's routes (GET/POST/DELETE /futures, /futures/run, pause/resume) are answered by the native Schwab study (routes/futures/native.js) - per person, over their own Schwab connection - instead of the platform scheduler the native kernel does not have; every other host keeps its path.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | POST /futures/tick: the futures-research schedule's nightly run of the person's saved native Futures study.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | POST /futures/runs/:runId/review on the native kernel reviews the person's own run (routes/futures/review.js).
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: forward receipts (GET /futures/predictions, /:predictionId) come from the native study's ledger, the Schwab check reads the live contract, and capture, catch-up and archive import answer that they are not needed.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | The native probe/capture/archive answers mount one string path each: an array mount is mounted at '/' by the native router (and req.baseUrl is undefined there), so 1.33.34 answered 500 on every Futures route.
  * @module trading-autopilot-routes
  */
 
@@ -60,6 +65,7 @@ import { loadConfig, loadAccount, listTicks, type PaperConfig, type PaperAccount
 import { nativeHost } from './paper/screen';
 import { DEFAULT_UNIVERSE as PAPER_UNIVERSE } from './paper/universe';
 import { callerOf } from './trading-paper-routes';
+import { nativeFutures } from './futures/native';
 
 /** The advisor legs and their cadences. */
 const RESEARCH_CRON = '*/15 * * * *';
@@ -358,6 +364,18 @@ export function createTradingAutopilotRoutes(ctx?: AppContext): Router {
     }
   });
 
+  // Native kernel: the Schwab check reads the live contract; capture, catch-up and archive import are not needed there.
+  // One string path per mount: the native router mounts an array of paths at '/' and has no req.baseUrl.
+  const nativeFuturesMount = (probe: boolean) => async (req: Request, res: Response, next: () => void) => {
+    const sub = callerSub(req);
+    if (!sub) { next(); return; }
+    const nf = await nativeFutures(ctx, probe ? 'probe' : req.method === 'GET' ? 'capture' : 'capture-write', sub, undefined);
+    if (nf) { res.status(nf.status).json(nf.body); return; }
+    next();
+  };
+  router.use('/futures/sources/schwab/probe', nativeFuturesMount(true));
+  router.use('/futures/sources/schwab/capture', nativeFuturesMount(false));
+  router.use('/futures/archive', nativeFuturesMount(false));
   router.use('/futures/archive', createFuturesArchiveRoutes(ctx));
   router.use('/futures/sources/schwab/probe', createFuturesSchwabProbeRoutes(ctx));
   router.use('/futures/sources/schwab/capture', createFuturesSchwabCaptureRoutes(ctx));
@@ -366,6 +384,8 @@ export function createTradingAutopilotRoutes(ctx?: AppContext): Router {
   router.get('/futures', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    const nf = await nativeFutures(ctx, 'get', sub, undefined);
+    if (nf) { res.status(nf.status).json(nf.body); return; }
     if (!ctx?.pool) { res.status(503).json({ error: 'futures_research_unavailable' }); return; }
     try {
       const schedule = await findFuturesResearch(sub);
@@ -378,6 +398,8 @@ export function createTradingAutopilotRoutes(ctx?: AppContext): Router {
   router.post('/futures/runs/:runId/review', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    const nf = await nativeFutures(ctx, 'review', sub, { runId: String(req.params.runId) });
+    if (nf) { res.status(nf.status).json(nf.body); return; }
     if (!isOperatorIdentity(sub)) { res.status(403).json({ error: 'operator_only' }); return; }
     if (!ctx?.pool) { res.status(503).json({ error: 'futures_research_unavailable' }); return; }
     try {
@@ -394,6 +416,8 @@ export function createTradingAutopilotRoutes(ctx?: AppContext): Router {
   router.get('/futures/predictions', async (req: Request, res: Response) => {
     const sub = req.oidc?.user?.sub;
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    const nf = await nativeFutures(ctx, 'predictions', String(sub), undefined);
+    if (nf) { res.status(nf.status).json(nf.body); return; }
     if (!ctx?.pool) { res.status(503).json({ error: 'futures_predictions_unavailable' }); return; }
     try { res.json({ predictions: await listFuturesPredictions(ctx.pool, sub) }); }
     catch (err) { logger.error({ err }, 'Futures prediction list unavailable'); res.status(503).json({ error: 'futures_predictions_unavailable' }); }
@@ -402,6 +426,8 @@ export function createTradingAutopilotRoutes(ctx?: AppContext): Router {
     const sub = req.oidc?.user?.sub;
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     const id = String(req.params.predictionId);
+    const nfp = await nativeFutures(ctx, 'prediction', String(sub), { predictionId: id });
+    if (nfp) { res.status(nfp.status).json(nfp.body); return; }
     if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) { res.status(400).json({ error: 'invalid_prediction_id' }); return; }
     if (!ctx?.pool) { res.status(503).json({ error: 'futures_predictions_unavailable' }); return; }
     try {
@@ -415,6 +441,8 @@ export function createTradingAutopilotRoutes(ctx?: AppContext): Router {
   router.post('/futures', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    const nf = await nativeFutures(ctx, 'save', sub, req.body);
+    if (nf) { res.status(nf.status).json(nf.body); return; }
     if (!isOperatorIdentity(sub)) { res.status(403).json({ error: 'operator_only' }); return; }
     const svc = getTradingScheduleService();
     if (!svc) { res.status(503).json({ error: 'scheduler_unavailable' }); return; }
@@ -430,6 +458,8 @@ export function createTradingAutopilotRoutes(ctx?: AppContext): Router {
   router.post('/futures/run', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    const nf = await nativeFutures(ctx, 'run', sub, undefined);
+    if (nf) { res.status(nf.status).json(nf.body); return; }
     if (!isOperatorIdentity(sub)) { res.status(403).json({ error: 'operator_only' }); return; }
     const svc = getTradingScheduleService();
     const schedule = await findFuturesResearch(sub);
@@ -441,11 +471,23 @@ export function createTradingAutopilotRoutes(ctx?: AppContext): Router {
     catch (err) { res.status(500).json({ error: (err as Error).message }); }
   });
 
+  /** POST /api/trading/autopilot/futures/tick - the futures-research schedule's nightly run (native kernel only). */
+  router.post('/futures/tick', async (req: Request, res: Response) => {
+    const scheduled = (req as unknown as { oshalCallerSub?: string }).oshalCallerSub;
+    const sub = callerSub(req) || (scheduled ? String(scheduled) : null);
+    if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    const nf = await nativeFutures(ctx, 'tick', sub, undefined);
+    if (nf) { res.status(nf.status).json(nf.body); return; }
+    res.status(404).json({ error: 'futures_tick_native_only' });
+  });
+
   /** POST /api/trading/autopilot/futures/pause|resume — explicit console lifecycle controls. */
   for (const [verb, action] of [['pause', 'pauseSchedule'], ['resume', 'resumeSchedule']] as const) {
     router.post(`/futures/${verb}`, async (req: Request, res: Response) => {
       const sub = callerSub(req);
       if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    const nf = await nativeFutures(ctx, verb, sub, undefined);
+    if (nf) { res.status(nf.status).json(nf.body); return; }
       if (!isOperatorIdentity(sub)) { res.status(403).json({ error: 'operator_only' }); return; }
       const svc = getTradingScheduleService();
       const schedule = await findFuturesResearch(sub);
@@ -457,6 +499,8 @@ export function createTradingAutopilotRoutes(ctx?: AppContext): Router {
 
   router.delete('/futures', async (req: Request, res: Response) => {
     const sub = callerSub(req); if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    const nf = await nativeFutures(ctx, 'delete', sub, undefined);
+    if (nf) { res.status(nf.status).json(nf.body); return; }
     if (!isOperatorIdentity(sub)) { res.status(403).json({ error: 'operator_only' }); return; }
     const svc = getTradingScheduleService(); const schedule = await findFuturesResearch(sub);
     if (!svc || !schedule) { res.json({ ok: true, deleted: 0 }); return; }

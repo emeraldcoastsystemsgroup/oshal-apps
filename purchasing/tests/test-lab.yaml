@@ -13,6 +13,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register shopping-list-add: the approval-held tool that puts an item on the shopping list reaches the real route under writer admission (sweep 9: no concierge could add to the list).
 # 10 | maintainer@emeraldcoastsystemsgroup.com | shopping-list-add also proves the persona emits the tool call in the same reply and asks nothing first, and the tool's prompt line reads as "call it now" (sweep 10: "I propose adding ... Please confirm" with no card, 0 of 5).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | The shopping-list-add case also expects the card named by its item, never by its place (sweep 13).
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Register shopping-list-add-many: several free-text items behind one approval card through the compiled route.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -293,6 +294,26 @@ cases:
       - The tool's description, the line the kernel puts in the prompt, says to call it as soon as an item is asked for, the card being the confirmation.
     prerequisites:
       - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: shopping-list-add-many
+    name: Several shopping list items behind one card
+    purpose: The approval-held shopping-list-add-many body puts every item on the list Home shows as written; bad entries and
+      another shopper's list are refused.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/shopping-list-add-many.test.cjs
+    expected:
+    - Four items land in one call; refused bodies write nothing.
+    prerequisites:
+    - runner:node-test
     sideEffects: none
     isolation:
       mode: none

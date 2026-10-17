@@ -5,6 +5,8 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Rides works with no Uber connector. The routes run a keyless rail (routes/rides-keyless.js) where the runtime reports Uber not connected: addresses resolve through OpenStreetMap Nominatim, declared below as this package's one outbound host, and the distance and modelled fare come from the two map pins. rides-concierge runs inline (same UUID b0090000-0000-0000-0000-000000000001): bound to enrolled node 9a367ce4 it refused every chat turn ("this request cannot run it here"), so the page and Life > Get a Ride answered "I'm having trouble reaching my assistant". Guards: tests/rides-keyless.test.js, scripts/check-store-bots.mjs (the two rides PENDING entries leave).
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Sweep 13: prepare-ride-booking's usageInstructions say a request to prepare a hand-off counts (with the places the rider named; the map button need not be on). Words only: no route, scope, schema or binding change.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: declare rides-concierge as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.5: "home to the airport" from Jarvis sent Uber a trip from a Washington street to Helsinki airport (the words were geocoded on their own). Home and work come from the rider's profile, a missing one is asked for, and a dropoff farther than a car ride is refused. Guarded by rides/tests/rides-saved-places.test.js.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — rides ("Get a Ride" Uber Rides Concierge)
@@ -73,7 +75,7 @@ description: >-
   AI transportation concierge on a real map — set pickup and destination by pin or
   address, see the measured distance, compare Uber ride types, and hand off a ready
   Uber ride link. Other swarm bots can ask it to plan a trip.
-version: 1.5.3
+version: 1.5.5
 status: active
 
 source:
@@ -246,6 +248,9 @@ routes:
 # stays core with the bot.
 migrations:
   - migrations/042-rides-platform.sql
+
+# The bot a Jarvis creation request goes to (its own workflow bot).
+chatBot: rides-concierge
 
 ticketType: rides
 workflow:

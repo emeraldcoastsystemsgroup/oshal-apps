@@ -1,7 +1,7 @@
 {
   "profileVersion": 1,
   "app": "print-ingest",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "sourceSha": "0000000000000000000000000000000000000000",
   "status": "pending",
   "auditedAt": null,

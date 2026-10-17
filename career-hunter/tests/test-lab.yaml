@@ -25,6 +25,7 @@
 # 21 | maintainer@emeraldcoastsystemsgroup.com | Register insights-fast (GET /analytics reads only the covering idx_corpus_insights and one pass of the caller's scores; without the index it refuses at once; the engine adds the index on a writable corpus and still opens a read-only one; the page shows a refused read's reason); the BY STATE label guard (now reading career-insights) runs in the same case.
 # 22 | maintainer@emeraldcoastsystemsgroup.com | Give the engine-native-background-run case the prerequisites, sideEffects and isolation fields the loader requires: without prerequisites the kernel's catalog loader refused the whole Career catalog, so insights-fast and every other case stayed unregistered.
 # 23 | maintainer@emeraldcoastsystemsgroup.com | Register recruiters-latest (sweep 10): the All view names the latest added recruiter and its bucket above the list, and the kernel's real screen snapshot carries that line before a long list.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | Register native-read-facts: the specialist facts count the board's first page without running the board ranking, which timed out the kernel's 3 s specialist deadline.
 version: 1
 cases:
   - id: package-readiness
@@ -994,4 +995,26 @@ cases:
       mode: none
     limits:
       timeoutMs: 60000
+    installation: never
+  - id: native-read-facts
+    name: Specialist facts without the board ranking
+    purpose: The specialist facts never run the board ranking and count the board's first-page matches with its own default
+      filters, capped at 10; the full snapshot still reads the board.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/career-native-read-facts.test.mjs
+    expected:
+    - The facts say 10 matches with no board read; the full snapshot agrees.
+    prerequisites:
+    - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: The temporary Career mount is removed after the suite.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
     installation: never

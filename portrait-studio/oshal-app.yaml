@@ -1,3 +1,8 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.15.5: portrait-artist declares routing words (portrait, portrait studio, headshot, pet portrait, ...): asked from Jarvis, the request went to another application (Video Studio, Scan to Print) or to none. Guarded by the kernel's jarvis_routing_store_tests sweep_requests_reach_the_application_that_does_the_work.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — Portrait Studio
 #
@@ -33,7 +38,7 @@ description: >-
   whole crew from one group shot placed in a scene as a superhero team.
   Take the photo with your camera or upload one, crop the head (or every
   head), pick a style, generate.
-version: 1.15.4
+version: 1.15.5
 status: active
 # Deployment-wide tile visibility (the little-monsters lesson: person-scope hid
 # the installed row from every other user). Portrait DATA stays strictly
@@ -159,6 +164,13 @@ settings:
 bots:
   - agentId: b0100000-0000-0000-0000-000000000001
     name: portrait-artist
+    routingKeywords:
+      - portrait
+      - portrait studio
+      - headshot
+      - pet portrait
+      - avatar
+      - portrait of
     persona: personas/portrait-artist.yaml
     role: media/portrait-generation
     capabilities: [portrait-generation, headshot-styling, identity-preservation, image-prompt-craft]

@@ -6,6 +6,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: the existing trading screen reads (status, account, positions, ledger, performance, orders, journal, realized) answered from the person's native paper book, in the payload shapes those routes already return. It applies only when all of these hold: the host is the native kernel (the route context carries the kernel intent call), the selected book is the paper book, the book has no connected broker rail, and the person has a native paper account. Anything else, including a read that fails, answers null so the route keeps its existing behaviour exactly - a live or broker-connected book never reaches this module.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Review fixes to /performance. SPY is normalized to its close on the book's first equity snapshot date in the period and drawn from that date on, so a book younger than the period is compared with SPY over the same days (before, SPY ran over the whole period and a flat book armed today showed several percent behind the S&P). When the kernel has no SPY day closes for that date (the World archive does not carry SPY today), the summary says so in `benchmark` and the S&P figures stay null.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | withSpyCloses: the route can fill an unavailable SPY benchmark from day closes it read elsewhere (the native World archive only holds SPY since the 2026-10-12 cutover, so 1M/3M/1Y had no base close and the screen showed +0.00% S&P). An unavailable benchmark now carries its baseDate; SPY alignment is one pure helper both sources share; this module still names only the prices intents.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | statusFields reports the paper book's own limits as guardrails (max shares, max dollars per order) and its price source; Settings said "No guardrail config returned by /status" and "Paper data not configured", and the ticket showed "max —".
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | /performance keeps the portfolio series in time order: the current equity updates today's close-stamped snapshot instead of being appended with an earlier timestamp, which made the Reports chart throw "Value is null" on every period.
  *
  * @module paper/screen
  */
@@ -131,7 +133,11 @@ async function statusFields(ctx, sub, book, railConnected) {
   const state = await paperState(ctx, sub, book, railConnected);
   const nativePaper = { available: true, armed: Boolean(state && state.config && state.config.armed), opened: Boolean(state), schedule: PAPER_SCHEDULE,
     config: state ? state.config : null };
-  return state ? { nativePaper, bookConfigured: true, bookEnabled: nativePaper.armed, mode: 'paper', book: 'paper' } : { nativePaper };
+  if (!state) return { nativePaper };
+  // The paper book's own limits are the guardrails its manual orders and fills obey (routes/paper/manual.js).
+  const guardrails = { maxQty: state.config.maxShares, maxNotionalUsd: state.config.maxNotional, allowList: [] };
+  return { nativePaper, bookConfigured: true, bookEnabled: nativePaper.armed, mode: 'paper', book: 'paper', guardrails,
+    paperDataSource: 'World price archive (native paper book)' };
 }
 
 /**
@@ -301,7 +307,12 @@ async function performanceOf(ctx, sub, state, periodReq, now) {
   // Both lines start on the same date: the first snapshot in the period, or today for a book with none yet.
   const baseDate = series.length ? series[0].date : etParts(now).date;
   const portfolio = series.map((r) => ({ t: closeT(r.date), pct: (r.equity / base - 1) * 100 }));
-  portfolio.push({ t: Math.floor(now.getTime() / 1000), pct: (equity / base - 1) * 100 });
+  // The current equity is the latest point. Today's snapshot is stamped at the session close (21:00 UTC), after the
+  // current instant during the session: append-only put a point earlier than the one before it, and the chart refused
+  // the out-of-order series ("Value is null"). Today's point carries the current equity instead.
+  const nowT = Math.floor(now.getTime() / 1000), current = (equity / base - 1) * 100;
+  if (portfolio.length && portfolio[portfolio.length - 1].t >= nowT) portfolio[portfolio.length - 1].pct = current;
+  else portfolio.push({ t: nowT, pct: current });
   const { spy, benchmark } = await spyAligned(ctx, baseDate, days);
   const endPct = portfolio[portfolio.length - 1].pct;
   const spyPct = spy.length ? spy[spy.length - 1].pct : null;

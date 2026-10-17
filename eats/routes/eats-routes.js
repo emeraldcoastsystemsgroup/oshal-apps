@@ -43,6 +43,7 @@
  * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | Sweep 9: GET /profile also answers "remembered", the concierge's saved notes once each and marked when they record an allergy, an intolerance or a diet, so the Dietary preferences card shows a remembered allergy (it read "No diet set") and the page lists what is remembered; POST /notes/forget removes every saved copy of one of the caller's notes (the concierge kept using "wants spicy food", invented and saved before the remember filter, and nothing could remove it). See remembered-notes.ts.
  * 2026-10-13 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the in-app concierge bubble showed '1. **Mushroom Risotto** ...' with its asterisks (the surface writes the reply as text). plainProse() takes chat bold/italic and heading marks out of the reply before it is saved and returned; the words and list lines stay. Guard: tests/eats-plain-reply.test.js.
  * 2026-10-13 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 2: after "I have noted your peanut allergy" the concierge suggested a Vegetarian Pad Thai (usually made with peanuts) with no warning. allergyGuard() reads the diner's restrictions from the message, the saved notes and the profile's dietary list (./allergen-check); a search dish that names an allergen or is usually made with it is held back from the prompt, the cards and the cart, the prompt states the restrictions and the held dishes as facts, and a dish the reply names that usually carries one, in a sentence that does not name the risk, gets its own allergy-check line (response `allergy.check`, saved with the reply). The bot dispatch moved to askConcierge(). Guard: tests/eats-allergens.test.js.
+ * 2026-10-16 | maintainer@emeraldcoastsystemsgroup.com | Uber Eats works on the native kernel. Its runtime has no Uber Eats provider (status not_connected, every other operation refuses 503 and fails the call), so search, menu and the order handoff answered nothing and Jarvis invented an order. The package now carries the curated catalog and ubereats.com deep link the old core helper served (./uber-catalog) and answers from it where the runtime's status says not_connected, asked once per process; /config answers rail 'catalog'. The link is a handoff: the diner places the order on their own Uber sign-in. Guard: tests/eats-no-rail.test.js, tests/uber-catalog.test.js.
  *
  * @module eats-routes
  */
@@ -103,6 +104,7 @@ const concierge_store_1 = require("@/app/routes/concierge-store");
 const concierge_reply_1 = require("@/app/routes/concierge-reply");
 const remembered_notes_1 = require("./remembered-notes");
 const allergen_check_1 = require("./allergen-check");
+const uber_catalog_1 = require("./uber-catalog");
 const agent_management_1 = require("@/features/agent-management");
 const inline_bot_execution_1 = require("@/app/routes/inline-bot-execution");
 const logger = (0, logger_1.createChildLogger)({ module: 'eats-routes' });
@@ -144,8 +146,24 @@ function resolveDinerSub(req) {
  */
 async function uberEatsProviderOperation(pool, sub, args) {
     const creds = await (0, connector_token_broker_1.resolveServerOperationCreds)(pool, sub, ['uber'], 'fixed-server-operation');
-    return (0, provider_operation_clients_1.runUberEatsProviderOperation)(creds.OSHAL_CRED_UBER, args);
+    const run = (a) => (0, provider_operation_clients_1.runUberEatsProviderOperation)(creds.OSHAL_CRED_UBER, a);
+    if (runtimeRail === null) {
+        const st = await run(['status']);
+        runtimeRail = !!st && st.mode === 'not_connected' ? 'catalog' : 'provider';
+        if (args[0] === 'status' && runtimeRail === 'provider')
+            return st;
+    }
+    return runtimeRail === 'catalog' ? uber_catalog_1.run(args) : run(args);
 }
+/**
+ * Which rail answers Uber Eats in this process: 'provider' where the runtime has one, 'catalog' (the
+ * package's own curated catalog and deep link, ./uber-catalog) where its `status` answers
+ * not_connected. Asked once: a refused provider operation fails the whole native call even when it is
+ * caught, so search, menu and order never reach a runtime that has no rail.
+ */
+let runtimeRail = null;
+/** What /config says where the package's own curated catalog and ubereats.com handoff answer. */
+const EATS_CATALOG_NOTE = 'Restaurants and menus come from a curated catalog; ordering opens Uber Eats, where you sign in and place the order yourself.';
 /** What a diner is told where the installation has no Uber Eats rail at all. */
 exports.EATS_NO_RAIL = 'This installation has no Uber Eats rail (no Uber Eats connector exists here), so restaurants, menus and checkout links cannot be searched or opened from here.';
 /**
@@ -159,7 +177,7 @@ exports.EATS_NO_RAIL = 'This installation has no Uber Eats rail (no Uber Eats co
 async function uberEatsRail(pool, sub) {
     const st = await uberEatsProviderOperation(pool, sub, ['status']);
     const absent = !!st && st.mode === 'not_connected';
-    return { absent, reason: absent ? String(st.reason || exports.EATS_NO_RAIL) : null };
+    return { absent, catalog: !!st && st.mode === 'catalog', reason: absent ? String(st.reason || exports.EATS_NO_RAIL) : null };
 }
 // ── Schema ───────────────────────────────────────────────────────────────────
 /** Create tables if a fresh deploy hasn't run the migrations yet. Idempotent. */
@@ -634,6 +652,10 @@ function createEatsRoutes(ctx) {
     router.get('/chat', serveFile(surfaceDir, 'eats-app.html')); // alias (parity with purchasing's /chat surface)
     router.get('/config', diner(async (_req, res, sub) => {
         const rail = await uberEatsRail(pool, sub);
+        if (rail.catalog) {
+            res.json({ uberConnected: false, rail: 'catalog', railNote: EATS_CATALOG_NOTE });
+            return;
+        }
         if (rail.absent) {
             res.json({ uberConnected: false, rail: 'absent', railNote: exports.EATS_NO_RAIL });
             return;

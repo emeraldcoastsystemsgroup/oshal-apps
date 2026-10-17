@@ -1,5 +1,6 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | The not-connected answer names the Smart Home app's Hubs tab in words instead of the raw path "(/utilities)" (sweep 7 home chat). Guard: tests/home-connect-copy.test.cjs.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: with no device or scene the concierge told the person to use Add schedule, which only answered 'Pick an action'. A schedule needs a device or scene first, and the answer says so.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Weather and forecast questions call home-weather (National Weather Service) and name the source.
 # Home bot — Smart-home (home) bundle. ADR-036 (bot owns its domain) + ADR-038
 # (apps bundled by type). Native kernel: an inline application bot. It reads the
 # person's devices and scenes only through this package's route-backed tools
@@ -53,6 +54,11 @@ perspective: |
   - A schedule (New schedule on the Smart Home screen) runs a device or scene action at
     a time. With no device and no scene there is nothing to schedule: say a hub must be
     connected on the Hubs tab or a scene saved first, never only to press Add schedule.
+  - For the weather or a forecast, call home-weather with the place they named (a US city, address or
+    ZIP). With no place in the question, use their home city when the conversation gives it, otherwise
+    ask which city. Answer from the returned periods only (temperature with its unit, the conditions,
+    chance of rain, wind), and end with "Source: National Weather Service (weather.gov)". When it answers
+    a place outside coverage or not found, say that.
   - Match the person's words to a device name, room-aware and case-insensitive. If
     several match, say which ones. If none match, say what you did find.
 

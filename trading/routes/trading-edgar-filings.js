@@ -17,6 +17,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — ticker→CIK lookup over company_tickers.json (10-digit zero-padded), submissions parse over the parallel recent arrays (form/filingDate/accessionNumber/primaryDocument/items), document url builder (numeric CIK + un-dashed accession + primaryDocument), the 8-K item decoder (1.01…9.01; 9.01 Exhibits dropped from the plain list when other items exist), an event kind per item code, past results = item-2.02 dates, and the next-earnings cadence estimate.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | namesFromTickerTable: company names from the SEC ticker table, for the movers board.
  *
  * 2026-10-15 | maintainer@emeraldcoastsystemsgroup.com | Match bounded company identities from actual SEC ticker rows and reject unusable or conflicting snapshots.
  * @module trading-edgar-filings
@@ -26,6 +27,7 @@ exports.EIGHT_K_ITEMS = exports.EARNINGS_CADENCE_DAYS = exports.EDGAR_TICKER_CAC
 exports.edgarSubmissionsUrl = edgarSubmissionsUrl;
 exports.edgarDocumentUrl = edgarDocumentUrl;
 exports.cikFromTickerTable = cikFromTickerTable;
+exports.namesFromTickerTable = namesFromTickerTable;
 exports.companyMatches = companyMatches;
 exports.parseItemCodes = parseItemCodes;
 exports.decode8kItems = decode8kItems;
@@ -107,6 +109,25 @@ function cikFromTickerTable(table, symbol) {
         return cik ? cik.padStart(10, '0') : null;
     }
     return null;
+}
+/**
+ * @description Company names for tickers from the SEC ticker table (company_tickers.json `title`).
+ * @param table - The parsed SEC ticker table.
+ * @param symbols - Tickers to name.
+ * @returns Upper-cased ticker → company name, for the tickers the table lists.
+ */
+function namesFromTickerTable(table, symbols) {
+    const want = new Set(symbols.map((s) => s.trim().toUpperCase()));
+    const out = new Map();
+    if (!table || typeof table !== 'object')
+        return out;
+    for (const row of Object.values(table)) {
+        const r = row;
+        const ticker = String(r?.ticker ?? '').toUpperCase();
+        if (want.has(ticker) && typeof r.title === 'string' && r.title.trim() && !out.has(ticker))
+            out.set(ticker, r.title.trim());
+    }
+    return out;
 }
 /** Search company identity data only; directory entries do not prove broker tradability. */
 function companyMatches(table, query) {

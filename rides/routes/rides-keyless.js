@@ -19,6 +19,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Initial: the keyless rail ported from the platform's oshal-uber-rides helper (haversine distance, 1.3 road factor, per-type fare model, Nominatim geocode/reverse on one 1.1 s queue with a bounded cache, web and app hand-off links), plus estimates straight from two map pins so a dropped pin prices without any address lookup.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | A dropoff that geocodes farther than a car ride (300 km) from the pickup is refused, naming where it landed: "home to the airport" was handed to Uber from a Washington street to Helsinki airport. Guard: tests/rides-saved-places.test.js.
  *
  * @module rides-keyless
  */
@@ -256,6 +257,24 @@ function lookupFailure(err) {
     const text = err instanceof Error ? err.message : String(err);
     return `address lookup is unavailable here (${text.slice(0, 160)}).`;
 }
+/** Farther than any car ride: a place word that geocoded to the wrong city or country. */
+exports.MAX_TRIP_KM = 300;
+/**
+ * @description The refusal for a dropoff that geocoded farther than a car ride from the pickup.
+ * @param text - The dropoff as asked.
+ * @param pickup - The resolved pickup.
+ * @param dropoff - The resolved dropoff.
+ * @returns The sentence to answer with, or null when the trip is a car ride.
+ */
+function farTrip(text, pickup, dropoff) {
+    if (!pickup || !dropoff)
+        return null;
+    const km = haversineKm(pickup, dropoff);
+    if (km <= exports.MAX_TRIP_KM)
+        return null;
+    return `"${text}" resolved to ${dropoff.label || 'a place'}, ${Math.round(km)} km from the pickup, which is not a car ride. Name the city or the street address.`;
+}
+exports.farTrip = farTrip;
 /**
  * @description The keyless rail with the platform helper's operation surface (status, geocode,
  * reverse, estimate, ride), plus pin-priced estimates.
@@ -285,6 +304,9 @@ function createKeylessRides(options = {}) {
                 return hit.point ? { source: 'nominatim', ...hit.point } : { source: 'nominatim', error: hit.error || 'no address at that point' };
             }
             const [p, d] = await Promise.all([resolve(a, pins.pickup, isMyLocation(a)), resolve(b, pins.dropoff, false)]);
+            const far = farTrip(b, p.point, d.point);
+            if (far)
+                return cmd === 'ride' ? { error: far } : estimateFromPoints(null, null, far);
             if (cmd === 'estimate')
                 return estimateFromPoints(p.point, d.point, p.error || d.error);
             if (cmd === 'ride')

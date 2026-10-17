@@ -13,6 +13,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register the native-kernel delivery egress case: email through gmail.googleapis.com / graph.microsoft.com and Slack through slack.com plus files.slack.com carry no credential; missing, lapsed or refused connections keep the 409s; outside the kernel the framework sender and Slack client are unchanged.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | record-before-answer: the compiled POST /pptx writes its My decks record before the request answers (the native kernel refuses SQL after the answer), a refused record still answers with the saved file, and the surface shows no date for a missing createdAt.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register ai-draft-outline (the topic draft fills Title and Outline; sweep 10: an outline cut off at the output budget keeps its complete slides or answers 502 in plain words, and the draft asks for 8192 output tokens) and generate-reenable (sweep 10: a failed generate left every generate button disabled).
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Register create-tools: deck-builder's presentations-create-deck and presentations-create-document are automatic writes onto POST /pptx and /docx whose body renders and saves, and the persona says to call them.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -391,4 +392,25 @@ cases:
     limits:
       timeoutMs: 120000
       maxMemoryMb: 1024
+    installation: never
+  - id: create-tools
+    name: deck-builder makes the deck or document itself
+    purpose: >-
+      The manifest's create tools are automatic route writes onto the compiled POST /pptx and /docx, the body their schema
+      describes renders and saves the file, and the persona tells the bot to call them instead of sending the person to Generate.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/presentations-create-tools.test.cjs
+    expected:
+      - Both tools are declared automatic, both bodies answer ok with the saved path, and the persona names the tools.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

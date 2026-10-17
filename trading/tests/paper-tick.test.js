@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: the native paper tick end to end (TRADE-01) through the package's real route handlers and router, over the in-memory SQL double and a recording prices-intent double: arming, a scheduled tick that buys, the same window again writing nothing, a later window stopping out a fallen holding, the not-armed refusal, the closed-market and price-failure no-ops, disarming, person B never seeing or moving person A's book, and the existing screen reads answering from the paper book only on the native host's railless paper book.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Review regression guards: a disarm or a tighter re-arm that lands while a tick is reading prices makes that tick roll back (book_changed) instead of trading; re-arming an open book with a different startingCash is refused; /performance compares SPY over the book's own days, and says the benchmark is unavailable when the archive has no SPY (the real World universe has none).
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | An unavailable SPY benchmark carries its baseDate, and withSpyCloses fills it from supplied day closes (Schwab on the native kernel): SPY measured from the last close on or before the base date, vs-market from the portfolio's own end, and nothing changes when the closes start after the base date or the benchmark is already available.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | /performance series are strictly ascending (today's snapshot is one point carrying the current equity).
  */
 'use strict';
 
@@ -199,6 +200,9 @@ test('the existing screen reads answer from the paper book only on the native ho
   assert.equal(await screenRead(t.ctx, ALICE, { kind: 'paper' }, true, 'account'), null, 'a connected broker rail keeps the broker answer');
   assert.equal(await screenRead({ pool: t.pool }, ALICE, { kind: 'paper' }, false, 'account'), null, 'a host without kernel prices keeps its answer');
   assert.deepEqual(await statusFields({ pool: t.pool }, ALICE, { kind: 'paper' }, false), {});
+  const native = await statusFields(t.ctx, ALICE, { kind: 'paper' }, false);
+  assert.ok(native.guardrails && Number.isFinite(native.guardrails.maxQty) && Number.isFinite(native.guardrails.maxNotionalUsd), "the paper book's own limits");
+  assert.match(native.paperDataSource, /World price archive/);
 });
 
 test('the router mounts the paper surface and refuses a caller with no admitted identity', async () => {
@@ -273,6 +277,9 @@ test('/performance compares SPY over the book\'s own days, and says so when the 
   assert.equal(young.summary.spyReturnPct, 0, 'a book armed today is compared with SPY from today, not over the month');
   assert.equal(young.summary.vsSpyPct, 0);
   assert.equal(young.summary.benchmark.baseDate, '2026-10-05');
+  const ascending = (series) => series.every((point, i) => i === 0 || series[i - 1].t < point.t);
+  assert.ok(ascending(young.portfolio), 'the chart needs strictly ascending times: today is one point, not a snapshot then an earlier now');
+  assert.equal(young.portfolio.length, 1);
 
   // Two sessions later SPY is measured from the book's first snapshot close.
   t.db.equity.unshift({ user_sub: ALICE, session_date: '2026-10-01', equity: 100000, cash: 100000, recorded_at: '2026-10-01T20:00:00Z' });
@@ -280,6 +287,7 @@ test('/performance compares SPY over the book\'s own days, and says so when the 
   const spy = t.market.SPY.price;
   const expected = Math.round(((spy / (spy / 1.002 ** 4)) - 1) * 10000) / 100;
   assert.equal(older.summary.spyReturnPct, expected);
+  assert.ok(ascending(older.portfolio) && ascending(older.spy), 'both lines in time order');
 
   delete t.market.SPY;                    // the real World universe carries no SPY
   const none = await screenRead(t.ctx, ALICE, null, false, 'performance', { period: '1M', now: MON_1035 });

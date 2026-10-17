@@ -9,6 +9,9 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Resolve the owned JavaScript archive and paper route modules in source suites without stubs.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | ./paper/<module> resolves to routes/paper/<module>.js: the native paper engine is plain JavaScript with only .d.ts types under src-routes/paper, so a src-routes file importing it ('./paper/screen', './paper/landing') could not resolve under vitest and every spec that loads one failed at import.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | /^js-yaml$/ points at the framework's copy too. The specialist-context guard stands the REAL application-authorization runtime up from this package's REAL oshal-app.yaml, so that the manifest's bots[]/tools[] are what prove the kernel's ownership check - a hand-typed copy of the ids in the spec would pass while the shipped manifest drifted. The package tree carries no node_modules, so without this the manifest could only be read as text.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | ./trading-archive-news resolves to routes/trading-archive-news.js (plain JavaScript with a .d.ts), like trading-archive-quotes.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | ./futures/<module> resolves to routes/futures/<module>.js (the native Futures study is plain JavaScript with .d.ts types), like ./paper/.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com   | Drop the ./futures/ and ./trading-archive-news aliases: those modules now resolve through source-tree shims (src-routes/futures/native.js, src-routes/trading-archive-news.js), so this config resolves them exactly as the installed Test Lab runner (which has no such aliases) does.
  */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

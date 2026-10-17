@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: aero-designer declares routing words (airfoil, aero lab, naca, wing, drag polar, ...). It declared none, so a request had to name the application to reach it. Guarded by scripts/tool-apps-routing-words.test.mjs.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: the design tools name the design fields and say each is optional ({} runs the baseline). Their schema was a bare object, so asked from Jarvis to evaluate an airfoil, the aero-designer asked for a complete design vector and ran nothing. Guarded by aero-lab/tests/design-tool-schema.test.cjs.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — aero-lab ("Aero Lab")
 # Packages the validated aerosim persistent-flight simulator (5-round adversarial
@@ -35,7 +41,7 @@ description: >-
   trace, polar, drag buildup, margins), and download the build package
   (STL / DXF / BOM). A design concierge turns plain language into a design
   vector; the deterministic engine is the only source of numbers.
-version: 1.4.1
+version: 1.4.3
 status: active
 
 source:
@@ -94,6 +100,15 @@ bots:
       - design-vector-translation
       - energy-margin-briefing
       - admissibility-awareness
+    routingKeywords:
+      - airfoil
+      - aero lab
+      - naca
+      - wing
+      - drag polar
+      - lift
+      - aerodynamic
+      - glider
 
 tools:
   - name: aero-capabilities
@@ -121,10 +136,34 @@ tools:
     inputSchema:
       type: object
       properties:
-        design: { type: object }
+        design:
+          type: object
+          description: Every field is optional; a missing field takes the baseline solar glider's value, so {} runs the baseline.
+          properties:
+            area_m2: { type: number }
+            aspect_ratio: { type: number }
+            taper_ratio: { type: number }
+            twist_root_deg: { type: number }
+            twist_tip_deg: { type: number }
+            extra_CD0: { type: number }
+            battery_mass_kg: { type: number }
+            pack_Wh_per_kg: { type: number }
+            cell_eff: { type: number }
+            pv_density: { type: number }
+            pv_packing: { type: number }
+            prop_max_W: { type: number }
+            prop_diameter_m: { type: number }
+            payload_W: { type: number }
+            payload_mass_kg: { type: number }
+            altitude_m: { type: number }
+            latitude_deg: { type: number }
+            day_of_year: { type: number }
+            fus_over_floor: { type: number }
+            buoyancy_fraction: { type: number }
+          additionalProperties: false
       required: [design]
     usageInstructions: >-
-      Deterministic engine call. Use the returned polar as the only source of aerodynamic numbers.
+      Deterministic engine call. Send only the design fields the person gave (wing area, aspect ratio, battery, altitude ...); {} runs the baseline craft, so never stop to ask for a full design vector. Use the returned polar as the only source of aerodynamic numbers.
     routingTags: [aero, polar, aerodynamics]
     tags: [aero-lab, route-backed]
 
@@ -139,7 +178,31 @@ tools:
     inputSchema:
       type: object
       properties:
-        design: { type: object }
+        design:
+          type: object
+          description: Every field is optional; a missing field takes the baseline solar glider's value, so {} runs the baseline.
+          properties:
+            area_m2: { type: number }
+            aspect_ratio: { type: number }
+            taper_ratio: { type: number }
+            twist_root_deg: { type: number }
+            twist_tip_deg: { type: number }
+            extra_CD0: { type: number }
+            battery_mass_kg: { type: number }
+            pack_Wh_per_kg: { type: number }
+            cell_eff: { type: number }
+            pv_density: { type: number }
+            pv_packing: { type: number }
+            prop_max_W: { type: number }
+            prop_diameter_m: { type: number }
+            payload_W: { type: number }
+            payload_mass_kg: { type: number }
+            altitude_m: { type: number }
+            latitude_deg: { type: number }
+            day_of_year: { type: number }
+            fus_over_floor: { type: number }
+            buoyancy_fraction: { type: number }
+          additionalProperties: false
       required: [design]
     usageInstructions: >-
       The authoritative verdict on a design. Slow (up to minutes). Never paraphrase numbers —
@@ -158,7 +221,31 @@ tools:
     inputSchema:
       type: object
       properties:
-        design: { type: object }
+        design:
+          type: object
+          description: Every field is optional; a missing field takes the baseline solar glider's value, so {} runs the baseline.
+          properties:
+            area_m2: { type: number }
+            aspect_ratio: { type: number }
+            taper_ratio: { type: number }
+            twist_root_deg: { type: number }
+            twist_tip_deg: { type: number }
+            extra_CD0: { type: number }
+            battery_mass_kg: { type: number }
+            pack_Wh_per_kg: { type: number }
+            cell_eff: { type: number }
+            pv_density: { type: number }
+            pv_packing: { type: number }
+            prop_max_W: { type: number }
+            prop_diameter_m: { type: number }
+            payload_W: { type: number }
+            payload_mass_kg: { type: number }
+            altitude_m: { type: number }
+            latitude_deg: { type: number }
+            day_of_year: { type: number }
+            fus_over_floor: { type: number }
+            buoyancy_fraction: { type: number }
+          additionalProperties: false
       required: [design]
     usageInstructions: >-
       Reasons come verbatim from the engine's screen — surface them unedited.
@@ -176,7 +263,31 @@ tools:
     inputSchema:
       type: object
       properties:
-        design: { type: object }
+        design:
+          type: object
+          description: Every field is optional; a missing field takes the baseline solar glider's value, so {} runs the baseline.
+          properties:
+            area_m2: { type: number }
+            aspect_ratio: { type: number }
+            taper_ratio: { type: number }
+            twist_root_deg: { type: number }
+            twist_tip_deg: { type: number }
+            extra_CD0: { type: number }
+            battery_mass_kg: { type: number }
+            pack_Wh_per_kg: { type: number }
+            cell_eff: { type: number }
+            pv_density: { type: number }
+            pv_packing: { type: number }
+            prop_max_W: { type: number }
+            prop_diameter_m: { type: number }
+            payload_W: { type: number }
+            payload_mass_kg: { type: number }
+            altitude_m: { type: number }
+            latitude_deg: { type: number }
+            day_of_year: { type: number }
+            fus_over_floor: { type: number }
+            buoyancy_fraction: { type: number }
+          additionalProperties: false
       required: [design]
     usageInstructions: >-
       Returns an export id + file list; files download individually from the export routes.

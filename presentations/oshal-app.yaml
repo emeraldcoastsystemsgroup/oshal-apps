@@ -14,6 +14,8 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Declare the native-kernel egress hosts the delivery legs send through: gmail.googleapis.com (gmail), graph.microsoft.com (outlook) and slack.com (slack), each with the caller's own connection applied by the kernel as a Bearer token, and files.slack.com with no credential for Slack's pre-signed upload URL.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | The AI-draft outline runs on this package's own deck-builder bot (routes), and deck-builder gets one route-backed read, presentations-list (GET /api/presentations/sections/list), so asked about the person's decks it reads them instead of saying it has no access. Guarded by scripts/check-store-bots.test.mjs.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Declare migrations/001-presentations.sql (the My decks record table in its final shape) so the native kernel provisions it: every record INSERT was refused "SQL table oshal_presentations is not provisioned", so My files listed decks dated 'Dec 31' with no slide count and Delete removed rows: 0.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 2.13.1: deck-builder makes the file. Asked from Jarvis for a PowerPoint, it called no tool and answered an outline of TBD lines, because its only tool was presentations-list and its instructions said to click Generate. presentations-create-deck (POST /api/presentations/sections/pptx) and presentations-create-document (POST .../docx) render and save the file under the caller's Writer, and the persona says to call them. Guarded by tests/presentations-create-tools.test.cjs.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 2.13.2: a made deck or document answers openUrl (/cockpit/?app=presentations&open=<file>) and the studio opens that saved file from My files; Jarvis made a PowerPoint but never offered to open it in AI Office. Guarded by tests/presentations-create-tools.test.cjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — presentations (AI Office: deck / document / workbook studio)
@@ -57,7 +59,7 @@ description: >-
   Phone-friendly: dictate instead of typing, resume recent files in one tap, and drive
   edits with tap chips. My files is a real file browser - click a file for
   download, open-in-provider, or edit-and-regenerate. Saves to Dropbox, Google Drive, OneDrive, or OSHAL local.
-version: 2.13.0
+version: 2.13.2
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -190,6 +192,76 @@ tools:
     requiresApproval: false
     inputSchema: { type: object, properties: {} }
     usageInstructions: Call with {} when the person asks what they have made. Name only decks this returns; an empty list means nothing is saved yet.
+    tags: [presentations, route-backed]
+
+  - name: presentations-create-deck
+    displayName: Make a PowerPoint deck
+    type: api
+    category: productivity
+    description: Make a PowerPoint deck (.pptx) from a title and slides and save it to the person's files. Use it for "make me a PowerPoint", "build a deck about ...".
+    executor: { executorType: api, apiEndpoint: "POST /api/presentations/sections/pptx" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        title: { type: string, maxLength: 120 }
+        subtitle: { type: string, maxLength: 200 }
+        theme: { type: string }
+        sections:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              content: { type: string }
+              notes: { type: string }
+            required: [title]
+      required: [title, sections]
+    usageInstructions: >-
+      Write the whole PowerPoint deck yourself and call this once with {title, sections}: each section is one
+      slide with a title and content, one line per point (the structure lines in your
+      instructions make tables, charts and timelines). Use only facts the person or an earlier tool gave you; a number you
+      do not have is a TBD line, never invented. The answer names where it saved and its link; tell the person that, and
+      never say a file was made unless this returned ok. Then offer to open it in AI Office with the returned
+      openUrl as a link ("Open it in AI Office").
+    tags: [presentations, route-backed]
+
+  - name: presentations-create-document
+    displayName: Make a Word document
+    type: api
+    category: productivity
+    description: Make a Word document (.docx) from a title and slides and save it to the person's files. Use it for "make me a Word document", "build a report about ...".
+    executor: { executorType: api, apiEndpoint: "POST /api/presentations/sections/docx" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        title: { type: string, maxLength: 120 }
+        subtitle: { type: string, maxLength: 200 }
+        theme: { type: string }
+        sections:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              content: { type: string }
+              notes: { type: string }
+            required: [title]
+      required: [title, sections]
+    usageInstructions: >-
+      Write the whole Word document yourself and call this once with {title, sections}: each section is one
+      heading with a title and content, one line per point (the structure lines in your
+      instructions make tables, charts and timelines). Use only facts the person or an earlier tool gave you; a number you
+      do not have is a TBD line, never invented. The answer names where it saved and its link; tell the person that, and
+      never say a file was made unless this returned ok. Then offer to open it in AI Office with the returned
+      openUrl as a link ("Open it in AI Office").
     tags: [presentations, route-backed]
 
 routes:

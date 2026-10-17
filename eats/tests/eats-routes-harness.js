@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | A string reply is passed through as the model's raw text, so a test can send a malformed envelope.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | The route module now requires ./remembered-notes (the remembered-notes list and forget); the harness serves the compiled module.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | The route module now requires ./allergen-check (the diner's allergies and diet against every dish); the harness serves the compiled module.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | The route module now requires ./uber-catalog (the curated catalog and deep link it answers from where the runtime has no Uber Eats rail); the harness serves the compiled module.
  */
 'use strict';
 const fs = require('node:fs');
@@ -123,6 +124,7 @@ function loadRoutes(opts = {}) {
     './cart-totals': require(path.join(PKG, 'routes', 'cart-totals.js')),
     './remembered-notes': require(path.join(PKG, 'routes', 'remembered-notes.js')),
     './allergen-check': require(path.join(PKG, 'routes', 'allergen-check.js')),
+    './uber-catalog': require(path.join(PKG, 'routes', 'uber-catalog.js')),
     '@/shared/logger': { createChildLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }) },
     '@/shared/services/database': { buildOwnerRlsPolicyStatements: () => [], runRuntimeSchemaBootstrap: async () => {} },
     '@/shared/middleware/authz': { getTrustedServiceUserSub: () => undefined },

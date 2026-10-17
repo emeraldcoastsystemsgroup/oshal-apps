@@ -1,6 +1,8 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Read the native caller's Schwab roster, balances and charts without legacy credentials, imported account bindings or live-order activation.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Carry the kernel's account day change (the sum of Schwab's per-position day P&L) to the landing; it was forced to null, so every Schwab card read "Day P&L n/a".
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | readNativeMovers: Schwab's whole-market movers (kernel trading.movers) for the Movers board.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | readNativeMovers names the index it asks for.
  */
 import * as runtime from '@/features/trading';
 import type { AppContext } from '@/app/composition/app-context';
@@ -31,6 +33,22 @@ async function intent(ctx: AppContext, name: string, input: Record<string,unknow
 /** The kernel resolves the real current caller; no route-supplied subject or raw account number is sent. */
 export async function readNativeAccounts(ctx: AppContext): Promise<NativeAccounts> {
   return await intent(ctx,'trading.accounts', {}) as unknown as NativeAccounts;
+}
+
+/** One Schwab movers row as the kernel normalizes it. */
+export interface NativeMover { symbol: string; name: string; price: number; change: number | null; changePct: number | null; volume: number | null }
+
+/**
+ * @description Schwab's whole-market movers through the kernel's trading.movers read, or null when Schwab is not configured.
+ * @param ctx - Route context on the native kernel.
+ * @param sort - PERCENT_CHANGE_UP, PERCENT_CHANGE_DOWN or VOLUME.
+ * @returns The movers, or null.
+ */
+export async function readNativeMovers(ctx: AppContext, sort: 'PERCENT_CHANGE_UP' | 'PERCENT_CHANGE_DOWN' | 'VOLUME', index = 'EQUITY_ALL'): Promise<NativeMover[] | null> {
+  const config = await intent(ctx,'trading.config', {}) as unknown as {configured:boolean};
+  if (!config.configured) return null;
+  const answer = await intent(ctx,'trading.movers', {index, sort}) as unknown as {movers: NativeMover[]};
+  return answer.movers;
 }
 
 /** Read candles through the same named, kernel-owned market-data adapter. */

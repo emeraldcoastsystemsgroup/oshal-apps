@@ -4,6 +4,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Register the native export case: the export routes are reachable under the native bridge's routing contract (no parameterised use() path) and an attach in the native sandbox is refused 503 export_storage_unavailable with nothing written.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Register the public-link handoff case: a published export's token is handed to the kernel's no-login link seam (ctx.publicLinks.publish) after the row commits, a refused publish rolls the row back and answers 503 public_link_unavailable, unpublish revokes the cleared token, and with no seam (the legacy core) nothing is called. The artifact-publication case text now says the legacy core serves the published link from the row alone; natively the kernel serves it only for a handed-over token.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register vids-api-tools: the operator's route-backed jobs, clip and brand tools.
 version: 1
 cases:
   - id: package-readiness
@@ -112,6 +113,26 @@ cases:
       - With no seam (undefined, null, an empty object or a non-function publish) publish and unpublish work from the row alone and nothing is called; revoking an export that was never published tells the seam nothing.
     prerequisites:
       - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: vids-api-tools
+    name: Route-backed Vids tools
+    purpose: vids-jobs, vids-generate-clip and vids-brand-graphic are route-backed on mounted routes, generating held for approval,
+      authorized and taught by the persona.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/vids-api-tools.test.cjs
+    expected:
+    - Every assertion passes.
+    prerequisites:
+    - runner:node-test
     sideEffects: none
     isolation:
       mode: none

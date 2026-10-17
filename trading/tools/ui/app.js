@@ -301,7 +301,7 @@ function openSettings() {
   $('settingsBody').innerHTML =
     '<div class="foot" style="margin-bottom:8px">ACCOUNTS</div><div style="margin-bottom:14px">' + books + '</div>' +
     '<div class="foot" style="margin-bottom:8px">RAILS</div>' +
-    '<div style="margin-bottom:14px">Paper data ' + (STATUS.paperConfigured?'<span class="ok">connected</span>':'<span class="err">not configured</span>') +
+    '<div style="margin-bottom:14px">Paper data ' + (STATUS.paperDataSource ? '<span class="ok">' + esc(STATUS.paperDataSource) + '</span>' : STATUS.paperConfigured?'<span class="ok">connected</span>':'<span class="err">not configured</span>') +
       ' · Live trading ' + (STATUS.liveEnabled ? '<span class="ok">enabled</span>' : '<span class="foot">disabled (TRADING_LIVE_ENABLED)</span>') + '</div>' +
     '<div class="foot" style="margin-bottom:8px">GUARDRAILS (every order, every account)</div>' +
     '<table><tbody>' + (Object.keys(g).length ? Object.entries(g).map(([k,v]) =>

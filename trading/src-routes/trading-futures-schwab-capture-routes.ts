@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Give the signed-in operator explicit start, run, status and stop controls for private Schwab Futures bars.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Return active-contract session coverage diagnostics without exposing market bars.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Preview and confirm bounded current-contract catch-up without arbitrary symbols or credentials.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | GET / and DELETE / log a failed capture read and answer it in words (native_executor_unavailable on the native kernel, which has no Futures scheduler yet), instead of a bare schwab_capture_unavailable from a silent catch.
  */
 import { Router, type Request, type Response } from 'express';
 import type { AppContext } from '@/app/composition-root';
@@ -15,6 +16,16 @@ import { backfillSchwabCurrentFuturesBars, captureSchwabFuturesBars, listSchwabF
   planSchwabCurrentBackfill, schwabFuturesCaptureTaskType,
   SCHWAB_FUTURES_CAPTURE_CRON } from '@/app/trading-futures-schwab-capture';
 import { isOperatorIdentity } from '@/shared/middleware/authz';
+import { createChildLogger } from '@/shared/logger';
+
+const logger = createChildLogger({ module: 'trading-futures-schwab-capture' });
+/** The capture status could not be read: logged with its cause, answered in words. */
+function captureUnavailable(res: Response, err: unknown): void {
+  logger.error({ err }, 'Schwab Futures capture status failed');
+  const native = /native runtime|not available/i.test(String((err as Error)?.message || ''));
+  res.status(503).json({ error: native ? 'native_executor_unavailable' : 'schwab_capture_unavailable',
+    message: native ? 'Schwab Futures capture is not available on this installation yet.' : 'The Schwab Futures capture status could not be read just now.' });
+}
 
 /** @description Owner-only control rail. It never accepts a token, arbitrary symbol or order request. */
 export function createFuturesSchwabCaptureRoutes(ctx?: AppContext): Router {
@@ -79,7 +90,7 @@ export function createFuturesSchwabCaptureRoutes(ctx?: AppContext): Router {
       res.json({ coverage, health, enabled: schedule?.status === 'active', schedule: schedule ? {
         cron: schedule.cron, roots: (schedule.taskData as Record<string, unknown>).roots,
         lastRunAt: schedule.lastRunAt, nextRunAt: schedule.nextRunAt, status: schedule.status } : null });
-    } catch { res.status(503).json({ error: 'schwab_capture_unavailable' }); }
+    } catch (err) { captureUnavailable(res, err); }
   });
   router.post('/run', async (req: Request, res: Response) => {
     try {
@@ -113,7 +124,7 @@ export function createFuturesSchwabCaptureRoutes(ctx?: AppContext): Router {
       let stopped = 0;
       if (svc) for (const schedule of schedules) if (await svc.deleteSchedule(schedule.id)) stopped++;
       res.json({ stopped: stopped > 0, retainedBars: true });
-    } catch { res.status(503).json({ error: 'schwab_capture_unavailable' }); }
+    } catch (err) { captureUnavailable(res, err); }
   });
   return router;
 }

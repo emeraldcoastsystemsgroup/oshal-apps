@@ -14,6 +14,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | remembered adds the Per-order budget card: a remembered spending note ("budget: cheap") is marked budget and shown while no dollar cap is set (sweep 10: the card read "Budget open").
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register allergens: every chat dish is checked against the diner's allergies and diet (demo sweep 2: a Vegetarian Pad Thai right after a peanut allergy).
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Register allergy-surface: in Chromium the person's own Send shows the Pad Thai reply with its allergy-check line under it.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 1.3.5: no rail now means the package's own catalog: the no-rail case expects the turn, search, menu, cart and order handoff to answer from it with an ubereats.com link; register the uber-catalog unit suite.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -182,8 +183,8 @@ cases:
   - id: no-rail
     name: Eats with no Uber Eats rail
     purpose: >-
-      Where the runtime reports Uber Eats not connected, the compiled chat route answers through the concierge without calling the
-      refusing search or menu operations, and /config names the absent rail; with a rail the turn still searches.
+      Where the runtime reports Uber Eats not connected, the compiled routes answer the chat turn, search, menu, cart and the
+      order handoff from the package's own curated catalog without calling the refusing provider, and /config names rail catalog.
     level: integration
     runner:
       kind: node-test
@@ -191,12 +192,33 @@ cases:
       files:
         - tests/eats-no-rail.test.js
     expected:
-      - Only the status probe reaches the provider, the turn answers 200, and the prompt forbids "connect Uber Eats".
+      - Only the status probe reaches the provider, the turn offers catalog dishes, and the handoff is an ubereats.com link.
     prerequisites:
       - runner:node-test
     sideEffects: none
     isolation:
       mode: disposable
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: uber-catalog
+    name: The package's own Uber Eats catalog and deep link
+    purpose: >-
+      Search matches a restaurant by dish, cuisine or tag and ignores words that name no food; menu and the order handoff answer
+      official ubereats.com links and never a charge.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/uber-catalog.test.js
+    expected:
+      - Every search, menu and order case passes.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
     limits:
       timeoutMs: 15000
     installation: never

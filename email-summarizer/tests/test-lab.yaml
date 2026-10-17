@@ -10,6 +10,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Register the native-kernel egress case: mailbox, calendar, send and Social profile requests reach their declared hosts with no credential and map to the package's rows; missing or lapsed connections keep the 409s.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | surface-provider and audience-view: the surfaces no longer offer Yahoo (no Yahoo connector on this installation; its runtime answers a Yahoo read 501). No switch option, a saved Yahoo choice falls back to the server's pick, and the no-mailbox notices name Google and Outlook only.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register email-send-tool: the approval-held send tool and its persona rule.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -204,6 +205,26 @@ cases:
       - A button fetches /connectors/<id>/authorize and navigates only to an https sign-in address.
     prerequisites:
       - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: email-send-tool
+    name: Send an email behind an approval card
+    purpose: email-send is approval-held on POST /api/email/send with confirm true, a recipient and a body required, and the
+      persona sends only through it.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/email-send-tool.test.cjs
+    expected:
+    - Every assertion passes.
+    prerequisites:
+    - runner:node-test
     sideEffects: none
     isolation:
       mode: none

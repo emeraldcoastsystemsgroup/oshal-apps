@@ -582,7 +582,7 @@ function createBotPresentationRoutes(ctx) {
                     // was built from (they stayed empty, and every connected action then had no work to hand on).
                     const outline = drafted ? sections.map((s) => ({ title: String(s.title || ''), content: String(s.content ?? '') })) : undefined;
                     const note = cutOff ? `The outline came back cut off, so this file has the ${sections.length} complete slides.` : undefined;
-                    res.json({ ok: true, format: kind, provider: saved.provider, savedTo: saved.location, slides: sections.length, theme, downloadUrl: saved.downloadUrl, url: saved.url, title, ...(outline ? { outline } : {}), ...(note ? { note } : {}) });
+                    res.json({ ok: true, format: kind, provider: saved.provider, savedTo: saved.location, slides: sections.length, theme, downloadUrl: saved.downloadUrl, url: saved.url, title, openUrl: `/cockpit/?app=presentations&open=${encodeURIComponent(savedName)}`, ...(outline ? { outline } : {}), ...(note ? { note } : {}) });
                     return;
                 }
                 res.setHeader('Content-Type', fmt.mime);

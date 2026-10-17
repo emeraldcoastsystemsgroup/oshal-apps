@@ -8,8 +8,9 @@
  * CHANGE LOG
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
- * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the owner-authenticated quote relay, fallback streams, allowlisted frames, close lifecycle and browser credential boundary.
- * 2 | maintainer@emeraldcoastsystemsgroup.com | Complete the ADR-143 store cases: (b) the route module's kernel imports are exactly the allowlisted names (source and compiled twin carry neither alpacaDataCredentials nor process.env.ALPACA), a resolveBook TradingError is a JSON 400 before any SSE header, and book beats mode; (c) the print frame's keys are exactly asOf/feed/price/size/symbol; (d) a Schwab-broker book is held open across two heartbeats with the response neither ended nor destroyed; (e) more symbols than maxSymbols: hello.dropped carries the tail, the ticket symbol stays first, and the kernel is subscribed to the ACCEPTED list only.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Guard the owner-authenticated quote relay, fallback streams, allowlisted frames, close lifecycle and browser credential boundary.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Complete the ADR-143 store cases: (b) the route module's kernel imports are exactly the allowlisted names (source and compiled twin carry neither alpacaDataCredentials nor process.env.ALPACA), a resolveBook TradingError is a JSON 400 before any SSE header, and book beats mode; (c) the print frame's keys are exactly asOf/feed/price/size/symbol; (d) a Schwab-broker book is held open across two heartbeats with the response neither ended nor destroyed; (e) more symbols than maxSymbols: hello.dropped carries the tail, the ticket symbol stays first, and the kernel is subscribed to the ACCEPTED list only.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | The native host's fallback stream ends after a one-hour-retry hello (it buffers responses); the platform's held-open fallback is unchanged.
  */
 
 import { createServer, type Server } from 'node:http';
@@ -145,6 +146,17 @@ describe('Trading quote stream relay (ADR-143)', () => {
     expect(responses[0].writableEnded).toBe(false);
     expect(responses[0].destroyed).toBe(false);
     await reader.cancel();
+  });
+
+  it('on the native host a fallback hello carries a one-hour retry and the response ends', async () => {
+    const app = appFor({ status: () => status({ enabled: false, state: 'disabled' }), resolveBook: async () => BOOK, endsFallback: () => true });
+    const { base } = await listen(app);
+    const response = await fetch(`${base}/api/trading/stream?symbols=AAPL`);
+    expect(response.headers.get('content-type')).toContain('text/event-stream');
+    const body = await response.text();
+    expect(body.startsWith('retry: 3600000\n')).toBe(true);
+    expect(dataOf(body, 'hello')).toMatchObject({ streaming: false, reason: 'stream_disabled', symbols: ['AAPL'] });
+    expect(body).not.toContain(': ping');
   });
 
   it('uses Schwab/poll fallback and reports the dropped tail from the kernel plan', async () => {

@@ -9,6 +9,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Register accounts-phone: at 412 px the Accounts table fits its card with every Balance whole (sweep 8 cut it at the card edge).
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Register brief-figures (sweep 11): the brief's figures are written in code from the stored accounts; the analyst's commentary may quote only listed amounts.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | brief-figures also expects a sentence left out after "Inc." to go whole, never leaving its tail (sweep 14).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register summary-tool: finance-summary reads the caller's saved aggregate for spending questions through the compiled route.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -228,4 +229,24 @@ cases:
     limits:
       timeoutMs: 120000
       maxMemoryMb: 1024
+    installation: never
+  - id: summary-tool
+    name: Spending questions read the saved aggregate
+    purpose: finance-summary is an authorized automatic read onto GET /api/finance/summary; the compiled route answers the caller's
+      own aggregate, 404 when nothing is synced and 401 without a caller.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/finance-summary-tool.test.cjs
+    expected:
+    - The caller's categorized transactions, never another person's; 404 and 401 as stated.
+    prerequisites:
+    - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
     installation: never

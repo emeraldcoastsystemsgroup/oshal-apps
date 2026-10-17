@@ -9,6 +9,7 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register human and native agent saved layer organization, nesting and timing evidence.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register actual effect schema and human/native rendered workflow evidence.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register guarded early continuation failures and content-free diagnostics with named source seams.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Register stamp-schema: the stamp-paged tools describe the first-page word start.
 version: 1
 cases:
   - id: engine-core
@@ -1296,4 +1297,24 @@ cases:
     limits:
       timeoutMs: 10000
       maxMemoryMb: 128
+    installation: never
+  - id: stamp-schema
+    name: Paged tools describe their first-page stamp
+    purpose: Each stamp-paged tool says the first page is the exact word start; the project index accepts it and refuses another
+      first-page word.
+    level: unit
+    runner:
+      kind: external
+      scope: package
+      files:
+      - tests/stamp-schema.test.mjs
+    expected:
+    - Three tools describe start; START, first and initial are refused.
+    prerequisites:
+    - runner:node
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

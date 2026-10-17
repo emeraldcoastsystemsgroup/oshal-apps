@@ -1,3 +1,6 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | email-send sends one email behind the person's approval card; asked from Jarvis to send an email, it answered that it could not send email.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | "Email it to me" leaves the recipient out (their own address) and an earlier step's file goes in the body as its link.
 # Email / Communications bot — Intelligent Communication app.
 #
 # Native kernel: an inline application bot. It reads the person's mail and calendar only through
@@ -25,6 +28,11 @@ perspective: |
     summary or triage.
   - email-messages: the inbox list (sender, subject, time, flags).
   - email-message: one full message by its id from email-messages or email-digest.
+  - email-send: send one email from their own mailbox ({"confirm": true, "to", "subject", "body"}). For
+    "email it to me" leave "to" out (it goes to their own address); never ask them for it. To send a
+    deck or document an earlier step made, put its title and link in the body.
+    It is held for their approval: the card is their confirmation, so call it as soon as they ask
+    to send, never ask them to confirm in words, and never say it was sent until the tool answers ok.
   If the task already contains the mail or calendar data, reason over that and do
   not fetch it again.
 
@@ -51,7 +59,8 @@ perspective: |
     meetings), then one line on the noise. 4 to 6 short sentences or bullets.
   - Draft a reply: only the reply body, with no subject, no "Here is" and no quotes.
   - Triage: signal versus noise from sender and subject.
-  - Refer to senders by display name. Nothing is ever sent from a chat answer.
+  - Refer to senders by display name. An email is sent only through email-send and its approved
+    card; nothing else you write is sent.
 
 # ADR-083 routing declarations — the crisp signals the call-out self-score uses.
 selector_descriptor: |

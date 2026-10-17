@@ -4,6 +4,9 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | home-bot runs inline (posture: inline, same enrolled UUID d0000000-0000-0000-0000-000000000001) with route-backed tools over /api/home: home-devices, home-scenes, home-refresh, and home-control / home-scene-run held for the person's approval. The in-app assistant (POST /api/home/assistant) and Home Workspace's borrowed concierge were refused "this bot requires an enrolled node", and the concierge answered `node /app/scripts/oshal-smartthings.js` because the persona still taught the retired CLI. Guarded by scripts/check-store-bots.test.mjs.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | The Hubs tab opens the Smart Home page in its hubs view (/api/home/ui?view=hubs: Connect SmartThings, Google Home set-up, the hubs that reported devices); it opened the generic Connections page with every connector declaration.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | The device dashboard tab (home-dashboard) is labelled Smart Home, the application's own name, not Home: the Home experience composes it beside its own Home tab and Little Monsters' dashboard, and sweep 9 found three tabs all labelled Home opening three different applications.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.2.6: home-bot declares routing words (smart home, lights, thermostat, smartthings, turn on/off, ...). It declared none, so a request had to name the application to reach it. Guarded by scripts/tool-apps-routing-words.test.mjs.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.2.7: weather. Asked "what is the weather like today?", Jarvis said no weather source was installed and a forecast question went to Animatronics. home-weather (GET /api/home/weather) reads the National Weather Service forecast (Nominatim + api.weather.gov, keyless egress), and home-bot declares weather routing words. Guarded by home/tests/home-weather.test.js.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.2.8: weather phrases (the weather, weather like, weather in, weather today, weather forecast, will it rain). The single keyword "weather" is a weak claim, so "What is the weather like today in Chicago?" stayed with the assistant, which said no weather source was installed. Guarded by home/tests/home-weather.test.js.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — home (Smart Home bundle, ADR-038)
@@ -46,7 +49,7 @@ description: >-
   Google Nest); the home-bot reads your real devices + scenes via your connector
   token and turns "turn off the living room lights" into the right commands.
   Destructive actions (locks, garage, thermostat) are confirmed first.
-version: 1.2.5
+version: 1.2.8
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -128,11 +131,49 @@ bots:
       - device-control
       - scene-execution
       - home-automation
+    routingKeywords:
+      - smart home
+      - lights
+      - thermostat
+      - smartthings
+      - turn on
+      - turn off
+      - dim
+      - lock the door
+      - weather
+      - forecast
+      - temperature
+      - is it going to rain
+      - the weather
+      - weather like
+      - weather in
+      - weather today
+      - weather forecast
+      - will it rain
 
 # Route-backed tools for home-bot (native kernel: executorType api, inside /api/home). Reads run
 # under the caller; device and scene actions are held for the person's approval and then sent with
 # confirm: true to the same deterministic routes the dashboard buttons use.
 tools:
+  - name: home-weather
+    displayName: Weather Forecast
+    type: api
+    category: home
+    description: The National Weather Service forecast for a US city, address or ZIP code - today, tonight and the coming days, with temperature, wind, chance of rain and the forecast text. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/home/weather?location={input.location}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        location: { type: string, minLength: 1, maxLength: 200, description: The US place as the person named it, such as "Seattle, WA" or a ZIP code. }
+      required: [location]
+    usageInstructions: >-
+      Call with {"location"} for any weather or forecast question. With no place in the question, use the person's
+      home city when the conversation gives it, otherwise ask which city. Answer from the returned periods only and end
+      with "Source: National Weather Service (weather.gov)".
+    tags: [home, route-backed]
+
   - name: home-devices
     displayName: Home Devices
     type: api
@@ -256,6 +297,9 @@ ui:
 # live refresh call the SmartThings API through the kernel's fenced egress, which applies the
 # caller's own smartthings connection as the Authorization header. This package never holds the token.
 egress:
+  # Weather forecasts (routes/home-weather.js): public and keyless, no credential attached.
+  - host: nominatim.openstreetmap.org
+  - host: api.weather.gov
   - host: api.smartthings.com
     credential: { connector: smartthings, header: authorization, prefix: "Bearer " }
 

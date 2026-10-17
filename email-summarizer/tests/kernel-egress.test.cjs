@@ -8,6 +8,7 @@
  *   declared host with no Authorization header and no access_token, map the answers to the package's rows, choose the mailbox
  *   from the caller's connection metadata, answer a missing or lapsed connection with the same 409s, and send through the
  *   package's fenced MIME builder. Outside the kernel the broker token still travels as a Bearer header.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | A sent body makes the installation's own /cockpit/ and /api/ links absolute from x-oshal-public-origin, leaves every other link and path as written, and never uses a non-https origin.
  */
 'use strict';
 const test = require('node:test');
@@ -53,7 +54,7 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), { status
  * @param meta - connectors.metadata answer, or undefined for a context without the intent.
  * @param answer - (url, init) => Response | Error.
  */
-async function call(route, { meta, answer, query = {}, body, params = {}, kernel = true } = {}) {
+async function call(route, { meta, answer, query = {}, body, params = {}, kernel = true, headers } = {}) {
   const calls = [];
   const saved = globalThis.fetch;
   if (kernel) process.env.OSHAL_EGRESS = 'kernel'; else delete process.env.OSHAL_EGRESS;
@@ -66,7 +67,8 @@ async function call(route, { meta, answer, query = {}, body, params = {}, kernel
   const ctx = { pool: { query: async () => ({ rows: [] }) }, ...(meta === undefined ? {} : { intent: async (name) => { assert.equal(name, 'connectors.metadata'); return meta; } }) };
   const res = { statusCode: 200, status(n) { this.statusCode = n; return this; }, json(b) { this.body = b; }, send(b) { this.body = b; } };
   try {
-    await createEmailRoutes(ctx).routes[route]({ oidc: { user: { sub: 'alice' } }, query, params, body }, res);
+    const get = headers ? (name) => headers[String(name).toLowerCase()] : undefined;
+    await createEmailRoutes(ctx).routes[route]({ oidc: { user: { sub: 'alice' } }, query, params, body, ...(get ? { get } : {}) }, res);
   } finally {
     globalThis.fetch = saved;
     delete process.env.OSHAL_EGRESS;
@@ -172,6 +174,23 @@ test('a confirmed Gmail send posts the fenced MIME to gmail.googleapis.com with 
   assert.equal(raw, 'To: carol@example.com Bcc: mallory@example.com\r\nSubject: Notes\r\nContent-Type: text/plain; charset="UTF-8"\r\n\r\nHello');
   assertNoCredential(calls);
   assert.deepEqual(frameworkSends, [], 'the inert framework sender is never used under the kernel');
+});
+
+test('a sent body makes this installation\'s own links absolute from the public origin, and only those', async () => {
+  const body = 'Deck: /cockpit/?app=presentations&open=Top%205.pptx\nDownload (/api/applications/presentations/storage/download?path=x)\nElsewhere: https://example.com/api/x and /etc/passwd';
+  const { calls } = await call('POST /send', {
+    meta: GOOGLE, headers: { 'x-oshal-public-origin': 'https://oshal.example.com' },
+    body: { confirm: true, to: 'me@example.com', subject: 'Deck', body }, answer: () => json({ id: 'sent-2' }),
+  });
+  const raw = Buffer.from(JSON.parse(calls[0].init.body).raw, 'base64url').toString('utf8');
+  assert.match(raw, /Deck: https:\/\/oshal\.example\.com\/cockpit\/\?app=presentations&open=Top%205\.pptx/);
+  assert.match(raw, /\(https:\/\/oshal\.example\.com\/api\/applications\/presentations\/storage\/download\?path=x\)/);
+  assert.match(raw, /https:\/\/example\.com\/api\/x and \/etc\/passwd/, 'other links and paths are left as written');
+  const spoof = await call('POST /send', {
+    meta: GOOGLE, headers: { 'x-oshal-public-origin': 'javascript:alert(1)' },
+    body: { confirm: true, to: 'me@example.com', subject: 'x', body: 'Open /cockpit/' }, answer: () => json({ id: 'sent-3' }),
+  });
+  assert.match(Buffer.from(JSON.parse(spoof.calls[0].init.body).raw, 'base64url').toString('utf8'), /Open \/cockpit\/$/, 'a non-https origin is never used');
 });
 
 test('a confirmed Outlook send posts Graph sendMail JSON with no credential', async () => {

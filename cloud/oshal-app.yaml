@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.1.1: declare cloud-ops-bot as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.2: cloud-ops-bot declares routing words (cloud, gcp, google cloud, cloud resources, ...): asked from Jarvis, the request went to another application (Video Studio, Scan to Print) or to none. Guarded by the kernel's jarvis_routing_store_tests sweep_requests_reach_the_application_that_does_the_work.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — cloud (DevOps/Cloud bundle, ADR-038)
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -46,7 +52,7 @@ description: >-
   Inspect and operate your Google Cloud by chat. Connect GCP at /utilities; the
   cloud-ops-bot reads your projects/services/instances via your connector token and
   acts on your behalf (read-only by default). The API-based replacement for gcloud.
-version: 1.1.0
+version: 1.1.2
 status: active
 
 # (theme dropped at the carve: core declared `theme: blue`, which is NOT a known
@@ -107,6 +113,9 @@ dependencies:
 uses:
   - app-dependencies
 
+# The bot a Jarvis creation request goes to (its own workflow bot).
+chatBot: cloud-ops-bot
+
 ticketType: cloud-op
 
 workflow:
@@ -121,6 +130,15 @@ workflow:
 bots:
   - agentId: d0000000-0000-0000-0000-000000000002
     name: cloud-ops-bot
+    routingKeywords:
+      - cloud
+      - gcp
+      - google cloud
+      - cloud resources
+      - cloud project
+      - vm instances
+      - cloud costs
+      - cloud status
     persona: personas/cloud-ops-bot.yaml
     role: devops/cloud
     capabilities:

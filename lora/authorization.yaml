@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | First LoRA authorization catalog (ADR-149). The GPU worker's callbacks move onto the kernel's signed-package-callbacks rail, which the loader admits only for a package that imports a catalog, so every LoRA route, the director bot and the worker callbacks are bound to named permissions here. Until now LoRA had no catalog and, under enforce, answered only callers holding the application's app-admin assignment.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Bind POST /characters/starter to lora.configure. GET /characters no longer provisions the caller's starter character (a GET is admitted read-only and must not write), so the studio asks for it explicitly with this write; a viewer, who may only read, cannot create one.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Bind DELETE /characters/:subject to lora.configure. A character could not be deleted at all; deleting one is a write like creating it, so a viewer cannot.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Bind the director's read tools lora-characters (GET /characters) and lora-models (GET /models) to lora.read, the permission their routes need.
 #
 # One resource with `own` scope only. Row ownership is still enforced by each route's owner
 # predicate and the tables' forced row-level security; the catalog decides which named permission a
@@ -59,3 +60,6 @@ bindings:
     - { id: worker-dataset-download, method: POST, path: /dataset-download/:imageId, allOf: [lora.execute] }
   bots:
     - { id: a0000000-0000-0000-0000-000000000065, allOf: [lora.execute] }
+  tools:
+    - { id: lora-characters, allOf: [lora.read] }
+    - { id: lora-models, allOf: [lora.read] }

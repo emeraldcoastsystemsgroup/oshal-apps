@@ -20,6 +20,7 @@
  *                     |                             | Entry and exit are logged with the tool, ids, duration and outcome.
  *                     |                             | (Review: the computed ok/status are written after the print body,
  *                     |                             | so nothing in a reply can override them.)
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | A saved printer access code sealed by the earlier platform (personal_data_reentry_required) answers 409 credential_reentry_required saying to re-enter it, instead of a thrown tool_failed the kernel reports as insufficient_tier: Jarvis told the person their printer status was refused for insufficient permissions. Guard: tests/print-tools-reentry.test.js.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PRINT_TOOL_SPECS = exports.PrintToolError = void 0;
@@ -144,6 +145,10 @@ async function runTool(spec, deps, currentActor, input) {
         return reply;
     }
     catch (error) {
+        if (error && error.code === 'personal_data_reentry_required') {
+            logger.warn({ tool: spec.name, durationMs: Date.now() - started }, 'Scan to Print tool: saved credential needs re-entry');
+            return { ok: false, status: 409, error: 'credential_reentry_required', message: "This printer's saved access code was sealed by the earlier platform and cannot be opened here. Re-enter it for this printer on the Scan to Print screen; nothing is wrong with the person's permissions." };
+        }
         const failure = error instanceof PrintToolError ? error
             : error instanceof RangeError ? new PrintToolError('invalid_tool_input', 400, error.message)
                 : new PrintToolError('tool_failed', 500, `${spec.name} failed`);

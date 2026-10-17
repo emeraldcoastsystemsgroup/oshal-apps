@@ -3,6 +3,8 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Native provisioning: declare migrations/native/001-lora.sql (every LoRA table and index in final shape, with 102's identity columns, 106's issuer columns and 101's model foreign key folded in) and skip 058 and 100-106 natively: 058 seeds a character owned by system:seed:lora, which the native owner-field check refuses, sets NOT NULL by ALTER and installs RLS policies, and 102's comment carries an escaped quote; the declared migrations stayed pending for every person. PostgreSQL still applies 058-106 and the native file is a no-op there.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.7.5: declare lora-director as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.7.6: the director gets read tools lora-characters and lora-models (bound to lora.read in authorization.yaml). Asked from Jarvis what LoRA models were trained, it answered that it could not list trained models, while the studio showed them. Guarded by lora/tests/lora-read-tools.test.cjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — lora ("LoRA Studio")
@@ -60,7 +62,7 @@ description: >-
   matrix, and improve it by regenerating data aimed at its weak spots and retraining — with every
   version scored objectively so "better" is a number. Generation/validation run free on your GPU box;
   paid escalation never happens without an approval gate.
-version: 1.7.4
+version: 1.7.6
 status: active
 
 # Per-app skin — indigo so the model-lab reads distinct from the sakura Video Studio.
@@ -170,6 +172,31 @@ bots:
 
 # Compiled-JS routes (built from src-routes/ by `oshal-app build`). Split mounts —
 # see the AUTH SHAPE note in the header.
+tools:
+  - name: lora-characters
+    displayName: My LoRA Characters
+    type: api
+    category: creative
+    description: The person's LoRA characters with their dataset counts, active model version and training state. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/lora/characters" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks about their characters or what is training. Name only characters this returns.
+    tags: [lora, route-backed]
+
+  - name: lora-models
+    displayName: My Trained LoRA Models
+    type: api
+    category: creative
+    description: The person's trained LoRA model versions, newest first, with their character, score and state. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/lora/models" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks what models they have trained. An empty list means none are trained yet.
+    tags: [lora, route-backed]
+
 routes:
   - module: routes/home-summary.js
     factory: createHomeSummaryRoutes
@@ -280,6 +307,9 @@ nativeMigrations:
 
 # WORKFLOW — training tickets of type 'lora-train' route to the director, which authorizes the
 # box-side kohya run via the worker node's gated shell.exec (lora-train-dispatch, vendored).
+# The bot a Jarvis creation request goes to (its own workflow bot).
+chatBot: lora-director
+
 ticketType: lora-train
 workflow:
   name: LoRA Training Pipeline

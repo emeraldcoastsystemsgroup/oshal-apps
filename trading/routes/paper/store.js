@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: every statement the native paper book runs, declared once as a constant over the tables of migrations/002-native-paper.sql, with the reads and the one transactional tick write built on them. Every statement filters or stamps user_sub with the caller's own subject, so person B can never read or write person A's book. A tick commits all of its fills, decisions, positions, account and equity snapshot together, after claiming its five-minute window (ON CONFLICT DO NOTHING RETURNING) and checking the account version the plan was computed from; a window already claimed, or a book that moved under the plan, rolls the whole tick back.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Review fix: arming and disarming now bump the account version in the same transaction as the configuration change (ACCOUNT_BUMP). Before, a disarm (or a re-arm with tighter guardrails) that landed while a tick was in flight left the version alone, so the tick's optimistic check passed and it still traded on the old configuration; now that tick rolls back as book_changed.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Manual paper orders: DECISION_GET and ORDER_FOR_DECISION, recordManualDecision, loadDecision, orderForDecision and writeManualFill (one transaction: version-checked account, order, position, equity snapshot). Buy a stock on the native paper book had no native path.
  *
  * @module paper/store
  */
@@ -43,6 +44,8 @@ const SQL = Object.freeze({
   EQUITY_UPSERT: `INSERT INTO trading_paper_equity_daily (user_sub, session_date, equity, cash, recorded_at) VALUES ($1, $2, $3, $4, $5)
     ON CONFLICT (user_sub, session_date) DO UPDATE SET equity = EXCLUDED.equity, cash = EXCLUDED.cash, recorded_at = EXCLUDED.recorded_at`,
   EQUITY_SERIES: 'SELECT session_date, equity, cash, recorded_at FROM trading_paper_equity_daily WHERE user_sub = $1 ORDER BY session_date',
+  DECISION_GET: 'SELECT decision_id, tick_window, symbol, action, reason, rationale, per_timeframe, created_at FROM trading_paper_decisions WHERE user_sub = $1 AND decision_id = $2',
+  ORDER_FOR_DECISION: 'SELECT order_id, qty, fill_price, status FROM trading_paper_orders WHERE user_sub = $1 AND decision_id = $2',
 });
 
 const num = (v) => (v == null ? null : Number(v));
@@ -262,4 +265,73 @@ async function equitySeries(pool, sub) {
   return (await pool.query(SQL.EQUITY_SERIES, [sub])).rows.map((r) => ({ date: r.session_date, equity: num(r.equity), cash: num(r.cash) }));
 }
 
-module.exports = { SQL, loadConfig, loadAccount, loadPositions, arm, disarm, writeTick, listOrders, listDecisions, listTicks, equitySeries };
+/**
+ * @description Record the operator's manual paper decision (the order it describes is filled by writeManualFill).
+ * @param {object} pool - Package SQL pool.
+ * @param {string} sub - Caller subject.
+ * @param {object} d - {decisionId, symbol, side, qty, refPrice, quoteAt, rationale, at}.
+ * @returns {Promise<void>}
+ */
+async function recordManualDecision(pool, sub, d) {
+  await pool.query(SQL.DECISION_INSERT, [d.decisionId, sub, `manual:${d.decisionId}`, d.symbol, d.side, 'manual', null, null, null,
+    d.rationale, JSON.stringify({ manual: true, side: d.side, qty: d.qty, refPrice: d.refPrice, quoteAt: d.quoteAt }), d.at]);
+}
+
+/**
+ * @description One of the person's paper decisions, with the manual order it describes when it is one.
+ * @param {object} pool - Package SQL pool.
+ * @param {string} sub - Caller subject.
+ * @param {string} decisionId - The decision.
+ * @returns {Promise<object|null>} {decisionId, symbol, side, qty, rationale, manual} or null.
+ */
+async function loadDecision(pool, sub, decisionId) {
+  const row = (await pool.query(SQL.DECISION_GET, [sub, decisionId])).rows[0];
+  if (!row) return null;
+  let detail = {};
+  try { detail = row.per_timeframe ? JSON.parse(row.per_timeframe) : {}; } catch { detail = {}; }
+  return { decisionId: row.decision_id, symbol: row.symbol, side: detail.side || row.action, qty: num(detail.qty),
+    rationale: row.rationale, manual: detail.manual === true && row.reason === 'manual' };
+}
+
+/**
+ * @description The fill already recorded for a decision, if any.
+ * @param {object} pool - Package SQL pool.
+ * @param {string} sub - Caller subject.
+ * @param {string} decisionId - The decision.
+ * @returns {Promise<object|null>} {orderId, qty, fillPrice, status} or null.
+ */
+async function orderForDecision(pool, sub, decisionId) {
+  const row = (await pool.query(SQL.ORDER_FOR_DECISION, [sub, decisionId])).rows[0];
+  return row ? { orderId: row.order_id, qty: num(row.qty), fillPrice: num(row.fill_price), status: row.status } : null;
+}
+
+/**
+ * @description Write one manual fill atomically: the order, the account (version-checked; the tick window is kept),
+ * the position and today's equity snapshot.
+ * @param {object} pool - Package SQL pool.
+ * @param {string} sub - Caller subject.
+ * @param {object} w - {orderId, decisionId, fill:{symbol, side, qty, price, notional, realizedPl, quoteAt}, account, cash, equity,
+ *   position:{symbol, qty, avgCost, price, lastPriceAt, peak, openedAt}|null, closed:boolean, sessionDate, at}.
+ * @returns {Promise<{written:boolean, reason?:string}>} Whether the fill committed.
+ */
+async function writeManualFill(pool, sub, w) {
+  return inTransaction(pool, async (client) => {
+    const realized = Math.round((w.account.realizedPl + (w.fill.realizedPl || 0)) * 100) / 100;
+    const moved = await client.query(SQL.ACCOUNT_WRITE, [sub, w.cash, w.equity, Math.max(w.account.highWater || 0, w.equity), realized,
+      w.account.version + 1, w.account.lastTickWindow, w.at, w.account.version]);
+    if (!moved.rowCount) throw Object.assign(new Error('book_changed'), { bookChanged: true });
+    await client.query(SQL.ORDER_INSERT, [w.orderId, sub, `manual:${w.decisionId}`, w.decisionId, w.fill.symbol, w.fill.side, w.fill.qty,
+      w.fill.price, w.fill.notional, 'manual', w.fill.realizedPl, w.fill.quoteAt || null, w.at]);
+    if (w.closed) await client.query(SQL.POSITION_DELETE, [sub, w.fill.symbol]);
+    else {
+      const p = w.position;
+      await client.query(SQL.POSITION_UPSERT, [sub, p.symbol, p.qty, p.avgCost, p.price, p.lastPriceAt || null,
+        p.peak == null ? p.price : Math.max(p.peak, p.price), p.openedAt || w.at, w.at]);
+    }
+    await client.query(SQL.EQUITY_UPSERT, [sub, w.sessionDate, w.equity, w.cash, w.at]);
+    return { written: true };
+  }).catch((err) => { if (err && err.bookChanged) return { written: false, reason: 'book_changed' }; throw err; });
+}
+
+module.exports = { SQL, loadConfig, loadAccount, loadPositions, arm, disarm, writeTick, listOrders, listDecisions, listTicks, equitySeries,
+  recordManualDecision, loadDecision, orderForDecision, writeManualFill };

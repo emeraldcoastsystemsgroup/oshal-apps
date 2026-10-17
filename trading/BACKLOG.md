@@ -1,20 +1,21 @@
 # Intelligent Trades — backlog and roadmap
 
-Current status for Trading 1.33.15 source on the native kernel, reviewed 2026-10-15.
+Current status for Trading 1.33.44 on the native kernel (b6dbe79), reviewed 2026-10-16.
 Implementation, automated verification and signed-in acceptance are separate milestones.
 Earlier incident details remain in Git history; the entries below describe what remains now.
 
 ## Roadmap
 
-1. Restore a working Jarvis inference path and complete its signed-in stock-read acceptance.
-   History/CSV and Reconcile browser checks now pass. Inspect the next genuine scheduled evaluation without
+1. Jarvis inference and its signed-in stock-read acceptance are done (T8, T14). History/CSV and
+   Reconcile browser checks pass. Inspect the next genuine scheduled evaluation (T3) without
    manufacturing a live order or changing arming or risk policy.
-2. T1 native suite execution and complete catalog registration are implemented. Extend
-   runner coverage under T13; readiness remains separate from measured execution.
+2. T1 native suite execution and complete catalog registration are implemented, and T13's
+   installed Vitest execution passes (34 suites, 503 tests); readiness remains separate from measured execution.
 3. Land the tested T2 protection-basis correction (core PR1135). The operator approved live
    activation; GitHub still requires an approving review before normal merge and deployment.
 4. Extend T5's missing read capabilities with honest source, time and availability metadata.
-   Annual SEC fundamentals and Finnhub company news are delivered. A whole-market screener remains open.
+   Annual SEC fundamentals, Finnhub company news (World archive headlines when Finnhub does not answer)
+   and the recorded earnings calendar are delivered. A whole-market screener remains open.
 5. Continue native cutover acceptance. Focused Trading checks do not certify full kernel CI.
 
 ## T1 — Native Test Lab suite execution and maintained registrations — resolved
@@ -114,7 +115,7 @@ an order merely to produce a test receipt.
 The parser derives classic-script versus module grammar from the actual shell and checks
 both directions. All 12 parser cases pass. This is included in the green full source gate.
 
-## T5 — Remaining native market-data features — open
+## T5 — Remaining native market-data features — resolved
 
 Caller-scoped Schwab reads now supply actual accounts/holdings, exchange-time quotes,
 daily/intraday candles and ticker-prefix search. Accounts retains failed-read dispositions,
@@ -163,7 +164,28 @@ artifact `756b740c5e78` (before this documentation-only update). All 199 active 
 assignments and 95 active packages remained available; assignment definitions and
 original environment/kernel unit were unchanged. No trading action was used for acceptance.
 
-Still unavailable: a whole-market screener. Archive-backed prices or Movers
+Native additions on 2026-10-16, each shown on the original signed-in account: the ticket's
+Look up prices the native paper book from the stored price (1.33.24); company news asks the
+person's Finnhub connection first and reads the World archive's headlines (`feeds.news`,
+kernel 6c834e6) when Finnhub does not answer (1.33.27, 1.33.36); the next earnings date reads
+the recorded World calendar (`feeds.events`, kernel 839c171; 1.33.26: TXN 2026-10-20) and
+otherwise keeps the labelled estimate; futures roots and dated contracts chart through Schwab
+as futures (1.33.28: /ESZ26 last close 7,747.75), no longer the stock ticker.
+
+The whole-market screener is delivered (1.33.39-1.33.40): kernel fb12519's `trading.movers` reads
+Schwab GET /marketdata/v1/movers for a fixed equity index set through the caller's connection
+(the provider allowlist admits only that set; executor and allowlist tests). Live, Schwab
+answered at most ten rows per index and ordered EQUITY_ALL by volume whatever the sort, so the
+Movers board merges the S&P 500, NASDAQ and NYSE lists, keeps prices of $5 or more and ranks
+winners and losers by percent change and most-active by volume itself, labelled with that
+method; no rail, an empty list or the volatility board fall back to the archive board. On the
+original signed-in account the three boards showed distinct, correctly ordered rows (winners led
+by +10.15%, losers by -10.00%, most-active by 76.5M shares). Kernel commit d944d3a proves the
+movers read obeys the same rules as quotes and config: another application, another person
+through the owner's connection, and a withdrawn connection are refused. All done-when criteria
+are met (2026-10-16).
+
+Earlier this list said: a whole-market screener was unavailable. Archive-backed prices or Movers
 remain labelled as stored/archive evidence. Company-directory matches alone are identity
 data, not financial statements or proof of broker tradability. Native real-money order
 execution remains outside this read adapter.
@@ -187,7 +209,7 @@ regression fails against the previous code; both focused suites pass all 24 case
 existing Test Lab rail-guard registration includes this check. No broker data read or
 order is called to report readiness.
 
-## T8 — Jarvis stock data through Trading — implemented; signed-in acceptance open
+## T8 — Jarvis stock data through Trading — resolved
 
 Declared read-only API tools provide stock quote/research, OHLCV history, ticker-prefix
 search and company-name lookup. The analyst requests actual module data, retains source
@@ -207,10 +229,16 @@ stock tools are present in the specialist's system prompt; quote, timestamp, una
 sections and daily-chart receipts are verified. This does not certify the installed
 Jarvis path against the original user's live broker connection.
 
-**Done when:** retain the green automated proofs and complete the original signed-in,
-connected-provider conversation. Fixture success is not live-provider acceptance.
+On 2026-10-16 the original signed-in session (signed in as the owner) asked Jarvis
+"What is NVDA trading at right now?" and received NVDA at $215.71 from a Schwab quote with
+its 17:14 UTC time, through the installed inference path below (T14). Earlier the same
+question had answered "the price archive read timed out"; kernel f843a76 bounded the
+archive's latest-price read so its planning no longer exceeds the read deadline.
 
-## T14 — Jarvis inference availability and real-model tool acceptance — open
+**Done when:** retain the green automated proofs and complete the original signed-in,
+connected-provider conversation. Fixture success is not live-provider acceptance. Met 2026-10-16.
+
+## T14 — Jarvis inference availability and real-model tool acceptance — resolved
 
 The installed fleet selects `vllm/bot-fast`. The failed live request's journal records
 its connection closing, `litellm/bot-fast` returning HTTP401 and `ollama/qwen3:4b`
@@ -264,6 +292,18 @@ The private two-bot configuration candidate was never applied; the original prod
 kernel unit and environment remain byte-identical. No installed provider selection,
 existing credential, trading setting or separate training workload was changed.
 
+Resolved 2026-10-16 at the owner's direction ("the gpus are training right now so use
+antigravity as a fall back"). Kernel `0d25070` adds an Antigravity account relay on the same
+bounded BYO interface (the owner's own Antigravity sign-in on this installation, empty 0700
+working directory, HOME/PATH only, plan mode with slash commands disabled, loopback with a
+token). The installed failover order is vllm, litellm, the relay (gemini-3.8-flash-low), the
+Antigravity provider models, then ollama. Provider availability is measured in the kernel
+log: on the Futures review turn vllm and litellm refused (`store_unavailable`) and the relay
+answered in 16.7 s. Tool use and caller scope were measured separately on the signed-in
+conversations: Jarvis returned the live NVDA quote (T8), and the Trading concierge answered
+with the paper account's cash, equity and four holdings after Trading 1.33.25 made its read
+tools route reads. The hosted-activation boundary above still applies to a Codex sign-in.
+
 **Done when:** restore an available, authenticated installed Jarvis inference path;
 retain the real-model instruction/tool-catalog and isolated module proofs, then complete
 the original signed-in live-data conversation and return current data with
@@ -302,16 +342,40 @@ Removed stale present-tense claims that the catalog or native market reads do no
 Current implementation, automation results, missing capabilities and acceptance work are
 now explicit. Maintain this distinction as each remaining issue is completed.
 
-## T13 — Native Vitest/core-fixture execution — open
+## T13 — Native Vitest/core-fixture execution — resolved
 
 The 34 registered Vitest source suites remain pending in native Test Lab execution.
 Their successful 502-case source-gate result uses the declared framework fixture; the
 native sandbox does not yet provision that runner/fixture. Package readiness is also a
 separate action, not a substituted suite pass.
 
+Resolved 2026-10-16. On native kernel b6dbe79 with Trading 1.33.37 the installed Test Lab ran
+every executable registered case through the live API: all 34 Vitest suites passed with 503
+measured tests (zero failed, skipped, cancelled or todo; cleanup verified; core fixture
+3df66e17) and all 33 node-test suites passed. Receipts are retained under
+`native-test-lab/20261016-t13-recheck2/`. An earlier run that day had 11 suites with zero
+tests: two new plain-JavaScript modules resolved only through this package's vitest aliases,
+which the installed runner does not read. Source-tree shims fixed that (1.33.37), and the
+package config no longer carries those aliases, so it resolves as the runner does.
+
 **Done when:** source-pinned Vitest/core prerequisites are provisioned in the isolated
 runtime, actual registered suites execute with measured retained receipts, and missing
-external broker requirements remain explicit. Preserve no-network/no-live-data isolation.
+external broker requirements remain explicit. Preserve no-network/no-live-data isolation. Met 2026-10-16.
+
+## T15 — Futures research loop on the native kernel — resolved
+
+Trading 1.33.29-1.33.35 (`routes/futures/`, kernel FUT-01) run the Futures panel natively over
+the person's Schwab connection: Save and Run once (the platform's staged optimizer bundled as
+`routes/futures/engine.js` by `tools/build-futures-engine.mjs`; the live dated contract read
+for the whole window because Schwab serves no expired contracts), the nightly
+`futures-research` person schedule (02:15 New York, Tuesday-Saturday), the research review on
+the futures-research-analyst (exact evidence citation, bounded grid proposals), forward
+research calls (locked-strategy bias frozen from completed Schwab bars, graded by directional
+ticks) and the Schwab check; capture, catch-up and archive import are hidden as not needed.
+On the signed-in account a run read 3,755 hourly ESZ26 bars and settled insufficient_sample
+(0 out-of-sample trades in 4 windows); its review completed; its forward calls abstained; the
+schedule fired from the owner's session. Guards: `tests/native-futures-study.test.js`,
+`tests/native-futures-chart.test.js`.
 
 ## Cross-repository acceptance still open
 

@@ -31,6 +31,7 @@
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove Duffel credentials from generic orchestrator dispatch. Flight search resolves a fixed-server-operation credential only inside the deterministic CLI helper; the model receives bounded offers and price intelligence, never a credential map.
  * 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: replace the final credential-bearing Duffel subprocess. Travel operations now call the bounded import-safe provider helper with the current request's explicit token.
  * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | The concierge knows the installation. The chat turn probes the Duffel `status`; where it answers mode not_connected (no Duffel connector exists on the native kernel) the turn runs no search (a search there refuses 503 and fails the call), opens no fare watch, and the prompt says fares cannot be searched or watched here and never tells the traveller to connect Duffel. Three-letter airport codes are read as IATA codes (VPS was taken for a server). Guard: tests/travel-chat-rail.test.js.
+ * 2026-10-16 | maintainer@emeraldcoastsystemsgroup.com | Search handoff with no Duffel rail. "Find me flights from Seattle to Denver next Friday" answered that nothing could be searched: the native kernel has no Duffel provider and refuses every search. Where its status says not_connected (asked once per process), flights, hotels and cars answer the Google Flights, Booking.com and Kayak search links for the exact trip (./travel-handoff) with no items and no prices, and each answer carries the note that no fares are searched here. Guard: tests/travel-search-handoff.test.js.
  *
  * @module travel-routes
  */
@@ -46,6 +47,7 @@ import { getTrustedServiceUserSub } from '@/shared/middleware/authz';
 import { resolveServerOperationCreds } from '@/app/routes/connector-token-broker';
 import { runDuffelProviderOperation } from '@/app/routes/provider-operation-clients';
 import { ensureTravelSchema, routeKeyFor, recordObservations, priceRead } from '@/app/routes/travel-farewatch';
+import * as travelHandoff from './travel-handoff';
 
 const logger = createChildLogger({ module: 'travel-routes' });
 
@@ -99,8 +101,21 @@ async function duffelProviderOperation(pool: Pool, sub: string, args: string[]):
     ['duffel'],
     'fixed-server-operation',
   );
-  return runDuffelProviderOperation(creds.OSHAL_CRED_DUFFEL, args);
+  const run = (a: string[]): Promise<any> => runDuffelProviderOperation(creds.OSHAL_CRED_DUFFEL, a);
+  if (runtimeRail === null || args[0] === 'status') {
+    const st = await run(['status']);
+    runtimeRail = !!st && st.mode === 'not_connected' ? 'handoff' : 'provider';
+    if (args[0] === 'status') return st;
+  }
+  return runtimeRail === 'handoff' ? travelHandoff.run(args) : run(args);
 }
+
+/**
+ * Which rail answers Duffel in this process: 'provider' where the runtime has one, 'handoff' (./travel-handoff:
+ * Google Flights, Booking.com and Kayak search links, no prices) where its `status` answers not_connected. Asked
+ * once: a refused provider operation fails the whole native call even when it is caught.
+ */
+let runtimeRail: 'provider' | 'handoff' | null = null;
 
 /** What a traveller is told where the installation has no Duffel rail at all. */
 export const TRAVEL_NO_RAIL = 'This installation has no Duffel rail (no Duffel connector exists here), so flights, hotels and cars cannot be searched, priced or watched for fare drops here.';
@@ -238,7 +253,7 @@ export function createTravelRoutes(ctx: AppContext): Router {
       `INSERT INTO travel_searches (user_sub, kind, route_key, query, best_price) VALUES ($1,'flight',$2,$3,$4)`,
       [sub, routeKey, JSON.stringify(q), best],
     ).catch(() => {});
-    res.json({ items, source: r.source || 'demo', deepLink: r.deepLink, price, routeKey, error: r.error });
+    res.json({ items, source: r.source || 'demo', deepLink: r.deepLink, note: r.note, price, routeKey, error: r.error });
   }));
 
   router.get('/hotels', traveller(async (req, res, sub) => {
@@ -248,7 +263,7 @@ export function createTravelRoutes(ctx: AppContext): Router {
     await recordObservations(pool, 'hotel', q, r.items || [], r.source || 'demo');
     const routeKey = routeKeyFor('hotel', q);
     const best = (r.items || []).length ? Math.min(...r.items.map((i: any) => Number(i.price))) : null;
-    res.json({ items: r.items || [], source: r.source || 'demo', deepLink: r.deepLink, price: await priceRead(pool, 'hotel', routeKey, best), routeKey });
+    res.json({ items: r.items || [], source: r.source || 'demo', deepLink: r.deepLink, note: r.note, price: await priceRead(pool, 'hotel', routeKey, best), routeKey });
   }));
 
   router.get('/cars', traveller(async (req, res, sub) => {
@@ -258,7 +273,7 @@ export function createTravelRoutes(ctx: AppContext): Router {
     await recordObservations(pool, 'car', q, r.items || [], r.source || 'demo');
     const routeKey = routeKeyFor('car', q);
     const best = (r.items || []).length ? Math.min(...r.items.map((i: any) => Number(i.price))) : null;
-    res.json({ items: r.items || [], source: r.source || 'demo', deepLink: r.deepLink, price: await priceRead(pool, 'car', routeKey, best), routeKey });
+    res.json({ items: r.items || [], source: r.source || 'demo', deepLink: r.deepLink, note: r.note, price: await priceRead(pool, 'car', routeKey, best), routeKey });
   }));
 
   // ── Fare watches ─────────────────────────────────────────────────────────────

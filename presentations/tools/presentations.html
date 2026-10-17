@@ -1656,6 +1656,8 @@ $('wzTopic').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preven
 // against the catalogs — an unknown id is simply ignored, and nothing here ever generates.
 function applyDeepLink(){
   let p; try { p = new URLSearchParams(location.search); } catch(e){ return; }
+  const opening = p.get('open');
+  if (opening && /\.(pptx|docx|xlsx)$/i.test(opening)) { openFromLink(opening); return; }
   const kind = p.get('kind'), starter = p.get('starter'), theme = p.get('theme'), topic = p.get('topic');
   const kindOk = KINDS.some(k => k.id === kind);
   const starterT = starter && /^[a-z0-9-]+$/.test(starter) ? STARTERS.find(t => t.id === starter) : null;
@@ -1673,6 +1675,26 @@ function applyDeepLink(){
   if (p.get('workspace') === '1' && kindOk){ closeWiz(true); window.officeRefresh?.(); return; }
   if (kindOk && $('wiz').classList.contains('on')) wzStepGo(themeOk ? 3 : 2);
 }
+// Reopen a saved file into the editor from its list record (its outline rides the record; no download).
+function reopenDeck(d){
+  if (d.format && KINDS.some(k => k.id === d.format)) pickKind(d.format);
+  const saved = savedLook(d.theme); if (saved) pickTheme(saved);
+  $('title').value = d.title || '';
+  writeOutline((d.outline || []).map(s => ({ title: s.title, bullets: s.bullets || [] })));
+  SEL = null; renderTemplates();
+  closeWiz(true); showTab('preview'); landOnPreview();
+  res('✓ Reopened <b>' + esc(d.title || 'your file') + '</b> — tweak anything, then regenerate in any format.', true);
+}
+// open=<file name>: the file Jarvis just made, opened from the person's own saved list.
+async function openFromLink(name){
+  try {
+    const r = await fetch('/api/presentations/sections/list'); if (!r.ok) throw new Error('list ' + r.status);
+    const decks = (await r.json()).decks || [];
+    const d = decks.find(x => String(x.fileName || '').toLowerCase() === String(name).toLowerCase());
+    if (d && Array.isArray(d.outline) && d.outline.length) { reopenDeck(d); return; }
+    res('That file is not in My files yet, so it could not be opened here.', false);
+  } catch (e) { console.error(JSON.stringify({ module: 'presentations', event: 'open_link_failed', error: { message: e.message, stack: e.stack } })); }
+}
 // ── Jump back in: the most recent files as one-tap resumes on the front door. Their outline
 // rides the list record (server-side), so resume loads the editor with NO file download.
 function renderWizRecent(decks){
@@ -1685,16 +1707,7 @@ function renderWizRecent(decks){
   }).join('');
   host.classList.add('on');
   host.querySelectorAll('.wzRe').forEach(el => {
-    el.onclick = () => {
-      const d = recent[parseInt(el.dataset.i, 10)];
-      if (d.format && KINDS.some(k => k.id === d.format)) pickKind(d.format);
-      const saved = savedLook(d.theme); if (saved) pickTheme(saved);
-      $('title').value = d.title || '';
-      writeOutline((d.outline || []).map(s => ({ title: s.title, bullets: s.bullets || [] })));
-      SEL = null; renderTemplates();
-      closeWiz(true); showTab('preview'); landOnPreview();
-      res('✓ Reopened <b>' + esc(d.title || 'your file') + '</b> — tweak anything, then regenerate in any format.', true);
-    };
+    el.onclick = () => reopenDeck(recent[parseInt(el.dataset.i, 10)]);
   });
 }
 

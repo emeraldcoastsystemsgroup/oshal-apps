@@ -1,0 +1,5 @@
+-- CHANGE LOG
+-- 1 | maintainer@emeraldcoastsystemsgroup.com | The native Futures study (FUT-01): one saved study per person and its run ledger. The Futures panel's Save, Run once and recent runs had no table on the native kernel (the platform's ledger lived in the old database). Settings and per-market results are JSON text; every row carries user_sub.
+CREATE TABLE IF NOT EXISTS oshal_trading_futures_native_studies (user_sub TEXT PRIMARY KEY, config TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS oshal_trading_futures_native_runs (run_id TEXT PRIMARY KEY, user_sub TEXT NOT NULL, status TEXT NOT NULL CHECK (status IN ('running','completed','insufficient_sample','failed')), config TEXT NOT NULL, markets TEXT, error TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), finished_at TIMESTAMPTZ);
+CREATE INDEX IF NOT EXISTS idx_trd_fut_native_runs_owner ON oshal_trading_futures_native_runs (user_sub, created_at DESC);

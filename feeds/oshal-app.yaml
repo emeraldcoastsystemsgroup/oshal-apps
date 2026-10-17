@@ -2,6 +2,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Give feeds-curator route-backed reads over this package's own /api/feeds routes (feeds-status, feeds-messages). Its only declared tool is the legacy slack_feed CLI, which the native kernel does not run, so the concierge asked the person to paste their Slack data. Guarded by scripts/check-store-bots.test.mjs.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | The legacy slack_feed usageInstructions no longer say "never ask them to connect Slack": when Slack is not connected the person is told to connect it under Connections (/utilities), matching feeds-status/feeds-messages and the feeds-curator persona.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Name the button, not the path. Sweep 8: the concierge told the person to go to 'Connections (/utilities)'. Every not-connected instruction now says to press Connect Slack on the Feeds page (or connect Slack on the Connections page). Guard: tests/feeds-connect-copy.test.js.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.4: declare feeds-curator as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — feeds ("Feeds")
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -42,7 +43,7 @@ description: >-
   Your connected message feeds in one place — live stream, activity trends, hot
   channels, and trending topics over your own Slack messages. Other swarm bots can
   ask the curator "what did I miss" and get a signal-first summary.
-version: 1.2.3
+version: 1.2.4
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -217,6 +218,9 @@ migrations:
 # ─────────────────────────────────────────────────────────────────────────────
 # WORKFLOW — tickets of type 'feeds' route to the curator (queue == app name).
 # ─────────────────────────────────────────────────────────────────────────────
+# The bot a Jarvis creation request goes to (its own workflow bot).
+chatBot: feeds-curator
+
 ticketType: feeds
 workflow:
   name: Feeds Curation Pipeline

@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — ADR-138 guards for single-stock research, the watchlist and pinned lots: every new handler 401-gates via callerSub, the book is resolved QUERY-FIRST (the 2026-09-03 paper-routing class), the watchlist table carries the owner RLS statements, the research route never throws on a failed section (each section wrapped, reported 'unavailable', an estimate labelled 'cadence-estimate'), the 8-K decoder maps 2.02 → results and drops 9.01 beside other items, the manual route only pins a BUY with exit rules (scheduler checked BEFORE any insert, schedule created exactly like the arm route) and persists extended_hours, release is 428-gated, and the family registers right after the event-plan routes.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D4: the protected-entry pin now passes notBefore (the fire time of a TIMED order) to createPinnedLotIntent — assertion updated to the new call shape.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Nine handlers: GET /reports/congress joins the family (it 401-gates and fails through fail() like the rest). The congressional projection now also requires a recorded observedAt, so a legacy trade-day-keyed row can never be labelled "disclosed"; the fixture carries observedAt and a point without one is dropped.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The calendar subject is the lower-case World subject.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -109,7 +110,7 @@ describe('research / watchlist / lots routes — auth + book scoping (ADR-138)',
     expect(route).toContain("source: estimate ? 'cadence-estimate' : null");
     expect(route.indexOf('calendarEarnings(symbol)')).toBeLessThan(route.indexOf('estimateNextEarnings(resultsDates, new Date())'));
     expect(route).toMatch(/e\.eventType === 'earnings'/);
-    expect(route).toContain('`world:ticker:${symbol}`');
+    expect(route).toContain('`world:ticker:${symbol.toLowerCase()}`');
     expect(route).not.toMatch(/price\s*(\?\?|\|\|)\s*\d/);
     expect(route).toContain('dayChangePct: null');
   });

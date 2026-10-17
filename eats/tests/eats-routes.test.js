@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — the Eats money and hand-off boundary, driven through the COMPILED route module with an in-memory pool and a recording Uber Eats provider. Pins: a line is priced from the restaurant's menu by exact storeId + productId and a browser-sent price, title or store is ignored; a dish the menu does not list (or one from another restaurant) is 422 with nothing stored; malformed ids are 400 before any provider call; a store switch starts a new order; /cart totals are exact integer cents with unpriced lines counted; a chat "checkout" returns a proposal and neither builds the deep link nor writes eats_orders, while POST /order (the confirm) does both; one diner cannot remove another's line; an anonymous caller is 401 before any query.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Read-only GETs under the native admission rule. GET /cart created the diner's cart when none existed, which the native host refuses on a GET (500 'SQL mutation requires original writer admission'). Pins: a fresh diner's GET /cart answers 200 with cartId, storeId and storeName null and creates nothing; every registered GET route answers a fresh diner without attempting a write; the first add (POST /cart/items) creates the cart and the following GET /cart reads it; and the admission double itself refuses a write in read mode.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | The route asks the provider's status once per process (to pick the provider or the package's own catalog), so the exact-call pins compare the operations after that probe.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -25,7 +26,7 @@ test('a dish is priced from the restaurant menu, not by what the browser sent', 
   const { handlers, pool, provider } = loadRoutes();
   const res = await add(handlers, 'diner-a', { storeId: 'chipotle', productId: 'chp-burrito', price: 0.01, title: 'Forged', storeName: 'Elsewhere', imageUrl: 'https://evil.example/x.png', quantity: 2 });
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(provider.calls, [['menu', 'chipotle']]);
+  assert.deepEqual(provider.calls.filter((c) => c[0] !== 'status'), [['menu', 'chipotle']]);
   const stored = pool.tables.items[0];
   assert.equal(stored.price, '9.95', 'the menu price');
   assert.equal(stored.title, 'Chicken Burrito');
@@ -108,7 +109,7 @@ test('the confirm (POST /order) builds the link once and records the exact total
   const { handlers, provider } = loadRoutes({ pool });
   const res = await call(handlers, 'post', '/order', authed('diner-a'));
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(provider.calls, [['order', 'chipotle']]);
+  assert.deepEqual(provider.calls.filter((c) => c[0] !== 'status'), [['order', 'chipotle']]);
   assert.equal(res.body.totalCents, 2445);
   assert.equal(res.body.total, 24.45);
   assert.equal(pool.tables.orders.length, 1);

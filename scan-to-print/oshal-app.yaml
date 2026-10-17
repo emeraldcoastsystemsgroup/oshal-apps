@@ -1,3 +1,8 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 0.7.1: a printer access code sealed by the earlier platform is reported as "re-enter it on the Scan to Print screen" instead of a refusal Jarvis read as insufficient permissions. Guarded by scan-to-print/tests/print-tools-reentry.test.js.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — scan-to-print ("Scan to Print")
 #
@@ -79,7 +84,7 @@ description: >-
   turned auto-start on. The geometry is deterministic — silhouettes carve a voxel
   grid, the grid becomes the mesh and the drawing — and the same occupancy grid
   accepts depth and LiDAR input, so it is the building block a scanner plugs into.
-version: 0.7.0
+version: 0.7.1
 status: active
 scope: person
 

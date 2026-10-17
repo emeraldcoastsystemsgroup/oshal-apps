@@ -8,6 +8,9 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | shopping-list-add (POST /api/purchasing/lists/default/items, held for the shopper's approval) puts one item on the shopping list as written. Sweep 9: the Home screen adds to the list, but neither its concierge nor Jarvis could (only read tools), and one reply said "I'll add a single entry" and added nothing. Guarded by purchasing/tests/shopping-list-add.test.cjs.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: shopping-list-add's description says to call it as soon as an item is asked for, the card being the shopper's confirmation (its "Held for the shopper's approval" read as "ask first": the concierge wrote "Please confirm so I can add it" and made no card). Words only; no route, schema or binding change. Guarded by purchasing/tests/shopping-list-add.test.cjs.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: shopping-list-add declares `cardText`, the people-facing sentence its approval card shows under the heading (the card read 'Shopping list add' then 'Add to Shopping List', the same words twice). Words only; no route, schema or binding change. Guarded by purchasing/tests/shopping-list-add.test.cjs.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | shopping-list-add says the cart is the list's pending items: asked to "order groceries ... put them in a cart", Jarvis's Shopping handoff answered it could not add to a cart and did nothing. Release 1.3.5.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.3.6: declare shopping-concierge as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.3.7: shopping-list-add-many puts several free-text items on the list behind one approval card (POST /lists/default/items with items[]). Asked from Jarvis for milk, eggs, bread and bananas, the concierge proposed only milk. Guarded by purchasing/tests/shopping-list-add-many.test.cjs.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — purchasing ("Shopping" Concierge)
@@ -51,7 +54,7 @@ description: >-
   AI shopping concierge — search Walmart/Amazon, build lists, learn your
   preferences, find deals, and hand off a ready-to-checkout cart. Other swarm
   bots can ask it to make a purchase.
-version: 1.3.4
+version: 1.3.7
 status: active  # active | inactive
 
 source:
@@ -218,7 +221,7 @@ tools:
     cardText: Puts this item on your shopping list, exactly as written. Nothing is bought.
     type: api
     category: commerce
-    description: Put one item on the shopper's shopping list exactly as written (a free-text entry such as "AA batteries", no product chosen), on the list Home shows. Call it as soon as they ask to add an item; the approval card it makes is their confirmation, so never ask them to confirm in words first.
+    description: Put one item on the shopper's shopping list exactly as written (a free-text entry such as "AA batteries", no product chosen), on the list Home shows. The cart IS this list's pending items, so use it for "add to my cart", "order groceries" and "buy" requests too (checkout later hands the cart to the retailer; nothing is bought here). Call it as soon as they ask to add an item; the approval card it makes is their confirmation, so never ask them to confirm in words first.
     executor: { executorType: api, apiEndpoint: "POST /api/purchasing/lists/default/items" }
     defaultAuthMode: auto
     requiresApproval: true
@@ -232,6 +235,37 @@ tools:
       Call once per item the shopper asked to put on their list, with {"title"} as they wrote it and "quantity" when they
       gave one. No product search is needed. The shopper approves the card; until the tool answers with the saved item
       it is only proposed, so never say it was added before that, and never propose the same item again on a "yes".
+    routingTags: [shopping, list, groceries]
+    skills: [shopping-list-management]
+    tags: [shopping, route-backed]
+
+  - name: shopping-list-add-many
+    displayName: Add items to Shopping List
+    cardText: Puts these items on your shopping list, exactly as written. Nothing is bought.
+    type: api
+    category: commerce
+    description: Put several items on the shopper's shopping list at once, each exactly as written (free-text entries such as "milk", "eggs", no product chosen), on the list Home shows. The cart IS this list's pending items, so use it for "add milk, eggs and bread to my cart" and "order groceries" requests too. One approval card holds every item; nothing is bought here.
+    executor: { executorType: api, apiEndpoint: "POST /api/purchasing/lists/default/items" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            type: object
+            properties:
+              title: { type: string, minLength: 1, maxLength: 300, description: The item exactly as the shopper named it. }
+              quantity: { type: integer, minimum: 1, maximum: 99 }
+            required: [title]
+      required: [items]
+    usageInstructions: >-
+      Call once with {"items": [{"title": ...}, ...]} holding every item the shopper asked for in this message, each as they
+      wrote it, with "quantity" when they gave one. The shopper approves the one card; until the tool answers with the saved
+      items they are only proposed, so never say they were added before that, and never propose them again on a "yes".
     routingTags: [shopping, list, groceries]
     skills: [shopping-list-management]
     tags: [shopping, route-backed]
@@ -367,6 +401,9 @@ migrations:
 # WORKFLOW — tickets of type 'shopping' route to the concierge.
 # Used when another bot (or the surface) dispatches an async purchase task.
 # ─────────────────────────────────────────────────────────────────────────────
+# The bot a Jarvis creation request goes to (its own workflow bot).
+chatBot: shopping-concierge
+
 ticketType: shopping
 workflow:
   name: Shopping Concierge Pipeline

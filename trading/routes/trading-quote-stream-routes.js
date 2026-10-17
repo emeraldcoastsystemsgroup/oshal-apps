@@ -10,13 +10,15 @@
  * CHANGE LOG
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
- * 1 | maintainer@emeraldcoastsystemsgroup.com | ADR-143 Phase 2: owner-authenticated SSE relay with book-bound fallback, allowlisted frames, heartbeat and close cleanup.
- * 2 | maintainer@emeraldcoastsystemsgroup.com | Subscribe the kernel to hello's ACCEPTED list, not the full request. The route already trimmed the request to maxSymbols for hello, then handed the untrimmed list to the kernel, so a dropped tail still took kernel listener slots ahead of the next client's ticket symbol while hello told the browser it was polling (ADR-143 D3: dropped symbols keep polling). The listener set now matches hello.symbols exactly.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | ADR-143 Phase 2: owner-authenticated SSE relay with book-bound fallback, allowlisted frames, heartbeat and close cleanup.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Subscribe the kernel to hello's ACCEPTED list, not the full request. The route already trimmed the request to maxSymbols for hello, then handed the untrimmed list to the kernel, so a dropped tail still took kernel listener slots ahead of the next client's ticket symbol while hello told the browser it was polling (ADR-143 D3: dropped symbols keep polling). The listener set now matches hello.symbols exactly.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | On the native host (nativeSchwabReads), a fallback stream answers its hello with a one-hour retry and ends: the host buffers a response until it ends, so the held-open fallback never reached the browser. The platform keeps holding it open with heartbeats.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerTradingQuoteStreamRoutes = registerTradingQuoteStreamRoutes;
 const trading_1 = require("@/features/trading");
 const trading_routes_helpers_1 = require("@/app/routes/trading-routes-helpers");
+const trading_native_reads_1 = require("./trading-native-reads");
 function querySymbols(raw) {
     const values = Array.isArray(raw) ? raw : [raw];
     return [...new Set(values.flatMap((value) => String(value ?? '').split(',')).map((value) => value.trim().toUpperCase()).filter(Boolean))];
@@ -57,6 +59,7 @@ function registerTradingQuoteStreamRoutes(router, ctx, deps = {}) {
     const subscribe = deps.subscribe || trading_1.subscribeMarketPrints;
     const statusOf = deps.status || trading_1.marketStreamStatus;
     const resolve = deps.resolveBook || trading_routes_helpers_1.resolveBook;
+    const endsFallback = deps.endsFallback || trading_native_reads_1.nativeSchwabReads;
     router.get('/stream', async (req, res) => {
         const sub = (0, trading_routes_helpers_1.callerSub)(req);
         if (!sub) {
@@ -90,6 +93,14 @@ function registerTradingQuoteStreamRoutes(router, ctx, deps = {}) {
             ? { streaming: true, feed: status.feed, staleAfterSec: status.staleAfterSec, symbols: accepted, dropped, book: book.ref, source: 'alpaca-stream' }
             : { ...fallbackHello(status, book, broker, accepted), dropped };
         res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache, no-transform', connection: 'keep-alive' });
+        if (!streaming && endsFallback()) {
+            // The native host buffers a response until it ends, so a held-open fallback never reaches the browser:
+            // say so once, ask the EventSource to wait an hour before reconnecting, and end. The poll stays in charge.
+            res.write('retry: 3600000\n');
+            writeFrame(res, 'hello', hello);
+            res.end();
+            return;
+        }
         writeFrame(res, 'hello', hello);
         let stopped = false;
         let unsubscribe = () => { };

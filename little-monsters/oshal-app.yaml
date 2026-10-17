@@ -1,5 +1,10 @@
 # CHANGE LOG
 # -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.11: class-tutor declares routing words (practice quiz, quiz for my kid, homework help, homework, ...): asked from Jarvis, the request went to another application (Video Studio, Scan to Print) or to none. Guarded by the kernel's jarvis_routing_store_tests sweep_requests_reach_the_application_that_does_the_work.
+# CHANGE LOG
+# -----------------------------------------------------------------------------
 # SEQ                 | AUTHOR                                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Add issuer-bound identity migration 032 and collision-resistant RAG collection ownership patterns
@@ -72,7 +77,7 @@ description: >-
   generate flashcards and authoritative quizzes, and chat with a Socratic tutor
   grounded only in caller-owned or teacher/admin-approved class material through
   per-material RAG collections.
-version: 1.4.10
+version: 1.4.11
 chatBot: class-tutor # Concierge the cockpit offers beside this application's screens.
 
 authorization:
@@ -275,6 +280,16 @@ bots:
     capabilities: [audio-transcription, note-generation, assignment-extraction, flashcard-generation, knowledge-indexing]
   - agentId: ed000000-0000-0000-0000-000000000002
     name: class-tutor
+    routingKeywords:
+      - practice quiz
+      - quiz for my kid
+      - homework help
+      - homework
+      - study guide
+      - flashcards
+      - my kid
+      - for my son
+      - for my daughter
     persona: personas/class-tutor.yaml
     role: education/tutor
     capabilities: [tutoring, socratic-method, subject-expertise, rag-query, text-to-speech]

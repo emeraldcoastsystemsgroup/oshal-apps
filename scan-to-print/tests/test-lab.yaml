@@ -28,6 +28,7 @@
 # 24 | maintainer@emeraldcoastsystemsgroup.com | Register persona-controls: the operator names the screen's own STL link and other controls (sweep 8 answered 'look for the option').
 # 25 | maintainer@emeraldcoastsystemsgroup.com | Register cad-handoff-words: a failed Open in CAD Studio with no CAD engine says so in words, never the host's install command (demo sweep 1).
 # 26 | maintainer@emeraldcoastsystemsgroup.com | Register description-paper: the description's catalog short form says 3D printers only and that it cannot print paper documents (sweep 14 / demo sweep 2: Jarvis offered it for a home inkjet).
+# 27 | maintainer@emeraldcoastsystemsgroup.com | Register print-tools-reentry: a saved code sealed by the earlier platform answers re-enter it.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -997,4 +998,25 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: print-tools-reentry
+    name: Re-enter a code sealed by the earlier platform
+    purpose: The printer status tool answers 409 credential_reentry_required with the step to re-enter the access code, instead
+      of a refusal the kernel reports as insufficient permissions.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/print-tools-reentry.test.js
+    expected:
+    - 409 with the re-entry sentence; other failures still throw.
+    prerequisites:
+    - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
     installation: never

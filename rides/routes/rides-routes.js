@@ -48,6 +48,7 @@
  * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | No Uber connector is not "no rides". When the runtime's Uber Rides `status` answers mode not_connected (the native kernel has no Uber connector and refuses every other operation with 503, which also fails the whole call), the routes never call that operation: geocode, reverse, estimate and the hand-off link run on the package's keyless rail (rides-keyless: Nominatim over the declared egress host, haversine x 1.3 and the platform fare model, Uber's public links). /estimate and /request accept the two map pins (pickupLat/pickupLon/dropoffLat/dropoffLon), so a dropped pin prices with no address lookup. /config answers the rail and its sentence. The concierge prompt states the installation's facts and never tells the rider to connect Uber; the chat no longer 503s before the bot answers. Guard: tests/rides-keyless.test.js.
  * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | With no Uber rail the prompt says no pickup ETA is known: live, the concierge put "Est. Arrival 5-10 min" beside the modelled fares while every option's etaPickupMin is null. The prompt also carries the measured distance of the trip on screen (it said "approximately 105 miles" for an 87 km trip) and forbids any other. Guard: tests/rides-keyless.test.js.
  * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: an approved hand-off card showed only "Done in Rides." with no way to open Uber. POST /request also answers `url` (the https Uber web link, else the deep link) and `where` (one sentence: open the link to see the price and request; also under Trips), the fields an approval card shows beside its result. Guard: tests/rides-keyless.test.js.
+ * 2026-10-16 | maintainer@emeraldcoastsystemsgroup.com | Saved places. "Get me an Uber from home to the airport" geocoded the word "home" (a Washington street) and handed Uber a trip to Helsinki airport. Estimates and ride links read "home" and "work" from the rider's profile, and with none saved they say so and ask for the street address; a dropoff that lands farther than a car ride is refused by the keyless rail. Guard: tests/rides-saved-places.test.js.
  *
  * @module rides-routes
  */
@@ -150,6 +151,22 @@ function railIsAbsent(status) {
     return !!status && typeof status === 'object' && status.mode === 'not_connected';
 }
 /**
+ * @description The rider's saved place for "home" or "work" (also "my home", "the office"), from the Rides
+ * profile, so a trip "home to the airport" starts at their address instead of geocoding the word "home".
+ * @param profile - The rider's profile row.
+ * @param text - One end of the trip as asked.
+ * @returns {text} unchanged for any other place, {text: address} for a saved one, or {missing} naming the
+ * place word when its address is not saved.
+ */
+function savedPlace(profile, text) {
+    const word = String(text || '').trim().toLowerCase().replace(/^(my|the|our)\s+/, '');
+    const key = ['home', 'house'].includes(word) ? 'home_address' : ['work', 'office', 'job'].includes(word) ? 'work_address' : null;
+    if (!key)
+        return { text };
+    const address = String(profile[key] || '').trim();
+    return address ? { text: address } : { missing: key === 'home_address' ? 'home' : 'work' };
+}
+/**
  * @description Run one Uber Rides operation: the provider helper with the caller's request-scoped
  * credential where the runtime has an Uber rail, the package's keyless rail where it has none.
  * @param pool - The package pool (credential lookup).
@@ -159,6 +176,14 @@ function railIsAbsent(status) {
  * @returns The operation's answer in the provider helper's shape.
  */
 async function ridesProviderOperation(pool, sub, args, pins) {
+    if (args[0] === 'estimate' || args[0] === 'ride') {
+        const profile = await loadProfile(pool, sub);
+        const ends = [savedPlace(profile, args[1]), savedPlace(profile, args[2])];
+        const missing = ends.find((end) => end.missing)?.missing;
+        if (missing)
+            return { error: `Your ${missing} address is not saved in Rides, so "${missing}" cannot be found on the map. Give the street address, or save it in Rides.`, options: [] };
+        args = [args[0], ends[0].text, ends[1].text, ...args.slice(3)];
+    }
     const creds = await (0, connector_token_broker_1.resolveServerOperationCreds)(pool, sub, ['uber-rides'], 'fixed-server-operation');
     const status = await (0, provider_operation_clients_1.runUberRidesProviderOperation)(creds.OSHAL_CRED_UBER_RIDES, ['status']);
     if (railIsAbsent(status))

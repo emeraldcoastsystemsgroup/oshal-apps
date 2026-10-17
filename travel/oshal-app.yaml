@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.5: declare travel-concierge as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.6: with no Duffel rail, flight, hotel and car searches answer the Google Flights, Booking.com and Kayak search links for the trip (no fares invented); search-flights says to hand the person that link. Guarded by travel/tests/travel-search-handoff.test.js.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — travel ("Travel", the AI travel concierge — ADR-059)
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -44,7 +50,7 @@ description: >-
   the swarm's shared price history, watch routes for a fare drop, and book via a deep-link
   handoff. Hotels and cars are deep-link handoffs today. Other swarm bots can ask it to plan a
   trip or check a fare on a traveller's behalf.
-version: 1.2.4
+version: 1.2.6
 
 testing:
   version: 1
@@ -117,7 +123,7 @@ tools:
     displayName: Search Flights
     type: api
     category: travel
-    description: Search real or demo-backed flight options and return price intelligence for the route.
+    description: Search flight options and price intelligence for the route. Where this installation has no flight-search rail it returns the Google Flights search link for the exact trip and no fares; give the person that link and never name a fare it did not return.
     executor: { executorType: api, apiEndpoint: "GET /api/travel/flights?origin={input.origin}&destination={input.destination}&departDate={input.departDate}" }
     defaultAuthMode: auto
     requiresApproval: false
@@ -302,6 +308,9 @@ routes:
 # price engine creates nothing, so the concierge's tables exist only because this declares them.
 migrations:
   - migrations/050-travel-platform.sql
+
+# The bot a Jarvis creation request goes to (its own workflow bot).
+chatBot: travel-concierge
 
 ticketType: travel
 workflow:

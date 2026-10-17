@@ -11,6 +11,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Register aero-brief-labels: the analysis brief handed to AI Office labels its lines Verdict / Engine / Run status, not element ids (sweep 13); aero-designer-chat also expects the kept-latitude line.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register aero-engine-down-words: with no engine the page says, in words, that the engine is not answering on this installation, never the host's install command (demo sweep 1).
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register aero-brief-verdict: in Chromium the brief's Verdict line separates each tile after a real energy-loop render (demo sweep 2: the tiles ran together).
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Register design-tool-schema: the design tools name the route's design fields, each optional.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -486,6 +487,26 @@ cases:
       - "A module mid-upgrade is still shown as the engine's own sentence."
     prerequisites:
       - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: design-tool-schema
+    name: Design tools name their fields
+    purpose: The four design tools name exactly the route's design fields, each optional; an empty design runs the baseline
+      and an unknown field is refused.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/design-tool-schema.test.cjs
+    expected:
+    - Schema fields equal DEFAULT_DESIGN; {} validates to the baseline.
+    prerequisites:
+    - runner:node-test
     sideEffects: none
     isolation:
       mode: none

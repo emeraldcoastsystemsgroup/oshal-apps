@@ -3,6 +3,8 @@
 # SEQ | AUTHOR                                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Declare migrations/001-youtube-activity.sql: on the native kernel GET /status 500'd "SQL schema is not provisioned" for everyone who had not uploaded, because a read cannot create the table. Register the package's Test Lab catalog.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: declare kid-lens-bot as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: kid-lens-bot declares routing words (youtube, youtube kids, kid video, kids video, ...): asked from Jarvis, the request went to another application (Video Studio, Scan to Print) or to none. Guarded by the kernel's jarvis_routing_store_tests sweep_requests_reach_the_application_that_does_the_work.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — youtube-kids ("Kid Lens")
@@ -50,7 +52,7 @@ description: >-
   Upload your YouTube Takeout watch history and get a parent-friendly brief on
   what your kid is into — top interests, what the unfamiliar channels actually
   are, gift ideas, and conversation openers. Read-only; nothing is posted or sent.
-version: 1.2.0
+version: 1.2.2
 
 # ADR-139 wave 2 — "Send to…" destination: a Takeout watch-history.json from anywhere in the
 # swarm ingests straight into the parent brief (JSON only; zip archives use the Takeout spine).
@@ -109,6 +111,9 @@ uses:
   - app-dependencies
   - memory           # @/features/personal-data — the raw Takeout export is sealed at rest by the kernel
 
+# The bot a Jarvis creation request goes to (its own workflow bot).
+chatBot: kid-lens-bot
+
 ticketType: youtube-kids-brief
 
 workflow:
@@ -124,6 +129,15 @@ workflow:
 bots:
   - agentId: a0000000-0000-0000-0000-000000000043
     name: kid-lens-bot
+    routingKeywords:
+      - youtube
+      - youtube kids
+      - kid video
+      - kids video
+      - safe video
+      - video for my kid
+      - watch history
+      - kid lens
     persona: personas/kid-lens-analyzer.yaml
     role: family/youtube-insights
     capabilities:

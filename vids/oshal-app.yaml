@@ -3,6 +3,9 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Native provisioning: declare migrations/native/001-vids.sql (the job and artifact tables, their indexes and the exact-owner unique key) and skip 059, 100 and 101 natively: 101's pg_roles-guarded GRANT DO block is refused by the native kernel and 059 seeds the platform agents table; the declared migrations stayed pending for every person. PostgreSQL still applies 059-101 and the native file is a no-op there.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.5.5: declare vids-operator as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.6: vids-operator gets route-backed tools the native kernel offers: vids-jobs (GET /api/vids/jobs), vids-generate-clip (POST /api/vids/jobs) and vids-brand-graphic (POST /api/vids/brand), both generating tools held for the person's approval. Its only tool was the CLI vids_generate, which the native kernel never offers, so "generate a video" shaped a prompt and stopped. Guarded by vids/tests/vids-api-tools.test.cjs.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: a daily trade recap asked for in a conversation becomes one anchor clip (vids-generate-clip, held for approval) from the figures already in the conversation. Guarded by vids/tests/vids-api-tools.test.cjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — vids ("Vids Studio")
@@ -61,7 +64,7 @@ description: >-
   Turn an idea into generated video. The Veo specialist drives Google Vids by
   clicking — describes the shot, generates the clip, places it on the timeline —
   on a remote operator machine, and learns what works over time.
-version: 1.5.4
+version: 1.5.7
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -128,6 +131,58 @@ bots:
 # package's own route), which hands it to the remote-client registry the worker
 # polls. The CLI itself is kernel-resident (scripts/oshal-vids.js).
 tools:
+  - name: vids-jobs
+    displayName: My Vids Jobs
+    type: api
+    category: creative
+    description: The person's Vids clip, story and brand jobs, newest first, with each job's status, prompt and result. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/vids/jobs" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks what videos they have made or how a job is doing. Name only jobs this returns.
+    tags: [vids, route-backed]
+
+  - name: vids-generate-clip
+    displayName: Generate a Veo clip
+    cardText: Makes one Veo video clip from this prompt on your Vids worker. A clip uses your Google Vids generation quota.
+    type: api
+    category: creative
+    description: Generate one Veo video clip from a shaped prompt on the person's registered Vids worker. Held for the person's approval; a clip uses their Google Vids quota.
+    executor: { executorType: api, apiEndpoint: "POST /api/vids/jobs" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        prompt: { type: string, minLength: 1, maxLength: 10000, description: The shaped Veo prompt (subject, action, setting, camera, lighting, mood). }
+        orientation: { type: string, description: landscape or portrait. }
+      required: [prompt]
+    usageInstructions: >-
+      Shape the prompt first, then call this once for the clip the person asked for; the approval card is their
+      confirmation. A 503 answer means no Vids worker is online: say so plainly. Never say a clip was made until
+      vids-jobs shows it done.
+    tags: [vids, route-backed, approval-required]
+
+  - name: vids-brand-graphic
+    displayName: Make a brand intro or graphic
+    cardText: Makes a brand intro or graphic from this brief on your Vids worker.
+    type: api
+    category: creative
+    description: Make a brand intro (brandMode intro) or a still brand graphic (brandMode graphic) from a brief on the person's Vids worker. Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/vids/brand" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        confirm: { type: boolean, const: true }
+        brief: { type: string, minLength: 1, maxLength: 2000 }
+        brandMode: { type: string, description: intro or graphic. }
+      required: [confirm, brief]
+    usageInstructions: Call once with {"confirm":true,"brief":...,"brandMode":"intro"|"graphic"}. A 503 answer means no Vids worker is online; say so.
+    tags: [vids, route-backed, approval-required]
+
   - name: vids_generate
     displayName: Generate a Veo clip
     type: cli
@@ -232,6 +287,9 @@ nativeMigrations:
     reason: "Its artifact table and exact-owner unique key are in migrations/native/001-vids.sql; its RLS policies and pg_roles-guarded GRANT are PostgreSQL-only."
 
 # Tickets of type 'vids' route to the operator bot.
+# The bot a Jarvis creation request goes to (its own workflow bot).
+chatBot: vids-operator
+
 ticketType: vids
 workflow:
   name: Vids Studio Pipeline

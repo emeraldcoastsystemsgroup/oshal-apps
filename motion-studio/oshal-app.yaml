@@ -4,13 +4,14 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Opt into the kernel package-private lasting directory for durable owned photo bytes.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Declare bounded read-only actual effect inventory/schema tools.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Declare bounded original-read exact keyframe metadata.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: the paged list tools (projects, effects, fonts) describe their stamp: the exact word start for the first page, then the returned stamp. Asked from Jarvis to list Motion projects, the bot sent another first-page value, every page was refused motion_invalid_index_stamp, and it reported it could not list them. Guarded by motion-studio/tests/stamp-schema.test.mjs.
 name: motion-studio
 suite: ai-creative
 displayName: Motion Studio
 description: >-
   Editable motion compositions with layers, captions, keyframes, masks and owned photos.
   Preview frames and export editable native JSON.
-version: 0.1.0
+version: 0.1.1
 runtime: process
 lastingStorage: true
 status: active
@@ -199,6 +200,7 @@ tools:
           type: string
           minLength: 5
           maxLength: 64
+          description: "The exact lowercase word start, with offset 0, for the first page; after that the 64-character stamp the previous page returned. Any other value is refused."
         offset:
           type: integer
           minimum: 0
@@ -832,6 +834,7 @@ tools:
           type: string
           minLength: 5
           maxLength: 64
+          description: "The exact lowercase word start, with offset 0, for the first page; after that the 64-character stamp the previous page returned. Any other value is refused."
         offset:
           type: integer
           minimum: 0
@@ -933,7 +936,7 @@ tools:
       additionalProperties: false
       required: [stamp, offset]
       properties:
-        stamp: {type: string, minLength: 5, maxLength: 64}
+        stamp: {type: string, minLength: 5, maxLength: 64, description: "The exact lowercase word start, with offset 0, for the first page; after that the 64-character stamp the previous page returned. Any other value is refused."}
         offset: {type: integer, minimum: 0, maximum: 999999}
     usageInstructions: >-
       Start with stamp=start and offset=0; keep the returned stamp and nextOffset until complete.

@@ -9,12 +9,22 @@ exports.createFuturesSchwabCaptureRoutes = createFuturesSchwabCaptureRoutes;
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Give the signed-in operator explicit start, run, status and stop controls for private Schwab Futures bars.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Return active-contract session coverage diagnostics without exposing market bars.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Preview and confirm bounded current-contract catch-up without arbitrary symbols or credentials.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | GET / and DELETE / log a failed capture read and answer it in words (native_executor_unavailable on the native kernel, which has no Futures scheduler yet), instead of a bare schwab_capture_unavailable from a silent catch.
  */
 const express_1 = require("express");
 const connectors_routes_1 = require("@/app/routes/connectors-routes");
 const trading_schedule_dispatch_1 = require("@/app/trading-schedule-dispatch");
 const trading_futures_schwab_capture_1 = require("@/app/trading-futures-schwab-capture");
 const authz_1 = require("@/shared/middleware/authz");
+const logger_1 = require("@/shared/logger");
+const logger = (0, logger_1.createChildLogger)({ module: 'trading-futures-schwab-capture' });
+/** The capture status could not be read: logged with its cause, answered in words. */
+function captureUnavailable(res, err) {
+    logger.error({ err }, 'Schwab Futures capture status failed');
+    const native = /native runtime|not available/i.test(String(err?.message || ''));
+    res.status(503).json({ error: native ? 'native_executor_unavailable' : 'schwab_capture_unavailable',
+        message: native ? 'Schwab Futures capture is not available on this installation yet.' : 'The Schwab Futures capture status could not be read just now.' });
+}
 /** @description Owner-only control rail. It never accepts a token, arbitrary symbol or order request. */
 function createFuturesSchwabCaptureRoutes(ctx) {
     const router = (0, express_1.Router)();
@@ -108,8 +118,8 @@ function createFuturesSchwabCaptureRoutes(ctx) {
                     lastRunAt: schedule.lastRunAt, nextRunAt: schedule.nextRunAt, status: schedule.status
                 } : null });
         }
-        catch {
-            res.status(503).json({ error: 'schwab_capture_unavailable' });
+        catch (err) {
+            captureUnavailable(res, err);
         }
     });
     router.post('/run', async (req, res) => {
@@ -167,8 +177,8 @@ function createFuturesSchwabCaptureRoutes(ctx) {
                         stopped++;
             res.json({ stopped: stopped > 0, retainedBars: true });
         }
-        catch {
-            res.status(503).json({ error: 'schwab_capture_unavailable' });
+        catch (err) {
+            captureUnavailable(res, err);
         }
     });
     return router;

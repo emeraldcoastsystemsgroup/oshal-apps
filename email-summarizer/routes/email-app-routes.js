@@ -41,6 +41,7 @@
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Yahoo Mail leg: `?provider=yahoo` reads the caller's inbox through core's fixed read-only IMAP seam (AppContext `imapMail`), so the app password never reaches this package. List, digest and the bot summary work for Yahoo (the day window is applied here); opening a message, drafting a reply and sending answer 400 not_supported_for_provider without contacting Yahoo, and a core without the seam answers 501. A caller who names no provider and has no Google/Outlook grant falls through to Yahoo on list, digest and summary only (the operations Yahoo offers), where a missing grant is still no_mail_connection; message, draft and send never fall through, so a caller with no mailbox gets 409 no_mail_connection on every mail route. Mailbox refusals now travel as MailboxRefusal and are answered with their own status.
  *
  * 15 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: with OSHAL_EGRESS=kernel there is no token broker and no framework email module in the sandbox, so the mailbox, the senders and the Social profile go through the kernel egress (kernel-mail.ts). The manifest declares gmail.googleapis.com and www.googleapis.com (gmail / google-calendar), graph.microsoft.com (outlook) and graph.facebook.com (facebook) with Bearer credentials the kernel applies; requests carry no Authorization header. Which providers are connected comes from the connectors.metadata intent, so the provider choice, the 409 refusals and the Google-first default behave as before; a kernel "not connected" refusal is that same 409. Gmail summaries and sends use the package-local copies of the framework's summarizer and fenced MIME builder there. The legacy broker path is unchanged elsewhere.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | POST /send makes this installation's own /cockpit/ and /api/ links absolute (x-oshal-public-origin, else the https Host): a deck emailed from a Jarvis chain carried links that opened nowhere from an inbox. Guard: tests/email-send-tool.test.cjs.
  *
  * @module email-app-routes
  */
@@ -555,6 +556,24 @@ function draftReply(ctx) {
         }
     };
 }
+/**
+ * @description The body with this installation's own links made absolute: a link Jarvis carried from an earlier
+ * step ("/cockpit/?app=presentations&open=...", "/api/.../download?...") opens nowhere from an inbox. The origin is
+ * the kernel's x-oshal-public-origin on a tool call, else the request's own https Host; with neither the body is
+ * unchanged.
+ * @param req - The request.
+ * @param body - The email body as written.
+ * @returns The body with each site-relative /cockpit/ or /api/ link prefixed by the origin.
+ */
+function absoluteLinks(req, body) {
+    const declared = String((req.get && req.get('x-oshal-public-origin')) || '').trim();
+    const host = String((req.get && req.get('host')) || '').trim();
+    const origin = /^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(declared) ? declared
+        : /^[a-z0-9.-]+\.[a-z]{2,}(:\d+)?$/i.test(host) ? `https://${host}` : '';
+    if (!origin)
+        return body;
+    return String(body).replace(/(^|[\s(<"'\[])(\/(?:cockpit|api)\/[^\s)<>"'\]]+)/g, (_m, lead, link) => lead + origin + link);
+}
 /** The actionable 403 each provider answers when its grant lacks the send scope. */
 const SEND_SCOPE_MESSAGE = {
     google: 'Your Google connection is read-only. Reconnect Google (the connector now requests gmail.send) to enable sending.',
@@ -578,7 +597,7 @@ function sendMail(ctx) {
             return;
         const b = (req.body || {});
         const subject = String(b.subject || '').trim();
-        const bodyText = String(b.body || '');
+        const bodyText = absoluteLinks(req, String(b.body || ''));
         if (!subject && !bodyText) {
             res.status(400).json({ error: 'subject or body required' });
             return;

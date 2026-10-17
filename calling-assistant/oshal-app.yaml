@@ -1,10 +1,11 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 0.1.7: bind native callback and audio work to original durable authority; register the proof-boundary regression suite.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.8: authorize declared readiness with the existing caller read grant.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.1.9: calling-operator declares routing words (phone call, make a call, calling assistant, phone task, IVR, ...). It declared none, so a request had to name the application to reach it. Guarded by scripts/tool-apps-routing-words.test.mjs.
 name: calling-assistant
 displayName: Calling Assistant
 description: Configurable phone tasks with a reusable tool, operator bot, workflow, audio tests and call reports.
-version: 0.1.8
+version: 0.1.9
 suite: ai-productivity
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
 # After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
@@ -76,6 +77,13 @@ bots:
     persona: personas/calling-operator.yaml
     role: communications/calling
     capabilities: [phone-tasks, ivr-navigation, human-handoff]
+    routingKeywords:
+      - phone call
+      - make a call
+      - calling assistant
+      - phone task
+      - hold music
+      - ivr
     accessRoles: [operator, swarm, jarvis]
 tools:
   - name: calling_task

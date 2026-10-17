@@ -10,6 +10,8 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Live after 4, "Should I buy NVDA right now?" came back in prose but about the bot's instructions: "According to my rules ... I cannot generate the required decision tree ... share it in the Intelligent Trades screen (`/api/trading/`)". The persona forbids quoting its rules, the contract or a decision tree, and any URL or route path, and names screens by title.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | The Intelligent Trades concierge opened on futures-research-analyst: the manifest declared no chatBot, so the cockpit took the first declared bot, which answers a conversation with a json futures study. The manifest declares chatBot: trading-analyst, a bot it declares, and Jarvis's money words (finance, net worth, budget) stay Finance's, not the desk's.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: a plain question got "Decision: HOLD | Reasoning: ... | Confidence: 1". The decision tree is scoped to a decision task in the opening, and a conversational answer carries no decision labels, verdict or confidence.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | trading_status and trading_positions are route reads and trading_account (cash) is new: the native kernel offers a bot only api tools, so the concierge could not name the paper holding or its cash.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | trading_accounts (GET /api/trading/accounts) is authorized, a route read, and named for every brokerage/Schwab question.
  */
 'use strict';
 const test = require('node:test');
@@ -28,13 +30,27 @@ test('the json decision block is required only when the task supplies a decision
 
 test('a conversational question is answered in prose, never as a json decision', () => {
   assert.match(perspective, /When a person asks you a question in conversation/);
+  assert.match(perspective, /trading_accounts \(every connected Schwab[\s\S]*always call it for brokerage or Schwab questions/, 'Schwab questions read every connected account');
   assert.match(perspective, /Never answer a conversational question with a json\s+decision block/);
 });
 
 test('every read tool the conversational answer names is authorized for the bot', () => {
-  for (const tool of ['trading_status', 'trading_positions', 'trading_book_facts', 'trading_performance']) {
+  for (const tool of ['trading_status', 'trading_positions', 'trading_account', 'trading_accounts', 'trading_book_facts', 'trading_performance']) {
     assert.match(perspective, new RegExp(tool));
     assert.match(authorizations, new RegExp(`^  ${tool}: "auto"$`, 'm'), `${tool} is not authorized`);
+  }
+});
+
+test('the conversational desk reads are route reads the native kernel offers, never a cli script', () => {
+  // A cli tool is never offered to an application bot on the native kernel, so the concierge could not
+  // read holdings or cash and answered "what does my paper account hold" with equity only.
+  const manifest = fs.readFileSync(path.join(__dirname, '..', 'oshal-app.yaml'), 'utf8');
+  for (const [tool, endpoint] of [['trading_status', 'GET /api/trading/status'], ['trading_positions', 'GET /api/trading/positions'],
+    ['trading_account', 'GET /api/trading/account'], ['trading_accounts', 'GET /api/trading/accounts']]) {
+    const block = manifest.split(`\n  - name: ${tool}\n`)[1].split('\n  - name: ')[0];
+    assert.match(block, /^    type: api$/m, tool);
+    assert.ok(block.includes(`executor: { executorType: api, apiEndpoint: "${endpoint}" }`), tool);
+    assert.match(block, /requiresApproval: false/, tool);
   }
 });
 
