@@ -7,8 +7,51 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Register native-first-visit: first-open learner provisioning through the page frame and the native-applicable migration set.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | authorization-record-rights-postgres also runs calendar-delete-postgres: the compiled calendar router behind the same guard proves DELETE /calendar/:eventId removes only the caller's own personal event.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register lm-greeting: the home greeting ends each sentence with one mark ('Up late?' read 'Up late?.').
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register lm-jarvis-tools: the six Jarvis tools, their tool bindings against the routes they call, approval on writes, student admission, no floating assistant and an unhidden Jarvis orb.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Register lm-myday-due: My Day's Due today / Coming up include the student's own calendar items (an action item saved through Jarvis).
 version: 1
 cases:
+  - id: lm-myday-due
+    name: My Day lists the student's own calendar items
+    purpose: Run My Day's loadDueItems with stubbed /assignments and /calendar answers.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-myday-due.test.cjs
+    expected:
+      - A personal calendar item from today on is listed under Due today or Coming up, sorted with the assignments.
+      - Class-wide calendar rows are not listed a second time beside their assignment, and past personal items are left out.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: lm-jarvis-tools
+    name: Jarvis inside Little Monsters
+    purpose: Pin the route-backed tools Jarvis uses to list and add classes and read and change the person's school calendar, and keep the corner button Jarvis.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-jarvis-tools.test.cjs
+    expected:
+      - Each of the six tools has one tool binding asking exactly the permissions of the route it calls, and a student holds them all.
+      - lm-add-class, lm-add-reminder and lm-remove-reminder are held for approval; the three reads resolve to read permissions only.
+      - The package declares no floating assistant and the page frame never hides the Jarvis orb.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
   - id: lm-greeting
     name: Home greeting punctuation
     purpose: Run the home page's own daypart, greetLine and paintHero at each hour band for a learner and a teacher.

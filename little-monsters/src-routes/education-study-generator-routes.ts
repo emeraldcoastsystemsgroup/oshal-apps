@@ -12,6 +12,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Gate class study generation before external work and shared writes.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Persist expiring quiz attempts and withhold server-side answer keys from clients.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Bind study-model execution to the authenticated caller and package-owned education bot.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com | Flashcard and quiz generation take an optional topic (up to 200 characters) that titles the set and focuses retrieval.
  * ---------------------------------------------------------------------------
  *
  * @module education-study-generator-routes
@@ -103,13 +104,21 @@ async function generateFlashcards(req: Request, res: Response, ctx: AppContext):
     const classId = requiredClassId(req);
     await assertTeacherOfClass(ctx.pool, actor, classId);
     const studyClass = await loadStudyClass(ctx.pool, actor, classId);
-    const cards = await generateStudyCards(ctx, callerSub(req), actor.studentId, studyClass, req.body?.count);
+    const topic = typeof req.body?.topic === 'string' ? req.body.topic.trim().slice(0, 200) : '';
+    const cards = await generateStudyCards(
+      ctx,
+      callerSub(req),
+      actor.studentId,
+      studyClass,
+      req.body?.count,
+      topic || undefined,
+    );
     const created = await createStudySet(ctx.pool, actor, {
       classId,
-      title: `Auto: ${studyClass.className} key concepts`,
-      topic: studyClass.subject,
+      title: topic ? `Topic: ${topic} (${studyClass.className})` : `Auto: ${studyClass.className} key concepts`,
+      topic: topic || studyClass.subject,
       sourceType: 'textbook',
-      sourceReference: 'auto-generated from class materials',
+      sourceReference: topic ? `auto-generated for topic: ${topic}` : 'auto-generated from class materials',
       cards,
     });
     logger.info({ classId, ...created }, 'Generated class flashcards from authorized materials');
@@ -125,7 +134,15 @@ async function generateQuiz(req: Request, res: Response, ctx: AppContext): Promi
     const classId = requiredClassId(req);
     await assertClassAccess(ctx.pool, actor, classId);
     const studyClass = await loadStudyClass(ctx.pool, actor, classId);
-    const questions = await generateStudyQuiz(ctx, callerSub(req), actor.studentId, studyClass, req.body?.count);
+    const topic = typeof req.body?.topic === 'string' ? req.body.topic.trim().slice(0, 200) : '';
+    const questions = await generateStudyQuiz(
+      ctx,
+      callerSub(req),
+      actor.studentId,
+      studyClass,
+      req.body?.count,
+      topic || undefined,
+    );
     const attemptId = await persistQuizAttempt(ctx, actor, classId, questions);
     const publicQuestions = publicQuizQuestions(questions);
     logger.info({ classId, attemptId, questionCount: questions.length }, 'Generated authorized class quiz attempt');

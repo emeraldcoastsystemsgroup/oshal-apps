@@ -11,6 +11,7 @@
   ---------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com   | Notes and files: a quick note kept in browser storage, save to / open from the computer (File System Access API with a download fallback), and links to connect cloud accounts in the hub
   2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass link and literal pink/dark palette; hero, two-column layout (editor beside the saved list and cloud tiles), system fields, buttons, list items and empty state; plain copy that notes stay in this browser only, cloud tiles labelled "Connect in the hub" without implying files sync today, a confirm before deleting a saved note
+  3   | maintainer@emeraldcoastsystemsgroup.com | My Files lists the Training Programs textbooks from /catalog, with the PDF and Open in editor.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -53,6 +54,28 @@
         <div class="lm-empty" id="empty"><div class="lm-empty-icon">🗂️</div><strong>Nothing saved here yet.</strong>Write a note and tap “Keep it here” to see it in this list.</div>
       </section>
 
+      <section class="lm-card" aria-labelledby="tbFilesTitle">
+        <div class="lm-section-head">
+          <h2 id="tbFilesTitle">📖 Training Programs Textbooks</h2>
+          <span class="lm-pill is-info" id="tbFilesCount">79 books</span>
+        </div>
+        <p class="lm-help lm-mb-md">Browse curriculum textbooks from the training programs directory. Open any book into the editor to take study notes, or open its PDF.</p>
+        <div class="lm-row is-wrap lm-mb-md" style="gap:8px">
+          <input type="search" id="tbFilesSearch" class="lm-input" placeholder="Search 79 textbooks by title or subject…" style="flex:1;min-width:180px" oninput="renderTextbookFiles()">
+          <select id="tbFilesSubject" class="lm-input" style="width:auto;min-width:160px" onchange="renderTextbookFiles()">
+            <option value="">All subjects</option>
+            <option value="Mathematics">Mathematics</option>
+            <option value="Biology & Life Science">Biology &amp; Life Science</option>
+            <option value="Chemistry & Physics">Chemistry &amp; Physics</option>
+            <option value="History & Social Studies">History &amp; Social Studies</option>
+            <option value="English & Humanities">English &amp; Humanities</option>
+            <option value="Business & Economics">Business &amp; Economics</option>
+            <option value="Encyclopedias & Reference">Encyclopedias &amp; Reference</option>
+          </select>
+        </div>
+        <ul class="lm-list" id="tbFilesList" style="max-height:320px;overflow:auto"><li class="lm-loading">Loading textbooks…</li></ul>
+      </section>
+
       <section class="lm-card" aria-labelledby="cloudTitle">
         <div class="lm-section-head"><h2 id="cloudTitle">☁️ Cloud accounts</h2></div>
         <p class="lm-help lm-mb-md">Accounts are connected in the hub. Files on this page do not sync to them today — use “Save to my computer” to move work out.</p>
@@ -69,6 +92,7 @@
 <script src="/api/education/mascot.js?v=4"></script>
 <script>
 var KEY = 'lm-files', esc = window.LM.esc;
+var TEXTBOOK_FILES = [];
 function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
 function save(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) { msg('This browser would not keep the note. Save it to your computer instead.'); } }
 function msg(m) { document.getElementById('msg').textContent = m || ''; }
@@ -133,7 +157,65 @@ function render() {
     ul.appendChild(li);
   });
 }
+
+async function loadTextbookFiles() {
+  try {
+    var resp = await fetch('/api/education/catalog');
+    if (resp.ok) {
+      var data = await resp.json();
+      TEXTBOOK_FILES = data.textbooks || [];
+    }
+  } catch (e) { TEXTBOOK_FILES = []; }
+  renderTextbookFiles();
+}
+
+function renderTextbookFiles() {
+  var ul = document.getElementById('tbFilesList');
+  var q = String((document.getElementById('tbFilesSearch') && document.getElementById('tbFilesSearch').value) || '').trim().toLowerCase();
+  var subj = String((document.getElementById('tbFilesSubject') && document.getElementById('tbFilesSubject').value) || '').trim();
+  var rows = (TEXTBOOK_FILES || []).filter(function (tb) {
+    if (subj && tb.subject !== subj) return false;
+    if (!q) return true;
+    var hay = [tb.title, tb.author, tb.subject, tb.collection].filter(Boolean).join(' ').toLowerCase();
+    return hay.indexOf(q) !== -1;
+  });
+  document.getElementById('tbFilesCount').textContent = rows.length + (rows.length === 1 ? ' book' : ' books');
+  if (!rows.length) {
+    ul.innerHTML = '<li class="lm-empty is-compact"><strong>No matching textbooks.</strong></li>';
+    return;
+  }
+  ul.innerHTML = rows.map(function (tb) {
+    var pdfBtn = tb.hasPdf
+      ? '<a class="lm-btn lm-btn-ghost lm-btn-sm" href="/api/education/catalog?textbookId=' + encodeURIComponent(tb.id) + '&format=pdf" target="_blank" rel="noopener">📄 PDF</a>'
+      : '';
+    return '<li class="lm-item">' +
+      '<span class="lm-tile-icon is-info" aria-hidden="true">📖</span>' +
+      '<div class="lm-item-body"><strong>' + esc(tb.title) + '</strong><small>' + esc([tb.subject, tb.collection].filter(Boolean).join(' · ')) + '</small></div>' +
+      '<div class="lm-row is-wrap" style="gap:6px">' +
+        '<button type="button" class="lm-btn lm-btn-soft lm-btn-sm" onclick="openTextbookInEditor(\'' + esc(tb.id) + '\')">📝 Open in editor</button>' +
+        pdfBtn +
+      '</div>' +
+    '</li>';
+  }).join('');
+}
+
+async function openTextbookInEditor(textbookId) {
+  msg('Loading textbook into editor…');
+  try {
+    var resp = await fetch('/api/education/catalog?textbookId=' + encodeURIComponent(textbookId));
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var data = await resp.json();
+    var tb = data.textbook || {};
+    document.getElementById('fname').value = (tb.id || 'textbook') + '-notes.txt';
+    document.getElementById('ftext').value = tb.content || '';
+    msg('Opened “' + (tb.title || textbookId) + '” in the Quick Note editor ✓');
+  } catch (e) {
+    msg('Could not load textbook: ' + e.message);
+  }
+}
+
 render();
+loadTextbookFiles();
 </script>
 </body>
 </html>

@@ -388,11 +388,14 @@ bots:
       Select for owned Create image/vector projects: masks, adjustments, layers, groups, paths and layout
       edits. Do not select for unimplemented RAW, motion, PDF or audio workstations.
     routingKeywords:
+      - in create
       - image editing
       - vector editing
       - mask
       - adjustment layer
       - create editor
+      - editing contract
+      - psd
 
 # Route-backed tools run as the original caller; edits use the existing approval cards.
 tools:

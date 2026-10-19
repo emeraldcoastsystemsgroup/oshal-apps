@@ -20,11 +20,14 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Tenant-bound self-enroll and leave lookups so a class id from another school cannot create cross-tenant enrollment state; extracted handlers to keep each authorization decision independently reviewable
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Make enrollment and leave writes derive their target from the actor's current tenant and the class's current publication, status, and ownership state.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Bind native self-enrollment to authoritative relationship snapshots while retaining legacy PostgreSQL CTE enforcement.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | GET /catalog also lists the staged Training Programs textbooks (OSHAL_PACKAGE_DATA_DIR/textbooks/catalog.json); ?textbookId= returns one book with its text, or its PDF with format=pdf.
  * ---------------------------------------------------------------------------
  *
  * @module education-catalog-routes
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { Router, type Request, type Response } from 'express';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
@@ -32,6 +35,61 @@ import { resolveAuthedStudent, EducationAccessError, type AuthedStudent } from '
 import { isNativeSchoolStore, schoolTransaction } from './education-transactions';
 
 const logger = createChildLogger({ module: 'education-catalog-routes' });
+
+function normalizeTextbookEntry(book: Record<string, any>): Record<string, any> {
+  const hasPdf = Boolean(book.pdfFile || book.hasPdf);
+  const pdfUrl = hasPdf ? `/api/education/catalog?textbookId=${encodeURIComponent(String(book.id))}&format=pdf` : null;
+  return {
+    ...book,
+    gradeBand: book.gradeBand || book.gradeLevel || 'K–12 & College',
+    collection: book.collection || book.sourceCollection || 'Training Programs',
+    description: book.description || (book.summary ? String(book.summary).slice(0, 220) : ''),
+    hasPdf,
+    pdfUrl,
+  };
+}
+
+function loadStagedTextbooks(): any[] {
+  const dataDir = process.env.OSHAL_PACKAGE_DATA_DIR;
+  if (!dataDir) return [];
+  try {
+    const catalogPath = path.join(dataDir, 'textbooks', 'catalog.json');
+    if (!fs.existsSync(catalogPath)) return [];
+    const parsed = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+    return Array.isArray(parsed?.books) ? parsed.books.map(normalizeTextbookEntry) : [];
+  } catch {
+    return [];
+  }
+}
+
+function serveTextbookDetail(req: Request, res: Response, textbookId: string): void {
+  const dataDir = process.env.OSHAL_PACKAGE_DATA_DIR;
+  const books = loadStagedTextbooks();
+  const book = books.find(item => item.id === textbookId);
+  if (!dataDir || !book) {
+    res.status(404).json({ error: 'textbook not found' });
+    return;
+  }
+  const filesDir = path.join(dataDir, 'textbooks', 'files');
+  const format = String(req.query.format || '').toLowerCase();
+  if (format === 'pdf' && book.pdfFile) {
+    const pdfPath = path.join(filesDir, path.basename(String(book.pdfFile)));
+    if (fs.existsSync(pdfPath)) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${path.basename(pdfPath)}"`);
+      res.send(fs.readFileSync(pdfPath));
+      return;
+    }
+  }
+  const txtPath = path.join(filesDir, path.basename(String(book.txtFile || `${book.id}.txt`)));
+  const content = fs.existsSync(txtPath) ? fs.readFileSync(txtPath, 'utf8') : '';
+  if (format === 'txt') {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.send(content);
+    return;
+  }
+  res.json({ textbook: { ...book, content }, content });
+}
 
 interface CatalogClassState {
   published: boolean;
@@ -78,6 +136,11 @@ function assertSelfEnrollmentOpen(row: CatalogClassState, actorId: string): void
 async function loadCatalog(ctx: AppContext, req: Request, res: Response): Promise<void> {
   try {
     const actor = await resolveAuthedStudent(req, ctx.pool);
+    const textbookId = String(req.query?.textbookId || '').trim();
+    if (textbookId) {
+      serveTextbookDetail(req, res, textbookId);
+      return;
+    }
     const result = await ctx.pool.query(
       `SELECT c.class_id, c.name, c.subject, c.grade_level, c.teacher_name,
          (SELECT COUNT(*) FROM lm_enrollments e WHERE e.class_id = c.class_id) AS student_count,
@@ -87,6 +150,11 @@ async function loadCatalog(ctx: AppContext, req: Request, res: Response): Promis
        ORDER BY c.subject, c.name`,
       [actor.studentId, actor.tenantId],
     );
+    const textbooks = loadStagedTextbooks();
+    if (textbooks.length > 0) {
+      res.json({ classes: result.rows, textbooks });
+      return;
+    }
     res.json({ classes: result.rows });
   } catch (err: any) {
     if (sendAccessError(res, err)) return;

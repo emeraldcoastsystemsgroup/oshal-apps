@@ -21,17 +21,108 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Tenant-bound self-enroll and leave lookups so a class id from another school cannot create cross-tenant enrollment state; extracted handlers to keep each authorization decision independently reviewable
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Make enrollment and leave writes derive their target from the actor's current tenant and the class's current publication, status, and ownership state.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Bind native self-enrollment to authoritative relationship snapshots while retaining legacy PostgreSQL CTE enforcement.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | GET /catalog also lists the staged Training Programs textbooks (OSHAL_PACKAGE_DATA_DIR/textbooks/catalog.json); ?textbookId= returns one book with its text, or its PDF with format=pdf.
  * ---------------------------------------------------------------------------
  *
  * @module education-catalog-routes
  */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createEducationCatalogRoutes = createEducationCatalogRoutes;
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
 const express_1 = require("express");
 const logger_1 = require("@/shared/logger");
 const education_access_1 = require("./education-access");
 const education_transactions_1 = require("./education-transactions");
 const logger = (0, logger_1.createChildLogger)({ module: 'education-catalog-routes' });
+function normalizeTextbookEntry(book) {
+    const hasPdf = Boolean(book.pdfFile || book.hasPdf);
+    const pdfUrl = hasPdf ? `/api/education/catalog?textbookId=${encodeURIComponent(String(book.id))}&format=pdf` : null;
+    return {
+        ...book,
+        gradeBand: book.gradeBand || book.gradeLevel || 'K–12 & College',
+        collection: book.collection || book.sourceCollection || 'Training Programs',
+        description: book.description || (book.summary ? String(book.summary).slice(0, 220) : ''),
+        hasPdf,
+        pdfUrl,
+    };
+}
+function loadStagedTextbooks() {
+    const dataDir = process.env.OSHAL_PACKAGE_DATA_DIR;
+    if (!dataDir)
+        return [];
+    try {
+        const catalogPath = path.join(dataDir, 'textbooks', 'catalog.json');
+        if (!fs.existsSync(catalogPath))
+            return [];
+        const parsed = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+        return Array.isArray(parsed?.books) ? parsed.books.map(normalizeTextbookEntry) : [];
+    }
+    catch {
+        return [];
+    }
+}
+function serveTextbookDetail(req, res, textbookId) {
+    const dataDir = process.env.OSHAL_PACKAGE_DATA_DIR;
+    const books = loadStagedTextbooks();
+    const book = books.find(item => item.id === textbookId);
+    if (!dataDir || !book) {
+        res.status(404).json({ error: 'textbook not found' });
+        return;
+    }
+    const filesDir = path.join(dataDir, 'textbooks', 'files');
+    const format = String(req.query.format || '').toLowerCase();
+    if (format === 'pdf' && book.pdfFile) {
+        const pdfPath = path.join(filesDir, path.basename(String(book.pdfFile)));
+        if (fs.existsSync(pdfPath)) {
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `inline; filename="${path.basename(pdfPath)}"`);
+            res.send(fs.readFileSync(pdfPath));
+            return;
+        }
+    }
+    const txtPath = path.join(filesDir, path.basename(String(book.txtFile || `${book.id}.txt`)));
+    const content = fs.existsSync(txtPath) ? fs.readFileSync(txtPath, 'utf8') : '';
+    if (format === 'txt') {
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.send(content);
+        return;
+    }
+    res.json({ textbook: { ...book, content }, content });
+}
 /** Map an EducationAccessError to its HTTP status; returns true if handled. */
 function sendAccessError(res, err) {
     if (err instanceof education_access_1.EducationAccessError) {
@@ -61,12 +152,22 @@ function assertSelfEnrollmentOpen(row, actorId) {
 async function loadCatalog(ctx, req, res) {
     try {
         const actor = await (0, education_access_1.resolveAuthedStudent)(req, ctx.pool);
+        const textbookId = String(req.query?.textbookId || '').trim();
+        if (textbookId) {
+            serveTextbookDetail(req, res, textbookId);
+            return;
+        }
         const result = await ctx.pool.query(`SELECT c.class_id, c.name, c.subject, c.grade_level, c.teacher_name,
          (SELECT COUNT(*) FROM lm_enrollments e WHERE e.class_id = c.class_id) AS student_count,
          EXISTS(SELECT 1 FROM lm_enrollments e WHERE e.class_id = c.class_id AND e.student_id = $1) AS enrolled
        FROM lm_classes c
        WHERE c.published = true AND c.status = 'active' AND c.tenant_id = $2
        ORDER BY c.subject, c.name`, [actor.studentId, actor.tenantId]);
+        const textbooks = loadStagedTextbooks();
+        if (textbooks.length > 0) {
+            res.json({ classes: result.rows, textbooks });
+            return;
+        }
         res.json({ classes: result.rows });
     }
     catch (err) {

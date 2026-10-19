@@ -7,6 +7,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Extract the tenant-aware dashboard role matrix and teacher-scoped aggregates so each private-data query remains independently reviewable.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Recheck the viewer's current tenant, role, and active teacher relationship in the final student-PII query.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | A teacher reading their own dashboard is read as the learner, and teacher scoping applies only when the scope carries a teacher clause, so a teacher who also studies sees their own progress.
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -44,7 +45,7 @@ function sendAccessError(res: Response, err: unknown): boolean {
 
 /** Build the shared parameter list that prevents teacher aggregate overreach. */
 function dashboardScope(viewer: AuthedStudent, studentId: string): DashboardScope {
-  if (viewer.role === 'teacher') {
+  if (viewer.role === 'teacher' && viewer.studentId !== studentId) {
     return {
       params: [studentId, viewer.tenantId, viewer.studentId],
       teacherClause: ' AND c.teacher_student_id = $3',
@@ -114,7 +115,7 @@ async function loadUpcomingAssignments(pool: Pool, scope: DashboardScope): Promi
 
 /** Calculate quiz aggregates inside the viewer's permitted class boundary. */
 async function loadQuizStats(pool: Pool, viewer: AuthedStudent, scope: DashboardScope): Promise<any> {
-  if (viewer.role === 'teacher') {
+  if (viewer.role === 'teacher' && scope.teacherClause) {
     return (await pool.query(
       `SELECT COALESCE(AVG(q.score_percent), 0) as avg_score, COUNT(*) as quiz_count
          FROM lm_quiz_results q JOIN lm_classes c ON c.class_id = q.class_id
@@ -135,7 +136,7 @@ async function loadFlashcardStats(pool: Pool, viewer: AuthedStudent, scope: Dash
   const joins = `FROM lm_flashcard_progress fp
     JOIN lm_flashcards fc ON fc.card_id = fp.card_id
     JOIN lm_flashcard_sets fs ON fs.set_id = fc.set_id`;
-  if (viewer.role === 'teacher') {
+  if (viewer.role === 'teacher' && scope.teacherClause) {
     return (await pool.query(
       `SELECT COUNT(*) as reviewed ${joins}
        JOIN lm_classes c ON c.class_id = fs.class_id

@@ -14,9 +14,30 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | record-before-answer: the compiled POST /pptx writes its My decks record before the request answers (the native kernel refuses SQL after the answer), a refused record still answers with the saved file, and the surface shows no date for a missing createdAt.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register ai-draft-outline (the topic draft fills Title and Outline; sweep 10: an outline cut off at the output budget keeps its complete slides or answers 502 in plain words, and the draft asks for 8192 output tokens) and generate-reenable (sweep 10: a failed generate left every generate button disabled).
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Register create-tools: deck-builder's presentations-create-deck and presentations-create-document are automatic writes onto POST /pptx and /docx whose body renders and saves, and the persona says to call them.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Register routing-words: deck-builder keeps the words people use for a deck or a Word file, so Jarvis reaches the AI Office tools.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
+  - id: routing-words
+    name: AI Office routing words
+    purpose: Keep the words people use for a PowerPoint deck or a Word document declared on deck-builder, which holds the create tools.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/presentations-routing-words.test.cjs
+    expected:
+      - deck-builder declares powerpoint, power point, slide deck, word document, intelligent office and ai office.
+      - The package still declares presentations-create-deck and presentations-create-document.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
   - id: package-readiness
     name: Installed package readiness
     purpose: Verify the existing metadata-only readiness probe without provider or user-data access.

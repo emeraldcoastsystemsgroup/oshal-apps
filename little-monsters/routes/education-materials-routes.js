@@ -14,6 +14,7 @@
  * 6   | maintainer@emeraldcoastsystemsgroup.com     | Accept owner-bound ADR-139 artifact handles through a class picker and reuse the existing teacher/requested material lifecycle
  * 7   | maintainer@emeraldcoastsystemsgroup.com     | The class-material import hands its own request to redeemArtifactViaRelay, so the loopback redeem carries the caller's session or PAT instead of the service secret. The core relay binds every handle to the verified principal (subject + issuer) and refuses the service rail, which carries no issuer; on the box (1.4.5) the import answered 404 "artifact handle not found" for a handle minted seconds earlier
  * 8   | maintainer@emeraldcoastsystemsgroup.com     | Preserve native file bytes, material records and grounding under the original checked transaction and current classroom sharing policy.
+ * 9   | maintainer@emeraldcoastsystemsgroup.com | A staged library textbook (textbookId) can be filed as class material without an upload; approved shared text is ingested into the class textbook collection on the native executor.
  * ---------------------------------------------------------------------------
  *
  * @module education-materials-routes
@@ -325,23 +326,63 @@ async function groundUploadedMaterial(ctx, caller, materialId, text) {
         return ensureMaterialGrounding(transaction, text);
     });
 }
+function resolveStagedTextbookUpload(textbookId) {
+    const dataDir = process.env.OSHAL_PACKAGE_DATA_DIR;
+    if (!dataDir || !textbookId)
+        return null;
+    try {
+        const pathMod = require('path');
+        const catalogPath = pathMod.join(dataDir, 'textbooks', 'catalog.json');
+        if (!fs.existsSync(catalogPath))
+            return null;
+        const parsed = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+        const book = (Array.isArray(parsed?.books) ? parsed.books : []).find((b) => b.id === textbookId);
+        if (!book)
+            return null;
+        const txtPath = pathMod.join(dataDir, 'textbooks', 'files', pathMod.basename(String(book.txtFile || `${book.id}.txt`)));
+        if (!fs.existsSync(txtPath))
+            return null;
+        const buffer = fs.readFileSync(txtPath);
+        return {
+            file: { buffer, mimetype: 'text/plain', originalname: `${book.id}.txt`, size: buffer.length },
+            kind: 'textbook',
+            title: `${book.title} (${book.author || 'Training Library'})`,
+        };
+    }
+    catch {
+        return null;
+    }
+}
 /** Accept a bounded upload only after identity and class enrollment are proven. */
 async function uploadMaterial(ctx, req, res) {
     try {
         const classId = String(req.body?.classId || '');
-        const file = req.file;
+        let file = req.file;
+        let bodyInput = req.body || {};
         requireUuid(classId, 'classId');
+        if (!file?.buffer && bodyInput.textbookId) {
+            const staged = resolveStagedTextbookUpload(String(bodyInput.textbookId));
+            if (staged) {
+                file = staged.file;
+                bodyInput = { ...bodyInput, kind: staged.kind, title: bodyInput.title || staged.title, share: bodyInput.share ?? true };
+            }
+        }
         if (!file?.buffer) {
             res.status(400).json({ error: 'file is required' });
             return;
         }
         const caller = await (0, education_access_1.resolveAuthedStudent)(req, ctx.pool);
         await (0, education_access_1.assertClassAccess)(ctx.pool, caller, classId);
-        const wantsShare = req.body?.share === true || String(req.body?.share || '') === 'true';
-        const row = await insertUploadedMaterial(ctx, caller, classId, file, req.body || {}, wantsShare);
+        const wantsShare = bodyInput.share === true || String(bodyInput.share || '') === 'true';
+        const row = await insertUploadedMaterial(ctx, caller, classId, file, bodyInput, wantsShare);
         const shareStatus = row.share_status;
         const text = await (0, education_material_storage_1.extractMaterialText)(file);
         const collection = await groundUploadedMaterial(ctx, caller, row.material_id, text);
+        if (shareStatus === 'approved' && text && ctx.pool?.nativeExecutor) {
+            await (0, education_material_storage_1.ingestMaterialText)(text, `lm-class-${classId}-textbook`, {
+                classId, materialId: row.material_id, studentId: caller.studentId, source: row.title || row.original_name || 'material',
+            }, ctx.pool).catch(() => false);
+        }
         logger.info({ classId, materialId: row.material_id, shareStatus, grounded: Boolean(collection) }, 'Material uploaded');
         res.status(201).json({ success: true, material: row, grounded: Boolean(collection), shareStatus });
     }

@@ -13,6 +13,7 @@
   2026-04-22     | roger.murphy@agenticfederal.us   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
   2026-06-12     | roger.murphy@agenticfederal.us   | Google Calendar card: connection status + one-tap "Sync my assignments to Google" (push) via the new /calendar/google/* routes; honest not-connected state with CLI login hint
   2026-09-26     | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: the shared theme bootstrap (classroom default), package stylesheet and page frame replace the parent-frame theme reader, the glass sheet and the web font; hero, stat tiles, week strip, class tiles, month calendar, due lists, quick actions, reflection and focus timer are built from the system's components and tokens (the class colour set is the one page-local palette). Navigation goes through window.LM. The Google Calendar card is gone (its route is retired and answers 410); the streak tile renders its emoji, shows "No streak yet" instead of celebrating 0 and reads the learner id from /me when this device has none; the record-a-lecture action shows only to teachers and admins, who are the only ones the lecture routes accept.
+  2026-10-18     | maintainer@emeraldcoastsystemsgroup.com   | Due today and Coming up also list the person's own calendar items from /calendar (rows with a student_id, from today on), sorted with the assignments: an action item saved through Jarvis showed on the month calendar but never under Coming up.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -418,9 +419,21 @@ async function loadDueItems() {
     if (resp.ok) {
       var data = await resp.json();
       items = (data.assignments || []).filter(function (a) { return a.due_date; });
-      items.sort(function (a, b) { return (a.due_date || '').localeCompare(b.due_date || ''); });
     }
   } catch (e) { items = null; }
+  // The person's own calendar items (an action item or reminder they or Jarvis saved) are due
+  // too. Only rows with a student_id: class-wide rows mirror teacher assignments listed above.
+  if (items !== null) {
+    try {
+      var cal = await fetch('/api/education/calendar');
+      if (cal.ok) (((await cal.json()).events) || []).forEach(function (ev) {
+        if (ev.student_id && ev.event_date && ymd(parseDue(ev.event_date)) >= todayStr) {
+          items.push({ title: ev.title, class_name: ev.class_name || '', due_date: ev.event_date, assignment_type: ev.event_type || 'reminder' });
+        }
+      });
+    } catch (e) { /* the assignments above still show */ }
+    items.sort(function (a, b) { return parseDue(a.due_date) - parseDue(b.due_date); });
+  }
   if (items === null) {
     var failed = '<div class="lm-empty is-compact">Assignments could not be loaded right now.</div>';
     document.getElementById('dueToday').innerHTML = failed;

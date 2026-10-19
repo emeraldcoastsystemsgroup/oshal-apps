@@ -12,6 +12,7 @@
   2026-04-19     | roger.murphy@emeraldcoastsystemsgroup.com    | Initial creation — class-centric view
   2026-04-22     | roger.murphy@agenticfederal.us   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
   2026-09-26     | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: the shared theme bootstrap (classroom default), package stylesheet and page frame replace the parent-frame theme reader, the glass sheet and the web font; hero, tabs, lists, cards, forms and callouts come from the system and every colour is a token. Role truth: the Manage tab, recording, roster and share approvals show only to an admin or the teacher who teaches the class (what the routes accept); everyone else gets a calm read-only note on the new Info tab; the stale not-yet-available sharing copy is gone because sharing, approve and deny are live. Host messages go through window.LM (openClass, classesChanged); toasts replace alerts for notices, confirms stay for deletes; tab and detail-tab selection use data attributes instead of label text.
+  2026-10-18     | maintainer@emeraldcoastsystemsgroup.com | Class page: Textbooks & materials tab with the Training Textbook Library, a Summary/PowerPoint/Flashcard topic pack, PowerPoint download for a lecture, and quick links to the flashcard builder and practice quiz.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -60,6 +61,8 @@
       <div class="lm-hero-actions">
         <button type="button" class="lm-btn lm-btn-primary" data-act="tab" data-tab="flashcards">★ Study</button>
         <button type="button" class="lm-btn lm-btn-ghost" data-act="tab" data-tab="tutor">💬 Ask the tutor</button>
+        <button type="button" class="lm-btn lm-btn-soft" data-act="tab" data-tab="materials">📖 Textbooks &amp; materials</button>
+        <button type="button" class="lm-btn lm-btn-ghost" onclick="openQuiz()">🎯 Practice quiz</button>
         <button type="button" class="lm-btn lm-btn-soft lm-hide" id="recordBtn" onclick="openRecorder()">● Record a lecture</button>
       </div>
     </div>
@@ -89,6 +92,17 @@
 
     <!-- Lectures -->
     <section class="tab-panel is-active" id="panel-lectures" role="tabpanel">
+      <div class="lm-card is-accent lm-mb-md" id="classTopicPackCard">
+        <div class="lm-card-kicker">✨ Topic Study Pack · Summary + PowerPoint (.pptx) + Flashcards</div>
+        <h3 style="margin:2px 0 6px">Make a Summary, PowerPoint &amp; Flashcard Deck on Any Topic</h3>
+        <p class="lm-subtle lm-small lm-mb-sm">Enter any topic or chapter below. Little Monsters will generate structured Study Notes (Summary), an interactive Slide Deck + downloadable PowerPoint (<code>.pptx</code>), and Flashcards grounded in this class’s textbooks.</p>
+        <div class="lm-row is-wrap" style="gap:8px">
+          <input type="text" id="clsTopicInput" class="lm-input" placeholder="e.g. Solving Linear Equations, Proportions, Photosynthesis, The Bill of Rights…" style="flex:1;min-width:240px">
+          <button type="button" class="lm-btn lm-btn-primary" id="clsTopicBtn" onclick="generateClassTopicPack()">✨ Generate Summary, PowerPoint &amp; Flashcards</button>
+        </div>
+        <div id="clsTopicStatus" class="lm-status lm-mt-sm" aria-live="polite"></div>
+        <div id="clsTopicResult" class="lm-hide lm-mt-sm"></div>
+      </div>
       <div id="lectureList"><div class="lm-loading">Loading lectures…</div></div>
       <div class="lm-hide" id="lectureDetail">
         <button type="button" class="lm-btn lm-btn-quiet" onclick="closeLectureDetail()">← Back to lectures</button>
@@ -99,6 +113,7 @@
               <button type="button" class="lm-tab active" role="tab" aria-selected="true" data-act="dtab" data-dtab="transcript">Transcript</button>
               <button type="button" class="lm-tab" role="tab" aria-selected="false" data-act="dtab" data-dtab="notes">Study notes</button>
             </div>
+            <button type="button" class="lm-btn lm-btn-soft" id="detailPptxBtn" onclick="downloadCurrentLecturePptx()">⬇ PowerPoint (.pptx)</button>
             <button type="button" class="lm-btn lm-btn-ghost" onclick="speakDetail()">🔊 Read aloud</button>
           </div>
         </div>
@@ -113,6 +128,13 @@
 
     <!-- Flashcards -->
     <section class="tab-panel" id="panel-flashcards" role="tabpanel">
+      <div class="lm-row is-between is-wrap lm-mb-md">
+        <span class="lm-subtle lm-small">Study flashcard sets grounded in this class’s lectures and textbooks.</span>
+        <div class="lm-row is-wrap">
+          <button type="button" class="lm-btn lm-btn-soft lm-btn-sm" onclick="openFlashcardBuilder()">✨ Build / Generate flashcards</button>
+          <button type="button" class="lm-btn lm-btn-primary lm-btn-sm" onclick="openQuiz()">🎯 Take a practice quiz</button>
+        </div>
+      </div>
       <div class="lm-grid" id="flashcardSets" style="--min:220px"><div class="lm-loading">Loading flashcard sets…</div></div>
     </section>
 
@@ -126,18 +148,59 @@
       <div class="lm-card mat-uploadbar">
         <div class="lm-row is-between is-wrap" style="align-items:flex-start">
           <div style="flex:1;min-width:240px">
-            <h3>My documents <span class="lm-pill is-neutral">private to you</span></h3>
-            <p class="lm-card-meta">Upload a textbook, handout or assignment — any file. On a phone, snap a photo and we read the text so the tutor can use it.</p>
-            <label class="lm-check lm-mt-md"><input type="checkbox" id="matShare"> <span id="matShareLabel">Also share with the class (asks the teacher to approve)</span></label>
+            <h3>My documents &amp; textbooks <span class="lm-pill is-neutral">grounded for Tutor &amp; Quizzes</span></h3>
+            <p class="lm-card-meta">Add a textbook from the 79 Training Programs books, upload a PDF/handout, or snap a photo so the AI Tutor, Flashcards and Quizzes can use it.</p>
+            <label class="lm-check lm-mt-md"><input type="checkbox" id="matShare" checked> <span id="matShareLabel">Also share with the class (asks the teacher to approve)</span></label>
           </div>
           <div class="lm-row is-wrap">
             <input id="matFile" type="file" class="lm-hide" onchange="uploadDoc(this,'document')">
             <input id="matPhoto" type="file" accept="image/*" capture="environment" class="lm-hide" onchange="uploadDoc(this,'handout')">
+            <button type="button" class="lm-btn lm-btn-soft" onclick="toggleClassTextbookLibrary()">📖 Training Textbook Library (79)</button>
             <button type="button" class="lm-btn lm-btn-primary" onclick="document.getElementById('matFile').click()">📎 Upload a file</button>
             <button type="button" class="lm-btn lm-btn-ghost" onclick="document.getElementById('matPhoto').click()">📷 Take a photo</button>
           </div>
         </div>
       </div>
+
+      <div id="classTextbookPicker" class="lm-card is-accent lm-mt-md lm-hide">
+        <div class="lm-section-head">
+          <div>
+            <h3>📖 Training Programs Textbook Library <span class="lm-pill is-info" id="clsTbCount">79 books</span></h3>
+            <p class="lm-subtle lm-small">OpenStax, DK Encyclopedias, and staged math/science/history textbooks. Click <strong>Read</strong> to read inline or <strong>+ Attach to class</strong> to ground the AI Tutor.</p>
+          </div>
+          <button type="button" class="lm-btn lm-btn-quiet lm-btn-sm" onclick="toggleClassTextbookLibrary()">Hide ✕</button>
+        </div>
+        <div class="lm-row is-wrap lm-mb-md" style="gap:10px">
+          <input type="search" id="clsTbSearch" class="lm-input" placeholder="Search 79 textbooks by title, subject, author…" style="flex:1;min-width:220px" oninput="filterClassTextbooks()">
+          <select id="clsTbSubject" class="lm-input" style="width:auto;min-width:190px" onchange="filterClassTextbooks()">
+            <option value="">All subjects</option>
+            <option value="Mathematics">Mathematics</option>
+            <option value="Biology & Life Science">Biology &amp; Life Science</option>
+            <option value="Chemistry & Physics">Chemistry &amp; Physics</option>
+            <option value="History & Social Studies">History &amp; Social Studies</option>
+            <option value="English & Humanities">English &amp; Humanities</option>
+            <option value="Business & Economics">Business &amp; Economics</option>
+            <option value="Encyclopedias & Reference">Encyclopedias &amp; Reference</option>
+          </select>
+        </div>
+        <div id="clsTbList" class="lm-list" style="max-height:420px;overflow:auto"><div class="lm-loading">Loading textbooks…</div></div>
+      </div>
+
+      <div id="classTextbookReader" class="lm-card lm-mt-md lm-hide">
+        <div class="lm-section-head">
+          <div>
+            <div class="lm-eyebrow" id="clsReaderMeta">Textbook Reader</div>
+            <h3 id="clsReaderTitle">Reading…</h3>
+          </div>
+          <div class="lm-row is-wrap">
+            <button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" onclick="speakClassReader()">🔊 Read aloud</button>
+            <a class="lm-btn lm-btn-soft lm-btn-sm lm-hide" id="clsReaderPdf" href="#" target="_blank" rel="noopener">📄 Open PDF ↗</a>
+            <button type="button" class="lm-btn lm-btn-quiet lm-btn-sm" onclick="closeClassReader()">Close reader ✕</button>
+          </div>
+        </div>
+        <div id="clsReaderBody" class="detail-content" style="padding-top:8px">Loading…</div>
+      </div>
+
       <div id="matStatus" class="lm-status lm-mt-md" role="status"></div>
       <div id="materialsList" class="lm-mt-md"><div class="lm-loading">Loading your documents…</div></div>
 
@@ -708,6 +771,80 @@ function closeLectureDetail() {
   currentLecture = null;
 }
 
+async function generateClassTopicPack() {
+  var inputEl = document.getElementById('clsTopicInput');
+  var topic = (inputEl && inputEl.value ? inputEl.value : '').trim();
+  var statusEl = document.getElementById('clsTopicStatus');
+  var resultEl = document.getElementById('clsTopicResult');
+  var btn = document.getElementById('clsTopicBtn');
+  if (topic.length < 3) {
+    statusEl.className = 'lm-status lm-mt-sm is-error';
+    statusEl.textContent = 'Please enter a topic (at least 3 characters).';
+    if (inputEl) inputEl.focus();
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating Summary, PowerPoint & Flashcards…';
+  statusEl.className = 'lm-status lm-mt-sm';
+  statusEl.textContent = 'Generating Summary Notes, PowerPoint (.pptx), and Flashcards for "' + topic + '"…';
+  try {
+    var resp = await fetch('/api/education/process-transcript', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ classId: classId, topic: topic, title: 'Topic: ' + topic })
+    });
+    var data = await resp.json().catch(function () { return {}; });
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    statusEl.className = 'lm-status lm-mt-sm is-success';
+    statusEl.textContent = '✨ Study Pack ready! Summary notes, ' + ((data.slides || []).length) + ' presentation slides (.pptx), and ' + ((data.flashcards || []).length) + ' flashcards created.';
+    var links = [];
+    if (data.pptx && data.pptx.downloadUrl) {
+      links.push('<a class="lm-btn lm-btn-primary lm-btn-sm" href="' + esc(data.pptx.downloadUrl) + '" download="' + esc(data.pptx.fileName || 'study-pack.pptx') + '">⬇ Download PowerPoint (.pptx)</a>');
+    }
+    if (data.lectureId) {
+      links.push('<button type="button" class="lm-btn lm-btn-soft lm-btn-sm" onclick="openPresentation(\'' + esc(data.lectureId) + '\')">▶ Open Slide Deck (' + ((data.slides || []).length) + ')</button>');
+      links.push('<button type="button" class="lm-btn lm-btn-soft lm-btn-sm" onclick="openLecture(\'' + esc(data.lectureId) + '\');setTimeout(function(){showDetailTab(\'notes\');},350)">📝 Read Summary Notes</button>');
+    }
+    if (data.flashcardSetId) {
+      links.push('<a class="lm-btn lm-btn-soft lm-btn-sm" href="/api/education/flashcards?setId=' + encodeURIComponent(data.flashcardSetId) + '&classId=' + encodeURIComponent(classId) + '">🃏 Study Flashcards (' + ((data.flashcards || []).length) + ')</a>');
+    }
+    resultEl.classList.remove('lm-hide');
+    resultEl.innerHTML = '<div class="lm-row is-wrap lm-mb-sm">' + links.join(' ') + '</div>' +
+      (data.notes ? '<div class="lm-card is-inset" style="white-space:pre-wrap;font-size:13.5px;max-height:240px;overflow:auto">' + esc(data.notes) + '</div>' : '');
+    loadLectures();
+    loadFlashcards();
+  } catch (e) {
+    statusEl.className = 'lm-status lm-mt-sm is-error';
+    statusEl.textContent = 'Could not generate Topic Study Pack: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ Generate Summary, PowerPoint & Flashcards';
+  }
+}
+
+async function downloadCurrentLecturePptx() {
+  if (!currentLecture || !currentLecture.lecture_id) return;
+  var btn = document.getElementById('detailPptxBtn');
+  var orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Building .pptx…';
+  try {
+    var resp = await fetch('/api/education/lectures/' + encodeURIComponent(currentLecture.lecture_id) + '/pptx', { method: 'POST' });
+    var data = await resp.json().catch(function () { return {}; });
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    var link = data.downloadUrl || data.url;
+    if (!link) throw new Error('No download URL returned');
+    window.location.href = link;
+    btn.textContent = '✓ Downloaded';
+  } catch (e) {
+    LM.toast('Could not export PowerPoint: ' + e.message);
+    btn.textContent = orig;
+  } finally {
+    btn.disabled = false;
+    setTimeout(function () { btn.textContent = orig; }, 2500);
+  }
+}
+
 function showDetailTab(tab) {
   document.querySelectorAll('[data-dtab]').forEach(function (t) { var on = t.getAttribute('data-dtab') === tab; t.classList.toggle('active', on); t.setAttribute('aria-selected', on ? 'true' : 'false'); });
   var content = document.getElementById('detailContent');
@@ -773,6 +910,141 @@ function studySet(setId) {
 
 function openRecorder() {
   window.location.href = '/api/education/recorder?classId=' + encodeURIComponent(classId);
+}
+
+function openQuiz() {
+  window.location.href = '/api/education/quiz' + (classId ? '?classId=' + encodeURIComponent(classId) : '');
+}
+
+function openFlashcardBuilder() {
+  window.location.href = '/api/education/flashcard-builder' + (classId ? '?classId=' + encodeURIComponent(classId) : '');
+}
+
+// ── Training Programs Textbook Library (in Materials tab) ──────────────────
+var CLASS_TEXTBOOKS_CACHE = [];
+async function toggleClassTextbookLibrary() {
+  var picker = document.getElementById('classTextbookPicker');
+  if (!picker) return;
+  var opening = picker.classList.contains('lm-hide');
+  picker.classList.toggle('lm-hide', !opening);
+  if (opening) {
+    if (!CLASS_TEXTBOOKS_CACHE.length) {
+      try {
+        var resp = await fetch('/api/education/catalog');
+        if (resp.ok) {
+          var data = await resp.json();
+          CLASS_TEXTBOOKS_CACHE = data.textbooks || [];
+        }
+      } catch (e) { CLASS_TEXTBOOKS_CACHE = []; }
+    }
+    filterClassTextbooks();
+  }
+}
+
+function filterClassTextbooks() {
+  var list = document.getElementById('clsTbList');
+  if (!list) return;
+  var q = String((document.getElementById('clsTbSearch') && document.getElementById('clsTbSearch').value) || '').trim().toLowerCase();
+  var subj = String((document.getElementById('clsTbSubject') && document.getElementById('clsTbSubject').value) || '').trim();
+  var rows = (CLASS_TEXTBOOKS_CACHE || []).filter(function (tb) {
+    if (subj && tb.subject !== subj) return false;
+    if (!q) return true;
+    var hay = [tb.title, tb.author, tb.subject, tb.collection, tb.description, tb.gradeBand].filter(Boolean).join(' ').toLowerCase();
+    return hay.indexOf(q) !== -1;
+  });
+  var countEl = document.getElementById('clsTbCount');
+  if (countEl) countEl.textContent = rows.length + (rows.length === 1 ? ' book' : ' books');
+  if (!rows.length) {
+    list.innerHTML = '<div class="lm-empty is-compact"><strong>No matching textbooks.</strong>Try another search or subject filter.</div>';
+    return;
+  }
+  list.innerHTML = rows.map(function (tb) {
+    var badges = [
+      tb.subject ? '<span class="lm-pill is-neutral">' + esc(tb.subject) + '</span>' : '',
+      tb.gradeBand ? '<span class="lm-pill is-neutral">' + esc(tb.gradeBand) + '</span>' : '',
+      tb.collection ? '<span class="lm-pill is-info">' + esc(tb.collection) + '</span>' : ''
+    ].filter(Boolean).join(' ');
+    var pdfBtn = tb.hasPdf
+      ? '<a class="lm-btn lm-btn-ghost lm-btn-sm" href="/api/education/catalog?textbookId=' + encodeURIComponent(tb.id) + '&format=pdf" target="_blank" rel="noopener">📄 PDF</a>'
+      : '';
+    return '<div class="lm-item" style="align-items:flex-start">' +
+      '<span class="lm-avatar" aria-hidden="true">📖</span>' +
+      '<div class="lm-item-body">' +
+        '<strong>' + esc(tb.title) + '</strong>' +
+        '<small>' + esc(tb.author || 'OpenStax / Curriculum') + (tb.description ? ' — ' + esc(tb.description) : '') + '</small>' +
+        '<div class="lm-row is-wrap" style="gap:6px;margin-top:6px">' + badges + '</div>' +
+      '</div>' +
+      '<div class="lm-item-actions">' +
+        '<button type="button" class="lm-btn lm-btn-soft lm-btn-sm" onclick="readClassTextbook(\'' + esc(tb.id) + '\')">📖 Read</button>' +
+        pdfBtn +
+        '<button type="button" class="lm-btn lm-btn-primary lm-btn-sm" onclick="attachClassTextbook(\'' + esc(tb.id) + '\')">+ Attach to class</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+async function readClassTextbook(textbookId) {
+  var reader = document.getElementById('classTextbookReader');
+  if (!reader) return;
+  reader.classList.remove('lm-hide');
+  document.getElementById('clsReaderTitle').textContent = 'Loading textbook…';
+  document.getElementById('clsReaderMeta').textContent = 'Training Programs Textbook';
+  document.getElementById('clsReaderBody').textContent = 'Loading full text…';
+  document.getElementById('clsReaderPdf').classList.add('lm-hide');
+  reader.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  try {
+    var resp = await fetch('/api/education/catalog?textbookId=' + encodeURIComponent(textbookId));
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var data = await resp.json();
+    var tb = data.textbook || {};
+    document.getElementById('clsReaderTitle').textContent = tb.title || 'Textbook';
+    document.getElementById('clsReaderMeta').textContent = [tb.subject, tb.author, tb.gradeBand, tb.collection].filter(Boolean).join(' · ') || 'Textbook';
+    document.getElementById('clsReaderBody').textContent = tb.content || tb.description || 'No text preview available.';
+    if (tb.hasPdf && tb.pdfUrl) {
+      var pdfLink = document.getElementById('clsReaderPdf');
+      pdfLink.href = tb.pdfUrl;
+      pdfLink.classList.remove('lm-hide');
+    }
+  } catch (e) {
+    document.getElementById('clsReaderTitle').textContent = 'Could not load textbook';
+    document.getElementById('clsReaderBody').textContent = 'Error: ' + e.message;
+  }
+}
+
+function closeClassReader() {
+  var reader = document.getElementById('classTextbookReader');
+  if (reader) reader.classList.add('lm-hide');
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+}
+
+function speakClassReader() {
+  var body = document.getElementById('clsReaderBody');
+  var text = (body && body.textContent) || '';
+  speak(text.substring(0, 2000));
+}
+
+async function attachClassTextbook(textbookId) {
+  var status = document.getElementById('matStatus');
+  status.className = 'lm-status lm-mt-md';
+  status.textContent = 'Attaching textbook from Training Programs library and grounding for the AI Tutor…';
+  var shareEl = document.getElementById('matShare');
+  var share = shareEl ? shareEl.checked : true;
+  try {
+    var resp = await fetch('/api/education/materials', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ classId: classId, textbookId: textbookId, share: share })
+    });
+    var out = await resp.json().catch(function () { return {}; });
+    if (!resp.ok) throw new Error(out.error || 'attach failed');
+    status.classList.add('is-success');
+    status.textContent = (out.title || textbookId) + ' added ✓' + (out.grounded ? ' — grounded for the AI Tutor, Flashcards & Quizzes!' : '');
+    LM.toast((out.title || 'Textbook') + ' added to this class.');
+    loadMaterials();
+  } catch (e) {
+    status.classList.add('is-error');
+    status.textContent = 'Could not attach textbook: ' + e.message;
+  }
 }
 
 // ── Calendar ────────────────────────────────────────────────────────────────

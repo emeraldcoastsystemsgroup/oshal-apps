@@ -13,6 +13,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add fail-closed lecture authorization, strict input validation, content-derived audio formats, safe projections, and symlink-aware class-workspace containment.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Resolve the principal issuer through education-access resolveSessionIssuer (verified idTokenClaims first) instead of a private user.iss read: real browser sessions carry no iss on req.oidc.user, so every lecture read returned 401 and this reader could drift from the identity reader
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | The education workspace root is OSHAL_PACKAGE_DATA_DIR when the native kernel sets it, else the process directory.
  * -----------------------------------------------------------------------------
  *
  * @module education-lecture-security
@@ -126,7 +127,7 @@ function sniffAudioFormat(buffer) {
  * @param cwd - process working directory seam
  * @returns absolute workspace-shared/education path
  */
-function educationWorkspaceRoot(cwd = process.cwd()) {
+function educationWorkspaceRoot(cwd = process.env.OSHAL_PACKAGE_DATA_DIR || process.cwd()) {
     return path_1.default.resolve(cwd, 'workspace-shared', 'education');
 }
 /** Return true when candidate is a strict descendant of parent. */

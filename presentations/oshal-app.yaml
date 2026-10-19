@@ -16,6 +16,7 @@
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Declare migrations/001-presentations.sql (the My decks record table in its final shape) so the native kernel provisions it: every record INSERT was refused "SQL table oshal_presentations is not provisioned", so My files listed decks dated 'Dec 31' with no slide count and Delete removed rows: 0.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 2.13.1: deck-builder makes the file. Asked from Jarvis for a PowerPoint, it called no tool and answered an outline of TBD lines, because its only tool was presentations-list and its instructions said to click Generate. presentations-create-deck (POST /api/presentations/sections/pptx) and presentations-create-document (POST .../docx) render and save the file under the caller's Writer, and the persona says to call them. Guarded by tests/presentations-create-tools.test.cjs.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 2.13.2: a made deck or document answers openUrl (/cockpit/?app=presentations&open=<file>) and the studio opens that saved file from My files; Jarvis made a PowerPoint but never offered to open it in AI Office. Guarded by tests/presentations-create-tools.test.cjs.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 2.13.3: deck-builder declares phrases (a powerpoint, powerpoint about, a presentation, a slide deck, a word document, intelligent office, ...): "Make a PowerPoint about photosynthesis for my Biology class" asked from Jarvis reached no application (its one-word "powerpoint" tied with Little Monsters' "class"), so a student in Little Monsters could not get a deck from the AI Office tools. Guarded by presentations/tests/presentations-routing-words.test.cjs and the kernel jarvis_routing_store_tests sweep.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — presentations (AI Office: deck / document / workbook studio)
@@ -59,7 +60,7 @@ description: >-
   Phone-friendly: dictate instead of typing, resume recent files in one tap, and drive
   edits with tap chips. My files is a real file browser - click a file for
   download, open-in-provider, or edit-and-regenerate. Saves to Dropbox, Google Drive, OneDrive, or OSHAL local.
-version: 2.13.2
+version: 2.13.3
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -155,6 +156,17 @@ theme: light-blue
 bots:
   - agentId: a0000000-0000-0000-0000-000000000042
     name: deck-builder
+    routingKeywords:
+      - a powerpoint
+      - the powerpoint
+      - powerpoint about
+      - powerpoint on
+      - a presentation
+      - presentation about
+      - a slide deck
+      - a slideshow
+      - a word document
+      - intelligent office
     persona: personas/deck-builder.yaml
     role: presentations/guide
     capabilities:

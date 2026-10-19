@@ -19,6 +19,7 @@
  * 2026-09-27     | maintainer@emeraldcoastsystemsgroup.com     | Carry the page frame (window.LM) in this already-bound script so the authorization catalog stays at its installed revision; every surface loads it
  * 2026-09-27     | maintainer@emeraldcoastsystemsgroup.com     | The frame renders the profile as served: the server filters tools per caller through the app's tool-keys route, so the client keeps no teacher-only list
  * 2026-10-11     | maintainer@emeraldcoastsystemsgroup.com     | First visit completes school setup: when /me answers "complete school setup" the frame makes the screen's open-time write (the caller's own reminder check, the one non-GET every school role is bound to), which provisions the learner, then reads /me again. Native reads never provision, so a new person was stuck at that message inside the app
+ * 2026-10-18     | maintainer@emeraldcoastsystemsgroup.com | When embedded, the page frame owns the full window (zen-mode; the host header, ribbon, status bar and chat rail hidden, never the Jarvis orb) and navigates its own frame instead of relaying to the host.
  * ---------------------------------------------------------------------------
  *
  * @module lm-mascot
@@ -487,18 +488,38 @@ var LM_FRAME = (function () {
       if (!entriesReady) entriesReady = getJson(PROFILE_PATH).then(function (r) { cache.profile = r && r.profile ? r.profile : null; return navEntries(cache.profile); });
       return entriesReady;
     }
+    /** @description Hide parent cockpit headers/footers so Little Monsters owns the full window cleanly. The Jarvis orb stays: it is how a person reaches Jarvis inside this app (hiding it left only the Tutor, which cannot add a class or read the person's schedule). */
+    function suppressHostCockpitChrome() {
+      if (!embedded) return;
+      try {
+        var pdoc = w.parent && w.parent.document;
+        if (!pdoc || !pdoc.head) return;
+        pdoc.title = 'Little Monsters';
+        if (pdoc.body) pdoc.body.classList.add('zen-mode');
+        if (!pdoc.getElementById('lm-immersive-host-style')) {
+          var st = pdoc.createElement('style');
+          st.id = 'lm-immersive-host-style';
+          st.textContent =
+            '.header-bar, .status-bar, #ribbonContainer, .ribbon-backdrop, .chat-panel, .panel-resize-handle, ' +
+            '.tool-view-header, .zen-exit-btn, #workspaceNavigation, #workspaceNavigationMore { display: none !important; } ' +
+            '.cockpit-body { padding: 0 !important; gap: 0 !important; height: 100vh !important; } ' +
+            '.main-content, .tool-view-container { border: none !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; height: 100% !important; width: 100% !important; }';
+          pdoc.head.appendChild(st);
+        }
+      } catch (_) { /* cross-origin host — ignore */ }
+    }
     /**
-     * @description Open another Little Monsters view. Hosted: ask the host through the shapes the
-     * cockpit ribbon honours. Standalone: navigate this window to the view's own URL.
+     * @description Open another Little Monsters view. Hosted without DOM (test double): relay to host.
+     * In browser: navigate this frame directly to the view's own URL.
      * @param {string} view The legacy view name (`recorder`, `flashcards`, `monsters`, `class-<id>`).
      */
     function navigate(view) {
-      if (embedded) { try { w.parent.postMessage({ type: 'lm-navigate', view: String(view) }, '*'); } catch (_) { /* host without a bridge */ } return; }
+      if (embedded && !w.document) { try { w.parent.postMessage({ type: 'lm-navigate', view: String(view) }, '*'); } catch (_) { /* host without a bridge */ } return; }
       entries().then(function (list) { var href = hrefForView(view, list); if (href) w.location.href = href; });
     }
-    /** @description Open one class: the host's dynamic class tool, or the class page standalone. */
+    /** @description Open one class: relay in headless test doubles, or navigate directly in browser. */
     function openClass(classId) {
-      if (embedded) { try { w.parent.postMessage({ type: 'lm-open-class', classId: String(classId) }, '*'); } catch (_) { /* host without a bridge */ } return; }
+      if (embedded && !w.document) { try { w.parent.postMessage({ type: 'lm-open-class', classId: String(classId) }, '*'); } catch (_) { /* host without a bridge */ } return; }
       w.location.href = CLASS_PATH + encodeURIComponent(String(classId));
     }
     /** @description Tell the host the caller's class list changed so its class tools refresh. */
@@ -522,9 +543,10 @@ var LM_FRAME = (function () {
       var level = progress ? '<span class="lm-level" title="' + progress.inLevel + ' / ' + progress.needed + ' XP"><span class="lm-level-ring" style="--pct:' + progress.pct + '"><span>' + progress.level + '</span></span>Level ' + progress.level + '</span>' : '';
       return '<a class="lm-brand" href="' + esc(list.length ? list[0].href : '/api/education/dashboard') + '"><img src="' + LOGO_PATH + '" alt="">little monsters</a><nav aria-label="Little Monsters">' + primary.map(function (e) { return navLink(e, active); }).join('') + '</nav><div class="lm-topbar-side">' + moreHtml + level + name + '</div>';
     }
-    /** @description Render the standalone top bar once the profile and identity have answered. */
+    /** @description Render the Little Monsters top bar once the profile and identity have answered. */
     function mountTopbar() {
-      if (embedded || !w.document.body || w.document.querySelector('.lm-topbar')) return Promise.resolve(null);
+      suppressHostCockpitChrome();
+      if (!w.document || !w.document.body || w.document.querySelector('.lm-topbar')) return Promise.resolve(null);
       var bar = w.document.createElement('header'); bar.className = 'lm-topbar'; bar.setAttribute('data-lm-topbar', '');
       w.document.body.insertBefore(bar, w.document.body.firstChild);
       return Promise.all([entries(), me()]).then(function (r) {
@@ -539,6 +561,7 @@ var LM_FRAME = (function () {
 
     var api = { esc: esc, isEmbedded: embedded, navigate: navigate, openClass: openClass, classesChanged: classesChanged, me: me, entries: entries, toast: toast, mountTopbar: mountTopbar, cache: cache };
     if (w && w.document) {
+      suppressHostCockpitChrome();
       if (w.document.readyState === 'loading') w.document.addEventListener('DOMContentLoaded', function () { mountTopbar(); });
       else mountTopbar();
     }

@@ -11,6 +11,7 @@
   ---------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com   | Flashcard builder: manual set creation with quick fill from pasted notes and class auto-build
   2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass and literal palette; hero, cards, fields and status lines use the system. Role truth: the class picker and "Build a set from my class" appear only for a teacher/admin and list only classes they teach (the store's write rule); students build private sets; a saved set links straight to the hub
+  3   | maintainer@emeraldcoastsystemsgroup.com | Topic focus field: build flashcards on any topic, or a full topic pack (summary, PowerPoint, flashcards) through /process-transcript.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -66,9 +67,16 @@
     </section>
 
     <section class="lm-card hide" id="aiCard">
-      <h3>🤖 Auto-build from my class</h3>
-      <p class="lm-help lm-mb-sm">Pick one of your classes above, and your monster makes a study set from that class's textbook and lecture notes.</p>
-      <button type="button" class="lm-btn lm-btn-soft" onclick="aiGenerate()" id="aiBtn">Build a set from my class</button>
+      <h3>🤖 Auto-build Flashcards or Full Topic Pack (Summary + PowerPoint + Flashcards)</h3>
+      <p class="lm-help lm-mb-sm">Pick one of your classes above and optionally enter a specific topic. Little Monsters will generate flashcards or a complete study pack (Summary Notes, PowerPoint <code>.pptx</code>, and Flashcards) grounded in your class textbook and materials.</p>
+      <div class="lm-field">
+        <label for="aiTopic">Topic focus (optional — or type any topic!)</label>
+        <input id="aiTopic" placeholder="e.g. Solving Linear Equations, Photosynthesis, The Bill of Rights…">
+      </div>
+      <div class="lm-row is-wrap">
+        <button type="button" class="lm-btn lm-btn-soft" onclick="aiGenerate()" id="aiBtn">🃏 Build Flashcards on Topic</button>
+        <button type="button" class="lm-btn lm-btn-primary" onclick="aiGeneratePack()" id="aiPackBtn">✨ Full Topic Pack (Summary + PowerPoint + Flashcards)</button>
+      </div>
       <div class="lm-status lm-mt-md" id="aiMsg" role="status"></div>
     </section>
   </div>
@@ -81,19 +89,27 @@ var me = null;
 function isTeacher() { return !!me && (me.role === 'teacher' || me.role === 'admin'); }
 function status(id, text, isError) { var el = document.getElementById(id); el.textContent = text || ''; el.classList.toggle('is-error', !!isError); }
 
-/** Teachers and admins pick a class they may write to (the store's rule); everyone else builds a private set. */
+/** Load accessible classes so both students and teachers can build AI topic flashcards and study packs. */
 async function loadClasses() {
-  if (!isTeacher()) return;
   var mine = [];
   try {
     var r = await fetch('/api/education/classes');
-    if (r.ok) mine = ((await r.json()).classes || []).filter(function (c) { return me.role === 'admin' || c.teacher_student_id === me.studentId; });
+    if (r.ok) {
+      var all = (await r.json()).classes || [];
+      mine = isTeacher() ? all.filter(function (c) { return me.role === 'admin' || c.teacher_student_id === me.studentId; }) : all;
+      if (!mine.length) mine = all;
+    }
   } catch (e) { mine = []; }
   var sel = document.getElementById('classSel');
   mine.forEach(function (c) { var o = document.createElement('option'); o.value = c.class_id; o.textContent = c.name + (c.subject ? (' · ' + c.subject) : ''); sel.appendChild(o); });
-  document.getElementById('classField').classList.remove('hide');
-  document.getElementById('privateNote').classList.add('hide');
-  if (mine.length) document.getElementById('aiCard').classList.remove('hide');
+  var pre = new URLSearchParams(window.location.search).get('classId');
+  if (pre && mine.some(function (c) { return c.class_id === pre; })) sel.value = pre;
+  else if (mine.length && !sel.value) sel.value = mine[0].class_id;
+  if (mine.length) {
+    document.getElementById('classField').classList.remove('hide');
+    if (isTeacher()) document.getElementById('privateNote').classList.add('hide');
+    document.getElementById('aiCard').classList.remove('hide');
+  }
 }
 function addRow(front, back) {
   var d = document.createElement('div'); d.className = 'card-row';
@@ -120,7 +136,7 @@ function collect() {
 }
 async function saveSet() {
   var title = document.getElementById('title').value.trim() || 'My cards';
-  var classId = document.getElementById('classSel').value || null;
+  var classId = isTeacher() ? (document.getElementById('classSel').value || null) : null;
   var cards = collect();
   if (!cards.length) { status('msg', 'Add at least one card (front and back).', true); return; }
   status('msg', 'Saving…');
@@ -138,18 +154,70 @@ async function saveSet() {
 }
 async function aiGenerate() {
   var classId = document.getElementById('classSel').value;
+  var topic = (document.getElementById('aiTopic').value || document.getElementById('title').value || '').trim();
   if (!classId) { status('aiMsg', 'Pick one of your classes first.', true); return; }
   var btn = document.getElementById('aiBtn'); btn.disabled = true;
-  status('aiMsg', 'Your monster is reading your class notes…');
+  status('aiMsg', 'Your monster is reading your class notes' + (topic ? ' for "' + topic + '"' : '') + '…');
   try {
-    var r = await fetch('/api/education/flashcards/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ classId: classId }) });
-    var d = await r.json();
-    if (!r.ok) throw new Error(d.error || d.reason || 'generation unavailable');
+    var setId = null, cardCount = 0, setTitle = topic ? ('Topic: ' + topic) : 'Class flashcards';
+    if (isTeacher()) {
+      var r = await fetch('/api/education/flashcards/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ classId: classId, topic: topic || undefined })
+      });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.error || d.reason || 'generation unavailable');
+      setId = d.setId;
+      cardCount = (d.cards || []).length;
+      setTitle = d.title || setTitle;
+    } else {
+      var effectiveTopic = topic.length >= 3 ? topic : 'Core class concepts and key vocabulary';
+      var r2 = await fetch('/api/education/process-transcript', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ classId: classId, topic: effectiveTopic, title: 'Topic: ' + effectiveTopic })
+      });
+      var d2 = await r2.json();
+      if (!r2.ok) throw new Error(d2.error || 'generation unavailable');
+      setId = d2.flashcardSetId;
+      cardCount = (d2.flashcards || []).length;
+      setTitle = d2.title || setTitle;
+    }
     var el = document.getElementById('aiMsg');
     el.classList.remove('is-error');
-    el.innerHTML = 'Made “' + esc(d.title || 'a set') + '” from your class! 🎉 <a href="/api/education/flashcards-hub">Find it in My flashcards →</a>';
-    window.LM.toast('Built a set from your class');
+    el.innerHTML = 'Made “' + esc(setTitle) + '” (' + cardCount + ' cards)! 🎉 ' +
+      (setId ? '<a href="/api/education/flashcards?setId=' + encodeURIComponent(setId) + '&classId=' + encodeURIComponent(classId) + '">Study now →</a> · ' : '') +
+      '<a href="/api/education/flashcards-hub">All sets →</a>';
+    window.LM.toast('Built flashcards from your class');
   } catch (e) { status('aiMsg', 'Could not build: ' + e.message, true); }
+  btn.disabled = false;
+}
+async function aiGeneratePack() {
+  var classId = document.getElementById('classSel').value;
+  var topic = (document.getElementById('aiTopic').value || document.getElementById('title').value || '').trim();
+  if (!classId) { status('aiMsg', 'Pick one of your classes first.', true); return; }
+  if (topic.length < 3) { status('aiMsg', 'Type a topic in "Topic focus" above (at least 3 characters).', true); document.getElementById('aiTopic').focus(); return; }
+  var btn = document.getElementById('aiPackBtn'); btn.disabled = true;
+  status('aiMsg', 'Generating Summary Notes, PowerPoint (.pptx), and Flashcards for "' + topic + '"…');
+  try {
+    var r = await fetch('/api/education/process-transcript', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ classId: classId, topic: topic, title: 'Topic: ' + topic })
+    });
+    var d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'generation unavailable');
+    var el = document.getElementById('aiMsg');
+    el.classList.remove('is-error');
+    var links = [];
+    if (d.pptx && d.pptx.downloadUrl) links.push('<a class="lm-btn lm-btn-primary lm-btn-sm" href="' + esc(d.pptx.downloadUrl) + '" download>⬇ PowerPoint (.pptx)</a>');
+    if (d.lectureId) links.push('<a class="lm-btn lm-btn-soft lm-btn-sm" href="/api/education/presentation?lectureId=' + encodeURIComponent(d.lectureId) + '&classId=' + encodeURIComponent(classId) + '">▶ Slide Deck (' + ((d.slides || []).length) + ')</a>');
+    if (d.flashcardSetId) links.push('<a class="lm-btn lm-btn-soft lm-btn-sm" href="/api/education/flashcards?setId=' + encodeURIComponent(d.flashcardSetId) + '&classId=' + encodeURIComponent(classId) + '">🃏 Flashcards (' + ((d.flashcards || []).length) + ')</a>');
+    el.innerHTML = '<div><strong>✨ Created Topic Study Pack for “' + esc(topic) + '”!</strong></div><div class="lm-row is-wrap lm-mt-sm">' + links.join(' ') + '</div>' +
+      (d.notes ? '<div class="lm-card is-inset lm-mt-sm" style="white-space:pre-wrap;font-size:13px;max-height:220px;overflow:auto">' + esc(d.notes) + '</div>' : '');
+    window.LM.toast('Created Summary, PowerPoint & Flashcards!');
+  } catch (e) { status('aiMsg', 'Could not build study pack: ' + e.message, true); }
   btn.disabled = false;
 }
 

@@ -17,6 +17,7 @@
   6   | maintainer@emeraldcoastsystemsgroup.com   | ADR-139 class-material destination: keep the receiving action id and let the owner choose an accessible class before importing
   7   | maintainer@emeraldcoastsystemsgroup.com   | The home page of the Little Monsters UX: one page, two honest views by real role (learner: progress, coming up, study actions, classes; teacher: classes you teach with rosters and quiz averages, lecture and class actions). Design system + shared theme bootstrap + page frame replace the per-page theme reader, glass and inline palettes; recording is offered only to teachers/admins because lecture writes are teacher-only; the streak tile shows only when a streak exists
   8   | maintainer@emeraldcoastsystemsgroup.com   | The greeting read 'Up late?. Little Monsters is ...': greetLine() ends 'Up late' with a question mark and every other part with a full stop, with or without a name.
+  9   | maintainer@emeraldcoastsystemsgroup.com | Topic Study Pack and Textbook library (79 OpenStax, DK and training books) on the dashboard, and an optional library textbook when creating a class.
   ---------------------------------------------------------------------------
 -->
 <script>
@@ -213,6 +214,8 @@
     <div class="lm-section-head">
       <h2 id="classesHeading">My classes</h2>
       <div class="lm-row is-wrap">
+        <button type="button" class="lm-btn lm-btn-primary lm-btn-sm" onclick="showTopicStudyPack()">✨ Topic Study Pack</button>
+        <button type="button" class="lm-btn lm-btn-soft lm-btn-sm" onclick="showTextbookLibrary()">📖 Textbook library</button>
         <button type="button" class="lm-btn lm-btn-soft lm-btn-sm" onclick="showCatalog()">📚 Class bank</button>
         <button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" onclick="showAddClass()">+ Create a class</button>
       </div>
@@ -252,8 +255,9 @@
       <div class="lm-field"><label for="nc-schedule">Schedule</label><input type="text" id="nc-schedule" placeholder="e.g. MWF 9:00–9:50 AM"></div>
       <div class="lm-field"><label for="nc-desc">Description</label><textarea id="nc-desc" rows="2"></textarea></div>
       <div class="lm-callout lm-mb-md">
-        <p class="lm-small lm-mb-sm">Upload materials now, or add them later from the class page.</p>
-        <div class="lm-field"><label for="nc-textbook">Textbook (PDF)</label><input type="file" id="nc-textbook" accept=".pdf"></div>
+        <p class="lm-small lm-mb-sm">Pick a textbook from the Training Programs library or upload your own PDF:</p>
+        <div class="lm-field"><label for="nc-staged-textbook">Training Programs textbook (optional)</label><select id="nc-staged-textbook" class="lm-input"><option value="">— Optional: choose from 79 training textbooks —</option></select></div>
+        <div class="lm-field"><label for="nc-textbook">Or upload textbook (PDF)</label><input type="file" id="nc-textbook" accept=".pdf"></div>
         <div class="lm-field" style="margin-bottom:0"><label for="nc-syllabus">Syllabus (PDF)</label><input type="file" id="nc-syllabus" accept=".pdf"></div>
       </div>
       <div id="nc-status" class="lm-status lm-mb-md" aria-live="polite"></div>
@@ -269,6 +273,134 @@
     <div class="lm-modal-card is-wide">
       <div class="lm-modal-head"><div><h2 id="catalogTitle">📚 Class bank</h2><p class="lm-subtle lm-small">Classes your school’s teachers have published. Join one to add it to your home; you can leave any time.</p></div><button type="button" class="lm-btn lm-btn-quiet lm-btn-icon" aria-label="Close" onclick="hideCatalog()">✕</button></div>
       <div id="catalogList" class="lm-list"><div class="lm-loading">Loading classes…</div></div>
+    </div>
+  </div>
+
+  <!-- ── Training Programs Textbook Library ── -->
+  <div id="textbookLibraryModal" class="lm-modal" role="dialog" aria-modal="true" aria-labelledby="tbLibTitle">
+    <div class="lm-modal-card is-wide" style="max-width:920px">
+      <div class="lm-modal-head">
+        <div>
+          <h2 id="tbLibTitle">📖 Training Programs Textbook Library <span class="lm-pill is-info" id="tbCountPill">79 books</span></h2>
+          <p class="lm-subtle lm-small">Browse OpenStax, DK Encyclopedias, and staged curriculum textbooks from the training programs directory. Read any book inline or attach it to a class to ground the AI Tutor, Flashcards, and Quizzes.</p>
+        </div>
+        <button type="button" class="lm-btn lm-btn-quiet lm-btn-icon" aria-label="Close" onclick="hideTextbookLibrary()">✕</button>
+      </div>
+      <div class="lm-row is-wrap lm-mb-md" style="gap:10px">
+        <input type="search" id="tbSearch" class="lm-input" placeholder="Search by title, subject, author, or topic…" style="flex:1;min-width:220px" oninput="filterTextbookLibrary()">
+        <select id="tbSubjectFilter" class="lm-input" style="width:auto;min-width:190px" onchange="filterTextbookLibrary()">
+          <option value="">All subjects</option>
+          <option value="Mathematics">Mathematics</option>
+          <option value="Biology & Life Science">Biology &amp; Life Science</option>
+          <option value="Chemistry & Physics">Chemistry &amp; Physics</option>
+          <option value="History & Social Studies">History &amp; Social Studies</option>
+          <option value="English & Humanities">English &amp; Humanities</option>
+          <option value="Business & Economics">Business &amp; Economics</option>
+          <option value="Encyclopedias & Reference">Encyclopedias &amp; Reference</option>
+        </select>
+        <select id="tbTargetClass" class="lm-input" style="width:auto;min-width:200px" aria-label="Target class for attaching textbooks">
+          <option value="">Attach to class…</option>
+        </select>
+      </div>
+      <div id="tbStatus" class="lm-status lm-mb-sm" aria-live="polite"></div>
+      <div id="tbList" class="lm-list" style="max-height:58vh;overflow:auto"><div class="lm-loading">Loading textbooks…</div></div>
+    </div>
+  </div>
+
+  <!-- ── Textbook Reader Modal ── -->
+  <div id="textbookReaderModal" class="lm-modal" role="dialog" aria-modal="true" aria-labelledby="tbReaderTitle">
+    <div class="lm-modal-card is-wide" style="max-width:960px">
+      <div class="lm-modal-head">
+        <div>
+          <div class="lm-eyebrow" id="tbReaderMeta">Textbook</div>
+          <h2 id="tbReaderTitle">Reading…</h2>
+        </div>
+        <div class="lm-row is-wrap">
+          <button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" id="tbReaderSpeakBtn" onclick="speakTextbookExcerpt()">🔊 Read aloud</button>
+          <a class="lm-btn lm-btn-soft lm-btn-sm hide" id="tbReaderPdfBtn" href="#" target="_blank" rel="noopener">📄 Open PDF ↗</a>
+          <button type="button" class="lm-btn lm-btn-soft lm-btn-sm" id="tbReaderTopicBtn" onclick="topicPackFromCurrentTextbook()">✨ Make Summary, PPTX &amp; Flashcards</button>
+          <button type="button" class="lm-btn lm-btn-primary lm-btn-sm" id="tbReaderAttachBtn" onclick="attachCurrentTextbook()">➕ Add to class</button>
+          <button type="button" class="lm-btn lm-btn-quiet lm-btn-icon" aria-label="Close" onclick="hideTextbookReader()">✕</button>
+        </div>
+      </div>
+      <div id="tbReaderContent" class="lm-card" style="max-height:66vh;overflow:auto;white-space:pre-wrap;line-height:1.7;font-size:14.5px">Loading textbook content…</div>
+    </div>
+  </div>
+
+  <!-- ── Topic Study Pack Modal (Summary + PowerPoint + Flashcards) ── -->
+  <div id="topicStudyPackModal" class="lm-modal" role="dialog" aria-modal="true" aria-labelledby="tspTitle">
+    <div class="lm-modal-card is-wide" style="max-width:960px">
+      <div class="lm-modal-head">
+        <div>
+          <div class="lm-eyebrow">AI Study Generator · Grounded in Class &amp; Training Textbooks</div>
+          <h2 id="tspTitle">✨ Topic Study Pack: Summary, PowerPoint &amp; Flashcards</h2>
+          <p class="lm-subtle lm-small">Type any topic and pick a class (or a Training Programs textbook). Little Monsters will generate a structured Markdown Summary, an interactive Slide Presentation + downloadable PowerPoint (<code>.pptx</code>), and a Flashcard Deck.</p>
+        </div>
+        <button type="button" class="lm-btn lm-btn-quiet lm-btn-icon" aria-label="Close" onclick="hideTopicStudyPack()">✕</button>
+      </div>
+      <div class="lm-grid is-tight" style="--min:240px">
+        <div class="lm-field">
+          <label for="tspClass">Class *</label>
+          <select id="tspClass" class="lm-input"><option value="">Loading classes…</option></select>
+        </div>
+        <div class="lm-field">
+          <label for="tspTextbook">Training Programs Textbook (optional grounding)</label>
+          <select id="tspTextbook" class="lm-input"><option value="">— Auto-match from class &amp; 79 textbooks —</option></select>
+        </div>
+      </div>
+      <div class="lm-field">
+        <label for="tspTopic">Topic or Chapter Focus *</label>
+        <input type="text" id="tspTopic" class="lm-input" placeholder="e.g. Solving Two-Step Linear Equations, Photosynthesis &amp; Cellular Respiration, The Bill of Rights…">
+      </div>
+      <div class="lm-row is-wrap lm-mb-md" style="gap:6px">
+        <span class="lm-subtle lm-small">Quick topics:</span>
+        <button type="button" class="lm-chip" onclick="pickStudyTopic('Solving Linear Equations &amp; Balancing Proportions')">Solving Linear Equations &amp; Proportions</button>
+        <button type="button" class="lm-chip" onclick="pickStudyTopic('Photosynthesis &amp; Cellular Respiration')">Photosynthesis &amp; Cellular Respiration</button>
+        <button type="button" class="lm-chip" onclick="pickStudyTopic('The U.S. Constitution &amp; Bill of Rights')">U.S. Constitution &amp; Bill of Rights</button>
+        <button type="button" class="lm-chip" onclick="pickStudyTopic('Pythagorean Theorem &amp; Right Triangle Trigonometry')">Pythagorean Theorem &amp; Right Triangles</button>
+        <button type="button" class="lm-chip" onclick="pickStudyTopic('Newton\'s Three Laws of Motion &amp; Forces')">Newton's Laws of Motion</button>
+      </div>
+      <div class="lm-row is-wrap lm-mb-md">
+        <button type="button" class="lm-btn lm-btn-primary" id="tspGenerateBtn" onclick="submitTopicStudyPack()">✨ Generate Summary, PowerPoint &amp; Flashcards</button>
+        <button type="button" class="lm-btn lm-btn-ghost" onclick="hideTopicStudyPack()">Close</button>
+      </div>
+      <div id="tspStatus" class="lm-status lm-mb-md" aria-live="polite"></div>
+      <div id="tspResults" class="hide" style="max-height:54vh;overflow:auto;padding-right:4px">
+        <div class="lm-card is-accent lm-mb-md">
+          <div class="lm-row is-between is-wrap">
+            <div>
+              <div class="lm-card-kicker">Generated Study Pack Ready</div>
+              <h3 id="tspResultHeading" style="margin:2px 0 4px">Topic Pack</h3>
+              <div class="lm-subtle lm-small" id="tspResultMeta">Summary notes, PowerPoint deck, and flashcards saved to your class.</div>
+            </div>
+            <div class="lm-row is-wrap" id="tspActionButtons"></div>
+          </div>
+        </div>
+        <div class="lm-grid" style="--min:280px;align-items:start">
+          <div class="lm-card">
+            <div class="lm-row is-between is-wrap lm-mb-sm">
+              <div class="lm-card-kicker" style="margin:0">📝 Summary &amp; Study Notes</div>
+              <div class="lm-row is-wrap">
+                <button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" onclick="speakStudyPackNotes()">🔊 Read</button>
+                <button type="button" class="lm-btn lm-btn-soft lm-btn-sm" onclick="saveStudyPackNotes()">💾 Save to My Files</button>
+              </div>
+            </div>
+            <div id="tspNotesOut" style="white-space:pre-wrap;font-size:13.5px;line-height:1.65;max-height:320px;overflow:auto"></div>
+          </div>
+          <div class="lm-card">
+            <div class="lm-row is-between is-wrap lm-mb-sm">
+              <div class="lm-card-kicker" style="margin:0" id="tspSlidesKicker">📽️ Presentation Slides &amp; PowerPoint</div>
+            </div>
+            <div id="tspSlidesOut" class="lm-stack" style="gap:8px;max-height:320px;overflow:auto"></div>
+          </div>
+        </div>
+        <div class="lm-card lm-mt-md">
+          <div class="lm-row is-between is-wrap lm-mb-sm">
+            <div class="lm-card-kicker" style="margin:0" id="tspCardsKicker">🃏 Generated Flashcards</div>
+          </div>
+          <div id="tspCardsOut" class="lm-grid is-tight" style="--min:220px"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -321,18 +453,23 @@ function paintHero() {
 /** Quick actions differ by role because lecture writes and flashcard generation are teacher-only on the server. */
 function paintActions() {
   var learner = [
+    ['topicpack', '✨', 'is-accent', 'Topic Study Pack', 'Summary, PowerPoint & flashcards on any topic'],
     ['tutor', '💬', '', 'Ask the tutor', 'Help with a topic, grounded in your class'],
     ['flashcards', '🃏', 'is-info', 'Study flashcards', 'Review what is due today'],
     ['quiz', '🎯', 'is-success', 'Practice quiz', 'Pick a class and test yourself'],
+    ['textbooks', '📖', 'is-accent', 'Textbook library', '79 OpenStax, DK & training books'],
     ['myday', '📅', 'is-gold', 'My Day', 'Due dates, calendar and reflection'],
     ['arcade', '🕹️', 'is-warning', 'Games', 'Warm up your brain, then play'],
     ['monsters', '🐾', 'is-danger', 'My Monsters', 'Open boxes, collect and equip']
   ];
   var teacher = [
+    ['topicpack', '✨', 'is-accent', 'Topic Study Pack', 'Make a Summary, PowerPoint & Flashcards on any topic'],
     ['recorder', '🎤', 'is-danger', 'Record a lecture', 'Captions now, replay, cards and notes after'],
     ['teacher', '📊', '', 'Teacher view', 'Rosters, quiz averages and activity'],
     ['create', '➕', 'is-success', 'Create a class', 'Publish it to the class bank'],
+    ['textbooks', '📖', 'is-accent', 'Textbook library', '79 OpenStax, DK & training books'],
     ['flashcards', '🃏', 'is-info', 'Flashcards', 'Build sets from class material'],
+    ['quiz', '🎯', 'is-success', 'Practice quiz', 'Test any class with AI quizzes'],
     ['presentations', '📽️', 'is-gold', 'Presentations', 'Replay a lecture as slides'],
     ['myday', '📅', 'is-warning', 'My Day', 'Class calendar and assignments']
   ];
@@ -341,7 +478,9 @@ function paintActions() {
   }).join('');
 }
 function go(view) {
+  if (view === 'topicpack') return showTopicStudyPack();
   if (view === 'create') return showAddClass();
+  if (view === 'textbooks') return showTextbookLibrary();
   if (view === 'quiz') return openPage('quiz');
   LM.navigate(view);
 }
@@ -390,7 +529,7 @@ async function loadTeacherOverview() {
   var avg = avgs.length ? Math.round(avgs.reduce(function (s, v) { return s + Number(v); }, 0) / avgs.length) + '%' : '—';
   $('teachHeading').textContent = classes.length ? classes.length + (classes.length === 1 ? ' class, ' : ' classes, ') + students + (students === 1 ? ' student.' : ' students.') : 'No classes yet.';
   host.innerHTML = stat(classes.length, 'Classes') + stat(students, 'Students', 'is-info') + stat(lectures, 'Lectures', 'is-accent') + stat(avg, 'Class quiz avg', avgs.length ? 'is-success' : '');
-  $('teachActions').innerHTML = '<button type="button" class="lm-btn lm-btn-primary" data-go="teacher">📊 Open the teacher view</button><button type="button" class="lm-btn lm-btn-ghost" data-go="recorder">🎤 Record a lecture</button>' + (classes.length ? '' : '<button type="button" class="lm-btn lm-btn-ghost" data-go="create">➕ Create your first class</button>');
+  $('teachActions').innerHTML = '<button type="button" class="lm-btn lm-btn-primary" onclick="showTopicStudyPack()">✨ Make Topic Study Pack</button><button type="button" class="lm-btn lm-btn-soft" data-go="teacher">📊 Open the teacher view</button><button type="button" class="lm-btn lm-btn-ghost" data-go="recorder">🎤 Record a lecture</button><button type="button" class="lm-btn lm-btn-soft" onclick="showTextbookLibrary()">📖 Textbook library</button>' + (classes.length ? '' : '<button type="button" class="lm-btn lm-btn-ghost" data-go="create">➕ Create your first class</button>');
   return classes;
 }
 function stat(v, l, tone) { return '<div class="lm-stat ' + (tone || '') + '"><div class="lm-stat-value">' + esc(v) + '</div><div class="lm-stat-label">' + esc(l) + '</div></div>'; }
@@ -421,7 +560,10 @@ function openClass(classId) { LM.openClass(classId); }
 function openPage(page) { window.location.href = '/api/education/' + page; }
 
 /* ── Classes and upcoming ──────────────────────────────────────────────── */
+var MY_CLASSES_CACHE = [];
 function renderClasses(classes) {
+  MY_CLASSES_CACHE = classes || [];
+  populateTextbookTargetClassSelect();
   var container = $('classList');
   if (!classes || classes.length === 0) {
     container.innerHTML = '<div class="lm-empty" style="grid-column:1/-1"><div class="lm-empty-icon">🎒</div><strong>No classes yet.</strong>' + (isTeacher() ? 'Create a class and publish it so your students can join.' : 'Join your teachers’ classes from the class bank, or create a private study class.') + '<div class="lm-row is-wrap lm-mt-md" style="justify-content:center">' + (isTeacher() ? '<button type="button" class="lm-btn lm-btn-primary" onclick="showAddClass()">➕ Create a class</button>' : '<button type="button" class="lm-btn lm-btn-primary" onclick="showCatalog()">📚 Browse the class bank</button><button type="button" class="lm-btn lm-btn-ghost" onclick="showAddClass()">Create my own</button>') + '</div></div>';
@@ -512,10 +654,18 @@ async function init() {
   if (!isTeacher()) { updateXP(0, 1); paintProgressActions(null); }
 }
 
-/* ── Open-classes invite ───────────────────────────────────────────────── */
+/* ── Open-classes invite & textbook cache ──────────────────────────────── */
+var TEXTBOOKS_CACHE = [];
+var CURRENT_TEXTBOOK = null;
 async function fetchOpenClasses() {
-  try { var data = await (await fetch('/api/education/catalog')).json(); OPEN_CLASSES = data.classes || []; }
-  catch (e) { OPEN_CLASSES = []; }
+  try {
+    var data = await (await fetch('/api/education/catalog')).json();
+    OPEN_CLASSES = data.classes || [];
+    if (Array.isArray(data.textbooks) && data.textbooks.length) {
+      TEXTBOOKS_CACHE = data.textbooks;
+      populateStagedTextbookSelect();
+    }
+  } catch (e) { OPEN_CLASSES = []; }
   return OPEN_CLASSES;
 }
 function joinChip(c, fromOnboard) {
@@ -539,6 +689,325 @@ async function joinOpenClass(classId, fromOnboard) {
     LM.toast('Joined. The class is on your home now.');
     init();
   } catch (e) { LM.toast('Could not join: ' + e.message); }
+}
+
+/* ── Training Programs Textbook Library ────────────────────────────────── */
+function populateStagedTextbookSelect() {
+  var sel = $('nc-staged-textbook');
+  if (!sel || !TEXTBOOKS_CACHE.length) return;
+  var opts = '<option value="">— Optional: choose from ' + TEXTBOOKS_CACHE.length + ' training textbooks —</option>';
+  TEXTBOOKS_CACHE.forEach(function (tb) {
+    opts += '<option value="' + esc(tb.id) + '">' + esc(tb.title) + ' (' + esc(tb.subject || tb.collection || 'Textbook') + ')</option>';
+  });
+  sel.innerHTML = opts;
+}
+function populateTextbookTargetClassSelect() {
+  var sel = $('tbTargetClass');
+  if (!sel) return;
+  var prev = sel.value;
+  var opts = '<option value="">Attach to class…</option>';
+  (MY_CLASSES_CACHE || []).forEach(function (c) {
+    opts += '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>';
+  });
+  sel.innerHTML = opts;
+  if (prev && (MY_CLASSES_CACHE || []).some(function (c) { return c.id === prev; })) sel.value = prev;
+  else if (MY_CLASSES_CACHE && MY_CLASSES_CACHE[0]) sel.value = MY_CLASSES_CACHE[0].id;
+}
+async function showTextbookLibrary() {
+  $('textbookLibraryModal').classList.add('is-open');
+  $('tbStatus').textContent = '';
+  if (!TEXTBOOKS_CACHE.length) {
+    await fetchOpenClasses();
+  }
+  populateTextbookTargetClassSelect();
+  filterTextbookLibrary();
+}
+function hideTextbookLibrary() { $('textbookLibraryModal').classList.remove('is-open'); }
+function filterTextbookLibrary() {
+  var list = $('tbList');
+  var q = String(($('tbSearch') && $('tbSearch').value) || '').trim().toLowerCase();
+  var subj = String(($('tbSubjectFilter') && $('tbSubjectFilter').value) || '').trim();
+  var rows = (TEXTBOOKS_CACHE || []).filter(function (tb) {
+    if (subj && tb.subject !== subj) return false;
+    if (!q) return true;
+    var hay = [tb.title, tb.author, tb.subject, tb.collection, tb.description, tb.gradeBand].filter(Boolean).join(' ').toLowerCase();
+    return hay.indexOf(q) !== -1;
+  });
+  $('tbCountPill').textContent = rows.length + (rows.length === 1 ? ' book' : ' books');
+  if (!rows.length) {
+    list.innerHTML = '<div class="lm-empty"><strong>No matching textbooks.</strong>Try another search term or subject filter.</div>';
+    return;
+  }
+  list.innerHTML = rows.map(function (tb) {
+    var badges = [
+      tb.subject ? '<span class="lm-pill is-neutral">' + esc(tb.subject) + '</span>' : '',
+      tb.gradeBand ? '<span class="lm-pill is-neutral">' + esc(tb.gradeBand) + '</span>' : '',
+      tb.collection ? '<span class="lm-pill is-info">' + esc(tb.collection) + '</span>' : ''
+    ].filter(Boolean).join(' ');
+    var pdfBtn = tb.hasPdf
+      ? '<a class="lm-btn lm-btn-ghost lm-btn-sm" href="/api/education/catalog?textbookId=' + encodeURIComponent(tb.id) + '&format=pdf" target="_blank" rel="noopener">📄 PDF</a>'
+      : '';
+    return '<div class="lm-item" style="align-items:flex-start">' +
+      '<span class="lm-avatar" aria-hidden="true">📖</span>' +
+      '<div class="lm-item-body">' +
+        '<strong>' + esc(tb.title) + '</strong>' +
+        '<small>' + esc(tb.author || 'OpenStax / Curriculum') + (tb.description ? ' — ' + esc(tb.description) : '') + '</small>' +
+        '<div class="lm-row is-wrap lm-mt-sm" style="gap:6px;margin-top:6px">' + badges + '</div>' +
+      '</div>' +
+      '<div class="lm-row is-wrap" style="gap:6px">' +
+        '<button type="button" class="lm-btn lm-btn-soft lm-btn-sm" onclick="readTextbook(\'' + esc(tb.id) + '\')">📖 Read</button>' +
+        pdfBtn +
+        '<button type="button" class="lm-btn lm-btn-primary lm-btn-sm" onclick="attachTextbookToSelectedClass(\'' + esc(tb.id) + '\')">➕ Add to class</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+async function readTextbook(textbookId) {
+  $('textbookReaderModal').classList.add('is-open');
+  $('tbReaderTitle').textContent = 'Loading textbook…';
+  $('tbReaderMeta').textContent = 'Training Programs Textbook';
+  $('tbReaderContent').textContent = 'Loading full text…';
+  $('tbReaderPdfBtn').classList.add('hide');
+  CURRENT_TEXTBOOK = null;
+  try {
+    var resp = await fetch('/api/education/catalog?textbookId=' + encodeURIComponent(textbookId));
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var data = await resp.json();
+    var tb = data.textbook || {};
+    CURRENT_TEXTBOOK = tb;
+    $('tbReaderTitle').textContent = tb.title || 'Textbook';
+    $('tbReaderMeta').textContent = [tb.subject, tb.author, tb.gradeBand, tb.collection].filter(Boolean).join(' · ') || 'Textbook';
+    $('tbReaderContent').textContent = tb.content || tb.description || 'No text preview available.';
+    if (tb.hasPdf && tb.pdfUrl) {
+      $('tbReaderPdfBtn').href = tb.pdfUrl;
+      $('tbReaderPdfBtn').classList.remove('hide');
+    }
+  } catch (e) {
+    $('tbReaderTitle').textContent = 'Could not load textbook';
+    $('tbReaderContent').textContent = 'Error loading textbook: ' + e.message;
+  }
+}
+function hideTextbookReader() {
+  $('textbookReaderModal').classList.remove('is-open');
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+}
+function speakTextbookExcerpt() {
+  var text = ($('tbReaderContent') && $('tbReaderContent').textContent) || '';
+  if (!text) return;
+  var excerpt = text.slice(0, 1800);
+  if (window.lmSpeak) { window.lmSpeak(excerpt); return; }
+  if ('speechSynthesis' in window) {
+    speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(excerpt);
+    u.rate = 0.95;
+    speechSynthesis.speak(u);
+  }
+}
+function attachCurrentTextbook() {
+  if (!CURRENT_TEXTBOOK || !CURRENT_TEXTBOOK.id) return;
+  attachTextbookToSelectedClass(CURRENT_TEXTBOOK.id);
+}
+async function attachTextbookToSelectedClass(textbookId) {
+  var sel = $('tbTargetClass');
+  var classId = sel && sel.value ? sel.value : (MY_CLASSES_CACHE[0] && MY_CLASSES_CACHE[0].id);
+  var statusEl = $('tbStatus');
+  if (!classId) {
+    LM.toast('Join or create a class first so you have a class to attach this textbook to.');
+    return;
+  }
+  if (statusEl) {
+    statusEl.className = 'lm-status lm-mb-sm';
+    statusEl.textContent = 'Attaching textbook and grounding for the AI Tutor…';
+  }
+  try {
+    var resp = await fetch('/api/education/materials', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ classId: classId, textbookId: textbookId, share: true })
+    });
+    var body = await resp.json().catch(function () { return {}; });
+    if (!resp.ok) throw new Error(body.error || ('HTTP ' + resp.status));
+    var clsName = (MY_CLASSES_CACHE.find(function (c) { return c.id === classId; }) || {}).name || 'your class';
+    var msg = 'Added "' + (body.title || textbookId) + '" to ' + clsName + (body.grounded ? ' — grounded for the AI Tutor, Flashcards & Quizzes!' : '.');
+    if (statusEl) {
+      statusEl.className = 'lm-status lm-mb-sm is-success';
+      statusEl.textContent = msg;
+    }
+    LM.toast(msg);
+  } catch (e) {
+    if (statusEl) {
+      statusEl.className = 'lm-status lm-mb-sm is-error';
+      statusEl.textContent = 'Could not attach textbook: ' + e.message;
+    }
+    LM.toast('Could not attach textbook: ' + e.message);
+  }
+}
+
+/* ── Topic Study Pack (Summary + PowerPoint + Flashcards) ─────────────── */
+var LAST_STUDY_PACK = null;
+async function showTopicStudyPack(prefillTopic, prefillTextbookId) {
+  $('topicStudyPackModal').classList.add('is-open');
+  if (prefillTopic) $('tspTopic').value = prefillTopic;
+  var classSel = $('tspClass');
+  if (classSel) {
+    if (!MY_CLASSES_CACHE || !MY_CLASSES_CACHE.length) {
+      try {
+        var cr = await fetch('/api/education/classes');
+        var cd = cr.ok ? await cr.json() : { classes: [] };
+        MY_CLASSES_CACHE = (cd.classes || []).map(function (c) { return { id: c.class_id, name: c.name, subject: c.subject }; });
+      } catch (e) {}
+    }
+    classSel.innerHTML = MY_CLASSES_CACHE.length
+      ? MY_CLASSES_CACHE.map(function (c) {
+          return '<option value="' + esc(c.id) + '">' + esc(c.name) + (c.subject ? ' (' + esc(c.subject) + ')' : '') + '</option>';
+        }).join('')
+      : '<option value="">No classes yet — create or join a class first</option>';
+  }
+  var tbSel = $('tspTextbook');
+  if (tbSel) {
+    if (!TEXTBOOKS_CACHE || !TEXTBOOKS_CACHE.length) {
+      await fetchOpenClasses();
+    }
+    var books = TEXTBOOKS_CACHE || [];
+    tbSel.innerHTML = '<option value="">— Auto-match from class &amp; ' + (books.length || 79) + ' Training Textbooks —</option>' +
+      books.map(function (b) {
+        return '<option value="' + esc(b.id) + '">' + esc(b.title) + ' (' + esc(b.subject || 'General') + ')</option>';
+      }).join('');
+    if (prefillTextbookId) tbSel.value = prefillTextbookId;
+  }
+  setTimeout(function () { $('tspTopic').focus(); }, 60);
+}
+function hideTopicStudyPack() {
+  $('topicStudyPackModal').classList.remove('is-open');
+}
+function pickStudyTopic(topic) {
+  $('tspTopic').value = topic;
+  $('tspTopic').focus();
+}
+function topicPackFromCurrentTextbook() {
+  if (!CURRENT_TEXTBOOK) return;
+  hideTextbookReader();
+  hideTextbookLibrary();
+  showTopicStudyPack(CURRENT_TEXTBOOK.title + ' — Key Concepts & Formulas', CURRENT_TEXTBOOK.id);
+}
+async function submitTopicStudyPack() {
+  var classId = $('tspClass').value;
+  var topic = $('tspTopic').value.trim();
+  var textbookId = $('tspTextbook').value;
+  var statusEl = $('tspStatus');
+  var btn = $('tspGenerateBtn');
+  if (!classId) {
+    statusEl.className = 'lm-status lm-mb-md is-error';
+    statusEl.textContent = 'Please select a class first.';
+    return;
+  }
+  if (topic.length < 3) {
+    statusEl.className = 'lm-status lm-mb-md is-error';
+    statusEl.textContent = 'Please enter a topic (at least 3 characters).';
+    $('tspTopic').focus();
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating Summary, PowerPoint & Flashcards…';
+  statusEl.className = 'lm-status lm-mb-md';
+  statusEl.textContent = 'Reading class materials & Training Programs textbooks for "' + topic + '" and generating your Summary, Slide Deck (.pptx), and Flashcards…';
+  try {
+    var resp = await fetch('/api/education/process-transcript', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        classId: classId,
+        topic: topic,
+        title: 'Topic: ' + topic,
+        textbookId: textbookId || undefined
+      })
+    });
+    var data = await resp.json().catch(function () { return {}; });
+    if (!resp.ok) throw new Error(data.error || ('Generation failed (HTTP ' + resp.status + ')'));
+    LAST_STUDY_PACK = { topic: topic, classId: classId, data: data };
+    renderTopicStudyPackResult(topic, classId, data);
+    statusEl.className = 'lm-status lm-mb-md is-success';
+    statusEl.textContent = '✨ Study Pack ready! Summary notes, ' + ((data.slides || []).length) + ' presentation slides (.pptx), and ' + ((data.flashcards || []).length) + ' flashcards created.';
+    loadRecentLectures();
+    loadClassList();
+    if (mascot && typeof mascot.say === 'function') mascot.say('Your "' + topic + '" summary, PowerPoint, and flashcards are ready!');
+  } catch (e) {
+    statusEl.className = 'lm-status lm-mb-md is-error';
+    statusEl.textContent = 'Could not generate Topic Study Pack: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ Generate Summary, PowerPoint & Flashcards';
+  }
+}
+function renderTopicStudyPackResult(topic, classId, data) {
+  show('tspResults', true);
+  $('tspResultHeading').textContent = '✨ ' + (data.title || ('Topic: ' + topic));
+  var slides = data.slides || [];
+  var cards = data.flashcards || [];
+  $('tspResultMeta').textContent = 'Saved to your class • ' + (data.notes ? 'Markdown Summary' : 'Notes') + ' • ' + slides.length + ' Slides (.pptx) • ' + cards.length + ' Flashcards';
+  if (data.lectureId && slides.length) {
+    try {
+      sessionStorage.setItem('lm-slides-preview', JSON.stringify({
+        lectureId: data.lectureId,
+        classId: classId,
+        title: data.title || ('Topic: ' + topic),
+        slides: slides
+      }));
+    } catch (e) {}
+  }
+  var actions = [];
+  if (data.pptx && data.pptx.downloadUrl) {
+    actions.push('<a class="lm-btn lm-btn-primary lm-btn-sm" href="' + esc(data.pptx.downloadUrl) + '" download="' + esc(data.pptx.fileName || 'study-pack.pptx') + '">⬇ Download PowerPoint (.pptx)</a>');
+  }
+  if (data.lectureId && slides.length) {
+    var presHref = '/api/education/presentation?lectureId=' + encodeURIComponent(data.lectureId) + '&classId=' + encodeURIComponent(classId) + (data.flashcardSetId ? '&setId=' + encodeURIComponent(data.flashcardSetId) : '');
+    actions.push('<a class="lm-btn lm-btn-soft lm-btn-sm" href="' + presHref + '">▶ Open Interactive Slide Deck (' + slides.length + ')</a>');
+  }
+  if (data.flashcardSetId) {
+    var fcHref = '/api/education/flashcards?setId=' + encodeURIComponent(data.flashcardSetId) + '&classId=' + encodeURIComponent(classId);
+    actions.push('<a class="lm-btn lm-btn-soft lm-btn-sm" href="' + fcHref + '">🃏 Study Flashcards (' + cards.length + ')</a>');
+  }
+  $('tspActionButtons').innerHTML = actions.join(' ');
+  $('tspNotesOut').textContent = data.notes || 'No summary notes generated.';
+  $('tspSlidesKicker').textContent = '📽️ Presentation Slides (' + slides.length + ' slides)';
+  $('tspSlidesOut').innerHTML = slides.length
+    ? slides.map(function (s, idx) {
+        var bullets = (s.bullets || []).map(function (b) { return '<li>' + esc(b) + '</li>'; }).join('');
+        return '<div class="lm-card is-inset" style="padding:10px 12px"><strong>' + esc(s.emoji || '📌') + ' Slide ' + (idx + 1) + ': ' + esc(s.title) + '</strong><ul style="margin:6px 0 0 18px;padding:0;font-size:13px">' + bullets + '</ul></div>';
+      }).join('')
+    : '<div class="lm-subtle lm-small">No slides generated.</div>';
+  $('tspCardsKicker').textContent = '🃏 Generated Flashcards (' + cards.length + ' cards)';
+  $('tspCardsOut').innerHTML = cards.length
+    ? cards.map(function (c, i) {
+        return '<div class="lm-card is-inset" style="padding:10px 12px"><div class="lm-subtle lm-small">Card ' + (i + 1) + '</div><strong style="display:block;margin:2px 0 6px">' + esc(c.front) + '</strong><div class="lm-small">' + esc(c.back) + '</div></div>';
+      }).join('')
+    : '<div class="lm-subtle lm-small">No flashcards generated.</div>';
+}
+function speakStudyPackNotes() {
+  if (!LAST_STUDY_PACK || !LAST_STUDY_PACK.data || !LAST_STUDY_PACK.data.notes) return;
+  var text = String(LAST_STUDY_PACK.data.notes).replace(/[#*_`>-]/g, ' ').slice(0, 1800);
+  if (window.LMVoice && typeof window.LMVoice.speak === 'function') {
+    window.LMVoice.speak(text);
+  } else if ('speechSynthesis' in window) {
+    speechSynthesis.cancel();
+    speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  }
+}
+async function saveStudyPackNotes() {
+  if (!LAST_STUDY_PACK || !LAST_STUDY_PACK.data || !LAST_STUDY_PACK.data.notes) return;
+  try {
+    var safeTopic = String(LAST_STUDY_PACK.topic || 'topic').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50) || 'topic';
+    var filePath = 'notes/summary-' + safeTopic + '.md';
+    var r = await fetch('/api/applications/little-monsters/storage/write', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: filePath, content: LAST_STUDY_PACK.data.notes, encoding: 'utf8' })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    LM.toast('Saved summary to My Files (' + filePath + ')!');
+  } catch (e) {
+    LM.toast('Could not save summary: ' + e.message);
+  }
 }
 
 /* ── Class bank ────────────────────────────────────────────────────────── */
@@ -577,7 +1046,7 @@ async function leaveClass(classId) {
 }
 
 /* ── Create a class ────────────────────────────────────────────────────── */
-function showAddClass() { $('addClassModal').classList.add('is-open'); $('nc-name').focus(); }
+function showAddClass() { populateStagedTextbookSelect(); $('addClassModal').classList.add('is-open'); $('nc-name').focus(); }
 function hideAddClass() { $('addClassModal').classList.remove('is-open'); $('nc-status').textContent = ''; }
 async function submitNewClass() {
   var name = $('nc-name').value.trim(), subject = $('nc-subject').value.trim(), statusEl = $('nc-status');
@@ -588,7 +1057,16 @@ async function submitNewClass() {
     var resp = await fetch('/api/education/classes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (!resp.ok) { var err = await resp.json(); throw new Error(err.error || 'Failed to create class'); }
     var data = await resp.json(), classId = data.classId;
-    statusEl.className = 'lm-status lm-mb-md is-success'; statusEl.textContent = 'Class created. Uploading materials…';
+    statusEl.className = 'lm-status lm-mb-md is-success'; statusEl.textContent = 'Class created. Attaching materials…';
+    var stagedTextbookId = $('nc-staged-textbook') ? $('nc-staged-textbook').value : '';
+    if (stagedTextbookId) {
+      statusEl.textContent = 'Attaching Training Programs textbook…';
+      await fetch('/api/education/materials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ classId: classId, textbookId: stagedTextbookId, share: true })
+      }).catch(function () {});
+    }
     var textbookFile = $('nc-textbook').files[0];
     if (textbookFile) {
       statusEl.textContent = 'Uploading textbook: ' + textbookFile.name + '…';
@@ -607,7 +1085,7 @@ async function submitNewClass() {
   } catch (e) { statusEl.className = 'lm-status lm-mb-md is-error'; statusEl.textContent = 'Error: ' + e.message; }
 }
 function clearAddClassForm() {
-  ['nc-name', 'nc-subject', 'nc-teacher', 'nc-grade', 'nc-room', 'nc-website', 'nc-schedule', 'nc-desc'].forEach(function (id) { var el = $(id); if (el) el.value = ''; });
+  ['nc-name', 'nc-subject', 'nc-teacher', 'nc-grade', 'nc-room', 'nc-website', 'nc-schedule', 'nc-desc', 'nc-staged-textbook'].forEach(function (id) { var el = $(id); if (el) el.value = ''; });
   $('nc-textbook').value = ''; $('nc-syllabus').value = '';
 }
 async function loadClassList() {

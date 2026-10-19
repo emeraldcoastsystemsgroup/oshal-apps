@@ -32,6 +32,9 @@
 # 23  | maintainer@emeraldcoastsystemsgroup.com     | Name the concierge (chatBot: class-tutor): with none declared the cockpit panel opened on the first bot, lecture-scribe (lecture processing), which refused a practice quiz. The tutor answers questions and writes practice quizzes. Version unchanged.
 # 24  | maintainer@emeraldcoastsystemsgroup.com     | The dashboard tab (lm-dashboard) is labelled Classroom, not Home: the Home experience composes it beside its own Home tab and Smart Home's, and sweep 9 found three tabs all labelled Home opening three different applications.
 # 25  | maintainer@emeraldcoastsystemsgroup.com     | The dashboard tab (lm-dashboard) is labelled Class dashboard: sweep 10 found the Classroom experience showing two tabs both labelled Classroom (its own home, then this dashboard). Distinct in both the Home and the Classroom experiences. Version unchanged.
+# 26  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.12: Jarvis works inside Little Monsters. A student asked Jarvis to add a class, list action items and say what is due, and got "This application cannot add a new class": the package declared no tools. Route-backed tools over the existing caller-scoped routes (lm-my-classes, lm-add-class, lm-my-schedule, lm-my-assignments, lm-add-reminder, lm-remove-reminder; writes held for approval) with matching bindings.tools, class-tutor routing words for classes and school schedule, and the floating Tutor bubble (ui.assistant) is withdrawn so the corner button is the Jarvis orb; the Tutor stays a tab.
+# 27  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.13: commits the work live since 2026-10-18 01:00-03:04: Training Programs textbook library (/catalog over OSHAL_PACKAGE_DATA_DIR/textbooks; attach a book to a class as material), Topic Study Pack (summary, PowerPoint and flashcards on any topic via /process-transcript), topic-focused flashcards and quizzes, the full-window page frame, and lastingStorage: true. storage/relationships.json: any teacher or admin of a school may now read every lm_students row of that school (was: students enrolled in their own classes) and may create learner rows; lm_xp_events is unique on (student_id, dedupe_key).
+# 28  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.14: My Day's Due today and Coming up include the student's own calendar items; validated as a student through the front end, an action item saved by Jarvis showed on the month calendar but Coming up said "Nothing coming up". Guarded by tests/lm-myday-due.test.cjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Little Monsters
@@ -77,7 +80,8 @@ description: >-
   generate flashcards and authoritative quizzes, and chat with a Socratic tutor
   grounded only in caller-owned or teacher/admin-approved class material through
   per-material RAG collections.
-version: 1.4.11
+version: 1.4.14
+lastingStorage: true
 chatBot: class-tutor # Concierge the cockpit offers beside this application's screens.
 
 authorization:
@@ -290,6 +294,20 @@ bots:
       - my kid
       - for my son
       - for my daughter
+      - little monsters
+      - my classes
+      - new class
+      - add a class
+      - add class
+      - add my class
+      - my assignments
+      - assignments due
+      - school reminder
+      - study reminder
+      - school action items
+      - school calendar
+      - my school
+      - homework list
     persona: personas/class-tutor.yaml
     role: education/tutor
     capabilities: [tutoring, socratic-method, subject-expertise, rag-query, text-to-speech]
@@ -318,21 +336,118 @@ bots:
 # so bundled tool JS under tools/ is not callable (ADR-085 D12). The loader WARNs on it and the field
 # is removed in the next store release. The tools/ folder is kept for the execution path if it lands.
 
+# Route-backed tools for Jarvis and this app's bots (native kernel: executorType api, inside this
+# package's /api/education mount). Each one calls an existing caller-scoped route, so a student sees
+# and changes only their own classes and events; the two writes are held for the person's approval.
+tools:
+  - name: lm-my-classes
+    displayName: My Classes
+    type: api
+    category: education
+    description: The person's Little Monsters classes (the ones they created or are enrolled in), each with its class_id, name, subject, grade, teacher and schedule.
+    executor: { executorType: api, apiEndpoint: "GET /api/education/classes" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} before naming any class, and to find a class_id. An empty list means the person has no classes yet; offer lm-add-class.
+    routingTags: [school, classes, education]
+    tags: [education, route-backed]
+  - name: lm-add-class
+    displayName: Add Class
+    type: api
+    category: education
+    description: Add a class to the person's Little Monsters and enroll them in it. Held for the person's approval.
+    cardText: Adds this class to your Little Monsters.
+    executor: { executorType: api, apiEndpoint: "POST /api/education/classes" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120, description: "The class name as the person said it (Biology, Period 3 English)." }
+        subject: { type: string, minLength: 1, maxLength: 80, description: "The subject (Biology, Math, English). Use the name when the person gave nothing else." }
+        gradeLevel: { type: string, maxLength: 40 }
+        teacherName: { type: string, maxLength: 120 }
+        schedule: { type: string, maxLength: 200, description: "When it meets, in the person's words (Tuesdays and Thursdays at 10am)." }
+        room: { type: string, maxLength: 80 }
+        description: { type: string, maxLength: 1000 }
+      required: [name, subject]
+    usageInstructions: Call once per class the person asked to add. Read lm-my-classes first and never add a class whose name is already listed. The approval card is the person's confirmation; never call it again because they said yes. Say a class is added only when its result shows a classId.
+    routingTags: [school, classes, education]
+    tags: [education, route-backed]
+  - name: lm-my-schedule
+    displayName: My School Calendar
+    type: api
+    category: education
+    description: The person's Little Monsters calendar - their own reminders and study sessions plus the due dates, quizzes and tests of their classes - each with event_id, title, event_type, event_date, event_time and class_name.
+    executor: { executorType: api, apiEndpoint: "GET /api/education/calendar" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} for anything about what is coming up, due, scheduled or on their list, and to find an event_id before removing one. Answer only from what it returns, using the date on this turn's Current time line for "today" and "this week".
+    routingTags: [school, schedule, education]
+    tags: [education, route-backed]
+  - name: lm-my-assignments
+    displayName: My Assignments
+    type: api
+    category: education
+    description: The assignments of the person's classes, soonest due first, each with title, class_name, assignment_type, due_date and status.
+    executor: { executorType: api, apiEndpoint: "GET /api/education/assignments" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks about homework, assignments or what is due.
+    routingTags: [school, assignments, education]
+    tags: [education, route-backed]
+  - name: lm-add-reminder
+    displayName: Add to My School Calendar
+    type: api
+    category: education
+    description: Put one item on the person's own Little Monsters calendar - an action item, reminder, study session, due date, quiz or test. Held for the person's approval.
+    cardText: Adds this item to your Little Monsters calendar.
+    executor: { executorType: api, apiEndpoint: "POST /api/education/calendar" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200, description: "The item in the person's words (Finish the lab write-up)." }
+        eventDate: { type: string, minLength: 10, maxLength: 10, description: "The day, as YYYY-MM-DD (2026-10-21). Use the date on this turn's Current time line to resolve today, tomorrow or a weekday." }
+        eventTime: { type: string, maxLength: 8, description: "Optional time of day, 24-hour HH:MM (15:30). Leave it out when the person gave no time." }
+        eventType: { type: string, enum: [reminder, study-session, assignment, quiz, test, custom], description: "reminder for an action item or to-do; study-session for planned study; assignment, quiz or test for something due." }
+        classId: { type: string, format: uuid, description: "Optional. The class_id from lm-my-classes when the item belongs to one of the person's classes, never a class name." }
+        description: { type: string, maxLength: 1000, description: "Optional. Only a note the person asked to keep, in their own words." }
+      required: [title, eventDate, eventType]
+    usageInstructions: Call once per item; a list of action items is one call per item, each with its own date (ask for a date only when the person gave none and none is implied). Each call makes one card, so name only the items you made a card for in this reply. Never call it again for an item already proposed or saved, or because the person said yes. Say an item is saved only when its result shows an eventId.
+    routingTags: [school, reminders, education]
+    tags: [education, route-backed]
+  - name: lm-remove-reminder
+    displayName: Remove from My School Calendar
+    type: api
+    category: education
+    description: Remove one item the person added to their own Little Monsters calendar. Held for the person's approval.
+    cardText: Removes this item from your Little Monsters calendar.
+    executor: { executorType: api, apiEndpoint: "DELETE /api/education/calendar/{input.eventId}" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        eventId: { type: string, format: uuid, description: "Call lm-my-schedule first: the event_id exactly as it lists it, never the title." }
+      required: [eventId]
+    usageInstructions: Read lm-my-schedule first and send the event_id of the item the person named. Class due dates set by a teacher cannot be removed here.
+    routingTags: [school, reminders, education]
+    tags: [education, route-backed]
+
 # ─────────────────────────────────────────────────────────────────────────────
 # UI SURFACES — toolbar/ribbon config (ADR-085 `toolbar`). Static entries are
 # ribbon icons; the dynamic block generates one icon per lm_classes row.
 # ─────────────────────────────────────────────────────────────────────────────
 ui:
-  # ADR-085 D9 — the floating tutor bubble, DECLARED. The framework renders it; this package ships
-  # no shell JavaScript. The pre-carve-out cockpit loaded js/lm-concierge.js to do this, which meant
-  # package code executing in the cockpit's AUTHENTICATED origin — free to read any DOM content and
-  # call any API as the signed-in user. Operator decision 2026-07-13: packages never get that.
-  # Everything the script actually did is here: this bubble, plus ribbon.hideChatPanel below.
-  assistant:
-    label: Tutor
-    icon: codicon codicon-mortar-board
-    iframeUrl: /api/education/tutor
-    title: Little Monster Expert
+  # No floating `assistant:` bubble. It sat in the corner where every other application shows the
+  # Jarvis orb, so a student pressing "Jarvis" reached the textbook Tutor, which cannot add a class
+  # or read their schedule. The Tutor is the lm-tutor tab below; the corner is Jarvis, which reaches
+  # this app through the tools declared under `tools:`.
   static:
     - { toolName: lm-dashboard,     label: Class dashboard,   icon: codicon codicon-home,        iframeUrl: /api/education/dashboard,        section: top }
     - { toolName: lm-myday,         label: My Day,            icon: codicon codicon-calendar,            iframeUrl: /api/education/my-day,           section: top }

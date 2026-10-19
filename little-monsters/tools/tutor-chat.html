@@ -13,6 +13,7 @@
   2026-04-22     | roger.murphy@agenticfederal.us   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
   2026-09-25     | oshal maintainers <maintainer@emeraldcoastsystemsgroup.com> | Upgrade tutor replies through the shared response renderer with a safe plain-text fallback and preserve grounding/read-aloud controls
   2026-09-26     | maintainer@emeraldcoastsystemsgroup.com     | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, cockpit theme links and glass; every color is a token so the light classroom skin reads correctly; bubbles, composer, camera modal and suggestions use the system's buttons, pills, fields and modal; the header names the real class (or all classes) instead of a selector that never existed; toasts replace alerts
+  2026-10-18     | maintainer@emeraldcoastsystemsgroup.com | The tutor keeps the chosen class (selectTutorClass) for grounding.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -102,6 +103,9 @@
       <div class="tutor-name" id="tutorName">Class Tutor</div>
       <div class="tutor-class" id="tutorClass">—</div>
     </div>
+    <select id="classSelect" class="lm-input" aria-label="Select class for textbook grounding" style="width:auto;min-width:170px;max-width:250px;padding:6px 10px;font-size:13px" onchange="selectTutorClass(this.value)">
+      <option value="">All classes</option>
+    </select>
     <button type="button" class="lm-btn lm-btn-ghost tts-toggle" id="ttsToggle" aria-pressed="false" title="Read every reply aloud">Read aloud: Off</button>
   </header>
 
@@ -164,6 +168,8 @@ var tutorResponseRendererReady = import('/dist/response-renderer.js').catch(func
  */
 
 var params = new URLSearchParams(window.location.search);
+var activeClassId = params.get('classId') || '';
+var tutorClasses = [];
 /** The composer hint: the full sentence on a wide screen, a short one where four buttons share the row with the box. */
 function composerHint() {
   return window.matchMedia && window.matchMedia('(max-width: 640px)').matches ? 'Ask me anything…' : 'Ask me anything, or snap a photo of your worksheet';
@@ -177,18 +183,35 @@ var pendingAttachment = null;
 /** Short, non-blocking notice (never an alert for a non-destructive message). */
 function notice(text) { if (window.LM && window.LM.toast) window.LM.toast(text); }
 
+function selectTutorClass(classId) {
+  activeClassId = classId || '';
+  var el = document.getElementById('tutorClass');
+  var cls = (tutorClasses || []).find(function (c) { return c.class_id === activeClassId; });
+  el.textContent = cls ? cls.name + (cls.subject ? ' · ' + cls.subject : '') + ' · Textbook grounded' : 'Any of your classes';
+}
+
 /** Name the class this conversation is about — the real one, or all of them when the floating tutor opens without a class. */
 async function labelClass() {
   var el = document.getElementById('tutorClass');
-  var classId = params.get('classId');
-  if (!classId) { el.textContent = 'Any of your classes'; return; }
+  var sel = document.getElementById('classSelect');
   try {
     var resp = await fetch('/api/education/classes');
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     var data = await resp.json();
-    var cls = (data.classes || []).find(function (c) { return c.class_id === classId; });
-    el.textContent = cls ? cls.name + (cls.subject ? ' · ' + cls.subject : '') : '—';
-  } catch (_e) { el.textContent = '—'; }
+    tutorClasses = data.classes || [];
+    if (sel) {
+      sel.innerHTML = '<option value="">All classes</option>' + tutorClasses.map(function (c) {
+        return '<option value="' + escapeHtml(c.class_id) + '">' + escapeHtml(c.name) + (c.subject ? ' (' + escapeHtml(c.subject) + ')' : '') + '</option>';
+      }).join('');
+    }
+    if (!activeClassId && tutorClasses.length > 0) {
+      activeClassId = tutorClasses[0].class_id;
+    }
+    if (sel) sel.value = activeClassId;
+    selectTutorClass(activeClassId);
+  } catch (_e) {
+    el.textContent = activeClassId ? '—' : 'Any of your classes';
+  }
 }
 
 /** Read a chosen photo/document, stash it, and show a preview chip. */
@@ -323,7 +346,7 @@ async function sendMessage(text) {
   try {
     // POST to tutor chat endpoint. When a photo/doc is attached, include it so the
     // tutor can analyze the student's handwritten work (vision) per the guardrails.
-    var payload = { message: text, classId: params.get('classId') || '' };
+    var payload = { message: text, classId: activeClassId || params.get('classId') || '' };
     if (attachment && attachment.base64) {
       payload.imageData = attachment.base64;
       payload.imageMediaType = attachment.mediaType;

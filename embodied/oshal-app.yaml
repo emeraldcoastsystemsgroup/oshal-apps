@@ -166,6 +166,10 @@ bots:
       (spaces-operator), or anything that is not this app.
     routingKeywords:
       - embodied
+      - embodied swarm
+      - mujoco
+      - physics engine
+      - simulated world
       - robot arm
       - manipulator
       - rolling arm
