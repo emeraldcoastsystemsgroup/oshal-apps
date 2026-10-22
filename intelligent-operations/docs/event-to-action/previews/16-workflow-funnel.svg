@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Follow the evidence into accountable work">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Follow the evidence into accountable work</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">Measured native workflow: a sealed packet, three completed model phases and three verified shared-workspace files.</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="185" width="348" height="122" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="56" y="197" width="4" height="98" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="218.0">100 events</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="74" y="254.0">Synthetic recorded cohort</tspan>
+</text>
+<rect x="436" y="185" width="348" height="122" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="436" y="197" width="4" height="98" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="454" y="218.0">40 matches</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="454" y="254.0">Actual stored queries</tspan>
+</text>
+<rect x="816" y="185" width="348" height="122" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="816" y="197" width="4" height="98" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="834" y="218.0">4 symptoms</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="834" y="254.0">Repeated keys suppressed</tspan>
+</text>
+<rect x="1196" y="185" width="348" height="122" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="1196" y="197" width="4" height="98" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1214" y="218.0">2 groups</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="1214" y="254.0">Dependency correlation</tspan>
+</text>
+<polyline points="404,246.0 436,246.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="784,246.0 816,246.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1164,246.0 1196,246.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="700" fill="#AE6500">
+<tspan x="56" y="348.0">The 100-event replay above and the one-packet native workflow acceptance below are separate cohorts; do not combine their counts.</tspan>
+</text>
+<rect x="56" y="420" width="300" height="172" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="56" y="432" width="4" height="148" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="453.0">One pinned packet</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="488.0">Normalized identity + OTLP</tspan>
+<tspan x="74" y="510.95">fact</tspan>
+<tspan x="74" y="533.9">Fixed input path + SHA256</tspan>
+<tspan x="74" y="556.85">No raw-store / cluster access</tspan>
+</text>
+<rect x="414" y="420" width="340" height="172" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="414" y="432" width="4" height="148" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="432" y="453.0">Three completed phases</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="432" y="488.0">Investigate → review → revise</tspan>
+<tspan x="432" y="510.95">Actual inference receipts</tspan>
+<tspan x="432" y="533.9">Workflow generates answer.md</tspan>
+</text>
+<rect x="812" y="420" width="330" height="172" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="812" y="432" width="4" height="148" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="830" y="453.0">Three verified files</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="830" y="488.0">Authenticated PVC downloads</tspan>
+<tspan x="830" y="510.95">Sizes + SHA256 matched</tspan>
+<tspan x="830" y="533.9">No operator-authored reports</tspan>
+</text>
+<rect x="1200" y="420" width="344" height="172" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="1200" y="432" width="4" height="148" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1218" y="453.0">Awaiting report approval</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1218" y="488.0">Human gate in canonical ticket</tspan>
+<tspan x="1218" y="510.95">No infrastructure action taken</tspan>
+<tspan x="1218" y="533.9">Recovery: not connected</tspan>
+</text>
+<polyline points="356,506.0 414,506.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="754,506.0 812,506.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1142,506.0 1200,506.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="56" y="650" width="720" height="155" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="56" y="662" width="4" height="131" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="683.0">Current-user shared services</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="718.0">Shared HTTP and SMS/phone/Telegram services are development-installed.</tspan>
+<tspan x="74" y="740.95">Three one-time notification tests are transport-accepted. Jira profile read</tspan>
+<tspan x="74" y="763.9">returns404; live account validation and full kernel certification remain open.</tspan>
+</text>
+<rect x="812" y="650" width="732" height="155" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="812" y="662" width="4" height="131" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="830" y="683.0">Next executable acceptance</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="830" y="718.0">Continuous source → automatic investigation → generated remediation bundle →</tspan>
+<tspan x="830" y="740.95">exact-action approval → bounded execution → fresh recovery check. These gates</tspan>
+<tspan x="830" y="763.9">remain open.</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">16 / 21</text></svg>

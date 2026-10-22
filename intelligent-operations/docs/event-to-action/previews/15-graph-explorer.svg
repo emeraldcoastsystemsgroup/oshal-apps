@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Explore the estate in three dimensions">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Explore the estate in three dimensions</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">Installed and accepted: CPU perspective, exact snapshot identities and six bounded predefined queries.</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="185" width="415" height="272" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="56" y="197" width="4" height="248" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="218.0">Choose a recorded snapshot</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="74" y="254.0">Collection + ISO observation time</tspan>
+<tspan x="74" y="278.3">Focus asset + type + text search</tspan>
+<tspan x="74" y="302.6">Preserve source / scope / native ID</tspan>
+<tspan x="74" y="326.9">Health: captured, not a live probe</tspan>
+</text>
+<rect x="511" y="185" width="1033" height="135" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="511" y="197" width="4" height="111" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="529" y="218.0">Predefined queries</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="529" y="254.0">Estate overview | Dependencies | Impact on dependents</tspan>
+<tspan x="529" y="278.3">Placement | Observed degraded assets | Older than fifteen minutes</tspan>
+</text>
+<rect x="553" y="374" width="260" height="130" rx="10" fill="#FCEDEF" stroke="#D6E0EB"/>
+<rect x="553" y="386" width="4" height="106" rx="1" fill="#B33945" stroke="#B33945"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="571" y="407.0">API pod</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="571" y="443.0">Observed degraded</tspan>
+<tspan x="571" y="467.3">Source-owned identity</tspan>
+</text>
+<rect x="984" y="338" width="260" height="130" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="984" y="350" width="4" height="106" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1002" y="371.0">Cache pod</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="1002" y="407.0">Recorded dependency</tspan>
+<tspan x="1002" y="431.3">Observed healthy</tspan>
+</text>
+<rect x="1160" y="546" width="300" height="130" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="1160" y="558" width="4" height="106" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1178" y="579.0">Worker node</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="1178" y="615.0">Recorded RUNS_ON</tspan>
+<tspan x="1178" y="639.3">Same graph time</tspan>
+</text>
+<polyline points="813,439.0 984,403.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="813,439.0 1160,611.0" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="56" y="490" width="415" height="260" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="56" y="502" width="4" height="236" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="523.0">Inspect without losing context</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="74" y="559.0">Orbit / pan / zoom / reset</tspan>
+<tspan x="74" y="583.3">Keyboard controls + equivalent node list</tspan>
+<tspan x="74" y="607.6">2D display remains available</tspan>
+<tspan x="74" y="631.9">100 nodes / 500 visible edges</tspan>
+<tspan x="74" y="656.2">Refresh or refusal clears private content</tspan>
+</text>
+<rect x="511" y="704" width="1033" height="106" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="511" y="716" width="4" height="82" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="529" y="737.0">Native proof and interpretation</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="529" y="772.0">Six queries, orbit pixels and phone layout accepted at a8697163. Edges describe observed relationships; paths</tspan>
+<tspan x="529" y="794.95">show potential impact, not proven causation.</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">15 / 21</text></svg>

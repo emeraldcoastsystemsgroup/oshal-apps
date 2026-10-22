@@ -1,0 +1,227 @@
+{
+  "environment": "operations-lab",
+  "synthetic": true,
+  "observedDuringCapture": "20261020T172917Z",
+  "pods": [
+    {
+      "uid": "7855f812-cbae-40cf-a779-e02c6e4a32b4",
+      "name": "api-69f694fbcd-tqk98",
+      "namespace": "operations-demo",
+      "node": "operations-lab-worker",
+      "createdAt": "2026-10-20T17:27:32Z",
+      "deletingAt": "2026-10-20T17:29:19Z",
+      "phase": "Running",
+      "conditions": [
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:27:33Z",
+          "observedGeneration": 2,
+          "status": "True",
+          "type": "PodReadyToStartContainers"
+        },
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:27:32Z",
+          "observedGeneration": 2,
+          "status": "True",
+          "type": "Initialized"
+        },
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:27:36Z",
+          "observedGeneration": 2,
+          "status": "True",
+          "type": "Ready"
+        },
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:27:36Z",
+          "observedGeneration": 2,
+          "status": "True",
+          "type": "ContainersReady"
+        },
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:27:32Z",
+          "observedGeneration": 2,
+          "status": "True",
+          "type": "PodScheduled"
+        }
+      ],
+      "containers": [
+        {
+          "name": "api",
+          "imageID": "docker.io/library/python@sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f",
+          "containerID": "containerd://55b4f0fc83231c7c7d9b1b93b19b6605c7661155f337bff7cd37356b85b35e34",
+          "restartCount": 0,
+          "ready": true
+        }
+      ]
+    },
+    {
+      "uid": "9a86a0e6-bced-4292-9f97-9290e05daf40",
+      "name": "api-7b4484667b-bkdtq",
+      "namespace": "operations-demo",
+      "node": "operations-lab-worker2",
+      "createdAt": "2026-10-20T17:28:42Z",
+      "deletingAt": null,
+      "phase": "Running",
+      "conditions": [
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:28:42Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "PodReadyToStartContainers"
+        },
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:28:42Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "Initialized"
+        },
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:28:45Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "Ready"
+        },
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:28:45Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "ContainersReady"
+        },
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:28:42Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "PodScheduled"
+        }
+      ],
+      "containers": [
+        {
+          "name": "api",
+          "imageID": "docker.io/library/python@sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f",
+          "containerID": "containerd://2a5688d88231676e85f15e60db44894690ae3920e655da1231224b6b919c9a1b",
+          "restartCount": 0,
+          "ready": true
+        }
+      ]
+    },
+    {
+      "uid": "045c7869-6149-4e23-9106-92b9a9c5eef5",
+      "name": "api-7b4484667b-m9qdc",
+      "namespace": "operations-demo",
+      "node": "operations-lab-worker",
+      "createdAt": "2026-10-20T17:28:45Z",
+      "deletingAt": null,
+      "phase": "Running",
+      "conditions": [
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:28:46Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "PodReadyToStartContainers"
+        },
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:28:45Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "Initialized"
+        },
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:28:49Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "Ready"
+        },
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:28:49Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "ContainersReady"
+        },
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:28:45Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "PodScheduled"
+        }
+      ],
+      "containers": [
+        {
+          "name": "api",
+          "imageID": "docker.io/library/python@sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f",
+          "containerID": "containerd://9558b4e31631bade4c70aa9a4dc247a6cdd764f5100981dd212062137190e2f1",
+          "restartCount": 0,
+          "ready": true
+        }
+      ]
+    },
+    {
+      "uid": "a1d875e3-5b47-4fdb-8f44-533fe1ba0458",
+      "name": "frontend-577c655c6f-nscnz",
+      "namespace": "operations-demo",
+      "node": "operations-lab-worker2",
+      "createdAt": "2026-10-20T17:23:11Z",
+      "deletingAt": null,
+      "phase": "Running",
+      "conditions": [
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:23:12Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "PodReadyToStartContainers"
+        },
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:23:11Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "Initialized"
+        },
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:23:19Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "Ready"
+        },
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:23:19Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "ContainersReady"
+        },
+        {
+          "lastProbeTime": null,
+          "lastTransitionTime": "2026-10-20T17:23:11Z",
+          "observedGeneration": 1,
+          "status": "True",
+          "type": "PodScheduled"
+        }
+      ],
+      "containers": [
+        {
+          "name": "frontend",
+          "imageID": "docker.io/library/python@sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f",
+          "containerID": "containerd://9ee943464670144f77747dbed78b4f266b93014373c72b992872b5c9924c11c1",
+          "restartCount": 0,
+          "ready": true
+        }
+      ]
+    }
+  ]
+}

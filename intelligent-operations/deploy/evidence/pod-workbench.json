@@ -1,0 +1,56 @@
+{
+  "scope": "Owned local development cluster; native API/RBAC and installed operator status/review/exec acceptance, not full kernel certification.",
+  "kernelRevision": "65ed1926cdbd1f0497212248e3a819eba573cfac",
+  "uiStatusAndExecRevision": "39e5dbd23e1bd448456e03ccc54e7f6999d42fdc",
+  "observedAt": "2026-10-21T22:19:13.875951+00:00",
+  "target": {
+    "namespace": "operations-demo",
+    "pod": "api-69f694fbcd-4tgwn",
+    "uid": "a9730c98-de07-4551-b211-8c51bce952a6",
+    "container": "api"
+  },
+  "serviceConfigured": true,
+  "capabilityLinked": true,
+  "command": {
+    "argv": [
+      "python3",
+      "-c",
+      "print(\"pod-console-native-verified\")"
+    ],
+    "outcome": "completed",
+    "exitCode": 0,
+    "stdout": "pod-console-native-verified\n"
+  },
+  "refusals": {
+    "secrets": 403,
+    "foreignNamespace": 403,
+    "staleObservedUid": true
+  },
+  "cgroupChecks": {
+    "memory": {
+      "argv": [
+        "cat",
+        "/sys/fs/cgroup/memory.current",
+        "/sys/fs/cgroup/memory.max"
+      ],
+      "observedAt": "2026-10-21T22:29:54.040835306+00:00",
+      "stdout": "30466048\n134217728\n",
+      "outcome": "completed",
+      "exitCode": 0
+    },
+    "cpu": {
+      "argv": [
+        "cat",
+        "/sys/fs/cgroup/cpu.stat"
+      ],
+      "observedAt": "2026-10-21T22:29:54.138377570+00:00",
+      "stdout": "usage_usec 10312034\nuser_usec 6063180\nsystem_usec 4248854\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 13106\nnr_throttled 10\nthrottled_usec 605562\nnr_bursts 0\nburst_usec 0\n",
+      "outcome": "completed",
+      "exitCode": 0
+    }
+  },
+  "clusterAdminCredentialInPortal": false,
+  "credentialInEvidence": false,
+  "fullReleaseCertified": false,
+  "providerTurn": "Per-run native bot conversation receipt, separate from this transport receipt."
+}

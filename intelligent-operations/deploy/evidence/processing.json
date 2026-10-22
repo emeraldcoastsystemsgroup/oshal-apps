@@ -1,0 +1,47 @@
+{
+  "observedAt": "2026-10-21T01:30:19.411457+00:00",
+  "episode": "scheduled-acceptance-9b05080332284c3e8e858820f2af08b7",
+  "sourceId": "11f9a21b8d7a88c314bf85dc8344bcbc1576ef4e33d88edaca5dba50d6d46de5",
+  "policyId": "d36dc86c96c074159a4e5b85fb71a5923ee9dcaa86bea5931742e0144eaaa7ce",
+  "scheduleId": "5c25d29b-7ce5-83d8-a087-9f8a19a369ec",
+  "scheduledOccurrences": 7,
+  "firstCohort": {
+    "recorded": 6,
+    "matched": 4,
+    "filtered": 2,
+    "admitted": 1,
+    "suppressed": 3
+  },
+  "personalSchedule": true,
+  "manualProcessingCalls": 0,
+  "manualScheduleTriggers": 0,
+  "pausedForSeconds": 65,
+  "pausePreservedPendingWork": true,
+  "resumeProcessedPendingWork": true,
+  "singleAttemptPerInitialDelivery": true,
+  "unauthenticatedStatus": 401,
+  "acceptanceAlertsSynthetic": true,
+  "evidenceCollection": false,
+  "infrastructureExecution": false,
+  "finalWorkerEnabled": false,
+  "finalScheduleActive": false,
+  "nativeReceipts": [
+    {
+      "id": "07c89e08c52408cf9e726d3297e2aba8697ef9f38a0447ba671727c18bf0ef01",
+      "due": 1792546200000,
+      "trigger": "schedule",
+      "outcome": "completed",
+      "routeStatus": 200
+    },
+    {
+      "id": "e6f6e8526fca0d2ef55db5d495a30b3ef0f638faf6940498896c528f1c96b79a",
+      "due": 1792546140000,
+      "trigger": "schedule",
+      "outcome": "completed",
+      "routeStatus": 200
+    }
+  ],
+  "installedApplicationSource": "8b3c2cbc6a97233523df93c03a080c76df10bb35",
+  "installedArtifact": "c79d5ad369898f5e1aedd4a522838592b64406d5ec2f069d5992da482642d15d",
+  "kernelRevision": "57abf31ec789a2fb1723228827f5016520e0f6a0"
+}

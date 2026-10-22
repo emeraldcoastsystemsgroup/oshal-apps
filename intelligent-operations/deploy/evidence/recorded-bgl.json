@@ -1,0 +1,40 @@
+{
+  "kind": "recorded-data-baseline-evaluation",
+  "at": "2026-10-21T14:47:01.412Z",
+  "dataset": {
+    "repository": "https://github.com/logpai/loghub",
+    "revision": "dd61d0952749ee7963bde24220d1be5ede023033",
+    "path": "BGL/BGL_2k.log_structured.csv",
+    "sha256": "3fe74103c0b02a28514534e2a47257a3f770135ca61afd425bbd3b9d6a31fe26"
+  },
+  "synthetic": false,
+  "sourceWasSampled": true,
+  "method": "BGL-level-severity-v1 / actual OpenSearch percolation / application symptom key / fixed900-second event-time replay",
+  "labelLeakageIntoRules": false,
+  "counts": {
+    "observations": 2000,
+    "matched": 403,
+    "filtered": 1597,
+    "admitted": 329,
+    "suppressed": 74,
+    "late": 0,
+    "truePositive": 143,
+    "falsePositive": 260,
+    "trueNegative": 1597,
+    "falseNegative": 0
+  },
+  "precision": 0.3548387096774194,
+  "recall": 1,
+  "falsePositiveRate": 0.14001077005923532,
+  "engineBuild": "fdc97326d99300777b85da15d35ab07a73d8c1b6834492b6be3029481c14cef6",
+  "anomalyDetector": false,
+  "correlationAccuracyMeasured": false,
+  "limitations": [
+    "2k sampled lines, not a full chronological incident capture",
+    "severity baseline only; no learned model or tuned detector",
+    "same-time rows preserve upstream LineId tie-break",
+    "virtual replay clock uses original epoch timestamps; no source timezone guessed",
+    "source labels score alert categories, not root cause or ticket quality"
+  ],
+  "runtime": "Committed application functions with disposable PostgreSQL16 and OpenSearch3.3.2; native synthetic acceptance is recorded separately."
+}

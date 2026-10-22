@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Experience layout  /  Data and processing decisions">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Experience layout / Data and processing decisions</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">An explanation belongs to every record; raw deliveries and native OTLP observations have separate views.</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="158" width="1488" height="658" rx="13" fill="#FFFFFF" stroke="#D6E0EB"/>
+<rect x="56" y="158" width="1488" height="56" rx="0" fill="#14233B" stroke="#14233B"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="20" font-weight="700" fill="#FFFFFF">
+<tspan x="77" y="194.0">TriageNorth</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#DCE8F8">
+<tspan x="430" y="192.0">Environment: Demo DC | Search assets and incidents</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#DCE8F8">
+<tspan x="1180" y="192.0">Access: scoped operator</tspan>
+</text>
+<rect x="56" y="214" width="212" height="602" rx="0" fill="#F3F6FA" stroke="#F3F6FA"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="256.0">Overview</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="304.0">Topology</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="352.0">Assets</tspan>
+</text>
+<rect x="70" y="377" width="184" height="37" rx="7" fill="#E8F7F4" stroke="#E8F7F4"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="700" fill="#007F88">
+<tspan x="86" y="400.0">Data decisions</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="448.0">Incidents</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="496.0">Ticket sync</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="544.0">Approvals</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="592.0">Automation</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="640.0">Deliverables</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="688.0">Administration</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="24" font-weight="700" fill="#14233B">
+<tspan x="292" y="257.0">Follow an input to its decision</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="14" font-weight="400" fill="#576B83">
+<tspan x="292" y="289.0">Synthetic replay / Current-caller scope / Raw deliveries | Telemetry | Decisions | Replay history</tspan>
+</text>
+<rect x="292" y="324" width="288" height="133" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="292" y="336" width="4" height="109" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="310" y="357.0">Named source</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="310" y="390.0">Authenticated source</tspan>
+<tspan x="310" y="410.25">Committed receipt</tspan>
+</text>
+<rect x="601" y="324" width="288" height="133" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="601" y="336" width="4" height="109" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="619" y="357.0">Normalize and filter</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="619" y="390.0">Mapping + rule version</tspan>
+<tspan x="619" y="410.25">Reason and identity</tspan>
+</text>
+<rect x="910" y="324" width="288" height="133" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="910" y="336" width="4" height="109" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="928" y="357.0">Reduce and correlate</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="928" y="390.0">Delivery / symptom key</tspan>
+<tspan x="928" y="410.25">Suppression + membership</tspan>
+</text>
+<rect x="1219" y="324" width="288" height="133" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="1219" y="336" width="4" height="109" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1237" y="357.0">Capture and dispatch</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="1237" y="390.0">Conditional packet</tspan>
+<tspan x="1237" y="410.25">Canonical platform ticket</tspan>
+</text>
+<polyline points="580,390.5 601,390.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="889,390.5 910,390.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1198,390.5 1219,390.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="292" y="481" width="598" height="194" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="292" y="493" width="4" height="170" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="310" y="514.0">Decision inspector</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="310" y="548.0">Delivery retry: same source and event ID</tspan>
+<tspan x="310" y="569.6">Symptom update: independent delivery, same scoped key</tspan>
+<tspan x="310" y="591.2">Filtered / quarantined / unmatched: explain why</tspan>
+<tspan x="310" y="612.8">Snapshot: first occurrence or escalation policy</tspan>
+</text>
+<rect x="914" y="481" width="598" height="194" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="914" y="493" width="4" height="170" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="932" y="514.0">Identity and provenance</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="932" y="548.0">Source + environment + resource kind/scope/native ID</tspan>
+<tspan x="932" y="569.6">Alert type; preserve tuple boundaries and case</tspan>
+<tspan x="932" y="591.2">Mapping/rule version + input time + receipt + replay</tspan>
+<tspan x="932" y="612.8">Cross-source correlation stays a separate decision</tspan>
+</text>
+<rect x="292" y="699" width="1220" height="89" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="292" y="711" width="4" height="65" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="310" y="732.0">Production acceptance</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="310" y="765.0">Reuse established windows, reservation and release-on-failure semantics; the local severity/tuple demo is not that algorithm.</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">09 / 21</text></svg>

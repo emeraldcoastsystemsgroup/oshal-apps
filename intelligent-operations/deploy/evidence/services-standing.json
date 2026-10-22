@@ -1,0 +1,40 @@
+{
+  "kind": "native-operating-experience",
+  "startedAt": "2026-10-21T18:22:32.485Z",
+  "finishedAt": "2026-10-21T18:22:36.531Z",
+  "passed": true,
+  "checks": [
+    "actual HTML password login",
+    "actual native connection and notification standing renders under password login without any provider action or delivery test",
+    "installed owner-scoped handoff schema, route and shipped refresh controls load without an external issue mutation"
+  ],
+  "application": {
+    "revision": "400a15f78f8445ff678e2de3b79527e06d723322",
+    "artifact": "0bab59f358841517f4500c5b3d121ccb865699f74e4e049471fc34a81052b327"
+  },
+  "services": {
+    "nativeHttpMetadata": true,
+    "selected": [
+      {
+        "connector": "jira",
+        "configured": true,
+        "scopeLinked": true
+      }
+    ],
+    "usablePersonalAccounts": 1
+  },
+  "notifications": {
+    "registered": [
+      "sms",
+      "voice",
+      "telegram"
+    ],
+    "enabledTopicRoutes": 2,
+    "deliveryTested": false
+  },
+  "ticketHandoff": {
+    "links": 0,
+    "attempts": 0,
+    "providerWritesSent": 0
+  }
+}

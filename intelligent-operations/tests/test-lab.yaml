@@ -1,0 +1,385 @@
+# CHANGE LOG
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register the one-time communication acceptance guard without contacting real recipients.
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register Systems projection, renderer and controller checks alongside the existing package cases.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Register retained telemetry and actual host/cloud replay acceptance.
+version: 1
+cases:
+  - id: one-time-communication-guard
+    name: One-time authorized notification acceptance
+    purpose: Verify durable pre-send reservations, lost-ack holds and muted test topics using filesystem state and an explicit native API fixture.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/communications.test.cjs] }
+    expected:
+      - Exactly one initial attempt per authorized channel is reserved before any possible send.
+      - Reopening an accepted or uncertain test never sends again and test routes are muted.
+      - Missing transports and changed destinations refuse before an additional send.
+    prerequisites: [runner:node-test, runtime:python3]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Remove the temporary fixture ledger; no real recipient or cluster is contacted. }
+    limits: { timeoutMs: 15000, maxMemoryMb: 128 }
+    installation: never
+  - id: systems-observations
+    name: Current-user Systems inventory projection
+    purpose: Check native identity joins, temporal event association, bounded filters and actual text rendering using already authorized graph fixtures.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/systems.test.cjs] }
+    expected:
+      - Names, providers, scopes and resource kinds cannot collapse distinct assets or ambiguous cloud identities.
+      - Quarantined, future and duplicate deliveries do not inflate related observations.
+      - Placement uses recorded edges; unknown health, partial collections and bounded totals remain explicit.
+      - Untrusted names render as text and detail buttons retain exact graph and event identities.
+      - The shipped controller clears rows and private filter options on access refusal; a late graph cannot restore them.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000, maxMemoryMb: 256 }
+    installation: never
+  - id: package-readiness
+    name: Operations package readiness
+    purpose: Read the installed manifest through the metadata-only service-authenticated smoke.
+    level: integration
+    runner: { kind: smoke, smoke: package-readiness }
+    expected: [The installed package identity and version satisfy the manifest assertions.]
+    prerequisites: []
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: safe-smoke
+  - id: package-contract
+    name: Workflow and workspace declarations
+    purpose: Verify preserved specialist identities, readiness, native experience/role declarations and the actual compiled record routes with a scoped store fixture.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/package-contract.test.cjs] }
+    expected:
+      - Workflow and concierge use declared specialists and no retired platform route.
+      - Operations opens its own asset workspace and keeps the canonical ticket workflow.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+  - id: source-profile
+    name: Alert identity, adapter mapping, demo decisions and ticket projection
+    purpose: Exercise bounded mappings, immutable source definitions, Kubernetes capture validation and accurate incident-ticket presentation with synthetic data.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/source-contract.test.cjs] }
+    expected:
+      - Missing identity, source mismatch, invalid dates, oversized data and unsupported profiles fail.
+      - Synthetic replay distinguishes delivery retry, symptom update, filter and quarantine without claiming the production algorithm.
+      - Explicit paths normalize without coercion; missing identifiers and reserved paths fail without guessed identity.
+      - Independent delivery identity differs while the same symptom retains its scoped identity.
+      - Ticket workflow completion never claims verified infrastructure recovery.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+  - id: workspace-browser
+    name: Actual Operations desktop and phone workspace
+    purpose: Serve shipped assets over loopback with explicit HTTP ticket fixtures and exercise navigation, source preview and access failures in Chromium.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/surface-browser.test.cjs] }
+    expected:
+      - Authorized fixture tickets render as separate records and only GET requests reach the ticket service.
+      - Forbidden, unavailable and malformed responses clear prior rows and never show invented zeroes.
+      - The local source and mapping preview makes no event or credential request and works at phone width.
+      - Separate synthetic prototype checks data decisions, topology, connection probes, sync conflicts/reconciliation, viewer refusal, changed-revision invalidation and bundle hashes.
+    prerequisites: [runner:node-test, browser:chromium, toolchain:playwright]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Close the browser and all loopback fixture server connections in finally. }
+    limits: { timeoutMs: 60000, maxMemoryMb: 768 }
+    installation: never
+  - id: local-lab-contract
+    name: Local lab isolation and resource bounds
+    purpose: Render Kubernetes objects and test ownership/limit refusals with subprocess doubles, without contacting any cluster.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/lab-contract.test.cjs] }
+    expected:
+      - Workloads use pinned images, namespace quotas and resource limits with no ingress.
+      - A foreign API, changed cluster incarnation and excessive load fail before mutations.
+      - Native experience deployment retains sandbox policies and persistent volumes; missing readiness remains unknown.
+    prerequisites: [runner:node-test, runtime:python3]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+  - id: pressure-evidence-boundaries
+    name: Bounded pressure and isolated evidence
+    purpose: Exercise the actual Python pressure manifests and evidence projection against malformed identities and secret-bearing raw input.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/pressure-evidence.test.cjs] }
+    expected:
+      - Pressure is limited to one owned worker, one CPU and 180 seconds, without a mounted service account.
+      - Evidence excludes environment values and arbitrary annotations and binds the exact alerted pod instance.
+      - Proposed scripts bind cluster incarnation and exact Job and require separate operator approval for deletion.
+    prerequisites: [runner:node-test, runtime:python3]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: temporal-topology
+    name: Temporal inventory and explainable graph correlation
+    purpose: Exercise actual scoped SQL transactions, native identity translation and the shipped Estate and Data views.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/topology.test.cjs] }
+    expected:
+      - Complete scans retire only their collection; partial scans preserve original timestamps and historical queries replay late scans correctly.
+      - Concurrent retries reuse a scan; conflicting identities and forged owners are refused.
+      - Unaffected shared hubs do not merge incidents; stale or unavailable dependencies produce a visible fallback.
+      - Saved correlation binds exact deliveries, scans and policy without dispatching work.
+      - Kubernetes UIDs, owner chains, runtime container IDs and endpoint conditions survive translation without pod secrets.
+    prerequisites: [runner:node-test, runtime:python3, browser:chromium, toolchain:playwright, service:disposable-postgres]
+    sideEffects: disposable database and loopback fixture server
+    isolation: { mode: disposable, cleanup: Drop fixture databases and roles and close all browsers and server connections in finally. }
+    limits: { timeoutMs: 60000, maxMemoryMb: 768 }
+    installation: never
+  - id: percolation-reduction
+    name: Stored-query filtering and transactional symptom reduction
+    purpose: Run the shipped engine against disposable OpenSearch and scoped PostgreSQL, then publish and evaluate from the actual Data view.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/pipeline.test.cjs] }
+    expected:
+      - Every sealed rule page is evaluated and incomplete backend results never become no-match.
+      - One hundred distinct occurrences across independent pools reserve one job; replay and uncertain acknowledgement do not inflate it.
+      - Owner isolation, explicit window boundaries, late state, rollback and publication conflicts remain visible.
+      - The browser can publish a source policy and inspect durable filtering and reduction results.
+    prerequisites: [runner:node-test, runtime:python3, browser:chromium, toolchain:playwright, service:disposable-postgres, service:disposable-opensearch]
+    sideEffects: disposable databases, rule indexes, local engine process and loopback HTTP server
+    isolation: { mode: disposable, cleanup: Delete only test-owned rule indexes and databases; close browser, engine and server in finally. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 768 }
+    installation: never
+
+  - id: graph-processing-experience
+    name: Graph explorer and processing fractions
+    purpose: Verify persisted graph navigation and real SQL/OpenSearch processing counts, reduction and correlation presentation.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/topology.test.cjs, tests/pipeline.test.cjs] }
+    expected:
+      - Searchable graph nodes support keyboard exploration and preserve source observations.
+      - The browser shows three of four events passing rules and two suppressed duplicates.
+      - Correlation results survive reload and remain invisible to another SQL owner.
+      - Replayed policy decisions cannot inflate the displayed delivery cohort.
+    prerequisites: [runner:node-test, browser:chromium, service:postgresql, service:opensearch]
+    sideEffects: disposable
+    isolation: { mode: disposable, cleanup: Drop test-owned SQL databases and OpenSearch rule indexes. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+  - id: background-processing
+    name: Durable background evaluation and native job controls
+    purpose: Exercise leases, retry backoff, pause fencing, uncertain commits, owner isolation and the actual worker configuration view.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/processing-worker.test.cjs] }
+    expected:
+      - Concurrent workers cannot duplicate decisions, symptom counts or evidence reservations.
+      - Expired or disabled leases cannot publish decisions; interrupted work can be reclaimed.
+      - Bounded failures require explicit retry after exhaustion and never become no-match.
+      - Missing native scheduler status is shown as unavailable; revoked access clears private work.
+    prerequisites: [runner:node-test, runtime:python3, browser:chromium, service:disposable-postgres, service:disposable-opensearch]
+    sideEffects: disposable databases, rule indexes, local engine and HTTP servers
+    isolation: { mode: disposable, cleanup: Remove owned fixture databases and indexes and close every engine and browser. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+  - id: retained-telemetry
+    name: Three-bank context retention and standard stream contracts
+    purpose: Exercise actual PostgreSQL rotation, concurrent retries, owner isolation, rollback and durable evidence; validate native OTLP JSON and CloudWatch mapping.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/telemetry.test.cjs] }
+    expected:
+      - Fresh context cannot be overwritten before its 900-second minimum; capacity failure rolls back the entire batch.
+      - Different users and exact native resource identities never share context.
+      - Pinned preprocessed evidence survives reuse of its raw bank and grants no infrastructure execution.
+    prerequisites: [runner:node-test, service:postgresql]
+    sideEffects: temporary-data
+    isolation: { mode: disposable, cleanup: Drop only the fixture database and role in finally. }
+    limits: { timeoutMs: 60000, maxMemoryMb: 512 }
+    installation: never
+  - id: datacenter-replay
+    name: Host and CloudWatch incident replay
+    purpose: Run synthetic datacenter symptoms through real OpenSearch percolation, transactional suppression, dependency correlation and the shipped browser experience.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/replay.test.cjs] }
+    expected:
+      - One hundred occurrences yield forty matches, four symptoms, two dependency groups and four pinned context packets.
+      - Desktop and phone views render real results and clear private data on access withdrawal.
+    prerequisites: [runner:node-test, service:postgresql, service:opensearch, browser:chromium, toolchain:playwright]
+    sideEffects: temporary-data
+    isolation: { mode: disposable, cleanup: Close browser, fixture server and engine; drop fixture database/role and owned rule indexes in finally. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+
+  - id: percolation-rule-workbench
+    name: Versioned percolation editing and candidate trials
+    purpose: Exercise actual OpenSearch candidate evaluation and the shipped editor without changing active bindings, counters or evidence reservations during a trial.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/policy-workbench.test.cjs] }
+    expected:
+      - Owned-source candidates percolate real recorded alerts; foreign source/owner references are refused before writes.
+      - A trial saves one immutable candidate and leaves activation, symptoms and evidence work unchanged.
+      - Explicit activation checks the loaded source revision; stale publication cannot overwrite another change.
+      - Browser editing, saved-generation drafts, phone layout and access-withdrawal clearing use shipped assets.
+    prerequisites: [runner:node-test, runtime:python3, browser:chromium, toolchain:playwright, service:disposable-postgres, service:disposable-opensearch]
+    sideEffects: disposable databases, saved candidate indexes, engine process and loopback server
+    isolation: { mode: disposable, cleanup: Drop only test-owned SQL databases and query indexes; close browser, server and engine. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+
+  - id: graph-space
+    name: 3D graph presets and access withdrawal
+    purpose: Verify directed snapshot queries, explicit budgets, perspective depth, actual orbit/zoom and clearing after caller access changes.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/graph-space.test.cjs] }
+    expected:
+      - Dependency direction, cycles, placement, stale observations and unknown health retain exact identities.
+      - CPU canvas has real XYZ perspective and works with keyboard and phone layouts.
+      - Access withdrawal removes private pixels, controls and node results.
+    prerequisites: [runner:node-test, browser:chromium]
+    sideEffects: disposable
+    isolation: { mode: disposable, cleanup: Close owned loopback server and headless browser. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+
+  - id: investigation-handoff
+    name: Preprocessed canonical investigation handoff
+    purpose: Prove reservation ownership, single canonical creation, immutable workspace input and truthful cohort-linked workflow counts.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/investigations.test.cjs] }
+    expected:
+      - Concurrent calls create one canonical ticket per evidence reservation.
+      - Unknown creation results stay held and lost link acknowledgements reconcile without duplicate effects.
+      - Only owned preprocessed files and exact digests enter workflow dispatch.
+      - Completed AI outputs require canonical receipts; accepted reports do not establish infrastructure recovery.
+    prerequisites: [runner:node-test, service:postgresql]
+    sideEffects: disposable
+    isolation: { mode: disposable, cleanup: Drop owned SQL database and role; canonical ticket boundary uses an explicit fixture port. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+
+  - id: service-standing
+    name: Connector and notification standing
+    purpose: Show actual current-person native service configuration without claiming delivery or leaking destinations.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/connections.test.cjs] }
+    expected:
+      - Expiring own connections remain usable while missing service configuration stays explicit.
+      - Registered notification transports do not imply successful delivery.
+      - Denied and stale reads cannot restore private service rows.
+    prerequisites: [runner:node-test, browser:chromium]
+    sideEffects: disposable
+    isolation: { mode: disposable, cleanup: Close only owned loopback server and browser. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+
+  - id: manual-ticket-handoff
+    name: Canonical phase to external issue handoff
+    purpose: Reserve manual confirmed connector pushes and reconcile uncertain outcomes without duplicate sends or false native verification.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/ticket-sync.test.cjs] }
+    expected:
+      - Immutable links and phase/revision plans preserve current original-person ticket authority.
+      - Concurrent and uncertain attempts authorize at most one initial browser dispatch.
+      - Actual shipped UX confirms through native Actions and reads back state without automatic retries.
+      - Operator reports never change canonical status or establish server-verified delivery or recovery.
+    prerequisites: [runner:node-test, browser:chromium, service:postgresql]
+    sideEffects: disposable
+    isolation: { mode: disposable, cleanup: Close fixture browser and server and drop only owned SQL databases and roles. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+
+  - id: response-design-preview
+    name: Emergency and standard response design
+    purpose: Verify four synthetic response paths and distinct recovery outcomes without live service calls.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/change-response-prototype.test.cjs] }
+    expected:
+      - Standard lower work does not simulate an immediate production change.
+      - Emergency patch and Git hotfix reviews retain explicit authority and reconciliation requirements.
+      - Missing telemetry and regression never render sustained recovery.
+      - Lower-verified promotion retains its test evidence without a contradictory waiver.
+      - All four screens fit phone and desktop layouts and send no service requests.
+    prerequisites: [runner:node-test, browser:chromium]
+    sideEffects: disposable
+    isolation: { mode: disposable, cleanup: Close only owned loopback fixture server and browser. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+
+  - id: observed-resource-tree
+    name: Exact-identity resource tree and inspection
+    purpose: Navigate workload ownership and inspect captured pod/container status without inferring live health or execution authority.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/resource-tree.test.cjs] }
+    expected:
+      - Placement never duplicates a pod under a second parent and ambiguous ownership stays explicit.
+      - Cycles are bounded, source text is escaped and large graphs retain their display budget.
+      - Keyboard navigation, captured failure reasons and phone layouts work in the shipped renderer.
+      - Disposal clears resource identities and details.
+    prerequisites: [runner:node-test, browser:chromium]
+    sideEffects: disposable
+    isolation: { mode: disposable, cleanup: Close only owned loopback fixture server and browser. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+
+  - id: historical-rca-references
+    name: Canonical historical RCA reference library
+    purpose: Read original analysis receipts and accepted artifact citations without inventing recovery or a second report store.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/rca-library.test.cjs] }
+    expected:
+      - Download selectors remain bound to the original ticket and accepted work.
+      - Missing lineage stays explicit and report text cannot execute HTML.
+      - Denied or older reads cannot restore private report content.
+      - Phone and desktop use the shared resource workbench layout.
+    prerequisites: [runner:node-test, browser:chromium]
+    sideEffects: disposable
+    isolation: { mode: disposable, cleanup: Close only owned loopback fixture server and browser. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+
+  - id: pod-command-console
+    name: Selected pod inspection and reviewed execution
+    purpose: Inspect current health and use the original-user native connector without giving the analysis bot cluster credentials.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/pod-console.test.cjs] }
+    expected:
+      - Current inspection is required before selecting a container.
+      - Every command uses an exact reviewed target and fresh native confirmation.
+      - AI receives selected status and output and never executes a suggested command.
+      - Unconfigured service, revocation and late results cannot restore private console data.
+    prerequisites: [runner:node-test, browser:chromium]
+    sideEffects: disposable
+    isolation: { mode: disposable, cleanup: Close only owned loopback fixture server and browser. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+
+  - id: scheduled-retained-evidence
+    name: Scheduled retained evidence after reduction
+    purpose: Preserve exact-source context on the existing personal processing schedule.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/evidence-worker.test.cjs] }
+    expected:
+      - Explicit capture opt-in, current source authority and configuration revision gate every completion.
+      - Concurrent consumers commit one immutable packet and completion, with bounded retries and pause fencing.
+      - Context is preprocessed and credential-redacted; missing context and unrequested capture stay explicit.
+    prerequisites: [runner:node-test, service:disposable-postgresql]
+    sideEffects: disposable
+    isolation: { mode: disposable, cleanup: Drop only owned temporary PostgreSQL databases and roles. }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: operator-workspace
+    name: Daily operator screen journey
+    purpose: Exercise actual shipped assets for source mapping, exact-source event drill-downs, pipeline tabs, readable decisions and current-access clearing.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/operator-workspace.test.cjs] }
+    expected:
+      - Monitoring, event selection, rule editing and worker configuration have distinct keyboard-accessible panels.
+      - Source and event selectors retain exact identities and unsafe source text cannot execute.
+      - Desktop and phone views fit the viewport; stale ticket responses cannot restore withdrawn data.
+      - Browsing and navigation issue no mutation request.
+    prerequisites: [runner:node-test, browser:chromium, toolchain:playwright]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Close the local fixture server and browser. }
+    limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
+    installation: never

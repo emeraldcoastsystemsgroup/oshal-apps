@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oshal:operations:alert:1",
+  "title": "Operations JSON alert profile version 1",
+  "description": "Draft application profile for one structured CloudEvent. Format validation does not authenticate the source, resolve inventory or authorize ingestion. Runtime delivery is bounded to 65536 UTF-8 bytes.",
+  "type": "object",
+  "required": [
+    "specversion",
+    "id",
+    "source",
+    "type",
+    "time",
+    "dataschema",
+    "datacontenttype",
+    "data"
+  ],
+  "not": {
+    "required": [
+      "data_base64"
+    ]
+  },
+  "properties": {
+    "specversion": {
+      "const": "1.0"
+    },
+    "id": {
+      "$ref": "#/$defs/eventId"
+    },
+    "source": {
+      "type": "string",
+      "format": "uri",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "type": {
+      "$ref": "#/$defs/alertType"
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64
+    },
+    "dataschema": {
+      "const": "urn:oshal:operations:alert:1"
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "environment",
+        "alertType",
+        "severity",
+        "status",
+        "resource"
+      ],
+      "properties": {
+        "environment": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^(?!\\s)(?!.*[\\u0000-\\u001f\\u007f-\\u009f])[^\\u0000-\\u001f\\u007f-\\u009f]*\\S$"
+        },
+        "alertType": {
+          "$ref": "#/$defs/alertType"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "critical"
+          ]
+        },
+        "status": {
+          "enum": [
+            "firing",
+            "resolved"
+          ]
+        },
+        "resource": {
+          "type": "object",
+          "required": [
+            "kind",
+            "id",
+            "scope"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "host",
+                "aws-resource",
+                "azure-resource",
+                "gcp-resource",
+                "kubernetes-pod",
+                "container",
+                "workload"
+              ]
+            },
+            "id": {
+              "$ref": "#/$defs/resourceId"
+            },
+            "scope": {
+              "$ref": "#/$defs/resourceId"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "eventId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^(?!\\s)(?!.*[\\u0000-\\u001f\\u007f-\\u009f])[^\\u0000-\\u001f\\u007f-\\u009f]*\\S$"
+    },
+    "alertType": {
+      "$ref": "#/$defs/eventId"
+    },
+    "resourceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?!\\s)(?!.*[\\u0000-\\u001f\\u007f-\\u009f])[^\\u0000-\\u001f\\u007f-\\u009f]*\\S$"
+    }
+  }
+}

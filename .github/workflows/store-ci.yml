@@ -370,6 +370,35 @@ jobs:
   store-bots:
     name: route-called bots run on the native kernel; personas teach no retired scripts
     runs-on: ubuntu-latest
+    services:
+      operations_postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: operations-contract-ci
+          POSTGRES_DB: postgres
+        ports:
+          - 35689:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      operations_search:
+        image: opensearchproject/opensearch:3.3.2@sha256:a211fc11751bef183f3f7d787ac1fd30b3bcac6a3cc0e71be50af8dd5133a8a9
+        env:
+          discovery.type: single-node
+          DISABLE_INSTALL_DEMO_CONFIG: "true"
+          DISABLE_SECURITY_PLUGIN: "true"
+          node.store.allow_mmap: "false"
+          OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+        ports:
+          - 35690:9200
+        options: >-
+          --health-cmd "curl -fsS http://localhost:9200/_cluster/health"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -377,6 +406,8 @@ jobs:
           node-version: '22'
       - name: Provide the gate toolchain's js-yaml
         run: npm ci --no-audit --no-fund --prefix scripts/toolchain
+      - name: Provide the Operations browser contract runtime
+        run: node scripts/toolchain/node_modules/playwright/cli.js install --with-deps chromium
       # The kernel resolves a package's bot turn only against its own and imported bots and refuses a
       # node-posture bot bound to an unreachable node; personas that taught the retired CLI scripts
       # printed shell commands to the person.
@@ -390,8 +421,14 @@ jobs:
         run: node --test scripts/check-connector-copy.test.mjs
       # The platform left these four as inert migrated declarations that opened nothing on the native
       # kernel; each must declare a concierge or workflow bound to a declared or imported inline bot.
+      - name: Run Operations experience and transactional intake contracts
+        working-directory: intelligent-operations
+        env:
+          OSHAL_TEST_POSTGRES: postgresql://postgres:operations-contract-ci@127.0.0.1:35689/postgres
+          OSHAL_TEST_SEARCH: http://127.0.0.1:35690
+        run: node --test "tests/*.test.cjs"
       - name: Ported platform packages declare something runnable
-        run: node --test intelligent-operations/tests/package-contract.test.cjs intelligent-processing/tests/package-contract.test.cjs capability-ideation/tests/package-contract.test.cjs codex-packer/tests/package-contract.test.cjs codex-packer/tests/persona-template.test.cjs life/tests/home-summary.test.cjs
+        run: node --test intelligent-processing/tests/package-contract.test.cjs capability-ideation/tests/package-contract.test.cjs codex-packer/tests/package-contract.test.cjs codex-packer/tests/persona-template.test.cjs life/tests/home-summary.test.cjs
 
   store-ci-local:
     name: the local gate's own exit-code contract

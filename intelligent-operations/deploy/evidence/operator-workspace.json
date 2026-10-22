@@ -1,0 +1,28 @@
+{
+  "observedAt": "2026-10-22T01:24:50.744034+00:00",
+  "passed": true,
+  "revision": "8e259b1597e01ac0e963e8c29c6cad8b0756b6e2",
+  "artifact": "26dbff1c75376aacec5d73147d193aafed4f82ffb8a754f783727f3cc0c776cc",
+  "checks": [
+    "Native Overview shows bounded record counts, attention states, source receipts and canonical incident work",
+    "Sources shows selected revision, identity mappings, receipt counts and collapsed registration form",
+    "Inspect source events updates native header and rail to Data pipeline, opens Events and preserves exact source filter",
+    "Configure rules updates native header and rail, opens Rules and preserves the non-default source revision and active generation",
+    "Event inspector shows validation, query match, admission and evidence-captured state; original payload and complete decision records expand",
+    "Flow shows 200 unique evaluated events, 86 matches, 11 survivors and 2 correlation groups, explicitly bounded to returned records",
+    "Systems expands scope, namespace, workload, ReplicaSet, pod and container with capture timestamp, phase and node",
+    "Final 8e259b15 native readback shows the canonical symptom key 028433fb4c28fca4711794093705c66cf9d9294badd73e0ae0d261f8f4d5bf00 and evidence-captured state"
+  ],
+  "limits": [
+    "Native pod current-status read returned upstream unavailable for the selected previously captured pod; live pod execution is not certified by this UI acceptance",
+    "Phone width and keyboard navigation verified by shipped-asset tests, not the native 1280x720 browser",
+    "Selected pod existence and UID independently confirmed in the owned lab; upstream current-status failure is not explained by disappearance."
+  ],
+  "screenshots": [
+    "operator-workspace-overview.png",
+    "operator-workspace-sources.png",
+    "operator-workspace-flow.png"
+  ],
+  "screenshotsRevision": "3155da06f30b0eace331b64eb387b3040890de97",
+  "finalReadbackAt": "2026-10-22T01:31:57.609842+00:00"
+}

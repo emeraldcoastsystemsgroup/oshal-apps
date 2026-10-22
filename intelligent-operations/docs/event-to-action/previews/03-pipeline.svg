@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Durable processing and information packets">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Durable processing and information packets</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">Capture disappearing evidence promptly; repeated symptoms update an incident before they incur another investigation.</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="178.0">INGEST AND DETECT</tspan>
+</text>
+<rect x="56" y="201" width="280" height="137" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="56" y="213" width="4" height="113" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="234.0">1 Authenticate</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="74" y="268.0">Named source + schema</tspan>
+<tspan x="74" y="289.6">Scope and required IDs</tspan>
+</text>
+<rect x="358" y="201" width="280" height="137" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="358" y="213" width="4" height="113" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="376" y="234.0">2 Land and resolve</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="376" y="268.0">Separate raw / telemetry</tspan>
+<tspan x="376" y="289.6">Map to canonical asset</tspan>
+</text>
+<rect x="660" y="201" width="280" height="137" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="660" y="213" width="4" height="113" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="678" y="234.0">3 Evaluate rules</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="678" y="268.0">Versioned filter reasons</tspan>
+<tspan x="678" y="289.6">Percolation + windows</tspan>
+</text>
+<rect x="962" y="201" width="280" height="137" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="962" y="213" width="4" height="113" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="980" y="234.0">4 Reduce noise</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="980" y="268.0">Stable incident keys</tspan>
+<tspan x="980" y="289.6">Reserve before dispatch</tspan>
+</text>
+<rect x="1264" y="201" width="280" height="137" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="1264" y="213" width="4" height="113" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1282" y="234.0">5 Correlate</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="1282" y="268.0">Open incident + graph</tspan>
+<tspan x="1282" y="289.6">Record membership</tspan>
+</text>
+<polyline points="336,269.5 358,269.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="638,269.5 660,269.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="940,269.5 962,269.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1242,269.5 1264,269.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="394.0">INDEPENDENT DURABLE RECORDS</tspan>
+</text>
+<rect x="56" y="417" width="476" height="112" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="56" y="429" width="4" height="88" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="450.0">Raw deliveries</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="74" y="484.0">Accepted content and replay lineage</tspan>
+</text>
+<rect x="562" y="417" width="476" height="112" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="562" y="429" width="4" height="88" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="580" y="450.0">Telemetry</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="580" y="484.0">Signals, times, units and resource IDs</tspan>
+</text>
+<rect x="1068" y="417" width="476" height="112" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="1068" y="429" width="4" height="88" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1086" y="450.0">Alerts and decisions</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="1086" y="484.0">Rule version, reason and incident link</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="586.0">CAPTURE AND ACT</tspan>
+</text>
+<rect x="56" y="609" width="280" height="142" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="56" y="621" width="4" height="118" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="642.0">Evidence policy</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="74" y="676.0">First occurrence / escalation</tspan>
+<tspan x="74" y="697.6">Bounded collection</tspan>
+</text>
+<rect x="358" y="609" width="280" height="142" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="358" y="621" width="4" height="118" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="376" y="642.0">Information packet</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="376" y="676.0">State + topology + signals</tspan>
+<tspan x="376" y="697.6">Optional external evidence</tspan>
+</text>
+<rect x="660" y="609" width="280" height="142" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="660" y="621" width="4" height="118" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="678" y="642.0">Ticket and proposal</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="678" y="676.0">Investigation and review</tspan>
+<tspan x="678" y="697.6">Versioned work bundle</tspan>
+</text>
+<rect x="962" y="609" width="280" height="142" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="962" y="621" width="4" height="118" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="980" y="642.0">Authorized execution</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="980" y="676.0">Exact approval or delegation</tspan>
+<tspan x="980" y="697.6">Recheck before running</tspan>
+</text>
+<rect x="1264" y="609" width="280" height="142" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="1264" y="621" width="4" height="118" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1282" y="642.0">Verify and record</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="1282" y="676.0">Effect, not just exit status</tspan>
+<tspan x="1282" y="697.6">Receipt / reopen / escalate</tspan>
+</text>
+<polyline points="336,680.0 358,680.0" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="638,680.0 660,680.0" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="940,680.0 962,680.0" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1242,680.0 1264,680.0" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1404,338 1404,366 40,366 40,680 56,680" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="56" y="795.0">Every stage records its decision. Invalid identity, unmatched rules, partial evidence, unknown outcomes and stalled stages remain visible.</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">03 / 21</text></svg>

@@ -1,0 +1,43 @@
+{
+  "episode": "20261020a1b2c3d4",
+  "ticket": "e4255337-57c1-4979-b5a3-209981fbe106",
+  "packetSha256": "003872f5541c0bbd588db0fa6d2cc49e09745b1a66074d4e2085c3125f78ccde",
+  "firingAndResolved": true,
+  "pressureJobAbsent": true,
+  "allNodesReady": true,
+  "collectorRefusals": {
+    "get operations-demo/secrets": "denied",
+    "create operations-demo/pods/exec": "denied",
+    "patch operations-demo/deployments": "denied",
+    "get oshal-install-lab/pods": "denied"
+  },
+  "completedModelPhases": 3,
+  "reportState": "awaiting_approval",
+  "infrastructureExecutedByAgent": false,
+  "automaticPipeline": false,
+  "sourceRevision": "b8f1df538d55fb5e77afd838737df2316ccdb2bc",
+  "kernelUiRevision": "8161399f35e3b57c107cf99d918d38223cd92e60",
+  "installedArtifact": "c2a8b4c180ae0e7b1d6fb02056fdaa11b364d6ec07c161d9e1345c5d8533ac07",
+  "verifiedAt": "2026-10-20T22:28:16.521404+00:00",
+  "measuredSignal": "bounded process CPU; not whole-node saturation",
+  "limitations": [
+    "manual orchestration",
+    "no stored-query filtering",
+    "no distributed suppression",
+    "no correlation service",
+    "no anomaly detector",
+    "no external ticket synchronization"
+  ],
+  "installedExperience": {
+    "incidentList": true,
+    "canonicalTicketLink": true,
+    "nativeWorkflowTab": true
+  },
+  "sourceTests": 28,
+  "kernelRendererTests": 3,
+  "historicalTickets": [
+    "a6cd2473-6068-409b-aaf7-024ac7674af4",
+    "bf6c1a31-f0b6-4a53-b13a-f15b0654ff66",
+    "3c514cc9-b784-4117-88a4-5a2db15c5c45"
+  ]
+}

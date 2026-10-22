@@ -1,0 +1,81 @@
+{
+  "reviewedAt": "2026-10-21",
+  "applicationRevision": "3c557c4ae4fc6b3cb5d7e493034d9ab07e2acd50",
+  "nativeArtifact": "4e324173ffa3b2edae0f495aedc1ce9b3fe7973759b0f78bc8dbc7b143c577c4",
+  "kernelChanged": false,
+  "operationsTests": {
+    "passed": 83,
+    "failed": 0,
+    "skipped": 0
+  },
+  "committedExportFocusedChecks": {
+    "passed": 21,
+    "failed": 0,
+    "skipped": 0
+  },
+  "normalStorePrePush": {
+    "passed": 83,
+    "failed": 0,
+    "partial": 6,
+    "skipped": 12,
+    "blocked": 0,
+    "allowNamedMissingPrerequisites": true,
+    "notCertified": {
+      "partial": [
+        "little-monsters \u00b7 little-monsters/Run every Little Monsters security suite",
+        "embodied \u00b7 embodied/Run embodied engine suites",
+        "experience-packages \u00b7 studio-experience/Run Studio experience contracts",
+        "experience-packages \u00b7 jarvis-experience/Run Jarvis experience contracts",
+        "experience-packages \u00b7 orbit-experience/Run Orbit experience contracts",
+        "experience-packages \u00b7 commons-experience/Run Commons experience contracts"
+      ],
+      "skipped": [
+        "test-catalogs \u00b7 Refuse a package test catalog the framework's loader would refuse",
+        "test-catalogs \u00b7 Mutation-test the test-catalog gate",
+        "app-scopes \u00b7 Refuse a package scope the framework's contract would refuse",
+        "app-scopes \u00b7 Mutation-test the app-scope gate",
+        "app-scopes \u00b7 Validate application bot owners and dependency imports",
+        "app-scopes \u00b7 Mutation-test bot ownership and imported worker declarations",
+        "presentations \u00b7 presentations/Run presentations suites",
+        "career-hunter \u00b7 Refuse public app encryption keys",
+        "career-hunter \u00b7 Run app crypto behavior suites",
+        "career-hunter \u00b7 career-hunter/Run career-hunter suites",
+        "fantasy-football \u00b7 fantasy-football/Run fantasy-football suites",
+        "trading \u00b7 Run every trading spec with the live-database refusal in force"
+      ]
+    }
+  },
+  "nativeAcceptance": "replay.json",
+  "actualRetention": "retention.json",
+  "boundedGrowth": "retention-growth.json",
+  "standardCollector": "standard-stream.json",
+  "recordedBaseline": "recorded-bgl.json",
+  "artifactVerification": {
+    "hashes": 72,
+    "relativeLinks": 95,
+    "visioPages": 14,
+    "editableShapes": 687,
+    "gluedConnectors": 44,
+    "independentVisioImportPages": 14,
+    "deckSlides": 8,
+    "renderedDeckPages": 8
+  },
+  "completedScope": [
+    "mapped retained OTLP/CloudWatch context",
+    "three-bank safe reuse/backpressure and bounded growth",
+    "reservation-bound durable context packets",
+    "actual temporary Collector transport",
+    "native dependency replay and saved cohort reopening",
+    "optional research cache and measured BGL baseline",
+    "submission artifacts and maintained delivery records"
+  ],
+  "unfinishedScope": [
+    "continuous delegated source enrollment and durable producer queues",
+    "calibrated anomaly detector and NAB evaluation",
+    "scheduled inventory and real provider discovery",
+    "automatic evidence-to-canonical-ticket/workflow handoff",
+    "workflow-generated remediation scripts and exact-action execution/recovery",
+    "external ticket synchronization and acknowledged notifications",
+    "full kernel/release certification and physical storage autoscaling"
+  ]
+}

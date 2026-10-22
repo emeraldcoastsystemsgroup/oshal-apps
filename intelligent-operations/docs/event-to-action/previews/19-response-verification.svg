@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Fast mitigation and durable repair">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Fast mitigation and durable repair</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">PROPOSED DESIGN · One incident, linked change records, evidence-based recovery</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="178" width="352" height="175" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="56" y="190" width="4" height="151" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="211.0">Mitigate + fix below</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="246.0">Restore a known safe state</tspan>
+<tspan x="74" y="268.95">Delegate permanent correction</tspan>
+<tspan x="74" y="291.9">Separate later promotion approval</tspan>
+</text>
+<rect x="432" y="178" width="352" height="175" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="432" y="190" width="4" height="151" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="450" y="211.0">Standard lower fix</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="450" y="246.0">Reproduce and test below</tspan>
+<tspan x="450" y="268.95">Run CI/CD and return receipts</tspan>
+<tspan x="450" y="291.9">Promote the exact approved artifact</tspan>
+</text>
+<rect x="808" y="178" width="352" height="175" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="808" y="190" width="4" height="151" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="826" y="211.0">Emergency runtime patch</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="826" y="246.0">One reversible scoped change</tspan>
+<tspan x="826" y="268.95">Capture prior state + review</tspan>
+<tspan x="826" y="291.9">deadline</tspan>
+<tspan x="826" y="314.85">Mandatory Git reconciliation</tspan>
+</text>
+<rect x="1184" y="178" width="360" height="175" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="1184" y="190" width="4" height="151" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1202" y="211.0">Expedited Git hotfix</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1202" y="246.0">Reviewed production artifact</tspan>
+<tspan x="1202" y="268.95">Minimum checks + explicit waiver</tspan>
+<tspan x="1202" y="291.9">Back-merge and full validation</tspan>
+</text>
+<rect x="56" y="411" width="352" height="175" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="56" y="423" width="4" height="151" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="444.0">Exact-change execution</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="479.0">Target + plan + artifact digests</tspan>
+<tspan x="74" y="501.95">Current approval and authorization</tspan>
+<tspan x="74" y="524.9">Record receipt and previous state</tspan>
+</text>
+<rect x="480" y="411" width="384" height="175" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="480" y="423" width="4" height="151" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="498" y="444.0">Read-only verification branch</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="498" y="479.0">Versioned signals + baseline</tspan>
+<tspan x="498" y="501.95">Freshness + sustained healthy window</tspan>
+<tspan x="498" y="524.9">Bounded duration; no LLM polling loop</tspan>
+</text>
+<polyline points="408,498.5 480,498.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="976" y="392" width="568" height="110" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="976" y="404" width="4" height="86" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="994" y="425.0">Healthy window complete</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="994" y="460.0">Record service recovery. Keep permanent fix and drift</tspan>
+<tspan x="994" y="482.95">reconciliation open until proven.</tspan>
+</text>
+<rect x="976" y="529" width="568" height="110" rx="10" fill="#FCEDEF" stroke="#D6E0EB"/>
+<rect x="976" y="541" width="4" height="86" rx="1" fill="#B33945" stroke="#B33945"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="994" y="562.0">Regression</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="994" y="597.0">Follow conditional rollback only if already authorized and still</tspan>
+<tspan x="994" y="619.95">valid; otherwise request approval.</tspan>
+</text>
+<rect x="976" y="666" width="568" height="110" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="976" y="678" width="4" height="86" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="994" y="699.0">Missing telemetry / timeout</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="994" y="734.0">Hold verification and escalate. Silence never establishes</tspan>
+<tspan x="994" y="756.95">recovery.</tspan>
+</text>
+<polyline points="864,498.5 976,447.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="864,498.5 976,584.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="864,498.5 976,721.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="56" y="666" width="808" height="110" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="56" y="678" width="4" height="86" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="699.0">Track two outcomes</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="734.0">Service status: degraded / observing / recovered. Change status: temporary / permanent</tspan>
+<tspan x="74" y="756.95">fix pending / reconciled. A successful command alone closes neither.</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">19 / 21</text></svg>

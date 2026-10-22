@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Experience layout  /  Overview and topology">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Experience layout / Overview and topology</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">Application owned navigation makes operations feel complete while shared services remain underneath.</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="158" width="1488" height="658" rx="13" fill="#FFFFFF" stroke="#D6E0EB"/>
+<rect x="56" y="158" width="1488" height="56" rx="0" fill="#14233B" stroke="#14233B"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="20" font-weight="700" fill="#FFFFFF">
+<tspan x="77" y="194.0">TriageNorth</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#DCE8F8">
+<tspan x="430" y="192.0">Environment: Demo DC | Search assets and incidents</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#DCE8F8">
+<tspan x="1180" y="192.0">Access: scoped operator</tspan>
+</text>
+<rect x="56" y="214" width="212" height="602" rx="0" fill="#F3F6FA" stroke="#F3F6FA"/>
+<rect x="70" y="233" width="184" height="37" rx="7" fill="#E8F7F4" stroke="#E8F7F4"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="700" fill="#007F88">
+<tspan x="86" y="256.0">Overview</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="304.0">Topology</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="352.0">Assets</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="400.0">Data decisions</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="448.0">Incidents</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="496.0">Ticket sync</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="544.0">Approvals</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="592.0">Automation</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="640.0">Deliverables</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="688.0">Administration</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="24" font-weight="700" fill="#14233B">
+<tspan x="292" y="257.0">TriageNorth overview</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="14" font-weight="400" fill="#576B83">
+<tspan x="292" y="289.0">Coverage, freshness, current incidents and the next decision in one place.</tspan>
+</text>
+<rect x="292" y="320" width="290" height="96" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="292" y="332" width="4" height="72" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="310" y="353.0">Coverage</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="310" y="386.0">5 sources · 1 stale</tspan>
+</text>
+<rect x="602" y="320" width="290" height="96" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="602" y="332" width="4" height="72" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="620" y="353.0">Incidents</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="620" y="386.0">2 active · 1 correlated</tspan>
+</text>
+<rect x="912" y="320" width="290" height="96" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="912" y="332" width="4" height="72" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="930" y="353.0">Approvals</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="930" y="386.0">1 needs review</tspan>
+</text>
+<rect x="1222" y="320" width="290" height="96" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="1222" y="332" width="4" height="72" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1240" y="353.0">Automation</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="1240" y="386.0">Demo scope · paused</tspan>
+</text>
+<rect x="292" y="438" width="790" height="352" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="20" font-weight="700" fill="#20334D">
+<tspan x="312" y="475.0">Estate topology</tspan>
+</text>
+<rect x="326" y="511" width="202" height="98" rx="10" fill="#FFFFFF" stroke="#D6E0EB"/>
+<rect x="326" y="523" width="4" height="74" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="344" y="544.0">Network</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="14" font-weight="400" fill="#576B83">
+<tspan x="344" y="576.0">Configured paths</tspan>
+</text>
+<rect x="581" y="511" width="202" height="98" rx="10" fill="#FFFFFF" stroke="#D6E0EB"/>
+<rect x="581" y="523" width="4" height="74" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="599" y="544.0">Node 01</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="14" font-weight="400" fill="#576B83">
+<tspan x="599" y="576.0">Observed healthy</tspan>
+</text>
+<rect x="836" y="511" width="220" height="98" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="836" y="523" width="4" height="74" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="854" y="544.0">Payments API</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="14" font-weight="400" fill="#576B83">
+<tspan x="854" y="576.0">Crash loop · 100 hits</tspan>
+</text>
+<polyline points="528,560.0 581,560.0" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="783,560.0 836,560.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="326" y="667.0">Select a resource to inspect its identity, current health, last observation and</tspan>
+<tspan x="326" y="689.95">incident-time relationships.</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="326" y="758.0">Legend: healthy · degraded · critical · stale / unknown</tspan>
+</text>
+<rect x="1102" y="438" width="410" height="160" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="1102" y="450" width="4" height="136" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1120" y="471.0">Next decision</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1120" y="506.0">INC-0042 · Payments API</tspan>
+<tspan x="1120" y="528.95">Evidence captured · proposal ready</tspan>
+<tspan x="1120" y="551.9">Review requested action →</tspan>
+</text>
+<rect x="1102" y="618" width="410" height="172" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="1102" y="630" width="4" height="148" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1120" y="651.0">Coverage needs attention</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1120" y="686.0">Azure discovery is stale</tspan>
+<tspan x="1120" y="708.95">Last successful scan is visible</tspan>
+<tspan x="1120" y="731.9">Review connection and scope →</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">05 / 21</text></svg>

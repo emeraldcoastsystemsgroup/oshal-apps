@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Investigate a pod without handing AI the cluster">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Investigate a pod without handing AI the cluster</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">IMPLEMENTED SOURCE · Original-person connector and bounded evidence; runtime checks have separate receipts</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="185" width="352" height="185" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="56" y="197" width="4" height="161" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="218.0">Operator workbench</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="253.0">Expand workload → pod → container</tspan>
+<tspan x="74" y="275.95">Read current status and logs</tspan>
+<tspan x="74" y="298.9">Review exact target + argv</tspan>
+</text>
+<rect x="488" y="185" width="432" height="185" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="488" y="197" width="4" height="161" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="506" y="218.0">Shared connection gate</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="506" y="253.0">Original-person named connection</tspan>
+<tspan x="506" y="275.95">Fresh confirmation + namespace / UID</tspan>
+<tspan x="506" y="298.9">Pinned API address and selected CA</tspan>
+</text>
+<rect x="1032" y="185" width="512" height="185" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="1032" y="197" width="4" height="161" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1050" y="218.0">Kubernetes API</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1050" y="253.0">Dedicated namespace Role: pods / log / exec</tspan>
+<tspan x="1050" y="275.95">Native HTTPS and v5 WebSocket</tspan>
+<tspan x="1050" y="298.9">No host kubeconfig or bot credential</tspan>
+</text>
+<polyline points="408,277.5 488,277.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="920,277.5 1032,277.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="1032" y="505" width="512" height="185" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="1032" y="517" width="4" height="161" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1050" y="538.0">Normalized result</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1050" y="573.0">Captured health and bounded output</tspan>
+<tspan x="1050" y="595.95">Verified exit receipt or unknown outcome</tspan>
+<tspan x="1050" y="618.9">No raw spec, environment or credential</tspan>
+</text>
+<rect x="488" y="505" width="432" height="185" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="488" y="517" width="4" height="161" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="506" y="538.0">Accountable analysis</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="506" y="573.0">Selected pod / container packet</tspan>
+<tspan x="506" y="595.95">Show the evidence supplied to AI</tspan>
+<tspan x="506" y="618.9">Interpret or propose; never auto-execute</tspan>
+</text>
+<rect x="56" y="505" width="352" height="185" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="56" y="517" width="4" height="161" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="538.0">Stage a suggestion</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="573.0">Inspect proposed arguments</tspan>
+<tspan x="74" y="595.95">New exact review before execution</tspan>
+<tspan x="74" y="618.9">No automatic action retry</tspan>
+</text>
+<polyline points="1288.0,370 1288.0,505" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1032,597 920,597" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="488,597 408,597" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="232,505 232,370" fill="none" stroke="#007F88" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrow)"/>
+<rect x="56" y="715" width="1488" height="105" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="56" y="727" width="4" height="81" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="748.0">Operational limits</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="74" y="781.0">Initial console: bounded single commands, no stdin/TTY. Check UID before and after; this is not an atomic exec precondition. A client timeout does not prove remote termination or service</tspan>
+<tspan x="74" y="801.25">recovery.</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">20 / 21</text></svg>

@@ -1,0 +1,15 @@
+{
+  "kind": "native-standard-stream-acceptance",
+  "passed": true,
+  "collectorImage": "otel/opentelemetry-collector-contrib:0.138.0@sha256:4a951ff0a9772f4fa8e9c7a326434370301b98b2b813933468dcb54aa6a6b5e5",
+  "syslogProtocol": "RFC5424/TCP",
+  "export": "OTLP/HTTP JSON without compression",
+  "syslogObservations": 2,
+  "metricObservations": 1,
+  "nativeResourceMapping": true,
+  "identity": "temporary existing-user password session; no bootstrap credential",
+  "durableProducerEnrollment": false,
+  "collectorRemovedAfterCheck": true,
+  "synthetic": true,
+  "at": "2026-10-21T15:08:33.215334+00:00"
+}

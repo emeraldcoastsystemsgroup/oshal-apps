@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Historical RCA with original source citations">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Historical RCA with original source citations</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">IMPLEMENTED SOURCE · Read current-user canonical records; preserve one report store and explicit uncertainty</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="185" width="440" height="170" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="56" y="197" width="4" height="146" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="218.0">Canonical tickets</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="253.0">Current-user incident catalogue</tspan>
+<tspan x="74" y="275.95">Source title, status and identity</tspan>
+<tspan x="74" y="298.9">No invented cause or replacement title</tspan>
+</text>
+<rect x="580" y="185" width="440" height="170" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="580" y="197" width="4" height="146" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="598" y="218.0">Original work records</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="598" y="253.0">Analysis / review / revision</tspan>
+<tspan x="598" y="275.95">Completed work + result receipt</tspan>
+<tspan x="598" y="298.9">Input digest and source file hashes</tspan>
+</text>
+<rect x="1104" y="185" width="440" height="170" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="1104" y="197" width="4" height="146" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1122" y="218.0">Accepted artifacts</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1122" y="253.0">Original workspace file selector</tspan>
+<tspan x="1122" y="275.95">Exact ticket + accepted work</tspan>
+<tspan x="1122" y="298.9">Content bytes and SHA-256</tspan>
+</text>
+<polyline points="496,270.0 580,270.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1020,270.0 1104,270.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="56" y="490" width="440" height="175" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="56" y="502" width="4" height="151" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="523.0">Find an incident</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="558.0">Search loaded ticket metadata</tspan>
+<tspan x="74" y="580.95">Filter state; select a case</tspan>
+<tspan x="74" y="603.9">Partial lineage remains explicit</tspan>
+</text>
+<rect x="580" y="490" width="440" height="175" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="580" y="502" width="4" height="151" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="598" y="523.0">Review the original analysis</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="598" y="558.0">Safe report preview + native ticket link</tspan>
+<tspan x="598" y="580.95">Inspect the input supplied to the bot</tspan>
+<tspan x="598" y="603.9">Unknown cause stays unknown</tspan>
+</text>
+<rect x="1104" y="490" width="440" height="175" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="1104" y="502" width="4" height="151" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1122" y="523.0">Follow its evidence</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1122" y="558.0">Open exact accepted artifacts</tspan>
+<tspan x="1122" y="580.95">Reject other-ticket or arbitrary URLs</tspan>
+<tspan x="1122" y="603.9">Fresh source authorization applies</tspan>
+</text>
+<polyline points="276.0,355 276.0,490" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="800.0,355 800.0,490" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1324.0,355 1324.0,490" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="496,577.5 580,577.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1020,577.5 1104,577.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="56" y="715" width="1488" height="105" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="56" y="727" width="4" height="81" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="748.0">Storage and retrieval boundaries</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="74" y="781.0">Temporal topology and correlation stay in their graph records. Reports stay in canonical work and workspace artifacts. Automatic semantic case retrieval is a separate backlog item. Report</tspan>
+<tspan x="74" y="801.25">acceptance does not establish infrastructure recovery.</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">21 / 21</text></svg>

@@ -1,0 +1,84 @@
+/** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Offer explicit scheduled retained-evidence capture and preserve its retry stage. */
+/** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Drain admitted deliveries under native scheduled caller authority with durable leases, bounded retries and fencing. */
+// @ts-nocheck
+import {randomUUID} from 'node:crypto';
+import {evaluateDelivery,processingTransaction as tx} from './pipeline';
+import {clean,fail} from './topology-model';
+const defaults={enabled:false,captureEvidence:false,sourceIds:[],batchSize:10,maxAttempts:8,retrySeconds:30,revision:0};
+const ownerRequired=owner=>{if(!clean(owner))fail(401,'A verified caller is required.');};
+const stamp=clock=>new Date(clock()).toISOString();
+export async function processingConfig(pool,owner,lock=false){ownerRequired(owner);return (await pool.query('SELECT record FROM operations_processing_config WHERE user_sub=$1 AND id=$2'+(lock?' FOR UPDATE':''),[owner,'worker'])).rows[0]?.record||{...defaults};}
+export async function saveProcessingConfig(pool,owner,input,sources){
+ ownerRequired(owner);
+ const allowed=['enabled','captureEvidence','sourceIds','batchSize','maxAttempts','retrySeconds','expectedRevision'];
+ if(!input||Object.keys(input).some(k=>!allowed.includes(k))||typeof input.enabled!=='boolean'||(input.captureEvidence!==undefined&&typeof input.captureEvidence!=='boolean')||!Array.isArray(input.sourceIds)||input.sourceIds.length>32||new Set(input.sourceIds).size!==input.sourceIds.length||input.sourceIds.some(id=>!sources.includes(id)))fail(400,'Choose up to 32 of your saved source revisions and an explicit enabled state.');
+ for(const [key,min,max]of [['batchSize',1,10],['maxAttempts',1,12],['retrySeconds',10,3600],['expectedRevision',0,2147483646]])if(!Number.isInteger(input[key])||input[key]<min||input[key]>max)fail(400,'Invalid '+key+'.');
+ if(input.enabled&&!input.sourceIds.length)fail(400,'Enable at least one source revision.');
+ return tx(pool,async c=>{
+  const held=(await c.query('SELECT record FROM operations_processing_config WHERE user_sub=$1 AND id=$2 FOR UPDATE',[owner,'worker'])).rows[0]?.record;
+  if((held?.revision||0)!==input.expectedRevision)fail(409,'Processing configuration changed; refresh before saving.');
+  if(input.enabled)for(const id of input.sourceIds)if(!(await c.query('SELECT id FROM operations_policy_bindings WHERE user_sub=$1 AND id=$2',[owner,id])).rows.length)fail(409,'Publish a policy for each enabled source first.');
+  const {expectedRevision,...settings}=input,record={...settings,captureEvidence:input.captureEvidence===true,sourceIds:settings.sourceIds.slice().sort(),revision:expectedRevision+1,updatedAt:new Date().toISOString()};
+  if(held)await c.query('UPDATE operations_processing_config SET revision=$3, record=$4 WHERE user_sub=$1 AND id=$2',[owner,'worker',record.revision,JSON.stringify(record)]);
+  else await c.query('INSERT INTO operations_processing_config(user_sub,id,revision,record) VALUES($1,$2,$3,$4)',[owner,'worker',record.revision,JSON.stringify(record)]);
+  return record;
+ });
+}
+export async function claimProcessing(pool,owner,clock=Date.now){
+ ownerRequired(owner);return tx(pool,async c=>{
+  const config=await processingConfig(c,owner);if(!config.enabled)return null;
+  const now=stamp(clock),slots=config.sourceIds.map((_,i)=>'$'+(i+3)).join(',');
+  const row=(await c.query("SELECT id, state, record FROM operations_processing WHERE user_sub=$1 AND state IN ('pending','retry','evaluating') AND ready_at <= $2 AND record->>'sourceId' IN ("+slots+") ORDER BY ready_at, created_at, id LIMIT 1 FOR UPDATE",[owner,now,...config.sourceIds])).rows[0];
+  if(!row)return null;
+  const previous=row.record.processing||{},attempts=(previous.attempts||0)+1;
+  const exhausted=attempts>config.maxAttempts,token=randomUUID(),leaseUntil=new Date(Date.parse(now)+120000).toISOString();
+  const processing={attempts:exhausted?previous.attempts:attempts,status:exhausted?'attention':'running',token:exhausted?null:token,leaseUntil:exhausted?null:leaseUntil,startedAt:now,configurationRevision:config.revision,...(exhausted?{lastError:'Retry limit reached after an interrupted attempt.'}:{})};
+  await c.query('UPDATE operations_processing SET state=$3, revision=revision+1, ready_at=$4, record=$5 WHERE user_sub=$1 AND id=$2',[owner,row.id,exhausted?'attention':'evaluating',leaseUntil,JSON.stringify({...row.record,processing})]);
+  return exhausted?{exhausted:true,id:row.id}:{id:row.id,token,config,leaseUntil};
+ });
+}
+export async function processingFence(c,owner,lease,work,now){
+ const held=work.record.processing;
+ if(held?.token!==lease.token||Date.parse(held.leaseUntil)<=Date.parse(now))fail(409,'Processing lease expired or was replaced.');
+ const config=await processingConfig(c,owner,true);
+ if(!config.enabled||config.revision!==lease.config.revision||!config.sourceIds.includes(work.record.sourceId))fail(409,'Processing was stopped or its configuration changed.');
+}
+async function failedProcessing(pool,owner,lease,error,clock){
+ return tx(pool,async c=>{
+  const row=(await c.query('SELECT state, record FROM operations_processing WHERE user_sub=$1 AND id=$2 FOR UPDATE',[owner,lease.id])).rows[0];
+  if(!row||row.state!=='evaluating'||row.record.processing?.token!==lease.token)return false;
+  const now=stamp(clock),held=row.record.processing;
+  if(Date.parse(held.leaseUntil)<=Date.parse(now))return false;
+  const permanent=[400,404].includes(error.status),attention=permanent||held.attempts>=lease.config.maxAttempts;
+  const retryAt=new Date(Date.parse(now)+Math.min(3600,lease.config.retrySeconds*2**(held.attempts-1))*1000).toISOString();
+  const processing={...held,token:null,leaseUntil:null,status:attention?'attention':'retry',lastError:error.status?String(error.message).slice(0,240):'Detection storage or engine is unavailable.',failedAt:now,retryAt};
+  await c.query('UPDATE operations_processing SET state=$3, revision=revision+1, ready_at=$4, record=$5 WHERE user_sub=$1 AND id=$2',[owner,lease.id,processing.status,retryAt,JSON.stringify({...row.record,processing})]);
+  return true;
+ });
+}
+export async function processPending(pool,engine,owner,clock=Date.now){
+ const config=await processingConfig(pool,owner),results=[],started=Date.now();
+ if(!config.enabled)return {enabled:false,evaluated:0,failed:0,results};
+ for(let i=0;i<config.batchSize&&Date.now()-started<45000;i++){
+  const lease=await claimProcessing(pool,owner,clock);if(!lease)break;if(lease.exhausted){results.push({deliveryId:lease.id,error:'Retry limit reached; review and retry explicitly.'});continue;}
+  try{const decision=await evaluateDelivery(pool,engine,owner,lease.id,()=>stamp(clock),(c,work,now)=>processingFence(c,owner,lease,work,now));results.push({deliveryId:lease.id,decisionId:decision.id,outcome:decision.reduction.outcome});}
+  catch(error){await failedProcessing(pool,owner,lease,error,clock);results.push({deliveryId:lease.id,error:error.status?error.message:'Processing is unavailable.'});if(!error.status||error.status>=500)break;}
+ }
+ return {enabled:true,evaluated:results.filter(r=>!r.error).length,failed:results.filter(r=>r.error).length,results};
+}
+export async function retryProcessing(pool,owner,id,clock=Date.now){
+ ownerRequired(owner);if(typeof id!=='string'||!/^[a-f0-9]{64}$/.test(id))fail(400,'Select a recorded delivery.');
+ return tx(pool,async c=>{
+  const row=(await c.query('SELECT state, record FROM operations_processing WHERE user_sub=$1 AND id=$2 FOR UPDATE',[owner,id])).rows[0];
+  if(!row)fail(404,'Processing work is unavailable.');if(!['attention','retry','evidence-attention','evidence-retry'].includes(row.state))fail(409,'Only failed work can be retried; running and completed work are unchanged.');
+  if(row.state.startsWith('evidence-')){const now=stamp(clock),record={...row.record,captureProcessing:{status:'pending',attempts:0,retriedAt:now,previous:row.record.captureProcessing?.lastError||null}};await c.query('UPDATE operations_processing SET state=$3, revision=revision+1, ready_at=$4, record=$5 WHERE user_sub=$1 AND id=$2',[owner,id,'evidence-pending',now,JSON.stringify(record)]);return {deliveryId:id,state:'evidence-pending'};}
+  const now=stamp(clock),processing={status:'pending',attempts:0,retriedAt:now,previous:row.record.processing?.lastError||null};
+  await c.query('UPDATE operations_processing SET state=$3, revision=revision+1, ready_at=$4, record=$5 WHERE user_sub=$1 AND id=$2',[owner,id,'pending',now,JSON.stringify({...row.record,processing})]);
+  return {deliveryId:id,state:'pending'};
+ });
+}
+export async function processingRecords(pool,owner){
+ const config=await processingConfig(pool,owner),rows=(await pool.query('SELECT id, state, ready_at, record FROM operations_processing WHERE user_sub=$1 ORDER BY created_at DESC, id LIMIT 200',[owner])).rows;
+ const jobs=rows.map(r=>{const {token,...processing}=r.record.processing||{};return {id:r.id,sourceId:r.record.sourceId,state:r.state,readyAt:r.ready_at,processing,captureProcessing:r.record.captureProcessing||null};});
+ return {config,jobs,limit:200,leaseSeconds:120,scheduleName:'operations-process-recorded-alerts'};
+}

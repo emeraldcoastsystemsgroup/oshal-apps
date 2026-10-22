@@ -1,0 +1,27 @@
+{
+  "environment": "operations-lab",
+  "synthetic": true,
+  "startedAt": 1792517285.1569073,
+  "checks": [
+    "healthy frontend dependency request",
+    "Prometheus observed real synthetic request failures and fired LabApplicationErrors",
+    "Alertmanager webhook retained with current pod and event evidence",
+    "fresh dependency request returned HTTP 200 and error alert cleared",
+    "scale created a distinct third API pod UID"
+  ],
+  "status": "passed",
+  "cleanup": "healthy mode, 2 API replicas, no remaining load jobs",
+  "finishedAt": 1792517435.8015144,
+  "description": "Actual observations from a synthetic disposable local cluster; not OSHAL ingestion or production automation.",
+  "captures": {
+    "fault": "20261020T172917Z",
+    "recovered": "20261020T173114Z-180475"
+  },
+  "files": {
+    "alertmanager-firing.json": "0591933c2ac115de1207ccf44ca6a423c2d4f82ce1d90a0468f2f2626ac79327",
+    "alertmanager-resolved.json": "361ac367bf45bc5b0f7361134d36af9060b0e2719fc9c3c1c97fa534a16bb655",
+    "inventory-at-failure.json": "7645ebfe1281663db7b9e3cf0848e6484a64cb897bf7fca722eb6032a9cff292",
+    "recovered-collector-logs.txt": "b92f456e4bbe0f7f062abe466fba567d01e22e2a5c88e21345b8e89d31879db5",
+    "recovered-prometheus-alerts.json": "f888c82c6eef8633f5f79dca320ba120dda7935a22cebdcce185164561f79bf3"
+  }
+}

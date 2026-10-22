@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Pin trading's paper-autopilot (runsAs: user, TRADE-01) in the shipped service-route inventory: a person job each person activates for their own paper book.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Pin kalshi's background-scan and sports-edge's refresh-pass (runsAs: user): each replaces an in-process timer whose work ran outside any admitted request, and each person activates it for their own scan / followed teams.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Pin trading's futures-research (runsAs: user, FUT-01): a person job each person activates to run their own saved Futures study nightly.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Pin Operations recorded-alert processing as a user-activated native schedule.
  */
 
 import test from 'node:test';
@@ -23,6 +24,7 @@ const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)
 const DECLARED = [
   ['calendar', 'calendar-meeting-briefs', 'system'],
   ['daily-trade-recap', 'daily-trade-recap-recorded-reports', 'system'],
+  ['intelligent-operations', 'operations-process-recorded-alerts', 'user'],
   ['kalshi', 'background-scan', 'user'],
   ['lora', 'lora-autonomous-overnight', 'system'],
   ['marketing-engine', 'daily-metrics-ingest', 'system'],

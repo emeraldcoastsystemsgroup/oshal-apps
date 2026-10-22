@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="From infrastructure signal to verified action">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">From infrastructure signal to verified action</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">TriageNorth turns evidence into controlled response; an independently installed platform supplies shared services.</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="174.0">INFRASTRUCTURE AND DATA SOURCES</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="380" y="174.0">TRIAGENORTH / SUBMITTED PRODUCT</tspan>
+</text>
+<rect x="360" y="190" width="1184" height="470" rx="14" fill="#FFFFFF" stroke="#D6E0EB"/>
+<rect x="56" y="202" width="270" height="126" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="56" y="214" width="4" height="102" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="235.0">Data center</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="270.0">Hosts · network · storage</tspan>
+<tspan x="74" y="292.95">Clusters · containers</tspan>
+</text>
+<rect x="56" y="346" width="270" height="126" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="56" y="358" width="4" height="102" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="379.0">Cloud estates</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="414.0">AWS · Azure · GCP</tspan>
+<tspan x="74" y="436.95">Provider-native discovery</tspan>
+</text>
+<rect x="56" y="490" width="270" height="126" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="56" y="502" width="4" height="102" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="523.0">Signals and evidence</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="558.0">Prometheus · OTLP</tspan>
+<tspan x="74" y="580.95">External logs and changes</tspan>
+</text>
+<rect x="386" y="230" width="250" height="188" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="386" y="242" width="4" height="164" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="700" fill="#20334D">
+<tspan x="404" y="261.0">Sources and adapters</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="404" y="297.0">Authenticated identity</tspan>
+<tspan x="404" y="318.6">Schema and mapping</tspan>
+<tspan x="404" y="340.2">Durable intake</tspan>
+</text>
+<rect x="680" y="230" width="250" height="188" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="680" y="242" width="4" height="164" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="698" y="263.0">Asset and topology</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="698" y="297.0">Canonical inventory</tspan>
+<tspan x="698" y="318.6">Temporal relationships</tspan>
+<tspan x="698" y="340.2">Discovery and freshness</tspan>
+</text>
+<rect x="974" y="230" width="250" height="188" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="974" y="242" width="4" height="164" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="700" fill="#20334D">
+<tspan x="992" y="261.0">Incident and evidence</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="992" y="297.0">Detection and noise gates</tspan>
+<tspan x="992" y="318.6">Correlation and snapshots</tspan>
+<tspan x="992" y="340.2">One canonical ticket</tspan>
+</text>
+<rect x="1268" y="230" width="250" height="188" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="1268" y="242" width="4" height="164" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="700" fill="#20334D">
+<tspan x="1286" y="261.0">Work and automation</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="1286" y="297.0">Versioned code bundles</tspan>
+<tspan x="1286" y="318.6">Bound approvals</tspan>
+<tspan x="1286" y="340.2">Execution and verification</tspan>
+</text>
+<polyline points="636,324.0 680,324.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="930,324.0 974,324.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1224,324.0 1268,324.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="326,265 350,265 350,300 386,300" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="326,409 350,409 350,445 660,445 660,390 680,390" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="326,553 350,553 350,390 386,390" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="386" y="474" width="1132" height="146" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="386" y="486" width="4" height="122" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="404" y="507.0">Application owned workspace</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="404" y="542.0">Topology / Data and decisions / Incidents / Ticket sync / Approvals / Deliverables</tspan>
+<tspan x="404" y="564.95">Scoped connections; inbound sources and outbound ticket synchronization remain separate</tspan>
+</text>
+<polyline points="945,660 945,694" fill="none" stroke="#14233B" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrow)"/>
+<rect x="360" y="700" width="1184" height="116" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="360" y="712" width="4" height="92" rx="1" fill="#14233B" stroke="#14233B"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="378" y="733.0">Existing OSHAL foundation / Docker-OCI baseline</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="378" y="768.0">User login and scoped grants · Standard connection framework · Canonical tickets · Tools / sandbox</tspan>
+<tspan x="378" y="790.95">Approval authority · Audit and execution receipts · Revocation and budget enforcement</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="56" y="725.0">Product package</tspan>
+<tspan x="56" y="747.95">Independent revision</tspan>
+<tspan x="56" y="770.9">Baseline image digest</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">01 / 21</text></svg>

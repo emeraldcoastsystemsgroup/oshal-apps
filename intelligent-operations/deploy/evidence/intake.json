@@ -1,0 +1,36 @@
+{
+  "episode": "intake-1f15fd1df02840e6b9b1a92f229d20ea",
+  "sourceId": "8f7397a35cfffc5dc799bde6975ab6508b1e3d162557d72ed330770b0587159d",
+  "deliveryId": "26e86d151e108dbdc8bda897f062af2f9d15ecf842777028c9b23dedc5578949",
+  "acceptanceData": true,
+  "concurrentRequests": 100,
+  "replicaClaim": "four concurrent HTTP clients to the installed native deployment; not two kernel replicas",
+  "created": 1,
+  "retries": 99,
+  "conflict": 409,
+  "attemptsForDelivery": 101,
+  "quarantined": 1,
+  "unauthenticatedStatus": 401,
+  "nativePendingWorkCount": 1,
+  "backgroundCollection": false,
+  "sourceRevision": "0ce3461a95ef420572c94235cd4f4defbc4f8dab",
+  "artifact": "7ddb84107d7ac1f1f08e30ad993a0818de1e0331cd2f2b60fe60280a52e2af82",
+  "packageVersion": "1.1.1",
+  "namespace": "oshal-install-lab",
+  "context": "kind-operations-lab",
+  "sourceTests": {
+    "passed": 34,
+    "failed": 0,
+    "skipped": 0
+  },
+  "nativeChecks": {
+    "concurrentRetries": true,
+    "conflictingPayloadPreserved": true,
+    "quarantineNotQueued": true,
+    "exactlyOnePendingItem": true,
+    "unauthenticatedDenied": true,
+    "podReplacementPersistence": true,
+    "postRestartRetryDoesNotDuplicateProcessing": true
+  },
+  "postRestartAttempts": 102
+}

@@ -1,0 +1,15 @@
+{
+  "kind": "native-real-time-retention",
+  "passed": true,
+  "at": "2026-10-21T15:03:40.198164+00:00",
+  "elapsedSeconds": 909.788,
+  "minimumSeconds": 900,
+  "earlyReuseHttp": 429,
+  "reusedBank": 0,
+  "generation": 1,
+  "rawContextRemaining": 2,
+  "pinnedContextRetained": 3,
+  "packetHashUnchanged": true,
+  "serverClockChanged": false,
+  "syntheticCanary": true
+}

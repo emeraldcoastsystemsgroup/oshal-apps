@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Experience layout  /  User identity and CLI connections">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Experience layout / User identity and CLI connections</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">TriageNorth uses scoped connections; signing in does not automatically grant unattended or write authority.</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="158" width="1488" height="658" rx="13" fill="#FFFFFF" stroke="#D6E0EB"/>
+<rect x="56" y="158" width="1488" height="56" rx="0" fill="#14233B" stroke="#14233B"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="20" font-weight="700" fill="#FFFFFF">
+<tspan x="77" y="194.0">TriageNorth</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#DCE8F8">
+<tspan x="430" y="192.0">Environment: Demo DC | Search assets and incidents</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#DCE8F8">
+<tspan x="1180" y="192.0">Access: scoped operator</tspan>
+</text>
+<rect x="56" y="214" width="212" height="602" rx="0" fill="#F3F6FA" stroke="#F3F6FA"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="256.0">Overview</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="304.0">Topology</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="352.0">Assets</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="400.0">Data decisions</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="448.0">Incidents</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="496.0">Ticket sync</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="544.0">Approvals</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="592.0">Automation</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="640.0">Deliverables</tspan>
+</text>
+<rect x="70" y="665" width="184" height="37" rx="7" fill="#E8F7F4" stroke="#E8F7F4"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="700" fill="#007F88">
+<tspan x="86" y="688.0">Administration</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="24" font-weight="700" fill="#14233B">
+<tspan x="292" y="257.0">Connections, runner identity and effective access</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="14" font-weight="400" fill="#576B83">
+<tspan x="292" y="289.0">Current caller / Named account / Interactive operator or explicitly activated background principal</tspan>
+</text>
+<rect x="292" y="324" width="340" height="463" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="292" y="336" width="4" height="439" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="310" y="357.0">Named connections</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="310" y="392.0">Kubernetes / kubectl</tspan>
+<tspan x="310" y="414.95">AWS / aws</tspan>
+<tspan x="310" y="437.9">Azure / az</tspan>
+<tspan x="310" y="460.85">Google Cloud / gcloud</tspan>
+<tspan x="310" y="483.8">Data center / SSH</tspan>
+<tspan x="310" y="506.75">Splunk / API</tspan>
+<tspan x="310" y="529.7"></tspan>
+<tspan x="310" y="552.65">Tool available on selected runner</tspan>
+<tspan x="310" y="575.6">No global shell-cache import</tspan>
+</text>
+<rect x="656" y="324" width="450" height="213" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="656" y="336" width="4" height="189" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="674" y="357.0">Verify actual identity</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="674" y="392.0">Provider account / tenant / project</tspan>
+<tspan x="674" y="414.95">Cluster API and incarnation UID</tspan>
+<tspan x="674" y="437.9">Host fingerprint / allowed commands</tspan>
+<tspan x="674" y="460.85">Explicit target and configuration</tspan>
+</text>
+<rect x="656" y="561" width="450" height="226" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="656" y="573" width="4" height="202" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="674" y="594.0">Independent capability probes</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="674" y="629.0">Authentication result and time</tspan>
+<tspan x="674" y="651.95">Inventory read result and scope</tspan>
+<tspan x="674" y="674.9">Evidence read result and scope</tspan>
+<tspan x="674" y="697.85">Writes require separate confirmed authority</tspan>
+<tspan x="674" y="720.8">Expired / revoked / wrong target: stop</tspan>
+</text>
+<rect x="1130" y="324" width="382" height="463" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="1130" y="336" width="4" height="439" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1148" y="357.0">Shared framework boundary</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1148" y="392.0">Personal connection: its owner</tspan>
+<tspan x="1148" y="414.95">Shared connection: explicit grants</tspan>
+<tspan x="1148" y="437.9">Secrets: managed references only</tspan>
+<tspan x="1148" y="460.85">Refresh preserves bound identity</tspan>
+<tspan x="1148" y="483.8"></tspan>
+<tspan x="1148" y="506.75">Background work needs activation</tspan>
+<tspan x="1148" y="529.7">No browser token as service identity</tspan>
+<tspan x="1148" y="552.65"></tspan>
+<tspan x="1148" y="575.6">Platform-managed sign-in</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">11 / 21</text></svg>

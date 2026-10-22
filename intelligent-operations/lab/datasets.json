@@ -1,0 +1,182 @@
+{
+  "version": 1,
+  "datasets": [
+    {
+      "id": "loghub",
+      "repository": "https://github.com/logpai/loghub",
+      "revision": "dd61d0952749ee7963bde24220d1be5ede023033",
+      "license": "Research or academic use; retain LICENSE and cite upstream. Cached separately, not part of the application bundle.",
+      "purpose": "Recorded host/HPC/distributed-storage logs and laboratory OpenStack logs. Parsing templates are not incident ground truth. The 2k samples are not complete incident sequences.",
+      "files": [
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/LICENSE",
+          "sha256": "9ffa6ae259833cdc6e7ed8a0219fec72ef6455fb457b3c44096cb1ac1f0696d4",
+          "bytes": 553,
+          "lines": 11
+        },
+        {
+          "path": "BGL/README.md",
+          "url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/BGL/README.md",
+          "sha256": "4ec19cee4f8b4086ab511cae2fe901a9e298475f4d678f8c9e84e484691031ef",
+          "bytes": 1340,
+          "lines": 12
+        },
+        {
+          "path": "BGL/BGL_2k.log",
+          "url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/BGL/BGL_2k.log",
+          "sha256": "2a819ea540909db682005c9cf948387a40729b5c2e9f19d430e29ce704825496",
+          "bytes": 317150,
+          "lines": 2000
+        },
+        {
+          "path": "BGL/BGL_2k.log_structured.csv",
+          "url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/BGL/BGL_2k.log_structured.csv",
+          "sha256": "3fe74103c0b02a28514534e2a47257a3f770135ca61afd425bbd3b9d6a31fe26",
+          "bytes": 425129,
+          "lines": 2001
+        },
+        {
+          "path": "OpenStack/README.md",
+          "url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/OpenStack/README.md",
+          "sha256": "cee3352b41a237db7ec351d30ba33a89f0e54ab96df3062c060080d3ae197d5c",
+          "bytes": 1292,
+          "lines": 13
+        },
+        {
+          "path": "OpenStack/OpenStack_2k.log",
+          "url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/OpenStack/OpenStack_2k.log",
+          "sha256": "025a1bc64ff5b2ef4a4bda6c4ad5c5c5f18478b71cd1ad2b0676e01625629f2f",
+          "bytes": 595119,
+          "lines": 2000
+        },
+        {
+          "path": "OpenStack/OpenStack_2k.log_structured.csv",
+          "url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/OpenStack/OpenStack_2k.log_structured.csv",
+          "sha256": "ecc88e7909777181824260e9bdacd1469bd24d55131d6fc14e9c8c17edc49ff0",
+          "bytes": 719703,
+          "lines": 2001
+        },
+        {
+          "path": "Linux/README.md",
+          "url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/Linux/README.md",
+          "sha256": "c79c90d192b4d3aab4559a75c9e84deb186acd092cfa35fae74c2eff47e530a8",
+          "bytes": 711,
+          "lines": 12
+        },
+        {
+          "path": "Linux/Linux_2k.log",
+          "url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/Linux/Linux_2k.log",
+          "sha256": "b3e20bc1afe732ab1bf3ed1de4bf9c809e4194e02f7dea911d918e5342e8e173",
+          "bytes": 216485,
+          "lines": 2000
+        },
+        {
+          "path": "HDFS/README.md",
+          "url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/HDFS/README.md",
+          "sha256": "764b9d9d4ffc02c939afa01c3048e9fcaba1300f0ffed7de7f0412415c4da71c",
+          "bytes": 4515,
+          "lines": 60
+        },
+        {
+          "path": "HDFS/HDFS_2k.log",
+          "url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/HDFS/HDFS_2k.log",
+          "sha256": "7c967000980c086ed55fa6544ba4f05fe66d44622795e890c68caf8bbb635035",
+          "bytes": 287848,
+          "lines": 2000
+        }
+      ]
+    },
+    {
+      "id": "nab",
+      "repository": "https://github.com/numenta/NAB",
+      "revision": "ea702d75cc2258d9d7dd35ca8e5e2539d71f3140",
+      "license": "Retain the upstream LICENSE.txt. Dataset data and repository code can have distinct terms; review upstream data/README.md.",
+      "purpose": "Recorded EC2/ASG metrics plus synthetic normal controls; original labels/time ties preserved.",
+      "files": [
+        {
+          "path": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/numenta/NAB/ea702d75cc2258d9d7dd35ca8e5e2539d71f3140/LICENSE.txt",
+          "sha256": "0a0b4d0b10cb1f7ed9ab2993ef93defc03447e6eba9daca1315dd32dae4877e3",
+          "bytes": 1056
+        },
+        {
+          "path": "data/README.md",
+          "url": "https://raw.githubusercontent.com/numenta/NAB/ea702d75cc2258d9d7dd35ca8e5e2539d71f3140/data/README.md",
+          "sha256": "1d32963e44a52323b44affff374a1222ebe5ef19ef8f7f6c6fd7a747aa52db30",
+          "bytes": 2931
+        },
+        {
+          "path": "labels/combined_windows.json",
+          "url": "https://raw.githubusercontent.com/numenta/NAB/ea702d75cc2258d9d7dd35ca8e5e2539d71f3140/labels/combined_windows.json",
+          "sha256": "1e1fbc4601321aad8d0f8b3784c8134299379f68f6c1f7777565f8ffd57ab6b1",
+          "bytes": 15359
+        },
+        {
+          "path": "data/realKnownCause/cpu_utilization_asg_misconfiguration.csv",
+          "url": "https://raw.githubusercontent.com/numenta/NAB/ea702d75cc2258d9d7dd35ca8e5e2539d71f3140/data/realKnownCause/cpu_utilization_asg_misconfiguration.csv",
+          "sha256": "58ba65dc0737cfbac11b51514476d50c438d44011232144bb8d93f392df58f9f",
+          "bytes": 539274,
+          "rows": 18050,
+          "firstTimestamp": "2014-05-14 01:14:00",
+          "lastTimestamp": "2014-07-15 17:19:00",
+          "minimumTimestamp": "2014-05-14 01:14:00",
+          "maximumTimestamp": "2014-07-15 17:19:00",
+          "adjacentDuplicateTimestamps": 0,
+          "backwardTimestampTransitions": 0,
+          "anomalyWindows": 1,
+          "origin": "recorded-cloud-series",
+          "timestampPolicy": "Preserve original row order and timestamps, including ties; no source timezone asserted. Evaluation must declare handling of duplicate/late samples."
+        },
+        {
+          "path": "data/realKnownCause/ec2_request_latency_system_failure.csv",
+          "url": "https://raw.githubusercontent.com/numenta/NAB/ea702d75cc2258d9d7dd35ca8e5e2539d71f3140/data/realKnownCause/ec2_request_latency_system_failure.csv",
+          "sha256": "98378580aa80157e057c61d59d81daddccc6c65a2c0c800e3f01f603b8215c3f",
+          "bytes": 123428,
+          "rows": 4032,
+          "firstTimestamp": "2014-03-07 03:41:00",
+          "lastTimestamp": "2014-03-21 03:41:00",
+          "minimumTimestamp": "2014-03-07 03:41:00",
+          "maximumTimestamp": "2014-03-21 03:41:00",
+          "adjacentDuplicateTimestamps": 11,
+          "backwardTimestampTransitions": 0,
+          "anomalyWindows": 3,
+          "origin": "recorded-cloud-series",
+          "timestampPolicy": "Preserve original row order and timestamps, including ties; no source timezone asserted. Evaluation must declare handling of duplicate/late samples."
+        },
+        {
+          "path": "data/artificialNoAnomaly/art_daily_small_noise.csv",
+          "url": "https://raw.githubusercontent.com/numenta/NAB/ea702d75cc2258d9d7dd35ca8e5e2539d71f3140/data/artificialNoAnomaly/art_daily_small_noise.csv",
+          "sha256": "c4b304229f69f108eaa024fb2406fcd4510c5c5d95cd0053e2da6989682e4e6d",
+          "bytes": 140187,
+          "rows": 4032,
+          "firstTimestamp": "2014-04-01 00:00:00",
+          "lastTimestamp": "2014-04-14 23:55:00",
+          "minimumTimestamp": "2014-04-01 00:00:00",
+          "maximumTimestamp": "2014-04-14 23:55:00",
+          "adjacentDuplicateTimestamps": 0,
+          "backwardTimestampTransitions": 0,
+          "anomalyWindows": 0,
+          "origin": "synthetic-normal-control",
+          "timestampPolicy": "Preserve original row order and timestamps, including ties; no source timezone asserted. Evaluation must declare handling of duplicate/late samples."
+        },
+        {
+          "path": "data/artificialNoAnomaly/art_flatline.csv",
+          "url": "https://raw.githubusercontent.com/numenta/NAB/ea702d75cc2258d9d7dd35ca8e5e2539d71f3140/data/artificialNoAnomaly/art_flatline.csv",
+          "sha256": "1cc10761ddd6d55fb5f0d9cfc73610416abbb120ee14bb65eff288509a463397",
+          "bytes": 100816,
+          "rows": 4032,
+          "firstTimestamp": "2014-04-01 00:00:00",
+          "lastTimestamp": "2014-04-14 23:55:00",
+          "minimumTimestamp": "2014-04-01 00:00:00",
+          "maximumTimestamp": "2014-04-14 23:55:00",
+          "adjacentDuplicateTimestamps": 0,
+          "backwardTimestampTransitions": 0,
+          "anomalyWindows": 0,
+          "origin": "synthetic-normal-control",
+          "timestampPolicy": "Preserve original row order and timestamps, including ties; no source timezone asserted. Evaluation must declare handling of duplicate/late samples."
+        }
+      ]
+    }
+  ]
+}

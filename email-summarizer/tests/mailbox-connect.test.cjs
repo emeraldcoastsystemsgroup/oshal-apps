@@ -38,7 +38,7 @@ for (const page of PAGES) {
     const html = api.connectNotice({ connected: false, error: 'no_mail_connection' });
     assert.match(html, /data-connect="gmail">Connect Google \(Gmail\)</);
     assert.match(html, /data-connect="outlook">Connect Outlook \/ Microsoft 365</);
-    assert.match(html, /<a href="\/utilities" target="_top">All connections<\/a>/);
+    assert.match(html, /<a href="\/utilities\?category=email" target="_top">Mail connections<\/a>/);
     assert.doesNotMatch(html, /Connect Google or Outlook/);
     assert.deepEqual([...api.connectNotice({ error: 'no_outlook_connection' }).matchAll(/data-connect="(\w+)"/g)].map((m) => m[1]), ['outlook']);
   });

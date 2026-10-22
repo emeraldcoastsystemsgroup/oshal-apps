@@ -1,0 +1,61 @@
+{
+  "kind": "native-operating-experience",
+  "syntheticEvidence": true,
+  "startedAt": "2026-10-21T17:10:18.282Z",
+  "passed": true,
+  "checks": [
+    "actual HTML password login",
+    "three genuine canonical investigate/review/revise outputs with inference receipts; human report approval remains pending",
+    "three workflow-generated shared-PVC artifacts downloaded through the authenticated workspace API and matched to stored byte lengths and SHA256 digests"
+  ],
+  "application": {
+    "revision": "a8697163be93ba39ef12949a4992a05c6e7fabb3",
+    "artifact": "57abd4068306de832db2828bab0ed9141a0060bd5c05a001e601e2a7acee4505"
+  },
+  "ticketId": "ca7fc196-8a0b-4055-809d-7b957cde68f9",
+  "workflowStatus": "awaiting_approval",
+  "phases": [
+    {
+      "index": 0,
+      "name": "investigate",
+      "workId": "c8f20338-72c1-491b-b154-2d30acf635e0",
+      "receipt": "b63ad738-9cd7-4cd5-beaa-53b25c69eabe",
+      "answerSha256": "4007422e1dfe58cc37e227e599187656a00b826725ab53bfa93a48a6940690de"
+    },
+    {
+      "index": 1,
+      "name": "review",
+      "workId": "c527f6c1-0d00-4261-b41a-fe2c23388a0f",
+      "receipt": "b32b9d91-7d57-4421-9984-ceb87f31a748",
+      "answerSha256": "7608815400b0273d876c277d45e6b846fbf7cdf04ab3cf70c4a1e737cb253eae"
+    },
+    {
+      "index": 2,
+      "name": "revise",
+      "workId": "f1339284-8109-4b15-83a2-c9591109e8a9",
+      "receipt": "d340cfb1-158e-4ec2-8af4-6f319b499b72",
+      "answerSha256": "0670b6c07cb3feda52d4cca08575b520b6432e939ca7df6bddb63de300022075"
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "c8f20338-72c1-491b-b154-2d30acf635e0/answer.md",
+      "workId": "c8f20338-72c1-491b-b154-2d30acf635e0",
+      "size": 4709,
+      "sha256": "4007422e1dfe58cc37e227e599187656a00b826725ab53bfa93a48a6940690de"
+    },
+    {
+      "name": "c527f6c1-0d00-4261-b41a-fe2c23388a0f/answer.md",
+      "workId": "c527f6c1-0d00-4261-b41a-fe2c23388a0f",
+      "size": 707,
+      "sha256": "7608815400b0273d876c277d45e6b846fbf7cdf04ab3cf70c4a1e737cb253eae"
+    },
+    {
+      "name": "f1339284-8109-4b15-83a2-c9591109e8a9/answer.md",
+      "workId": "f1339284-8109-4b15-83a2-c9591109e8a9",
+      "size": 4709,
+      "sha256": "0670b6c07cb3feda52d4cca08575b520b6432e939ca7df6bddb63de300022075"
+    }
+  ],
+  "finishedAt": "2026-10-21T17:10:22.037Z"
+}

@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Experience layout  /  Incident and approval">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Experience layout / Incident and approval</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">Evidence and proposed work stay beside the exact authority requested from the operator.</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="158" width="1488" height="658" rx="13" fill="#FFFFFF" stroke="#D6E0EB"/>
+<rect x="56" y="158" width="1488" height="56" rx="0" fill="#14233B" stroke="#14233B"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="20" font-weight="700" fill="#FFFFFF">
+<tspan x="77" y="194.0">TriageNorth</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#DCE8F8">
+<tspan x="430" y="192.0">Environment: Demo DC | Search assets and incidents</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#DCE8F8">
+<tspan x="1180" y="192.0">Access: scoped operator</tspan>
+</text>
+<rect x="56" y="214" width="212" height="602" rx="0" fill="#F3F6FA" stroke="#F3F6FA"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="256.0">Overview</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="304.0">Topology</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="352.0">Assets</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="400.0">Data decisions</tspan>
+</text>
+<rect x="70" y="425" width="184" height="37" rx="7" fill="#E8F7F4" stroke="#E8F7F4"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="700" fill="#007F88">
+<tspan x="86" y="448.0">Incidents</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="496.0">Ticket sync</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="544.0">Approvals</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="592.0">Automation</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="640.0">Deliverables</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="86" y="688.0">Administration</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="24" font-weight="700" fill="#14233B">
+<tspan x="292" y="257.0">INC-0042 Payments API restart loop</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="14" font-weight="400" fill="#576B83">
+<tspan x="292" y="289.0">Demo DC / cluster-01 / payments · Open · 100 occurrences · Evidence captured</tspan>
+</text>
+<rect x="292" y="322" width="267" height="466" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="292" y="334" width="4" height="442" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="310" y="355.0">Asset and impact</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="310" y="389.0">Workload: payments-api</tspan>
+<tspan x="310" y="410.6">Instance: pod UID …91</tspan>
+<tspan x="310" y="432.2">Node: node-01</tspan>
+<tspan x="310" y="453.8"></tspan>
+<tspan x="310" y="475.4">Affected service</tspan>
+<tspan x="310" y="497.0">Payments API</tspan>
+<tspan x="310" y="518.6"></tspan>
+<tspan x="310" y="540.2">Current placement</tspan>
+<tspan x="310" y="561.8">Different from first failure</tspan>
+<tspan x="310" y="583.4"></tspan>
+<tspan x="310" y="605.0">View incident-time map →</tspan>
+</text>
+<rect x="579" y="322" width="564" height="466" rx="10" fill="#FFFFFF" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="700" fill="#20334D">
+<tspan x="599" y="358.0">Evidence | Timeline | Proposed work</tspan>
+</text>
+<rect x="599" y="391" width="524" height="138" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="599" y="403" width="4" height="114" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="617" y="424.0">Captured before replacement</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="617" y="458.0">Previous logs · pod state · node conditions</tspan>
+<tspan x="617" y="479.6">Topology at failure · collection manifest</tspan>
+<tspan x="617" y="501.2">External logs: unavailable, explicitly shown</tspan>
+</text>
+<rect x="599" y="549" width="524" height="146" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="599" y="561" width="4" height="122" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="617" y="582.0">Proposed action / version 3</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="617" y="616.0">Registered action: restart demo workload</tspan>
+<tspan x="617" y="637.6">Preflight and verification included</tspan>
+<tspan x="617" y="659.2">Inspect report, plan and file diff →</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="599" y="739.0">Editing the work creates a new version and invalidates its earlier</tspan>
+<tspan x="599" y="759.25">approval.</tspan>
+</text>
+<rect x="1163" y="322" width="349" height="336" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="1163" y="334" width="4" height="312" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1181" y="355.0">Approve this version</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="1181" y="389.0">Targets: payments-api / demo</tspan>
+<tspan x="1181" y="410.6">Bundle: SHA256 …6b3f</tspan>
+<tspan x="1181" y="432.2">Principal: demo executor</tspan>
+<tspan x="1181" y="453.8">Expiry: 15 minutes</tspan>
+<tspan x="1181" y="475.4">Limits: 1 execution</tspan>
+<tspan x="1181" y="497.0">Rollback: declared limitation</tspan>
+<tspan x="1181" y="518.6">Postcheck: service readiness</tspan>
+</text>
+<rect x="1181" y="682" width="313" height="43" rx="7" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="700" fill="#FFFFFF">
+<tspan x="1195" y="708.0">Approve version 3</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="1181" y="760.0">Reject | Request revision</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">07 / 21</text></svg>

@@ -1,0 +1,31 @@
+{
+  "sourceRevision": "5fbe9f391b1469714e95b5542beb7c6a7258d5fd",
+  "installedOperationsRevision": "b8f1df538d55fb5e77afd838737df2316ccdb2bc",
+  "pushDestination": "origin/feat/native-application-executors",
+  "pushResult": "successful normal push through the enabled hook",
+  "checks": {
+    "passed": 82,
+    "failed": 0,
+    "partial": 6,
+    "skipped": 12,
+    "blocked": 0
+  },
+  "gateLog": "/tmp/oshal-pipeline-drain-push.log",
+  "hookBypassed": false,
+  "skipPolicy": "Explicit OSHAL_STORE_CI_ALLOW_SKIPS=1; skipped and partial cases are not passing evidence.",
+  "focusedChecks": {
+    "operations": 28,
+    "kernelWorkflowRenderer": 3,
+    "calendarWithTeardownRegression": 5
+  },
+  "liveEvidence": "pressure-workflow.json",
+  "unfinished": [
+    "durable source admission and background collection",
+    "stored-query filtering and distributed suppression",
+    "temporal correlation and scheduled cloud inventory",
+    "actual anomaly detector and calibration",
+    "external ticket synchronization",
+    "repeatable worker enrollment and dynamic inference configuration",
+    "package audit and full kernel certification"
+  ]
+}

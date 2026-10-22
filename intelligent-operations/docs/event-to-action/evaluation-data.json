@@ -1,0 +1,105 @@
+{
+  "kind": "dataset-preparation-receipt",
+  "preparedAt": "2026-10-21T04:57:02.523679+00:00",
+  "repository": "https://github.com/numenta/NAB",
+  "revision": "ea702d75cc2258d9d7dd35ca8e5e2539d71f3140",
+  "cacheRelativeToHome": ".cache/triagenorth/datasets/nab/ea702d75cc2258d9d7dd35ca8e5e2539d71f3140",
+  "licenseNotice": "LICENSE.txt (upstream notice retained with the cached data)",
+  "purpose": "Small offline pilot; no detector, percolator or model run and no measured quality claim.",
+  "execution": {
+    "percolatorRun": false,
+    "anomalyDetectorRun": false,
+    "localModelRun": false,
+    "gpuUsed": false,
+    "cpuQuotaPercentOfOneCore": 25,
+    "memoryMaxBytes": 268435456,
+    "memorySwapMaxBytes": 0,
+    "taskLimit": 16,
+    "timeoutSeconds": 60
+  },
+  "totalBytes": 923051,
+  "files": [
+    {
+      "path": "LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/numenta/NAB/ea702d75cc2258d9d7dd35ca8e5e2539d71f3140/LICENSE.txt",
+      "sha256": "0a0b4d0b10cb1f7ed9ab2993ef93defc03447e6eba9daca1315dd32dae4877e3",
+      "bytes": 1056
+    },
+    {
+      "path": "data/README.md",
+      "url": "https://raw.githubusercontent.com/numenta/NAB/ea702d75cc2258d9d7dd35ca8e5e2539d71f3140/data/README.md",
+      "sha256": "1d32963e44a52323b44affff374a1222ebe5ef19ef8f7f6c6fd7a747aa52db30",
+      "bytes": 2931
+    },
+    {
+      "path": "labels/combined_windows.json",
+      "url": "https://raw.githubusercontent.com/numenta/NAB/ea702d75cc2258d9d7dd35ca8e5e2539d71f3140/labels/combined_windows.json",
+      "sha256": "1e1fbc4601321aad8d0f8b3784c8134299379f68f6c1f7777565f8ffd57ab6b1",
+      "bytes": 15359
+    },
+    {
+      "path": "data/realKnownCause/cpu_utilization_asg_misconfiguration.csv",
+      "url": "https://raw.githubusercontent.com/numenta/NAB/ea702d75cc2258d9d7dd35ca8e5e2539d71f3140/data/realKnownCause/cpu_utilization_asg_misconfiguration.csv",
+      "sha256": "58ba65dc0737cfbac11b51514476d50c438d44011232144bb8d93f392df58f9f",
+      "bytes": 539274,
+      "rows": 18050,
+      "firstTimestamp": "2014-05-14 01:14:00",
+      "lastTimestamp": "2014-07-15 17:19:00",
+      "minimumTimestamp": "2014-05-14 01:14:00",
+      "maximumTimestamp": "2014-07-15 17:19:00",
+      "adjacentDuplicateTimestamps": 0,
+      "backwardTimestampTransitions": 0,
+      "anomalyWindows": 1,
+      "origin": "recorded-cloud-series",
+      "timestampPolicy": "Preserve original row order and timestamps, including ties; no source timezone asserted. Evaluation must declare handling of duplicate/late samples."
+    },
+    {
+      "path": "data/realKnownCause/ec2_request_latency_system_failure.csv",
+      "url": "https://raw.githubusercontent.com/numenta/NAB/ea702d75cc2258d9d7dd35ca8e5e2539d71f3140/data/realKnownCause/ec2_request_latency_system_failure.csv",
+      "sha256": "98378580aa80157e057c61d59d81daddccc6c65a2c0c800e3f01f603b8215c3f",
+      "bytes": 123428,
+      "rows": 4032,
+      "firstTimestamp": "2014-03-07 03:41:00",
+      "lastTimestamp": "2014-03-21 03:41:00",
+      "minimumTimestamp": "2014-03-07 03:41:00",
+      "maximumTimestamp": "2014-03-21 03:41:00",
+      "adjacentDuplicateTimestamps": 11,
+      "backwardTimestampTransitions": 0,
+      "anomalyWindows": 3,
+      "origin": "recorded-cloud-series",
+      "timestampPolicy": "Preserve original row order and timestamps, including ties; no source timezone asserted. Evaluation must declare handling of duplicate/late samples."
+    },
+    {
+      "path": "data/artificialNoAnomaly/art_daily_small_noise.csv",
+      "url": "https://raw.githubusercontent.com/numenta/NAB/ea702d75cc2258d9d7dd35ca8e5e2539d71f3140/data/artificialNoAnomaly/art_daily_small_noise.csv",
+      "sha256": "c4b304229f69f108eaa024fb2406fcd4510c5c5d95cd0053e2da6989682e4e6d",
+      "bytes": 140187,
+      "rows": 4032,
+      "firstTimestamp": "2014-04-01 00:00:00",
+      "lastTimestamp": "2014-04-14 23:55:00",
+      "minimumTimestamp": "2014-04-01 00:00:00",
+      "maximumTimestamp": "2014-04-14 23:55:00",
+      "adjacentDuplicateTimestamps": 0,
+      "backwardTimestampTransitions": 0,
+      "anomalyWindows": 0,
+      "origin": "synthetic-normal-control",
+      "timestampPolicy": "Preserve original row order and timestamps, including ties; no source timezone asserted. Evaluation must declare handling of duplicate/late samples."
+    },
+    {
+      "path": "data/artificialNoAnomaly/art_flatline.csv",
+      "url": "https://raw.githubusercontent.com/numenta/NAB/ea702d75cc2258d9d7dd35ca8e5e2539d71f3140/data/artificialNoAnomaly/art_flatline.csv",
+      "sha256": "1cc10761ddd6d55fb5f0d9cfc73610416abbb120ee14bb65eff288509a463397",
+      "bytes": 100816,
+      "rows": 4032,
+      "firstTimestamp": "2014-04-01 00:00:00",
+      "lastTimestamp": "2014-04-14 23:55:00",
+      "minimumTimestamp": "2014-04-01 00:00:00",
+      "maximumTimestamp": "2014-04-14 23:55:00",
+      "adjacentDuplicateTimestamps": 0,
+      "backwardTimestampTransitions": 0,
+      "anomalyWindows": 0,
+      "origin": "synthetic-normal-control",
+      "timestampPolicy": "Preserve original row order and timestamps, including ties; no source timezone asserted. Evaluation must declare handling of duplicate/late samples."
+    }
+  ]
+}

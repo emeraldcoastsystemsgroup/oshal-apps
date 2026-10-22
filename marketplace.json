@@ -3474,8 +3474,8 @@
       "name": "intelligent-operations",
       "suite": "ai-engineering",
       "displayName": "Intelligent Operations",
-      "description": "Incident tickets run a root-cause pipeline: the RCA specialist investigates from the ticket's evidence, a reviewer checks the report, the specialist revises it. Remediation is proposed for an operator to run, never applied automatically.",
-      "version": "1.0.2",
+      "description": "Review incident tickets and check alert source formats in the Operations workspace. The existing RCA workflow investigates the ticket and attached evidence; automatic monitoring, discovery and infrastructure execution are not enabled.",
+      "version": "1.1.1",
       "theme": "midnight",
       "dependencies": {
         "apps": [],

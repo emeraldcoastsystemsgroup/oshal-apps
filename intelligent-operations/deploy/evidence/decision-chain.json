@@ -1,0 +1,327 @@
+{
+  "kind": "native-decision-chain-and-mail-experience",
+  "passed": true,
+  "finishedAt": "2026-10-21T19:20:56.990Z",
+  "syntheticWorkload": true,
+  "realMonitoringObservations": true,
+  "observationCount": 8,
+  "captureSha256": "2b1c60831f257f177ad602fed9fa835478302ba3d9765d343337d3b2a71a8487",
+  "inputSha256": "5d31e470f927b38b5c039fc7df11b141a6b33a60a1a9f2cbdaf9539bfba7b62c",
+  "firstAttempt": {
+    "ticketId": "2a60f877-4012-4b43-91ed-d38ee08fae38",
+    "status": "failed",
+    "accountReason": "codex_timeout",
+    "deadlineSeconds": 45,
+    "usageReceiptAvailable": false,
+    "providerConsumption": "unknown"
+  },
+  "linkedRetry": {
+    "stage": "awaiting_approval",
+    "startedAt": "2026-10-21T19:18:25.529417+00:00",
+    "parentTicketId": "2a60f877-4012-4b43-91ed-d38ee08fae38",
+    "inputSha256": "5d31e470f927b38b5c039fc7df11b141a6b33a60a1a9f2cbdaf9539bfba7b62c",
+    "accountRuntimeRevision": "782ae3d551401c07f6b373b1bb7ef8cf26895674",
+    "priorProviderConsumption": "unknown: no successful usage receipt",
+    "executionAuthorized": false,
+    "externalSends": 0,
+    "ticketId": "537d9d04-e882-47bb-a5a1-63ae7cc2df96",
+    "observedAt": "2026-10-21T19:20:25.438160+00:00",
+    "phases": [
+      {
+        "name": "investigate",
+        "workId": "ee2ba557-8190-411b-b356-85785f0843e1",
+        "state": "completed",
+        "bot": "ops-rca-specialist",
+        "receipt": "4b0a1f5f-bb16-4d2b-bddf-4405c8ec2c37",
+        "inference": {
+          "model": "gpt-6.1-sol",
+          "tokensEstimated": false,
+          "tokensIn": 9364,
+          "tokensOut": 2532,
+          "trace": "2ebd46d9-9c2b-4bd8-b47a-3c355ce0c44d"
+        },
+        "answerSha256": "ed280bbd4e52b0df681f0282524f2017c82b22a54ef99565e05e78a4e9e290b1",
+        "inputDigest": "c41e21b6c9b33671a522383ef14e867ffa3c59b2ec69839bbafacea9adced42f",
+        "files": [
+          {
+            "path": "evidence/packet.json",
+            "sha256": "5d31e470f927b38b5c039fc7df11b141a6b33a60a1a9f2cbdaf9539bfba7b62c",
+            "byteLength": 6828
+          }
+        ]
+      },
+      {
+        "name": "review",
+        "workId": "44db273a-bf77-4d0a-a93a-5e2e7cfb1090",
+        "state": "completed",
+        "bot": "ops-incident-reviewer",
+        "receipt": "3a346199-5ca9-4b90-9a2b-b57d16c8d986",
+        "inference": {
+          "model": "gpt-6.1-sol",
+          "tokensEstimated": false,
+          "tokensIn": 11579,
+          "tokensOut": 239,
+          "trace": "2ebd46d9-9c2b-4bd8-b47a-3c355ce0c44d"
+        },
+        "answerSha256": "b95aa041e6b207b6c9e47b47719d3b6c8aa955584e1b1eb1c756793f33ab3f81",
+        "inputDigest": "ead79e4ad385d7f31db9a961b8e99d05509364d7c3bb701c9b036018e7760306",
+        "files": [
+          {
+            "path": "evidence/packet.json",
+            "sha256": "5d31e470f927b38b5c039fc7df11b141a6b33a60a1a9f2cbdaf9539bfba7b62c",
+            "byteLength": 6828
+          },
+          {
+            "path": "workflow-phase-0/answer.md",
+            "sha256": "ed280bbd4e52b0df681f0282524f2017c82b22a54ef99565e05e78a4e9e290b1",
+            "byteLength": 10751
+          },
+          {
+            "path": "workflow-phase-0/receipt.json",
+            "sha256": "6faab9802851254378416fe312b33b9c3da077fa236d38313586c0d9af46888f",
+            "byteLength": 463
+          }
+        ]
+      },
+      {
+        "name": "revise",
+        "workId": "37ce8f87-8f9a-4111-8386-261650d62844",
+        "state": "completed",
+        "bot": "ops-rca-specialist",
+        "receipt": "ffccf790-1da9-44fa-98fd-3c569d0bdd34",
+        "inference": {
+          "model": "gpt-6.1-sol",
+          "tokensEstimated": false,
+          "tokensIn": 12782,
+          "tokensOut": 2670,
+          "trace": "2ebd46d9-9c2b-4bd8-b47a-3c355ce0c44d"
+        },
+        "answerSha256": "35625b4466d6dfd9b6199c9990adc905a336da5bbbb4305a83f94adae566dfa1",
+        "inputDigest": "4f610e07b5956bd3aab4d0307bb162ab290500b7b15287627f6538d900e0c39f",
+        "files": [
+          {
+            "path": "evidence/packet.json",
+            "sha256": "5d31e470f927b38b5c039fc7df11b141a6b33a60a1a9f2cbdaf9539bfba7b62c",
+            "byteLength": 6828
+          },
+          {
+            "path": "workflow-phase-0/answer.md",
+            "sha256": "ed280bbd4e52b0df681f0282524f2017c82b22a54ef99565e05e78a4e9e290b1",
+            "byteLength": 10751
+          },
+          {
+            "path": "workflow-phase-0/receipt.json",
+            "sha256": "6faab9802851254378416fe312b33b9c3da077fa236d38313586c0d9af46888f",
+            "byteLength": 463
+          },
+          {
+            "path": "workflow-phase-1/answer.md",
+            "sha256": "b95aa041e6b207b6c9e47b47719d3b6c8aa955584e1b1eb1c756793f33ab3f81",
+            "byteLength": 825
+          },
+          {
+            "path": "workflow-phase-1/receipt.json",
+            "sha256": "d4909e792fe83964de5c041c188b0bc97b59e8feab797a0c86827dfeb468fdc3",
+            "byteLength": 453
+          }
+        ]
+      }
+    ]
+  },
+  "browser": {
+    "startedAt": "2026-10-21T19:20:50.897Z",
+    "kernelRevision": "6f1c38fbd0b4a63b61d5f03b8bd9559e22ee08c1",
+    "ticketId": "537d9d04-e882-47bb-a5a1-63ae7cc2df96",
+    "checks": [
+      "actual HTML password login",
+      "Create plus Office and Communication are active",
+      "ticket ledger has named bots and a positive separately labelled reference estimate",
+      "all three phases release exact admitted packet text, hashes and actual inference receipts",
+      "fresh reports cite evidence and revise retains both earlier phase reports",
+      "three actual shared-workspace reports downloaded with matching native byte lengths and hashes",
+      "canonical ticket Workflow and Cost tabs render the real graph, decision chain and estimated cost",
+      "Studio ticket runtime graph fits a phone and creates no draft or provider action",
+      "installed Create home opens under the original user",
+      "Email category shows Gmail and Outlook and distinguishes mailbox sign-in from notification transport"
+    ],
+    "passed": true,
+    "externalSends": 0,
+    "cost": {
+      "recordedCost": 0,
+      "estimatedCost": 0.050048,
+      "totalTokens": 39166,
+      "requests": 3,
+      "rate": {
+        "inputPerMTokMicros": 1000000,
+        "outputPerMTokMicros": 3000000,
+        "reference": null,
+        "source": "setting"
+      }
+    },
+    "inputs": [
+      {
+        "phase": "investigate",
+        "bot": "ops-rca-specialist",
+        "inputDigest": "c41e21b6c9b33671a522383ef14e867ffa3c59b2ec69839bbafacea9adced42f",
+        "files": [
+          {
+            "path": "evidence/packet.json",
+            "sha256": "5d31e470f927b38b5c039fc7df11b141a6b33a60a1a9f2cbdaf9539bfba7b62c",
+            "byteLength": 6828
+          }
+        ],
+        "receipt": "4b0a1f5f-bb16-4d2b-bddf-4405c8ec2c37"
+      },
+      {
+        "phase": "review",
+        "bot": "ops-incident-reviewer",
+        "inputDigest": "ead79e4ad385d7f31db9a961b8e99d05509364d7c3bb701c9b036018e7760306",
+        "files": [
+          {
+            "path": "evidence/packet.json",
+            "sha256": "5d31e470f927b38b5c039fc7df11b141a6b33a60a1a9f2cbdaf9539bfba7b62c",
+            "byteLength": 6828
+          },
+          {
+            "path": "workflow-phase-0/answer.md",
+            "sha256": "ed280bbd4e52b0df681f0282524f2017c82b22a54ef99565e05e78a4e9e290b1",
+            "byteLength": 10751
+          },
+          {
+            "path": "workflow-phase-0/receipt.json",
+            "sha256": "6faab9802851254378416fe312b33b9c3da077fa236d38313586c0d9af46888f",
+            "byteLength": 463
+          }
+        ],
+        "receipt": "3a346199-5ca9-4b90-9a2b-b57d16c8d986"
+      },
+      {
+        "phase": "revise",
+        "bot": "ops-rca-specialist",
+        "inputDigest": "4f610e07b5956bd3aab4d0307bb162ab290500b7b15287627f6538d900e0c39f",
+        "files": [
+          {
+            "path": "evidence/packet.json",
+            "sha256": "5d31e470f927b38b5c039fc7df11b141a6b33a60a1a9f2cbdaf9539bfba7b62c",
+            "byteLength": 6828
+          },
+          {
+            "path": "workflow-phase-0/answer.md",
+            "sha256": "ed280bbd4e52b0df681f0282524f2017c82b22a54ef99565e05e78a4e9e290b1",
+            "byteLength": 10751
+          },
+          {
+            "path": "workflow-phase-0/receipt.json",
+            "sha256": "6faab9802851254378416fe312b33b9c3da077fa236d38313586c0d9af46888f",
+            "byteLength": 463
+          },
+          {
+            "path": "workflow-phase-1/answer.md",
+            "sha256": "b95aa041e6b207b6c9e47b47719d3b6c8aa955584e1b1eb1c756793f33ab3f81",
+            "byteLength": 825
+          },
+          {
+            "path": "workflow-phase-1/receipt.json",
+            "sha256": "d4909e792fe83964de5c041c188b0bc97b59e8feab797a0c86827dfeb468fdc3",
+            "byteLength": 453
+          }
+        ],
+        "receipt": "ffccf790-1da9-44fa-98fd-3c569d0bdd34"
+      }
+    ],
+    "workflowStatus": "awaiting_approval",
+    "artifacts": [
+      {
+        "name": "ee2ba557-8190-411b-b356-85785f0843e1/answer.md",
+        "workId": "ee2ba557-8190-411b-b356-85785f0843e1",
+        "size": 10751,
+        "sha256": "ed280bbd4e52b0df681f0282524f2017c82b22a54ef99565e05e78a4e9e290b1"
+      },
+      {
+        "name": "44db273a-bf77-4d0a-a93a-5e2e7cfb1090/answer.md",
+        "workId": "44db273a-bf77-4d0a-a93a-5e2e7cfb1090",
+        "size": 825,
+        "sha256": "b95aa041e6b207b6c9e47b47719d3b6c8aa955584e1b1eb1c756793f33ab3f81"
+      },
+      {
+        "name": "37ce8f87-8f9a-4111-8386-261650d62844/answer.md",
+        "workId": "37ce8f87-8f9a-4111-8386-261650d62844",
+        "size": 11388,
+        "sha256": "35625b4466d6dfd9b6199c9990adc905a336da5bbbb4305a83f94adae566dfa1"
+      }
+    ],
+    "mail": {
+      "mailboxCategoryVisible": true,
+      "personalMailboxConsentTested": false,
+      "notificationTransportRegistered": false
+    },
+    "finishedAt": "2026-10-21T19:20:56.990Z"
+  },
+  "kernel": {
+    "revision": "6f1c38fbd0b4a63b61d5f03b8bd9559e22ee08c1",
+    "image": "oshal-kernel:dev-6f1c38fbd0b4",
+    "imageId": "sha256:6882f77bae0103ce6188f051824815802da1da238ad5c18b6a965ec7c07ab792",
+    "baseImageId": "sha256:c227c92d8239012430331bb3c395a069def1997aee6eafefff9548dddf21891d",
+    "binarySha256": {
+      "oshald": "c00af01235fac3dc2db45e741100b18ed7e039d977d2d97eb9fb8207f6bcd046",
+      "oshal-node": "f13bc20cf9ba8587d33161a01b1a7a1fd22650108b635d809b053f6ab902314d"
+    },
+    "preservedPodConfiguration": true,
+    "fullReleaseCertified": false,
+    "completedAt": 1792609789.560505
+  },
+  "accountRuntime": {
+    "runtimeRevision": "782ae3d551401c07f6b373b1bb7ef8cf26895674",
+    "image": "oshal-accounts:782ae3d55140",
+    "imageId": "sha256:3649611ced5f5be7bc92ee09cc73b983f500f0e41b7c7de37c2cf7951740a4d3",
+    "baseImageId": "sha256:d3dd9545ff6ab06e2ccd7984290820be6c8a505dd12ec0eb62798d9556ed890e",
+    "kernelRevision": "6f1c38fbd0b4a63b61d5f03b8bd9559e22ee08c1",
+    "inferenceSeconds": 90,
+    "kernelRequestSeconds": 105,
+    "workerPhaseSeconds": 120,
+    "sourceSha256": "e9edf00357102893f400a1674ac33cc59a432eb1609b6e80a06df0c7bbd6561e",
+    "preservedAccounts": true,
+    "fullReleaseCertified": false,
+    "completedAt": 1792610292.8261414
+  },
+  "installedApplications": {
+    "revision": "bceffaf040f23888b63e9d66c0eac5322affc8b5",
+    "applications": [
+      {
+        "application": "intelligent-operations",
+        "artifact": "c6b218e9f3fdf1e04e7349709fffe3374f5170113fceffb23ef8771f2b169f62",
+        "revision": "bceffaf040f23888b63e9d66c0eac5322affc8b5"
+      },
+      {
+        "application": "email-summarizer",
+        "artifact": "cf9b610cdad295deb16a70e9f7bc7ecaaaf752bac9d469f67933f0addbcb9f0d",
+        "revision": "bceffaf040f23888b63e9d66c0eac5322affc8b5"
+      },
+      {
+        "application": "create",
+        "artifact": "1736cfc21ca3c14e7a361cb11549e9344103d6684ca0a9c35a686201c719f433",
+        "revision": "bceffaf040f23888b63e9d66c0eac5322affc8b5"
+      }
+    ],
+    "privatePackagesInstalled": false,
+    "optionalMediaRuntimesInstalled": false
+  },
+  "mail": {
+    "catalogCategory": "email",
+    "gmailAndOutlookVisible": true,
+    "microsoftAuthorizationUrlPrepared": true,
+    "personalMailboxConsentVerified": false,
+    "providerCallbackRegistrationVerified": false,
+    "portalNotificationTransportConfigured": false,
+    "emailSent": false
+  },
+  "limits": {
+    "reportApprovalRequired": true,
+    "infrastructureExecutionAuthorized": false,
+    "infrastructureRecoveryByAgentClaimed": false,
+    "independentExecutableScriptFilesGenerated": false,
+    "scriptsAreProposalsInsideReports": true,
+    "automaticExternalTicketSynchronization": false,
+    "fullKernelReleaseCertified": false
+  }
+}

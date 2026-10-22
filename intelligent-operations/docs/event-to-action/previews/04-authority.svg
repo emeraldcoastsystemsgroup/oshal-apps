@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Authority is checked at every transition">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Authority is checked at every transition</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">Collecting evidence, approving a proposal and changing infrastructure are separate capabilities.</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="205" width="468" height="172" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="56" y="217" width="4" height="148" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="238.0">Observe and investigate</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="74" y="274.0">Read assets and signals</tspan>
+<tspan x="74" y="298.3">Collect allowed evidence</tspan>
+<tspan x="74" y="322.6">Generate a proposal</tspan>
+</text>
+<rect x="566" y="205" width="468" height="172" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="566" y="217" width="4" height="148" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="584" y="238.0">Approve concrete work</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="584" y="274.0">Inspect exact version and targets</tspan>
+<tspan x="584" y="298.3">Check evidence and preconditions</tspan>
+<tspan x="584" y="322.6">Approve once or reject</tspan>
+</text>
+<rect x="1076" y="205" width="468" height="172" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="1076" y="217" width="4" height="148" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1094" y="238.0">Execute and verify</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="1094" y="274.0">Registered action or supported runner</tspan>
+<tspan x="1094" y="298.3">Recheck current authority</tspan>
+<tspan x="1094" y="322.6">Verify effect and record receipt</tspan>
+</text>
+<polyline points="524,291 566,291" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1034,291 1076,291" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="56" y="425" width="710" height="172" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="56" y="437" width="4" height="148" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="458.0">One time approval binds</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="74" y="494.0">Artifact digest + action version + exact targets + parameters</tspan>
+<tspan x="74" y="518.3">Principal + connection version + scope + expiry</tspan>
+<tspan x="74" y="542.6">Changed artifact, incarnation or precondition → new decision</tspan>
+</text>
+<rect x="806" y="425" width="738" height="172" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="806" y="437" width="4" height="148" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="824" y="458.0">Delegation authorizes a known action</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="824" y="494.0">Explicit policy + allowed template + constrained parameters</tspan>
+<tspan x="824" y="518.3">Environment / targets + time / cost / concurrency limits</tspan>
+<tspan x="824" y="542.6">Pause, revoke and stop conditions remain visible</tspan>
+</text>
+<rect x="56" y="643" width="1488" height="166" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="56" y="655" width="4" height="142" rx="1" fill="#14233B" stroke="#14233B"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="676.0">Execution boundary</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="74" y="712.0">Installation grants no unattended changes. An administrator does not automatically become a production executor.</tspan>
+<tspan x="74" y="736.3">Newly generated scripts must pass tool registration and review before automated execution. Downloading is separate from running.</tspan>
+<tspan x="74" y="760.6">Successful command exit does not close the incident: the postcondition must pass, otherwise reopen or escalate within bounds.</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">04 / 21</text></svg>

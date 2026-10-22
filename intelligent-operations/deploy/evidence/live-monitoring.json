@@ -1,0 +1,17 @@
+{
+  "environment": "operations-lab",
+  "synthetic": true,
+  "startedAt": 1792597707.168716,
+  "checks": [
+    "healthy frontend dependency request",
+    "Prometheus observed real synthetic request failures and fired LabApplicationErrors",
+    "Alertmanager webhook retained with current pod and event evidence",
+    "fresh dependency request returned HTTP 200 and error alert cleared",
+    "scale created a distinct third API pod UID"
+  ],
+  "faultCapture": "20261021T154907Z-703971",
+  "status": "passed",
+  "cleanup": "healthy mode, 2 API replicas, no remaining load jobs",
+  "recoveryCapture": "20261021T155025Z-331633",
+  "finishedAt": 1792597827.518174
+}

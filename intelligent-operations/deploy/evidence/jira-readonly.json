@@ -1,0 +1,15 @@
+{
+  "kind": "native-jira-readonly-acceptance",
+  "configured": true,
+  "connectedUnderOriginalPerson": true,
+  "scopeLinked": true,
+  "namedAccountSelection": true,
+  "nativeActionAttempts": 2,
+  "confirmedProviderHttpResponses": 1,
+  "providerHttpStatus": 404,
+  "providerMethod": "GET",
+  "externalIssueWrites": 0,
+  "passed": false,
+  "providerPersonalDataRetained": false,
+  "nextStep": "Reconcile the selected Jira site and its account access before claiming live synchronization."
+}

@@ -1,0 +1,47 @@
+/** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Prove installed Kubernetes Operations through real native invitations, login, role checks, durable imports and the experience launcher. */
+'use strict';
+const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto'),{execFileSync}=require('node:child_process');
+const state=path.join(os.homedir(),'.local/state/oshal-operations-lab/experience'),base='http://127.0.0.1:38079';
+const admin=JSON.parse(fs.readFileSync(path.join(state,'credentials.json'),'utf8')).admin;
+const deployment=JSON.parse(fs.readFileSync(path.join(state,'deployment.json'),'utf8'));
+const {chromium}=require(path.resolve(__dirname,'../../scripts/toolchain/node_modules/playwright').replace('/intelligent-operations/scripts/','/scripts/'));
+const previous=path.join(state,'acceptance-private.json');if(fs.existsSync(previous))fs.copyFileSync(previous,path.join(state,'acceptance-private-'+Date.now()+'.json'));
+const receipt={startedAt:new Date().toISOString(),deployment,checks:[],passed:false},people=[],run='operations-'+randomUUID();
+function record(name){receipt.checks.push(name);console.log(name);}
+async function call(token,method,route,body,expected=[200],headers={}){const response=await fetch(base+route,{method,headers:{...(token?{Authorization:'Bearer '+token}:{}),...(body?{'Content-Type':'application/json'}:{}),...headers},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(45000)});const text=await response.text();let value;try{value=JSON.parse(text);}catch{value={};}assert.ok(expected.includes(response.status),`${method} ${route.replace(/\/invitations\/[^/]+/,'/invitations/:private')} => ${response.status}: ${JSON.stringify(value).slice(0,400)}`);return value;}
+async function grant(person,role,action='assign'){const catalog=await call(admin,'GET','/api/authorization/composites');person.assignment??=run+'-'+person.label;const input={target:person.principal,assignment_id:person.assignment,action,expected_revision:catalog.revision,reason:run,idempotency_key:randomUUID(),...(action==='revoke'?{}:{selection:{kind:'granular',app:'intelligent-operations',role}})};const preview=await call(admin,'POST','/api/authorization/composites/preview',input);if(action!=='revoke')input.expected_plan_revision=preview.plan_revision;await call(admin,'POST','/api/authorization/composites/apply',input);}
+async function person(label,role){const subject=run+'-'+label,invite=await call(admin,'POST','/people/invitations',{invitee:subject,tier:'editor',lifetime_ms:3600000});const p={...await call(null,'POST','/people/invitations/'+encodeURIComponent(invite.token)+'/accept',{subject}),label};people.push(p);fs.writeFileSync(path.join(state,'acceptance-private.json'),JSON.stringify(people),{mode:0o600});if(role)await grant(p,role);return p;}
+async function main(){
+ execFileSync('python3',[path.join(__dirname,'kubernetes.py'),'status'],{stdio:'pipe'});
+ await call(null,'GET','/readyz');
+ await call(null,'GET','/api/ui/experiences/intelligent-operations/open',undefined,[401,403]);
+ await call(null,'GET','/api/intelligent-operations/records',undefined,[401,403]);record('signed-out launcher and record access refused');
+ const operator=await person('operator','operator'),reader=await person('reader','reader'),outsider=await person('outsider');
+ await call(outsider.token,'GET','/api/intelligent-operations/records',undefined,[403]);
+ await call(reader.token,'POST','/api/intelligent-operations/sources',{name:'Must refuse',source:'urn:test:refuse',environment:'operations-lab'},[403]);record('unassigned person and read-only mutation refused');
+ const browser=await chromium.launch({headless:true});
+ try{
+  const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(base+'/login?next=/api/ui/experiences/intelligent-operations/open');
+  await page.getByText('Sign in with an access token',{exact:true}).click();await page.getByLabel('Access token',{exact:true}).fill(operator.token);await page.locator('#loginToken button').click();
+  await page.waitForURL('**/api/intelligent-operations/app');await page.waitForFunction(()=>document.getElementById('status')?.textContent.startsWith('Records refreshed'),{timeout:45000});record('native login and experience launch load the committed application');
+  await page.getByRole('link',{name:'Inbound sources',exact:true}).click();await page.getByLabel('Name',{exact:true}).fill('Operations Kubernetes lab');await page.getByLabel('Source URI',{exact:true}).fill('urn:operations:source:lab');await page.getByLabel('Environment',{exact:true}).fill('operations-lab');
+  const sourceResponse=page.waitForResponse(r=>r.url().endsWith('/sources')&&r.request().method()==='POST');await page.getByRole('button',{name:'Save source',exact:true}).click();const saved=await sourceResponse;assert.equal(saved.status(),201);const source=await saved.json();await page.waitForFunction(()=>document.getElementById('sources-count').textContent==='1');
+  const event=require('../ui/source-contract.js').example();event.id=run;event.source=source.source;event.data.environment='operations-lab';
+  await page.getByLabel('Saved source revision').selectOption(source.id);await page.getByLabel('CloudEvents alert JSON').fill(JSON.stringify(event));let recorded=page.waitForResponse(r=>r.url().endsWith('/events')&&r.request().method()==='POST');await page.getByRole('button',{name:'Validate & record'}).click();assert.equal((await recorded).status(),201);await page.waitForFunction(()=>document.getElementById('events-count').textContent==='1');
+  recorded=page.waitForResponse(r=>r.url().endsWith('/events')&&r.request().method()==='POST');await page.getByRole('button',{name:'Validate & record'}).click();assert.equal((await recorded).status(),200);assert.equal((await call(operator.token,'GET','/api/intelligent-operations/records')).events.length,1);record('source and event saved through browser; exact retry does not duplicate');
+  const malformed=structuredClone(event);delete malformed.data.resource.id;const quarantined=await call(operator.token,'POST','/api/intelligent-operations/events',{sourceId:source.id,event:malformed},[201]);assert.equal(quarantined.decision,'quarantined');
+  await call(reader.token,'POST','/api/intelligent-operations/events',{sourceId:source.id,event},[403]);await call(outsider.token,'POST','/api/intelligent-operations/events',{sourceId:source.id,event},[403]);
+  assert.deepEqual((await call(reader.token,'GET','/api/intelligent-operations/records')).events,[]);record('quarantine retains missing identity; another person cannot read the records');
+  const capture=JSON.parse(execFileSync('python3',[path.join(__dirname,'kubernetes.py'),'capture'],{encoding:'utf8'}));assert.ok(capture.pods.length>0);
+  await page.getByRole('link',{name:'Estate & topology',exact:true}).click();await page.getByText('Import a Kubernetes capture',{exact:true}).click();await page.getByLabel('Capture JSON').fill(JSON.stringify(capture));const captureResponse=page.waitForResponse(r=>r.url().endsWith('/inventory')&&r.request().method()==='POST');await page.getByRole('button',{name:'Save capture'}).click();assert.equal((await captureResponse).status(),201);await page.waitForFunction(()=>document.querySelectorAll('#topology .pod').length>0);assert.equal(await page.locator('#topology .pod').count(),capture.pods.length);await page.screenshot({path:path.join(state,'estate-desktop.png'),fullPage:true});record('live Kubernetes pod UIDs, placement and container readiness render in the experience');
+  for(const width of [390,320]){await page.setViewportSize({width,height:900});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));}await page.screenshot({path:path.join(state,'estate-phone.png'),fullPage:true});
+  await page.getByRole('link',{name:'Data & decisions',exact:true}).click();await page.getByRole('button',{name:'Refresh records'}).click();await page.getByRole('button',{name:'Inspect'}).first().click();await page.getByText('Original payload',{exact:true}).waitFor();assert.equal(errors.length,0);record('desktop and mobile topology and decision inspector have no page errors or overflow');
+  await grant(operator,'reader','replace');await call(operator.token,'POST','/api/intelligent-operations/inventory',capture,[403]);await grant(operator,'','revoke');await page.getByRole('button',{name:'Refresh records'}).click();await page.waitForFunction(()=>document.getElementById('events-count').textContent==='Unavailable');assert.equal(await page.locator('#topology .pod').count(),0);record('role downgrade refuses writes; revocation clears previously visible data');
+  // Re-admit the same owned fixture to verify its persisted records on a later restart command.
+  operator.assignment=run+'-persistence';await grant(operator,'operator');
+  fs.writeFileSync(path.join(state,'persistence-private.json'),JSON.stringify({token:operator.token,expectedEvents:2,expectedPods:capture.pods.length,principal:operator.principal}),{mode:0o600});
+  receipt.passed=true;
+ }finally{await browser.close();}
+}
+main().catch(error=>{receipt.error=error.message;console.error(error.message);process.exitCode=1;}).finally(()=>{receipt.finishedAt=new Date().toISOString();fs.writeFileSync(path.join(state,'acceptance.json'),JSON.stringify(receipt,null,2)+'\n');});

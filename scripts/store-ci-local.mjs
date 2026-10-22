@@ -193,6 +193,7 @@ const POLICY = [
   { match: /^npm\s+ci\b[\s\S]*--prefix\s+framework$/, kind: 'provision', capability: 'OSHAL_FRAMEWORK' },
   { match: /^mkdir[\s\S]*playwright[\s\S]*install --with-deps chromium$/, kind: 'provision', capability: 'KALSHI_BROWSER_DEPS' },
   { match: /^node framework\/node_modules\/playwright\/cli\.js install --with-deps chromium$/, kind: 'provision', capability: 'OSHAL_FRAMEWORK' },
+  { match: /^node scripts\/toolchain\/node_modules\/playwright\/cli\.js install --with-deps chromium$/, kind: 'provision', capability: 'STORE_TOOLCHAIN_BROWSER' },
   { match: /^python\s+-m\s+pip\s+install\b/, kind: 'provision', capability: 'CAREER_PYTHON' },
   { match: /^npm\s+ci\b[\s\S]*--prefix\s+scripts\/toolchain$/, kind: 'provision', capability: 'STORE_TOOLCHAIN_YAML' },
 ];
@@ -316,6 +317,10 @@ function resolveCapabilities() {
     STORE_TOOLCHAIN_YAML: {
       value: findModuleRoot('js-yaml'),
       reason: `no js-yaml — ${INSTALL}`,
+    },
+    STORE_TOOLCHAIN_BROWSER: {
+      value: browserRoot,
+      reason: `no playwright + express — ${INSTALL}; install Chromium with the toolchain Playwright CLI`,
     },
     CAREER_PYTHON: {
       value: python,

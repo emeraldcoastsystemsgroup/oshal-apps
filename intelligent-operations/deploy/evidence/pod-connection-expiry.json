@@ -1,0 +1,146 @@
+{
+  "observedAt": "2026-10-22T01:58:40.681879+00:00",
+  "kernelRevision": "fe104030c385dd087223f031aa7c25398819081c",
+  "target": {
+    "namespace": "operations-demo",
+    "pod": "api-69f694fbcd-4tgwn",
+    "uid": "a9730c98-de07-4551-b211-8c51bce952a6"
+  },
+  "fullReleaseCertified": false,
+  "infrastructureExecuted": false,
+  "credentialInEvidence": false,
+  "authorityExpanded": false,
+  "expiryAcceptance": {
+    "testDeadline": 1792634326485,
+    "providerDeadline": 1792637921000,
+    "method": "same scoped issuer token with an intentionally shortened local acceptance deadline",
+    "status": "expired",
+    "renewable": false,
+    "refusalHttp": 403,
+    "refusalCode": "capability_not_granted",
+    "refusalDetail": "the connection to kubernetes is expired; reconnect it"
+  },
+  "installerRenewal": {
+    "connector": "kubernetes",
+    "account": "primary",
+    "namespace": "operations-demo",
+    "expiresAt": 1792637928000,
+    "status": "expiring",
+    "automaticRenewal": false
+  },
+  "nativeStatus": {
+    "executionAuthorized": false,
+    "observedAt": "2026-10-22T01:58:49.160639864+00:00",
+    "operation": "kubernetes-inspect-pod",
+    "pod": {
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-10-21T19:08:37Z",
+          "reason": null,
+          "status": "True",
+          "type": "PodReadyToStartContainers"
+        },
+        {
+          "lastTransitionTime": "2026-10-21T19:08:37Z",
+          "reason": null,
+          "status": "True",
+          "type": "Initialized"
+        },
+        {
+          "lastTransitionTime": "2026-10-21T19:08:41Z",
+          "reason": null,
+          "status": "True",
+          "type": "Ready"
+        },
+        {
+          "lastTransitionTime": "2026-10-21T19:08:41Z",
+          "reason": null,
+          "status": "True",
+          "type": "ContainersReady"
+        },
+        {
+          "lastTransitionTime": "2026-10-21T19:08:37Z",
+          "reason": null,
+          "status": "True",
+          "type": "PodScheduled"
+        }
+      ],
+      "containers": [
+        {
+          "containerId": "containerd://a05fb5beaa38f7fd6f63ee3d9405a3a31b57fd65848f6095c4a98cf3ec0984ee",
+          "exitCode": null,
+          "image": "sha256:3874bc630edcb02f7cecf971aa3dcdec11497788d553b35e9e3b3ac0187da15e",
+          "name": "api",
+          "ready": true,
+          "restarts": 0,
+          "terminationReason": null,
+          "waitingReason": null
+        }
+      ],
+      "name": "api-69f694fbcd-4tgwn",
+      "namespace": "operations-demo",
+      "node": "operations-lab-worker",
+      "phase": "Running",
+      "resourceVersion": "96018",
+      "uid": "a9730c98-de07-4551-b211-8c51bce952a6"
+    },
+    "transport": "native_kubernetes"
+  },
+  "logs": {
+    "outcome": "completed",
+    "bytes": 0
+  },
+  "connection": {
+    "connector": "kubernetes",
+    "account": "primary",
+    "status": "expiring",
+    "liveness": "expiring",
+    "expiresAt": 1792637928000,
+    "renewable": false
+  },
+  "passed": true,
+  "applicationRevision": "fd4cb55ca4601330d1c984256566e8b01f603e31",
+  "applicationArtifact": "48c622d71e19d1fdb0420ad4159fe0e1040c64fde5f3ef9b0e488f40dd14e6d2",
+  "deployment": {
+    "revision": "fe104030c385dd087223f031aa7c25398819081c",
+    "image": "oshal-kernel:dev-fe104030c385",
+    "imageId": "sha256:3409080e58cfaf38eb93852d14eb247d05507e40aa787c94640727c2c5799cc1",
+    "binarySha256": "45434d4032dc80438c7a1ed03dd09785dee006f471e3762cf587e2d6e63f1e83",
+    "preservedPodConfiguration": true,
+    "fullReleaseCertified": false,
+    "completedAt": 1792634313.2757766
+  },
+  "browserAcceptance": {
+    "observedAt": "2026-10-22T01:59:43.164864+00:00",
+    "currentStatus": "Running",
+    "container": "api",
+    "ready": true,
+    "restarts": 0,
+    "logs": "completed; no lines in selected window",
+    "filteredClusterLabel": "operations-lab \u00b7 kubernetes",
+    "desktopFilters": "one compact row in native 1280px cockpit",
+    "screenshot": "operator-workspace-live-pod.png"
+  },
+  "checks": {
+    "nativeConnectionTests": 7,
+    "installerTests": 24,
+    "namespaceSetupTests": 4,
+    "secretGuardTests": 8,
+    "strictClippy": "workspace --all-targets -- -D warnings passed",
+    "connectionBrowser": "passed against shipped assets with dialog-close synchronization in 7d583df",
+    "systemsTestsCleanExport": 8,
+    "storeGate": {
+      "passed": 83,
+      "failed": 0,
+      "partial": 6,
+      "skipped": 12,
+      "blocked": 0
+    }
+  },
+  "limits": [
+    "The expiry refusal uses an intentionally shortened local acceptance deadline, not an expired issuer token.",
+    "The renewed issuer token lasts one hour and has no automatic renewal.",
+    "No infrastructure exec, model request, remediation or external message was performed.",
+    "Full canonical kernel certification and full Event-to-Action delivery remain open."
+  ]
+}

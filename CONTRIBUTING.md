@@ -132,6 +132,15 @@ pins both halves of this contract.
   **Never point that variable at `oshal-local-db`** (`:55433`) or any database you care about — the
   contract creates and drops databases.
 
+### Operations detection fixtures
+
+The Operations suite requires two explicit disposable services: PostgreSQL on `127.0.0.1:35689`
+(`OSHAL_TEST_POSTGRES`) and OpenSearch on `http://127.0.0.1:35690` (`OSHAL_TEST_SEARCH`). It
+creates and drops test databases and owner-specific rule indexes. Never use an application database
+or production search cluster. CI pins OpenSearch 3.3.2; the local ARM64 deployment and test-service
+boundaries are documented in [the engine guide](intelligent-operations/engine/README.md).
+The tests fail if either prerequisite is absent rather than substituting synthetic search results.
+
 ### Which local skips are real losses
 
 Do not assume a skip is shared with CI. Checked against the workflow:

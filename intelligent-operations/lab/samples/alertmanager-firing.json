@@ -1,0 +1,87 @@
+{
+  "receiver": "local-recorder",
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "LabApplicationErrors",
+        "environment": "operations-lab",
+        "namespace": "operations-demo",
+        "node": "operations-lab-worker",
+        "pod": "api-7b4484667b-m9qdc",
+        "pod_uid": "045c7869-6149-4e23-9106-92b9a9c5eef5",
+        "service": "api",
+        "severity": "warning",
+        "source": "operations-lab-prometheus"
+      },
+      "annotations": {
+        "summary": "Synthetic lab service is returning errors"
+      },
+      "startsAt": "2026-10-20T17:29:14.358Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus-84bb945f84-hkhr8:9090/graph?g0.expr=sum+by+%28service%2C+pod%2C+pod_uid%2C+namespace%2C+node%29+%28rate%28operations_lab_requests_total%7Bstatus%3D~%225..%22%7D%5B1m%5D%29%29+%3E+0.1&g0.tab=1",
+      "fingerprint": "c64a99890951b11b"
+    },
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "LabApplicationErrors",
+        "environment": "operations-lab",
+        "namespace": "operations-demo",
+        "node": "operations-lab-worker2",
+        "pod": "api-7b4484667b-bkdtq",
+        "pod_uid": "9a86a0e6-bced-4292-9f97-9290e05daf40",
+        "service": "api",
+        "severity": "warning",
+        "source": "operations-lab-prometheus"
+      },
+      "annotations": {
+        "summary": "Synthetic lab service is returning errors"
+      },
+      "startsAt": "2026-10-20T17:29:14.358Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus-84bb945f84-hkhr8:9090/graph?g0.expr=sum+by+%28service%2C+pod%2C+pod_uid%2C+namespace%2C+node%29+%28rate%28operations_lab_requests_total%7Bstatus%3D~%225..%22%7D%5B1m%5D%29%29+%3E+0.1&g0.tab=1",
+      "fingerprint": "dc7391d12902b10d"
+    },
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "LabApplicationErrors",
+        "environment": "operations-lab",
+        "namespace": "operations-demo",
+        "node": "operations-lab-worker2",
+        "pod": "frontend-577c655c6f-nscnz",
+        "pod_uid": "a1d875e3-5b47-4fdb-8f44-533fe1ba0458",
+        "service": "frontend",
+        "severity": "warning",
+        "source": "operations-lab-prometheus"
+      },
+      "annotations": {
+        "summary": "Synthetic lab service is returning errors"
+      },
+      "startsAt": "2026-10-20T17:29:09.358Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus-84bb945f84-hkhr8:9090/graph?g0.expr=sum+by+%28service%2C+pod%2C+pod_uid%2C+namespace%2C+node%29+%28rate%28operations_lab_requests_total%7Bstatus%3D~%225..%22%7D%5B1m%5D%29%29+%3E+0.1&g0.tab=1",
+      "fingerprint": "b13f52f90fe86efa"
+    }
+  ],
+  "groupLabels": {
+    "alertname": "LabApplicationErrors",
+    "environment": "operations-lab"
+  },
+  "commonLabels": {
+    "alertname": "LabApplicationErrors",
+    "environment": "operations-lab",
+    "namespace": "operations-demo",
+    "severity": "warning",
+    "source": "operations-lab-prometheus"
+  },
+  "commonAnnotations": {
+    "summary": "Synthetic lab service is returning errors"
+  },
+  "externalURL": "http://alertmanager-7579697f57-xdjnb:9093",
+  "version": "4",
+  "groupKey": "{}:{alertname=\"LabApplicationErrors\", environment=\"operations-lab\"}",
+  "truncatedAlerts": 0
+}

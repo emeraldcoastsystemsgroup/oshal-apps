@@ -19,3 +19,16 @@ test('real HTTP + forced-RLS calendar merges past/ongoing spans and snapshot und
  await f.snapshot('alice',[],'2026-10-01T12:00:00Z');await f.scoped('alice',"INSERT INTO calendar_own_events(user_sub,id,title,starts_at,all_day,created_at) SELECT 'alice','overflow-'||n,'overflow','2026-10-01',true,now() FROM generate_series(1,500) n");assert.equal((await f.call('GET',route)).body.error,'calendar_capacity_exceeded');
  }finally{await f.close();}
 });
+
+// CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Prove actual fixture teardown waits for a closing PostgreSQL connection.
+test('fixture teardown drains connections without terminating a still-connected client',{timeout:15000},async()=>{
+ const {dependency}=require('./fixtures/personal-calendar.cjs'),{Client}=dependency('pg');
+ const f=await fixture(),client=new Client({connectionString:f.pool.options.connectionString}),errors=[];
+ client.on('error',e=>errors.push(e));let closing;
+ try{
+  await client.connect();closing=f.close().then(()=>null,e=>e);
+  await new Promise(resolve=>setTimeout(resolve,100));
+  assert.equal((await client.query('SELECT 1 AS alive')).rows[0].alive,1);
+ }finally{await client.end();const failure=await(closing||f.close().then(()=>null,e=>e));if(failure)throw failure;}
+ assert.deepEqual(errors,[]);
+});

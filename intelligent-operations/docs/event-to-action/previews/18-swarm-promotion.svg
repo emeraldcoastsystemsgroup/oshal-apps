@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Jarvis to Jarvis: prove below, promote above">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Jarvis to Jarvis: prove below, promote above</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">PROPOSED ROADMAP · Distinct identities, exact artifacts and separate deployment authority</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="185" width="440" height="195" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="56" y="197" width="4" height="171" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="218.0">Upper / production Jarvis</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="74" y="254.0">Own incident + production policy</tspan>
+<tspan x="74" y="278.3">Select repository, scope and lower swarm</tspan>
+<tspan x="74" y="302.6">Keep production credentials local</tspan>
+</text>
+<rect x="608" y="185" width="440" height="195" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="608" y="197" width="4" height="171" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="626" y="218.0">Lower / development Jarvis</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="626" y="254.0">Receive sealed evidence + bounded task</tspan>
+<tspan x="626" y="278.3">Reproduce → patch → test</tspan>
+<tspan x="626" y="302.6">Return linked ticket and test receipts</tspan>
+</text>
+<rect x="1160" y="185" width="384" height="195" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="1160" y="197" width="4" height="171" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1178" y="218.0">Standard Git connection</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="1178" y="254.0">Original-user grants</tspan>
+<tspan x="1178" y="278.3">Branch + PR / MR + required CI</tspan>
+<tspan x="1178" y="302.6">Immutable commit and build digest</tspan>
+</text>
+<polyline points="496,282.5 608,282.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1048,282.5 1160,282.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="608" y="455" width="440" height="165" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="608" y="467" width="4" height="141" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="626" y="488.0">Evidence returned to the parent</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="626" y="524.0">Commit + artifact + test results</tspan>
+<tspan x="626" y="548.3">Explicit uncertainty and rollback plan</tspan>
+<tspan x="626" y="572.6">Durable correlated delegation receipt</tspan>
+</text>
+<rect x="56" y="455" width="440" height="165" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="56" y="467" width="4" height="141" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="488.0">Upper promotion gate</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="74" y="524.0">Approve this artifact and target</tspan>
+<tspan x="74" y="548.3">Recheck current authority and revision</tspan>
+<tspan x="74" y="572.6">A child result never grants deployment</tspan>
+</text>
+<polyline points="1352,380 1352,417 828,417 828,455" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="608,537 496,537" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="56" y="690" width="992" height="125" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="56" y="702" width="4" height="101" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="723.0">Deploy → observe → reconcile</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="758.0">Scope execution to the approved plan. Verify sustained health. Roll back only with current authority. Preserve</tspan>
+<tspan x="74" y="780.95">the independent recovery path if upper Jarvis is unavailable.</tspan>
+</text>
+<polyline points="276,620 276,655 552,655 552,690" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="1160" y="455" width="384" height="360" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="1160" y="467" width="4" height="336" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1178" y="488.0">Delivery gates H1–H5</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1178" y="523.0">H1: scoped Git operations</tspan>
+<tspan x="1178" y="545.95">H2: bounded durable delegation</tspan>
+<tspan x="1178" y="568.9">H3: lower reproduction + verification</tspan>
+<tspan x="1178" y="591.85">H4: exact-change promotion + rollback</tspan>
+<tspan x="1178" y="614.8">H5: independent upper recovery</tspan>
+<tspan x="1178" y="637.75"></tspan>
+<tspan x="1178" y="660.7">Prove duplicate, revoked, expired and</tspan>
+<tspan x="1178" y="683.65">lost-response cases. No hierarchy is</tspan>
+<tspan x="1178" y="706.6">implemented by this diagram.</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">18 / 21</text></svg>

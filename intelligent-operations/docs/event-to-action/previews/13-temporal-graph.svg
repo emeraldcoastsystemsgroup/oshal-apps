@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Temporal graph  /  source implementation">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Temporal graph / source implementation</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">Immutable scans preserve evidence. The current implementation is bounded and manually invoked.</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="190" width="435" height="175" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="56" y="202" width="4" height="151" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="223.0">Named source + collection</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="258.0">Native provider / scope / kind / ID</tspan>
+<tspan x="74" y="280.95">Actual owner and endpoint references</tspan>
+<tspan x="74" y="303.9">Only explicit inventory facts</tspan>
+</text>
+<rect x="563" y="190" width="435" height="175" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="563" y="202" width="4" height="151" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="581" y="223.0">Scoped SQL scan journal</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="581" y="258.0">Immutable scan ID + payload hash</tspan>
+<tspan x="581" y="280.95">Observed time and completeness</tspan>
+<tspan x="581" y="303.9">Caller isolation; retry reconciliation</tspan>
+</text>
+<rect x="1070" y="190" width="474" height="175" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="1070" y="202" width="4" height="151" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1088" y="223.0">Reconstruct at a chosen time</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1088" y="258.0">Complete: replace this collection</tspan>
+<tspan x="1088" y="280.95">Partial: keep prior observations</tspan>
+<tspan x="1088" y="303.9">Never refresh unobserved facts</tspan>
+</text>
+<polyline points="491,277.5 563,277.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="998,277.5 1070,277.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="56" y="425" width="710" height="176" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="56" y="437" width="4" height="152" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="458.0">Estate experience</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="74" y="494.0">Explore directed links from a selected asset</tspan>
+<tspan x="74" y="518.3">Native IDs, health timestamps and source provenance</tspan>
+<tspan x="74" y="542.6">Unknown and partial remain visible</tspan>
+</text>
+<rect x="806" y="425" width="738" height="176" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="806" y="437" width="4" height="152" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="824" y="458.0">Data correlation decision</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="824" y="494.0">Affected dependency paths; no common-hub assumption</tspan>
+<tspan x="824" y="518.3">Policy + delivery IDs + graph revision + exact scan IDs</tspan>
+<tspan x="824" y="542.6">Stale, incomplete or over budget: explicit fallback</tspan>
+</text>
+<rect x="56" y="660" width="1488" height="151" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="56" y="672" width="4" height="127" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="693.0">Remaining delivery gates</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="728.0">Scheduled least-privilege collection, cloud scanners, retention/checkpoints and cross-source conflict resolution remain open.</tspan>
+<tspan x="74" y="750.95">Manual correlation does not consume the processing queue, dispatch tickets or authorize remediation.</tspan>
+<tspan x="74" y="773.9">The guarded local Kubernetes capture is separate from the isolated investigation worker.</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">13 / 21</text></svg>

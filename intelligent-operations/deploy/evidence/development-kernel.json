@@ -1,0 +1,13 @@
+{
+  "revision": "6f1c38fbd0b4a63b61d5f03b8bd9559e22ee08c1",
+  "image": "oshal-kernel:dev-6f1c38fbd0b4",
+  "imageId": "sha256:6882f77bae0103ce6188f051824815802da1da238ad5c18b6a965ec7c07ab792",
+  "baseImageId": "sha256:c227c92d8239012430331bb3c395a069def1997aee6eafefff9548dddf21891d",
+  "binarySha256": {
+    "oshald": "c00af01235fac3dc2db45e741100b18ed7e039d977d2d97eb9fb8207f6bcd046",
+    "oshal-node": "f13bc20cf9ba8587d33161a01b1a7a1fd22650108b635d809b053f6ab902314d"
+  },
+  "preservedPodConfiguration": true,
+  "fullReleaseCertified": false,
+  "completedAt": 1792609789.560505
+}

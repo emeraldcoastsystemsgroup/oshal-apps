@@ -1,0 +1,145 @@
+{
+  "startedAt": "2026-10-21T15:28:13.064Z",
+  "kind": "native-installed-replay",
+  "synthetic": true,
+  "passed": true,
+  "checks": [
+    "actual HTML password login",
+    "actual native OTLP/CloudWatch admission, percolation, reduction, dependency correlation and persistent context",
+    "saved native replay survives a fresh page without rerunning events",
+    "native desktop/phone context views without page errors or horizontal overflow"
+  ],
+  "application": {
+    "revision": "3c557c4ae4fc6b3cb5d7e493034d9ab07e2acd50",
+    "artifact": "4e324173ffa3b2edae0f495aedc1ce9b3fe7973759b0f78bc8dbc7b143c577c4"
+  },
+  "result": {
+    "environment": "replay-demo-mvi9o3eo",
+    "expected": {
+      "deliveries": 100,
+      "evidencePackets": 4,
+      "filtered": 60,
+      "groups": 2,
+      "matched": 40,
+      "suppressed": 36,
+      "survivors": 4
+    },
+    "actual": {
+      "deliveries": 100,
+      "evidencePackets": 4,
+      "filtered": 60,
+      "groups": 2,
+      "matched": 40,
+      "suppressed": 36,
+      "survivors": 4
+    },
+    "correlation": {
+      "asOf": "2026-10-21T15:27:14.400Z",
+      "automaticDispatch": false,
+      "createdAt": "2026-10-21T15:30:59.171Z",
+      "deliveryIds": [
+        "172d2aaf91a6549909d8a2816bc2b8cb748e6b3dbc67f9c8a9c0e728cb5ed154",
+        "1b240ee59e970fb60f0d16e7625418111454ec4eed65cdc399fb4490b80a9086",
+        "73d2786bf75aa8f7f7009ba13d5bc384cf8c0cbc3db6975b50be9f7ed846cfe4",
+        "80de9ee44d2a2b9ce56d0c2fea7107fe49b4480b16cb2db87f3ad2a400c02d9d"
+      ],
+      "events": [
+        {
+          "assetId": "a7031d5514ca3cc75d860296687516fea388479c4547f8dad1b9f82e9b809ae1",
+          "id": "172d2aaf91a6549909d8a2816bc2b8cb748e6b3dbc67f9c8a9c0e728cb5ed154"
+        },
+        {
+          "assetId": "acd22df100166fe4716778dd7d50d4aa5e4d7ac2da5f7c9d0ee3dfb7e3954b01",
+          "id": "1b240ee59e970fb60f0d16e7625418111454ec4eed65cdc399fb4490b80a9086"
+        },
+        {
+          "assetId": "179615db43758ce2a5f907d1cf496fe119405439e4d3d42eedcaf7830404d3f3",
+          "id": "73d2786bf75aa8f7f7009ba13d5bc384cf8c0cbc3db6975b50be9f7ed846cfe4"
+        },
+        {
+          "assetId": "16c832e3b8c0200712e4854c4883f99a199a290a4a314a88b274253d6354033f",
+          "id": "80de9ee44d2a2b9ce56d0c2fea7107fe49b4480b16cb2db87f3ad2a400c02d9d"
+        }
+      ],
+      "graphRevision": "ef3491254400bcd5d55ac1f347d87c170cc7877f3b8f15df1f3fab7498f0768b",
+      "groups": [
+        [
+          "172d2aaf91a6549909d8a2816bc2b8cb748e6b3dbc67f9c8a9c0e728cb5ed154",
+          "1b240ee59e970fb60f0d16e7625418111454ec4eed65cdc399fb4490b80a9086",
+          "80de9ee44d2a2b9ce56d0c2fea7107fe49b4480b16cb2db87f3ad2a400c02d9d"
+        ],
+        [
+          "73d2786bf75aa8f7f7009ba13d5bc384cf8c0cbc3db6975b50be9f7ed846cfe4"
+        ]
+      ],
+      "id": "0866237590b3505e32de1033aa30b695b969c5a43ab31441768536bdb125518b",
+      "method": "affected-dependency-paths",
+      "paths": [
+        {
+          "edges": [
+            "64a5515fe9e55b8cbacb1251cc1960a8e8a05a03847fd3809b4af32991c0f88f"
+          ],
+          "from": "a7031d5514ca3cc75d860296687516fea388479c4547f8dad1b9f82e9b809ae1",
+          "to": "acd22df100166fe4716778dd7d50d4aa5e4d7ac2da5f7c9d0ee3dfb7e3954b01"
+        },
+        {
+          "edges": [
+            "64a5515fe9e55b8cbacb1251cc1960a8e8a05a03847fd3809b4af32991c0f88f",
+            "c8059a1d1898603791a109d4139f533402c46381d935cde00dc92048f5b1763c"
+          ],
+          "from": "a7031d5514ca3cc75d860296687516fea388479c4547f8dad1b9f82e9b809ae1",
+          "to": "16c832e3b8c0200712e4854c4883f99a199a290a4a314a88b274253d6354033f"
+        },
+        {
+          "edges": [
+            "c8059a1d1898603791a109d4139f533402c46381d935cde00dc92048f5b1763c"
+          ],
+          "from": "acd22df100166fe4716778dd7d50d4aa5e4d7ac2da5f7c9d0ee3dfb7e3954b01",
+          "to": "16c832e3b8c0200712e4854c4883f99a199a290a4a314a88b274253d6354033f"
+        }
+      ],
+      "policy": {
+        "id": "replay-dependencies-v1",
+        "maxAgeSeconds": 900,
+        "maxDepth": 4,
+        "maxVisited": 100,
+        "types": [
+          "DEPENDS_ON"
+        ]
+      },
+      "problems": [],
+      "scanIds": [
+        "a2965363a83c479b5a7781a1414765418d2a935471b606f342046c9a230b7659"
+      ],
+      "status": "complete",
+      "traversed": 3
+    }
+  },
+  "packetChecks": [
+    {
+      "id": "06937eecc1a8cc30b52734aca723b94147d0b84a7598f97521c70cd089e986d0",
+      "sha256": "eaa44faf509ae6ceca037e907097ecd811359a7af2d22bf963f495fd7e7f2628",
+      "observations": 1
+    },
+    {
+      "id": "3deaeec93496b5193a2d0b59925986a8522df598cae3af6622e988a379e64aaf",
+      "sha256": "fed10f2c133bf22889264a3038cb30cf86b04953fb9e4bd0a88f4d96e37d49d1",
+      "observations": 1
+    },
+    {
+      "id": "91eb61d66a812787cc449f610ec8406b4ca08a479ffe87058664134e2d6aaa61",
+      "sha256": "8a5cba31a94f0b5030a33021d2fceb5f72ec09ae856335f11b6f3bfbf1844a83",
+      "observations": 1
+    },
+    {
+      "id": "9c897f234bcbeb9bad5fbb3b0c6c9b96cc3f10b78210202d66e9d9b3c930e491",
+      "sha256": "9f27b197b9fc17fd78204bbe2e1e7d528b7407b404284244b7be2796fa4bc0dd",
+      "observations": 1
+    }
+  ],
+  "savedReplay": {
+    "id": "5dc337b8ac34a3b67ccced8a888d68edbd8a94366e8bafedde05c8a63c3c04f9",
+    "sha256": "f53e010a400293a0fa058b855127ef5397fdde87c1f20ed47f662a83ba77cd41"
+  },
+  "finishedAt": "2026-10-21T15:31:02.941Z"
+}

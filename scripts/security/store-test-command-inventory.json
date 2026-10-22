@@ -66,7 +66,8 @@
     "scene-studio|node --test \"tests/*-*.test.js\"",
     ".|node --test scripts/check-store-bots.test.mjs",
     ".|node --test scripts/check-connector-copy.test.mjs",
-    ".|node --test intelligent-operations/tests/package-contract.test.cjs intelligent-processing/tests/package-contract.test.cjs capability-ideation/tests/package-contract.test.cjs codex-packer/tests/package-contract.test.cjs codex-packer/tests/persona-template.test.cjs life/tests/home-summary.test.cjs",
+    ".|node --test intelligent-processing/tests/package-contract.test.cjs capability-ideation/tests/package-contract.test.cjs codex-packer/tests/package-contract.test.cjs codex-packer/tests/persona-template.test.cjs life/tests/home-summary.test.cjs",
+    "intelligent-operations|node --test \"tests/*.test.cjs\"",
     "pdf-workbench|node --test \"tests/*tools.test.mjs\"",
     ".|node --test presentations/tests/office-assets.test.mjs presentations/tests/office-assistant.test.mjs presentations/tests/office-workspace-browser.test.mjs presentations/tests/presentations-slide-workspace.test.mjs presentations/tests/presentations-slide-workspace-browser.test.mjs presentations/tests/presentations-sheet-workspace.test.mjs presentations/tests/presentations-sheet-workspace-browser.test.mjs presentations/tests/presentations-guide.test.mjs presentations/tests/presentations-surface-parse.test.js presentations/tests/presentations-record-before-answer.test.cjs",
     "trading|node --test \"tests/*native*.test.js\""

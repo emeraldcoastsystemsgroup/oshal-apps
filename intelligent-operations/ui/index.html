@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operations</title>
+  <!-- CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Standalone incident workspace and local source-format preview, using the authorized native ticket projection. -->
+  <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+  <script src="/shared/ui/js/surface-theme.js"></script>
+  <link rel="stylesheet" href="operations.css">
+  <script src="operations-model.js" defer></script>
+  <script src="source-contract.js" defer></script>
+  <script src="adapter-mapping.js" defer></script>
+  <script src="operations.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar"><a class="brand" href="#overview"><span class="brand-mark" aria-hidden="true">O</span> Operations</a><span class="scope">Your authorized incident workspace</span></header>
+  <div class="shell">
+    <nav aria-label="Operations"><p class="nav-label">WORKSPACE</p><a href="#overview" data-page="overview">Overview</a><a href="#incidents" data-page="incidents">Incident tickets</a><a href="#sources" data-page="sources">Source preview</a><p class="nav-foot">Investigate with evidence.<br>Keep control of each action.</p></nav>
+    <main id="main" tabindex="-1">
+      <section id="overview" aria-labelledby="overview-title">
+        <div class="page-heading"><div><p class="eyebrow">OPERATIONS</p><h1 id="overview-title">A clear next step for every incident.</h1><p class="lead">Review your incident work, inspect its evidence, and continue in the shared ticket workspace.</p></div><button type="button" class="refresh">Refresh tickets</button></div>
+        <div class="metrics"><article class="card"><p>Incident tickets</p><strong id="total">Not loaded</strong><small>From the authorized ticket response</small></article><article class="card"><p>Active workflow tickets</p><strong id="active">Not loaded</strong><small>Includes work waiting on a person</small></article><article class="card"><p>Needs attention</p><strong id="attention">Not loaded</strong><small>Waiting, blocked, failed or unknown</small></article></div>
+        <p id="read-status" class="read-status" role="status" aria-live="polite">Reading incident tickets…</p>
+        <div class="overview-grid"><article class="card feature"><span class="badge">AVAILABLE</span><h2>Incident investigation</h2><p>Existing Operations and Processing tickets use the specialist review workflow. A finished workflow is a report; infrastructure recovery still needs verification.</p><a class="action" href="#incidents">Review incident tickets <span aria-hidden="true">→</span></a></article><article class="card feature"><span class="badge secondary">PREPARE A SOURCE</span><h2>Check an alert's identity</h2><p>Try explicit adapter field mappings and the required source, environment and resource identifiers before connecting a monitoring system. Preview checks run locally and do not submit events.</p><a class="action" href="#sources">Open source preview <span aria-hidden="true">→</span></a></article></div>
+        <aside class="coverage"><h2>Monitoring coverage</h2><p>Automatic ingestion, asset discovery and topology are not connected in this release. No monitored-node health is inferred from the ticket counts above.</p></aside>
+      </section>
+      <section id="incidents" aria-labelledby="incidents-title" hidden>
+        <div class="page-heading"><div><p class="eyebrow">INVESTIGATION</p><h1 id="incidents-title">Incident tickets</h1><p class="lead">One row per ticket returned by your session. Similar titles are not treated as duplicate incidents.</p></div><button type="button" class="refresh">Refresh tickets</button></div>
+        <div class="filterbar"><label for="ticket-filter">Show</label><select id="ticket-filter"><option value="all">All incident tickets</option><option value="active">Active workflow tickets</option><option value="attention">Needs attention</option></select><span id="ticket-status" role="status" aria-live="polite"></span></div>
+        <div id="ticket-list"></div>
+      </section>
+      <section id="sources" aria-labelledby="sources-title" hidden>
+        <div class="page-heading"><div><p class="eyebrow">SOURCE PREPARATION</p><h1 id="sources-title">Make the alert identifiable.</h1><p class="lead">Check one Operations JSON alert before configuring a source.</p></div></div>
+        <div class="source-grid"><form id="preview-form" class="card"><h2>Payload format preview</h2><p class="muted">Use test data. This check runs in your browser and does not send or save the payload. It does not authenticate a source or resolve an inventory asset.</p><label for="expected-source">Expected source URI <span class="muted">(optional)</span></label><input id="expected-source" type="text" maxlength="512" placeholder="urn:operations:source:local-lab" autocomplete="off" spellcheck="false"><label for="payload">JSON alert <span class="muted">(maximum 64 KiB)</span></label><textarea id="payload" spellcheck="false" required aria-describedby="payload-help"></textarea><small id="payload-help">Requires a source, event ID, timestamp, environment, alert type and scoped resource ID. OTLP telemetry uses a separate future ingestion contract.</small><details class="mapping-draft"><summary>Adapter field mappings · local draft</summary><p class="muted">Use explicit JSON Pointer paths into this sample. Envelope source and event ID cannot be remapped. These settings are not saved or registered with OSHAL.</p><label for="map-environment">Environment path</label><input id="map-environment" data-mapping="environment" value="/data/environment" maxlength="512" autocomplete="off" spellcheck="false"><label for="map-alertType">Alert type path</label><input id="map-alertType" data-mapping="alertType" value="/data/alertType" maxlength="512" autocomplete="off" spellcheck="false"><label for="map-severity">Severity path</label><input id="map-severity" data-mapping="severity" value="/data/severity" maxlength="512" autocomplete="off" spellcheck="false"><label for="map-status">Alert status path</label><input id="map-status" data-mapping="status" value="/data/status" maxlength="512" autocomplete="off" spellcheck="false"><label for="map-kind">Resource kind path</label><input id="map-kind" data-mapping="kind" value="/data/resource/kind" maxlength="512" autocomplete="off" spellcheck="false"><label for="map-scope">Resource scope path</label><input id="map-scope" data-mapping="scope" value="/data/resource/scope" maxlength="512" autocomplete="off" spellcheck="false"><label for="map-id">Native resource ID path</label><input id="map-id" data-mapping="id" value="/data/resource/id" maxlength="512" autocomplete="off" spellcheck="false"><button id="reset-mapping" type="button">Reset to standard field paths</button></details><div class="form-actions"><button type="submit" class="primary">Check format</button><button type="button" id="load-example">Load a labeled example</button></div><p id="example-note" class="muted" hidden>Example data only. This does not represent a discovered or monitored system.</p></form><aside class="card preview-card"><h2>Identity preview</h2><div id="preview-result" role="status" aria-live="polite"><p class="muted">Check a payload to see its delivery identity and proposed symptom identity.</p></div></aside></div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

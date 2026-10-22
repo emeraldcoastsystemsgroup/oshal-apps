@@ -1,0 +1,15 @@
+{
+  "readOnly": true,
+  "retrievedAt": "2026-10-21T18:32:14.984364+00:00",
+  "matchedAttempts": 1,
+  "additionalSendAttempts": 0,
+  "messages": [
+    {
+      "status": "undelivered",
+      "errorCode": 30034,
+      "dateCreated": "Wed, 21 Oct 2026 18:21:28 +0000",
+      "dateSent": "Wed, 21 Oct 2026 18:21:28 +0000",
+      "dateUpdated": "Wed, 21 Oct 2026 18:21:28 +0000"
+    }
+  ]
+}

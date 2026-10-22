@@ -1,0 +1,27 @@
+/* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Configure background evaluation and expose the actual native schedule plus durable retry states. */
+(function(root){
+'use strict';
+root.OperationsProcessing={mount({request,sources,onRefused,onChanged}){
+ const $=id=>document.getElementById(id),text=(tag,value)=>{const node=document.createElement(tag);node.textContent=value;return node;};
+ let generation=0,config=null,schedule=null;
+ async function native(path,body){const r=await fetch(path,{method:body===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json',...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});if(!r.ok){if(r.status===401||r.status===403)onRefused();throw Error('Native scheduler unavailable (HTTP '+r.status+').');}return r.json();}
+ function clear(){$('processing-message').textContent='';$('processing-enabled').checked=false;$('processing-capture').checked=false;++generation;config=null;schedule=null;$('processing-sources').replaceChildren();$('processing-jobs').replaceChildren();$('processing-standing').textContent='Reconnect to read your background processing status.';for(const id of ['processing-save','processing-activate','processing-pause','processing-run'])$(id).disabled=true;}
+ function render(data,scheduler){
+  config=data.config;schedule=scheduler?.schedules?.find(s=>s.app==='intelligent-operations'&&s.name===data.scheduleName)||null;
+  $('processing-enabled').checked=config.enabled;$('processing-capture').checked=config.captureEvidence===true;for(const key of ['batchSize','maxAttempts','retrySeconds'])$('processing-'+key).value=config[key];
+  $('processing-sources').replaceChildren();for(const source of sources()){const option=text('option',source.name+' · '+source.environment+' · '+source.id.slice(0,8));option.value=source.id;option.selected=config.sourceIds.includes(source.id);$('processing-sources').append(option);}
+  $('processing-standing').textContent='Worker '+(config.enabled?'enabled':'disabled')+' · native schedule '+(schedule?.status||'unavailable')+(schedule?.cron?' · '+schedule.cron:'')+'. Retained evidence capture '+(config.captureEvidence?'enabled':'disabled')+'. Infrastructure collection and actions require separate authority.';
+  $('processing-save').disabled=false;$('processing-activate').disabled=!config.enabled||!schedule?.id||schedule.status==='active';$('processing-pause').disabled=!schedule?.id||schedule.status!=='active';$('processing-run').disabled=!config.enabled||!schedule?.id||schedule.status!=='active';
+  const jobs=$('processing-jobs');jobs.replaceChildren();const counts={};for(const job of data.jobs)counts[job.state]=(counts[job.state]||0)+1;
+  jobs.append(text('p',Object.entries(counts).map(([state,count])=>count+' '+state).join(' · ')||'No admitted work in the returned page.'));
+  jobs.append(text('p','Latest '+data.jobs.length+' work items, bounded to '+data.limit+'. A running lease expires after '+data.leaseSeconds+' seconds.'));
+  for(const job of data.jobs.filter(j=>['retry','attention','evaluating','evidence-retry','evidence-attention'].includes(j.state))){const progress=job.state.startsWith('evidence-')?(job.captureProcessing||{}):job.processing;const row=text('article','');row.className='processing-job';const source=sources().find(s=>s.id===job.sourceId);row.append(text('strong',(source?.name||'Source '+job.sourceId.slice(0,8))+' · '+job.state),text('p',job.id.slice(0,12)+' · attempts '+(progress.attempts||0)+' · eligible '+job.readyAt));if(progress.lastError)row.append(text('p',progress.lastError));if(['retry','attention','evidence-retry','evidence-attention'].includes(job.state)){const button=text('button','Retry this delivery');button.addEventListener('click',()=>action(()=>request('/pipeline/retry',{deliveryId:job.id})));row.append(button);}jobs.append(row);}
+ }
+ async function load(){const current=++generation;try{const data=await request('/pipeline/processing');let scheduler=null;try{scheduler=await native('/api/v1/agent/schedules');}catch(_){}if(current!==generation)return;render(data,scheduler);}catch(error){if(current===generation){clear();$('processing-standing').textContent=error.message;}}}
+ async function action(run){$('processing-message').textContent='';const current=generation;try{await run();if(current!==generation)return;await load();onChanged();}catch(error){if(current===generation){$('processing-message').textContent=error.message;await load();}}}
+ $('processing-form').addEventListener('submit',event=>{event.preventDefault();if(!config)return;const input={enabled:$('processing-enabled').checked,captureEvidence:$('processing-capture').checked,sourceIds:[...$('processing-sources').selectedOptions].map(o=>o.value),expectedRevision:config.revision};for(const key of ['batchSize','maxAttempts','retrySeconds'])input[key]=Number($('processing-'+key).value);void action(()=>request('/pipeline/processing-config',input));});
+ $('processing-refresh').addEventListener('click',load);
+ for(const [id,operation]of [['activate','activate'],['pause','deactivate'],['run','trigger']])$('processing-'+id).addEventListener('click',()=>{if(schedule?.id)void action(()=>native('/api/v1/agent/schedules/'+encodeURIComponent(schedule.id)+'/'+operation,id==='activate'?{class:'person'}:{}));});
+ clear();return {load,clear};
+}};
+})(window);

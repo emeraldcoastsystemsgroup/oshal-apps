@@ -1,0 +1,34 @@
+{
+  "observedAt": "2026-10-22T01:22:26.093859+00:00",
+  "kind": "native-personal-scheduled-retained-capture",
+  "passed": true,
+  "syntheticAcceptance": true,
+  "sourceId": "588cf3024bea071214df6cf8cb995a390dddd4808ac0ebc902d35af574253168",
+  "recorded": 5,
+  "matched": 4,
+  "unmatched": 1,
+  "admitted": 1,
+  "suppressed": 3,
+  "capturedPackets": 1,
+  "retainedObservations": 1,
+  "captureAttempts": 1,
+  "packetHashMatchesDurableCompletion": true,
+  "inspectionReusedImmutablePacket": true,
+  "manualProcessingCalls": 0,
+  "manualScheduleTriggers": 0,
+  "modelCalls": 0,
+  "infrastructureActions": 0,
+  "nativeReceipts": [
+    {
+      "id": "966a21f898cd787e22c2cca19a7f24079828b0af97064c71b4d33d367dd4b7f8",
+      "trigger": "schedule",
+      "outcome": "completed",
+      "routeStatus": 200
+    }
+  ],
+  "finalWorkerEnabled": false,
+  "finalScheduleActive": false,
+  "cleanup": "Duplicate withdrawal returned 409 after successful withdrawal. Reconciled existing durable result without rerunning cohort; disabled processing and capture and cleared temporary source scope. Original full settings were not persisted, so exact prior configuration restoration is not claimed.",
+  "applicationRevision": "3155da06f30b0eace331b64eb387b3040890de97",
+  "applicationArtifact": "9fafadd5d7d50703ca31842a26f56e40a3759252ab112a6cbde31144bf64be2e"
+}

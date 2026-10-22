@@ -1,0 +1,24 @@
+{
+  "kind": "native-policy-workbench",
+  "synthetic": true,
+  "startedAt": "2026-10-21T16:03:15.275Z",
+  "passed": true,
+  "checks": [
+    "actual HTML password login",
+    "actual 1-of-3 candidate matches with unchanged source binding, decisions and evidence work",
+    "explicit activation creates binding revision 2",
+    "native desktop and phone layout without script errors"
+  ],
+  "application": {
+    "revision": "7ed15232491b0798b4112dcf52b5f375e54a323f",
+    "artifact": "da464f4c7556f0dfa80057febad1fa6fd77c986b6b7045c2624835bbacecc315"
+  },
+  "sourceId": "538d347b097b69421d036a0349edb3ca54b0a6b7f34b2afa6dd393fe55122741",
+  "binding": {
+    "activatedAt": "2026-10-21T16:03:23.152Z",
+    "policyId": "adc972b10f00da8ea178106567a9c30c5c94ef7e3a69d94d52673651c9ecbec6",
+    "revision": 2,
+    "sourceId": "538d347b097b69421d036a0349edb3ca54b0a6b7f34b2afa6dd393fe55122741"
+  },
+  "finishedAt": "2026-10-21T16:03:23.730Z"
+}

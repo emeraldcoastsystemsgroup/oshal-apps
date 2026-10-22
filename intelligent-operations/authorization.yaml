@@ -1,0 +1,408 @@
+# CHANGE LOG: 11 | maintainer@emeraldcoastsystemsgroup.com | Admit the operator workspace asset under the existing own read grant.
+# CHANGE LOG: 10 | maintainer@emeraldcoastsystemsgroup.com | Admit the pod console asset; execution still requires the native original-user connector scope.
+# CHANGE LOG: 9 | maintainer@emeraldcoastsystemsgroup.com | Admit the source-cited RCA library asset without granting report or infrastructure writes.
+# CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | Admit the resource-tree asset with the existing own-scope read grant.
+# CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | Bind both declared inline bots to the existing own-scope read grant for Jarvis handoffs.
+# CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Admit bounded own ticket handoff reads and writes plus its authenticated UI asset.
+# CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | Bind preprocessed investigation creation and current workflow reads to existing own-scope grants.
+# CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Admit the 3D graph module through the same current-user read permission as the experience.
+# CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Bind candidate policy trials and editor assets to existing current-user grants.
+# CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Native own-scope experience and records permissions; a viewer cannot import data.
+# CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Require the existing operator grant for stream configuration, intake and evidence pinning.
+version: 1
+resources:
+  application:
+    scopes:
+      - own
+permissions:
+  app.open:
+    resource: application
+    effect: read
+    minimumTier: viewer
+  records.write:
+    resource: application
+    effect: write
+    minimumTier: editor
+roles:
+  reader:
+    tier: viewer
+    grants:
+      - permission: app.open
+        scope: own
+  operator:
+    tier: editor
+    grants:
+      - permission: app.open
+        scope: own
+      - permission: records.write
+        scope: own
+bindings:
+  bots:
+    - id: ops-rca-specialist
+      allOf: [app.open]
+    - id: ops-incident-reviewer
+      allOf: [app.open]
+  http:
+    - id: operator-workspace-get
+      method: GET
+      path: /assets/operator-workspace.js
+      allOf: [app.open]
+    - id: operator-workspace-head
+      method: HEAD
+      path: /assets/operator-workspace.js
+      allOf: [app.open]
+    - id: pod-console-get
+      method: GET
+      path: /assets/pod-console.js
+      allOf: [app.open]
+    - id: pod-console-head
+      method: HEAD
+      path: /assets/pod-console.js
+      allOf: [app.open]
+    - id: rca-library-get
+      method: GET
+      path: /assets/rca-library.js
+      allOf: [app.open]
+    - id: rca-library-head
+      method: HEAD
+      path: /assets/rca-library.js
+      allOf: [app.open]
+    - id: resource-tree-get
+      method: GET
+      path: /assets/resource-tree.js
+      allOf: [app.open]
+    - id: resource-tree-head
+      method: HEAD
+      path: /assets/resource-tree.js
+      allOf: [app.open]
+    - id: ticket-sync-script-get
+      method: GET
+      path: /assets/ticket-sync.js
+      allOf: [app.open]
+    - id: ticket-sync-script-head
+      method: HEAD
+      path: /assets/ticket-sync.js
+      allOf: [app.open]
+    - id: ticket-sync-get
+      method: GET
+      path: /ticket-sync
+      allOf: [app.open]
+    - id: ticket-sync-head
+      method: HEAD
+      path: /ticket-sync
+      allOf: [app.open]
+    - id: ticket-sync-link
+      method: POST
+      path: /ticket-sync/links
+      allOf: [records.write]
+    - id: ticket-sync-reserve
+      method: POST
+      path: /ticket-sync/reserve
+      allOf: [records.write]
+    - id: ticket-sync-report
+      method: POST
+      path: /ticket-sync/report
+      allOf: [records.write]
+    - id: lifecycle-get
+      method: GET
+      path: /assets/lifecycle.js
+      allOf: [app.open]
+    - id: lifecycle-head
+      method: HEAD
+      path: /assets/lifecycle.js
+      allOf: [app.open]
+    - id: investigations-get
+      method: GET
+      path: /investigations
+      allOf: [app.open]
+    - id: investigations-head
+      method: HEAD
+      path: /investigations
+      allOf: [app.open]
+    - id: investigations-prepare
+      method: POST
+      path: /investigations
+      allOf: [records.write]
+    - id: graph-space-get
+      method: GET
+      path: /assets/graph-space.js
+      allOf: [app.open]
+    - id: graph-space-head
+      method: HEAD
+      path: /assets/graph-space.js
+      allOf: [app.open]
+    - id: policy-preview
+      method: POST
+      path: /pipeline/policy-preview
+      allOf:
+        - records.write
+    - id: policy-workbench-get
+      method: GET
+      path: /assets/policy-workbench.js
+      allOf:
+        - app.open
+    - id: policy-workbench-head
+      method: HEAD
+      path: /assets/policy-workbench.js
+      allOf:
+        - app.open
+    - id: read-0-get
+      method: GET
+      path: /app
+      allOf:
+        - app.open
+    - id: read-0-head
+      method: HEAD
+      path: /app
+      allOf:
+        - app.open
+    - id: read-1-get
+      method: GET
+      path: /assets/experience.js
+      allOf:
+        - app.open
+    - id: read-1-head
+      method: HEAD
+      path: /assets/experience.js
+      allOf:
+        - app.open
+    - id: read-2-get
+      method: GET
+      path: /assets/experience.css
+      allOf:
+        - app.open
+    - id: read-2-head
+      method: HEAD
+      path: /assets/experience.css
+      allOf:
+        - app.open
+    - id: read-3-get
+      method: GET
+      path: /assets/operations.css
+      allOf:
+        - app.open
+    - id: read-3-head
+      method: HEAD
+      path: /assets/operations.css
+      allOf:
+        - app.open
+    - id: read-4-get
+      method: GET
+      path: /records
+      allOf:
+        - app.open
+    - id: read-4-head
+      method: HEAD
+      path: /records
+      allOf:
+        - app.open
+    - id: read-5-get
+      method: GET
+      path: /
+      allOf:
+        - app.open
+    - id: read-5-head
+      method: HEAD
+      path: /
+      allOf:
+        - app.open
+    - id: write-0
+      method: POST
+      path: /sources
+      allOf:
+        - records.write
+    - id: write-1
+      method: POST
+      path: /events
+      allOf:
+        - records.write
+    - id: write-2
+      method: POST
+      path: /inventory
+      allOf:
+        - records.write
+    - id: topology-get
+      method: GET
+      path: /topology
+      allOf:
+        - app.open
+    - id: topology-head
+      method: HEAD
+      path: /topology
+      allOf:
+        - app.open
+    - id: topology-scan
+      method: POST
+      path: /topology/scans
+      allOf:
+        - records.write
+    - id: topology-correlate
+      method: POST
+      path: /topology/correlate
+      allOf:
+        - records.write
+    - id: pipeline-read
+      method: GET
+      path: /pipeline
+      allOf:
+        - app.open
+    - id: pipeline-head
+      method: HEAD
+      path: /pipeline
+      allOf:
+        - app.open
+    - id: pipeline-health
+      method: GET
+      path: /pipeline/health
+      allOf:
+        - app.open
+    - id: pipeline-health-head
+      method: HEAD
+      path: /pipeline/health
+      allOf:
+        - app.open
+    - id: pipeline-policy
+      method: POST
+      path: /pipeline/policies
+      allOf:
+        - records.write
+    - id: pipeline-evaluate
+      method: POST
+      path: /pipeline/evaluate
+      allOf:
+        - records.write
+    - id: explorer-get
+      method: GET
+      path: /assets/explorer.js
+      allOf:
+        - app.open
+    - id: explorer-head
+      method: HEAD
+      path: /assets/explorer.js
+      allOf:
+        - app.open
+    - id: processing-read
+      method: GET
+      path: /pipeline/processing
+      allOf:
+        - app.open
+    - id: processing-head
+      method: HEAD
+      path: /pipeline/processing
+      allOf:
+        - app.open
+    - id: processing-config
+      method: POST
+      path: /pipeline/processing-config
+      allOf:
+        - records.write
+    - id: processing-run
+      method: POST
+      path: /pipeline/process
+      allOf:
+        - records.write
+    - id: processing-retry
+      method: POST
+      path: /pipeline/retry
+      allOf:
+        - records.write
+    - id: processing-controls-get
+      method: GET
+      path: /assets/processing-controls.js
+      allOf:
+        - app.open
+    - id: processing-controls-head
+      method: HEAD
+      path: /assets/processing-controls.js
+      allOf:
+        - app.open
+    - id: telemetry-read
+      method: GET
+      path: /telemetry
+      allOf:
+        - app.open
+    - id: telemetry-head
+      method: HEAD
+      path: /telemetry
+      allOf:
+        - app.open
+    - id: telemetry-config
+      method: POST
+      path: /telemetry/configure
+      allOf:
+        - records.write
+    - id: telemetry-logs
+      method: POST
+      path: /streams/:sourceId/v1/logs
+      allOf:
+        - records.write
+    - id: telemetry-metrics
+      method: POST
+      path: /streams/:sourceId/v1/metrics
+      allOf:
+        - records.write
+    - id: telemetry-cloudwatch
+      method: POST
+      path: /streams/:sourceId/cloudwatch
+      allOf:
+        - records.write
+    - id: telemetry-window
+      method: POST
+      path: /telemetry/window
+      allOf:
+        - records.write
+    - id: telemetry-pin
+      method: POST
+      path: /telemetry/pin
+      allOf:
+        - records.write
+    - id: telemetry-controls-get
+      method: GET
+      path: /assets/telemetry-controls.js
+      allOf:
+        - app.open
+    - id: telemetry-controls-head
+      method: HEAD
+      path: /assets/telemetry-controls.js
+      allOf:
+        - app.open
+    - id: replay-scenarios-get
+      method: GET
+      path: /assets/replay-scenarios.js
+      allOf:
+        - app.open
+    - id: replay-scenarios-head
+      method: HEAD
+      path: /assets/replay-scenarios.js
+      allOf:
+        - app.open
+    - id: evaluation-get
+      method: GET
+      path: /evaluation
+      allOf:
+        - app.open
+    - id: evaluation-head
+      method: HEAD
+      path: /evaluation
+      allOf:
+        - app.open
+    - id: intake-batch
+      method: POST
+      path: /events/batch
+      allOf:
+        - records.write
+    - id: saved-replay-get
+      method: GET
+      path: /replays
+      allOf:
+        - app.open
+    - id: saved-replay-head
+      method: HEAD
+      path: /replays
+      allOf:
+        - app.open
+    - id: saved-replay-post
+      method: POST
+      path: /replays
+      allOf:
+        - records.write

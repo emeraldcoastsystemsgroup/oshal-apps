@@ -1,0 +1,13 @@
+{
+  "kind": "native-bounded-bank-growth",
+  "passed": true,
+  "sourceRevisionPreserved": true,
+  "initialPerBankRecords": 1,
+  "initialHardCeilingPerBank": 4,
+  "acceptedBeforeCeiling": 12,
+  "ceilingHttp": 429,
+  "reviewedHardCeiling": 8,
+  "acceptedAfterReview": 13,
+  "oldRowsRetained": true,
+  "physicalDatabaseResize": false
+}

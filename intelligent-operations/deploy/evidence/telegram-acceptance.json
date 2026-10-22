@@ -1,0 +1,16 @@
+{
+  "authorization": "4fa031e0fcb54f439129c3547fa0edaa",
+  "channel": "telegram",
+  "attempts": 1,
+  "apiAccepted": true,
+  "deliveryState": "transport_acknowledged",
+  "testRouteMuted": true,
+  "humanReceiptVerified": false,
+  "reconciliation": {
+    "inference": true,
+    "basis": "Successful native HTTP response on installed legacy Telegram contract, before the checker knew that response version",
+    "kernelRevision": "57abf31ec789a2fb1723228827f5016520e0f6a0"
+  },
+  "sms": "pending",
+  "voice": "pending"
+}

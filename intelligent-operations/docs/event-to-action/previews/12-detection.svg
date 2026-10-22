@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Detection is a service, not an alert label">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Detection is a service, not an alert label</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">Anomaly candidates use the same identity, filtering and reduction path as inbound alerts.</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="190" width="350" height="160" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="56" y="202" width="4" height="136" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="223.0">Separate telemetry store</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="258.0">Resource IDs, units and event time</tspan>
+<tspan x="74" y="280.95">Bounded history and retention</tspan>
+</text>
+<rect x="478" y="190" width="490" height="160" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="478" y="202" width="4" height="136" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="496" y="223.0">Versioned anomaly detector</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="496" y="258.0">Baseline / warm-up / missing samples</tspan>
+<tspan x="496" y="280.95">Score, confidence and window</tspan>
+<tspan x="496" y="303.9">Known shift versus normal control</tspan>
+</text>
+<rect x="1040" y="190" width="504" height="160" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="1040" y="202" width="4" height="136" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1058" y="223.0">Canonical candidate</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1058" y="258.0">Detector and entity identity</tspan>
+<tspan x="1058" y="280.95">Stable window ID; original evidence</tspan>
+<tspan x="1058" y="303.9">No automatic infrastructure action</tspan>
+</text>
+<polyline points="406,270.0 478,270.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="968,270.0 1040,270.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="56" y="410" width="460" height="160" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="56" y="422" width="4" height="136" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="443.0">Durable processing</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="478.0">Compound cursor and overlap</tspan>
+<tspan x="74" y="500.95">Retry failed items without losing ties</tspan>
+<tspan x="74" y="523.9">Record replay and partial outcomes</tspan>
+</text>
+<rect x="550" y="410" width="460" height="160" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="550" y="422" width="4" height="136" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="568" y="443.0">Filter and reduce first</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="568" y="478.0">Published query and policy revision</tspan>
+<tspan x="568" y="500.95">Atomic incident-revision reservation</tspan>
+<tspan x="568" y="523.9">Retain occurrence counts</tspan>
+</text>
+<rect x="1044" y="410" width="500" height="160" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="1044" y="422" width="4" height="136" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1062" y="443.0">Correlate and collect</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1062" y="478.0">Bounded event-time graph</tspan>
+<tspan x="1062" y="500.95">Explicit degraded fallback</tspan>
+<tspan x="1062" y="523.9">Only then capture and investigate</tspan>
+</text>
+<rect x="56" y="633" width="1488" height="147" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="56" y="645" width="4" height="123" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="666.0">Service acceptance required</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="74" y="702.0">Cold / stale / unavailable is not healthy. Prove baseline and injected shift, false positives, late data, two workers, crash recovery and bounded collection.</tspan>
+<tspan x="74" y="726.3">A fixed threshold or imported score does not prove an anomaly engine.</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">12 / 21</text></svg>

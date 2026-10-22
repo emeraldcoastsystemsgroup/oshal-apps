@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Inbound alerts and outbound ticket synchronization">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Inbound alerts and outbound ticket synchronization</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">One platform login and standard connections; TriageNorth supplies operational meaning and the investigation experience.</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="202" width="370" height="195" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="56" y="214" width="4" height="171" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="235.0">Inbound integrations</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="74" y="271.0">Prometheus / Alertmanager</tspan>
+<tspan x="74" y="295.3">adapters</tspan>
+<tspan x="74" y="319.6">CloudEvents alert intake</tspan>
+<tspan x="74" y="343.9">Native OTLP telemetry</tspan>
+<tspan x="74" y="368.2">Named authenticated sources</tspan>
+</text>
+<rect x="488" y="202" width="510" height="195" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="488" y="214" width="4" height="171" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="506" y="235.0">TriageNorth</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="506" y="271.0">Normalize / filter / reduce / correlate</tspan>
+<tspan x="506" y="295.3">Inspect data decisions and evidence</tspan>
+<tspan x="506" y="319.6">One canonical platform ticket</tspan>
+<tspan x="506" y="343.9">Versioned external-sync policy</tspan>
+</text>
+<rect x="1060" y="202" width="484" height="195" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="1060" y="214" width="4" height="171" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1078" y="235.0">Existing platform services</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="1078" y="271.0">Current-caller connection + account</tspan>
+<tspan x="1078" y="295.3">Shared ownership and scoped grants</tspan>
+<tspan x="1078" y="319.6">Confirmed writes and verified webhooks</tspan>
+<tspan x="1078" y="343.9">Audit, liveness and revocation</tspan>
+</text>
+<polyline points="426,299.5 488,299.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="998,299.5 1060,299.5" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="56" y="462" width="348" height="113" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="56" y="474" width="4" height="89" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="495.0">ServiceNow</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="530.0">Incident / record link</tspan>
+</text>
+<rect x="436" y="462" width="348" height="113" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="436" y="474" width="4" height="89" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="454" y="495.0">GitHub</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="454" y="530.0">Repository / issue link</tspan>
+</text>
+<rect x="816" y="462" width="348" height="113" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="816" y="474" width="4" height="89" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="834" y="495.0">GitLab</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="834" y="530.0">Project / issue link</tspan>
+</text>
+<rect x="1196" y="462" width="348" height="113" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="1196" y="474" width="4" height="89" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1214" y="495.0">Jira</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1214" y="530.0">Project / issue link</tspan>
+</text>
+<polyline points="1370,397 1370,433 230,433 230,462" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="610.0,433 610.0,462" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="990.0,433 990.0,462" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1370.0,433 1370.0,462" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="56" y="613" width="720" height="184" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="56" y="625" width="4" height="160" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="646.0">Sync contract</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="681.0">Field direction / ownership + status mapping</tspan>
+<tspan x="74" y="703.95">Record IDs + local / remote revision + origin</tspan>
+<tspan x="74" y="726.9">Durable operation reservation and feedback suppression</tspan>
+<tspan x="74" y="749.85">Unknown create: reconcile before retry</tspan>
+</text>
+<rect x="806" y="613" width="738" height="184" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="806" y="625" width="4" height="160" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="824" y="646.0">Shared capability gate</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="824" y="681.0">Declarations differ; complete two-way sync is not live.</tspan>
+<tspan x="824" y="703.95">ServiceNow currently reads only in reviewed source.</tspan>
+<tspan x="824" y="726.9">Extend standard operations, confirmations and webhooks.</tspan>
+<tspan x="824" y="749.85">Remote closure never proves infrastructure recovery.</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">10 / 21</text></svg>

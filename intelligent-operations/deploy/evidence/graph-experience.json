@@ -1,0 +1,20 @@
+{
+  "kind": "native-operating-experience",
+  "syntheticEvidence": true,
+  "startedAt": "2026-10-21T17:03:10.935Z",
+  "passed": true,
+  "checks": [
+    "actual HTML password login",
+    "actual native fitted perspective/shaded canvas, orbit, six presets and phone width; existing owned graph reused without another inference call"
+  ],
+  "application": {
+    "revision": "a8697163be93ba39ef12949a4992a05c6e7fabb3",
+    "artifact": "57abd4068306de832db2828bab0ed9141a0060bd5c05a001e601e2a7acee4505"
+  },
+  "graph": {
+    "collection": "operating-ux-1fafc33a/namespace",
+    "nodes": 3,
+    "presets": 6
+  },
+  "finishedAt": "2026-10-21T17:03:13.504Z"
+}

@@ -1,0 +1,42 @@
+{
+  "observedAt": "2026-10-20T23:59:31.259997+00:00",
+  "scanId": "815e385a680bd98ea40ee4b7b8f3e844e82f232c1d448994d8f72584c7b4cd29",
+  "sourceId": "c2e99fe6c76b7c0adbdbc741278a541a407c64f2d0c052700db03291854a63f1",
+  "collectionId": "0149aee8-c05f-4056-b6ed-c61ba36e5d9e/operations-demo",
+  "assets": 18,
+  "relationships": 32,
+  "scanRetry": true,
+  "conflict": 409,
+  "unauthenticatedStatus": 401,
+  "graphRevision": "6ad597da1ca4bd4fe2a887e538b9b0852313634d869e521624793305e29b6172",
+  "decisionId": "49a66026d08f75ba5b0a449c393bce4b7ea7bdefc3ae4b59741f1d7992f9f6f4",
+  "correlationStatus": "complete",
+  "groups": 2,
+  "paths": 1,
+  "deliveryIds": [
+    "1afc6a56c8e6171aedf886401f5b53e722a1a748826007570279ee42951e9650",
+    "2fe72fcc4bc255178e4ea4a98f00882b550b1ed812025cff92d0cf13ae14fe11",
+    "f48e42b9fdcbf0381c18985ae352e72c635022f2172293f1e9fe1656dd81777e"
+  ],
+  "acceptanceAlertsSynthetic": true,
+  "inventoryFromActualKubernetes": true,
+  "automaticDispatch": false,
+  "periodicCollection": false,
+  "installedSource": "a0066a4b924f7a8e97607c28283b64bc825bbff6",
+  "artifact": "ba6c67396b1121e6b094ad970c7e6de758b6f758653ed90a426a049b1427f61d",
+  "installedBrowserVerified": true,
+  "browserCorrelationGroups": 2,
+  "existingOperatorGrantReapproved": true,
+  "repositoryGate": {
+    "passed": 83,
+    "failed": 0,
+    "partial": 6,
+    "skipped": 12,
+    "blocked": 0
+  },
+  "operationsTests": {
+    "passed": 41,
+    "failed": 0,
+    "skipped": 0
+  }
+}

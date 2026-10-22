@@ -1,3 +1,4 @@
+// CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Drain disposable fixture connections before database cleanup; never terminate a closing client.
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),Module=require('node:module'),{randomUUID}=require('node:crypto');
 const root=path.resolve(__dirname,'../..'),store=path.resolve(root,'..');
@@ -10,6 +11,14 @@ function load(name){const m={exports:{}};new Function('require','module','export
  if(id==='./event-time')return load('event-time');throw Error('Unexpected fixture import '+id);
 },m,m.exports);return m.exports;}
 const own=load('own-events');
+async function dropDatabase(admin,db){
+ const deadline=Date.now()+5000;
+ while((await admin.query('SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=$1',[db])).rows[0].n){
+  if(Date.now()>=deadline)throw Error('Calendar fixture database connections did not close.');
+  await new Promise(resolve=>setTimeout(resolve,20));
+ }
+ await admin.query(`DROP DATABASE IF EXISTS ${db}`);
+}
 async function fixture(){
  const raw=process.env.OSHAL_TEST_POSTGRES;if(!raw)throw Error('OSHAL_TEST_POSTGRES is required: disposable Postgres 127.0.0.1:35689 only.');
  const url=new URL(raw);if(!['postgres:','postgresql:'].includes(url.protocol)||url.hostname!=='127.0.0.1'||url.port!=='35689')throw Error('Only disposable Postgres 127.0.0.1:35689 is allowed.');
@@ -29,7 +38,7 @@ async function fixture(){
   app.get('/shared/ui/:kind/:file',(_q,r)=>r.type('js').send(''));
   server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));const base='http://127.0.0.1:'+server.address().port;
   async function call(method,route,body,person='alice',headers={}){const r=await fetch(base+route,{method,headers:{...(person?{Cookie:'person='+person}:{}),...(body?{'Content-Type':'application/json'}:{}),...headers},body:body?JSON.stringify(body):undefined});return{status:r.status,body:await r.json().catch(()=>({}))};}
-  return{base,pool,scoped,call,async seed(person,event){return call('POST','/api/calendar/events',{confirm:true,...event},person);},async snapshot(person,events,at){await scoped(person,'INSERT INTO calendar_preparation_snapshots(user_sub,events,synced_at) VALUES($1,$2,$3) ON CONFLICT(user_sub) DO UPDATE SET events=$2,synced_at=$3',[person,JSON.stringify(events),at]);},async close(){await new Promise(resolve=>server.close(resolve));await pool.end();await admin.query(`DROP DATABASE ${db} WITH (FORCE)`);await admin.query(`DROP ROLE ${role}`);await admin.end();}};
- }catch(e){if(server)await new Promise(resolve=>server.close(resolve));if(pool)await pool.end();await admin.query(`DROP DATABASE IF EXISTS ${db} WITH (FORCE)`);await admin.query(`DROP ROLE IF EXISTS ${role}`);await admin.end();throw e;}
+  return{base,pool,scoped,call,async seed(person,event){return call('POST','/api/calendar/events',{confirm:true,...event},person);},async snapshot(person,events,at){await scoped(person,'INSERT INTO calendar_preparation_snapshots(user_sub,events,synced_at) VALUES($1,$2,$3) ON CONFLICT(user_sub) DO UPDATE SET events=$2,synced_at=$3',[person,JSON.stringify(events),at]);},async close(){await new Promise(resolve=>server.close(resolve));await pool.end();await dropDatabase(admin,db);await admin.query(`DROP ROLE ${role}`);await admin.end();}};
+ }catch(e){if(server)await new Promise(resolve=>server.close(resolve));if(pool)await pool.end();await dropDatabase(admin,db);await admin.query(`DROP ROLE IF EXISTS ${role}`);await admin.end();throw e;}
 }
 module.exports={fixture,own,dependency,root};

@@ -1,0 +1,90 @@
+{
+  "kind": "native-operating-experience",
+  "syntheticEvidence": true,
+  "startedAt": "2026-10-21T16:30:38.694Z",
+  "passed": true,
+  "checks": [
+    "actual HTML password login",
+    "native 3D pixels change on orbit; six predefined queries preserve exact recorded identities",
+    "native source alert and retained OTLP log become one sealed preprocessed workspace input; canonical ticket linked once",
+    "genuine native completed first-phase answer with inference receipt",
+    "workflow-generated answer visible through canonical shared workspace API"
+  ],
+  "application": {
+    "revision": "24d6298039c7f0999abbb5d8387c3ff2e1a55d8c",
+    "artifact": "16a4b695f0c30cefa3aa3ea5b9fcfaf70f853f771ef156be9a6eab82b8c0fe0b"
+  },
+  "sourceId": "cbf24d0891141b8c7f52f46bf5b4e7b7b725e3e7fb3daa2c8b9d49b482e525eb",
+  "graph": {
+    "collection": "operating-ux-1fafc33a/namespace",
+    "asOf": "2026-10-21T16:30:41.141Z",
+    "nodes": 3,
+    "relationships": 2,
+    "presets": 6
+  },
+  "workId": "04384b0d4fedbb22e2974fcf6e1eaf61f53a794730cb67563433e89c28e33147",
+  "ticketId": "ca7fc196-8a0b-4055-809d-7b957cde68f9",
+  "packetSha256": "062b6e063a7009e3e253319582f60c3904c207c66c32891393e7e7d9448dfe31",
+  "inputSha256": "c80bc1f5485dbc773e04a013921956cb9e75bab42c7d4115714f58a8ae331ffb",
+  "assessment": {
+    "workId": "c8f20338-72c1-491b-b154-2d30acf635e0",
+    "phase": {
+      "index": 0,
+      "name": "investigate"
+    },
+    "receipt": "b63ad738-9cd7-4cd5-beaa-53b25c69eabe",
+    "answerSha256": "4007422e1dfe58cc37e227e599187656a00b826725ab53bfa93a48a6940690de"
+  },
+  "workspace": {
+    "success": true,
+    "files": [
+      {
+        "name": "c8f20338-72c1-491b-b154-2d30acf635e0/answer.md",
+        "phase": {
+          "index": 0,
+          "name": "investigate"
+        },
+        "bot": "ops-rca-specialist",
+        "digest": [
+          64,
+          7,
+          66,
+          46,
+          29,
+          254,
+          88,
+          204,
+          55,
+          226,
+          39,
+          229,
+          153,
+          24,
+          118,
+          86,
+          160,
+          11,
+          130,
+          103,
+          37,
+          171,
+          83,
+          191,
+          169,
+          58,
+          72,
+          166,
+          148,
+          6,
+          144,
+          222
+        ],
+        "size": 4709,
+        "work": "c8f20338-72c1-491b-b154-2d30acf635e0",
+        "downloadUrl": "/api/v1/workspace/ca7fc196-8a0b-4055-809d-7b957cde68f9/files?work=c8f20338-72c1-491b-b154-2d30acf635e0&artifact=0"
+      }
+    ],
+    "unavailableRuns": []
+  },
+  "finishedAt": "2026-10-21T16:31:18.308Z"
+}

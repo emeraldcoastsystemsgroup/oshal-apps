@@ -1,0 +1,122 @@
+{
+  "kind": "native-create-suite-and-operator-assisted-weekly-report",
+  "observedAt": "2026-10-21T21:07:16.791587+00:00",
+  "sourceRevision": "2ef275de3c094f3d78fcb59fcb6281f1a11d497a",
+  "createVersion": "1.15.0",
+  "applications": [
+    {
+      "application": "vids",
+      "artifact": "e6784757b6c04d83e3544f510b3be97c65220d6803540e0366d985359452f8e0"
+    },
+    {
+      "application": "video",
+      "artifact": "3c5e4efb2a9268715cae5f63d1ff47ec1639884c464f63013de6c73da3b33277"
+    },
+    {
+      "application": "publishing-studio",
+      "artifact": "46522a0f12d4390da4f2824b943d12362e7f03267180f0d3429a09181ec8f268"
+    },
+    {
+      "application": "pdf-workbench",
+      "artifact": "fe474c256fad236c0c8e20711a59b7a429cb0c434d4c6167eb6ec7aaeb3b46d0"
+    }
+  ],
+  "engines": {
+    "publishing-studio": {
+      "image": "oshal-publishing-studio-engine:reviewed-3d8d11d667a2fe3e",
+      "imageId": "sha256:3d8d11d667a2fe3e94de494678ba46438112275c156bc59718da6effa2b9856e",
+      "engine": {
+        "protocol": 1,
+        "buildHash": "b35c7b08b843d75880028673cf92d495d6b604a6989e52bed3c02bcb6b068930",
+        "upstream": "Typst/0.15.1+pypdf/6.20.1"
+      }
+    },
+    "pdf-workbench": {
+      "image": "oshal-pdf-workbench-engine:reviewed-a8e093bd2605930a",
+      "imageId": "sha256:a8e093bd2605930acf62ff2dcdb993df7b884b16ff07f13549c51831237f3957",
+      "engine": {
+        "protocol": 1,
+        "buildHash": "f65e6ae93ae9abd8e5782e979e9da95a9528f0e3ecf397fa03eb37f4b1b2b644",
+        "upstream": "pypdf/6.20.1"
+      }
+    }
+  },
+  "operatorAssistedEvidenceHandoff": true,
+  "report": {
+    "source": "actual Jarvis-created Word outline in own app Files",
+    "canonicalTicketRecords": 8,
+    "pdf": {
+      "bytes": 222035,
+      "contentUrl": "/api/publishing-studio/documents/22ba61e8-e258-4f4d-b226-b3f7679b0bf2/revisions/2/content?format=pdf",
+      "document": "22ba61e8-e258-4f4d-b226-b3f7679b0bf2",
+      "format": "pdf",
+      "page": null,
+      "requiresCurrentExport": true,
+      "revision": 2,
+      "sha256": "3ff8a934d02695af339f7c33427d3151c22c7aaaaf00ae5b54a7e636e2d11bcc"
+    },
+    "pdfPages": 8,
+    "pdfPreflightClean": true,
+    "powerpoint": {
+      "filename": "Weekly-RCA-2026-10-21.pptx",
+      "bytes": 340762,
+      "sha256": "ae768430598fe46d4b2fcf02f501e70fccf4737139b97dc2d80441894fe3a627",
+      "url": "/api/applications/presentations/storage/download?path=oshal%2Fa0000000-0000-0000-0000-000000000042%2FWeekly%20RCA%20-%20Evidence%20Reviewed%20-%2019-21%20October%202026.pptx",
+      "actualSlides": 11
+    },
+    "actualSlidesIncludingCover": 11,
+    "sharedTicketWorkspacePlacementVerified": false,
+    "automaticJarvisMultiArtifactChainVerified": false
+  },
+  "video": {
+    "observedAt": "2026-10-21T21:06:53.230072+00:00",
+    "project": "d45d38b3-d367-4beb-9a2f-67e0991ef8fb",
+    "export": "8d22ee5e-a8c6-4963-b947-80f8b057bbf1",
+    "bytes": 7393,
+    "sha256": "fb1ebeb6dc7ea3f590c760783765c3d1f04f7679340a00ca459ef161a2a12a4d",
+    "frames": 60,
+    "fps": 30,
+    "width": 1280,
+    "height": 720,
+    "sampledRgb": [
+      [
+        0,
+        0,
+        255
+      ],
+      [
+        255,
+        166,
+        0
+      ]
+    ],
+    "actualUiUploadSaveAndExport": true,
+    "syntheticClips": true,
+    "gpuUsed": false
+  },
+  "scratch": {
+    "observedInheritedMode": "02700",
+    "requiredMode": "0700",
+    "initializerVerifiedAfterPodReplacement": true,
+    "permissionCheckWeakened": false
+  },
+  "email": {
+    "userCompletedGoogleConsent": true,
+    "providerAcceptedMessages": 2,
+    "attachments": [
+      "pdf",
+      "pptx"
+    ],
+    "humanInboxReceiptVerified": false,
+    "notificationTestsResent": false
+  },
+  "codeServer": {
+    "editorDeploymentStayedReady": true,
+    "kernelReplacementInterruptedPortalProxy": true,
+    "forwardingReconnected": true,
+    "healthHttpStatus": 200
+  },
+  "gpuUsed": false,
+  "coreSourceChanged": false,
+  "fullKernelReleaseCertified": false
+}

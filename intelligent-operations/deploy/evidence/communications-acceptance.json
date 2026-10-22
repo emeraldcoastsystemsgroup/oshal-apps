@@ -1,0 +1,95 @@
+{
+  "allAccepted": true,
+  "allTestRoutesMuted": true,
+  "authorization": "4fa031e0fcb54f439129c3547fa0edaa",
+  "channels": [
+    {
+      "acknowledgementProtocol": "native-acceptance",
+      "apiAccepted": true,
+      "attempts": 1,
+      "channel": "sms",
+      "deliveryState": "carrier_accepted",
+      "humanReceiptVerified": false,
+      "nativeResponse": {
+        "accepted": true,
+        "channel": "sms",
+        "delivered": false,
+        "deliveryState": "carrier_accepted",
+        "ok": true,
+        "reason": "transport_acknowledged",
+        "skipped": false
+      },
+      "state": "accepted",
+      "testRouteMuted": true,
+      "humanReport": {
+        "source": "operator chat",
+        "statement": "no text message",
+        "recordedAt": "2026-10-21T18:32:14.984364+00:00"
+      },
+      "providerDelivery": {
+        "status": "undelivered",
+        "errorCode": 30034,
+        "checkedAt": "2026-10-21T18:32:14.984364+00:00",
+        "readOnly": true
+      }
+    },
+    {
+      "acknowledgementProtocol": "native-acceptance",
+      "apiAccepted": true,
+      "attempts": 1,
+      "channel": "voice",
+      "deliveryState": "carrier_accepted",
+      "humanReceiptVerified": true,
+      "nativeResponse": {
+        "accepted": true,
+        "channel": "voice",
+        "delivered": false,
+        "deliveryState": "carrier_accepted",
+        "ok": true,
+        "reason": "transport_acknowledged",
+        "skipped": false
+      },
+      "state": "accepted",
+      "testRouteMuted": true,
+      "humanConfirmation": {
+        "source": "operator chat",
+        "statement": "i got a phone call it worked",
+        "recordedAt": "2026-10-21T18:28:37.030886+00:00"
+      }
+    },
+    {
+      "acknowledgementProtocol": "legacy-telegram-reconciled",
+      "apiAccepted": true,
+      "attempts": 1,
+      "channel": "telegram",
+      "deliveryState": "transport_acknowledged",
+      "humanReceiptVerified": false,
+      "nativeResponseCaptured": false,
+      "reconciliation": {
+        "basis": "Successful native HTTP response on installed legacy Telegram contract, before the checker knew that response version",
+        "inference": true,
+        "kernelRevision": "57abf31ec789a2fb1723228827f5016520e0f6a0"
+      },
+      "state": "accepted",
+      "testRouteMuted": true
+    }
+  ],
+  "humanReceiptVerified": false,
+  "ticketId": "ca7fc196-8a0b-4055-809d-7b957cde68f9",
+  "workflowState": "awaiting_approval",
+  "kernelRevision": "ac5f00e67d7a843e65145d574eca5a2a9ffb273b",
+  "deploymentKind": "owned-local-development-acceptance",
+  "fullReleaseCertified": false,
+  "humanConfirmedChannels": [
+    "voice"
+  ],
+  "allDelivered": false,
+  "deliveryBlockers": {
+    "sms": {
+      "status": "undelivered",
+      "provider": "twilio",
+      "errorCode": 30034,
+      "documentation": "https://www.twilio.com/docs/api/errors/30034"
+    }
+  }
+}

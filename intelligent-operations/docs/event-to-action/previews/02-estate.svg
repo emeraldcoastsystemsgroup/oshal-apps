@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="One estate across physical and virtual layers">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">One estate across physical and virtual layers</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">The map distinguishes containment, network links, placement and dependencies. Health always includes freshness.</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="180" width="910" height="574" rx="12" fill="#F3F6FA" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="76" y="207.0">DATA CENTER / SITE A</tspan>
+</text>
+<rect x="86" y="240" width="220" height="100" rx="10" fill="#FFFFFF" stroke="#D6E0EB"/>
+<rect x="86" y="252" width="4" height="76" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="700" fill="#20334D">
+<tspan x="104" y="272.0">Edge and firewall</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="104" y="306.0">External / WAN paths</tspan>
+</text>
+<rect x="354" y="240" width="240" height="100" rx="10" fill="#FFFFFF" stroke="#D6E0EB"/>
+<rect x="354" y="252" width="4" height="76" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="372" y="273.0">Network fabric</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="372" y="306.0">Switches · VLANs · ports</tspan>
+</text>
+<rect x="650" y="240" width="275" height="100" rx="10" fill="#FFFFFF" stroke="#D6E0EB"/>
+<rect x="650" y="252" width="4" height="76" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="668" y="273.0">Storage services</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="668" y="306.0">Arrays · volumes · mounts</tspan>
+</text>
+<rect x="86" y="394" width="220" height="128" rx="10" fill="#FFFFFF" stroke="#D6E0EB"/>
+<rect x="86" y="406" width="4" height="104" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="104" y="427.0">Rack and chassis</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="104" y="460.0">Power / UPS / cooling</tspan>
+<tspan x="104" y="480.25">Physical containment</tspan>
+</text>
+<rect x="354" y="394" width="240" height="128" rx="10" fill="#FFFFFF" stroke="#D6E0EB"/>
+<rect x="354" y="406" width="4" height="104" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="372" y="427.0">Compute host</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="372" y="460.0">Hardware + hypervisor</tspan>
+<tspan x="372" y="480.25">Host health observation</tspan>
+</text>
+<rect x="650" y="394" width="275" height="128" rx="10" fill="#FFFFFF" stroke="#D6E0EB"/>
+<rect x="650" y="406" width="4" height="104" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="668" y="427.0">VM or cluster node</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="668" y="460.0">OS and provider identity</tspan>
+<tspan x="668" y="480.25">Placement history</tspan>
+</text>
+<rect x="354" y="584" width="240" height="122" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="354" y="596" width="4" height="98" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="372" y="617.0">Workload</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="372" y="650.0">Stable controller ID</tspan>
+<tspan x="372" y="670.25">Service ownership</tspan>
+</text>
+<rect x="650" y="584" width="275" height="122" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="650" y="596" width="4" height="98" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="668" y="617.0">Pod and container</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="15" font-weight="400" fill="#576B83">
+<tspan x="668" y="650.0">Instance UID + image</tspan>
+<tspan x="668" y="670.25">Current node and health</tspan>
+</text>
+<polyline points="306,290.0 354,290.0" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="594,290.0 650,290.0" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="306,458.0 354,458.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="594,458.0 650,458.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="594,645.0 650,645.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="474.0,340 474.0,394" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="787.5,522 787.5,584" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#007F88">
+<tspan x="608" y="455.0">→</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="1016" y="207.0">CLOUD ESTATES</tspan>
+</text>
+<rect x="1016" y="240" width="528" height="123" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="1016" y="252" width="4" height="99" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1034" y="273.0">AWS</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1034" y="308.0">Account → region → VPC → subnet → instance</tspan>
+</text>
+<rect x="1016" y="394" width="528" height="123" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="1016" y="406" width="4" height="99" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1034" y="427.0">Azure</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1034" y="462.0">Subscription → VNet → subnet → VM</tspan>
+</text>
+<rect x="1016" y="548" width="528" height="123" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="1016" y="560" width="4" height="99" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1034" y="581.0">GCP</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1034" y="616.0">Project → network → subnet → instance</tspan>
+</text>
+<polyline points="966,350 992,350 992,300 1016,300" fill="none" stroke="#2364B0" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrow)"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="1009" y="708.0">Managed clusters and workloads link to their provider hosts using</tspan>
+<tspan x="1009" y="729.6">scoped native identifiers.</tspan>
+</text>
+<rect x="56" y="772" width="1488" height="57" rx="10" fill="#FFFFFF" stroke="#D6E0EB"/>
+<rect x="56" y="784" width="4" height="33" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="805.0">Map controls: current or incident time · environment · layer · source · observed health · stale/unknown</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">02 / 21</text></svg>

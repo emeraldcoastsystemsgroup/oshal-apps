@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Keep the workflow and external issue aligned">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Keep the workflow and external issue aligned</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">Development-installed shared services; original-person authority and transport acceptance remain separate from release certification.</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="185" width="320" height="160" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="56" y="197" width="4" height="136" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="218.0">Canonical workflow</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="253.0">Owned ticket + exact revision</tspan>
+<tspan x="74" y="275.95">Status + phase trigger</tspan>
+<tspan x="74" y="298.9">No second ticket engine</tspan>
+</text>
+<rect x="424" y="185" width="320" height="160" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="424" y="197" width="4" height="136" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="442" y="218.0">Immutable mapping</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="442" y="253.0">Personal named account</tspan>
+<tspan x="442" y="275.95">Selected endpoint revision</tspan>
+<tspan x="442" y="298.9">Explicit provider state IDs</tspan>
+</text>
+<rect x="792" y="185" width="320" height="160" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="792" y="197" width="4" height="136" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="810" y="218.0">Review and confirm</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="810" y="253.0">Show proposed operation</tspan>
+<tspan x="810" y="275.95">Reserve before dispatch</tspan>
+<tspan x="810" y="298.9">Recheck authority + revision</tspan>
+</text>
+<rect x="1160" y="185" width="384" height="160" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="1160" y="197" width="4" height="136" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1178" y="218.0">Standard connector action</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1178" y="253.0">Jira transition / GitLab state</tspan>
+<tspan x="1178" y="275.95">ServiceNow incident state</tspan>
+<tspan x="1178" y="298.9">Read before + read after</tspan>
+</text>
+<polyline points="376,265.0 424,265.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="744,265.0 792,265.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1112,265.0 1160,265.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="56" y="405" width="720" height="175" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="56" y="417" width="4" height="151" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="438.0">Unknown response: hold the attempt</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="74" y="474.0">No automatic transition retry. Read remote state to reconcile without</tspan>
+<tspan x="74" y="498.3">another write. The durable readback is an operator report; server-attested</tspan>
+<tspan x="74" y="522.6">delivery, webhooks and two-way conflict handling remain open.</tspan>
+</text>
+<rect x="824" y="405" width="720" height="175" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="824" y="417" width="4" height="151" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="842" y="438.0">Native acceptance and current limits</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="842" y="473.0">Installed controls and owner-scoped records pass native login. Jira profile read</tspan>
+<tspan x="842" y="495.95">returns404, so live-provider validation remains open. No issue was changed.</tspan>
+<tspan x="842" y="518.9">SQL/browser tests cover confirmation and lost acknowledgements.</tspan>
+</text>
+<rect x="56" y="638" width="720" height="172" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="56" y="650" width="4" height="148" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="671.0">Shared alert services</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400" fill="#576B83">
+<tspan x="74" y="707.0">Original-person topic routes use SMS, brief phone or Telegram. Phone is</tspan>
+<tspan x="74" y="731.3">explicit opt-in: speak and hang up, thirty-second ceiling, no recording.</tspan>
+<tspan x="74" y="755.6">Service configuration alone sends nothing.</tspan>
+</text>
+<rect x="824" y="638" width="720" height="172" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="824" y="650" width="4" height="148" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="842" y="671.0">Three transport tests accepted once</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="842" y="706.0">One SMS, one brief call and one Telegram. Reservations precede sends; test</tspan>
+<tspan x="842" y="728.95">topics are muted. The operator confirmed the call. SMS later failed with</tspan>
+<tspan x="842" y="751.9">Twilio30034 (unregistered A2P sender). Telegram acceptance was reconciled;</tspan>
+<tspan x="842" y="774.85">human receipt is unverified.</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">17 / 21</text></svg>

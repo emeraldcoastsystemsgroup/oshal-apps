@@ -59,7 +59,7 @@ test('the inbox asks for the saved mailbox and shows the Outlook connect notice 
   assert.equal(calls[0].url, '/api/email/messages?max=30&surface=1&provider=outlook');
   assert.match(byId('items').innerHTML, /No Outlook \/ Microsoft 365 account connected\./);
   assert.match(byId('items').innerHTML, /data-connect="outlook">Connect Outlook \/ Microsoft 365</);
-  assert.match(byId('items').innerHTML, /href="\/utilities" target="_top">All connections</);
+  assert.match(byId('items').innerHTML, /href="\/utilities\?category=email" target="_top">Mail connections</);
 });
 
 test('the inbox lets the server pick, then reads and drafts on the mailbox the list used', async () => {

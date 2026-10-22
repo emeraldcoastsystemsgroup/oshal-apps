@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Retained context  /  the first fifteen minutes">
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="context-stroke"/></marker></defs>
+<rect x="0" y="0" width="1600" height="900" rx="10" fill="#FFFFFF" stroke="#FFFFFF"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" fill="#007F88">
+<tspan x="56" y="38.0">TRIAGENORTH / PRODUCT DESIGN</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="31" font-weight="700" fill="#14233B">
+<tspan x="56" y="93.0">Retained context / the first fifteen minutes</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="400" fill="#576B83">
+<tspan x="56" y="128.0">Three logical banks, bounded growth and a separate durable packet preserve the facts behind an alert.</tspan>
+</text>
+<rect x="56" y="846" width="1488" height="1" rx="0.5" fill="#D6E0EB" stroke="#D6E0EB"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="400" fill="#576B83">
+<tspan x="56" y="870.0">DESIGN &amp; ACCEPTANCE NOTES · 21 OCT 2026 · Illustrative screens; measured increments have separate receipts</tspan>
+</text>
+<rect x="56" y="185" width="300" height="155" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="56" y="197" width="4" height="131" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="16" font-weight="700" fill="#20334D">
+<tspan x="74" y="215.0">Named authenticated source</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="253.0">OTLP JSON logs / metrics</tspan>
+<tspan x="74" y="275.95">Decoded CloudWatch streams</tspan>
+<tspan x="74" y="298.9">Explicit native ID + scope</tspan>
+</text>
+<rect x="414" y="185" width="300" height="155" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="414" y="197" width="4" height="131" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="432" y="218.0">A / writing</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="432" y="253.0">Configured byte / row budget</tspan>
+<tspan x="432" y="275.95">Grow only to approved ceiling</tspan>
+<tspan x="432" y="298.9">Keep receipt-time provenance</tspan>
+</text>
+<rect x="794" y="185" width="300" height="155" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="794" y="197" width="4" height="131" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="812" y="218.0">B / retained</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="812" y="253.0">Configured byte / row budget</tspan>
+<tspan x="812" y="275.95">Grow only to approved ceiling</tspan>
+<tspan x="812" y="298.9">Keep receipt-time provenance</tspan>
+</text>
+<rect x="1174" y="185" width="300" height="155" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="1174" y="197" width="4" height="131" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1192" y="218.0">C / retained</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1192" y="253.0">Configured byte / row budget</tspan>
+<tspan x="1192" y="275.95">Grow only to approved ceiling</tspan>
+<tspan x="1192" y="298.9">Keep receipt-time provenance</tspan>
+</text>
+<polyline points="356,262.5 414,262.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="714,262.5 794,262.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1094,262.5 1174,262.5" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1324,340 1324,385 564,385 564,340" fill="none" stroke="#2364B0" stroke-width="2" marker-end="url(#arrow)"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="700" fill="#2364B0">
+<tspan x="604" y="412.0">Reclaim only when the newest receipt in the next bank is at least 900 seconds old.</tspan>
+</text>
+<rect x="56" y="475" width="460" height="160" rx="10" fill="#ECF3FF" stroke="#D6E0EB"/>
+<rect x="56" y="487" width="4" height="136" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="508.0">Percolate → suppress → correlate</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="543.0">Keep original alert and decision IDs</tspan>
+<tspan x="74" y="565.95">A matching rule requests capture</tspan>
+<tspan x="74" y="588.9">Exact resource / preceding 15 minutes</tspan>
+</text>
+<rect x="634" y="475" width="430" height="160" rx="10" fill="#E8F7F4" stroke="#D6E0EB"/>
+<rect x="634" y="487" width="4" height="136" rx="1" fill="#007F88" stroke="#007F88"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="652" y="508.0">Pin preprocessed evidence</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="652" y="543.0">Copy bounded facts, hashes and times</tspan>
+<tspan x="652" y="565.95">Packet survives raw-bank reuse</tspan>
+<tspan x="652" y="588.9">No raw-store or execution authority</tspan>
+</text>
+<rect x="1182" y="475" width="362" height="160" rx="10" fill="#F3F6FA" stroke="#D6E0EB"/>
+<rect x="1182" y="487" width="4" height="136" rx="1" fill="#2364B0" stroke="#2364B0"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="1200" y="508.0">Investigation and review</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="1200" y="543.0">Shared ticket workspace</tspan>
+<tspan x="1200" y="565.95">Workflow-generated deliverables</tspan>
+<tspan x="1200" y="588.9">Separate exact-action approval</tspan>
+</text>
+<polyline points="516,555.0 634,555.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="1064,555.0 1182,555.0" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<polyline points="944,340 944,450 849,450 849,475" fill="none" stroke="#007F88" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="56" y="685" width="1488" height="121" rx="10" fill="#FFF2DC" stroke="#D6E0EB"/>
+<rect x="56" y="697" width="4" height="97" rx="1" fill="#AE6500" stroke="#AE6500"/>
+<text font-family="DejaVu Sans, sans-serif" font-size="19" font-weight="700" fill="#20334D">
+<tspan x="74" y="718.0">No silent overwrite at the ceiling</tspan>
+</text>
+<text font-family="DejaVu Sans, sans-serif" font-size="17" font-weight="400" fill="#576B83">
+<tspan x="74" y="753.0">If all banks still contain protected context, reject and retry the entire incoming batch. A full bank does not authorize data loss.</tspan>
+<tspan x="74" y="775.95">Native replay: 100 occurrences → 40 rule matches → 4 symptoms → 2 dependency groups → 4 persistent context packets.</tspan>
+</text>
+<text x="1490" y="875" font-family="DejaVu Sans" font-size="13" fill="#576B83">14 / 21</text></svg>

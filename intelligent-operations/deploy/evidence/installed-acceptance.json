@@ -1,0 +1,76 @@
+{
+  "environment": "owned local Kubernetes lab; synthetic workloads",
+  "nativeExperience": {
+    "startedAt": "2026-10-20T19:53:02.661Z",
+    "deployment": {
+      "packageRevision": "c65d218aeea34c88b722caba30670b483020df76",
+      "kernelRevision": "47cbad1e5b5f6b87853a57ee93a46591ed416055",
+      "kernelImageId": "sha256:91ec87273602cd49a67574c15a6d2ed359dac89551d9a3f7a73b8c53b9c20a6a",
+      "applicationImage": "oshal-operations-experience:c65d218aeea3",
+      "applicationImageId": "sha256:68838bd29a2ff510019d0653347e4d4ae6b3dcfb69cf3986587c57e9b3282707",
+      "clusterUid": "0149aee8-c05f-4056-b6ed-c61ba36e5d9e",
+      "namespace": "operations-experience",
+      "apparmorParserSha256": "2230696ee1f043f6a38c9c72ac8ba240942791fc86aa5ba85992789b2b13b318",
+      "seccompSha256": "78754ce996c000cf1c0303e83c6b1efc9b2164ee1551f80e09a5348a9e859ceb"
+    },
+    "checks": [
+      "signed-out launcher and record access refused",
+      "unassigned person and read-only mutation refused",
+      "native login and experience launch load the committed application",
+      "source and event saved through browser; exact retry does not duplicate",
+      "quarantine retains missing identity; another person cannot read the records",
+      "live Kubernetes pod UIDs, placement and container readiness render in the experience",
+      "desktop and mobile topology and decision inspector have no page errors or overflow",
+      "role downgrade refuses writes; revocation clears previously visible data"
+    ],
+    "passed": true,
+    "finishedAt": "2026-10-20T19:53:04.984Z"
+  },
+  "captureExperience": {
+    "startedAt": "2026-10-20T19:53:05.012Z",
+    "deployment": {
+      "packageRevision": "c65d218aeea34c88b722caba30670b483020df76",
+      "kernelRevision": "47cbad1e5b5f6b87853a57ee93a46591ed416055",
+      "kernelImageId": "sha256:91ec87273602cd49a67574c15a6d2ed359dac89551d9a3f7a73b8c53b9c20a6a",
+      "applicationImage": "oshal-operations-experience:c65d218aeea3",
+      "applicationImageId": "sha256:68838bd29a2ff510019d0653347e4d4ae6b3dcfb69cf3986587c57e9b3282707",
+      "clusterUid": "0149aee8-c05f-4056-b6ed-c61ba36e5d9e",
+      "namespace": "operations-experience",
+      "apparmorParserSha256": "2230696ee1f043f6a38c9c72ac8ba240942791fc86aa5ba85992789b2b13b318",
+      "seccompSha256": "78754ce996c000cf1c0303e83c6b1efc9b2164ee1551f80e09a5348a9e859ceb"
+    },
+    "checks": [
+      "saved source/events/inventory survived replacement of the kernel pod",
+      "real Alertmanager deliveries validated against exact captured pod UIDs",
+      "browser selects fault/recovery observations, inspects real event provenance and reads the native empty connection state"
+    ],
+    "passed": true,
+    "alertRecords": 6,
+    "observedStates": [
+      "resolved",
+      "firing"
+    ],
+    "finishedAt": "2026-10-20T19:53:06.825Z"
+  },
+  "lab": {
+    "environment": "operations-lab",
+    "synthetic": true,
+    "startedAt": 1792525556.6197352,
+    "checks": [
+      "healthy frontend dependency request",
+      "Prometheus observed real synthetic request failures and fired LabApplicationErrors",
+      "Alertmanager webhook retained with current pod and event evidence",
+      "fresh dependency request returned HTTP 200 and error alert cleared",
+      "scale created a distinct third API pod UID"
+    ],
+    "status": "passed",
+    "cleanup": "healthy mode, 2 API replicas, no remaining load jobs",
+    "finishedAt": 1792525671.1947494
+  },
+  "sourceChecks": {
+    "passed": 25,
+    "failed": 0,
+    "skipped": 0
+  },
+  "scope": "Authenticated manual capture intake; continuous sources, provider/tool activation, reduction, ticket sync and execution remain planned."
+}

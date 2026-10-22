@@ -112,7 +112,7 @@
   function setup(d, saved) {
     var n = NOTICE[d.error] || NOTICE.no_mail_connection;
     return { kicker: 'Intelligent Communication', title: n[0], lede: d.error === 'no_mail_connection' || !d.message ? 'Connect Google or Outlook / Microsoft 365 on the Connections page.' : d.message,
-      actions: [{ label: n[1], primary: true, onClick: function () { A.open('/utilities'); } }], sections: [digestSection(saved, '')] };
+      actions: [{ label: n[1], primary: true, onClick: function () { A.open('/utilities?category=email'); } }], sections: [digestSection(saved, '')] };
   }
   function trouble(e, saved) {
     if (!refused(e)) throw new Error('Intelligent Communication could not read your mailbox (HTTP ' + (e.status || 'error') + ').');
@@ -213,7 +213,7 @@ function noticeConnectors(error){ return error === 'no_google_connection' ? ['gm
 function connectNotice(p){
   const n = NOTICE[p.error] || NOTICE.no_mail_connection;
   const buttons = noticeConnectors(p.error).map(function (id) { return '<button type="button" class="btn" data-connect="'+id+'">'+esc(MAIL_CONNECTORS[id])+'</button>'; }).join(' ');
-  return '<div class="notice">'+esc(n[0])+'<br>'+buttons+' <a href="/utilities" target="_top">All connections</a><div class="connect-note" role="status"></div></div>';
+  return '<div class="notice">'+esc(n[0])+'<br>'+buttons+' <a href="/utilities?category=email" target="_top">Mail connections</a><div class="connect-note" role="status"></div></div>';
 }
 /** Start a mailbox provider's sign-in at the top level; a refusal is said in the notice instead. */
 async function startMailboxConnect(id, noteEl, nav){
