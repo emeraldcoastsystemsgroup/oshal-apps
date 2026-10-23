@@ -14,6 +14,7 @@
   2026-09-25     | oshal maintainers <maintainer@emeraldcoastsystemsgroup.com> | Upgrade tutor replies through the shared response renderer with a safe plain-text fallback and preserve grounding/read-aloud controls
   2026-09-26     | maintainer@emeraldcoastsystemsgroup.com     | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, cockpit theme links and glass; every color is a token so the light classroom skin reads correctly; bubbles, composer, camera modal and suggestions use the system's buttons, pills, fields and modal; the header names the real class (or all classes) instead of a selector that never existed; toasts replace alerts
   2026-10-18     | maintainer@emeraldcoastsystemsgroup.com | The tutor keeps the chosen class (selectTutorClass) for grounding.
+  2026-10-22     | maintainer@emeraldcoastsystemsgroup.com | Phone width: the header wraps and the class picker shrinks; Read aloud sat 17px past a 412px screen.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -89,7 +90,8 @@
   @media (max-width: 640px) {
     .tutor-compose { gap: 6px; padding-inline: 10px; }
     .attach-preview { padding-inline: 10px; }
-    .tutor-head { padding-inline: 12px; }
+    .tutor-head { padding-inline: 12px; flex-wrap: wrap; row-gap: 8px; }
+    .tutor-head #classSelect { min-width: 0 !important; flex: 1 1 150px; }
     .msg { max-width: 92%; }
   }
 </style>

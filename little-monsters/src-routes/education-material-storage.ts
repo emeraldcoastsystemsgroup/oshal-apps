@@ -8,6 +8,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Added no-clobber storage, content-derived media types, containment checks, and per-material RAG lifecycle
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Read exact native row-authorized material projections and refuse unsupported file mutations.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Keep native material bytes and grounding in the original relationship-checked SQL transaction.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | classifyMaterial compares the declared media type without parameters: a text material is stored as "text/plain; charset=utf-8", and reading it back (re-extraction for a chapter, a share approval or a reindex) classified it as octet-stream and extracted no text.
  * ---------------------------------------------------------------------------
  *
  * @module education-material-storage
@@ -60,7 +61,7 @@ export function classifyMaterial(buffer: Buffer, declaredMime?: string): FileCla
   if (buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP') {
     return { mimeType: 'image/webp', extension: '.webp' };
   }
-  const declared = String(declaredMime || '').toLowerCase();
+  const declared = String(declaredMime || '').toLowerCase().split(';')[0].trim();
   if ((declared === 'text/plain' || declared === 'text/markdown') && !buffer.includes(0)) {
     return { mimeType: 'text/plain; charset=utf-8', extension: '.txt' };
   }

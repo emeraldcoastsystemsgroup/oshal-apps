@@ -1,0 +1,76 @@
+{
+  "kind": "live-anomaly-acceptance",
+  "installed": {
+    "application": "05bbd001",
+    "kernel": "fe10403",
+    "portal": "owned lab oshal-install-lab"
+  },
+  "syntheticFault": "lab api error scenario under bounded synthetic load; real Prometheus series",
+  "window": {
+    "healthyLoadFrom": "2026-10-22T20:22:31.892791+00:00",
+    "faultFrom": "2026-10-22T20:24:12.199867+00:00",
+    "recoveryFrom": "2026-10-22T20:25:20.245201+00:00",
+    "end": "2026-10-22T20:26:20.383964+00:00"
+  },
+  "metric": {
+    "name": "frontend.error_ratio",
+    "query": "sum by (pod_uid) rate(503) / sum by (pod_uid) rate(all) over 20s, 5 s step",
+    "resource": {
+      "id": "a1d875e3-5b47-4fdb-8f44-533fe1ba0458",
+      "kind": "kubernetes-pod",
+      "scope": "0149aee8-c05f-4056-b6ed-c61ba36e5d9e"
+    },
+    "samplesStreamed": 44
+  },
+  "detector": {
+    "id": "robust-zscore",
+    "parameters": {
+      "threshold": 6,
+      "persistence": 2,
+      "warmupSamples": 12,
+      "resolveSamples": 3
+    },
+    "firstPass": {
+      "result": "failed",
+      "reason": "native SQL interpreter refused a row-value comparison; fixed in 05bbd001 and guarded by tests/native-sql-forms.test.cjs"
+    },
+    "pass": {
+      "processed": 44,
+      "cold": 12,
+      "candidates": 1,
+      "resolved": 1,
+      "late": 0,
+      "stale": 0
+    }
+  },
+  "candidates": {
+    "firing": {
+      "time": "2026-10-22T20:24:26.000Z",
+      "score": 206.704,
+      "confidence": 0.8333333333333334,
+      "baseline": {
+        "mad": 0,
+        "median": 0,
+        "samples": 20
+      },
+      "secondsAfterFaultStart": 13.8
+    },
+    "resolved": {
+      "time": "2026-10-22T20:25:46.000Z",
+      "secondsAfterRecoveryStart": 25.8
+    }
+  },
+  "pipeline": [
+    {
+      "deliveryId": "213462d9d0c5d1b029b300847decd0d16c1a423ee9294205bdf8a8cd33c656ca",
+      "outcome": "matched",
+      "reduction": "admitted",
+      "capture": true,
+      "error": null
+    }
+  ],
+  "notes": [
+    "Scores are against a flat zero-error baseline (MAD 0), so the finite floor makes any sustained error ratio score high; persistence 2 suppresses a single stray error.",
+    "Command and candidate times come from the Prometheus sample timestamps; this is a measured lab run, not a production false-alert rate."
+  ]
+}

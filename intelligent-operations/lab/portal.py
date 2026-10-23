@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Operator-side native API client; its session never enters agent evidence.
 CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Keep local installation login and confirmed writes outside the worker materialization boundary.
+CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Read bounded raw bytes (artifact downloads) under the same session without JSON decoding.
 """
 import json
 import os
@@ -48,6 +49,18 @@ class Portal:
                 return json.loads(raw) if raw else None
         except urllib.error.HTTPError as error:
             raise RuntimeError('Native API refused '+path+' (HTTP '+str(error.code)+')') from None
+
+
+def _raw(self,path):
+    if not path.startswith('/') or path.startswith('//'):
+        raise ValueError('A local API path is required.')
+    request=urllib.request.Request(self.base+path,headers={'Authorization':'Bearer '+self.token} if self.token else {})
+    try:
+        with self.opener.open(request,timeout=60) as response:
+            return response.read(4*1024*1024)
+    except urllib.error.HTTPError as error:
+        raise RuntimeError('Native API refused '+path+' (HTTP '+str(error.code)+')') from None
+Portal.raw=_raw
 
 
 def private_json(path,value):

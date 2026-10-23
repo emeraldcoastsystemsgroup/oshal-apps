@@ -1,3 +1,5 @@
+/* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Allow route-backed read tools for Jarvis; still no CLI executor tool. */
+/* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Pin the Swarm hand-off navigation entry. */
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
@@ -48,7 +50,7 @@ test('the package declares something runnable: a concierge or a workflow, each b
   for (const file of ['routes/package-smoke.js', 'src-routes/package-smoke.ts']) {
     assert.equal(fs.readFileSync(path.join(root, file), 'utf8'), fs.readFileSync(path.join(store, 'brand-graphics', file), 'utf8'), file);
   }
-  assert.equal(manifest.tools, undefined, 'no CLI executor tool is declared');
+  for(const tool of manifest.tools||[]){assert.equal(tool.executor?.executorType,'api',tool.name+': no CLI executor tool is declared');assert.equal(tool.requiresApproval,false,tool.name+' is a read');}
 });
 
 test('declared bots are inline, own a persona inside the package and answer in plain prose without platform tooling', () => {
@@ -76,11 +78,11 @@ test('Operations owns its workspace and Test Lab catalog while preserving specia
   assert.equal(manifest.ribbon.defaultView, 'operations-estate');
   assert.deepEqual(manifest.ribbon.hideFrameworkItems, ['chat','calendar','addressbook','dashboard','logs','settings','operations']);
   assert.equal(manifest.ribbon.showPlatformTools, false);
-  assert.deepEqual(manifest.ui.static.map(tile => tile.toolName), ['operations-workspace','operations-estate','operations-data','operations-sources','operations-topology','operations-streams','operations-replay','operations-connections','operations-credentials','operations-library','operations-files','operations-workflow']);
+  assert.deepEqual(manifest.ui.static.map(tile => tile.toolName), ['operations-workspace','operations-estate','operations-data','operations-sources','operations-topology','operations-streams','operations-replay','operations-connections','operations-credentials','operations-commands','operations-git','operations-provisioning','operations-swarms','operations-library','operations-files','operations-workflow']);
   assert.equal(manifest.ui.static.find(tile => tile.toolName === 'operations-files').iframeUrl, '/api/files');
   assert.equal(manifest.ui.static[0].iframeUrl, '/api/intelligent-operations/app#overview');
   assert.equal(manifest.ribbon.defaultView,'operations-estate');
-  for(const page of ['systems','estate','data','streams','replay','sources','credentials','connections','library'])assert.ok(manifest.ui.static.some(tile=>tile.iframeUrl.endsWith('#'+page)),page+' has a native navigation entry');
+  for(const page of ['systems','estate','data','streams','replay','sources','credentials','connections','commands','library'])assert.ok(manifest.ui.static.some(tile=>tile.iframeUrl.endsWith('#'+page)),page+' has a native navigation entry');
   assert.equal(manifest.ticketType, 'intelligent-operations');
   assert.deepEqual(manifest.bots.map(bot => bot.name), ['ops-rca-specialist', 'ops-incident-reviewer']);
   const page = fs.readFileSync(path.join(root, 'ui/index.html'), 'utf8');

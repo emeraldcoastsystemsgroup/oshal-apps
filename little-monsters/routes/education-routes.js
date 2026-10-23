@@ -24,6 +24,8 @@
  * 14  | roger.murphy@emeraldcoastsystemsgroup.com   | Bound package asset paths to the mounting application context
  * 15  | maintainer@emeraldcoastsystemsgroup.com     | Closed tenant/authz gaps and decomposed class, roster, tutor, assignment, progress, dashboard, and schema boundaries
  * 16  | maintainer@emeraldcoastsystemsgroup.com     | Register structural learner and teaching adapters before the package becomes available
+ * 17  | maintainer@emeraldcoastsystemsgroup.com     | Serve standard-view.html at /email and /storage: the Email and Storage tabs keep the Little Monsters top bar above the standard email viewer and personal file browser
+ * 18  | maintainer@emeraldcoastsystemsgroup.com     | Mount the book routes (education-book-routes: /my-books and a book's chapter)
  * ---------------------------------------------------------------------------
  *
  * @module education-routes
@@ -73,6 +75,7 @@ const education_catalog_routes_1 = require("./education-catalog-routes");
 const education_class_routes_1 = require("./education-class-routes");
 const education_lecture_routes_1 = require("./education-lecture-routes");
 const education_materials_routes_1 = require("./education-materials-routes");
+const education_book_routes_1 = require("./education-book-routes");
 const education_progress_routes_1 = require("./education-progress-routes");
 const education_rewards_routes_1 = require("./education-rewards-routes");
 const education_roster_routes_1 = require("./education-roster-routes");
@@ -123,6 +126,8 @@ function registerEducationUiRoutes(router) {
     router.get('/quiz', serveFile('quiz.html'));
     router.get('/teacher', serveFile('teacher-analytics.html'));
     router.get('/presentation', serveFile('presentation.html'));
+    router.get('/email', serveFile('standard-view.html'));
+    router.get('/storage', serveFile('standard-view.html'));
     router.get('/mascot.js', serveFile('lm-mascot.js'));
     router.get('/lm-voice.js', serveFile('lm-voice.js'));
     router.get('/logo.png', serveFile('little-monsters-logo.png'));
@@ -146,6 +151,7 @@ function mountEducationFeatureRoutes(router, ctx) {
     router.use((0, education_class_routes_1.createEducationClassRoutes)(ctx));
     router.use((0, education_roster_routes_1.createEducationRosterRoutes)(ctx));
     router.use((0, education_materials_routes_1.createEducationMaterialsRoutes)(ctx));
+    router.use((0, education_book_routes_1.createEducationBookRoutes)(ctx));
     router.use((0, education_rewards_routes_1.createEducationRewardsRoutes)(ctx));
     router.use((0, education_lecture_routes_1.createEducationLectureRoutes)(ctx));
     router.use((0, education_tutor_routes_1.createEducationTutorRoutes)(ctx));

@@ -14,6 +14,9 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Persist expiring quiz attempts and withhold server-side answer keys from clients.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Bind study-model execution to the authenticated caller and package-owned education bot.
  * 4   | maintainer@emeraldcoastsystemsgroup.com | Flashcard and quiz generation take an optional topic (up to 200 characters) that titles the set and focuses retrieval.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com | Flashcard generation admits the class's owner (a student's own private class, the class teacher) or a tenant admin through authorizeLectureClassWrite instead of assertTeacherOfClass, which refused every student; the route binding moves to study.generate, which students hold.
+ * 6   | maintainer@emeraldcoastsystemsgroup.com | The generated set answers studyUrl and the quiz answers quizUrl (relative Little Monsters pages), so Jarvis passes on the exact link: given only a path template, it invented https://littlemonsters.app/... links.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Flashcards from a book chapter: materialId + chapter make the chapter's text (readBookChapter, the material read rule) the cards' source and title the set "<book>: Chapter N: <title>"; the book must belong to the class, and a missing chapter answers 404 with the chapters the book has.
  * ---------------------------------------------------------------------------
  *
  * @module education-study-generator-routes
@@ -24,9 +27,11 @@ const crypto_1 = require("crypto");
 const express_1 = require("express");
 const logger_1 = require("@/shared/logger");
 const education_access_1 = require("./education-access");
+const education_lecture_security_1 = require("./education-lecture-security");
 const education_study_errors_1 = require("./education-study-errors");
 const education_study_model_1 = require("./education-study-model");
 const education_study_store_1 = require("./education-study-store");
+const education_book_routes_1 = require("./education-book-routes");
 const logger = (0, logger_1.createChildLogger)({ module: 'education-study-generator-routes' });
 function requiredClassId(req) {
     const classId = String(req.body?.classId || '');
@@ -68,24 +73,43 @@ async function persistQuizAttempt(ctx, actor, classId, questions) {
         throw (0, education_study_errors_1.studyResourceNotFound)();
     return result.rows[0].attempt_id;
 }
+/** A chapter source the request names (materialId + chapter): read under the material rule, in this class. */
+async function chapterSource(ctx, actor, req, classId) {
+    const materialId = typeof req.body?.materialId === 'string' ? req.body.materialId.trim() : '';
+    if (!materialId)
+        return null;
+    const chapter = await (0, education_book_routes_1.readBookChapter)(ctx, actor, materialId, Number(req.body?.chapter));
+    if (chapter.classId !== classId)
+        throw new education_study_errors_1.StudyHttpError('That book belongs to a different class', 400);
+    if (!chapter.found) {
+        const known = chapter.chapters.length ? `Its chapters: ${chapter.chapters.join('; ')}.` : 'Its text has no chapter headings.';
+        throw new education_study_errors_1.StudyHttpError(`Chapter ${chapter.number} was not found in ${chapter.title}. ${known}`, 404);
+    }
+    const heading = chapter.heading || `Chapter ${chapter.number}`;
+    return { title: chapter.title, heading, source: `${chapter.title}, ${heading}\n\n${chapter.text}` };
+}
 async function generateFlashcards(req, res, ctx) {
     try {
         const actor = await (0, education_access_1.resolveAuthedStudent)(req, ctx.pool);
         const classId = requiredClassId(req);
-        await (0, education_access_1.assertTeacherOfClass)(ctx.pool, actor, classId);
+        await (0, education_lecture_security_1.authorizeLectureClassWrite)(ctx.pool, actor, classId);
         const studyClass = await (0, education_study_model_1.loadStudyClass)(ctx.pool, actor, classId);
         const topic = typeof req.body?.topic === 'string' ? req.body.topic.trim().slice(0, 200) : '';
-        const cards = await (0, education_study_model_1.generateStudyCards)(ctx, callerSub(req), actor.studentId, studyClass, req.body?.count, topic || undefined);
+        const book = await chapterSource(ctx, actor, req, classId);
+        const cards = await (0, education_study_model_1.generateStudyCards)(ctx, callerSub(req), actor.studentId, studyClass, req.body?.count, topic || book?.heading || undefined, book?.source);
         const created = await (0, education_study_store_1.createStudySet)(ctx.pool, actor, {
             classId,
-            title: topic ? `Topic: ${topic} (${studyClass.className})` : `Auto: ${studyClass.className} key concepts`,
-            topic: topic || studyClass.subject,
+            title: book ? `${book.title}: ${book.heading}`
+                : topic ? `Topic: ${topic} (${studyClass.className})` : `Auto: ${studyClass.className} key concepts`,
+            topic: topic || book?.heading || studyClass.subject,
             sourceType: 'textbook',
-            sourceReference: topic ? `auto-generated for topic: ${topic}` : 'auto-generated from class materials',
+            sourceReference: book ? `${book.title}, ${book.heading}`
+                : topic ? `auto-generated for topic: ${topic}` : 'auto-generated from class materials',
             cards,
         });
         logger.info({ classId, ...created }, 'Generated class flashcards from authorized materials');
-        res.status(201).json({ ...created, grounded: true, cards });
+        res.status(201).json({ ...created, grounded: true, cards,
+      studyUrl: `/api/education/flashcards?setId=${encodeURIComponent(created.setId)}&classId=${encodeURIComponent(classId)}` });
     }
     catch (error) {
         fail(res, error, 'Flashcard generation');
@@ -109,6 +133,7 @@ async function generateQuiz(req, res, ctx) {
             questionCount: questions.length,
             grounded: true,
             questions: publicQuestions,
+      quizUrl: `/api/education/quiz?classId=${encodeURIComponent(classId)}${topic ? `&topic=${encodeURIComponent(topic)}` : ''}`,
         });
     }
     catch (error) {

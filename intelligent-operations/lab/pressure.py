@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Configure measured, bounded CPU pressure in the owned Operations lab.
 CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Add CPU alert, credential-free workload and separate read-only collector authorization.
+CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Mount a writable in-container stop control and record the pressure pod's container name so a namespace-scoped exec executor can stop the pressure and a verification command can measure the flat counter.
+CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Bound the drill to a configurable duration (default 900 s, Job deadline duration + 240 s) so the canonical workflow and a reviewed response can complete while the pressure pod still exists.
 """
 import json
 import re
@@ -8,27 +10,35 @@ from pathlib import Path
 import lab
 
 
-def objects(episode):
+DURATION = 900
+
+
+def objects(episode, duration=DURATION):
     if not re.fullmatch(r'[a-f0-9]{16}', episode):
         raise ValueError('Episode must be sixteen hexadecimal characters.')
+    if type(duration) is not int or not 60 <= duration <= 1800:
+        raise ValueError('Bounded pressure duration only.')
     image = json.loads((lab.ROOT/'versions.json').read_text())['images']['workload']
     name = 'cpu-pressure-'+episode
     container = {'name': 'pressure', 'image': image, 'command': ['python', '/code/pressure.py'],
                  'ports': [{'containerPort': 8080}], 'env': [
                      {'name': 'node', 'valueFrom': {'fieldRef': {'fieldPath': 'spec.nodeName'}}},
                      {'name': 'pod_uid', 'valueFrom': {'fieldRef': {'fieldPath': 'metadata.uid'}}},
-                     {'name': 'episode', 'value': episode}],
+                     {'name': 'episode', 'value': episode},
+                     {'name': 'DURATION', 'value': str(duration)}],
                  'resources': {'requests': {'cpu': '100m', 'memory': '32Mi'}, 'limits': {'cpu': '1', 'memory': '64Mi'}},
                  'securityContext': {'runAsNonRoot': True, 'runAsUser': 65534, 'readOnlyRootFilesystem': True,
                                      'allowPrivilegeEscalation': False, 'capabilities': {'drop': ['ALL']},
                                      'seccompProfile': {'type': 'RuntimeDefault'}},
-                 'volumeMounts': [{'name': 'code', 'mountPath': '/code', 'readOnly': True}]}
+                 'volumeMounts': [{'name': 'code', 'mountPath': '/code', 'readOnly': True},
+                                  {'name': 'control', 'mountPath': '/run/pressure'}]}
     job = {'apiVersion': 'batch/v1', 'kind': 'Job', 'metadata': lab.metadata(name, lab.APP),
-           'spec': {'backoffLimit': 0, 'activeDeadlineSeconds': 180, 'ttlSecondsAfterFinished': 600,
+           'spec': {'backoffLimit': 0, 'activeDeadlineSeconds': duration + 240, 'ttlSecondsAfterFinished': 600,
                     'template': {'metadata': {'labels': {**lab.LABEL, 'app': 'cpu-pressure', 'episode': episode}},
                                  'spec': {'restartPolicy': 'Never', 'nodeSelector': {'kubernetes.io/hostname': lab.CLUSTER+'-worker2'},
                                           'automountServiceAccountToken': False, 'containers': [container],
-                                          'volumes': [{'name': 'code', 'configMap': {'name': 'pressure-code'}}]}}}}
+                                          'volumes': [{'name': 'code', 'configMap': {'name': 'pressure-code'}},
+                                                      {'name': 'control', 'emptyDir': {'sizeLimit': '1Mi'}}]}}}}
     return [lab.configmap('pressure-code', lab.APP, {'pressure.py': (lab.ROOT/'pressure_workload.py').read_text()}), job]
 
 

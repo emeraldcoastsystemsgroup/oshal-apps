@@ -1,0 +1,32 @@
+{
+  "kind": "jarvis-operations-acceptance",
+  "installation": "owned kind operations-lab (kernel dev-ec60ba1ae7c6, app 42fc082d)",
+  "exchanges": [
+    {
+      "question": "What needs my attention in operations?",
+      "attention": "1 executions without verified recovery.",
+      "answer": "**Intelligent Operations:** Your saved Operations records show:\n- **1 execution without verified recovery** \u2014 review in Incidents.\n- **2 investigations started automatically** \u2014 review in Data pipeline.\n- **1 delegation from another swarm filed as an investigation** \u2014 review in Swarms.\n\nNo response plans await approval, and no other attention categories are flagged. Nothing was run.",
+      "handoffs": [
+        {
+          "app": "intelligent-operations",
+          "deepLink": "/cockpit/?app=intelligent-operations",
+          "name": "Intelligent Operations"
+        }
+      ],
+      "status": "done"
+    },
+    {
+      "question": "What was handed to us by another swarm?",
+      "attention": "1 executions without verified recovery.",
+      "answer": "**Intelligent Operations:** - **Handed over by:** Upper operations swarm (lab acceptance), via **Lab acceptance peer**.\n- **Concern:** \u201cFrontend 503 spike seen from the upper swarm; please check the api pods at the lower level.\u201d\n- **Status:** The hand-off is recorded as **started**, filed on October 22, 2026, at 22:32:04 UTC. Its linked investigation is absent from the returned investigations list, so its current progress or outcome cannot be confirmed. The hand-off is not server-verified.\n- **Your attention:** Review the delegated investigation in **Swarms** to confirm its progress. These records show no approval request; execution is not authorized.\n\nThis was read-only; nothing was executed or changed.",
+      "handoffs": [
+        {
+          "app": "intelligent-operations",
+          "deepLink": "/cockpit/?app=intelligent-operations",
+          "name": "Intelligent Operations"
+        }
+      ],
+      "status": "done"
+    }
+  ]
+}

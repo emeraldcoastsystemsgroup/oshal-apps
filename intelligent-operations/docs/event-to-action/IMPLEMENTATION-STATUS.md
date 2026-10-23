@@ -1,6 +1,6 @@
 # TriageNorth implementation status
 
-Updated 21 October 2026. This is the record of delivered behavior; the proposal and diagrams describe the target.
+Updated 22 October 2026. This is the record of delivered behavior; the proposal and diagrams describe the target.
 
 ## Current supervised runtime and delivery
 
@@ -35,6 +35,126 @@ admission, trained/calibrated anomaly detection, automatic ticket/workflow linka
 workflow-generated remediation and verified execution, provider synchronization and
 live cloud discovery remain open. See [EXPORT-STATUS.md](EXPORT-STATUS.md) for current
 PowerPoint, Word, PDF and editable Visio artifacts.
+
+## Git explorer — 23 October 2026
+
+GitHub explorer reads are on kernel main as PR 85, and the Git explorer page and cluster
+repository links are in place (ADR0048). Promotion preselects the cluster's linked repository.
+Guard: `tests/git-explorer.test.cjs`.
+
+## SSH host commands — 22 October 2026
+
+The kernel's native `ssh` connector is on main as PR 84 (ADR-195). An administrator selects the
+hosts and pins their keys; the person uses their own ed25519 key. The command helper runs a
+coached host command on a selected host, one confirmation per run (ADR0047). Guards: the kernel
+`ssh::tests`, run against a real SSH server, and `tests/command-helper.test.cjs`.
+
+## Google Cloud and Azure reads — 22 October 2026
+
+Curated `gcp` (GKE) and `azure` (subscriptions, AKS) connectors are on kernel main as PR 82.
+The command helper runs coached `gcloud container …` and `az account/aks …` reads through the
+person's own connection (ADR0045). Guard: `tests/command-helper.test.cjs`. Live use waits on
+operator-registered OAuth clients.
+
+## Provisioning through Git — 22 October 2026
+
+Templates for a team namespace and an app deployment render exact, hardened manifests from
+validated parameters, and the Git relay promotes them (ADR0044). The lab's Kubernetes API
+accepted all seven rendered objects in a server-side dry run
+(`deploy/evidence/provisioning-dry-run.json`). Guard: `tests/provisioning.test.cjs`.
+
+## Swarm hand-off and schedule continuity — 22 October 2026
+
+- **Peer delegation inbox (kernel PR 81, ADR-194).** Installed on the lab as
+  `oshal-kernel:dev-92a26f78a6be`. Live: a peer token delivered a delegation (202), a replay
+  returned the same receipt, and a session token and a revoked token were refused. The inbox
+  showed the delegation.
+- **Swarm hand-off page (ADR0043).** It sends plans through the person's peer connection and
+  files received delegations as investigations. Guard: `tests/delegations.test.cjs`.
+- **Schedule suspensions after a release.** These come from re-approving the role assignment:
+  a replaced assignment invalidates the schedule's activation (confirmed with a replace alone on
+  23 October). `lab/reapprove.py` re-activates after any replace, and Overview offers Re-activate.
+  Kernel PR 81 separately fixed a commit-pin fingerprint defect that affects Git registry installs;
+  it was not this lab's cause.
+
+## Automatic investigation and live cluster reads — 22 October 2026
+
+Two kernel rails were added on `dev/native-parity` and installed on the owned lab (kernel image
+`oshal-kernel:dev-d033905caabd`): a package ticket-start port (3200d5c) and Kubernetes list reads
+for nodes, pods and deployments (d033905). On top of them (ADR0041):
+
+- The processing tick starts the investigation for newly captured evidence when the worker's
+  opt-in is on, at most two per tick, marked before the call; uncertain starts are held.
+  Guard: `tests/auto-investigate.test.cjs`.
+- Systems has a Live cluster panel that reads the cluster now under the person's own connection
+  and can save the read as a bounded scan in its own live collection. Guard:
+  `tests/live-cluster.test.cjs`.
+- Both accepted live on the lab. The scheduled tick started two investigations by itself, from
+  a real fault's captured evidence. The browser read 3 nodes, 2 deployments and 4 pods and saved
+  them (`deploy/evidence/auto-investigate-live.json`, `deploy/evidence/live-cluster.json`).
+- The command helper runs supported AWS reads through the person's own AWS connection; the kernel
+  signs them with AWS Signature Version 4 (ADR0042). Guard: `tests/command-helper.test.cjs`.
+  Not yet accepted live: it needs an administrator to select the AWS services and a person to
+  connect their own key.
+
+## Anomaly service, node explorer, command helper and Git promotion — 22 October 2026
+
+Installed on the owned lab through registry trust, preview and consent (application 05bbd001,
+kernel fe10403). Live anomaly acceptance (`deploy/evidence/anomaly-live.json`): healthy load, the
+lab api error fault and recovery; the frontend pod's real 503 ratio from Prometheus was streamed
+into the package as 44 OTLP gauge samples; the installed detector warmed up on 12 samples, fired
+one candidate 14 s after the fault began and resolved it 26 s after recovery; the candidate
+matched the published rule and was admitted with an evidence reservation. The first installed
+pass failed because the native SQL interpreter refuses row-value comparisons; the cursor now
+uses the equivalent OR form and `tests/native-sql-forms.test.cjs` keeps the form out. The NAB
+pilot receipt is `deploy/evidence/anomaly-nab.json`.
+
+Systems shows node capacity, pressure, versions, taints and the pods on each node (a fresh lab
+scan with node facts is imported). The Command helper page, Git promotion on response plans and
+the Overview action list are installed; Git promotion needs the GitHub or GitLab service selected
+and the operator's account connected, which this lab does not have, so it is proven with
+fixtures only. The operations suite passes at 154 checks; the store gate passes with the named
+prerequisites (83 pass, 0 fail, 6 partial, 12 named skips).
+
+## Response stage source increment — 22 October 2026
+
+ADR0037 adds the stage after the human report gate: the accepted answer's named response
+files (`remediate.sh`, `verify.sh`, `rollback.md`, `verify.md`) are extracted byte-exact
+with digests and provenance; a plan binds them to one pod the caller's inventory observed;
+the approval binds principal, digests, target and canonical revision with a thirty-minute
+expiry; one dispatch per approval is reserved before the browser's fresh native confirmation
+and `kubernetes-exec` through the person's own connection; recovery is `healthy` only with a
+passing `verify.sh`, matching pod identity and a validated resolved delivery for the same
+resource admitted after the action; the canonical report gate is then approved and re-read
+through the ticket port. Artifacts and the execution receipt are authenticated downloads.
+
+Five focused checks pass (`tests/execution.test.cjs`): byte-exact extraction, plan/approval/
+one-shot reservation under twelve concurrent callers, lost-acknowledgement hold, outcome rules
+with firing versus resolved deliveries, and the shipped panel against explicit native
+confirmation/exec/approve fixtures. The full Operations package suite passes at 141 checks.
+The lab drill now mounts a writable `/run/pressure` control so an in-container `remediate.sh`
+can end the pressure, and the evidence packet records that control; `lab/response.py`
+drives the installed flow.
+
+**Installed acceptance, 22 October 2026 (owned lab, kernel fe10403, application 3dfa9f0b installed
+through registry trust/preview/consent):** episode `863628c5a3c38e59`, canonical ticket
+`46b8df31-9ef1-4914-94fa-79023d784ec2`. The real CPU-pressure alert fired, the collector produced
+the isolated packet, three real model phases (gpt-6.1-sol through the Codex account) reached the
+human gate in about ninety seconds, and the revise answer carried all four generated files. The
+operator's session imported a namespace scan, prepared the plan (revision 4), downloaded and
+digest-checked the four artifacts, approved the exact plan, reserved one dispatch and ran the
+generated `remediate.sh` through its own confirmed `kubernetes-exec` (exit 0, same pod UID).
+Alertmanager delivered the resolved alert, which was admitted as a validated resolved delivery
+for the same pod UID; the generated `verify.sh` then passed (counter flat over 25 seconds) with
+matching identity, so recovery was `healthy`; the canonical report gate was approved and re-read as
+`done` at revision 5. [deploy/evidence/response.json](../../deploy/evidence/response.json) is
+the redacted receipt. Two earlier episodes in the same session were honest refusals, not
+successes: the first real answer gated its script behind an interactive prompt (contract now
+says non-interactive), the second classified Mode B because the packet did not state what the
+container can execute (the packet now records the pinned image's shell, tools and metrics format),
+and a third run was reported `regressed` because the process-wide CPU counter crept after the
+stop (the workload now reports the loop thread's CPU). Command results in the receipt are the
+operator's report; the resolved signal and the ticket state were read by the server.
 
 ## Systems source increment
 

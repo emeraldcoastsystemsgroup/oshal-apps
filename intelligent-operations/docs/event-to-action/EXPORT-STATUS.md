@@ -1,6 +1,11 @@
 # Current artifact exports
 
-Updated 21 October 2026 after compact Systems and native scoped-connection recovery acceptance.
+Updated 22 October 2026 after the response stage, anomaly service, node explorer and command helper increments.
+
+- `triagenorth-operating-guide.docx` and `.pdf`: regenerated with the approved-response walkthrough, anomaly detection, node facts and the command helper.
+- `operations-decisions.docx` and `.pdf`: regenerated from the decision log including ADR0037, ADR0038 and ADR0039.
+- `operations-project-plan.docx` and `.pdf`: regenerated from the current plan.
+- `build-manifest.json` records the new hashes; diagram pages are unchanged (21 pages, 987 shapes, 77 glued connectors).
 
 - `operations-solution.vsdx` and `.pdf`: 21 editable design pages, 987 shapes and 77 glued connectors. These remain the target architecture and include the selected-pod workbench and historical RCA references. Native Microsoft Visio editing remains recipient acceptance; no legacy binary `.vsd` is generated.
 - `triagenorth-demo.pptx` and `.pdf`: the existing 10-slide decision-chain demonstration. This increment updates the operating and planning documents; it does not claim a new presentation render.

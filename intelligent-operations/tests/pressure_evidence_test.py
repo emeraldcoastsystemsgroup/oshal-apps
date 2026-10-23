@@ -1,4 +1,5 @@
-"""CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Test pressure resource boundaries and hostile collector input exclusion."""
+"""CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Test pressure resource boundaries and hostile collector input exclusion.
+CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | The drill is bounded by a configurable duration (deadline duration + 240 s, at most 1800 s) and mounts the in-container stop control; refuse unbounded or non-integer durations."""
 import copy
 import importlib.util
 import json
@@ -37,7 +38,13 @@ class EvidenceTests(unittest.TestCase):
         job=pressure.objects(EPISODE)[1];spec=job['spec']['template']['spec'];container=spec['containers'][0]
         self.assertFalse(spec['automountServiceAccountToken']);self.assertEqual(spec['nodeSelector'],{'kubernetes.io/hostname':'operations-lab-worker2'})
         self.assertEqual(container['resources']['limits'],{'cpu':'1','memory':'64Mi'})
-        self.assertLessEqual(job['spec']['activeDeadlineSeconds'],180)
+        self.assertEqual(job['spec']['activeDeadlineSeconds'],pressure.DURATION+240)
+        self.assertLessEqual(pressure.DURATION,1800)
+        with self.assertRaises(ValueError): pressure.objects(EPISODE,duration=1801)
+        with self.assertRaises(ValueError): pressure.objects(EPISODE,duration='900')
+        container=job['spec']['template']['spec']['containers'][0]
+        self.assertIn({'name':'control','mountPath':'/run/pressure'},container['volumeMounts'])
+        self.assertIn({'name':'control','emptyDir':{'sizeLimit':'1Mi'}},job['spec']['template']['spec']['volumes'])
         self.assertTrue(container['securityContext']['readOnlyRootFilesystem'])
         self.assertEqual(pressure.collector_roles()[1]['rules'],[{'apiGroups':[''],'resources':['pods'],'verbs':['get','list']}])
         with self.assertRaises(ValueError): pressure.objects('x; rm -rf /')
@@ -46,7 +53,7 @@ class EvidenceTests(unittest.TestCase):
         config=pressure.monitoring()['data']
         self.assertIn('rate(operations_pressure_cpu_seconds_total[20s]) > 0.45',config['rules.yaml'])
         self.assertIn('for: 10s',config['rules.yaml'])
-        self.assertIn('time.process_time()-CPU_START',(pressure.lab.ROOT/'pressure_workload.py').read_text())
+        self.assertIn('time.thread_time()-cpu_start',(pressure.lab.ROOT/'pressure_workload.py').read_text())
 
     def test_projection_discards_annotations_and_environment(self):
         alert,pods=fixture();value=evidence.packet(alert,pods,UID,EPISODE)

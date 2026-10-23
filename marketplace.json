@@ -81,19 +81,21 @@
       "suite": "ai-home",
       "displayName": "Little Monsters",
       "description": "Voice-first ADHD study companion for K-12: lecture capture, flashcards, authoritative quizzes, and a Socratic tutor grounded in caller-owned or teacher/admin-approved class material.",
-      "version": "1.4.14",
+      "version": "1.4.18",
       "theme": "little-monsters",
       "dependencies": {
         "apps": [
           "presentations",
-          "circuit-lab"
+          "circuit-lab",
+          "email-summarizer"
         ],
         "tools": [],
         "connectors": [],
         "required": {
           "apps": [
             "presentations",
-            "circuit-lab"
+            "circuit-lab",
+            "email-summarizer"
           ],
           "tools": [],
           "connectors": []

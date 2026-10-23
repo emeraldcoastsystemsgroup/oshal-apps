@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.DEFAULT_CORRELATION = void 0;
 exports.processingConfig = processingConfig;
 exports.saveProcessingConfig = saveProcessingConfig;
 exports.claimProcessing = claimProcessing;
@@ -7,6 +8,8 @@ exports.processingFence = processingFence;
 exports.processPending = processPending;
 exports.retryProcessing = retryProcessing;
 exports.processingRecords = processingRecords;
+/** CHANGE LOG: automatic investigation | maintainer@emeraldcoastsystemsgroup.com | Hold the explicit opt-in for starting investigations automatically from captured evidence; it requires evidence capture. */
+/** CHANGE LOG: automatic correlation | maintainer@emeraldcoastsystemsgroup.com | Hold the explicit opt-in and bounded versioned dependency policy for automatic post-reduction correlation on the scheduled tick. */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Offer explicit scheduled retained-evidence capture and preserve its retry stage. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Drain admitted deliveries under native scheduled caller authority with durable leases, bounded retries and fencing. */
 // @ts-nocheck
@@ -18,9 +21,10 @@ const ownerRequired = owner => { if (!(0, topology_model_1.clean)(owner))
     (0, topology_model_1.fail)(401, 'A verified caller is required.'); };
 const stamp = clock => new Date(clock()).toISOString();
 async function processingConfig(pool, owner, lock = false) { ownerRequired(owner); return (await pool.query('SELECT record FROM operations_processing_config WHERE user_sub=$1 AND id=$2' + (lock ? ' FOR UPDATE' : ''), [owner, 'worker'])).rows[0]?.record || { ...defaults }; }
+exports.DEFAULT_CORRELATION = { id: 'scheduled-dependencies-v1', types: ['RUNS_ON', 'DEPENDS_ON'], maxDepth: 4, maxVisited: 200, maxAgeSeconds: 900 };
 async function saveProcessingConfig(pool, owner, input, sources) {
     ownerRequired(owner);
-    const allowed = ['enabled', 'captureEvidence', 'sourceIds', 'batchSize', 'maxAttempts', 'retrySeconds', 'expectedRevision'];
+    const allowed = ['enabled', 'captureEvidence', 'sourceIds', 'batchSize', 'maxAttempts', 'retrySeconds', 'expectedRevision', 'correlate', 'correlationPolicy', 'autoInvestigate'];
     if (!input || Object.keys(input).some(k => !allowed.includes(k)) || typeof input.enabled !== 'boolean' || (input.captureEvidence !== undefined && typeof input.captureEvidence !== 'boolean') || !Array.isArray(input.sourceIds) || input.sourceIds.length > 32 || new Set(input.sourceIds).size !== input.sourceIds.length || input.sourceIds.some(id => !sources.includes(id)))
         (0, topology_model_1.fail)(400, 'Choose up to 32 of your saved source revisions and an explicit enabled state.');
     for (const [key, min, max] of [['batchSize', 1, 10], ['maxAttempts', 1, 12], ['retrySeconds', 10, 3600], ['expectedRevision', 0, 2147483646]])
@@ -28,6 +32,15 @@ async function saveProcessingConfig(pool, owner, input, sources) {
             (0, topology_model_1.fail)(400, 'Invalid ' + key + '.');
     if (input.enabled && !input.sourceIds.length)
         (0, topology_model_1.fail)(400, 'Enable at least one source revision.');
+    if (input.correlate !== undefined && typeof input.correlate !== 'boolean')
+        (0, topology_model_1.fail)(400, 'Invalid correlate.');
+    if (input.autoInvestigate !== undefined && typeof input.autoInvestigate !== 'boolean')
+        (0, topology_model_1.fail)(400, 'Invalid autoInvestigate.');
+    if (input.autoInvestigate === true && input.captureEvidence !== true)
+        (0, topology_model_1.fail)(400, 'Automatic investigation starts from captured evidence; enable evidence capture too.');
+    const correlationPolicy = input.correlationPolicy === undefined ? exports.DEFAULT_CORRELATION : input.correlationPolicy;
+    if (!correlationPolicy || typeof correlationPolicy !== 'object' || Array.isArray(correlationPolicy) || Object.keys(correlationPolicy).some(k => !['id', 'types', 'maxDepth', 'maxVisited', 'maxAgeSeconds'].includes(k)) || typeof correlationPolicy.id !== 'string' || !/^[a-z0-9-]{1,64}$/.test(correlationPolicy.id) || !Array.isArray(correlationPolicy.types) || !correlationPolicy.types.length || correlationPolicy.types.some(t => !['RUNS_ON', 'DEPENDS_ON', 'ROUTES_TO', 'FORWARDS_TO'].includes(t)) || [['maxDepth', 1, 8], ['maxVisited', 1, 2000], ['maxAgeSeconds', 1, 86400]].some(([k, min, max]) => !Number.isInteger(correlationPolicy[k]) || correlationPolicy[k] < min || correlationPolicy[k] > max))
+        (0, topology_model_1.fail)(400, 'Choose a bounded versioned dependency policy for automatic correlation.');
     return (0, pipeline_1.processingTransaction)(pool, async (c) => {
         const held = (await c.query('SELECT record FROM operations_processing_config WHERE user_sub=$1 AND id=$2 FOR UPDATE', [owner, 'worker'])).rows[0]?.record;
         if ((held?.revision || 0) !== input.expectedRevision)
@@ -36,7 +49,7 @@ async function saveProcessingConfig(pool, owner, input, sources) {
             for (const id of input.sourceIds)
                 if (!(await c.query('SELECT id FROM operations_policy_bindings WHERE user_sub=$1 AND id=$2', [owner, id])).rows.length)
                     (0, topology_model_1.fail)(409, 'Publish a policy for each enabled source first.');
-        const { expectedRevision, ...settings } = input, record = { ...settings, captureEvidence: input.captureEvidence === true, sourceIds: settings.sourceIds.slice().sort(), revision: expectedRevision + 1, updatedAt: new Date().toISOString() };
+        const { expectedRevision, ...settings } = input, record = { ...settings, captureEvidence: input.captureEvidence === true, correlate: input.correlate === true, autoInvestigate: input.autoInvestigate === true, correlationPolicy, sourceIds: settings.sourceIds.slice().sort(), revision: expectedRevision + 1, updatedAt: new Date().toISOString() };
         if (held)
             await c.query('UPDATE operations_processing_config SET revision=$3, record=$4 WHERE user_sub=$1 AND id=$2', [owner, 'worker', record.revision, JSON.stringify(record)]);
         else

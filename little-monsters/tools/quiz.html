@@ -7,6 +7,7 @@
   1   | roger.murphy@agenticfederal.us              | Added the grounded auto-quiz page
   2   | maintainer@emeraldcoastsystemsgroup.com     | Submit answer indexes for one-time server grading instead of trusting browser scores
   3   | maintainer@emeraldcoastsystemsgroup.com     | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the pinned midnight skin, its private palette and glass; hero, progress, choice buttons, callout, result card and review list use the system and read on light and dark skins. Without a classId the page now offers a real class chooser (GET /api/education/classes → reload with ?classId=) instead of a dead-end sentence; the server-graded flow is unchanged
+  4   | maintainer@emeraldcoastsystemsgroup.com     | A topic in the link (?classId=…&topic=photosynthesis) focuses the generated quiz on it, so Jarvis can open a practice quiz on a lecture's topic.
   -----------------------------------------------------------------------------
 -->
 <html lang="en">
@@ -90,6 +91,7 @@
 <script src="/api/education/mascot.js?v=4"></script>
 <script>
 var classId = new URLSearchParams(location.search).get('classId') || '';
+var quizTopic = (new URLSearchParams(location.search).get('topic') || '').slice(0, 200);
 var questions = [], answers = [], idx = 0, answered = false, attemptId = '';
 
 function show(id) { ['loadCard', 'chooseCard', 'quizCard', 'resultCard'].forEach(function (k) { document.getElementById(k).classList.toggle('hide', k !== id); }); }
@@ -124,7 +126,7 @@ async function start() {
   if (!classId) { chooseClass(); return; }
   try {
     var resp = await fetch('/api/education/quiz/generate', {
-      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ classId: classId, count: 5 })
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(quizTopic ? { classId: classId, count: 5, topic: quizTopic } : { classId: classId, count: 5 })
     });
     var data = await resp.json();
     if (!resp.ok || data.error) { loadFail(data.reason || data.error || 'Could not build a quiz.'); return; }

@@ -1,3 +1,5 @@
+/** CHANGE LOG: automatic investigation | maintainer@emeraldcoastsystemsgroup.com | Hold the explicit opt-in for starting investigations automatically from captured evidence; it requires evidence capture. */
+/** CHANGE LOG: automatic correlation | maintainer@emeraldcoastsystemsgroup.com | Hold the explicit opt-in and bounded versioned dependency policy for automatic post-reduction correlation on the scheduled tick. */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Offer explicit scheduled retained-evidence capture and preserve its retry stage. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Drain admitted deliveries under native scheduled caller authority with durable leases, bounded retries and fencing. */
 // @ts-nocheck
@@ -8,17 +10,23 @@ const defaults={enabled:false,captureEvidence:false,sourceIds:[],batchSize:10,ma
 const ownerRequired=owner=>{if(!clean(owner))fail(401,'A verified caller is required.');};
 const stamp=clock=>new Date(clock()).toISOString();
 export async function processingConfig(pool,owner,lock=false){ownerRequired(owner);return (await pool.query('SELECT record FROM operations_processing_config WHERE user_sub=$1 AND id=$2'+(lock?' FOR UPDATE':''),[owner,'worker'])).rows[0]?.record||{...defaults};}
+export const DEFAULT_CORRELATION={id:'scheduled-dependencies-v1',types:['RUNS_ON','DEPENDS_ON'],maxDepth:4,maxVisited:200,maxAgeSeconds:900};
 export async function saveProcessingConfig(pool,owner,input,sources){
  ownerRequired(owner);
- const allowed=['enabled','captureEvidence','sourceIds','batchSize','maxAttempts','retrySeconds','expectedRevision'];
+ const allowed=['enabled','captureEvidence','sourceIds','batchSize','maxAttempts','retrySeconds','expectedRevision','correlate','correlationPolicy','autoInvestigate'];
  if(!input||Object.keys(input).some(k=>!allowed.includes(k))||typeof input.enabled!=='boolean'||(input.captureEvidence!==undefined&&typeof input.captureEvidence!=='boolean')||!Array.isArray(input.sourceIds)||input.sourceIds.length>32||new Set(input.sourceIds).size!==input.sourceIds.length||input.sourceIds.some(id=>!sources.includes(id)))fail(400,'Choose up to 32 of your saved source revisions and an explicit enabled state.');
  for(const [key,min,max]of [['batchSize',1,10],['maxAttempts',1,12],['retrySeconds',10,3600],['expectedRevision',0,2147483646]])if(!Number.isInteger(input[key])||input[key]<min||input[key]>max)fail(400,'Invalid '+key+'.');
  if(input.enabled&&!input.sourceIds.length)fail(400,'Enable at least one source revision.');
+ if(input.correlate!==undefined&&typeof input.correlate!=='boolean')fail(400,'Invalid correlate.');
+ if(input.autoInvestigate!==undefined&&typeof input.autoInvestigate!=='boolean')fail(400,'Invalid autoInvestigate.');
+ if(input.autoInvestigate===true&&input.captureEvidence!==true)fail(400,'Automatic investigation starts from captured evidence; enable evidence capture too.');
+ const correlationPolicy=input.correlationPolicy===undefined?DEFAULT_CORRELATION:input.correlationPolicy;
+ if(!correlationPolicy||typeof correlationPolicy!=='object'||Array.isArray(correlationPolicy)||Object.keys(correlationPolicy).some(k=>!['id','types','maxDepth','maxVisited','maxAgeSeconds'].includes(k))||typeof correlationPolicy.id!=='string'||!/^[a-z0-9-]{1,64}$/.test(correlationPolicy.id)||!Array.isArray(correlationPolicy.types)||!correlationPolicy.types.length||correlationPolicy.types.some(t=>!['RUNS_ON','DEPENDS_ON','ROUTES_TO','FORWARDS_TO'].includes(t))||[['maxDepth',1,8],['maxVisited',1,2000],['maxAgeSeconds',1,86400]].some(([k,min,max])=>!Number.isInteger(correlationPolicy[k])||correlationPolicy[k]<min||correlationPolicy[k]>max))fail(400,'Choose a bounded versioned dependency policy for automatic correlation.');
  return tx(pool,async c=>{
   const held=(await c.query('SELECT record FROM operations_processing_config WHERE user_sub=$1 AND id=$2 FOR UPDATE',[owner,'worker'])).rows[0]?.record;
   if((held?.revision||0)!==input.expectedRevision)fail(409,'Processing configuration changed; refresh before saving.');
   if(input.enabled)for(const id of input.sourceIds)if(!(await c.query('SELECT id FROM operations_policy_bindings WHERE user_sub=$1 AND id=$2',[owner,id])).rows.length)fail(409,'Publish a policy for each enabled source first.');
-  const {expectedRevision,...settings}=input,record={...settings,captureEvidence:input.captureEvidence===true,sourceIds:settings.sourceIds.slice().sort(),revision:expectedRevision+1,updatedAt:new Date().toISOString()};
+  const {expectedRevision,...settings}=input,record={...settings,captureEvidence:input.captureEvidence===true,correlate:input.correlate===true,autoInvestigate:input.autoInvestigate===true,correlationPolicy,sourceIds:settings.sourceIds.slice().sort(),revision:expectedRevision+1,updatedAt:new Date().toISOString()};
   if(held)await c.query('UPDATE operations_processing_config SET revision=$3, record=$4 WHERE user_sub=$1 AND id=$2',[owner,'worker',record.revision,JSON.stringify(record)]);
   else await c.query('INSERT INTO operations_processing_config(user_sub,id,revision,record) VALUES($1,$2,$3,$4)',[owner,'worker',record.revision,JSON.stringify(record)]);
   return record;

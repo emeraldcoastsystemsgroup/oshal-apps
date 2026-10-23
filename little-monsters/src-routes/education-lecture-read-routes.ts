@@ -10,6 +10,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add class-authorized lecture reads/exports, fixed response projections, and fail-closed persisted artifact containment.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | POST /lectures/:lectureId/summary-pdf: the lecture's notes (or its transcript) rendered by education-notes-pdf and saved to the caller's files beside the lecture decks, answering the download link, so a student can ask Jarvis for the lecture summary as a PDF. Read authorization is the lecture's own (class access); the route binding is lecture.export.
  * -----------------------------------------------------------------------------
  *
  * @module education-lecture-read-routes
@@ -19,6 +20,8 @@ import fs from 'fs';
 import { Router, type Request, type Response } from 'express';
 import type { AppContext } from '@/app/composition/app-context';
 import { createChildLogger } from '@/shared/logger';
+import { saveContent } from '@/app/routes/storage-target';
+import { renderNotesPdf } from './education-notes-pdf';
 import { assertClassAccess, listAccessibleClassIds } from './education-access';
 import {
   renderAndSaveLectureDeck,
@@ -208,6 +211,31 @@ async function exportLecturePowerPoint(ctx: AppContext, req: Request, res: Respo
   }
 }
 
+/** Bot-scoped store folder the lecture decks use; the summary PDFs sit beside them. */
+const LECTURE_FILES_SUBFOLDER = 'oshal/ed000000-0000-0000-0000-000000000001';
+
+/** Handle one class-authorized lecture summary rendered as a PDF and saved to the caller's files. */
+async function exportLectureSummaryPdf(ctx: AppContext, req: Request, res: Response): Promise<void> {
+  const startedAt = Date.now();
+  logger.info({ route: 'lecture-summary-pdf' }, 'Lecture summary PDF entered');
+  try {
+    const subject = (req as any).oidc?.user?.sub || (req as any).oidc?.user?.oid;
+    if (!subject) throw new LectureRouteError('not_authenticated', 401);
+    const lecture = await loadAuthorizedLecture(ctx, req, String(req.params.lectureId), 'read');
+    const detail = lectureDetail(lecture);
+    const notes = String(detail.notes || detail.transcript || '');
+    if (!notes.trim()) throw new LectureRouteError('This lecture has no notes or transcript yet', 409);
+    const title = `${lecture.class_name || 'Lecture'} - lecture summary ${String(lecture.lecture_date || '').slice(0, 10)}`.trim();
+    const fileName = title.replace(/[^\w.\- ]/g, '_').slice(0, 80) + '.pdf';
+    const saved = await saveContent(ctx, String(subject), 'files', fileName, renderNotesPdf(title, notes), undefined, LECTURE_FILES_SUBFOLDER);
+    res.json({ ok: true, fileName, provider: saved.provider, savedTo: saved.location, downloadUrl: saved.downloadUrl, url: saved.url });
+    logger.info({ lectureId: lecture.lecture_id, ms: Date.now() - startedAt }, 'Lecture summary PDF saved');
+  } catch (error) {
+    logger.error({ err: error, ms: Date.now() - startedAt }, 'Lecture summary PDF failed');
+    if (!sendLectureRouteError(res, error)) res.status(502).json({ error: 'Lecture summary PDF failed' });
+  }
+}
+
 /** Handle one class-authorized recording stream. */
 async function streamLectureAudio(ctx: AppContext, req: Request, res: Response): Promise<void> {
   const startedAt = Date.now();
@@ -237,6 +265,7 @@ export function createEducationLectureReadRoutes(ctx: AppContext): Router {
   router.get('/lectures/:lectureId', (req, res) => getLecture(ctx, req, res));
   router.get('/lectures/:lectureId/slides', (req, res) => getLectureSlides(ctx, req, res));
   router.post('/lectures/:lectureId/pptx', (req, res) => exportLecturePowerPoint(ctx, req, res));
+  router.post('/lectures/:lectureId/summary-pdf', (req, res) => exportLectureSummaryPdf(ctx, req, res));
   router.get('/lectures/:lectureId/audio', (req, res) => streamLectureAudio(ctx, req, res));
   return router;
 }

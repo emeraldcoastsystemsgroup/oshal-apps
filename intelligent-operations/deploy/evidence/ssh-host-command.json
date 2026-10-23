@@ -1,0 +1,28 @@
+{
+  "kind": "ssh-host-command-acceptance",
+  "startedAt": "2026-10-23T00:58:32.636Z",
+  "kernel": "oshal-kernel:dev-068ae10b5185",
+  "host": "lab-host-1",
+  "proposed": "df -h",
+  "say": "Proposed command\ndf -h\n\nReview this command for lab-host-1 and run it through your own SSH connection after confirming the host. It reports free space on mounted filesystems without changing anything; inaccessible mounts may cause errors or delays. The command has not run.\n\nRisk: none · read-only · Display filesystem capacity, used space and available space in human-readable units.\n\nVerify: Confirm successful exit and inspect the Available and Use% columns for the relevant filesystem.\n\nCopy command",
+  "status": "Ran on lab-host-1 with your SSH key: completed · exit 0. Recorded.",
+  "record": {
+    "tool": "ssh",
+    "where": "ssh-connection",
+    "argv": [
+      "df",
+      "-h"
+    ],
+    "target": {
+      "account": "primary",
+      "host": "lab-host-1"
+    },
+    "outcome": "completed",
+    "exitCode": 0,
+    "output": "Filesystem      Size  Used Avail Use% Mounted on\noverlay         3.6T  3.0T  444G  88% /\ntmpfs            64M     0   64M   0% /dev\n/dev/nvme0n1p2  3.6T  3.0T  444G  88% /etc/hosts\nshm              64M     0   64M   0% /dev/shm\ntmpfs           4.0K     0  4.0K   0% /proc/acpi\n",
+    "provenance": "native SSH command on an administrator-pinned host with the operator's own key, reported by the operator session"
+  },
+  "pageErrors": [],
+  "result": "passed",
+  "finishedAt": "2026-10-23T00:58:40.892Z"
+}

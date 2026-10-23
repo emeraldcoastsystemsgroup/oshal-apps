@@ -28,7 +28,7 @@ Nothing is applied automatically. Remediation commands are proposals for an oper
   in the browser. Mapping errors block the preview; source and event ID remain envelope fields. It sends and saves
   nothing, does not authenticate a source, and does not resolve an asset or ingest an event.
 - The experience saves immutable source/mapping revisions, original and normalized alerts with validation reasons, and timestamped Kubernetes captures. Exact payload retries reuse their record.
-- Automated source intake, continuous discovery, the established reduction algorithm, durable OTLP data, external ticket synchronization and infrastructure execution remain planned. Captured topology is historical, with explicit readiness and unknown states.
+- Automated source intake, continuous discovery and automatic external ticket synchronization remain planned. Infrastructure execution exists only as the response stage (ADR0037): the accepted answer's generated `remediate.sh`/`verify.sh`/`rollback.md`/`verify.md` are extracted byte-exact, approved as exact artifacts for one observed pod, run once through the person's own confirmed Kubernetes connection, and verified against a resolved signal before the ticket is updated. Captured topology is historical, with explicit readiness and unknown states.
 - It replaces Issue RCA and Incident Remediation, which the platform unified into it (the header of
   the platform's `swarm-apps/intelligent-operations.yaml`). SAP Incident is not part of it, and it
   is not yet ported, so it stays turned off. Its manifest (`swarm-apps-incident/sap-incident.yaml`)

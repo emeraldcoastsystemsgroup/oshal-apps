@@ -11,6 +11,8 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Isolate bounded RAG/model generation for authorized study routes.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Replace raw Claude OAuth subprocesses with caller-scoped, tool-disabled education bots and bounded untrusted material records.
  * 3   | maintainer@emeraldcoastsystemsgroup.com | Retrieval and prompts carry the optional topic focus for topic flashcards and quizzes.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com | When the class's knowledge search finds nothing (the native kernel does not index lecture transcripts there), generation reads the class's three most recent lecture notes or transcripts instead: a quiz "from my photosynthesis lecture" asked meta-questions about the class record because its only material was "Topic Focus: Photosynthesis".
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | generateStudyCards takes an optional source text (a book chapter) that replaces class retrieval, for chapter flashcards.
  * ---------------------------------------------------------------------------
  *
  * @module education-study-model
@@ -77,7 +79,37 @@ function parseJsonArray(raw: string): any[] {
   } catch { return []; }
 }
 
-async function retrieveClassMaterial(context: StudyClassContext, topic?: string): Promise<string> {
+/**
+ * @description The class's most recent lecture notes (or transcripts when a lecture has no notes),
+ * newest first and bounded, read through the lecture workspace's safe-path check. Callers have
+ * already authorized the class.
+ * @param pool - database pool
+ * @param classId - the authorized class
+ * @returns The joined text, or '' when the class has no readable lecture yet.
+ */
+async function recentLectureNotes(pool: Pool | undefined, classId: string): Promise<string> {
+  if (!pool) return '';
+  const fs = require('fs');
+  const { resolvePersistedLectureFile } = require('./education-lecture-security');
+  const result = await pool.query(
+    `SELECT notes_path, transcript_path FROM lm_lectures
+      WHERE class_id = $1 AND (notes_path IS NOT NULL OR transcript_path IS NOT NULL)
+      ORDER BY created_at DESC LIMIT 3`,
+    [classId],
+  );
+  const texts: string[] = [];
+  for (const row of result.rows as Array<{ notes_path?: string; transcript_path?: string }>) {
+    try {
+      const file = resolvePersistedLectureFile(classId, String(row.notes_path || row.transcript_path));
+      texts.push(String(fs.readFileSync(file, 'utf8')).slice(0, 4000));
+    } catch {
+      // An unreadable or moved artifact is skipped; the others still ground the questions.
+    }
+  }
+  return texts.join('\n\n').slice(0, 6000);
+}
+
+async function retrieveClassMaterial(context: StudyClassContext, topic?: string, pool?: Pool): Promise<string> {
   const { RagService } = require('@/features/rag');
   const rag = new RagService();
   const collections = [
@@ -93,6 +125,8 @@ async function retrieveClassMaterial(context: StudyClassContext, topic?: string)
   const chunks = (groups.flat() as Array<{ text?: unknown }>)
     .map((hit) => String(hit.text || '')).filter(Boolean);
   if (chunks.length === 0) {
+    const notes = await recentLectureNotes(pool, context.classId);
+    if (notes) return (topic ? `Topic Focus: ${topic}\n\n${notes}` : notes).slice(0, 6000);
     if (topic) {
       return `Topic Focus: ${topic}\nSubject: ${context.subject || context.className}`;
     }
@@ -184,8 +218,9 @@ export async function generateStudyCards(
   context: StudyClassContext,
   requestedCount: unknown,
   topic?: string,
+  source?: string,
 ): Promise<StudyCardInput[]> {
-  const material = await retrieveClassMaterial(context, topic);
+  const material = source ?? await retrieveClassMaterial(context, topic, (ctx as any)?.pool);
   const count = Math.min(Math.max(Number.parseInt(String(requestedCount), 10) || 6, 3), 12);
   const focus = topic
     ? `Create ${count} grounded study flashcards focused specifically on the topic "${topic}" from the supplied data.`
@@ -211,7 +246,7 @@ export async function generateStudyQuiz(
   requestedCount: unknown,
   topic?: string,
 ): Promise<GeneratedQuizQuestion[]> {
-  const material = await retrieveClassMaterial(context, topic);
+  const material = await retrieveClassMaterial(context, topic, (ctx as any)?.pool);
   const count = Math.min(Math.max(Number.parseInt(String(requestedCount), 10) || 5, 3), 10);
   const focus = topic
     ? `Create ${count} grounded multiple-choice questions focused specifically on the topic "${topic}" from the supplied data.`

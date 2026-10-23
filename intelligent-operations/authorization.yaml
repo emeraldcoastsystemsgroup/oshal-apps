@@ -1,3 +1,12 @@
+# CHANGE LOG: 20 | maintainer@emeraldcoastsystemsgroup.com | Git explorer asset and repository links: read under app.open, link and unlink under records.write.
+# CHANGE LOG: 19 | maintainer@emeraldcoastsystemsgroup.com | Jarvis tools ops-attention, ops-handoffs and ops-investigations (reads, app.open) and the attention route.
+# CHANGE LOG: 18 | maintainer@emeraldcoastsystemsgroup.com | Provisioning: read requests and the page asset under app.open; render requests under records.write.
+# CHANGE LOG: 17 | maintainer@emeraldcoastsystemsgroup.com | Swarm hand-off: read delegations and the page asset under app.open; reserve, report and file delegations under records.write.
+# CHANGE LOG: 16 | maintainer@emeraldcoastsystemsgroup.com | Admit the live cluster panel asset under app.open; the reads themselves are the person's own confirmed connector actions.
+# CHANGE LOG: 15 | maintainer@emeraldcoastsystemsgroup.com | Admit Git promotion: asset under app.open, reservations and reports under records.write; provider writes stay on the person's own confirmed connector actions.
+# CHANGE LOG: 14 | maintainer@emeraldcoastsystemsgroup.com | Admit the command helper: asset and history under app.open, recorded runs under records.write; no execution authority is granted here.
+# CHANGE LOG: 13 | maintainer@emeraldcoastsystemsgroup.com | Admit the anomaly service: readiness reads and its assets under app.open; configuration and manual runs under records.write.
+# CHANGE LOG: 12 | maintainer@emeraldcoastsystemsgroup.com | Admit the response stage: own reads and artifact/receipt downloads under app.open; plan, approval, dispatch reservation, reports and ticket-update records under the existing records.write grant. No infrastructure authority is granted here; execution uses the person's own native Kubernetes connection, confirmed per action.
 # CHANGE LOG: 11 | maintainer@emeraldcoastsystemsgroup.com | Admit the operator workspace asset under the existing own read grant.
 # CHANGE LOG: 10 | maintainer@emeraldcoastsystemsgroup.com | Admit the pod console asset; execution still requires the native original-user connector scope.
 # CHANGE LOG: 9 | maintainer@emeraldcoastsystemsgroup.com | Admit the source-cited RCA library asset without granting report or infrastructure writes.
@@ -42,6 +51,10 @@ bindings:
       allOf: [app.open]
     - id: ops-incident-reviewer
       allOf: [app.open]
+  tools:
+    - {id: ops-attention, allOf: [app.open]}
+    - {id: ops-handoffs, allOf: [app.open]}
+    - {id: ops-investigations, allOf: [app.open]}
   http:
     - id: operator-workspace-get
       method: GET
@@ -110,6 +123,214 @@ bindings:
     - id: lifecycle-head
       method: HEAD
       path: /assets/lifecycle.js
+      allOf: [app.open]
+    - id: live-cluster-get
+      method: GET
+      path: /assets/live-cluster.js
+      allOf: [app.open]
+    - id: live-cluster-head
+      method: HEAD
+      path: /assets/live-cluster.js
+      allOf: [app.open]
+    - id: swarms-get
+      method: GET
+      path: /assets/swarms.js
+      allOf: [app.open]
+    - id: swarms-head
+      method: HEAD
+      path: /assets/swarms.js
+      allOf: [app.open]
+    - id: delegations-list
+      method: GET
+      path: /delegations
+      allOf: [app.open]
+    - id: delegations-outbound
+      method: POST
+      path: /delegations/outbound
+      allOf: [records.write]
+    - id: delegations-outbound-result
+      method: POST
+      path: /delegations/outbound/result
+      allOf: [records.write]
+    - id: delegations-accept
+      method: POST
+      path: /delegations/accept
+      allOf: [records.write]
+    - id: provisioning-asset-get
+      method: GET
+      path: /assets/provisioning.js
+      allOf: [app.open]
+    - id: provisioning-asset-head
+      method: HEAD
+      path: /assets/provisioning.js
+      allOf: [app.open]
+    - id: provisioning-list
+      method: GET
+      path: /provisioning
+      allOf: [app.open]
+    - id: provisioning-render
+      method: POST
+      path: /provisioning
+      allOf: [records.write]
+    - id: attention-get
+      method: GET
+      path: /attention
+      allOf: [app.open]
+    - id: git-explorer-get
+      method: GET
+      path: /assets/git-explorer.js
+      allOf: [app.open]
+    - id: git-explorer-head
+      method: HEAD
+      path: /assets/git-explorer.js
+      allOf: [app.open]
+    - id: repo-links-list
+      method: GET
+      path: /repo-links
+      allOf: [app.open]
+    - id: repo-links-save
+      method: POST
+      path: /repo-links
+      allOf: [records.write]
+    - id: repo-links-remove
+      method: POST
+      path: /repo-links/remove
+      allOf: [records.write]
+    - id: git-promotion-get
+      method: GET
+      path: /assets/git-promotion.js
+      allOf: [app.open]
+    - id: git-promotion-head
+      method: HEAD
+      path: /assets/git-promotion.js
+      allOf: [app.open]
+    - id: promotion-reserve
+      method: POST
+      path: /executions/promotions/reserve
+      allOf: [records.write]
+    - id: promotion-report
+      method: POST
+      path: /executions/promotions/report
+      allOf: [records.write]
+    - id: command-helper-get
+      method: GET
+      path: /assets/command-helper.js
+      allOf: [app.open]
+    - id: command-helper-head
+      method: HEAD
+      path: /assets/command-helper.js
+      allOf: [app.open]
+    - id: commands-get
+      method: GET
+      path: /commands
+      allOf: [app.open]
+    - id: commands-head
+      method: HEAD
+      path: /commands
+      allOf: [app.open]
+    - id: commands-record
+      method: POST
+      path: /commands/runs
+      allOf: [records.write]
+    - id: anomaly-controls-get
+      method: GET
+      path: /assets/anomaly-controls.js
+      allOf: [app.open]
+    - id: anomaly-controls-head
+      method: HEAD
+      path: /assets/anomaly-controls.js
+      allOf: [app.open]
+    - id: anomaly-detector-get
+      method: GET
+      path: /assets/anomaly-detector.js
+      allOf: [app.open]
+    - id: anomaly-detector-head
+      method: HEAD
+      path: /assets/anomaly-detector.js
+      allOf: [app.open]
+    - id: anomaly-get
+      method: GET
+      path: /anomaly
+      allOf: [app.open]
+    - id: anomaly-head
+      method: HEAD
+      path: /anomaly
+      allOf: [app.open]
+    - id: anomaly-config
+      method: POST
+      path: /anomaly/config
+      allOf: [records.write]
+    - id: anomaly-run
+      method: POST
+      path: /anomaly/run
+      allOf: [records.write]
+    - id: response-script-get
+      method: GET
+      path: /assets/response.js
+      allOf: [app.open]
+    - id: response-script-head
+      method: HEAD
+      path: /assets/response.js
+      allOf: [app.open]
+    - id: response-artifacts-get
+      method: GET
+      path: /assets/response-artifacts.js
+      allOf: [app.open]
+    - id: response-artifacts-head
+      method: HEAD
+      path: /assets/response-artifacts.js
+      allOf: [app.open]
+    - id: executions-get
+      method: GET
+      path: /executions
+      allOf: [app.open]
+    - id: executions-head
+      method: HEAD
+      path: /executions
+      allOf: [app.open]
+    - id: executions-plan
+      method: POST
+      path: /executions/plans
+      allOf: [records.write]
+    - id: executions-approve
+      method: POST
+      path: /executions/approve
+      allOf: [records.write]
+    - id: executions-reserve
+      method: POST
+      path: /executions/reserve
+      allOf: [records.write]
+    - id: executions-report
+      method: POST
+      path: /executions/report
+      allOf: [records.write]
+    - id: executions-verify
+      method: POST
+      path: /executions/verify
+      allOf: [records.write]
+    - id: executions-verify-report
+      method: POST
+      path: /executions/verify/report
+      allOf: [records.write]
+    - id: executions-ticket-update
+      method: POST
+      path: /executions/ticket-update
+      allOf: [records.write]
+    - id: executions-artifact-get
+      method: GET
+      path: /executions/plans/:planId/artifacts/:name
+      allOf: [app.open]
+    - id: executions-artifact-head
+      method: HEAD
+      path: /executions/plans/:planId/artifacts/:name
+      allOf: [app.open]
+    - id: executions-receipt-get
+      method: GET
+      path: /executions/:executionId/receipt.json
+      allOf: [app.open]
+    - id: executions-receipt-head
+      method: HEAD
+      path: /executions/:executionId/receipt.json
       allOf: [app.open]
     - id: investigations-get
       method: GET

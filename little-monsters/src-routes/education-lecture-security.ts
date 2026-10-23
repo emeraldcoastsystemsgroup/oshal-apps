@@ -13,6 +13,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add fail-closed lecture authorization, strict input validation, content-derived audio formats, safe projections, and symlink-aware class-workspace containment.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Resolve the principal issuer through education-access resolveSessionIssuer (verified idTokenClaims first) instead of a private user.iss read: real browser sessions carry no iss on req.oidc.user, so every lecture read returned 401 and this reader could drift from the identity reader
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The education workspace root is OSHAL_PACKAGE_DATA_DIR when the native kernel sets it, else the process directory.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | authorizeLectureClassWrite admits the class's owner whatever their school role: a student recording a lecture into their own private class was refused "Teacher access required" although the catalog grants students lecture.create and the query already requires teacher_student_id = caller (or a tenant admin). A student still cannot write lectures to a class someone else owns.
  * -----------------------------------------------------------------------------
  *
  * @module education-lecture-security
@@ -366,9 +367,8 @@ export async function authorizeLectureClassWrite(
   classId: string,
 ): Promise<WritableLectureClass> {
   requireClassId(classId);
-  if (actor.role !== 'teacher' && actor.role !== 'admin') {
-    throw new EducationAccessError('Teacher access required', 403);
-  }
+  // The class's owner (its teacher_student_id: a teacher's class, or a student's own private
+  // class) or a tenant admin may write its lectures; ownership is decided in the query below.
   const result = await pool.query(
     `SELECT class_id, name, subject
        FROM lm_classes

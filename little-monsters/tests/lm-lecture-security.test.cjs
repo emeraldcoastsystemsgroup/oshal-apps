@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add compiled lecture route guards for issuer-bound authorization, strict inputs, safe artifacts, zero-side-effect denials, and the protected route matrix.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Exercise lecture generation through the caller-scoped, tool-disabled bot boundary with fenced transcript input.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Cross the real session shape for the lecture reader: iss on idTokenClaims only (express-openid-connect default) resolves; iss nowhere is 401 before any query.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | A student writes the lectures of their own private class only, and transcribeOnly returns text while keeping no lecture row, workspace file or ticket; the route matrix includes summary-pdf. Stub the storage target the lecture summary PDF route saves through, so the compiled lecture routes load under this harness.
  * -----------------------------------------------------------------------------
  *
  * Dependency-free node:test coverage over the compiled lecture modules mounted
@@ -33,6 +34,7 @@ const TEACHER_B = '20000000-0000-4000-8000-000000000101';
 const CLASS_A = '30000000-0000-4000-8000-000000000001';
 const CLASS_A2 = '30000000-0000-4000-8000-000000000002';
 const CLASS_B = '40000000-0000-4000-8000-000000000001';
+const CLASS_PRIVATE_A = '30000000-0000-4000-8000-000000000009';
 const LECTURE_A = '50000000-0000-4000-8000-000000000001';
 const FIXED_ARTIFACT = '60000000-0000-4000-8000-000000000001';
 const TEST_ISSUER = 'https://identity.example.test/';
@@ -83,6 +85,9 @@ const STUBS = {
       return { provider: 'test', savedTo: 'relative', slides: 1, fileName: 'lecture.pptx' };
     },
   },
+  '@/app/routes/storage-target': {
+    saveContent: async (_ctx, _sub, kind, name) => ({ provider: 'test', location: `${kind}/${name}`, downloadUrl: `/download/${name}`, url: null }),
+  },
   '@/features/rag': {
     RagService: class RagService {
       constructor() { effects.rag += 1; }
@@ -128,6 +133,7 @@ const classes = [
   { class_id: CLASS_A, teacher_student_id: TEACHER_A, tenant_id: TENANT_A, name: 'Math', subject: 'math' },
   { class_id: CLASS_A2, teacher_student_id: TEACHER_A2, tenant_id: TENANT_A, name: 'Science', subject: 'science' },
   { class_id: CLASS_B, teacher_student_id: TEACHER_B, tenant_id: TENANT_B, name: 'History', subject: 'history' },
+  { class_id: CLASS_PRIVATE_A, teacher_student_id: STUDENT_A, tenant_id: TENANT_A, name: 'Biology', subject: 'biology' },
 ];
 
 function result(rows) {
@@ -512,6 +518,47 @@ test('authorized reads still reject persisted paths outside the expected class w
   assert.equal(res.body.error, 'Lecture artifact is unavailable');
 });
 
+test('a student writes the lectures of their own private class and no other class', async () => {
+  const pool = makePool();
+  const student = { studentId: STUDENT_A, role: 'student', tenantId: TENANT_A, email: null, name: 'Student A' };
+  const own = await security.authorizeLectureClassWrite(pool, student, CLASS_PRIVATE_A);
+  assert.equal(own.classId, CLASS_PRIVATE_A);
+  await assert.rejects(security.authorizeLectureClassWrite(pool, student, CLASS_A), (error) => error.status === 403);
+  assert.equal(writeQueries(pool).length, 0);
+});
+
+test('transcribeOnly turns a recording into text and keeps no lecture, file or ticket', async () => {
+  resetEffects();
+  const pool = makePool();
+  const router = uploadRoutes.createEducationLectureUploadRoutes(appContext(pool));
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-lecture-transcribe-'));
+  const priorCwd = process.cwd();
+  process.chdir(sandbox);
+  try {
+    const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WAVEfmt ')]);
+    const req = requestFor('oidc-student-a', {
+      body: { classId: CLASS_PRIVATE_A, lectureDate: '2026-10-18', transcribeOnly: 'true' },
+      file: { buffer: wav, size: wav.length, mimetype: 'audio/wav', originalname: 'lecture.wav' },
+    });
+    const res = await callRoute(router, 'post', '/process-lecture', req);
+    assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+    assert.equal(res.body.transcript.status, 'transcribed');
+    assert.equal(effects.stt, 1);
+    assert.equal(effects.ticket, 0);
+    assert.equal(writeQueries(pool).length, 0, 'no lecture row');
+    assert.equal(fs.existsSync(path.join(sandbox, 'workspace-shared')), false, 'no class workspace file');
+    const denied = await callRoute(router, 'post', '/process-lecture', requestFor('oidc-student-a', {
+      body: { classId: CLASS_A, lectureDate: '2026-10-18', transcribeOnly: 'true' },
+      file: { buffer: wav, size: wav.length, mimetype: 'audio/wav', originalname: 'lecture.wav' },
+    }));
+    assert.equal(denied.statusCode, 403, 'an enrolled student cannot transcribe into a class they do not own');
+    assert.equal(effects.stt, 1);
+  } finally {
+    process.chdir(priorCwd);
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
 test('compiled composition exposes the complete protected lecture route matrix', () => {
   const pool = makePool();
   const router = composedRoutes.createEducationLectureRoutes(appContext(pool));
@@ -520,6 +567,7 @@ test('compiled composition exposes the complete protected lecture route matrix',
     'get /lectures/recent', 'get /lectures/:lectureId',
     'get /lectures/:lectureId/slides', 'post /lectures/:lectureId/pptx',
     'post /lectures/:lectureId/audio', 'get /lectures/:lectureId/audio',
+    'post /lectures/:lectureId/summary-pdf',
   ];
   assert.deepEqual([...router.routes.keys()].sort(), expected.sort());
 });

@@ -1,0 +1,46 @@
+/* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the anomaly service: deterministic detector behaviour (shift, flatline, seasonal control, warm-up, persistence, late samples, stale reset), real SQL cursors and baselines, candidates admitted once through intake as validated alerts with resolution, concurrent ticks and injected failures that never duplicate or skip a sample, owner isolation and configuration compare-and-set. */
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
+const {fixture,loadExperience}=require('./fixtures/intake.cjs');
+const Detector=require('../ui/anomaly-detector.js'),{configureStream,ingestTelemetry}=require('../routes/telemetry-store.js'),{saveDetectorConfig,runDetection,anomalyRecords,detectorConfig}=require('../routes/anomaly-engine.js'),{intakeRecords}=require('../routes/intake.js');
+const series=(config,points)=>{const state=Detector.createState(config),out=[];for(const p of points)out.push(Detector.observe(config,state,p,Date.parse(p.observedAt)));return {state,out};};
+const at=(i,step=60000)=>new Date(Date.parse('2026-10-22T00:00:00Z')+i*step).toISOString();
+test('the rolling detector scores before learning, needs warm-up, fires on a sustained shift, resolves after normal samples and never learns from anomalous samples',()=>{
+ const config=Detector.configuration({warmupSamples:20,threshold:5,persistence:2,resolveSamples:3});const points=[];for(let i=0;i<40;i++)points.push({observedAt:at(i),value:10+Math.sin(i)*0.5});for(let i=40;i<50;i++)points.push({observedAt:at(i),value:40});for(let i=50;i<60;i++)points.push({observedAt:at(i),value:10});
+ const {state,out}=series(config,points);assert.equal(out.slice(0,20).every(r=>r.readiness==='cold'),true);assert.equal(out[20].readiness,'ready');
+ const emits=out.map((r,i)=>r.emit?[i,r.emit]:null).filter(Boolean);assert.deepEqual(emits,[[41,'firing'],[52,'resolved']],'persistence 2 fires on the second anomalous sample; resolution after three normal samples');assert.ok(out[41].score>5&&out[41].confidence>0);assert.ok(state.window.every(v=>v<20),'anomalous samples do not enter the baseline');
+ const flat=series(Detector.configuration({warmupSamples:10,threshold:5}),Array.from({length:30},(_,i)=>({observedAt:at(i),value:3})));assert.equal(flat.out.some(r=>r.emit),false,'a flat series raises no candidate');const single=Detector.observe(Detector.configuration({warmupSamples:10,threshold:5}),flat.state,{observedAt:at(30),value:3.5},0);assert.equal(single.anomalous,true,'a flat baseline uses a finite floor so a changed sample scores');
+});
+test('the seasonal profile learns a daily pattern and flags a departure from it; late or stale samples are explicit',()=>{
+ const daily=Array.from({length:288*4},(_,i)=>({observedAt:at(i,300000),value:50+40*Math.sin(2*Math.PI*(i%288)/288)+((i*7919)%13)/13}));
+ const rolling=series(Detector.configuration({detector:'robust-zscore',warmupSamples:288,windowSamples:288,threshold:6}),daily),seasonal=series(Detector.configuration({detector:'seasonal-profile',warmupSamples:864,bucketSeconds:1800,bucketSamples:14,threshold:6}),daily);
+ assert.equal(seasonal.out.filter(r=>r.emit==='firing').length,0,'the seasonal profile learns the pattern');assert.equal(seasonal.out.at(-1).readiness,'ready');assert.equal(rolling.out.at(-1).readiness,'ready');const spike=Detector.observe(Detector.configuration({detector:'seasonal-profile',warmupSamples:864,bucketSeconds:1800,bucketSamples:14,threshold:6}),seasonal.state,{observedAt:at(288*4,300000),value:400},0);assert.equal(spike.anomalous,true,'a value far from the learned profile scores');
+ const config=Detector.configuration({warmupSamples:10,threshold:5,staleSeconds:600});const state=Detector.createState(config);for(let i=0;i<15;i++)Detector.observe(config,state,{observedAt:at(i),value:1},0);assert.equal(Detector.observe(config,state,{observedAt:at(3),value:1},0).readiness,'late');assert.equal(state.late,1);const stale=Detector.observe(config,state,{observedAt:at(60),value:1},0);assert.equal(stale.readiness,'stale');assert.equal(state.window.length,1,'a stale gap restarts the rolling baseline');
+ assert.throws(()=>Detector.configuration({threshold:1}));assert.throws(()=>Detector.configuration({detector:'lstm'}));assert.throws(()=>Detector.configuration({bogus:1}));
+});
+async function setup(f,owner='alice'){
+ const pool=f.caller(owner),exp=loadExperience(),telemetry=exp.sourceDefinition({name:'Hosts',source:'urn:triagenorth:telemetry:'+randomUUID(),environment:'local-lab'}),candidates=exp.sourceDefinition({name:'Anomalies',source:'urn:triagenorth:anomaly:'+randomUUID(),environment:'local-lab'});
+ await configureStream(pool,owner,telemetry,{resourceKind:'host',idAttribute:'host.id',scopeAttribute:'site.id',maxBankRecords:2000,maxBankBytes:2097152},0);
+ const base=Date.parse('2026-10-22T00:00:00Z');let n=0;
+ const ingest=async(values,start=n)=>{const points=values.map((v,i)=>({timeUnixNano:String(BigInt(base+(start+i)*60000)*1000000n),asDouble:v}));n=start+values.length;const body={resourceMetrics:[{resource:{attributes:[{key:'host.id',value:{stringValue:'host-001'}},{key:'site.id',value:{stringValue:'dc-east'}}]},scopeMetrics:[{metrics:[{name:'host.cpu.load',unit:'1',gauge:{dataPoints:points}}]}]}]};return ingestTelemetry(pool,owner,telemetry,'otlp-metrics',body,()=>new Date(base+n*60000).toISOString());};
+ const sources=[telemetry,candidates],config=async(extra={})=>saveDetectorConfig(pool,owner,{enabled:true,telemetrySourceIds:[telemetry.id],candidateSourceId:candidates.id,metricNames:[],parameters:{warmupSamples:20,threshold:5,persistence:1,resolveSamples:2},expectedRevision:(await detectorConfig(pool,owner)).revision,...extra},sources);
+ return {pool,owner,telemetry,candidates,sources,ingest,config,clock:()=>base+(n+1)*60000};
+}
+test('candidates are admitted once as validated alerts under the candidate source, resolve after recovery, and the cursor survives concurrent ticks and injected failures',async()=>{
+ const f=await fixture();try{const x=await setup(f);await x.config();
+  await x.ingest(Array.from({length:30},(_,i)=>10+Math.sin(i)*0.5));let r=await runDetection(x.pool,x.owner,x.sources,x.clock);assert.equal(r.enabled,true);assert.equal(r.candidates,0);assert.equal(r.results[0].processed,30);
+  await x.ingest([40,40,40]);
+  const twins=await Promise.all([runDetection(x.pool,x.owner,x.sources,x.clock),runDetection(f.caller(x.owner),x.owner,x.sources,x.clock)]);assert.equal(twins.reduce((s,t)=>s+t.candidates,0),1,'two concurrent replicas admit one candidate');
+  let records=await intakeRecords(x.pool,x.owner);let fired=records.events.filter(e=>e.sourceId===x.candidates.id);assert.equal(fired.length,1);assert.equal(fired[0].decision,'validated');assert.equal(fired[0].normalized.data.alertType,'anomaly:robust-zscore:host.cpu.load');assert.equal(fired[0].normalized.data.status,'firing');assert.deepEqual(fired[0].normalized.data.resource,{kind:'host',scope:'dc-east',id:'host-001'});assert.equal(fired[0].raw.data.localDetection,true);assert.ok(fired[0].raw.data.score>5);assert.equal(fired[0].raw.data.detector.id,'robust-zscore');
+  assert.equal((await runDetection(x.pool,x.owner,x.sources,x.clock)).results[0].processed,0,'nothing is rescored');
+  await x.ingest([10,10,10]);r=await runDetection(x.pool,x.owner,x.sources,x.clock);assert.equal(r.resolved,1);records=await intakeRecords(x.pool,x.owner);assert.equal(records.events.filter(e=>e.sourceId===x.candidates.id&&e.normalized.data.status==='resolved').length,1);
+  const page=await anomalyRecords(x.pool,x.owner);assert.equal(page.baselines.length,1);assert.equal(page.baselines[0].readiness,'ready');assert.equal(page.baselines[0].firing,false);assert.equal(page.cursors[0].runs,5);assert.equal(page.localDetection,true);
+  // an injected intake failure keeps the cursor; the retry admits exactly one candidate
+  let failed=false;const flaky=f.caller(x.owner,async(phase,q)=>{if(phase==='before'&&!failed&&q.startsWith('INSERT INTO operations_deliveries')){failed=true;throw Error('intake storage unavailable');}});
+  await x.ingest([40,40]);r=await runDetection(flaky,x.owner,x.sources,x.clock);assert.equal(r.failed,1);assert.equal(failed,true);assert.equal((await anomalyRecords(x.pool,x.owner)).cursors[0].lastError.message,'Telemetry or intake storage is unavailable.');
+  r=await runDetection(x.pool,x.owner,x.sources,x.clock);assert.equal(r.candidates,1);assert.equal(r.failed,0);records=await intakeRecords(x.pool,x.owner);assert.equal(records.events.filter(e=>e.sourceId===x.candidates.id&&e.normalized.data.status==='firing').length,2);
+  const bob={pool:f.caller('bob')};assert.equal((await anomalyRecords(bob.pool,'bob')).baselines.length,0);assert.equal((await detectorConfig(bob.pool,'bob')).enabled,false);
+  await assert.rejects(x.config({expectedRevision:0}),{status:409});await assert.rejects(saveDetectorConfig(x.pool,x.owner,{enabled:true,telemetrySourceIds:[x.telemetry.id],candidateSourceId:x.telemetry.id,metricNames:[],parameters:{},expectedRevision:(await detectorConfig(x.pool,x.owner)).revision},x.sources),{status:400});
+  await x.config({enabled:false});assert.equal((await runDetection(x.pool,x.owner,x.sources,x.clock)).enabled,false);
+ }finally{await f.close();}
+});

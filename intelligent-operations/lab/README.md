@@ -156,3 +156,27 @@ upgrades can intentionally withhold results bound to the previous source revisio
 requires three nonempty current-source answers and refuses withheld results. Preserve the old
 receipt and create an explicitly recorded verification attempt if the installed source changed;
 do not replace historical outputs or treat repeated manual verification tickets as pipeline deduplication.
+
+## Approved response and verified recovery drill
+
+```bash
+python3 intelligent-operations/lab/pressure.py prepare
+python3 intelligent-operations/lab/pressure.py start --episode <16 hex>
+python3 intelligent-operations/lab/collect.py <episode>
+python3 intelligent-operations/lab/dispatch.py <episode>
+# wait for the canonical ticket to reach awaiting_approval (three real model phases)
+python3 ~/Documents/projects/oshal-kernel/deploy/k8s/install.py pod-connect --pod-namespace operations-demo --password-file ~/.local/state/oshal-k8s/admin-password.json
+python3 intelligent-operations/lab/response.py <episode>
+```
+
+The pressure pod now mounts a writable `/run/pressure`; creating `/run/pressure/stop` inside the
+container ends the loop, and the counter stays flat for a grace period so recovery can be measured.
+The drill runs for 900 seconds by default (Job deadline 1140 s) so the workflow and a reviewed
+response can complete while the pod exists. `response.py` imports a namespace scan, builds the plan
+from the accepted answer's generated files, downloads and digest-checks them, approves the exact
+plan, reserves and runs one confirmed `kubernetes-exec` through the operator's own connection,
+imports the resolved Alertmanager delivery, verifies recovery and approves the canonical report
+gate only on a healthy outcome. Receipts are written privately under the episode directory; a
+redacted copy is committed as `deploy/evidence/response.json`. `publish.py <commit>` installs an
+exact pushed public revision through the registry trust, preview and consent flow.
+

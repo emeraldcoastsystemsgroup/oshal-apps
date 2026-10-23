@@ -9,8 +9,97 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register lm-greeting: the home greeting ends each sentence with one mark ('Up late?' read 'Up late?.').
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register lm-jarvis-tools: the six Jarvis tools, their tool bindings against the routes they call, approval on writes, student admission, no floating assistant and an unhidden Jarvis orb.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register lm-myday-due: My Day's Due today / Coming up include the student's own calendar items (an action item saved through Jarvis).
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Register lm-notes-pdf: the lecture summary PDF writer produces a well-formed, paginated PDF with escaped text.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Register lm-email-storage: the Email tab (standard email viewer) and Storage tab (core file browser), and the templates that open them.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | lm-email-storage also pins that the two tabs keep the Little Monsters top bar (standard-view.html at /email and /storage, bound to app.open) and that every top tab opens a Little Monsters page.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Register lm-phone-layout: the shipped pages at 412 and 360px in Chromium (no sideways scroll, controls on screen).
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Register lm-book-chapters: the chapter finder and the book routes' read rule.
 version: 1
 cases:
+  - id: lm-book-chapters
+    name: Book chapters
+    purpose: Pin the chapter finder and the read rule of the book routes behind lm-my-books and lm-book-chapter.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-book-chapters.test.cjs
+    expected:
+      - Chapter 2 is found after a contents page, from a "Chapter 2" line with its title below, or by its numbered sections; running page headers are not chapters.
+      - A missing chapter answers not found with the chapters the book has.
+      - The uploader reads their book; anyone else only an approved share in a class they belong to; another school's book is not found.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: lm-phone-layout
+    name: Pages fit a phone
+    purpose: Pin that the Little Monsters pages fit a 412px and a 360px phone with a long student name, many tabs and long titles.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-phone-layout.test.cjs
+    expected:
+      - My Files, Tutor, Storage and the dashboard are no wider than the screen at 412 and 360px.
+      - The top bar's name, level and More stay on screen; a long name ends in an ellipsis.
+    prerequisites:
+      - runner:node-test
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: lm-email-storage
+    name: Email and Storage tabs
+    purpose: Pin the Email and Storage tabs to the standard email viewer and the core file browser, and the school templates that admit them.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-email-storage.test.cjs
+    expected:
+      - lm-email opens /api/education/email and lm-storage /api/education/storage, which show /api/email/inbox and /api/files below the Little Monsters top bar.
+      - Every top tab opens a Little Monsters page; GET/HEAD /email and /storage are served and bound to app.open.
+      - Every school template (version 2) carries email-summarizer @app-admin, and Little Monsters' own connector lists stay empty.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: lm-notes-pdf
+    name: Lecture summary PDF
+    purpose: Render lecture notes with routes/education-notes-pdf.js and check the PDF's structure and text.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-notes-pdf.test.cjs
+    expected:
+      - The PDF's cross-reference offsets point at their objects and it ends with %%EOF.
+      - Headings, bullets and numbered items keep their order; emphasis is removed, LaTeX flattened and delimiters escaped.
+      - Long notes wrap inside the margins and continue on numbered pages.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
   - id: lm-myday-due
     name: My Day lists the student's own calendar items
     purpose: Run My Day's loadDueItems with stubbed /assignments and /calendar answers.

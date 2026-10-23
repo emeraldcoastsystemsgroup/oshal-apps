@@ -1,0 +1,8 @@
+{
+  "kind": "provisioning-server-dry-run",
+  "installation": "owned kind operations-lab (Kubernetes v1.37.0)",
+  "at": "2026-10-22T22:55:00Z",
+  "method": "kubectl apply --dry-run=server on the manifests rendered by src-routes/provisioning.ts (nothing was created)",
+  "teamNamespace": {"params": "defaults with name=operations-demo, team=operations", "result": ["limitrange/operations-demo-defaults created (server dry run)", "namespace/operations-demo configured (server dry run)", "networkpolicy.networking.k8s.io/operations-demo-default-deny-ingress created (server dry run)", "resourcequota/operations-demo-quota created (server dry run)", "rolebinding.rbac.authorization.k8s.io/operations-demo-editors created (server dry run)"]},
+  "appDeployment": {"params": "defaults with namespace=operations-demo, name=dry-run-api", "result": ["deployment.apps/dry-run-api created (server dry run)", "service/dry-run-api created (server dry run)"]}
+}

@@ -1,3 +1,12 @@
+# CHANGE LOG: 23 | maintainer@emeraldcoastsystemsgroup.com | Git explorer: repository-link migrations and the Git explorer navigation entry.
+# CHANGE LOG: 22 | maintainer@emeraldcoastsystemsgroup.com | Jarvis works inside Operations: read-only tools ops-attention, ops-handoffs and ops-investigations over the caller's own routes, and routing words for operations attention and swarm hand-offs (contract change).
+# CHANGE LOG: 21 | maintainer@emeraldcoastsystemsgroup.com | Provisioning: migrations and the Provisioning navigation entry.
+# CHANGE LOG: 20 | maintainer@emeraldcoastsystemsgroup.com | Swarm hand-off: delegations migrations and the Swarm hand-off navigation entry (kernel ADR-194).
+# CHANGE LOG: 19 | maintainer@emeraldcoastsystemsgroup.com | Register Git promotion storage with native caller-isolated migration ownership.
+# CHANGE LOG: 18 | maintainer@emeraldcoastsystemsgroup.com | Add the Command helper toolbar entry and its own-scope command records; the package still executes nothing itself.
+# CHANGE LOG: 17 | maintainer@emeraldcoastsystemsgroup.com | Use the kernel notification rail (notify.send) so a scheduled tick can tell the person about admitted symptoms, anomaly candidates and failures through their own channel preferences.
+# CHANGE LOG: 16 | maintainer@emeraldcoastsystemsgroup.com | Register the anomaly service state with native caller-isolated migration ownership.
+# CHANGE LOG: 15 | maintainer@emeraldcoastsystemsgroup.com | Register the response stage storage (plans, byte-exact artifacts, approvals, executions) with native caller-isolated migration ownership, and describe reviewed exec remediation honestly: approval is bound to exact artifacts and target, execution is the person's own confirmed connection, recovery is a measured outcome.
 # CHANGE LOG: 14 | maintainer@emeraldcoastsystemsgroup.com | Describe installed operator evidence views and separately admitted pod access accurately.
 # CHANGE LOG: 13 | maintainer@emeraldcoastsystemsgroup.com | Expose consistent native navigation, default Systems inspection and a canonical-source RCA library.
 # CHANGE LOG: 12 | maintainer@emeraldcoastsystemsgroup.com | Declare original-person manual ticket handoff storage with native scope isolation.
@@ -34,7 +43,10 @@ description: >-
   Stored-query filtering, noise reduction and bounded evidence packets support accountable RCA
   investigation and review. A separately configured personal Kubernetes connection enables current
   pod inspection, logs and reviewed commands; the evidence-only analysis bot receives selected
-  results and no cluster credential. Report acceptance does not establish verified recovery.
+  results and no cluster credential. Report acceptance does not establish verified recovery. A
+  generated response (remediate.sh, verify.sh, rollback.md, verify.md) can be approved as exact
+  artifacts for one exec on one observed pod through that same personal connection, then verified
+  against a resolved signal before the canonical ticket is updated.
 version: 1.1.1
 status: active
 scope: public
@@ -52,6 +64,7 @@ uses:
   - experience
   - app-dependencies
   - test-catalog
+  - notify.send
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -162,6 +175,26 @@ ui:
       icon: codicon codicon-key
       iframeUrl: /api/intelligent-operations/app#credentials
       section: top
+    - toolName: operations-commands
+      label: Command helper
+      icon: codicon codicon-terminal
+      iframeUrl: /api/intelligent-operations/app#commands
+      section: top
+    - toolName: operations-git
+      label: Git explorer
+      icon: codicon codicon-source-control
+      iframeUrl: /api/intelligent-operations/app#git
+      section: top
+    - toolName: operations-provisioning
+      label: Provisioning
+      icon: codicon codicon-server-process
+      iframeUrl: /api/intelligent-operations/app#provision
+      section: top
+    - toolName: operations-swarms
+      label: Swarm hand-off
+      icon: codicon codicon-references
+      iframeUrl: /api/intelligent-operations/app#swarms
+      section: top
     - toolName: operations-library
       label: RCA library
       icon: codicon codicon-book
@@ -182,9 +215,54 @@ ribbon:
   hideFrameworkItems: [chat, calendar, addressbook, dashboard, logs, settings, operations]
   showPlatformTools: false
 
+tools:
+  - name: ops-attention
+    displayName: Operations attention
+    type: api
+    category: operations
+    description: What waits on the person in Intelligent Operations, from their own saved records only - response plans to approve, executions without verified recovery, overdue break-glass reconciliations, firing anomaly baselines, investigations started automatically or whose automatic start was refused or uncertain, processing that needs review, and swarm hand-offs sent and received.
+    executor: { executorType: api, apiEndpoint: "GET /api/intelligent-operations/attention" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks what needs their attention in operations, about incidents, response plans, anomalies or hand-offs. Read the summary sentence aloud and offer to open the page named for each count. Nothing here runs anything.
+    routingTags: [operations, incidents, attention]
+    tags: [operations, route-backed, read-only]
+  - name: ops-handoffs
+    displayName: Swarm hand-offs
+    type: api
+    category: operations
+    description: The person's swarm-to-swarm hand-offs - response plans sent to peer swarms with their delivery state, and delegations from other swarms they filed as investigations with the ticket.
+    executor: { executorType: api, apiEndpoint: "GET /api/intelligent-operations/delegations" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks what was handed to or received from another swarm. Delegations not yet filed are on the Swarm hand-off page; sending and filing happen there with the person's confirmation.
+    routingTags: [operations, swarm, hand-off]
+    tags: [operations, route-backed, read-only]
+  - name: ops-investigations
+    displayName: Operations investigations
+    type: api
+    category: operations
+    description: The person's evidence investigations with their canonical ticket state, including whether each was started automatically, refused or uncertain.
+    executor: { executorType: api, apiEndpoint: "GET /api/intelligent-operations/investigations" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks about investigations or RCA tickets. Starting or approving happens in Incident work.
+    routingTags: [operations, incidents, investigations]
+    tags: [operations, route-backed, read-only]
 bots:
   - agentId: a0000000-0000-0000-0000-000000000016
     name: ops-rca-specialist
+    routingKeywords:
+      - needs my attention in operations
+      - operations attention
+      - swarm hand-off
+      - handed off to another swarm
+      - delegation from another swarm
+      - response plan
+      - incident investigation
     persona: personas/ops-rca-specialist.yaml
     role: incident/rca
     capabilities:
@@ -227,7 +305,42 @@ migrations:
   - migrations/012-investigations-rls.sql
   - migrations/013-ticket-sync.sql
   - migrations/014-ticket-sync-rls.sql
+  - migrations/015-execution.sql
+  - migrations/016-execution-rls.sql
+  - migrations/017-anomaly.sql
+  - migrations/018-anomaly-rls.sql
+  - migrations/019-commands.sql
+  - migrations/020-commands-rls.sql
+  - migrations/021-git-promotions.sql
+  - migrations/022-git-promotions-rls.sql
+  - migrations/023-delegations.sql
+  - migrations/024-delegations-rls.sql
+  - migrations/025-provisioning.sql
+  - migrations/026-provisioning-rls.sql
+  - migrations/027-repo-links.sql
+  - migrations/028-repo-links-rls.sql
 nativeMigrations:
+  - id: migrations/028-repo-links-rls.sql
+    native: skip
+    reason: "Forced PostgreSQL owner policy; native SQL preserves original-person scope for repository links."
+  - id: migrations/026-provisioning-rls.sql
+    native: skip
+    reason: "Forced PostgreSQL owner policy; native SQL preserves original-person scope for provisioning requests."
+  - id: migrations/024-delegations-rls.sql
+    native: skip
+    reason: "Forced PostgreSQL owner policy; native SQL preserves original-person scope for delegations."
+  - id: migrations/022-git-promotions-rls.sql
+    native: skip
+    reason: "Forced PostgreSQL owner policy; native SQL preserves original-person scope for Git promotions."
+  - id: migrations/020-commands-rls.sql
+    native: skip
+    reason: "Forced PostgreSQL owner policy; native SQL preserves original-person scope for command records."
+  - id: migrations/018-anomaly-rls.sql
+    native: skip
+    reason: "Forced PostgreSQL owner policy; native SQL preserves original-person scope for detector state."
+  - id: migrations/016-execution-rls.sql
+    native: skip
+    reason: "Forced PostgreSQL owner policies; native SQL preserves original-person scope and checked atomic commits for response plans, artifacts, approvals and executions."
   - id: migrations/014-ticket-sync-rls.sql
     native: skip
     reason: "Forced PostgreSQL owner policies; native SQL preserves original-person scope and checked atomic commits for ticket links and attempts."

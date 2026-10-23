@@ -15,6 +15,8 @@
    1   | maintainer@emeraldcoastsystemsgroup.com   | Initial shared education styles
    2   | maintainer@emeraldcoastsystemsgroup.com   | Removed colliding :root color vars so iframe pages inherit the cockpit theme
    3   | maintainer@emeraldcoastsystemsgroup.com   | Design system: skin-driven tokens with the playful classroom look as the standalone default, page frame, hero, cards, tiles, stats, lists, forms, tables, dialogs, week strip, empty states, motion and focus rules; legacy token names kept so pages migrate one at a time
+   4   | maintainer@emeraldcoastsystemsgroup.com   | Phone width: the top bar's side (More, level, name) shrinks and a long name ends in an ellipsis; a long name pushed the page 83px wider than a 412px phone
+   5   | maintainer@emeraldcoastsystemsgroup.com   | Phone width: stacked .lm-columns use minmax(0, 1fr) and .lm-stack has one minmax(0, 1fr) column, so the widest item cannot widen the page (My Files was 514px on a 412px phone)
    ============================================================ */
 
 /* ── 1. Tokens ─────────────────────────────────────────────────────────────
@@ -135,7 +137,8 @@ a { color: var(--lm-accent); }
 @media (max-width: 720px) {
   .lm-topbar { flex-wrap: wrap; gap: 8px 12px; }
   .lm-topbar nav { order: 3; flex-basis: 100%; }
-  .lm-topbar .lm-topbar-side { margin-left: auto; }
+  .lm-topbar .lm-topbar-side { margin-left: auto; min-width: 0; }
+  .lm-topbar .lm-topbar-side .lm-pill { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 }
 
 /* ── 4. Type ──────────────────────────────────────────────────────────────── */
@@ -167,8 +170,8 @@ h2.lm-display { font-size: clamp(22px, 2.6vw, 28px); }
 .lm-grid.is-tight { gap: 10px; }
 .lm-grid.is-fit { grid-template-columns: repeat(auto-fit, minmax(var(--min, 240px), 1fr)); }
 .lm-columns { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr); gap: 20px; align-items: start; }
-@media (max-width: 960px) { .lm-columns { grid-template-columns: 1fr; } }
-.lm-stack { display: grid; gap: 14px; }
+@media (max-width: 960px) { .lm-columns { grid-template-columns: minmax(0, 1fr); } }
+.lm-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .lm-row { display: flex; align-items: center; gap: 12px; }
 .lm-row.is-between { justify-content: space-between; }
 .lm-row.is-wrap { flex-wrap: wrap; }

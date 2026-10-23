@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Hold this package's prerequisite declaration to what its code actually does: the tiers must read through the store's OWN catalog reader, every kernel skill the code imports must be declared in uses:, the tiered block must name its compatibility floor, the connector allow-list must stay declared-and-empty, and no source file may reach outside the package. A catalog --check cannot stand in for any of this - marketplace.json is GENERATED from this manifest, so a declaration that goes missing disappears from both sides at once and the mirror stays "current".
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Record the core owner-bound artifact relay as an intentionally uncontracted framework security seam used by the class-material receiver
+ * 3   | maintainer@emeraldcoastsystemsgroup.com | The learning bundle also requires email-summarizer (the Email tab's standard viewer); Little Monsters' own connector lists stay declared and empty.
  * -----------------------------------------------------------------------------
  *
  * Dependency-free prerequisite contract for the Little Monsters store package.
@@ -175,10 +176,10 @@ test('the connector allow-list stays DECLARED and empty in both tiers', async ()
   assert.deepEqual(dependencies.connectors, [], 'the mirrored allow-list must be an empty list, never absent');
 });
 
-test('the complete learning bundle includes Office and Circuit Lab while source and tools stay package-local', async () => {
+test('the complete learning bundle includes Office, Circuit Lab and the email viewer while source and tools stay package-local', async () => {
   const { readManifestDependencies } = await readerPromise;
   const { dependencies } = readManifestDependencies(MANIFEST, 'little-monsters/oshal-app.yaml');
-  assert.deepEqual(dependencies.required.apps, ['presentations', 'circuit-lab'], 'complete learning workflows include the full Office suite and Circuit Lab');
+  assert.deepEqual(dependencies.required.apps, ['presentations', 'circuit-lab', 'email-summarizer'], 'complete learning workflows include the full Office suite, Circuit Lab and the standard email viewer');
   assert.deepEqual(dependencies.optional.apps, [], 'component access is included without selections');
   assert.ok(declaredSkills().includes('experience-roles'), 'native application composites require their core compatibility floor');
   for (const tier of ['required', 'optional']) {

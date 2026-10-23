@@ -1,4 +1,14 @@
 # CHANGE LOG
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Register the Git explorer guard.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Register the Jarvis attention guard.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Register the provisioning guard.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Register the swarm hand-off guard.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register the live cluster explorer and automatic investigation guards.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register the native SQL form guard.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register the Git promotion guard.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register the node explorer and command helper guards.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register the anomaly service and automatic correlation guards.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register the response-stage guard (approved exec, verified recovery, ticket update) with disposable SQL and Chromium prerequisites.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Register the one-time communication acceptance guard without contacting real recipients.
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR | DESCRIPTION
@@ -20,6 +30,179 @@ cases:
     sideEffects: none
     isolation: { mode: disposable, cleanup: Remove the temporary fixture ledger; no real recipient or cluster is contacted. }
     limits: { timeoutMs: 15000, maxMemoryMb: 128 }
+    installation: never
+  - id: native-sql-forms
+    name: Package SQL stays within the native interpreter's forms
+    purpose: "Refuse row-value (tuple) comparisons against bind parameters anywhere in the route source; the native package SQL interpreter rejects them (installed lab, 2026-10-22). The installed live anomaly run is the boundary proof."
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-sql-forms.test.cjs] }
+    expected:
+      - No route compares a column list with a bind-parameter list.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000, maxMemoryMb: 128 }
+    installation: never
+  - id: git-promotion
+    name: Git promotion and break-glass reconciliation
+    purpose: "Verify server-held file bytes and manifest, one reservation per plan/path/destination, break-glass reconciliation only after an execution with a 24-hour deadline and overdue marking, bounded github.com/gitlab.com reports, owner isolation, and the shipped panel driving the GitHub base-branch, tree, commit, ref, pull request and workflow dispatch sequence with a fresh confirmation per write."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/git-promotion.test.cjs] }
+    expected:
+      - The committed files equal the stored plan artifacts byte for byte, plus a manifest.
+      - A second promotion of the same plan and destination creates no second branch.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, toolchain:playwright-chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role; no provider is contacted. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: node-explorer
+    name: Node facts and pods-on-node navigation
+    purpose: "Verify the scan normalizer's bounded node facts (capacity, allocatable, pressure, versions, roles, taints, addresses; absent facts omitted) and the shipped Systems detail pane: capacity table, pressure warning, placed pods and a link that reveals the exact pod in the tree."
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/topology-nodes.test.cjs, tests/resource-tree.test.cjs] }
+    expected:
+      - Node properties stay within 24 scalar values and never fabricate absent facts.
+      - Selecting a node shows its capacity, pressure and placed pods; the pod link selects that pod.
+    prerequisites: [runner:node-test, runtime:python3, browser:chromium, toolchain:playwright]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000, maxMemoryMb: 512 }
+    installation: never
+  - id: command-helper
+    name: Coached commands under the operator's own authority
+    purpose: "Verify closed, bounded, credential-free command records with explicit provenance and a 200-record cap in real SQL, and the shipped page: only a valid coached argv is staged, cloud commands never run from the application, a pod-exec command runs once through the confirmed native rail, pasted results are recorded as operator-provided, and refusal clears the page."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/command-helper.test.cjs] }
+    expected:
+      - Records say where the command ran and that the application executed nothing.
+      - Exactly one confirmed native exec per reviewed in-pod command.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, toolchain:playwright-chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: live-cluster
+    name: Live cluster explorer under the operator's own connection
+    purpose: "Verify that kernel-shaped node, pod and deployment list reads become a scan the topology validator accepts, in its own live collection so the collector's services and routes survive, trimmed to the 64 KiB budget and partial when cut or truncated; and that the shipped Systems panel offers only the person's own Kubernetes connections, reads through three freshly confirmed actions, saves the scan and clears on refusal."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/live-cluster.test.cjs] }
+    expected:
+      - A complete live scan never retires collector-only assets or routes.
+      - Exactly three confirmed reads per refresh; none after a refusal.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, toolchain:playwright-chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: auto-investigate
+    name: Automatic AI investigation of captured evidence
+    purpose: "Verify that the processing tick starts at most two investigations for newly captured evidence only when the person opted in, through the kernel ticket-start port, marks each start before calling it, and never retries an uncertain start."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/auto-investigate.test.cjs] }
+    expected:
+      - Without the opt-in or the port, nothing starts.
+      - An uncertain start is recorded and never retried.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: swarm-handoff
+    name: Swarm hand-off between installations
+    purpose: "Verify that delegation envelopes are closed and bounded as the kernel inbox checks them; one outbound reservation per plan and peer carries the plan's exact files and digests; peer receipts are operator-reported; a received delegation is filed once as a canonical investigation with the envelope as untrusted evidence and an uncertain create is held; records stay in the caller scope; and the shipped page sends once through the confirmed peer connection, files a received delegation, issues and revokes peer tokens and clears on refusal."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/delegations.test.cjs] }
+    expected:
+      - Exactly one confirmed delivery per plan and peer.
+      - A received delegation starts one investigation and never an action.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, toolchain:playwright-chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: provisioning
+    name: Provisioning through Git
+    purpose: "Verify that provisioning templates render deterministic, parseable, hardened Kubernetes manifests from closed and strictly validated parameters (no :latest image, no YAML injection); one request per template and parameters in real SQL, owner-scoped; the provisioning promotion commits exactly those bytes plus a manifest; and the shipped page renders, reviews and promotes a request through the person's own confirmed GitHub connection without applying anything."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/provisioning.test.cjs] }
+    expected:
+      - The same parameters render the same bytes, and Git receives exactly those bytes.
+      - Nothing is applied by the application.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, toolchain:playwright-chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: jarvis-attention
+    name: Jarvis reads what waits on the operator
+    purpose: "Verify that the attention summary counts only the caller's own saved records in real SQL and names only what waits on them, and that every Jarvis tool the package declares is read-only, bound under app.open and backed by a served route."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/attention.test.cjs] }
+    expected:
+      - Another person sees nothing.
+      - No Jarvis tool writes or needs approval.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: git-explorer
+    name: Git explorer and cluster repository links
+    purpose: "Verify that repository links are closed, one per cluster per person and owner-scoped in real SQL; blobs decode to text only when they are text; and the shipped explorer lists repositories, opens one (branches, pull requests, runs, files, a file read-only) through confirmed reads only, links it to a recorded cluster, and the promotion panel offers that link and fills its target."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/git-explorer.test.cjs] }
+    expected:
+      - The explorer only reads from GitHub.
+      - A cluster's linked repository becomes the promotion target.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, toolchain:playwright-chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: anomaly-service
+    name: Local anomaly detection, cursors and candidate admission
+    purpose: "Verify the deterministic detectors (shift, flatline floor, seasonal profile, warm-up, persistence, late and stale samples) and the real-SQL service: candidates admitted once as validated alerts under the candidate source, resolution after recovery, concurrent ticks and injected intake failures that never duplicate or skip a sample, owner isolation and configuration compare-and-set."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/anomaly.test.cjs] }
+    expected:
+      - Each sample is scored before it is learned; anomalous samples never enter the baseline.
+      - Two concurrent replicas admit one candidate; a failed admit keeps the cursor and the retry admits exactly once.
+      - "Candidates are validated deliveries with alertType anomaly:<detector>:<metric> and explicit local-detection provenance."
+    prerequisites: [runner:node-test, service:postgres-disposable-35689]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 60000, maxMemoryMb: 256 }
+    installation: never
+  - id: automatic-correlation
+    name: Automatic post-reduction correlation on the tick
+    purpose: "Verify that only an explicit opt-in correlates, only newly admitted ticks trigger it, the admitted firing cohort is correlated once per unchanged cohort, unresolved assets stay explicit and the policy is bounded."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/correlation-tick.test.cjs] }
+    expected:
+      - No correlation without the opt-in or without a newly admitted symptom.
+      - An unchanged cohort reuses its correlation record; nothing is dispatched.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 60000, maxMemoryMb: 256 }
+    installation: never
+  - id: response-stage
+    name: Approved response, isolated execution and verified recovery
+    purpose: Verify byte-exact generated-file extraction, plans bound to observed targets, approvals invalidated by revision change or expiry, one dispatch per approval under concurrency and lost acknowledgements, operator reports that never change canonical state, recovery outcomes that require a resolved admitted signal, server-read ticket updates, and the shipped panel driving confirmed native exec fixtures.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/execution.test.cjs] }
+    expected:
+      - remediate.sh, verify.sh, rollback.md and verify.md are extracted byte-exact with digests only from fenced file=NAME sections; an answer without the approval statement or a complete set cannot be executed.
+      - A plan is refused for a pod the caller's recorded inventory has not observed; the same accepted work yields the same plan identity.
+      - An approval binds principal, artifact digests, target and canonical revision; a changed revision or expiry refuses dispatch before anything runs.
+      - Twelve concurrent callers reserve exactly one dispatch per approval; a lost commit acknowledgement never authorizes a second one.
+      - Verification is healthy only with a passing command, matching pod identity and a resolved admitted signal for the same resource; firing deliveries do not count.
+      - The browser makes no native action while planning or approving, dispatches the exact reserved argv once with a fresh confirmation, and clears private plan state on refusal.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, toolchain:playwright-chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role; no cluster or provider is contacted. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
     installation: never
   - id: systems-observations
     name: Current-user Systems inventory projection

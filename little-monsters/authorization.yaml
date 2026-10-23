@@ -4,6 +4,9 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Bind native lecture artifact downloads to the existing explicit export permission.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Bind DELETE /calendar/:eventId to app.open + study.delete (the permission every role already holds for its own study records, as flashcard deletes use): the route removes only the caller's own personal event. This moves the catalog revision, so existing assignments are re-stamped.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Bind the six Jarvis tools (bindings.tools) to the permissions their routes already require: reads to app.open + study.read, lm-add-class to class.create, lm-add-reminder to study.create, lm-remove-reminder to study.delete. Without a tool binding Jarvis had no Little Monsters tool and answered "This application cannot add a new class". This moves the catalog revision (contract change).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Lectures from Jarvis: POST /lectures/:lectureId/summary-pdf bound to app.open + lecture.export; POST /flashcards/generate moves from class-study.generate to study.generate (the route now admits only the class's owner or a tenant admin, so a student generates cards for their own class); tool bindings for lm-my-lectures, lm-lecture-notes, lm-make-flashcards, lm-make-quiz and lm-lecture-summary-pdf. This moves the catalog revision (contract change).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Bind GET/HEAD /email and /storage to app.open: the Email and Storage tabs open these Little Monsters pages, which keep the top bar above the standard email viewer and personal file browser. This moves the catalog revision (contract change).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Bind GET/HEAD /my-books and /materials/:materialId/chapters/:chapter, and the tools lm-my-books and lm-book-chapter, to app.open + study.read (the material file read): Jarvis lists a student's class books and reads one chapter for flashcards and a lesson summary. This moves the catalog revision (contract change).
 # Own scope describes the caller and their existing school relationships, not every school record.
 # Teacher and admin structural grants also require a current issuer-bound teacher/admin roster row.
 # No wildcard HTTP binding: unknown paths, tool operations and jobs remain denied.
@@ -263,16 +266,24 @@ bindings:
     - {id: head-mascot-png, method: HEAD, path: /mascot.png, allOf: [app.open]}
     - {id: get-materials-materialid-file, method: GET, path: /materials/:materialId/file, allOf: [app.open, study.read]}
     - {id: head-materials-materialid-file, method: HEAD, path: /materials/:materialId/file, allOf: [app.open, study.read]}
+    - {id: get-materials-materialid-chapters-chapter, method: GET, path: /materials/:materialId/chapters/:chapter, allOf: [app.open, study.read]}
+    - {id: head-materials-materialid-chapters-chapter, method: HEAD, path: /materials/:materialId/chapters/:chapter, allOf: [app.open, study.read]}
     - {id: get-me, method: GET, path: /me, allOf: [app.open, study.read]}
     - {id: head-me, method: HEAD, path: /me, allOf: [app.open, study.read]}
     - {id: get-my-day, method: GET, path: /my-day, allOf: [app.open]}
     - {id: head-my-day, method: HEAD, path: /my-day, allOf: [app.open]}
     - {id: get-my-monsters, method: GET, path: /my-monsters, allOf: [app.open]}
+    - {id: get-my-books, method: GET, path: /my-books, allOf: [app.open, study.read]}
+    - {id: head-my-books, method: HEAD, path: /my-books, allOf: [app.open, study.read]}
     - {id: head-my-monsters, method: HEAD, path: /my-monsters, allOf: [app.open]}
     - {id: get-notifications, method: GET, path: /notifications, allOf: [app.open, study.read]}
     - {id: head-notifications, method: HEAD, path: /notifications, allOf: [app.open, study.read]}
     - {id: get-presentation, method: GET, path: /presentation, allOf: [app.open]}
     - {id: head-presentation, method: HEAD, path: /presentation, allOf: [app.open]}
+    - {id: get-email, method: GET, path: /email, allOf: [app.open]}
+    - {id: head-email, method: HEAD, path: /email, allOf: [app.open]}
+    - {id: get-storage, method: GET, path: /storage, allOf: [app.open]}
+    - {id: head-storage, method: HEAD, path: /storage, allOf: [app.open]}
     - {id: get-quiz, method: GET, path: /quiz, allOf: [app.open]}
     - {id: head-quiz, method: HEAD, path: /quiz, allOf: [app.open]}
     - {id: get-recorder, method: GET, path: /recorder, allOf: [app.open]}
@@ -312,13 +323,14 @@ bindings:
     - {id: post-classes-classid-leave, method: POST, path: /classes/:classId/leave, allOf: [app.open, class.enroll]}
     - {id: post-classes-classid-students, method: POST, path: /classes/:classId/students, allOf: [app.open, roster.change]}
     - {id: post-enroll, method: POST, path: /enroll, allOf: [app.open, roster.change]}
-    - {id: post-flashcards-generate, method: POST, path: /flashcards/generate, allOf: [app.open, class-study.generate]}
+    - {id: post-flashcards-generate, method: POST, path: /flashcards/generate, allOf: [app.open, study.generate]}
     - {id: post-flashcards-review, method: POST, path: /flashcards/review, allOf: [app.open, study.change]}
     - {id: post-flashcards-sets, method: POST, path: /flashcards/sets, allOf: [app.open, study.create]}
     - {id: post-flashcards-sets-setid-cards, method: POST, path: /flashcards/sets/:setId/cards, allOf: [app.open, study.create]}
     - {id: post-import-artifact, method: POST, path: /import-artifact, allOf: [app.open, material.create, material.share]}
     - {id: post-lectures-lectureid-audio, method: POST, path: /lectures/:lectureId/audio, allOf: [app.open, lecture.create]}
     - {id: post-lectures-lectureid-pptx, method: POST, path: /lectures/:lectureId/pptx, allOf: [app.open, lecture.export]}
+    - {id: post-lectures-lectureid-summary-pdf, method: POST, path: /lectures/:lectureId/summary-pdf, allOf: [app.open, lecture.export]}
     - {id: post-materials, method: POST, path: /materials, allOf: [app.open, material.create]}
     - {id: post-materials-materialid-approve, method: POST, path: /materials/:materialId/approve, allOf: [app.open, material.moderate]}
     - {id: post-materials-materialid-deny, method: POST, path: /materials/:materialId/deny, allOf: [app.open, material.moderate]}
@@ -341,6 +353,13 @@ bindings:
     - {id: lm-my-assignments, allOf: [app.open, study.read]}
     - {id: lm-add-reminder, allOf: [app.open, study.create]}
     - {id: lm-remove-reminder, allOf: [app.open, study.delete]}
+    - {id: lm-my-lectures, allOf: [app.open, study.read]}
+    - {id: lm-lecture-notes, allOf: [app.open, study.read]}
+    - {id: lm-make-flashcards, allOf: [app.open, study.generate]}
+    - {id: lm-make-quiz, allOf: [app.open, study.generate]}
+    - {id: lm-lecture-summary-pdf, allOf: [app.open, lecture.export]}
+    - {id: lm-my-books, allOf: [app.open, study.read]}
+    - {id: lm-book-chapter, allOf: [app.open, study.read]}
   bots:
     - {id: ed000000-0000-0000-0000-000000000001, allOf: [app.open, lecture.create]}
     - {id: ed000000-0000-0000-0000-000000000002, allOf: [app.open, tutor.execute]}

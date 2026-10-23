@@ -1,0 +1,77 @@
+{
+  "kind": "live-cluster-panel-acceptance",
+  "startedAt": "2026-10-22T21:41:22.439Z",
+  "cluster": "0149aee8-c05f-4056-b6ed-c61ba36e5d9e",
+  "read": [
+    "Nodes · 3",
+    "Deployments in operations-demo · 2",
+    "Pods in operations-demo · 4"
+  ],
+  "nodeRows": [
+    [
+      "operations-lab-control-plane",
+      "True",
+      "none",
+      "control-plane",
+      "20",
+      "127598544Ki",
+      "110",
+      "v1.37.0"
+    ],
+    [
+      "operations-lab-worker",
+      "True",
+      "none",
+      "—",
+      "20",
+      "127598544Ki",
+      "110",
+      "v1.37.0"
+    ],
+    [
+      "operations-lab-worker2",
+      "True",
+      "none",
+      "—",
+      "20",
+      "127598544Ki",
+      "110",
+      "v1.37.0"
+    ]
+  ],
+  "saved": "Saved as a complete live inventory scan (9 assets). Systems now shows the live state at 2026-10-22T21:41:24.212969427+00:00.",
+  "graph": {
+    "liveCollection": {
+      "complete": true,
+      "observedAt": "2026-10-22T21:41:24.212Z"
+    },
+    "nodes": [
+      {
+        "name": "operations-lab-worker",
+        "health": "healthy",
+        "allocatableCpu": "20",
+        "allocatableMemory": "127598544Ki",
+        "pressure": null
+      },
+      {
+        "name": "operations-lab-control-plane",
+        "health": "healthy",
+        "allocatableCpu": "20",
+        "allocatableMemory": "127598544Ki",
+        "pressure": null
+      },
+      {
+        "name": "operations-lab-worker2",
+        "health": "healthy",
+        "allocatableCpu": "20",
+        "allocatableMemory": "127598544Ki",
+        "pressure": null
+      }
+    ],
+    "runsOn": 15,
+    "collectorRoutesKept": 5
+  },
+  "pageErrors": [],
+  "result": "passed",
+  "finishedAt": "2026-10-22T21:41:24.620Z"
+}

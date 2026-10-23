@@ -1,3 +1,5 @@
+/* CHANGE LOG: overview schedule | maintainer@emeraldcoastsystemsgroup.com | Overview shows a suspended processing schedule with a Re-activate action and counts unfiled delegations. */
+/* CHANGE LOG: overview actions | maintainer@emeraldcoastsystemsgroup.com | Needs attention counts operator actions from response plans, the detector and tickets; incident chips default to Needs you. */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Pin the canonical backend symptom key in event inspection. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the shipped operator screens, exact-source navigation, keyboard tabs and stale-access clearing in a real browser. */
 'use strict';
@@ -11,16 +13,22 @@ const records={sources:[a,b],events:[event('event-a',a),event('event-b',b,'quara
 const asset=(id,kind,extra={})=>({id,kind,nativeId:id,name:id,provider:'kubernetes',scope:'cluster-a',observedAt:at,health:'unknown',properties:{namespace:'demo'},...extra});
 const graph={asOf:at,assets:[asset('cluster-a','cluster'),asset('pod-a','pod',{health:'degraded',properties:{namespace:'demo',phase:'Pending',image:'registry/'+('long-image-'.repeat(30))}})],relationships:[],collections:[{complete:true}]};
 const pipeline={policies:[],bindings:[],decisions:[{id:'d-a',deliveryId:'event-a',at,outcome:'matched',reduction:{outcome:'admitted',symptomKey:'symptom-a'}}],symptoms:[],evidenceWork:[],correlations:[]};
+let schedules=[],activations=0;
 async function fixture(run){
  let refused=false,held=null,holdTickets=false;const requests=[];
  const server=http.createServer((req,res)=>{requests.push([req.method,req.url]);const url=new URL(req.url,'http://localhost');const json=(body,status=200)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(body));};
-  if(url.pathname==='/api/tickets'){if(holdTickets){held=res;return;}return json({tickets:[{id:'11111111-1111-4111-8111-111111111111',kind:'intelligent-operations',title:'Untitled',description:'Review pod availability',status:'awaiting_approval'}]});}
-  if(url.pathname==='/api/v1/agent/schedules')return json({schedules:[]});
+  if(url.pathname==='/api/tickets'){if(holdTickets){held=res;return;}return json({tickets:[{id:'11111111-1111-4111-8111-111111111111',kind:'intelligent-operations',title:'Untitled',description:'Review pod availability',status:'awaiting_approval'},{id:'22222222-2222-4222-8222-222222222222',kind:'intelligent-operations',title:'Finished drill',status:'done'},{id:'33333333-3333-4333-8333-333333333333',kind:'intelligent-operations',title:'Broken drill',status:'failed'}]});}
+  if(url.pathname==='/api/v1/agent/schedules')return json({schedules});
+  if(url.pathname==='/api/v1/agent/schedules/s1/activate'&&req.method==='POST'){activations++;schedules=schedules.map(x=>({...x,status:'active',reason:null}));return json({status:'activated'});}
+  if(url.pathname==='/api/v1/peer-inbox')return json({delegations:[{id:'i1'},{id:'i2'}],executionAuthorized:false});
   const prefix='/api/intelligent-operations',route=url.pathname.slice(prefix.length);
   if(url.pathname.startsWith(prefix)&&!route.startsWith('/assets/')&&route!=='/app'){
    if(refused)return json({error:'Scope withdrawn'},403);
    if(route==='/records')return json(records);if(route==='/pipeline')return json(pipeline);if(route==='/investigations')return json({items:[]});
    if(route==='/pipeline/processing')return json({config:{enabled:false,sourceIds:[],batchSize:10,maxAttempts:8,retrySeconds:30,revision:0},scheduleName:'fixture',jobs:[],limit:200,leaseSeconds:120});
+   if(route==='/executions')return json({items:[{id:'p1',invalidated:false,approval:null,executions:[],promotions:[]},{id:'p2',invalidated:false,approval:{expired:false},executions:[{state:'completed',recovery:{outcome:'regressed'}}],promotions:[{overdue:true}]}]});
+   if(route==='/delegations')return json({items:[{direction:'inbound',inboxId:'i1',state:'started'}]});
+   if(route==='/anomaly')return json({baselines:[{firing:true},{firing:false}],cursors:[],config:{}});
    if(route==='/topology')return json(graph);return json({error:'Fixture does not implement this action'},404);
   }
   let file;if(route==='/app')file=path.join(root,'experience/index.html');else if(route.startsWith('/assets/')){const name=path.basename(route);file=path.join(root,name==='operations.css'?'ui':'experience',name);if(name==='replay-scenarios.js')file=path.join(root,'ui',name);}else if(url.pathname.startsWith('/shared/')){res.writeHead(200);return res.end('');}
@@ -59,3 +67,15 @@ test('access withdrawal clears source, event and overview data and a late ticket
  await page.goto(base+'#overview');await page.getByText('Review pod availability',{exact:true}).waitFor();hold();await page.getByRole('button',{name:'Refresh incident work',exact:true}).click();refuse();await page.getByRole('button',{name:'Refresh records',exact:true}).click();await page.waitForFunction(()=>document.getElementById('sources-count').textContent==='Unavailable');release();
  await page.waitForTimeout(80);assert.equal(await page.getByText('Late private ticket',{exact:true}).count(),0);assert.equal(await page.getByText('Review pod availability',{exact:true}).count(),0);assert.equal(await page.locator('#source-list>button').count(),0);assert.equal(await page.locator('#event-list .event-row').count(),0);
 }));
+test('Needs attention lists what waits on the operator and incident work defaults to the tickets that need them',async()=>fixture(async({page,base})=>{
+ await page.goto(base+'#overview');const actions=page.locator('#overview-actions');await actions.getByText('Anomaly baselines firing').waitFor();
+ const text=await actions.innerText();for(const [label,count] of [['Response plans awaiting approval',1],['Executions without verified recovery',1],['Break-glass reconciliations overdue',1],['Anomaly baselines firing',1],['Reports awaiting your approval',1]])assert.match(text,new RegExp(count+'\\s+'+label));
+ const tickets=page.locator('#overview-tickets');assert.equal(await tickets.getByRole('button',{name:/Needs you · 1/}).getAttribute('aria-pressed'),'true');assert.match(await tickets.innerText(),/Review pod availability/);assert.doesNotMatch(await tickets.innerText(),/Finished drill/);
+ await tickets.getByRole('button',{name:/All · 3/}).click();assert.match(await tickets.innerText(),/Finished drill/);assert.match(await tickets.innerText(),/Broken drill/);
+ await tickets.getByRole('button',{name:/Failed or cancelled · 1/}).click();assert.doesNotMatch(await tickets.innerText(),/Review pod availability/);
+}));
+test('Overview says when the processing schedule is suspended, re-activates it on the person\'s click and counts unfiled delegations',async()=>{schedules=[{id:'s1',app:'intelligent-operations',status:'paused',reason:'deny_tier'}];activations=0;try{await fixture(async({page,base})=>{
+ await page.goto(base+'#overview');const actions=page.locator('#overview-actions');await actions.getByText('Processing schedule is paused (deny_tier)',{exact:false}).waitFor();
+ assert.match(await actions.innerText(),/1\s+Delegations from other swarms not yet filed/);
+ await actions.getByRole('button',{name:'Re-activate',exact:true}).click();await actions.getByText('Processing schedule suspended',{exact:true}).waitFor();assert.equal(activations,1);assert.equal(await actions.getByRole('button',{name:'Re-activate',exact:true}).count(),0);
+});}finally{schedules=[];}});

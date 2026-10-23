@@ -12,6 +12,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * ---------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Add owner-aware, tenant-bound flashcard persistence and safe SM-2 review writes.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com | createStudySet admits the class's owner through assertOwnerOfClass, and the class-set insert and the shared set/card write scope match "tenant admin or the class's owner" (both also required the teacher role): generating flashcards for a student's own private class failed "Teacher access required" when the set was saved.
  * ---------------------------------------------------------------------------
  *
  * @module education-study-store
@@ -36,7 +37,9 @@ function actorParams(actor) {
         actor.studentId,
         actor.tenantId,
         actor.role === 'admin',
-        actor.role === 'teacher',
+        // The class's owner (teacher_student_id) writes its sets whatever their school role: a teacher's
+        // class or a student's own private class. Ownership is still matched in studyScope.
+        true,
     ];
 }
 /** Build the common private-owner/class-membership policy with numbered binds. */
@@ -216,13 +219,13 @@ async function insertStudySet(client, actor, setId, input) {
          (set_id, class_id, owner_student_id, title, topic, source_type, source_reference, card_count)
        SELECT $1, c.class_id, NULL, $2, $3, $4, $5, $6 FROM lm_classes c
         WHERE c.class_id = $7 AND c.tenant_id = $9
-          AND ($10::boolean OR ($11::boolean AND c.teacher_student_id = $8)) RETURNING set_id`
+          AND ($10::boolean OR c.teacher_student_id = $8) RETURNING set_id`
         : `INSERT INTO lm_flashcard_sets
          (set_id, class_id, owner_student_id, title, topic, source_type, source_reference, card_count)
        VALUES ($1, NULL, $7, $2, $3, $4, $5, $6) RETURNING set_id`;
     const params = input.classId
         ? [...common, input.classId, actor.studentId, actor.tenantId,
-            actor.role === 'admin', actor.role === 'teacher']
+            actor.role === 'admin']
         : [...common, actor.studentId];
     const result = await client.query(sql, params);
     if (!result.rows[0])
@@ -239,7 +242,7 @@ async function insertStudyCards(client, setId, cards) {
 async function createStudySet(pool, actor, rawInput) {
     const classId = rawInput.classId ? String(rawInput.classId) : null;
     if (classId)
-        await (0, education_access_1.assertTeacherOfClass)(pool, actor, classId);
+        await (0, education_access_1.assertOwnerOfClass)(pool, actor, classId);
     const input = normalizeSet({ ...rawInput, classId });
     const setId = (0, crypto_1.randomUUID)();
     const client = await pool.connect();

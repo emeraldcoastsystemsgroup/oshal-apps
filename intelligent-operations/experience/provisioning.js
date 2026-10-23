@@ -1,0 +1,33 @@
+/* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Rendering no longer resets the form to defaults; fields have readable labels; the namespace template is the default whatever order the server lists templates in. */
+/* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Provisioning page: choose a template (team namespace, app deployment), fill strictly validated parameters, let the server render the exact manifests with digests, review them, and promote them through Git under your own GitHub/GitLab connection so your pipeline applies them; a server-side dry run command is offered for your own terminal. Nothing is applied by the application. */
+(function(root){'use strict';
+const text=(tag,value,cls)=>{const e=document.createElement(tag);e.textContent=value;if(cls)e.className=cls;return e;};
+const DEFAULTS={'team-namespace':{name:'payments',team:'payments',editorsGroup:'oidc:payments-devs',cpuRequests:'4',memoryRequests:'8Gi',cpuLimits:'8',memoryLimits:'16Gi',pods:50,defaultCpuRequest:'100m',defaultMemoryRequest:'128Mi',defaultCpuLimit:'500m',defaultMemoryLimit:'512Mi'},
+ 'app-deployment':{namespace:'payments',name:'payments-api',image:'ghcr.io/example/payments-api:1.4.2',replicas:2,port:8080,cpuRequest:'250m',memoryRequest:'256Mi',cpuLimit:'1',memoryLimit:'512Mi',healthPath:'/healthz'}};
+const NUMBERS=new Set(['pods','replicas','port']);
+const LABELS={name:'Name',team:'Team label',editorsGroup:'Editors group (from your identity provider)',cpuRequests:'CPU requests quota',memoryRequests:'Memory requests quota',cpuLimits:'CPU limits quota',memoryLimits:'Memory limits quota',pods:'Pods quota',defaultCpuRequest:'Default CPU request',defaultMemoryRequest:'Default memory request',defaultCpuLimit:'Default CPU limit',defaultMemoryLimit:'Default memory limit',namespace:'Namespace',image:'Image (tag or digest, never :latest)',replicas:'Replicas',port:'Container port',cpuRequest:'CPU request',memoryRequest:'Memory request',cpuLimit:'CPU limit',memoryLimit:'Memory limit',healthPath:'Health check path'};
+function mount({request,onRefused}){
+ const $=id=>document.getElementById(id),panel=$('provision-panel');if(!panel)return {load(){},clear(){}};
+ let generation=0,model=null;
+ function clear(){generation++;model=null;for(const id of ['provision-fields','provision-files','provision-list'])$(id).replaceChildren();$('provision-status').textContent='Reconnect to provision through Git.';}
+ async function native(path){const r=await fetch(path,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});const v=await r.json().catch(()=>({}));if(!r.ok){if([401,403].includes(r.status)){clear();onRefused();}throw Error(v.detail||'Refused (HTTP '+r.status+').');}return v;}
+ function fields(){const t=$('provision-template').value,box=$('provision-fields');box.replaceChildren();box.dataset.template=t;for(const f of model?.templates?.[t]?.fields||[]){const l=text('label',LABELS[f]||f),i=document.createElement('input');i.id='provision-'+f;i.dataset.field=f;i.value=String(DEFAULTS[t]?.[f]??'');if(NUMBERS.has(f))i.type='number';i.maxLength=253;l.append(i);box.append(l);}}
+ function review(r,host){host.append(text('p','Template '+r.template+' · '+r.files.length+' files · '+(r.retry?'already saved':'saved')+'. Review the exact bytes below; they go to Git unchanged.','observation-note'));
+  for(const f of r.files){const d=text('details','','provision-file');d.append(text('summary',f.name+' · sha256 '+f.sha256.slice(0,16)+'… · '+f.bytes+' bytes'),text('pre',f.content));host.append(d);}
+  const folder='provisioning/'+r.template+'/'+(r.params.namespace?r.params.namespace+'-':'')+r.params.name;host.append(text('p','Check it first in your own terminal: kubectl apply --dry-run=server -f '+folder+'/','observation-note'));return folder;}
+ async function load(){const run=++generation;$('provision-status').textContent='Reading your provisioning requests…';
+  try{const [page,standing]=await Promise.all([request('/provisioning'),native('/connectors')]);if(run!==generation)return;model=page;
+   const picker=$('provision-template'),chosen=picker.value;picker.replaceChildren();for(const [k,t] of Object.entries(page.templates)){const o=text('option',t.label);o.value=k;picker.append(o);}if([...picker.options].some(o=>o.value===chosen))picker.value=chosen;else if([...picker.options].some(o=>o.value==='team-namespace'))picker.value='team-namespace';if($('provision-fields').dataset.template!==picker.value)fields();
+   const list=$('provision-list');list.replaceChildren();if(!page.items.length)list.append(text('p','No provisioning requests yet.','muted'));
+   for(const r of page.items){const card=text('article','','card');card.append(text('h4',r.template+' · '+(r.params.namespace?r.params.namespace+'/':'')+r.params.name),text('p',r.reason));const folder=review(r,card);
+    window.OperationsGitPromotion?.attach(card,r,{request,onRefused,connections:standing.connections||[],services:standing.httpServices||[],promotions:r.promotions||[],executed:false,reload:load,actions:[['provisioning','Commit, open request']],folder,intro:'Commit these exact manifests and a manifest file to a new branch, open a pull or merge request, and optionally start the pipeline that applies them after review. Every provider write uses your own connection with a fresh confirmation.'});list.append(card);}
+   $('provision-status').textContent=page.items.length+' provisioning request(s). Nothing is applied by the application; your pipeline applies a merged request.';}
+  catch(e){if(run===generation)$('provision-status').textContent=e.message;}}
+ $('provision-template').addEventListener('change',fields);
+ $('provision-render').addEventListener('click',async()=>{const run=generation;$('provision-render').disabled=true;try{const params={};for(const i of $('provision-fields').querySelectorAll('input'))params[i.dataset.field]=NUMBERS.has(i.dataset.field)?Number(i.value):i.value.trim();
+   const r=await request('/provisioning',{template:$('provision-template').value,params,reason:$('provision-reason').value.trim()});if(run!==generation)return;const out=$('provision-files');out.replaceChildren();review(r,out);await load();$('provision-status').textContent='Rendered '+r.files.length+' manifests. Promote the request below through Git.';}
+  catch(e){if(run===generation)$('provision-status').textContent=e.message;}finally{$('provision-render').disabled=false;}});
+ $('provision-refresh').addEventListener('click',load);clear();return {load,clear};
+}
+const api={mount,DEFAULTS};if(typeof module==='object'&&module.exports)module.exports=api;else root.OperationsProvisioning=api;
+})(typeof window==='object'?window:globalThis);

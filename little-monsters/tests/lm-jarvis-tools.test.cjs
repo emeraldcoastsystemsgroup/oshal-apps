@@ -5,6 +5,10 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard Jarvis inside Little Monsters. A student pressed the corner button expecting Jarvis, reached the textbook Tutor (the package's floating ui.assistant, with the Jarvis orb hidden by the page frame), and real Jarvis answered "This application cannot add a new class" because the package declared no tools. Pins: the six route-backed tools, a tool binding per tool equal to the HTTP binding of the route it calls, writes held for approval, every tool admitted to the student role, no floating assistant, a page frame that never hides the orb, and routing words that reach the tutor.
  *
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Lecture tools (lm-my-lectures, lm-lecture-notes, lm-make-flashcards, lm-make-quiz, lm-lecture-summary-pdf): generation tools are automatic POSTs, so approval is pinned per tool rather than by method, and a literal route segment (/lectures/recent) matches its parameter binding.
+ *
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Book tools (lm-my-books, lm-book-chapter): reads bound to app.open + study.read like the material file they read.
+ *
  * Dependency-free node:test over the shipped manifest, authorization catalog and page frame.
  */
 'use strict';
@@ -19,8 +23,12 @@ const yaml = require(require.resolve('js-yaml', { paths: [path.resolve(PKG, '../
 const manifest = yaml.load(fs.readFileSync(path.join(PKG, 'oshal-app.yaml'), 'utf8'));
 const catalog = yaml.load(fs.readFileSync(path.join(PKG, 'authorization.yaml'), 'utf8'));
 const MOUNT = '/api/education';
-const TOOLS = ['lm-my-classes', 'lm-add-class', 'lm-my-schedule', 'lm-my-assignments', 'lm-add-reminder', 'lm-remove-reminder'];
+const TOOLS = ['lm-my-classes', 'lm-add-class', 'lm-my-schedule', 'lm-my-assignments', 'lm-add-reminder', 'lm-remove-reminder',
+  'lm-my-lectures', 'lm-lecture-notes', 'lm-make-flashcards', 'lm-make-quiz', 'lm-lecture-summary-pdf',
+  'lm-my-books', 'lm-book-chapter'];
 const WRITES = new Set(['lm-add-class', 'lm-add-reminder', 'lm-remove-reminder']);
+/** Automatic study-material generation for the person's own classes (like AI Office decks). */
+const GENERATES = new Set(['lm-make-flashcards', 'lm-make-quiz', 'lm-lecture-summary-pdf']);
 
 /** @description The declared tool by name. @param {string} name @returns {object} */
 function tool(name) {
@@ -34,8 +42,12 @@ function httpBinding(declared) {
   const [method, url] = declared.executor.apiEndpoint.split(' ');
   assert.ok(url.startsWith(`${MOUNT}/`), `${declared.name} calls inside this package's mount`);
   const route = url.slice(MOUNT.length).replace(/\{input\.([A-Za-z]+)\}/g, (_, field) => `:${field}`);
-  const shape = value => value.replace(/:[A-Za-z]+/g, ':param');
-  const found = catalog.bindings.http.find(entry => entry.method === method && shape(entry.path) === shape(route));
+  const matches = (pattern, path) => {
+    const a = pattern.split('/'), b = path.split('/');
+    return a.length === b.length && a.every((seg, i) => seg.startsWith(':') || seg === b[i]);
+  };
+  const exact = catalog.bindings.http.find(entry => entry.method === method && entry.path === route);
+  const found = exact || catalog.bindings.http.find(entry => entry.method === method && matches(entry.path, route));
   assert.ok(found, `${method} ${route} is bound`);
   return found;
 }
@@ -54,12 +66,12 @@ test('each tool binding asks exactly what the route it calls asks', () => {
   }
 });
 
-test('writes are held for approval and reads resolve to read permissions only', () => {
+test('writes are held for approval, generation runs on request, and reads resolve to read permissions only', () => {
   for (const name of TOOLS) {
     const declared = tool(name);
     assert.equal(declared.requiresApproval, WRITES.has(name), `${name} approval`);
-    assert.equal(declared.executor.apiEndpoint.startsWith('GET '), !WRITES.has(name), `${name} method`);
-    if (WRITES.has(name)) continue;
+    assert.equal(declared.executor.apiEndpoint.startsWith('GET '), !WRITES.has(name) && !GENERATES.has(name), `${name} method`);
+    if (WRITES.has(name) || GENERATES.has(name)) continue;
     for (const permission of httpBinding(declared).allOf) {
       assert.equal(catalog.permissions[permission].effect, 'read', `${name} reads with ${permission}`);
     }

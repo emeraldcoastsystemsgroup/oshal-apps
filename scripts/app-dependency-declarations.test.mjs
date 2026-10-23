@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Hold every store package's prerequisite declaration to what its code actually does. Two arms, because either alone can be defeated: a DETECTOR that fails on any cross-package edge nobody declared, and a LEDGER of the edges already proven by reading the code, each pinned to the file and the exact call that proves it. A catalog `--check` cannot do this job - marketplace.json's dependency block is GENERATED from the manifest, so a declaration that goes missing disappears from both sides at once and the mirror still reports "current". The ledger also records the two shapes that are NOT dependencies: an `integrations.offers` target (the framework resolves an inactive target to state:'unavailable'), and a package named in prose in a .md or .json record.
  *
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Social requires the single owner of its shared communications bot, including scheduled digests.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Little Monsters' required applications include email-summarizer (its Email tab's standard viewer).
  *
  * @module app-dependency-declarations.test
  */
@@ -114,7 +115,7 @@ test('an integrations.offers target is a hand-off, not a dependency', () => {
     .concat(tiersOf(name)?.required?.apps ?? []).includes('presentations'));
   assert.deepEqual(declaringOfferers, ['little-monsters'],
     'offers alone create no dependency; Little Monsters independently requires Office in its complete product composite');
-  assert.deepEqual(tiersOf('little-monsters').required.apps, ['presentations', 'circuit-lab']);
+  assert.deepEqual(tiersOf('little-monsters').required.apps, ['presentations', 'circuit-lab', 'email-summarizer']);
   const learningManifest = fs.readFileSync(path.join(ROOT, dirByName.get('little-monsters'), 'oshal-app.yaml'), 'utf8');
   assert.match(learningManifest, /roleTemplates:/, 'the required Office declaration must retain the explicit native product roles');
 });

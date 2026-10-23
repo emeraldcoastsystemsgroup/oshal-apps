@@ -14,6 +14,7 @@
   2026-06-12     | roger.murphy@agenticfederal.us   | Student-flow rework: record button now drives browser STT directly (auto-restarting captions that survive a full class period) instead of the unconfigured server-audio path; one-tap "Make my study stuff"; results screen with Play Presentation + Study Flashcards deep links, rendered notes, friendly card lists; audio-file upload demoted to a collapsed fallback
   2026-06-12     | roger.murphy@agenticfederal.us   | Recording durability: transcript auto-saves to localStorage (resume banner on reload); MediaRecorder captures real audio in 10s chunks persisted to IndexedDB (crash-safe), saved server-side after generation (POST /lectures/:id/audio) with listen/download links
   2026-09-26     | maintainer@emeraldcoastsystemsgroup.com     | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, cockpit theme links and glass; hero, step cards, draft callout, tabs, result lists and the upload zone use the system with tokens only. Role truth: lecture writes are teacher/admin only, so a student sees a calm "your teacher records the lecture" state with a dashboard button instead of a record button that the routes would refuse; the false "audio stays on your device" wording is gone (the recording is uploaded to the lecture); exit goes through the page frame
+  2026-10-18     | maintainer@emeraldcoastsystemsgroup.com     | A student records into a class they own (their private class); the routes admit the class owner. Without live captions (a browser with no speech recognition, or captions that never arrive) the audio is still recorded, and "Make the study materials" first transcribes it on the kernel's local speech recognition (POST /process-lecture with transcribeOnly) and then makes the materials from that text.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -309,6 +310,7 @@ async function checkOrphanAudio() {
   banner.classList.remove('hide');
 }
 
+var recordingStopped = Promise.resolve();
 function startAudioCapture() {
   audioChunks = [];
   sessionId = 'sess-' + Date.now();
@@ -321,7 +323,7 @@ function startAudioCapture() {
     mediaRecorder.ondataavailable = function (e) {
       if (e.data && e.data.size > 0) { audioChunks.push(e.data); putChunk(e.data); }
     };
-    mediaRecorder.onstop = function () { stream.getTracks().forEach(function (t) { t.stop(); }); };
+    recordingStopped = new Promise(function (resolve) { mediaRecorder.onstop = function () { stream.getTracks().forEach(function (t) { t.stop(); }); resolve(); }; });
     mediaRecorder.start(10000); // flush a durable chunk every 10s
   }).catch(function () { /* captions still work without the audio file */ });
 }
@@ -443,7 +445,7 @@ function toggleRecording() {
     stopRecordingUi();
     saveDraft();
     var words = document.getElementById('transcriptBox').value.trim().split(/\s+/).filter(Boolean).length;
-    setStatus(words > 5 ? 'Nice! Now tap "' + GEN_LABEL + '" below 👇' : 'Stopped. Record again or paste the lecture below.');
+    setStatus(words > 5 || audioChunks.length ? 'Nice! Now tap "' + GEN_LABEL + '" below 👇' : 'Stopped. Record again or paste the lecture below.');
     if (mascot) mascot.setMood('proud');
   } else {
     if (!document.getElementById('classSelect').value) {
@@ -451,14 +453,15 @@ function toggleRecording() {
       return;
     }
     isRecording = true;
-    if (!startCaptions()) { isRecording = false; return; }
+    var captions = startCaptions();
     startAudioCapture();
     startTime = Date.now();
     timerInterval = setInterval(updateTimer, 1000);
     document.getElementById('recBtn').classList.add('recording');
     document.getElementById('recorderRing').classList.add('recording');
     document.getElementById('liveIndicator').innerHTML = '<span class="live-dot"></span>listening…';
-    setStatus('Recording — live captions appear below as you speak');
+    setStatus(captions ? 'Recording — live captions appear below as you speak'
+      : 'Recording audio — this browser has no live captions, so the recording is turned into text when you make the study materials');
     if (mascot) mascot.setMood('hyped');
   }
 }
@@ -498,6 +501,38 @@ function setGenStep(n) {
 }
 
 /** Turn the transcript (live captions or pasted) into grounded study materials. */
+/**
+ * The recording as text when the browser gave no live captions: the audio goes to the class's
+ * lecture route with transcribeOnly (kernel speech recognition; nothing is kept), and its text
+ * comes back. Answers '' and says why in the status when there is no recording or no text.
+ */
+async function transcribeRecording(classId, statusEl) {
+  await recordingStopped;
+  var chunks = audioChunks.length ? audioChunks : (await getAllChunks()).map(function (r) { return r.blob; });
+  var blob = new Blob(chunks, { type: (mediaRecorder && mediaRecorder.mimeType) || 'audio/webm' });
+  if (blob.size < 2000) return '';
+  statusEl.textContent = '🎧 Turning the recording into text…';
+  try {
+    var fd = new FormData();
+    fd.append('audio', blob, 'lecture.webm');
+    fd.append('classId', classId);
+    fd.append('lectureDate', new Date().toISOString().split('T')[0]);
+    fd.append('transcribeOnly', 'true');
+    var resp = await fetch('/api/education/process-lecture', { method: 'POST', body: fd });
+    var data = await resp.json().catch(function () { return {}; });
+    var text = data.transcript && data.transcript.text ? String(data.transcript.text).trim() : '';
+    if (!resp.ok || !text) {
+      statusEl.textContent = data.error || (data.transcript && data.transcript.message) || 'No speech was heard in the recording.';
+      return '';
+    }
+    statusEl.textContent = '';
+    return text;
+  } catch (e) {
+    statusEl.textContent = 'Could not turn the recording into text: ' + e.message;
+    return '';
+  }
+}
+
 async function generateFromTranscript() {
   var classId = document.getElementById('classSelect').value || (new URLSearchParams(location.search).get('classId')) || '';
   var transcript = document.getElementById('transcriptBox').value.trim();
@@ -505,7 +540,13 @@ async function generateFromTranscript() {
   var btn = document.getElementById('genMaterialsBtn');
   if (isRecording) toggleRecording();
   if (!classId) { genStatus.textContent = 'Pick the class first (step 1) 👆'; return; }
-  if (transcript.length < 20) { genStatus.textContent = 'Record or paste a bit of the lecture first.'; return; }
+  if (transcript.length < 20) {
+    btn.disabled = true;
+    var heard = await transcribeRecording(classId, genStatus);
+    btn.disabled = false;
+    if (heard) { transcript = heard; document.getElementById('transcriptBox').value = heard; updateWordCount(); saveDraft(); }
+  }
+  if (transcript.length < 20) { if (!genStatus.textContent) genStatus.textContent = 'Record or paste a bit of the lecture first.'; return; }
 
   btn.disabled = true;
   genStatus.textContent = '';
@@ -679,29 +720,34 @@ uploadZone.addEventListener('drop', function (e) {
 });
 
 /** Load classes into the selector from API. */
-async function loadClasses() {
+async function loadClasses(ownerId) {
   try {
     var resp = await fetch('/api/education/classes');
-    if (!resp.ok) return;
+    if (!resp.ok) return 0;
     var data = await resp.json();
     var select = document.getElementById('classSelect');
     var preselect = new URLSearchParams(window.location.search).get('classId');
-    (data.classes || []).forEach(function (cls) {
+    // A student records only into a class they own (their own private class); a teacher's
+    // class is recorded by its teacher, and the routes refuse anyone else.
+    var list = (data.classes || []).filter(function (cls) { return !ownerId || cls.teacher_student_id === ownerId; });
+    list.forEach(function (cls) {
       var opt = document.createElement('option');
       opt.value = cls.class_id;
       opt.textContent = cls.name + (cls.subject ? ' (' + cls.subject + ')' : '');
       if (preselect && cls.class_id === preselect) opt.selected = true;
       select.appendChild(opt);
     });
+    return list.length;
   } catch (e) {
     console.warn('[Recorder] Failed to load classes:', e.message);
+    return 0;
   }
 }
 
-/** Learner view: the routes refuse lecture writes for students, so the page says so instead of offering a button that fails. */
+/** Learner with no class of their own: the routes accept lecture writes only from a class's owner, so the page says how to get one instead of offering a button that fails. */
 function showStudentState() {
-  document.getElementById('heroTitle').textContent = 'Your teacher records the lecture.';
-  document.getElementById('heroLead').textContent = 'Replays, flashcards and notes appear in your classes when they are ready.';
+  document.getElementById('heroTitle').textContent = 'Record into your own class.';
+  document.getElementById('heroLead').textContent = 'Create a class of your own from your dashboard to record lectures into it. Your teachers record the lectures of their classes; replays, flashcards and notes appear when they are ready.';
   document.getElementById('studentState').classList.remove('hide');
   document.getElementById('studentHome').addEventListener('click', function () { window.LM.navigate('dashboard'); });
 }
@@ -721,9 +767,10 @@ function showRecorder() {
   var who = null;
   try { who = await window.LM.me(); } catch (_e) { who = null; }
   document.getElementById('roleCheck').classList.add('hide');
-  if (who && who.role === 'student') { showStudentState(); return; }
+  var owner = who && who.role === 'student' ? who.studentId : null;
+  if (owner && !(await loadClasses(owner))) { showStudentState(); return; }
   showRecorder();
-  await loadClasses();
+  if (!owner) await loadClasses();
   checkDraft();
   idb = await openIdb();
   checkOrphanAudio();

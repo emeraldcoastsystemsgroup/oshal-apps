@@ -13,6 +13,7 @@
  * 6   | maintainer@emeraldcoastsystemsgroup.com     | /class-tool-keys answers for the whole app (static surfaces by role plus accessible classes) so the rail's visibility rule covers every lm-* tool without a new binding; teacher-only surfaces are not offered to learners
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Commit class creation and creator enrollment atomically with explicit school identity.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Route native relational deletion through the authoritative optimistic transaction adapter.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | The Record tab (lm-recorder) is offered to students: a student records lectures into a class they own; only the Teacher tab stays teacher-only.
  * ---------------------------------------------------------------------------
  *
  * @module education-class-routes
@@ -59,7 +60,7 @@ function errorMessage(err: unknown): string {
  * Listing them for a learner would offer a tab that can only answer 403, so the visibility answer
  * leaves them out; the routes themselves keep refusing regardless of what any rail shows.
  */
-const TEACHER_ONLY_TOOLS = ['lm-teacher', 'lm-recorder'];
+const TEACHER_ONLY_TOOLS = ['lm-teacher'];
 
 /**
  * @description The static surface tool names declared by this package's own manifest (`ui.static[].toolName`),

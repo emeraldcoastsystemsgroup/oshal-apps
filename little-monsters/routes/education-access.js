@@ -27,6 +27,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Read the issuer from the verified idTokenClaims before the filtered user view through one exported helper: express-openid-connect strips iss from req.oidc.user by default, so every real browser session failed 401 and legacy rows never adopted an issuer; only the PAT and MOCK_OIDC rails put iss on user
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Resolve native scoped-store GETs from existing verified learner bindings without provisioning writes
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Use verified native student provisioning inside an explicit atomic transaction; retain operator-controlled roles and existing bindings.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | assertOwnerOfClass: the class's owner (teacher_student_id, whatever their school role) or a tenant admin; used where a student's own private class must count as theirs (creating its flashcard set).
  * ---------------------------------------------------------------------------
  *
  * @module education-access
@@ -41,6 +42,7 @@ exports.privateMaterialsCollection = privateMaterialsCollection;
 exports.sharedMaterialsCollection = sharedMaterialsCollection;
 exports.assertTeacher = assertTeacher;
 exports.assertTeacherOfClass = assertTeacherOfClass;
+exports.assertOwnerOfClass = assertOwnerOfClass;
 exports.assertCanViewStudent = assertCanViewStudent;
 exports.listAccessibleClassIds = listAccessibleClassIds;
 const node_crypto_1 = require("node:crypto");
@@ -423,6 +425,17 @@ async function assertTeacherOfClass(pool, student, classId) {
     if (r.rows.length === 0) {
         throw new EducationAccessError('You do not teach this class', 403);
     }
+}
+/**
+ * @description Assert the caller owns the class (its teacher_student_id, whatever their school
+ * role) or is a tenant admin, else 403.
+ */
+async function assertOwnerOfClass(pool, student, classId) {
+    const r = student.role === 'admin'
+        ? await pool.query('SELECT 1 FROM lm_classes WHERE class_id = $1 AND tenant_id = $2', [classId, student.tenantId])
+        : await pool.query('SELECT 1 FROM lm_classes WHERE class_id = $1 AND teacher_student_id = $2 AND tenant_id = $3', [classId, student.studentId, student.tenantId]);
+    if (r.rows.length === 0)
+        throw new EducationAccessError('You do not own this class', 403);
 }
 /**
  * @description Assert that a caller may read a student's private dashboard.

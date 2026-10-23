@@ -1,0 +1,20 @@
+{
+  "kind": "swarm-hand-off-acceptance",
+  "startedAt": "2026-10-22T22:32:37.939Z",
+  "kernel": "oshal-kernel:dev-92a26f78a6be",
+  "status": "No peer swarm is selected by your administrator, so you can receive but not send. Connect the peer token another swarm gave you in Connections to send. 1 delegation(s) in your inbox.",
+  "filed": "Filed as investigation ticket 11abd16e and started.",
+  "revoke": 200,
+  "inbound": {
+    "state": "started",
+    "ticketId": "11abd16e-939f-4b1e-b4f7-54dd156fef11",
+    "sender": {
+      "name": "Upper operations swarm (lab acceptance)"
+    },
+    "error": null
+  },
+  "ticketStatus": "running",
+  "pageErrors": [],
+  "result": "passed",
+  "finishedAt": "2026-10-22T22:32:39.587Z"
+}

@@ -6,6 +6,8 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Prove compiled study routes enforce class roles, private ownership, and pre-RAG authorization.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Prove quiz attempts keep answer keys server-side and bind persistence to class access.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Exercise study generation through caller-scoped, tool-disabled education bots with fenced source material.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | Flashcard generation admits the class's owner: the fake pool now applies authorizeLectureClassWrite's owner predicate (it returned the class to any caller) and canUseSet's write rule is the class's owner whatever the role, as studyScope now is, an enrolled non-owner is still refused before any RAG, model or write, and a student who owns their private class generates its cards.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | With nothing indexed for the class, quiz generation reads the class's lecture notes from its workspace (a real file through the safe-path check), and the generated studyUrl/quizUrl are the exact relative links.
  *
  * Little Monsters study authorization closure.
  *
@@ -62,6 +64,7 @@ const externalCalls = { rag: 0, model: 0 };
 class FakeRagService {
   async search() {
     externalCalls.rag += 1;
+    if (FakeRagService.empty) return [];
     return [{ text: 'Authorized class material about fractions and ratios.' }];
   }
 }
@@ -82,6 +85,7 @@ const STUBS = {
   '@/app/routes/inline-bot-execution': {
     executeBotOrInline: async (_ctx, _client, _agentId, request) => {
       externalCalls.model += 1;
+      externalCalls.lastText = String(request.text);
       const cards = '[{"front":"What is a ratio?","back":"A comparison.","difficulty":1}]';
       const quiz = '[{"question":"Which is a ratio?","options":["1:2","3","4","5"],"correctIndex":0,"explanation":"It compares values.","topic":"ratios"}]';
       return { response: String(request.text).includes('study flashcards') ? cards : quiz };
@@ -146,7 +150,7 @@ function canUseSet(state, actor, set, mode) {
   const cls = state.classes.find((item) => item.class_id === set.class_id);
   if (!cls || cls.tenant_id !== actor.tenant_id) return false;
   if (actor.role === 'admin') return true;
-  if (actor.role === 'teacher' && cls.teacher_student_id === actor.student_id) return true;
+  if (cls.teacher_student_id === actor.student_id) return true; // the class's owner, whatever their role
   return mode === 'read' && state.enrollments.some(
     (row) => row.student_id === actor.student_id && row.class_id === set.class_id,
   );
@@ -179,8 +183,14 @@ function handleAccessQuery(state, sql, params) {
     );
     return result(found ? [{ allowed: 1 }] : []);
   }
+  if (/SELECT notes_path, transcript_path FROM lm_lectures/i.test(sql)) {
+    return result((state.lectures || []).filter((row) => row.class_id === params[0]));
+  }
   if (/SELECT class_id, name, subject FROM lm_classes/i.test(sql)) {
-    return result(state.classes.filter((cls) => cls.class_id === params[0] && cls.tenant_id === params[1]));
+    // authorizeLectureClassWrite adds the owner predicate: a tenant admin or the class's owner.
+    const ownerOnly = /teacher_student_id = \$4/i.test(sql);
+    return result(state.classes.filter((cls) => cls.class_id === params[0] && cls.tenant_id === params[1]
+      && (!ownerOnly || params[2] === 'admin' || cls.teacher_student_id === params[3])));
   }
   return undefined;
 }
@@ -365,6 +375,56 @@ test('an enrolled student cannot generate a persistent shared flashcard set', as
   assert.equal(state.sets.length, 4);
 });
 
+test('a student who owns the class (their private class) generates its flashcards', async () => {
+  const previousKey = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'test-only-key';
+  externalCalls.rag = 0;
+  externalCalls.model = 0;
+  const state = baseState();
+  state.classes[0].teacher_student_id = STUDENT_A;
+  const pool = makePool(state);
+  try {
+    const response = await call(pool, 'post', '/flashcards/generate', requestFor('student-a', {
+      body: { classId: CLASS_A, count: 6, topic: 'fractions' },
+    }));
+    assert.equal(response.statusCode, 201, JSON.stringify(response.body));
+    assert.equal(externalCalls.model, 1);
+    assert.ok(response.body.cards.length > 0);
+    assert.equal(response.body.studyUrl, `/api/education/flashcards?setId=${response.body.setId}&classId=${CLASS_A}`, 'the exact link Jarvis passes on');
+  } finally {
+    if (previousKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = previousKey;
+  }
+});
+
+test('with nothing indexed, a quiz on the lecture topic is grounded in the class lecture notes', async () => {
+  const previousKey = process.env.ANTHROPIC_API_KEY;
+  const previousData = process.env.OSHAL_PACKAGE_DATA_DIR;
+  const sandbox = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'lm-quiz-notes-'));
+  process.env.ANTHROPIC_API_KEY = 'test-only-key';
+  process.env.OSHAL_PACKAGE_DATA_DIR = sandbox;
+  FakeRagService.empty = true;
+  try {
+    const dir = path.join(sandbox, 'workspace-shared', 'education', CLASS_A, 'lectures');
+    fs.mkdirSync(dir, { recursive: true });
+    const notes = path.join(dir, 'NOTES-2026-10-18.md');
+    fs.writeFileSync(notes, '# Photosynthesis\n* Chlorophyll in the chloroplast captures light energy.');
+    const state = baseState();
+    state.lectures = [{ class_id: CLASS_A, notes_path: notes, transcript_path: null }];
+    const response = await call(makePool(state), 'post', '/quiz/generate', requestFor('student-a', {
+      body: { classId: CLASS_A, count: 5, topic: 'photosynthesis' },
+    }));
+    assert.equal(response.statusCode, 200, JSON.stringify(response.body));
+    assert.match(externalCalls.lastText, /Chlorophyll in the chloroplast captures light energy/);
+    assert.match(externalCalls.lastText, /Topic Focus: photosynthesis/);
+  } finally {
+    FakeRagService.empty = false;
+    if (previousKey === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = previousKey;
+    if (previousData === undefined) delete process.env.OSHAL_PACKAGE_DATA_DIR; else process.env.OSHAL_PACKAGE_DATA_DIR = previousData;
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
 test('enrolled quiz generation stores answers once and returns only public fields', async () => {
   const previousKey = process.env.ANTHROPIC_API_KEY;
   process.env.ANTHROPIC_API_KEY = 'test-only-key';
@@ -378,6 +438,7 @@ test('enrolled quiz generation stores answers once and returns only public field
     }));
     assert.equal(response.statusCode, 200);
     assert.match(response.body.attemptId, /^[0-9a-f-]{36}$/i);
+    assert.equal(response.body.quizUrl, `/api/education/quiz?classId=${CLASS_A}`, 'the exact link Jarvis passes on');
     assert.equal(response.body.questions.length, 1);
     assert.deepEqual(Object.keys(response.body.questions[0]).sort(), ['options', 'question', 'topic']);
     assert.equal(state.attempts.length, 1);

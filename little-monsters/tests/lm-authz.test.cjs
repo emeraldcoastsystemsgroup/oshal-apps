@@ -14,6 +14,7 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Supply the package activation adapter-registration seam while retaining compiled record-boundary coverage.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Stub the owner-bound artifact relay and byte classifier so the compiled class-material receiver remains dependency-free under this authorization harness.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Preserve the native lecture engine boundary while including the full Office and Circuit Lab product bundle.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | The learning bundle's required applications include email-summarizer (the Email tab).
  *
  * Little Monsters authorization closure.
  *
@@ -813,7 +814,7 @@ test('the full learning bundle retains the native lecture player and kernel expo
   const nativeExport = fs.readFileSync(path.join(PKG, 'src-routes/education-pptx.ts'), 'utf8');
   assert.match(nativeExport, /import \{ renderPptx[^\n]+from '@\/features\/presentation-generation'/);
   assert.doesNotMatch(nativeExport, /\/api\/presentations/);
-  assert.deepEqual(entry?.dependencies?.required?.apps, ['presentations', 'circuit-lab']);
+  assert.deepEqual(entry?.dependencies?.required?.apps, ['presentations', 'circuit-lab', 'email-summarizer']);
   assert.deepEqual(entry?.dependencies?.optional?.apps, []);
-  assert.deepEqual(entry?.dependencies?.apps, ['presentations', 'circuit-lab']);
+  assert.deepEqual(entry?.dependencies?.apps, ['presentations', 'circuit-lab', 'email-summarizer']);
 });

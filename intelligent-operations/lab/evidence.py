@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Closed CPU incident evidence schema and non-executing work proposals.
 CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Project measured facts into credential-free, hashed agent input and fixed-target script proposals.
+CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Record the workload's documented in-container stop control and container name as evidence facts, so a workflow can generate an exec-scoped remediation bound to the exact pod and container.
+CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Record the pinned image's shell, tools, writable path and metrics format as image facts, because the first real workflow correctly refused to generate scripts without knowing what the container can execute.
 """
 import hashlib
 import json
@@ -43,7 +45,12 @@ def packet(alert, pods, cluster_uid, episode):
                  'containers':[{'name':c['name'],'cpuLimit':c.get('resources',{}).get('limits',{}).get('cpu')} for c in pod['spec']['containers']]},
           'collection':{'mode':'namespace-read-only-collector','rawHash':digest({'alert':alert,'pod':pod}),
                         'excluded':['environment values','Secrets','ConfigMaps','service-account tokens','kubeconfig','arbitrary logs','unrelated pods']},
-          'scenario':{'intentionalLabPressure':True,'cpuLimitCores':1,'workloadDeadlineSeconds':150,'jobDeadlineSeconds':180},
+          'scenario':{'intentionalLabPressure':True,'cpuLimitCores':1,'workloadDeadlineSeconds':int(next((e['value'] for c in pod['spec']['containers'] for e in c.get('env',[]) if e.get('name')=='DURATION'),150)),'jobDeadlineSeconds':None,
+                      'container':'pressure','stopControl':{'kind':'in-container-file','path':'/run/pressure/stop','effect':'the pressure loop stops within one scheduling round and the metrics counter stays flat for a 90-second grace period before the Job completes'},
+                      'metricsEndpoint':'http://127.0.0.1:8080/metrics inside the container','counter':'operations_pressure_cpu_seconds_total',
+                      'containerRuntime':{'image':next((c.get('image') for c in pod['spec']['containers'] if c['name']=='pressure'),None),'basis':'pinned python:3.13-slim image (lab/versions.json); facts of the image, not an in-container observation',
+                                          'shell':'/bin/sh','tools':['sh','cat','printf','test','sleep','ps','python3'],'writablePaths':['/run/pressure'],'readOnlyRootFilesystem':True,'runAsNonRoot':True,
+                                          'metricsFormat':'Prometheus text exposition: one line `operations_pressure_cpu_seconds_total{node=...,pod_uid=...,episode=...} <cumulative cpu seconds>`; read with `python3 -c "import urllib.request;print(urllib.request.urlopen(\'http://127.0.0.1:8080/metrics\',timeout=5).read().decode())"`'}},
           'authority':{'clusterAccess':False,'tools':[],'scripts':'proposal-only','automaticRemediation':False}}
     return {**body,'sha256':digest(body)}
 

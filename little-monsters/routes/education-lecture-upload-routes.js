@@ -12,6 +12,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add authorization-first lecture/audio uploads with content sniffing, random exclusive files, and contained class workspaces.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | transcribeOnly: the recorder sends its audio with transcribeOnly=true when the browser had no live captions; the caller's class-write authorization is the same, the audio is transcribed on the kernel's local STT in a temporary directory, and only the text is returned (no lecture row, no ticket), so the materials come from /process-transcript exactly as from captions.
  * -----------------------------------------------------------------------------
  *
  * @module education-lecture-upload-routes
@@ -22,6 +23,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createEducationLectureUploadRoutes = createEducationLectureUploadRoutes;
 const fs_1 = __importDefault(require("fs"));
+const os_1 = __importDefault(require("os"));
 const path_1 = __importDefault(require("path"));
 const crypto_1 = require("crypto");
 const express_1 = require("express");
@@ -119,6 +121,26 @@ function processLectureResponse(input, lectureId, ticketId, transcription) {
         },
     };
 }
+/**
+ * @description Transcribe an authorized class recording without keeping it: the audio goes to the
+ * kernel speech provider from a temporary directory that is removed afterwards, and no lecture row
+ * or ticket is made. Used when the browser recorded audio but had no live captions.
+ */
+async function transcribeOnly(ctx, input, classInfo) {
+    const dir = fs_1.default.mkdtempSync(path_1.default.join(os_1.default.tmpdir(), 'lm-transcribe-'));
+    try {
+        const result = await transcribeLecture(ctx, input, (0, crypto_1.randomUUID)(), classInfo, path_1.default.join(dir, 'recording'));
+        logger.info({ classId: input.classId, status: result.status }, 'Recording transcribed without a lecture row');
+        return {
+            success: result.status === 'transcribed',
+            classId: input.classId,
+            transcript: { status: result.status, providerId: result.providerId, text: result.text || '', message: result.message },
+        };
+    }
+    finally {
+        fs_1.default.rmSync(dir, { recursive: true, force: true });
+    }
+}
 /** Handle the authorization-first audio-to-ticket workflow. */
 async function processLecture(ctx, req, res) {
     const startedAt = Date.now();
@@ -129,6 +151,10 @@ async function processLecture(ctx, req, res) {
         const input = processLectureInput(req);
         const actor = await (0, education_lecture_security_1.resolveLectureActor)(req, ctx.pool);
         const classInfo = await (0, education_lecture_security_1.authorizeLectureClassWrite)(ctx.pool, actor, input.classId);
+        if (String(req.body?.transcribeOnly || '') === 'true') {
+            res.status(200).json(await transcribeOnly(ctx, input, classInfo));
+            return;
+        }
         const lectureId = (0, crypto_1.randomUUID)();
         sourcePath = saveLectureAudio(input, lectureId);
         await insertProcessingLecture(ctx, lectureId, input, sourcePath);

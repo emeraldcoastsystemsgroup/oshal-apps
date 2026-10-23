@@ -10,6 +10,14 @@ Start with **Needs attention** for quarantined events and processing retry/atten
 
 Filter by system, namespace, resource type, captured health or name. Desktop filters fit one compact row in the embedded workspace; narrower screens wrap them. Searching retains the observed cluster name even when the cluster itself is excluded from the results. Expand the tree with the mouse or arrow keys. Select a resource to see its original identity, observation, relationships and related alerts. A selected pod retains the existing current-status, bounded log and reviewed command controls. Commands use the signed-in Kubernetes connection and its target scope. The shorter command field does not change execution authority.
 
+Selecting a node shows its capacity against allocatable, pressure conditions and cordon state, roles, taints, addresses, kubelet/OS/runtime versions and the pods placed on it, each a link to that pod (ADR0039).
+
+## Command helper
+
+Coach one reviewable kubectl, AWS, Google Cloud, Azure or in-pod command from a goal, review its
+risk and verification, run an in-pod command through your own Kubernetes connection, or copy a
+cloud command to run under your own signed-in CLI and record the result (ADR0039).
+
 ## Data pipeline
 
 - **Flow:** the evaluated cohort, stored-query matches, surviving symptoms and saved correlation; then packet-linked investigation and report progress. Expand **Evidence work** to open the existing investigation controls. Read the cohort limits before comparing counts.

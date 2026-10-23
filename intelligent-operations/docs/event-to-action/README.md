@@ -25,6 +25,14 @@ shutdown findings and current local startup limits. The overnight heartbeat rema
 paused. [Export status](EXPORT-STATUS.md) records the refreshed PowerPoint/Word/PDF/Visio
 artifacts and their validation; the earlier export hold is superseded.
 
+[Demonstration path](DEMO.md) is the twelve-minute walk-through for judges, each step tied to
+its receipt. [Kernel rails needed](KERNEL-RAILS-NEEDED.md) lists, per remaining ask (cloud CLI execution,
+SSH, live cluster listing, git promotion, swarm-to-swarm, automatic dispatch), what exists, what
+the kernel must add and what the package already does. [Workflow alignment](WORKFLOW-ALIGNMENT.md) maps the Studio definition, the manifest workflow and
+the canonical ticket graph onto each other and lists every external integration point with its
+authority and state. [ADR0037](adr/0037-approved-response-and-verified-recovery.md) is the response
+stage after the human gate.
+
 The [project plan](PROJECT-PLAN.md) lists milestones, dependencies and acceptance gates
 ([PDF](operations-project-plan.pdf), [Word](operations-project-plan.docx)).
 [Implementation status](IMPLEMENTATION-STATUS.md) records what is actually built and tested.

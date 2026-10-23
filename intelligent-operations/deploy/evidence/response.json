@@ -1,0 +1,243 @@
+{
+  "kind": "operations-response-drill",
+  "syntheticPressure": true,
+  "episode": "863628c5a3c38e59",
+  "ticket": "46b8df31-9ef1-4914-94fa-79023d784ec2",
+  "packetSha256": "299eb4928689ba0dd7962f1529357de4fe61952a635e0b0869fb6eb3f2afb350",
+  "steps": [
+    {
+      "step": "source",
+      "at": 1792696604.715798,
+      "sourceId": "613801c89ce8a321b6c841c28565bcbc21fc60bfc7873dff0254e0bad761b61a"
+    },
+    {
+      "step": "topology-scan",
+      "at": 1792696605.6773317,
+      "status": 201,
+      "assets": 30
+    },
+    {
+      "step": "plan-candidates",
+      "at": 1792696606.0087001
+    },
+    {
+      "step": "plan",
+      "at": 1792696606.0090122,
+      "planId": "0eee71fcda45fdf0a772a25d112b1e39a73fbef1cce4395619fe8ea2c7a907c8",
+      "artifacts": [
+        {
+          "name": "remediate.sh",
+          "sha256": "fb916fda365c8648818052f225db0a306460ebca1a68fe20c54d4143f2e26f65",
+          "bytes": 102
+        },
+        {
+          "name": "verify.sh",
+          "sha256": "b40d8912e0c7258a3e0885e7b75bc3ea01c91d771e5df85630debd8aa4c6720c",
+          "bytes": 1273
+        },
+        {
+          "name": "rollback.md",
+          "sha256": "3f4d7e4767f2ada0dc17ff5d4052327dcdc2733cf455799da3d3e9e555496d7d",
+          "bytes": 375
+        },
+        {
+          "name": "verify.md",
+          "sha256": "fa1099b3d92ce631f17a589735283bfd539e528cdf48ed6988051de0266e9ba3",
+          "bytes": 669
+        }
+      ],
+      "ticketRevision": 4
+    },
+    {
+      "step": "downloads",
+      "at": 1792696606.1894834,
+      "count": 4
+    },
+    {
+      "step": "approval",
+      "at": 1792696606.2580469,
+      "approvalId": "89043358c4016bc5330d4acacfd404bce009b2616b70f29f500a67c2cfa3bb72",
+      "expiresAt": "2026-10-22T19:46:46.249Z"
+    },
+    {
+      "step": "reserved",
+      "at": 1792696606.2939928,
+      "executionId": "eeb4a3336627398bd266d8e1dc66b5d02a26cb54068fd4fe7278e156d53db551"
+    },
+    {
+      "step": "action",
+      "at": 1792696606.4778078,
+      "state": "completed",
+      "exitCode": 0,
+      "outcome": "completed"
+    },
+    {
+      "step": "resolved-imported",
+      "at": 1792696631.3498297,
+      "fingerprint": "1b21e1690f504b39"
+    },
+    {
+      "step": "verification",
+      "at": 1792696656.987363,
+      "attempt": 0,
+      "outcome": "healthy",
+      "reason": "verification command passed and a resolved signal for the same resource was admitted after the action",
+      "exitCode": 0
+    },
+    {
+      "step": "ticket-update",
+      "at": 1792696657.0248094,
+      "status": "done",
+      "revision": 5,
+      "approvedStatus": "done"
+    }
+  ],
+  "plan": {
+    "answerSha256": "bed765d73620bd4e1f5328580d982a6545f12cd9e347ec86ca86f08377cb2ccc",
+    "artifacts": [
+      {
+        "bytes": 102,
+        "language": "sh",
+        "name": "remediate.sh",
+        "origin": "workflow-answer-section",
+        "range": {
+          "end": 5922,
+          "start": 5816
+        },
+        "sha256": "fb916fda365c8648818052f225db0a306460ebca1a68fe20c54d4143f2e26f65"
+      },
+      {
+        "bytes": 1273,
+        "language": "sh",
+        "name": "verify.sh",
+        "origin": "workflow-answer-section",
+        "range": {
+          "end": 7221,
+          "start": 5944
+        },
+        "sha256": "b40d8912e0c7258a3e0885e7b75bc3ea01c91d771e5df85630debd8aa4c6720c"
+      },
+      {
+        "bytes": 375,
+        "language": "md",
+        "name": "rollback.md",
+        "origin": "workflow-answer-section",
+        "range": {
+          "end": 7624,
+          "start": 7245
+        },
+        "sha256": "3f4d7e4767f2ada0dc17ff5d4052327dcdc2733cf455799da3d3e9e555496d7d"
+      },
+      {
+        "bytes": 669,
+        "language": "md",
+        "name": "verify.md",
+        "origin": "workflow-answer-section",
+        "range": {
+          "end": 8319,
+          "start": 7646
+        },
+        "sha256": "fa1099b3d92ce631f17a589735283bfd539e528cdf48ed6988051de0266e9ba3"
+      }
+    ],
+    "id": "0eee71fcda45fdf0a772a25d112b1e39a73fbef1cce4395619fe8ea2c7a907c8",
+    "phase": "revise",
+    "target": {
+      "container": "pressure",
+      "namespace": "operations-demo",
+      "pod": "cpu-pressure-863628c5a3c38e59-q5fgb",
+      "uid": "4c6c7dff-f8fa-44cf-a8aa-7e59e1d1b9b1"
+    },
+    "ticketId": "46b8df31-9ef1-4914-94fa-79023d784ec2",
+    "ticketRevision": 4,
+    "workId": "8fbab02b-c727-49f0-9d46-b188a2b4f193"
+  },
+  "execution": {
+    "id": "eeb4a3336627398bd266d8e1dc66b5d02a26cb54068fd4fe7278e156d53db551",
+    "planId": "0eee71fcda45fdf0a772a25d112b1e39a73fbef1cce4395619fe8ea2c7a907c8",
+    "approvalId": "89043358c4016bc5330d4acacfd404bce009b2616b70f29f500a67c2cfa3bb72",
+    "ticketId": "46b8df31-9ef1-4914-94fa-79023d784ec2",
+    "ticketRevision": 4,
+    "state": "completed",
+    "createdAt": "2026-10-22T19:16:46.281Z",
+    "recovery": {
+      "at": "2026-10-22T19:17:36.787Z",
+      "commandVerifiedByServer": false,
+      "outcome": "healthy",
+      "reason": "verification command passed and a resolved signal for the same resource was admitted after the action",
+      "signalVerifiedByServer": true,
+      "verificationId": "ac4bfa14-4d29-42ff-ad96-0b9dfbaa4e91"
+    },
+    "ticketUpdate": {
+      "position": null,
+      "readAt": "2026-10-22T19:17:37.013Z",
+      "recoveryOutcomeAtUpdate": "healthy",
+      "revision": 5,
+      "status": "done",
+      "verifiedByServer": true
+    },
+    "provenance": "native-dispatch-reservation",
+    "verifiedByServer": false,
+    "dispatch": {
+      "operation": "kubernetes-exec",
+      "account": "primary",
+      "argvDigestOnly": true
+    },
+    "action": {
+      "outcome": "completed",
+      "exitCode": 0,
+      "observedAt": "2026-10-22T19:16:46.418338806+00:00",
+      "observedUid": "4c6c7dff-f8fa-44cf-a8aa-7e59e1d1b9b1",
+      "transport": "native_kubernetes",
+      "reportedAt": "2026-10-22T19:16:46.464Z",
+      "provenance": "operator-report",
+      "verifiedByServer": false,
+      "targetIdentityMatched": true
+    },
+    "verifications": [
+      {
+        "index": 0,
+        "state": "reported",
+        "outcome": "healthy",
+        "reason": "verification command passed and a resolved signal for the same resource was admitted after the action",
+        "reportedAt": "2026-10-22T19:17:36.787Z",
+        "check": {
+          "outcome": "completed",
+          "exitCode": 0,
+          "observedAt": "2026-10-22T19:17:36.649106494+00:00",
+          "observedUid": "4c6c7dff-f8fa-44cf-a8aa-7e59e1d1b9b1",
+          "transport": "native_kubernetes",
+          "reportedAt": "2026-10-22T19:17:36.690Z",
+          "provenance": "operator-report",
+          "verifiedByServer": false
+        },
+        "readback": {
+          "phase": "Running",
+          "identityMatched": true,
+          "provenance": "operator-report",
+          "verifiedByServer": false
+        },
+        "signal": {
+          "alertType": "LabNodeCpuPressure",
+          "deliveryId": "66aefef8c66ea849260e9c5658251760f4da8cff5145b3347dca3544f15c750a",
+          "receivedAt": "2026-10-22T19:17:10.614Z",
+          "resolved": true
+        }
+      }
+    ]
+  },
+  "labels": {
+    "actionAndVerificationCommands": "operator-reported native results (verifiedByServer=false)",
+    "resolvedSignalAndTicketUpdate": "server-read from own records and the canonical ticket port"
+  },
+  "recovery": {
+    "at": "2026-10-22T19:17:36.787Z",
+    "commandVerifiedByServer": false,
+    "outcome": "healthy",
+    "reason": "verification command passed and a resolved signal for the same resource was admitted after the action",
+    "signalVerifiedByServer": true,
+    "verificationId": "ac4bfa14-4d29-42ff-ad96-0b9dfbaa4e91"
+  },
+  "startedAt": 1792696604.405962,
+  "finishedAt": 1792696657.0648139
+}

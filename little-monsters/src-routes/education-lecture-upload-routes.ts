@@ -17,6 +17,7 @@
  */
 
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { Router, type Request, type Response } from 'express';
@@ -176,6 +177,34 @@ function processLectureResponse(
   };
 }
 
+/**
+ * @description Transcribe an authorized class recording without keeping it: the audio goes to the
+ * kernel speech provider from a temporary directory that is removed afterwards, and no lecture row
+ * or ticket is made. Used when the browser recorded audio but had no live captions.
+ * @param ctx Package context.
+ * @param input Validated upload.
+ * @param classInfo The class the caller may write lectures to.
+ * @returns The transcript status, provider and text.
+ */
+async function transcribeOnly(
+  ctx: AppContext,
+  input: ProcessLectureInput,
+  classInfo: WritableLectureClass,
+): Promise<Record<string, unknown>> {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-transcribe-'));
+  try {
+    const result = await transcribeLecture(ctx, input, randomUUID(), classInfo, path.join(dir, 'recording'));
+    logger.info({ classId: input.classId, status: result.status }, 'Recording transcribed without a lecture row');
+    return {
+      success: result.status === 'transcribed',
+      classId: input.classId,
+      transcript: { status: result.status, providerId: result.providerId, text: result.text || '', message: result.message },
+    };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 /** Handle the authorization-first audio-to-ticket workflow. */
 async function processLecture(ctx: AppContext, req: Request, res: Response): Promise<void> {
   const startedAt = Date.now();
@@ -186,6 +215,10 @@ async function processLecture(ctx: AppContext, req: Request, res: Response): Pro
     const input = processLectureInput(req);
     const actor = await resolveLectureActor(req, ctx.pool);
     const classInfo = await authorizeLectureClassWrite(ctx.pool, actor, input.classId);
+    if (String(req.body?.transcribeOnly || '') === 'true') {
+      res.status(200).json(await transcribeOnly(ctx, input, classInfo));
+      return;
+    }
     const lectureId = randomUUID();
     sourcePath = saveLectureAudio(input, lectureId);
     await insertProcessingLecture(ctx, lectureId, input, sourcePath);

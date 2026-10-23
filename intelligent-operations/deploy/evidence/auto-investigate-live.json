@@ -1,0 +1,172 @@
+{
+  "kind": "live-automatic-investigation",
+  "installation": "owned kind operations-lab / oshal-install-lab",
+  "package": "9cd87ca9 (ADR0041)",
+  "kernel": "oshal-kernel:dev-d033905caabd (ticket_start port 3200d5c)",
+  "firstRun": {
+    "note": "Real api error fault; the detector raised one anomaly candidate, admitted and pending evidence capture. At 21:41Z the kernel refused the per-minute schedule with deny_tier and suspended it, so no tick ran in the watch window; the admin grant read editor afterwards and re-activation ran normally. Cause of the transient denial is open.",
+    "result": "not-started",
+    "steps": [
+      {
+        "step": "opted-in",
+        "at": 1792705259.749965,
+        "sourceId": "56d371d2519b10d24eb33c67631e2e112ba41fea6a82f1e3cc9d7c3def218773",
+        "previous": {
+          "enabled": false,
+          "captureEvidence": false,
+          "autoInvestigate": null,
+          "sourceIds": [],
+          "revision": 10
+        },
+        "saved": {
+          "enabled": true,
+          "captureEvidence": true,
+          "autoInvestigate": true,
+          "revision": 11
+        }
+      },
+      {
+        "step": "fault-and-detection",
+        "at": 1792705516.772365,
+        "window": {
+          "healthyFrom": 1792705260.1305845,
+          "faultFrom": 1792705360.5131152,
+          "recoveredFrom": 1792705426.6840646,
+          "end": 1792705486.8369684
+        },
+        "candidates": [
+          {
+            "step": "detection",
+            "at": 1792705515.2527745,
+            "candidates": 1,
+            "resolved": 1,
+            "failed": 0,
+            "results": [
+              {
+                "baselinesTouched": 1,
+                "candidates": 1,
+                "cold": 11,
+                "cursor": {
+                  "id": "28358c6713a8e571359dbdea7133453da20d5fe6aeadae3f91f2cc62215893b5",
+                  "observedAt": "2026-10-22T21:44:45.000Z"
+                },
+                "invalid": 0,
+                "late": 0,
+                "more": false,
+                "processed": 44,
+                "resolved": 1,
+                "skippedMetrics": 0,
+                "sourceId": "1b21004e3dd869a2f2214067883f2c98eed31c18379ef6533c74863b2c14fdca",
+                "stale": 1
+              }
+            ]
+          },
+          {
+            "step": "evaluated",
+            "at": 1792705516.7655437,
+            "results": [
+              {
+                "deliveryId": "9b7292dd9e4534575e6c45e75957dbb677f0e9d605c9a5e5d76349b3f157b5f5",
+                "outcome": "matched",
+                "reduction": "admitted",
+                "error": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "step": "restored",
+        "at": 1792706121.1481607,
+        "config": {
+          "enabled": false,
+          "captureEvidence": false,
+          "autoInvestigate": false,
+          "sourceIds": []
+        }
+      },
+      {
+        "step": "watch",
+        "at": 1792706100.900913,
+        "investigations": []
+      }
+    ]
+  },
+  "secondRun": {
+    "note": "Watch only: the same pending evidence, processing + capture + automatic investigation opted in. The scheduled tick captured the evidence and started the canonical investigation through the kernel ticket-start port by itself.",
+    "result": "started-by-tick",
+    "steps": [
+      {
+        "step": "opted-in",
+        "at": 1792706329.8773863,
+        "sourceId": "56d371d2519b10d24eb33c67631e2e112ba41fea6a82f1e3cc9d7c3def218773",
+        "previous": {
+          "enabled": false,
+          "captureEvidence": false,
+          "autoInvestigate": false,
+          "sourceIds": [],
+          "revision": 12
+        },
+        "saved": {
+          "enabled": true,
+          "captureEvidence": true,
+          "autoInvestigate": true,
+          "revision": 13
+        }
+      },
+      {
+        "step": "restored",
+        "at": 1792706350.3426487,
+        "config": {
+          "enabled": false,
+          "captureEvidence": false,
+          "autoInvestigate": false,
+          "sourceIds": []
+        }
+      },
+      {
+        "step": "watch",
+        "at": 1792706350.1672318,
+        "investigations": [
+          {
+            "state": "started",
+            "trigger": "scheduled-tick",
+            "ticketId": "79f52ed7-0afc-414e-93b9-235634a7e768",
+            "startRequestedAt": "2026-10-22T21:59:05.067Z",
+            "startedAt": "2026-10-22T21:59:05.164Z",
+            "error": null,
+            "ticketStatus": "running",
+            "canonicalStatus": "running"
+          },
+          {
+            "state": "started",
+            "trigger": "scheduled-tick",
+            "ticketId": "8757444a-a596-4e1f-8152-babbbf83adaa",
+            "startRequestedAt": "2026-10-22T21:59:04.737Z",
+            "startedAt": "2026-10-22T21:59:04.840Z",
+            "error": null,
+            "ticketStatus": "running",
+            "canonicalStatus": "running"
+          }
+        ],
+        "schedule": [
+          {
+            "status": "active",
+            "last": [
+              [
+                "completed",
+                null,
+                200
+              ],
+              [
+                "completed",
+                null,
+                200
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

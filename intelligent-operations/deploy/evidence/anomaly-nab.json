@@ -1,0 +1,750 @@
+{
+  "kind": "nab-pilot-anomaly-evaluation",
+  "evaluatedAt": "2026-10-22T19:45:27.762Z",
+  "dataset": {
+    "id": "nab",
+    "revision": "ea702d75cc2258d9d7dd35ca8e5e2539d71f3140",
+    "cache": "~/.cache/triagenorth/datasets/nab/ea702d75cc2258d9d7dd35ca8e5e2539d71f3140"
+  },
+  "notOfficialNab": true,
+  "method": "Each sample is scored against the baseline learned from earlier samples only; labels are read only to score afterwards. apriori: parameters fixed before the run, whole series. calibrated: threshold/persistence chosen on the first 30% of every series by the smallest summed alerts per day (labels unread), then evaluated on the remainder after a one-lookback gap. An alert is the first sample of an anomalous run (candidate firing).",
+  "apriori": {
+    "robust-zscore": {
+      "parameters": {
+        "detector": "robust-zscore",
+        "threshold": 8,
+        "persistence": 1,
+        "warmupSamples": 288,
+        "windowSamples": 288,
+        "bucketSeconds": 1800,
+        "bucketSamples": 14,
+        "resolveSamples": 3,
+        "staleSeconds": 3600
+      },
+      "results": [
+        {
+          "series": "realKnownCause/cpu_utilization_asg_misconfiguration.csv",
+          "partition": "all",
+          "rows": 18050,
+          "observedDays": 62.67,
+          "labeledWindows": 1,
+          "windowsDetected": 1,
+          "windowsMissed": 0,
+          "windows": [
+            {
+              "window": [
+                "2014-07-10T12:29:00.000Z",
+                "2014-07-15T17:19:00.000Z"
+              ],
+              "detected": true,
+              "firstDetectionMinutes": 35,
+              "alertsInWindow": 43
+            }
+          ],
+          "alertsOutsideWindows": 1343,
+          "alertsOutsideWindowsPerDay": 21.43,
+          "warmUpSamples": 288,
+          "readyFrom": "2014-05-15T01:14:00Z",
+          "lateSamples": 0,
+          "runtimeMs": 926.9,
+          "firstOutsideAlerts": [
+            {
+              "at": "2014-05-15T02:04:00Z",
+              "score": 8.07,
+              "confidence": 0.25
+            },
+            {
+              "at": "2014-05-15T03:04:00Z",
+              "score": 8.63,
+              "confidence": 0.27
+            },
+            {
+              "at": "2014-05-15T04:04:00Z",
+              "score": 10.03,
+              "confidence": 0.31
+            },
+            {
+              "at": "2014-05-15T05:04:00Z",
+              "score": 10.08,
+              "confidence": 0.32
+            },
+            {
+              "at": "2014-05-15T06:04:00Z",
+              "score": 10.21,
+              "confidence": 0.32
+            }
+          ]
+        },
+        {
+          "series": "realKnownCause/ec2_request_latency_system_failure.csv",
+          "partition": "all",
+          "rows": 4032,
+          "observedDays": 14,
+          "labeledWindows": 3,
+          "windowsDetected": 3,
+          "windowsMissed": 0,
+          "windows": [
+            {
+              "window": [
+                "2014-03-14T03:31:00.000Z",
+                "2014-03-14T14:41:00.000Z"
+              ],
+              "detected": true,
+              "firstDetectionMinutes": 335,
+              "alertsInWindow": 1
+            },
+            {
+              "window": [
+                "2014-03-18T17:06:00.000Z",
+                "2014-03-19T04:16:00.000Z"
+              ],
+              "detected": true,
+              "firstDetectionMinutes": 330,
+              "alertsInWindow": 1
+            },
+            {
+              "window": [
+                "2014-03-20T21:26:00.000Z",
+                "2014-03-21T03:41:00.000Z"
+              ],
+              "detected": true,
+              "firstDetectionMinutes": 335,
+              "alertsInWindow": 1
+            }
+          ],
+          "alertsOutsideWindows": 0,
+          "alertsOutsideWindowsPerDay": 0,
+          "warmUpSamples": 575,
+          "readyFrom": "2014-03-08T03:41:00Z",
+          "lateSamples": 0,
+          "runtimeMs": 199.3,
+          "firstOutsideAlerts": []
+        },
+        {
+          "series": "artificialNoAnomaly/art_daily_small_noise.csv",
+          "partition": "all",
+          "rows": 4032,
+          "observedDays": 14,
+          "labeledWindows": 0,
+          "windowsDetected": 0,
+          "windowsMissed": 0,
+          "windows": [],
+          "alertsOutsideWindows": 26,
+          "alertsOutsideWindowsPerDay": 1.858,
+          "warmUpSamples": 288,
+          "readyFrom": "2014-04-02T00:00:00Z",
+          "lateSamples": 0,
+          "runtimeMs": 186.5,
+          "firstOutsideAlerts": [
+            {
+              "at": "2014-04-02T09:00:00Z",
+              "score": 9.14,
+              "confidence": 0.29
+            },
+            {
+              "at": "2014-04-03T09:00:00Z",
+              "score": 31.35,
+              "confidence": 0.5
+            },
+            {
+              "at": "2014-04-03T18:30:00Z",
+              "score": 8.55,
+              "confidence": 0.27
+            },
+            {
+              "at": "2014-04-04T09:00:00Z",
+              "score": 35.17,
+              "confidence": 0.5
+            },
+            {
+              "at": "2014-04-05T09:00:00Z",
+              "score": 27.44,
+              "confidence": 0.5
+            }
+          ]
+        },
+        {
+          "series": "artificialNoAnomaly/art_flatline.csv",
+          "partition": "all",
+          "rows": 4032,
+          "observedDays": 14,
+          "labeledWindows": 0,
+          "windowsDetected": 0,
+          "windowsMissed": 0,
+          "windows": [],
+          "alertsOutsideWindows": 0,
+          "alertsOutsideWindowsPerDay": 0,
+          "warmUpSamples": 288,
+          "readyFrom": "2014-04-02T00:00:00Z",
+          "lateSamples": 0,
+          "runtimeMs": 42.3,
+          "firstOutsideAlerts": []
+        }
+      ]
+    },
+    "seasonal-profile": {
+      "parameters": {
+        "detector": "seasonal-profile",
+        "threshold": 8,
+        "persistence": 1,
+        "warmupSamples": 864,
+        "windowSamples": 288,
+        "bucketSeconds": 1800,
+        "bucketSamples": 14,
+        "resolveSamples": 3,
+        "staleSeconds": 3600
+      },
+      "results": [
+        {
+          "series": "realKnownCause/cpu_utilization_asg_misconfiguration.csv",
+          "partition": "all",
+          "rows": 18050,
+          "observedDays": 62.67,
+          "labeledWindows": 1,
+          "windowsDetected": 1,
+          "windowsMissed": 0,
+          "windows": [
+            {
+              "window": [
+                "2014-07-10T12:29:00.000Z",
+                "2014-07-15T17:19:00.000Z"
+              ],
+              "detected": true,
+              "firstDetectionMinutes": 35,
+              "alertsInWindow": 50
+            }
+          ],
+          "alertsOutsideWindows": 1277,
+          "alertsOutsideWindowsPerDay": 20.377,
+          "warmUpSamples": 864,
+          "readyFrom": "2014-05-17T01:14:00Z",
+          "lateSamples": 0,
+          "runtimeMs": 60.1,
+          "firstOutsideAlerts": [
+            {
+              "at": "2014-05-17T02:59:00Z",
+              "score": 18.81,
+              "confidence": 0.01
+            },
+            {
+              "at": "2014-05-17T04:09:00Z",
+              "score": 17.41,
+              "confidence": 0.01
+            },
+            {
+              "at": "2014-05-17T06:04:00Z",
+              "score": 11.79,
+              "confidence": 0.01
+            },
+            {
+              "at": "2014-05-17T07:04:00Z",
+              "score": 8.47,
+              "confidence": 0
+            },
+            {
+              "at": "2014-05-17T08:09:00Z",
+              "score": 17.81,
+              "confidence": 0.01
+            }
+          ]
+        },
+        {
+          "series": "realKnownCause/ec2_request_latency_system_failure.csv",
+          "partition": "all",
+          "rows": 4032,
+          "observedDays": 14,
+          "labeledWindows": 3,
+          "windowsDetected": 3,
+          "windowsMissed": 0,
+          "windows": [
+            {
+              "window": [
+                "2014-03-14T03:31:00.000Z",
+                "2014-03-14T14:41:00.000Z"
+              ],
+              "detected": true,
+              "firstDetectionMinutes": 335,
+              "alertsInWindow": 1
+            },
+            {
+              "window": [
+                "2014-03-18T17:06:00.000Z",
+                "2014-03-19T04:16:00.000Z"
+              ],
+              "detected": true,
+              "firstDetectionMinutes": 330,
+              "alertsInWindow": 1
+            },
+            {
+              "window": [
+                "2014-03-20T21:26:00.000Z",
+                "2014-03-21T03:41:00.000Z"
+              ],
+              "detected": true,
+              "firstDetectionMinutes": 335,
+              "alertsInWindow": 2
+            }
+          ],
+          "alertsOutsideWindows": 5,
+          "alertsOutsideWindowsPerDay": 0.357,
+          "warmUpSamples": 863,
+          "readyFrom": "2014-03-10T03:41:00Z",
+          "lateSamples": 0,
+          "runtimeMs": 11.6,
+          "firstOutsideAlerts": [
+            {
+              "at": "2014-03-10T19:01:00Z",
+              "score": 8.08,
+              "confidence": 0
+            },
+            {
+              "at": "2014-03-16T00:06:00Z",
+              "score": 10.46,
+              "confidence": 0.01
+            },
+            {
+              "at": "2014-03-16T09:11:00Z",
+              "score": 9.29,
+              "confidence": 0
+            },
+            {
+              "at": "2014-03-17T09:11:00Z",
+              "score": 9.98,
+              "confidence": 0.01
+            },
+            {
+              "at": "2014-03-19T06:56:00Z",
+              "score": 12.86,
+              "confidence": 0.01
+            }
+          ]
+        },
+        {
+          "series": "artificialNoAnomaly/art_daily_small_noise.csv",
+          "partition": "all",
+          "rows": 4032,
+          "observedDays": 14,
+          "labeledWindows": 0,
+          "windowsDetected": 0,
+          "windowsMissed": 0,
+          "windows": [],
+          "alertsOutsideWindows": 0,
+          "alertsOutsideWindowsPerDay": 0,
+          "warmUpSamples": 864,
+          "readyFrom": "2014-04-04T00:00:00Z",
+          "lateSamples": 0,
+          "runtimeMs": 11.4,
+          "firstOutsideAlerts": []
+        },
+        {
+          "series": "artificialNoAnomaly/art_flatline.csv",
+          "partition": "all",
+          "rows": 4032,
+          "observedDays": 14,
+          "labeledWindows": 0,
+          "windowsDetected": 0,
+          "windowsMissed": 0,
+          "windows": [],
+          "alertsOutsideWindows": 0,
+          "alertsOutsideWindowsPerDay": 0,
+          "warmUpSamples": 864,
+          "readyFrom": "2014-04-04T00:00:00Z",
+          "lateSamples": 0,
+          "runtimeMs": 9.1,
+          "firstOutsideAlerts": []
+        }
+      ]
+    }
+  },
+  "calibrated": {
+    "robust-zscore": {
+      "parameters": {
+        "detector": "robust-zscore",
+        "threshold": 16,
+        "persistence": 3,
+        "warmupSamples": 288,
+        "windowSamples": 288,
+        "bucketSeconds": 1800,
+        "bucketSamples": 14,
+        "resolveSamples": 3,
+        "staleSeconds": 3600
+      },
+      "calibration": {
+        "method": "first 30% of each series, gap of one lookback, labels unread; objective: smallest summed alerts per day; ties prefer the lower threshold then lower persistence",
+        "chosen": {
+          "threshold": 16,
+          "persistence": 3,
+          "calibrationAlertsPerDaySum": 0.16
+        },
+        "candidates": [
+          {
+            "threshold": 16,
+            "persistence": 3,
+            "calibrationAlertsPerDaySum": 0.16
+          },
+          {
+            "threshold": 16,
+            "persistence": 2,
+            "calibrationAlertsPerDaySum": 2.075
+          },
+          {
+            "threshold": 12,
+            "persistence": 3,
+            "calibrationAlertsPerDaySum": 4.518
+          },
+          {
+            "threshold": 10,
+            "persistence": 3,
+            "calibrationAlertsPerDaySum": 5.262
+          },
+          {
+            "threshold": 8,
+            "persistence": 3,
+            "calibrationAlertsPerDaySum": 5.29
+          },
+          {
+            "threshold": 6,
+            "persistence": 3,
+            "calibrationAlertsPerDaySum": 6.567
+          }
+        ]
+      },
+      "results": [
+        {
+          "series": "realKnownCause/cpu_utilization_asg_misconfiguration.csv",
+          "partition": "evaluation",
+          "rows": 12347,
+          "observedDays": 42.87,
+          "labeledWindows": 1,
+          "windowsDetected": 1,
+          "windowsMissed": 0,
+          "windows": [
+            {
+              "window": [
+                "2014-07-10T12:29:00.000Z",
+                "2014-07-15T17:19:00.000Z"
+              ],
+              "detected": true,
+              "firstDetectionMinutes": 2210,
+              "alertsInWindow": 5
+            }
+          ],
+          "alertsOutsideWindows": 12,
+          "alertsOutsideWindowsPerDay": 0.28,
+          "warmUpSamples": 288,
+          "readyFrom": "2014-06-03T20:29:00Z",
+          "lateSamples": 0,
+          "runtimeMs": 620,
+          "firstOutsideAlerts": [
+            {
+              "at": "2014-06-06T16:09:00Z",
+              "score": 31.69,
+              "confidence": 0.5
+            },
+            {
+              "at": "2014-06-10T20:39:00Z",
+              "score": 38.13,
+              "confidence": 0.5
+            },
+            {
+              "at": "2014-06-11T17:39:00Z",
+              "score": 19.41,
+              "confidence": 0.3
+            },
+            {
+              "at": "2014-06-11T21:39:00Z",
+              "score": 20.33,
+              "confidence": 0.32
+            },
+            {
+              "at": "2014-06-14T03:19:00Z",
+              "score": 16.62,
+              "confidence": 0.26
+            }
+          ]
+        },
+        {
+          "series": "realKnownCause/ec2_request_latency_system_failure.csv",
+          "partition": "evaluation",
+          "rows": 2535,
+          "observedDays": 8.8,
+          "labeledWindows": 3,
+          "windowsDetected": 0,
+          "windowsMissed": 3,
+          "windows": [
+            {
+              "window": [
+                "2014-03-14T03:31:00.000Z",
+                "2014-03-14T14:41:00.000Z"
+              ],
+              "detected": false,
+              "firstDetectionMinutes": null,
+              "alertsInWindow": 0
+            },
+            {
+              "window": [
+                "2014-03-18T17:06:00.000Z",
+                "2014-03-19T04:16:00.000Z"
+              ],
+              "detected": false,
+              "firstDetectionMinutes": null,
+              "alertsInWindow": 0
+            },
+            {
+              "window": [
+                "2014-03-20T21:26:00.000Z",
+                "2014-03-21T03:41:00.000Z"
+              ],
+              "detected": false,
+              "firstDetectionMinutes": null,
+              "alertsInWindow": 0
+            }
+          ],
+          "alertsOutsideWindows": 0,
+          "alertsOutsideWindowsPerDay": 0,
+          "warmUpSamples": 288,
+          "readyFrom": "2014-03-13T08:26:00Z",
+          "lateSamples": 0,
+          "runtimeMs": 124.1,
+          "firstOutsideAlerts": []
+        },
+        {
+          "series": "artificialNoAnomaly/art_daily_small_noise.csv",
+          "partition": "evaluation",
+          "rows": 2535,
+          "observedDays": 8.8,
+          "labeledWindows": 0,
+          "windowsDetected": 0,
+          "windowsMissed": 0,
+          "windows": [],
+          "alertsOutsideWindows": 0,
+          "alertsOutsideWindowsPerDay": 0,
+          "warmUpSamples": 288,
+          "readyFrom": "2014-04-07T04:45:00Z",
+          "lateSamples": 0,
+          "runtimeMs": 110.2,
+          "firstOutsideAlerts": []
+        },
+        {
+          "series": "artificialNoAnomaly/art_flatline.csv",
+          "partition": "evaluation",
+          "rows": 2535,
+          "observedDays": 8.8,
+          "labeledWindows": 0,
+          "windowsDetected": 0,
+          "windowsMissed": 0,
+          "windows": [],
+          "alertsOutsideWindows": 0,
+          "alertsOutsideWindowsPerDay": 0,
+          "warmUpSamples": 288,
+          "readyFrom": "2014-04-07T04:45:00Z",
+          "lateSamples": 0,
+          "runtimeMs": 22.4,
+          "firstOutsideAlerts": []
+        }
+      ]
+    },
+    "seasonal-profile": {
+      "parameters": {
+        "detector": "seasonal-profile",
+        "threshold": 16,
+        "persistence": 3,
+        "warmupSamples": 864,
+        "windowSamples": 288,
+        "bucketSeconds": 1800,
+        "bucketSamples": 14,
+        "resolveSamples": 3,
+        "staleSeconds": 3600
+      },
+      "calibration": {
+        "method": "first 30% of each series, gap of one lookback, labels unread; objective: smallest summed alerts per day; ties prefer the lower threshold then lower persistence",
+        "chosen": {
+          "threshold": 16,
+          "persistence": 3,
+          "calibrationAlertsPerDaySum": 0.319
+        },
+        "candidates": [
+          {
+            "threshold": 16,
+            "persistence": 3,
+            "calibrationAlertsPerDaySum": 0.319
+          },
+          {
+            "threshold": 16,
+            "persistence": 2,
+            "calibrationAlertsPerDaySum": 1.543
+          },
+          {
+            "threshold": 12,
+            "persistence": 3,
+            "calibrationAlertsPerDaySum": 1.702
+          },
+          {
+            "threshold": 10,
+            "persistence": 3,
+            "calibrationAlertsPerDaySum": 3.032
+          },
+          {
+            "threshold": 8,
+            "persistence": 3,
+            "calibrationAlertsPerDaySum": 4.575
+          },
+          {
+            "threshold": 12,
+            "persistence": 2,
+            "calibrationAlertsPerDaySum": 6.064
+          }
+        ]
+      },
+      "results": [
+        {
+          "series": "realKnownCause/cpu_utilization_asg_misconfiguration.csv",
+          "partition": "evaluation",
+          "rows": 12347,
+          "observedDays": 42.87,
+          "labeledWindows": 1,
+          "windowsDetected": 1,
+          "windowsMissed": 0,
+          "windows": [
+            {
+              "window": [
+                "2014-07-10T12:29:00.000Z",
+                "2014-07-15T17:19:00.000Z"
+              ],
+              "detected": true,
+              "firstDetectionMinutes": 1365,
+              "alertsInWindow": 26
+            }
+          ],
+          "alertsOutsideWindows": 35,
+          "alertsOutsideWindowsPerDay": 0.816,
+          "warmUpSamples": 864,
+          "readyFrom": "2014-06-05T20:29:00Z",
+          "lateSamples": 0,
+          "runtimeMs": 31.8,
+          "firstOutsideAlerts": [
+            {
+              "at": "2014-06-10T20:39:00Z",
+              "score": 54.03,
+              "confidence": 0.01
+            },
+            {
+              "at": "2014-06-10T22:14:00Z",
+              "score": 27.13,
+              "confidence": 0.01
+            },
+            {
+              "at": "2014-06-11T02:14:00Z",
+              "score": 18.21,
+              "confidence": 0
+            },
+            {
+              "at": "2014-06-11T13:14:00Z",
+              "score": 48.72,
+              "confidence": 0.01
+            },
+            {
+              "at": "2014-06-11T15:09:00Z",
+              "score": 36.16,
+              "confidence": 0.01
+            }
+          ]
+        },
+        {
+          "series": "realKnownCause/ec2_request_latency_system_failure.csv",
+          "partition": "evaluation",
+          "rows": 2535,
+          "observedDays": 8.8,
+          "labeledWindows": 3,
+          "windowsDetected": 0,
+          "windowsMissed": 3,
+          "windows": [
+            {
+              "window": [
+                "2014-03-14T03:31:00.000Z",
+                "2014-03-14T14:41:00.000Z"
+              ],
+              "detected": false,
+              "firstDetectionMinutes": null,
+              "alertsInWindow": 0
+            },
+            {
+              "window": [
+                "2014-03-18T17:06:00.000Z",
+                "2014-03-19T04:16:00.000Z"
+              ],
+              "detected": false,
+              "firstDetectionMinutes": null,
+              "alertsInWindow": 0
+            },
+            {
+              "window": [
+                "2014-03-20T21:26:00.000Z",
+                "2014-03-21T03:41:00.000Z"
+              ],
+              "detected": false,
+              "firstDetectionMinutes": null,
+              "alertsInWindow": 0
+            }
+          ],
+          "alertsOutsideWindows": 0,
+          "alertsOutsideWindowsPerDay": 0,
+          "warmUpSamples": 864,
+          "readyFrom": "2014-03-15T08:26:00Z",
+          "lateSamples": 0,
+          "runtimeMs": 6.8,
+          "firstOutsideAlerts": []
+        },
+        {
+          "series": "artificialNoAnomaly/art_daily_small_noise.csv",
+          "partition": "evaluation",
+          "rows": 2535,
+          "observedDays": 8.8,
+          "labeledWindows": 0,
+          "windowsDetected": 0,
+          "windowsMissed": 0,
+          "windows": [],
+          "alertsOutsideWindows": 0,
+          "alertsOutsideWindowsPerDay": 0,
+          "warmUpSamples": 864,
+          "readyFrom": "2014-04-09T04:45:00Z",
+          "lateSamples": 0,
+          "runtimeMs": 5.8,
+          "firstOutsideAlerts": []
+        },
+        {
+          "series": "artificialNoAnomaly/art_flatline.csv",
+          "partition": "evaluation",
+          "rows": 2535,
+          "observedDays": 8.8,
+          "labeledWindows": 0,
+          "windowsDetected": 0,
+          "windowsMissed": 0,
+          "windows": [],
+          "alertsOutsideWindows": 0,
+          "alertsOutsideWindowsPerDay": 0,
+          "warmUpSamples": 864,
+          "readyFrom": "2014-04-09T04:45:00Z",
+          "lateSamples": 0,
+          "runtimeMs": 4.6,
+          "firstOutsideAlerts": []
+        }
+      ]
+    }
+  },
+  "grid": {
+    "threshold": [
+      6,
+      8,
+      10,
+      12,
+      16
+    ],
+    "persistence": [
+      1,
+      2,
+      3
+    ]
+  },
+  "detectorSha256": "3b526b8e3379fcb9a9ef512d47bce6d947bfd7ee7ec396e676698239c479daf0"
+}

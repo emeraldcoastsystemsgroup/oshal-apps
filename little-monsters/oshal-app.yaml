@@ -35,6 +35,11 @@
 # 26  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.12: Jarvis works inside Little Monsters. A student asked Jarvis to add a class, list action items and say what is due, and got "This application cannot add a new class": the package declared no tools. Route-backed tools over the existing caller-scoped routes (lm-my-classes, lm-add-class, lm-my-schedule, lm-my-assignments, lm-add-reminder, lm-remove-reminder; writes held for approval) with matching bindings.tools, class-tutor routing words for classes and school schedule, and the floating Tutor bubble (ui.assistant) is withdrawn so the corner button is the Jarvis orb; the Tutor stays a tab.
 # 27  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.13: commits the work live since 2026-10-18 01:00-03:04: Training Programs textbook library (/catalog over OSHAL_PACKAGE_DATA_DIR/textbooks; attach a book to a class as material), Topic Study Pack (summary, PowerPoint and flashcards on any topic via /process-transcript), topic-focused flashcards and quizzes, the full-window page frame, and lastingStorage: true. storage/relationships.json: any teacher or admin of a school may now read every lm_students row of that school (was: students enrolled in their own classes) and may create learner rows; lm_xp_events is unique on (student_id, dedupe_key).
 # 28  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.14: My Day's Due today and Coming up include the student's own calendar items; validated as a student through the front end, an action item saved by Jarvis showed on the month calendar but Coming up said "Nothing coming up". Guarded by tests/lm-myday-due.test.cjs.
+# 29  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.15: lectures for students, validated through the front end. A class's owner (a student's own private class) records and generates lectures and flashcards (the routes refused every student); the recorder records audio when the browser has no live captions and transcribes it on the kernel's local STT (/process-lecture transcribeOnly); POST /lectures/:lectureId/summary-pdf renders the notes as a PDF (education-notes-pdf); the quiz page takes a topic; Jarvis tools lm-my-lectures, lm-lecture-notes, lm-make-flashcards, lm-make-quiz and lm-lecture-summary-pdf with their bindings (contract change). Validated as a student through the front end after the 2026-10-22 outage: record → server transcription → 7 slides/7 cards; Jarvis flashcards (6/6) and a graded quiz from the lecture; a lecture summary PDF. Routing words lecture, lectures, lecture as a pdf, notes as a pdf send those requests here; flashcards and quizzes answer exact studyUrl/quizUrl links; generation falls back to the class lecture notes when nothing is indexed; the finished flashcard deck reads 6/6.
+# 30  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.16: Email and Storage tabs. lm-email opens the standard email viewer (Intelligent Communication's /api/email/inbox; each person connects their own mailbox) and lm-storage the core personal file browser (/api/files), where the lecture PDFs and decks Little Monsters saves appear. The student, teacher and admin templates (version 2) include email-summarizer @app-admin and it is a required application. The Record tab is offered to students too: a student records into a class they own (1.4.15), and the recorder explains the rest.
+# 31  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.17: the Email and Storage tabs keep the Little Monsters top bar. They linked the standard viewers directly (/api/email/inbox, /api/files), which replaced the whole page frame, so a student who opened Storage had no way back but the browser's Back button. They now open /api/education/email and /api/education/storage (tools/standard-view.html): the top bar, then the standard viewer below it. New HTTP bindings for the two pages (app.open).
+# 32  | maintainer@emeraldcoastsystemsgroup.com     | The description states the lecture summary PDF, classes, schedule and action items. Jarvis treats an application as doing only what its description states: on the Claude Code default it told a student nothing installed exports a PDF and handed Little Monsters a plain "summarize" request. Version unchanged.
+# 33  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.18: books and chapters through Jarvis. Tools lm-my-books (GET /my-books: the books a student can read in their classes) and lm-book-chapter (GET /materials/:materialId/chapters/:chapter: a chapter's heading and text, or the chapters the book has); lm-make-flashcards takes materialId + chapter to make cards from that chapter. The tutor asks which book or class when "my math book" matches more than one. Routing phrases my textbook, math book, my math book, from chapter, lesson summary, my books, my textbooks, textbook, class books, school books, and the description names the class textbooks (Jarvis answered "What books do I have?" with "none of the installed apps holds a book library"). New bindings use app.open + study.read, which every role holds (contract change).
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Little Monsters
@@ -76,11 +81,15 @@ rating:
       degrade: disable
 displayName: Little Monsters
 description: >-
-  Voice-first ADHD study companion for K-12 students. Record lectures,
-  generate flashcards and authoritative quizzes, and chat with a Socratic tutor
-  grounded only in caller-owned or teacher/admin-approved class material through
-  per-material RAG collections.
-version: 1.4.14
+  Voice-first ADHD study companion for K-12 students. Record lectures, then
+  make flashcards, a practice quiz or a summary of the lecture as a PDF from
+  them; read the student's class textbooks (list their books, read a chapter,
+  make chapter flashcards and a lesson summary); keep the student's classes,
+  schedule and action items (reminders) on
+  their school calendar; and chat with a Socratic tutor grounded only in
+  caller-owned or teacher/admin-approved class material through per-material
+  RAG collections.
+version: 1.4.18
 lastingStorage: true
 chatBot: class-tutor # Concierge the cockpit offers beside this application's screens.
 
@@ -89,7 +98,7 @@ authorization:
   catalog: authorization.yaml
   roleTemplates:
     - id: student
-      version: 1
+      version: 2
       label: Student
       members:
         - app: little-monsters
@@ -98,8 +107,10 @@ authorization:
           role: '@app-admin'
         - app: circuit-lab
           role: '@app-admin'
+        - app: email-summarizer
+          role: '@app-admin'
     - id: teacher
-      version: 1
+      version: 2
       label: Teacher
       members:
         - app: little-monsters
@@ -108,8 +119,10 @@ authorization:
           role: '@app-admin'
         - app: circuit-lab
           role: '@app-admin'
+        - app: email-summarizer
+          role: '@app-admin'
     - id: admin
-      version: 1
+      version: 2
       label: School administrator
       members:
         - app: little-monsters
@@ -117,6 +130,8 @@ authorization:
         - app: presentations
           role: '@app-admin'
         - app: circuit-lab
+          role: '@app-admin'
+        - app: email-summarizer
           role: '@app-admin'
 testing:
   version: 1
@@ -248,6 +263,7 @@ dependencies:
     apps:
       - presentations
       - circuit-lab
+      - email-summarizer
     tools: []
     connectors: []
   optional:
@@ -308,6 +324,25 @@ bots:
       - school calendar
       - my school
       - homework list
+      - lecture
+      - lectures
+      - my lecture
+      - the lecture
+      - lecture summary
+      - lecture as a pdf
+      - notes as a pdf
+      - lecture notes
+      - practice quiz on
+      - my textbook
+      - math book
+      - my math book
+      - from chapter
+      - lesson summary
+      - my books
+      - my textbooks
+      - textbook
+      - class books
+      - school books
     persona: personas/class-tutor.yaml
     role: education/tutor
     capabilities: [tutoring, socratic-method, subject-expertise, rag-query, text-to-speech]
@@ -438,6 +473,117 @@ tools:
     usageInstructions: Read lm-my-schedule first and send the event_id of the item the person named. Class due dates set by a teacher cannot be removed here.
     routingTags: [school, reminders, education]
     tags: [education, route-backed]
+  - name: lm-my-lectures
+    displayName: My Lectures
+    type: api
+    category: education
+    description: The person's most recent lectures across their classes, newest first, each with lecture_id, class_id, class_name, lecture_date, flashcard_set_id and whether notes, slides, a transcript and a recording exist.
+    executor: { executorType: api, apiEndpoint: "GET /api/education/lectures/recent" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} to find a lecture the person names ("today's lecture", "my photosynthesis lecture") and its lecture_id, class_id and flashcard_set_id before any other lecture tool.
+    routingTags: [school, lectures, education]
+    tags: [education, route-backed]
+  - name: lm-lecture-notes
+    displayName: Lecture Notes
+    type: api
+    category: education
+    description: One lecture's study notes (markdown) and transcript.
+    executor: { executorType: api, apiEndpoint: "GET /api/education/lectures/{input.lectureId}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        lectureId: { type: string, format: uuid, description: "The lecture_id from lm-my-lectures, never a title." }
+      required: [lectureId]
+    usageInstructions: Read lm-my-lectures first. Use the notes to summarise or answer questions about the lecture; quote only what they say.
+    routingTags: [school, lectures, education]
+    tags: [education, route-backed]
+  - name: lm-make-flashcards
+    displayName: Make Flashcards
+    type: api
+    category: education
+    description: Generate a new flashcard set for one of the person's own classes, grounded in that class's material, focused on a topic when given, or made from one chapter of a class book (materialId + chapter).
+    executor: { executorType: api, apiEndpoint: "POST /api/education/flashcards/generate" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        classId: { type: string, format: uuid, description: "The class_id from lm-my-classes, lm-my-lectures or lm-my-books." }
+        topic: { type: string, maxLength: 200, description: "Optional focus, such as the lecture's topic (photosynthesis)." }
+        count: { type: integer, minimum: 3, maximum: 20 }
+        materialId: { type: string, format: uuid, description: "A book's materialId from lm-my-books, to make the cards from one of its chapters (with chapter and that book's classId)." }
+        chapter: { type: integer, minimum: 1, maximum: 99, description: "The chapter number, with materialId." }
+      required: [classId]
+    usageInstructions: Call once when the person asks for new flashcards. For a book chapter pass the book's classId, materialId and chapter from lm-my-books. Give the answer's studyUrl exactly as returned (a relative link starting /api/education/) as a markdown link named "Study the flashcards". Never write any other URL or host for it.
+    routingTags: [school, flashcards, education]
+    tags: [education, route-backed]
+  - name: lm-make-quiz
+    displayName: Make a Practice Quiz
+    type: api
+    category: education
+    description: Generate a multiple-choice practice quiz for one of the person's classes, grounded in the class material and focused on a topic when given.
+    executor: { executorType: api, apiEndpoint: "POST /api/education/quiz/generate" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        classId: { type: string, format: uuid, description: "The class_id from lm-my-classes or lm-my-lectures." }
+        topic: { type: string, maxLength: 200, description: "Optional focus, such as the lecture's topic." }
+        count: { type: integer, minimum: 3, maximum: 10 }
+      required: [classId]
+    usageInstructions: Call once when the person asks for a quiz. Show the questions and choices (the answers are not returned and are never invented), then give the answer's quizUrl exactly as returned (a relative link starting /api/education/) as a markdown link named "Take the quiz" so they can answer and get it graded. Never write any other URL or host for it.
+    routingTags: [school, quiz, education]
+    tags: [education, route-backed]
+  - name: lm-lecture-summary-pdf
+    displayName: Lecture Summary PDF
+    type: api
+    category: education
+    description: Make a PDF of one lecture's summary notes and save it to the person's files.
+    executor: { executorType: api, apiEndpoint: "POST /api/education/lectures/{input.lectureId}/summary-pdf" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        lectureId: { type: string, format: uuid, description: "The lecture_id from lm-my-lectures, never a title." }
+      required: [lectureId]
+    usageInstructions: Read lm-my-lectures first. The answer has downloadUrl and fileName; give the person the downloadUrl as a markdown link named with the fileName. Say the PDF is ready only when the answer has a downloadUrl.
+    routingTags: [school, lectures, pdf, education]
+    tags: [education, route-backed]
+  - name: lm-my-books
+    displayName: My Books
+    type: api
+    category: education
+    description: The books (class materials) the person can read in their classes, each with its materialId, title, class and subject.
+    executor: { executorType: api, apiEndpoint: "GET /api/education/my-books" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call before reading or making cards from a book. When the person's words match more than one book or class (two math books, two math classes), ask which one and name the choices; do not pick one.
+    routingTags: [school, textbooks, education]
+    tags: [education, route-backed]
+  - name: lm-book-chapter
+    displayName: Book Chapter
+    type: api
+    category: education
+    description: One chapter of a class book - its heading and text - or, when the chapter is not found, the chapter headings the book has.
+    executor: { executorType: api, apiEndpoint: "GET /api/education/materials/{input.materialId}/chapters/{input.chapter}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        materialId: { type: string, format: uuid, description: "The book's materialId from lm-my-books, never a title." }
+        chapter: { type: integer, minimum: 1, maximum: 99, description: "The chapter number." }
+      required: [materialId, chapter]
+    usageInstructions: Read lm-my-books first. Write lesson summaries and answers from the chapter text only. When found is false, say the chapter was not found and list the chapters it has (or that its text has no chapter headings).
+    routingTags: [school, textbooks, education]
+    tags: [education, route-backed]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # UI SURFACES — toolbar/ribbon config (ADR-085 `toolbar`). Static entries are
@@ -464,6 +610,11 @@ ui:
     - { toolName: lm-stem,          label: STEM Helpers,      icon: codicon codicon-beaker,              iframeUrl: /api/education/stem-helpers,     section: top }
     - { toolName: lm-citations,     label: Citations,         icon: codicon codicon-quote,               iframeUrl: /api/education/citations,        section: top }
     - { toolName: lm-files,         label: My Files,          icon: codicon codicon-folder,              iframeUrl: /api/education/files,            section: top }
+    # The standard email viewer (Intelligent Communication's inbox; each person connects their own mailbox)
+    # and the core personal file browser, where Little Monsters' saved lecture PDFs and decks also appear,
+    # each shown below the Little Monsters top bar by tools/standard-view.html.
+    - { toolName: lm-email,         label: Email,             icon: codicon codicon-mail,                iframeUrl: /api/education/email,            section: top }
+    - { toolName: lm-storage,       label: Storage,           icon: codicon codicon-folder-library,      iframeUrl: /api/education/storage,          section: top }
     - { toolName: lm-teacher,       label: Teacher,           icon: codicon codicon-mortar-board,        iframeUrl: /api/education/teacher,          section: bottom }
     - { toolName: lm-voice-settings, label: Voice,            icon: codicon codicon-unmute,              iframeUrl: /api/education/voice-settings,   section: bottom }
   dynamic:

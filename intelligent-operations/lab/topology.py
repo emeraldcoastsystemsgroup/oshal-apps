@@ -2,6 +2,7 @@
 """Collect a bounded namespace topology from the owned lab; no credentials enter the scan.
 CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Use Kubernetes UIDs, owner references and EndpointSlices instead of name-derived identity and unconditional freshness stamps.
 CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Retain bounded pod phase, readiness and container waiting/termination facts for operator inspection.
+CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Record node capacity, allocatable, pressure conditions, kubelet/OS/runtime versions, roles, taints and addresses as bounded scalar facts so the Systems explorer can show what is in each cluster node.
 """
 import argparse
 from datetime import datetime, timezone
@@ -12,6 +13,23 @@ import lab
 
 KINDS={'Namespace':'namespace','Node':'node','Deployment':'workload','StatefulSet':'workload','DaemonSet':'workload','CronJob':'workload','ReplicaSet':'replica-set','Job':'job','Pod':'pod','Service':'service','Ingress':'ingress'}
 RESOURCES=['deployments','statefulsets','daemonsets','cronjobs','replicasets','jobs','pods','services','ingresses','endpointslices']
+
+
+def node_facts(obj):
+    """Bounded scalar facts of a Node object: capacity, allocatable, pressure conditions, versions, roles, taints and addresses."""
+    spec=obj.get('spec') or {};status=obj.get('status') or {};info=status.get('nodeInfo') or {};meta=obj.get('metadata') or {}
+    capacity=status.get('capacity') or {};allocatable=status.get('allocatable') or {}
+    conditions={c.get('type'):c.get('status') for c in status.get('conditions',[]) if c.get('type')}
+    pressure=[t for t in ('MemoryPressure','DiskPressure','PIDPressure','NetworkUnavailable') if conditions.get(t)=='True']
+    roles=sorted(k.split('/',1)[1] for k in (meta.get('labels') or {}) if k.startswith('node-role.kubernetes.io/'))
+    taints=['{}={}:{}'.format(t.get('key'),t.get('value',''),t.get('effect')) for t in spec.get('taints') or []]
+    addresses={a.get('type'):a.get('address') for a in status.get('addresses',[]) if a.get('type')}
+    facts={'providerId':spec.get('providerID'),'capacityCpu':capacity.get('cpu'),'capacityMemory':capacity.get('memory'),'capacityPods':capacity.get('pods'),
+           'allocatableCpu':allocatable.get('cpu'),'allocatableMemory':allocatable.get('memory'),'allocatablePods':allocatable.get('pods'),
+           'kubeletVersion':info.get('kubeletVersion'),'osImage':info.get('osImage'),'containerRuntime':info.get('containerRuntimeVersion'),'architecture':info.get('architecture'),'kernelVersion':info.get('kernelVersion'),
+           'internalIp':addresses.get('InternalIP'),'hostname':addresses.get('Hostname'),'roles':','.join(roles) or None,'taints':'; '.join(taints)[:1024] or None,
+           'unschedulable':bool(spec.get('unschedulable')),'conditions':','.join(k+'='+str(v) for k,v in sorted(conditions.items()))[:1024] or None,'pressure':','.join(pressure) or None}
+    return {k:v for k,v in facts.items() if v is not None}
 
 
 def normalize(cluster_uid, namespace, objects, failures=None, observed_at=None, scan_id=None):
@@ -38,7 +56,7 @@ def normalize(cluster_uid, namespace, objects, failures=None, observed_at=None, 
         props={'kubernetesKind':kind,'namespace':ns,'resourceVersion':meta.get('resourceVersion'),'terminating':bool(meta.get('deletionTimestamp'))}
         if kind=='Pod':
             state=obj.get('status') or {};props.update({'phase':state.get('phase'),'readyStatus':condition.get('status'),'reason':condition.get('reason') or state.get('reason'),'nodeName':(obj.get('spec') or {}).get('nodeName')})
-        if kind=='Node':props['providerId']=(obj.get('spec') or {}).get('providerID')
+        if kind=='Node':props.update(node_facts(obj))
         row=add(KINDS[kind],meta.get('uid'),meta.get('name'),health,props);by_name[(kind,ns,meta['name'])]=row
     namespace_row=by_name.get(('Namespace',None,namespace))
     if not namespace_row:problems.append({'kind':'namespace','reason':'Namespace UID was not observed.'})

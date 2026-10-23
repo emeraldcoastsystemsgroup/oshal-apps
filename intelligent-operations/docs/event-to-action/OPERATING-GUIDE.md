@@ -1,6 +1,6 @@
 # Operating TriageNorth
 
-Updated 21 October 2026. The native portal is http://127.0.0.1:38081.
+Updated 22 October 2026. The native portal is http://127.0.0.1:38081.
 Use the existing portal login. Application/API identity stays intelligent-operations.
 
 ## Daily operator screens
@@ -186,6 +186,179 @@ Create is the unified studio home; AI Office is its document/deck component.
 For mailbox setup use `/utilities?category=email`. Portal email alerts separately
 need an administrator SMTP relay or webhook transport. Connecting Outlook/Gmail
 alone does not register that transport or send a test message.
+
+## Approve and run a generated response, then verify recovery — 22 October
+
+Open Incident work → Approved response and verified recovery. Refresh response plans, then
+expand "Prepare a response plan from accepted work": choose a ticket at its report gate, the
+completed phase with the accepted answer (the page previews which generated files it carries:
+`remediate.sh`, `verify.sh`, `rollback.md`, `verify.md`), the observed target pod from your
+inventory, its container and your Kubernetes account, and prepare the plan. Download and read
+the files; their digests are shown. Approve this exact action (thirty-minute expiry, bound to the
+digests, the target and the canonical revision). Execute approved action runs the script once
+through your own Kubernetes connection with a fresh confirmation. Verify recovery runs
+`verify.sh` and a pod readback; recovery is healthy only with a passing check, the same pod
+identity and a resolved alert admitted after the action. Only then does Accept report and update
+ticket approve the canonical gate. The execution receipt is downloadable. On the lab this closed
+ticket 46b8df31 at revision 5 (`deploy/evidence/response.json`).
+
+## Promote a response through Git, or reconcile a break-glass change
+
+On a response plan, expand Promote through Git. Choose GitHub or GitLab, your own account, the
+repository (owner and name, or the numeric GitLab project), the base branch, a folder in the
+repository and, for GitHub, an optional workflow file; tick Start the pipeline to run it on the new
+branch. Commit, open request commits the plan's exact files and a manifest to
+`triagenorth-<plan>` and opens a pull or merge request; every provider write asks for a fresh
+confirmation. Use this when the pipeline should apply the change. If you executed the plan as an
+emergency change, Reconcile break-glass change in Git appears: it commits the same files with the
+execution receipt to `triagenorth-reconcile-<plan>`, and the request must be merged or reverted in
+Git within 24 hours; the panel marks it overdue after that. Refresh status reads merge and
+pipeline state. The GitHub or GitLab service must be selected by an administrator and your account
+connected first.
+
+## Detect anomalies on your own telemetry
+
+Open Live context → Anomaly detection. Choose the telemetry stream sources to score, the alert
+source that should receive candidates (publish a percolation policy for it under Data pipeline →
+Rules so candidates become decisions), the detector (rolling robust z-score, or the seasonal
+time-of-day profile for daily patterns) and its parameters, then enable scoring. Each scheduled
+tick scores new metric samples before learning from them; the panel shows per-resource readiness
+(cold, ready, stale, late) with the last score and baseline, and Run detection now scores pending
+samples immediately. Candidates appear in Events as `anomaly:<detector>:<metric>` and follow the
+same filtering and noise reduction as source alerts. The NAB pilot receipt
+(`deploy/evidence/anomaly-nab.json`) records measured detection, lead time and false-alert rates
+for both detectors; it is not an official NAB score.
+
+## Read what is in each cluster node
+
+Open Systems and expand a Kubernetes system. Nodes are listed with the namespaces and workloads;
+selecting a node shows Node facts: capacity against allocatable (CPU, memory, pods), pressure
+conditions and cordon state, roles, taints, internal IP and hostname, kubelet, OS, container
+runtime, architecture and kernel, and the pods placed on the node. Each pod is a link that opens
+that pod in the tree, where the pod console offers current status, logs and reviewed commands
+through your own connection. Facts come from the imported scan (`lab/topology.py --output` then
+Topology → Import a source-owned scan); absent facts are omitted rather than fabricated.
+
+## Read the live cluster and keep Systems current
+
+In Systems, open Live cluster. Choose your own Kubernetes account and a namespace from its allowed
+list, then Read live cluster: nodes (readiness, pressure, roles, allocatable CPU, memory and pods,
+kubelet), deployments (ready against desired) and pods (readiness, phase, node, restarts, owner)
+are read now, each read with its own confirmation. Save as inventory scan records the read in a
+separate live collection, so the tree shows the current state while the collector's services and
+routes stay. A read larger than one scan is saved as partial and says how much was kept.
+
+## Let the pipeline start investigations
+
+In Data pipeline → Processing, turn on evidence capture and "Start an AI investigation
+automatically". Each processing tick then starts the shared investigation workflow for up to two
+newly captured evidence packets, through the same port and checks as your own Start. The tick
+result shows how many started. A start whose outcome is unknown is marked uncertain and is not
+retried; open it in Incident work and start it by hand if no ticket moved.
+
+## Get a command coached and run it under your own authorization
+
+Open Command helper. Pick the tool (kubectl, AWS CLI, Google Cloud CLI, Azure CLI, or inside a
+pod container), say where you will run it, describe the goal and any context, and ask the
+operations analyst. It proposes one command as explicit arguments with its reason, whether it is
+read-only, its risk and how to verify the result. For an in-pod command, choose the observed pod,
+container and your Kubernetes account and run it through your own connection with a fresh
+confirmation; the result is recorded. For kubectl and cloud CLIs, copy the command, run it in
+your own terminal or OSHAL Node under your signed-in profile, paste the output and record it;
+the record says it is operator-provided. The application never holds your cloud credentials and
+never runs a cloud command itself; in-application cloud execution needs the kernel rails listed
+in KERNEL-RAILS-NEEDED.md.
+
+## Run AWS reads through your own AWS connection
+
+An administrator selects the AWS STS and Amazon EKS services, with the regional endpoint to read
+(for example `https://eks.us-east-1.amazonaws.com`). In Connections, connect your own AWS key to
+each as JSON with `accessKeyId`, `secretAccessKey` and, for temporary credentials,
+`sessionToken`. Prefer a read-only IAM user or a short-lived role session.
+
+In Command helper, choose AWS CLI and ask, for example, "list my EKS clusters". When the analyst
+proposes a supported read (`aws sts get-caller-identity`, `aws eks list-clusters`,
+`describe-cluster`, `list-nodegroups`, `describe-nodegroup`), choose Run through your AWS
+connection. A `--region` that differs from the selected endpoint is refused before any call.
+The result is recorded as an AWS-signed read with your account and the region.
+
+## Run a command on a host with your own SSH key
+
+Your administrator selects the hosts in `OSHAL_SSH_SERVICE`, each with a literal address, a
+port and the host key's pinned SHA-256 fingerprint. In Connections, save your own SSH connection
+as JSON with your `username` and your OpenSSH ed25519 `privateKey`. In Command helper, choose
+"On a host (your SSH key)", then Load selected hosts and pick one. Ask for what you need, for
+example "how much disk is free". Review the proposed command, then choose Run on the host. It
+runs once, as you; the result and the exit code are recorded with the host.
+
+## Ask Jarvis about Operations
+
+Ask Jarvis "what needs my attention in operations?", "what did we hand off to another swarm?" or
+"which investigations started on their own?". It answers from your own saved records and names
+the Operations page to open. Jarvis never sends, files, approves or starts anything; those stay
+on the pages, with your confirmation.
+
+## Run Google Cloud and Azure reads through your own account
+
+An administrator registers the Google Cloud and Azure OAuth clients and selects the Google
+Cloud and Azure services. In Connections, connect your own Google account for Google Cloud and
+your own Microsoft account for Azure. In Command helper, choose the Google Cloud CLI or the
+Azure CLI and ask, for example, "list my GKE clusters in acme-prod" or "show the aks-ops
+cluster". When the analyst proposes a supported read, choose Run through your Google Cloud
+connection or Run through your Azure connection. Google Cloud reads need `--project`; Azure reads
+other than `az account list` need `--subscription`.
+
+## Connect GitHub for promotion and provisioning
+
+On GitHub, create a fine-grained personal access token for the repository you will promote to.
+Give it Contents, Pull requests and Actions, each read and write, and an expiry. Open any
+"Promote through Git" panel. While you have no GitHub connection it offers "Your own access
+token": paste the token and choose Save as my connection. The token goes straight to the kernel
+vault as your own connection. The page clears it at once and keeps nothing.
+
+## Browse repositories and link each cluster to its GitOps repository
+
+Open Git explorer. If you have no GitHub connection yet, paste your own access token there and
+choose Save as my GitHub connection. Then choose Load my repositories. Every repository your token can reach is
+listed, including your organisation's; filter by name. Open one to see its branches, open pull
+requests, recent pipeline runs and files, and click a file to read it. To make a repository the
+home of a cluster's manifests, pick the recorded cluster, set the folder (and a workflow if a
+pipeline should run), and choose Link this repository to the cluster. Promotion panels then offer
+the link, and a response plan for that cluster preselects it.
+
+## Provision a namespace or an app through Git
+
+Open Provisioning and choose a team namespace or an app deployment. Fill in the parameters,
+say why, and choose Render manifests. Review the exact files, and if you like, check them with
+the `kubectl apply --dry-run=server` command shown. Then use Promote through Git on the request:
+your GitHub or GitLab account, the repository, the base branch and a folder. You get a branch,
+a pull or merge request and, if chosen, a pipeline run. The application applies nothing; your
+pipeline applies the request once it is merged.
+
+## When Overview says the processing schedule is suspended
+
+Re-approving your Operations role, which a release that changes the application's contract asks
+for, suspends your processing schedule, because its activation belonged to the previous approval.
+Re-activate it under the new approval. After publishing, `lab/reapprove.py` re-approves only when
+needed and then re-activates.
+Overview shows the state and the kernel's reason; Re-activate resumes it under your authority.
+A release that needs no re-approval keeps the schedule running.
+
+## Hand work to another swarm, or take work from one
+
+Open Swarm hand-off.
+
+- **Let another swarm send you work.** Issue a peer token for it, with its name and an expiry,
+  and give it the token at once; it is not shown again. Its people save it as their OSHAL peer
+  connection. Revoke the token to stop deliveries.
+- **Send a response plan.** Your administrator selects the peer installation's HTTPS origin for
+  the OSHAL peer installation service. Save the token that installation gave you as your own
+  OSHAL peer connection. Then choose the plan, your peer connection and what the other swarm
+  should look at, and Send to peer swarm. The reply is the peer's receipt; nothing runs there
+  until its people decide.
+- **Received work.** It appears under Received from other swarms. Inspect shows it as data.
+  File as investigation opens one investigation ticket from it; filing it again returns the
+  same ticket.
 
 ## Installed decision and mailbox checks — 21 October
 

@@ -1,0 +1,39 @@
+{
+  "kind": "schedule-continuity-across-releases",
+  "installation": "owned kind operations-lab / oshal-install-lab",
+  "cause": "Replacing the operator role assignment invalidates the schedule activation made under the previous assignment; confirmed on 2026-10-23 01:10Z by a replace alone (no release), after which the 01:11 tick was refused deny_tier and the schedule suspended. Re-activating after any re-approval resolves it (lab/reapprove.py).",
+  "fix": "Operations procedure: re-approve only when the assignment is not active, and re-activate the schedule after any replace (lab/reapprove.py); Overview shows a suspended schedule with Re-activate.",
+  "before": {
+    "kernel": "oshal-kernel:dev-d033905caabd",
+    "release": "f9379e33 (no manifest or authorization change)",
+    "publishedAt": "2026-10-22T22:07:22Z",
+    "nextTick": {
+      "due": "2026-10-22T22:08:00Z",
+      "outcome": "refused",
+      "reason": "deny_tier",
+      "schedule": "suspended"
+    }
+  },
+  "after": {
+    "kernel": "oshal-kernel:dev-92a26f78a6be",
+    "release": "9ea64b49 (no manifest or authorization change)",
+    "publishedAt": "2026-10-22T22:38:29Z",
+    "ticks": [
+      {
+        "due": "2026-10-22T22:39:00Z",
+        "outcome": "completed"
+      },
+      {
+        "due": "2026-10-22T22:40:00Z",
+        "outcome": "completed"
+      },
+      {
+        "due": "2026-10-22T22:41:00Z",
+        "outcome": "completed"
+      }
+    ],
+    "schedule": "active"
+  },
+  "byDesign": "Release f7fd9e6d added protected routes (authorization.yaml), and the next tick at 22:32Z was suspended; Overview now shows that state and re-activates on the owner's click.",
+  "correction": "The first explanation (the Git commit pin in the schedule fingerprint) is a real defect for git registry installs and is fixed in oshal-kernel PR 81, but this lab installs from a staged local source, so it was not the cause here. The before/after release pair below shows releases that did and did not need a re-approval."
+}

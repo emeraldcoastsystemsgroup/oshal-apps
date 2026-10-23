@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Little Monsters</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  SEQ | AUTHOR                                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com   | The Email and Storage tabs keep the Little Monsters top bar: this page mounts the page frame and shows the standard viewer below it (/api/education/email -> the email viewer /api/email/inbox, /api/education/storage -> the personal file browser /api/files). Linking the viewers directly replaced the whole frame, and a student had no way back but the browser's Back button.
+  ---------------------------------------------------------------------------
+-->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
+<link rel="stylesheet" href="/api/education/education.css">
+<style>
+  /* The top bar keeps its height; the standard viewer fills the rest of the window. */
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; margin: 0; }
+  .lm-standard-view { flex: 1; min-height: 0; display: flex; }
+  .lm-standard-view iframe { flex: 1; width: 100%; border: 0; background: transparent; }
+  .lm-standard-view p { margin: 24px; }
+</style>
+</head>
+<body>
+<main class="lm-standard-view" id="view"></main>
+
+<script src="/api/education/mascot.js?v=4"></script>
+<script>
+/** The Little Monsters tab path → the standard viewer it shows and the page title. */
+var STANDARD_VIEWS = {
+  '/api/education/email': { src: '/api/email/inbox', title: 'Email' },
+  '/api/education/storage': { src: '/api/files', title: 'Storage' },
+};
+(function () {
+  var view = STANDARD_VIEWS[location.pathname.replace(/\/+$/, '')];
+  var host = document.getElementById('view');
+  if (!view) { host.innerHTML = '<p>This page is not part of Little Monsters.</p>'; return; }
+  document.title = 'Little Monsters — ' + view.title;
+  var frame = document.createElement('iframe');
+  frame.src = view.src;
+  frame.title = view.title;
+  host.appendChild(frame);
+})();
+</script>
+</body>
+</html>

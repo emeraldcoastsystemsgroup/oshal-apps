@@ -1,0 +1,21 @@
+{
+  "kind": "provisioning-and-schedule-notice-acceptance",
+  "startedAt": "2026-10-22T22:57:27.591Z",
+  "kernel": "oshal-kernel:dev-92a26f78a6be",
+  "rendered": [
+    "namespace.yaml · sha256 79fad01db36e18d6… · 381 bytes",
+    "resourcequota.yaml · sha256 5fcb15fc97992883… · 363 bytes",
+    "limitrange.yaml · sha256 4e3eac0afeb10f2e… · 402 bytes",
+    "networkpolicy.yaml · sha256 015a14b72a6ed96c… · 372 bytes",
+    "rolebinding.yaml · sha256 06aed9c04888d32b… · 442 bytes"
+  ],
+  "scheduleBefore": {
+    "status": "suspended",
+    "reason": "deny_tier"
+  },
+  "notice": "Processing schedule is suspended (deny_tier). A release that changed what the application may reach needs you to re-activate it.",
+  "scheduleAfter": "active",
+  "pageErrors": [],
+  "result": "passed",
+  "finishedAt": "2026-10-22T22:57:29.359Z"
+}
