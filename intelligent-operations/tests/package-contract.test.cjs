@@ -1,3 +1,4 @@
+/* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Require the installed native permission binding for server-side ticket readback; a handler alone is unreachable. */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Allow route-backed read tools for Jarvis; still no CLI executor tool. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Pin the Swarm hand-off navigation entry. */
 /**
@@ -65,6 +66,15 @@ test('declared bots are inline, own a persona inside the package and answer in p
     assert.match(persona.perspective, /plain prose/i);
     assert.doesNotMatch(persona.perspective, /curl |\/app\/|workspace-shared|oshal-local-api|node scripts\/|CLINE_WORKSPACE/);
   }
+});
+
+test('external ticket reconciliation has a native operator admission binding', () => {
+  const auth = yaml.load(fs.readFileSync(path.join(root, 'authorization.yaml'), 'utf8'));
+  const binding = auth.bindings.http.filter(item => item.method === 'POST' && item.path === '/ticket-sync/reconcile');
+  assert.deepEqual(binding, [{id:'ticket-sync-reconcile',method:'POST',path:'/ticket-sync/reconcile',allOf:['records.write']}]);
+  assert.match(fs.readFileSync(path.join(root, 'routes/experience.js'), 'utf8'), /router\.post\('\/ticket-sync\/reconcile'/);
+  assert.ok(auth.roles.operator.grants.some(grant => grant.permission === 'records.write'));
+  assert.ok(!auth.roles.reader.grants.some(grant => grant.permission === 'records.write'));
 });
 
 test('no screen points at a platform-only route', () => {

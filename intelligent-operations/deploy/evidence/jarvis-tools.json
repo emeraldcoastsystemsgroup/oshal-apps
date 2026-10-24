@@ -1,0 +1,102 @@
+{
+  "kind": "jarvis-operations-tools",
+  "startedAt": "2026-10-23T07:17:47Z",
+  "exchanges": [
+    {
+      "question": "What needs my attention in operations?",
+      "route": "/attention",
+      "summary": "1 executions without verified recovery.",
+      "expectedNumbers": [
+        1,
+        2,
+        1
+      ],
+      "numbersInAnswer": [
+        1,
+        2,
+        1
+      ],
+      "handedToOperations": true,
+      "status": "done",
+      "answer": "**Intelligent Operations:** Your saved Operations records show:\n- **1 execution without verified recovery** \u2014 review in Incidents.\n- **2 automatically started investigations** \u2014 review in Data pipeline.\n- **1 delegation from another swarm filed as an investigation** \u2014 review in Swarms.\n\nNo response plans await approval, and no anomaly baselines are firing. Nothing was run.",
+      "passed": true
+    },
+    {
+      "question": "Which of my systems are degraded right now, and is the inventory current?",
+      "route": "/summary/systems",
+      "summary": "44 assets: 22 healthy, 15 degraded, 7 unknown. Scheduled discovery last saved 10 assets at 2026-10-23T07:13:00.969100881+00:00.",
+      "expectedNumbers": [
+        15
+      ],
+      "numbersInAnswer": [
+        15
+      ],
+      "handedToOperations": true,
+      "status": "done",
+      "answer": "**Intelligent Operations:** **Current degradation is not verified.** The latest result contains saved inventory and discovery records, not live cluster telemetry.\n\n**Recorded inventory: 44 assets \u2014 22 healthy, 15 degraded, 7 unknown.**\n\n### Recorded degraded systems\nAll observations are from **October 21, 2026, UTC**:\n\n| Systems | Observation time |\n|---|---|\n| host-web-001 and host-batch-002 \u2014 first imported pair | 14:43:47.147 |\n| host-web-001 and host-batch-002 \u2014 second pair; i-replay-database; eni-replay-database | 14:45:45.229 |\n| host-web-001 and host-batch-002 \u2014 third pair; i-replay-database-demo-mvi96nmg; eni-replay-database-demo-mvi96nmg | 15:13:40.793 |\n| host-web-001 and host-batch-002 \u2014 fourth pair; i-replay-database-demo-mvi9o3eo; eni-replay-database-demo-mvi9o3eo | 15:27:14.400 |\n| api pod \u2014 namespace not supplied | 16:30:29.575 |\n\nRepeated host names are separate inventory entries. These stale statuses establish neither current degradation nor recovery.\n\n### Is inventory current?\n**Only a scoped refresh is confirmed\u2014not whole-inventory freshness.**\n\n- **Latest successful discovery:** October 23, 2026, **07:13:00.969100881 UTC**; saved **10 assets**, marked complete, with no reported failures.\n- Discovery is enabled every **5 minutes**, scoped to **operations-demo**.\n- Seven entries remain **unknown**, observed October 22, 2026, **19:55:09.307 UTC**: cluster **operations-lab**, namespace **operations-demo**, services **api** and **frontend**, and replica sets **api-7b4484667b**, **frontend-577c655c6f**, and **api-69f694fbcd**.\n- Pressure measurements, observation timestamps for the 22 healthy entries, and current source-owned health telemetry were not supplied.\n\n**Bottom line:** scheduled discovery recently succeeded, but current system health and freshness across all 44 assets remain unverified. No configuration changes or remediation were performed.",
+      "passed": true
+    },
+    {
+      "question": "What is the status of my response plans and was recovery verified?",
+      "route": "/summary/responses",
+      "summary": "2 response plans: 0 waiting for your approval, 1 executed without verified recovery.",
+      "expectedNumbers": [
+        2
+      ],
+      "numbersInAnswer": [
+        2
+      ],
+      "handedToOperations": true,
+      "status": "done",
+      "answer": "The last reported status was **2 response plans, 0 awaiting approval**:\n\n| Plan | Approval | Recovery |\n| `cpu-pressure-863628c5a3c38e59-q5fgb` | Invalidated by ticket change | Recorded as healthy; verification evidence not supplied |\n| `cpu-pressure-42751b4d1ed8507c-9zk9w` | Expired | Recorded as regressed\u2014not verified |\n\nBoth had one completed execution, with unknown exit codes. **Recovery was not independently established by the supplied evidence.** Execution completion or report acceptance alone does not verify recovery.\n\n**Intelligent Operations:** **2 response plans: 0 waiting for your approval, 1 executed without verified recovery.**\n\n| Target | Approval | Execution | Exit code | Recorded recovery |\n|---|---|---|---|---|\n| operations-demo/cpu-pressure-863628c5a3c38e59-q5fgb \u00b7 pressure | Invalidated by a ticket change | 1, completed | Unknown | Healthy |\n| operations-demo/cpu-pressure-42751b4d1ed8507c-9zk9w \u00b7 pressure | Expired | 1, completed | Unknown | Regressed\u2014not verified |\n\n**Verification evidence:** Both plans list `verify.sh` and `verify.md`, but their contents and execution output were not supplied. The first plan\u2019s **recorded healthy** finding therefore cannot be independently confirmed from this evidence. The second records regression.\n\nReport acceptance was not supplied; neither acceptance nor execution completion alone proves recovery.\n\nNothing was changed, approved, or executed.",
+      "passed": true
+    },
+    {
+      "question": "Are any anomalies firing in operations?",
+      "route": "/summary/anomalies",
+      "summary": "Detection is on. 1 baselines: 0 firing, 1 ready.",
+      "expectedNumbers": [
+        0
+      ],
+      "numbersInAnswer": [
+        0
+      ],
+      "handedToOperations": true,
+      "status": "done",
+      "answer": "**Intelligent Operations:** Detection is on. **No anomalies are firing in the saved records.** This does not confirm current telemetry.\n\n- **Metric:** `frontend.error_ratio`\n- **Status:** Not firing; score 0; baseline ready.\n- **Latest observation:** October 22, 2026, at 21:44:45 UTC\u2014stale.\n- **Affected system name and severity:** Not supplied.\n\nNothing was changed.",
+      "passed": true
+    },
+    {
+      "question": "What was handed to us by another swarm?",
+      "route": "/delegations",
+      "summary": null,
+      "expectedNumbers": [
+        "Upper operations swarm (lab acceptance)"
+      ],
+      "numbersInAnswer": [
+        "Upper operations swarm (lab acceptance)"
+      ],
+      "handedToOperations": true,
+      "status": "done",
+      "answer": "**Intelligent Operations:** **Upper operations swarm (lab acceptance)** handed us an investigation:\n\n> Frontend 503 spike seen from the upper swarm; please check the api pods at the lower level.\n\nIt was filed on **October 22, 2026, at 22:32:04 UTC** and is marked **started**. The handoff does **not authorize execution**, and its provenance is not server-verified.",
+      "passed": true
+    },
+    {
+      "question": "Which operations investigations do I have, and what state are they in?",
+      "route": "/investigations",
+      "summary": null,
+      "expectedNumbers": [
+        4
+      ],
+      "numbersInAnswer": [
+        4
+      ],
+      "handedToOperations": true,
+      "status": "done",
+      "answer": "**Intelligent Operations:** The current records list **four investigations**, with no truncation. Titles and links were not supplied, so creation times distinguish them below.\n\n| Created (UTC) | Investigation state | Canonical ticket state | Ticket stage |\n|---|---|---|---|\n| October 22, 2026, 21:59:04.971 | Started | Failed | Investigate |\n| October 22, 2026, 21:59:04.663 | Started | Failed | Review |\n| October 21, 2026, 19:11:14.327 | Queued | Failed | Investigate |\n| October 21, 2026, 16:30:46.172 | Queued | Done | Not supplied |\n\n**Status conflicts:** Both started investigations have a separate ticket-status field of **running**, while their canonical tickets say **failed**.\n\nInvestigation progress and ticket outcomes are separate. **Started** does not prove execution is ongoing, and **done** does not establish verified recovery. No verified-recovery evidence was supplied.",
+      "passed": true
+    }
+  ],
+  "finishedAt": "2026-10-23T07:20:32Z",
+  "result": "passed"
+}

@@ -10,11 +10,17 @@ async function setup(f,owner='alice'){
  const pool=f.caller(owner),source=loadExperience().sourceDefinition({name:'Git lab',source:'urn:triagenorth:test:'+randomUUID(),environment:'local-lab'});
  const pod={provider:'kubernetes',scope:'cluster-uid',kind:'pod',nativeId:UID,name:'cpu-pressure-abc',health:'degraded',properties:{namespace:'operations-demo'}};
  await saveScan(pool,owner,source,{scanId:'scan-'+randomUUID(),collectionId:'cluster-uid/operations-demo',observedAt:'2026-01-01T00:00:01.000Z',complete:true,assets:[pod],relationships:[]});
- const current={id:randomUUID(),ticketType:'intelligent-operations',status:'awaiting_approval',revision:4},ctx={pool,ticketService:{async getTicket(id){return id===current.id?{...current}:null;}}};
- const plan=await X.preparePlan(ctx,owner,{ticketId:current.id,workId:randomUUID(),phase:'revise',answer:ANSWER,target:{namespace:'operations-demo',pod:'cpu-pressure-abc',uid:UID,container:'pressure'}});
+ const current={id:randomUUID(),ticketType:'intelligent-operations',status:'awaiting_approval',revision:4},ctx={pool,ticketService:{async getTicket(id){return id===current.id?{...current}:null;},async getAcceptedWork(ticketId,workId){return ticketId===current.id?{ticketId,workId,phase:{index:2,name:'revise'},answer:ANSWER,answerSha256:sha(ANSWER),receipt:'receipt-revise',source:'accepted-work-answer.md'}:null;}}};
+ const plan=await X.preparePlan(ctx,owner,{ticketId:current.id,workId:randomUUID(),target:{namespace:'operations-demo',pod:'cpu-pressure-abc',uid:UID,container:'pressure'}});
  return {pool,ctx,current,plan};
 }
 const github={provider:'github',account:'primary',owner:'acme',repo:'ops',baseBranch:'main',folder:'ops/triagenorth',workflow:'apply.yml',runPipeline:true};
+test('a legacy browser-forwarded response plan cannot be reserved for Git promotion',async()=>{
+ const f=await fixture();try{const x=await setup(f);
+  await f.inspect.query("UPDATE operations_action_plans SET record=jsonb_set(record,'{answerVerifiedByServer}','false'::jsonb) WHERE id=$1",[x.plan.id]);
+  await assert.rejects(P.reservePromotion(x.pool,'alice',{planId:x.plan.id,kind:'standard',target:github}),{status:409});
+ }finally{await f.close();}
+});
 test('reservations carry the server-held bytes and manifest once per plan, path and destination; break-glass waits for an execution',async()=>{
  const f=await fixture();try{const x=await setup(f);
   const res=await P.reservePromotion(x.pool,'alice',{planId:x.plan.id,kind:'standard',target:github});assert.equal(res.state,'reserved-outcome-unknown');assert.equal(res.branch,'triagenorth-'+x.plan.id.slice(0,12));

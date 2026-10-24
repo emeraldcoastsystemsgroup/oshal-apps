@@ -1,5 +1,10 @@
 # Intelligent Operations
 
+**Features at a glance:** see [docs/event-to-action/FEATURES.md](docs/event-to-action/FEATURES.md).
+It lists every feature, where it is in the product, and its proof: live receipt, test, or the
+input it still waits on. The judges' walk-through is in
+[docs/event-to-action/DEMO.md](docs/event-to-action/DEMO.md).
+
 Operations runs as an OSHAL experience slice. The first Kubernetes deployment uses native sign-in and roles, saved source mappings, durable alert records, historical pod/container topology and current-user connection status. See the [deployment and acceptance guide](deploy/README.md).
 It uses the existing root-cause-analysis pipeline. File an incident as a ticket of type
 `intelligent-operations`; three phases run:

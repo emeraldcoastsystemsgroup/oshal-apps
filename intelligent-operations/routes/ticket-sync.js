@@ -6,6 +6,9 @@ exports.saveSyncLink = saveSyncLink;
 exports.syncRecords = syncRecords;
 exports.reserveSync = reserveSync;
 exports.reportSync = reportSync;
+exports.observedRemoteState = observedRemoteState;
+exports.reconcileSync = reconcileSync;
+/** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Reconcile a reserved attempt through the person's native connector read, pinned to the saved service revision, and retain only a bounded server-observed state receipt. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Keep immutable original-person external links and reserve exact canonical phase/revision actions before manual confirmed native connector handoff; client observations remain explicitly operator-reported. */
 // @ts-nocheck
 const node_crypto_1 = require("node:crypto");
@@ -137,7 +140,7 @@ async function syncRecords(ctx, sub) {
         }
     }
     const attempts = (await ctx.pool.query('SELECT record FROM operations_sync_attempts WHERE user_sub=$1 ORDER BY created_at DESC,id LIMIT 101', [sub])).rows.map(r => r.record);
-    return { items, attempts: attempts.slice(0, 100), truncated: records.length > 32 || attempts.length > 100, deliveryProof: 'operator-reported only; native action/read results are shown in the initiating browser', automaticSync: false };
+    return { items, attempts: attempts.slice(0, 100), truncated: records.length > 32 || attempts.length > 100, deliveryProof: 'outbound writes remain browser-confirmed; a saved server readback verifies only the observed remote state', automaticSync: false };
 }
 /** @description Reserve before leaving the application; no repeated dispatch authorization after an unknown transport or lost acknowledgement. */
 async function reserveSync(ctx, sub, input) {
@@ -170,7 +173,61 @@ async function reportSync(ctx, sub, input) {
         const row = (await c.query('SELECT record FROM operations_sync_attempts WHERE user_sub=$1 AND id=$2 FOR UPDATE', [sub, input.attemptId])).rows[0]?.record;
         if (!row)
             fail(404, 'The owned attempt is unavailable.');
+        if (row.verifiedByServer)
+            fail(409, 'A server-observed remote state cannot be replaced by an operator report.');
         const record = { ...row, state: 'operator-reported-' + input.outcome, reportedAt: new Date().toISOString(), provenance: 'operator-report', verifiedByServer: false };
+        await c.query('UPDATE operations_sync_attempts SET record=$3 WHERE user_sub=$1 AND id=$2', [sub, row.id, JSON.stringify(record)]);
+        return record;
+    });
+}
+/** @description Interpret only the fixed state field of one native issue read; never store the provider's full issue body. */
+function observedRemoteState(provider, answer) {
+    if (!answer || typeof answer !== 'object' || Array.isArray(answer) || !answer.data || typeof answer.data !== 'object')
+        fail(503, 'The native issue read returned no supported state.');
+    if (answer.operation != null && answer.operation !== ({ jira: 'jira-get-issue', gitlab: 'gitlab-get-issue', servicenow: 'servicenow-record' })[provider])
+        fail(503, 'The native issue read returned another operation.');
+    if (answer.status != null && (!Number.isInteger(answer.status) || answer.status < 200 || answer.status > 299))
+        fail(503, 'The native issue read was not successful.');
+    const state = provider === 'jira' ? answer.data.fields?.status?.id : provider === 'gitlab' ? answer.data.state : answer.data.result?.state;
+    const value = typeof state === 'object' && state !== null ? state.value : state;
+    if (typeof value !== 'string' || !value || value.length > 80 || /[\x00-\x1f\x7f]/.test(value))
+        fail(503, 'The native issue read returned no supported state.');
+    return value;
+}
+/** @description An app cannot prove delivery by reporting a browser result. Re-read only the frozen issue through the original person's native connection and pinned service realm. */
+async function reconcileSync(ctx, sub, input) {
+    owner(sub);
+    closed(input, ['attemptId']);
+    if (!id(input.attemptId))
+        fail(400, 'Choose a reserved synchronization attempt.');
+    const row = (await ctx.pool.query('SELECT record FROM operations_sync_attempts WHERE user_sub=$1 AND id=$2', [sub, input.attemptId])).rows[0]?.record;
+    if (!row)
+        fail(404, 'The owned attempt is unavailable.');
+    const p = row.plan;
+    if (!p || !['jira', 'gitlab', 'servicenow'].includes(p.provider) || !id(p.targetRevision) || typeof p.account !== 'string' || !p.account || typeof ctx.intent !== 'function')
+        fail(503, 'The saved issue or native read port is unavailable.');
+    const link = (await ctx.pool.query('SELECT record FROM operations_ticket_links WHERE user_sub=$1 AND id=$2', [sub, p.linkId])).rows[0]?.record;
+    const trigger = typeof p.trigger === 'string' ? p.trigger.split(':') : [], historical = link && trigger.length === 2 ? syncPlan(link, { status: trigger[0], position: trigger[1] === '-' ? null : { name: trigger[1] }, revision: p.ticketRevision }) : null;
+    if (!link || !historical || historical.id !== row.id || hash(historical) !== hash(p))
+        fail(503, 'The frozen issue read plan no longer matches its saved link.');
+    await ticket(ctx, p.ticketId);
+    let answer, state;
+    try {
+        answer = await ctx.intent('connector.read', { connector: p.provider, operation: p.readOperation, account: p.account, input: p.readInput, expectedTargetRevision: p.targetRevision });
+        state = observedRemoteState(p.provider, answer);
+    }
+    catch (error) {
+        const message = String(error?.message || error);
+        if (error?.status === 403 || /^(refused|invalid): |is not linked for this package/.test(message))
+            fail(403, 'Your native connector read is no longer authorized; the held attempt was not changed.');
+        fail(503, 'Native remote-state readback was refused or unavailable; the held attempt was not changed.');
+    }
+    const observedAt = new Date().toISOString(), matched = state === p.expectedState;
+    return (0, pipeline_1.processingTransaction)(ctx.pool, async (c) => {
+        const current = (await c.query('SELECT record FROM operations_sync_attempts WHERE user_sub=$1 AND id=$2 FOR UPDATE', [sub, row.id])).rows[0]?.record;
+        if (!current || hash(current.plan) !== hash(p))
+            fail(409, 'The saved attempt changed while the provider was read; refresh before reconciling.');
+        const record = { ...current, state: matched ? 'server-observed-match' : 'server-observed-conflict', verifiedByServer: true, writeDeliveryVerifiedByServer: false, provenance: 'native-connector-read', observedState: state, observedAt, readbackSha256: hash({ provider: p.provider, recordKey: p.recordKey, state, observedAt }), readbackOperation: p.readOperation };
         await c.query('UPDATE operations_sync_attempts SET record=$3 WHERE user_sub=$1 AND id=$2', [sub, row.id, JSON.stringify(record)]);
         return record;
     });

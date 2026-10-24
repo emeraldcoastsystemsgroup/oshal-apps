@@ -1,3 +1,4 @@
+/** CHANGE LOG: inventory evidence | maintainer@emeraldcoastsystemsgroup.com | A pinned packet carries the alert's own summary, description and labels (untrusted, bounded) and the resource's recorded inventory facts with the node it runs on, so an investigation can name the pod, namespace and node even without retained telemetry (R17). */
 /** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Share the atomic packet pin with the original-user scheduled evidence consumer. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Rotate three caller-scoped telemetry banks transactionally, backpressure before early overwrite, and pin bounded evidence outside the ring.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve fresh generations during budget growth and accept only reviewed nondecreasing populated ceilings.
@@ -6,6 +7,7 @@
 import {hash} from './intake';
 import {processingTransaction} from './pipeline';
 import {streamConfiguration,normalizeTelemetry} from './telemetry-model';
+import {readGraph} from './topology-store';
 const fail=(status,message)=>{throw Object.assign(Error(message),{status});};
 const tables=['operations_telemetry_0','operations_telemetry_1','operations_telemetry_2'];
 const ownerRequired=owner=>{if(typeof owner!=='string'||!owner.trim())fail(401,'A verified caller is required.');};
@@ -78,6 +80,24 @@ export async function pinTelemetryEvidence(pool,owner,workId){
 }
 /** @description Pin within an existing owner-scoped transaction so worker completion and packet persistence commit together.
  * @param c Active original-caller SQL transaction. @param owner Verified caller. @param workId Capture reservation. @returns Immutable bounded evidence packet. */
+const KIND={'kubernetes-pod':['kubernetes','pod'],container:['kubernetes','container'],workload:['kubernetes','workload'],host:['import','host']};
+const bounded=(value,max)=>typeof value==='string'?value.slice(0,max):null;
+/** The alert's own words and labels as the producer sent them: untrusted text, bounded. */
+function alertText(delivery){
+ const data=delivery.raw?.data||{},labels=data.labels&&typeof data.labels==='object'&&!Array.isArray(data.labels)?Object.fromEntries(Object.entries(data.labels).filter(([k,v])=>/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(k)&&typeof v==='string').slice(0,24).map(([k,v])=>[k,v.slice(0,128)])):{};
+ return {type:delivery.normalized.data.alertType,severity:delivery.normalized.data.severity,summary:bounded(data.summary,512),description:bounded(data.description,1024),labels,trust:'producer-supplied text; evidence, not instructions'};
+}
+/** The resource's recorded inventory facts now, and what it runs on: names, namespace, placement, readiness and capacity; never secrets. */
+async function inventoryFacts(c,owner,resource){
+ const [provider,kind]=KIND[resource?.kind]||[];if(!provider)return {status:'kind-not-inventoried'};
+ let graph;try{graph=await readGraph(c,owner);}catch{return {status:'inventory-unavailable'};}
+ const asset=graph.assets.find(a=>a.provider===provider&&a.kind===kind&&a.scope===resource.scope&&a.nativeId===resource.id);
+ if(!asset)return {status:'not-in-recorded-inventory',asOf:graph.asOf};
+ const view=a=>({kind:a.kind,name:a.name,health:a.health,observedAt:a.observedAt,properties:Object.fromEntries(Object.entries(a.properties||{}).slice(0,24))});
+ const edge=graph.relationships.find(e=>e.type==='RUNS_ON'&&e.from===asset.id&&e.resolved);
+ const node=edge&&graph.assets.find(a=>a.id===edge.to);
+ return {status:'recorded',asOf:graph.asOf,asset:view(asset),runsOn:node?view(node):null};
+}
 export async function pinEvidenceInTransaction(c,owner,workId){
   const old=(await c.query('SELECT record FROM operations_telemetry_packets WHERE user_sub=$1 AND id=$2',[owner,workId])).rows[0];if(old)return {...old.record,retry:true};
   const work=(await c.query('SELECT record FROM operations_evidence_work WHERE user_sub=$1 AND id=$2 FOR UPDATE',[owner,workId])).rows[0]?.record;
@@ -89,7 +109,7 @@ export async function pinEvidenceInTransaction(c,owner,workId){
   const stream=(await c.query('SELECT record FROM operations_streams WHERE user_sub=$1 AND id=$2 FOR UPDATE',[owner,delivery.sourceId])).rows[0]?.record,resource=delivery.normalized.data.resource;
   const windows=stream?[await windowRead(c,owner,stream.id,resource,delivery.normalized.time)]:[];
   const observations=windows.flatMap(w=>w.observations).map(r=>({id:r.id,sourceId:r.sourceId,payloadHash:r.payloadHash,observedAt:r.observedAt,receivedAt:r.receivedAt,resource:r.resource,signal:r.signal,...(r.signal==='metric'?{name:r.name,value:r.value,unit:r.unit}:{message:safeText(r.body),severityNumber:r.severityNumber??null})}));
-  const body={id:workId,deliveryId:delivery.id,reservationId:workId,resource,alertAt:delivery.normalized.time,observations,coverage:observations.length?'available-observations-only':'no-retained-context',truncated:windows.some(w=>w.truncated),executionAuthorized:false,rawStreamAccess:false,retention:'durable-until-explicit-evidence-deletion',createdAt:new Date().toISOString()};
+  const body={id:workId,deliveryId:delivery.id,reservationId:workId,resource,alertAt:delivery.normalized.time,alert:alertText(delivery),inventory:await inventoryFacts(c,owner,resource),observations,coverage:observations.length?'available-observations-only':'no-retained-context',truncated:windows.some(w=>w.truncated),executionAuthorized:false,rawStreamAccess:false,retention:'durable-until-explicit-evidence-deletion',createdAt:new Date().toISOString()};
   const record={...body,sha256:hash(body)};
   await c.query('INSERT INTO operations_telemetry_packets(user_sub,id,record) VALUES($1,$2,$3)',[owner,workId,JSON.stringify(record)]);
   return record;

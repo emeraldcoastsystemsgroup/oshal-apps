@@ -1,0 +1,198 @@
+{
+  "kind": "live-temporal-correlation",
+  "scope": "0149aee8-c05f-4056-b6ed-c61ba36e5d9e",
+  "namespace": "operations-demo",
+  "policy": {
+    "id": "live-runs-on-v1",
+    "types": [
+      "RUNS_ON"
+    ],
+    "maxDepth": 4,
+    "maxVisited": 400,
+    "maxAgeSeconds": 900
+  },
+  "before": {
+    "at": "2026-10-23T07:46:33.694Z",
+    "oldPod": {
+      "name": "api-69f694fbcd-76swz",
+      "uid": "db4c9063-83a7-4579-bf39-0252df248e25",
+      "node": "operations-lab-worker",
+      "ready": true,
+      "deleting": false
+    },
+    "graph": {
+      "pod": "api-69f694fbcd-76swz",
+      "health": "healthy",
+      "node": "operations-lab-worker",
+      "observedAt": "2026-10-23T07:46:00.881Z"
+    }
+  },
+  "replacement": {
+    "deletedAt": "2026-10-23T07:47:04.941Z",
+    "newPod": {
+      "name": "api-69f694fbcd-g9kvx",
+      "uid": "846d60f7-e1be-4d50-a58b-ee97a06d494f",
+      "node": "operations-lab-worker",
+      "ready": true,
+      "deleting": false
+    }
+  },
+  "discovery": {
+    "assets": 10,
+    "attemptAt": "2026-10-23T07:52:00.632Z",
+    "complete": true,
+    "failures": [],
+    "observedAt": "2026-10-23T07:52:00.686640506+00:00",
+    "retry": false,
+    "state": "saved"
+  },
+  "graphNow": {
+    "newPod": {
+      "pod": "api-69f694fbcd-g9kvx",
+      "health": "healthy",
+      "node": "operations-lab-worker",
+      "observedAt": "2026-10-23T07:52:00.686Z"
+    },
+    "oldPod": null
+  },
+  "graphBefore": {
+    "newPod": null,
+    "oldPod": {
+      "pod": "api-69f694fbcd-76swz",
+      "health": "healthy",
+      "node": "operations-lab-worker",
+      "observedAt": "2026-10-23T07:46:00.881Z"
+    }
+  },
+  "alerts": {
+    "newPod": "630a0a07ebea888f22aab20fae5a61ed186a32fd16a1566da04723fc489525b6",
+    "oldPod": "7b60c2f90a39a391fa6ad7abde9fc0e0f99232aac2d6bce2ec094357eebfc04d",
+    "sharedA": "c875d3ac1daa86742d8661b006590917c732a07c83ecb9192c2b7e029d2a961b",
+    "sharedB": "37d356324bfd71b8b367178e52a5b4188513647718edce42196bf0a61be31353",
+    "elsewhere": "25d5a6fc44ef9aa7b3af5312057cae99d39ac61209926a35673eb5f0ae551f64"
+  },
+  "correlation": {
+    "sameNodePairNow": {
+      "status": "complete",
+      "method": "affected-dependency-paths",
+      "problems": [],
+      "groups": [
+        [
+          "37d356324bfd71b8b367178e52a5b4188513647718edce42196bf0a61be31353"
+        ],
+        [
+          "c875d3ac1daa86742d8661b006590917c732a07c83ecb9192c2b7e029d2a961b"
+        ]
+      ],
+      "events": [
+        {
+          "assetId": "0303926271c52be38fb37f50a59600b777bc37e552c8848a13bb461389216467",
+          "id": "37d356324bfd71b8b367178e52a5b4188513647718edce42196bf0a61be31353"
+        },
+        {
+          "assetId": "aae556d6446f646953a175aa7df146b0fe6e17337b9ffe12c65c03e487a069ac",
+          "id": "c875d3ac1daa86742d8661b006590917c732a07c83ecb9192c2b7e029d2a961b"
+        }
+      ],
+      "asOf": "2026-10-23T07:52:05.908Z"
+    },
+    "sharedPods": [
+      {
+        "name": "api-69f694fbcd-wgtnq",
+        "uid": "f3cb8e3d-44c7-4283-8426-45b947f35d0f",
+        "node": "operations-lab-worker2",
+        "ready": true,
+        "deleting": false
+      },
+      {
+        "name": "frontend-577c655c6f-nscnz",
+        "uid": "a1d875e3-5b47-4fdb-8f44-533fe1ba0458",
+        "node": "operations-lab-worker2",
+        "ready": true,
+        "deleting": false
+      }
+    ],
+    "newPodAndOtherNodeNow": {
+      "status": "complete",
+      "method": "affected-dependency-paths",
+      "problems": [],
+      "groups": [
+        [
+          "25d5a6fc44ef9aa7b3af5312057cae99d39ac61209926a35673eb5f0ae551f64"
+        ],
+        [
+          "630a0a07ebea888f22aab20fae5a61ed186a32fd16a1566da04723fc489525b6"
+        ]
+      ],
+      "events": [
+        {
+          "assetId": "aae556d6446f646953a175aa7df146b0fe6e17337b9ffe12c65c03e487a069ac",
+          "id": "25d5a6fc44ef9aa7b3af5312057cae99d39ac61209926a35673eb5f0ae551f64"
+        },
+        {
+          "assetId": "5cba759ae6121abc4c9d028e75fc5f6a03ad15f7ca4b1ddcb2d606b9dcbd841e",
+          "id": "630a0a07ebea888f22aab20fae5a61ed186a32fd16a1566da04723fc489525b6"
+        }
+      ],
+      "asOf": "2026-10-23T07:52:05.908Z"
+    },
+    "otherNodePod": {
+      "name": "api-69f694fbcd-wgtnq",
+      "uid": "f3cb8e3d-44c7-4283-8426-45b947f35d0f",
+      "node": "operations-lab-worker2",
+      "ready": true,
+      "deleting": false
+    },
+    "oldPodNow": {
+      "status": "degraded",
+      "method": "exact-asset-fallback",
+      "problems": [
+        {
+          "assetId": "unresolved-7b60c2f90a39a391fa6ad7abde9fc0e0f99232aac2d6bce2",
+          "reason": "asset-unresolved"
+        }
+      ],
+      "groups": [
+        [
+          "7b60c2f90a39a391fa6ad7abde9fc0e0f99232aac2d6bce2ec094357eebfc04d"
+        ]
+      ],
+      "events": [
+        {
+          "assetId": "unresolved-7b60c2f90a39a391fa6ad7abde9fc0e0f99232aac2d6bce2",
+          "id": "7b60c2f90a39a391fa6ad7abde9fc0e0f99232aac2d6bce2ec094357eebfc04d"
+        }
+      ],
+      "asOf": "2026-10-23T07:52:05.908Z"
+    },
+    "oldPodBefore": {
+      "status": "complete",
+      "method": "affected-dependency-paths",
+      "problems": [],
+      "groups": [
+        [
+          "7b60c2f90a39a391fa6ad7abde9fc0e0f99232aac2d6bce2ec094357eebfc04d"
+        ]
+      ],
+      "events": [
+        {
+          "assetId": "876e22b813f69c0e60095fade3e3291f14e91a94565735bebe2313c90968cff6",
+          "id": "7b60c2f90a39a391fa6ad7abde9fc0e0f99232aac2d6bce2ec094357eebfc04d"
+        }
+      ],
+      "asOf": "2026-10-23T07:46:33.694Z"
+    }
+  },
+  "checks": {
+    "newPodPlacedNow": true,
+    "oldPodRetiredNow": true,
+    "oldPodPresentBefore": true,
+    "newPodAbsentBefore": true,
+    "sameNodePodsStaySeparate": true,
+    "newPodAndOtherNodeTwoGroups": true,
+    "liveEdgesFreshNow": true,
+    "oldPodUnresolvedNow": true,
+    "oldPodResolvedBefore": true
+  },
+  "result": "passed"
+}

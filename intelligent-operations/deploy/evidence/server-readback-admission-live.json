@@ -1,0 +1,23 @@
+{
+  "observedAt": "2026-10-23T19:46:45+00:00",
+  "installation": "local operations-lab / oshal-install-lab",
+  "kernelRevision": "7141ecf56c3fd406a161f22b8704124ca0078a1d",
+  "kernelImage": "oshal-kernel:dev-7141ecf56c3f",
+  "applicationRevision": "7d339a961c56259855c8985c143f8a50f4b27ab4",
+  "applicationArtifact": "e16eab93ecd88a3e9809e8e103e22905ec9b69b49bd2d9bf9ec9d245bf4105ae",
+  "operatorRoleReapproved": true,
+  "readyzHttpStatus": 200,
+  "emptyReconcileHttpStatus": 400,
+  "earlierUnboundRouteHttpStatus": 403,
+  "externalLinks": 0,
+  "externalAttempts": 0,
+  "ticketFiles": {
+    "ticketId": "09a0d5a8-6573-4d4e-9475-9730c2ad9572",
+    "count": 3,
+    "downloadedBytes": 7425,
+    "downloadedSha256": "0eac3d1d02a47b7e0e3f4ca6c6f3896757845273b41239cec69bacf2cbcdf641",
+    "acceptedDigestMatched": true
+  },
+  "personalFiles": 5,
+  "scope": "Installed route admission and existing accepted ticket downloads; no live external provider readback or write was attempted."
+}

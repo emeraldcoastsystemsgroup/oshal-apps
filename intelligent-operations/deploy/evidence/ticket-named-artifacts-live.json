@@ -1,0 +1,34 @@
+{
+  "ticket": "2ca88687-5111-4ac9-b2c4-21a1bafd56ef",
+  "work": "814b1c9e-957e-43e9-9026-584b56b860d4",
+  "acceptedAnswerSha256": "c69ebc8ac02de4116faa4cd3a89eb5a023b26debfba4228e64514b07b2b7c342",
+  "generatedFiles": [
+    {
+      "name": "remediate.sh",
+      "size": 1000,
+      "sha256": "ab3afef12c14e75098d98d46df67e62c33a74c3909f7c5861eef91d9980c8250",
+      "index": 1
+    },
+    {
+      "name": "verify.sh",
+      "size": 1287,
+      "sha256": "d58385e49b1dd15718a3d8c0e8211f0ff23ec6a6553e6de2605901828ca29148",
+      "index": 2
+    },
+    {
+      "name": "rollback.md",
+      "size": 516,
+      "sha256": "7dbf02985fdb40f354262a8e6cc332563fa24540a6d7f6f2d1c5327b9dbc3a36",
+      "index": 3
+    },
+    {
+      "name": "verify.md",
+      "size": 850,
+      "sha256": "59460f3170fd4694bb20f81389d96f359ac738757638d52ea94f1b33b74e971a",
+      "index": 4
+    }
+  ],
+  "personalSaveExact": true,
+  "kernelRevision": "0fae6bc7db17795c2b5aad03db6c6aab480f0a64",
+  "at": 1792788367.195172
+}

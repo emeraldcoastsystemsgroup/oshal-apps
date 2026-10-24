@@ -1,0 +1,21 @@
+{
+  "observedAt": "2026-10-23T18:24:40Z",
+  "applicationSourceRevision": "64a2cfe6acc48c1228d81040efda6f9077c1c133",
+  "applicationArtifact": "83a5e050ba266efb4b22e890a552d8cc86a06ee8c4081d5476a45631aee6e9b7",
+  "surface": "/api/intelligent-operations/app#incidents",
+  "method": "signed-in browser incident trace plus caller-scoped native API read",
+  "ticketId": "ad8d1238-50e5-4f14-8b6f-559b8a16581f",
+  "passed": true,
+  "checks": [
+    "The exact trace endpoint returned the selected canonical Operations ticket and declared exact=true.",
+    "The endpoint returned one investigation, its exact inbound delivery and admitted filter decision, one response plan and four stored file downloads without a linked-set cap.",
+    "The signed-in Incident work browser rendered the exact alert, decision, sealed packet hash, canonical ticket revision, used approval, operator-reported command result and server-verified resolved signal.",
+    "The browser said No linked cohort recorded and No linked external issue recorded; it did not infer either relationship.",
+    "The Operations role and personal processing schedule remained active after package installation."
+  ],
+  "limits": [
+    "This recovered ticket has no stored linked cohort. The current processing config has correlate=false while enabled=true and autoInvestigate=true; prior absence was not proved to be page rollover for this ticket.",
+    "The disposable PostgreSQL regression separately proves exact retrieval of a linked decision and cohort behind 205 newer rows. A subsequent bounded lab ticket with automatic correlation enabled is recorded in incident-correlation-live.json; this first ticket still has no linked cohort.",
+    "This read-only acceptance did not start a ticket, send a provider message, approve an action or run a remediation."
+  ]
+}

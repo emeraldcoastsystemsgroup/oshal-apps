@@ -1,3 +1,4 @@
+// CHANGE LOG: telemetry table | maintainer@emeraldcoastsystemsgroup.com | Retained context is one table: count each bank's meter across the stream rows.
 // CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Run the synthetic non-container scenario through real intake, OpenSearch, reduction, graph correlation and pinned context.
 // CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Verify mixed batch results, pre-write source refusal and actual grouped resource cards.
 'use strict';
@@ -45,9 +46,9 @@ test('the shipped Scenario lab runs real filtering and renders retained context 
   const savedRun=collections.get('replays').values().next().value;assert.equal(savedRun.passed,true);
   const posts=[];page.on('request',r=>{if(r.method()==='POST')posts.push(r.url());});await page.reload();await page.getByText('Saved replay ·',{exact:false}).waitFor();assert.deepEqual(posts,[]);assert.match(await page.locator('#replay-results').innerText(),/36 repeated symptoms suppressed/);
   assert.equal(await page.locator('#replay-results details').count(),5);assert.equal(await page.locator('.replay-groups article').count(),2);assert.equal(await page.locator('.dependency-node').count(),4);await page.locator('#replay-results details').first().locator('summary').click();assert.match(await page.locator('#replay-results').innerText(),/rawStreamAccess/);
-  await page.getByRole('link',{name:'Live context',exact:true}).click();await page.locator('#telemetry-banks .telemetry-bank').first().waitFor();assert.equal(await page.locator('#telemetry-banks meter').count(),6);
+  await page.getByRole('link',{name:'Live context',exact:true}).click();await page.locator('#telemetry-banks .bank-cell').first().waitFor();assert.equal(await page.locator('#telemetry-banks [role=meter]').count(),6,'two streams, three banks each, in one table');
   await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);assert.deepEqual(errors,[]);
   await page.route('**/api/intelligent-operations/telemetry',route=>route.fulfill({status:403,contentType:'application/json',body:'{"error":"role withdrawn"}'}));
-  await page.getByRole('button',{name:'Refresh telemetry banks',exact:true}).click();await page.getByText('Your current OSHAL role does not permit this operation.',{exact:false}).first().waitFor();assert.equal(await page.locator('#telemetry-banks meter').count(),0);assert.equal(await page.locator('#replay-results details').count(),0);
+  await page.getByRole('button',{name:'Refresh telemetry banks',exact:true}).click();await page.getByText('Your current OSHAL role does not permit this operation.',{exact:false}).first().waitFor();assert.equal(await page.locator('#telemetry-banks [role=meter]').count(),0);assert.equal(await page.locator('#replay-results details').count(),0);
  }finally{if(browser)await browser.close();if(server)await new Promise(resolve=>server.close(resolve));await engine.close();await f.close();for(const index of indexes){const r=await fetch(process.env.OSHAL_TEST_SEARCH+'/'+index,{method:'DELETE'});assert.ok(r.ok||r.status===404);}}
 });

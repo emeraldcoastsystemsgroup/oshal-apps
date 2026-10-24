@@ -6,7 +6,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.sourceDefinition = sourceDefinition;
 exports.inventorySnapshot = inventorySnapshot;
 exports.createOperationsExperienceRoutes = createOperationsExperienceRoutes;
+/** CHANGE LOG: 39 | maintainer@emeraldcoastsystemsgroup.com | Serve the cloud clusters script (ADR0054). */
 // CHANGE LOG: 11 | maintainer@emeraldcoastsystemsgroup.com | Serve the selected-pod console under current application admission.
+/** CHANGE LOG: 38 | maintainer@emeraldcoastsystemsgroup.com | Serve the Ops console script and the glass skin stylesheet. */
+/** CHANGE LOG: 37 | maintainer@emeraldcoastsystemsgroup.com | Reconcile external ticket state through a pinned native server read and serve checked package assets from a relative root in hidden checkouts. */
+/** CHANGE LOG: 36 | maintainer@emeraldcoastsystemsgroup.com | Owner runbook routes and the runbooks asset. */
+/** CHANGE LOG: 35 | maintainer@emeraldcoastsystemsgroup.com | When the tick admits alerts, read the chosen cluster at once (forced discovery) before capturing their evidence. */
+/** CHANGE LOG: 34 | maintainer@emeraldcoastsystemsgroup.com | Unattended producer adapter routes: map a source for Alertmanager and admit Alertmanager webhook deliveries through intake (ADR0050). */
+/** CHANGE LOG: 33 | maintainer@emeraldcoastsystemsgroup.com | Read-only Jarvis summaries of systems health, response plans and anomaly baselines. */
+/** CHANGE LOG: 32 | maintainer@emeraldcoastsystemsgroup.com | Scheduled live discovery: read and save the discovery choice, and run it first on the processing tick. */
 /** CHANGE LOG: 31 | maintainer@emeraldcoastsystemsgroup.com | Git explorer asset and repository-link routes. */
 /** CHANGE LOG: 30 | maintainer@emeraldcoastsystemsgroup.com | Read-only attention summary for Jarvis and the Overview. */
 /** CHANGE LOG: 29 | maintainer@emeraldcoastsystemsgroup.com | Provisioning routes and asset. */
@@ -36,6 +44,9 @@ const ticket_sync_1 = require("./ticket-sync");
 const anomaly_engine_1 = require("./anomaly-engine");
 const correlation_tick_1 = require("./correlation-tick");
 const auto_investigate_1 = require("./auto-investigate");
+const discovery_1 = require("./discovery");
+const ingest_1 = require("./ingest");
+const runbooks_1 = require("./runbooks");
 const delegations_1 = require("./delegations");
 const provisioning_1 = require("./provisioning");
 const attention_1 = require("./attention");
@@ -45,6 +56,8 @@ const promotion_1 = require("./promotion");
 const execution_1 = require("./execution");
 const evidence_worker_1 = require("./evidence-worker");
 const investigations_1 = require("./investigations");
+const external_evidence_1 = require("./external-evidence");
+const incident_trace_1 = require("./incident-trace");
 const node_path_1 = __importDefault(require("node:path"));
 const node_crypto_1 = require("node:crypto");
 const express_1 = require("express");
@@ -133,11 +146,13 @@ function createOperationsExperienceRoutes(ctx) {
         const file = node_fs_1.default.realpathSync(node_path_1.default.join(root, relative));
         if (!file.startsWith(root + node_path_1.default.sep))
             return res.status(404).end();
-        res.sendFile(file);
+        // Send the checked relative file. Express rejects absolute paths containing a hidden
+        // checkout parent (such as .codex) as a dotfile even when the asset itself is public.
+        res.sendFile(node_path_1.default.relative(root, file), { root });
     };
     router.get('/app', asset('experience/index.html'));
     router.get('/evaluation', asset('deploy/evidence/recorded-bgl.json'));
-    for (const file of ['git-explorer.js', 'provisioning.js', 'swarms.js', 'live-cluster.js', 'git-promotion.js', 'command-helper.js', 'anomaly-controls.js', 'response.js', 'operator-workspace.js', 'pod-console.js', 'rca-library.js', 'resource-tree.js', 'ticket-sync.js', 'experience.js', 'experience.css', 'explorer.js', 'graph-space.js', 'lifecycle.js', 'processing-controls.js', 'telemetry-controls.js', 'policy-workbench.js'])
+    for (const file of ['cloud-inventory.js', 'console.js', 'skin.css', 'runbooks.js', 'git-explorer.js', 'provisioning.js', 'swarms.js', 'live-cluster.js', 'git-promotion.js', 'command-helper.js', 'anomaly-controls.js', 'response.js', 'operator-workspace.js', 'incident-trace.js', 'external-evidence.js', 'pod-console.js', 'rca-library.js', 'resource-tree.js', 'ticket-sync.js', 'experience.js', 'experience.css', 'explorer.js', 'graph-space.js', 'lifecycle.js', 'processing-controls.js', 'telemetry-controls.js', 'policy-workbench.js'])
         router.get('/assets/' + file, asset('experience/' + file));
     router.get('/assets/operations.css', asset('ui/operations.css'));
     router.get('/assets/replay-scenarios.js', asset('ui/replay-scenarios.js'));
@@ -194,6 +209,14 @@ function createOperationsExperienceRoutes(ctx) {
         const result = await (0, topology_store_1.saveScan)(ctx.pool, req.oidc?.user?.sub, source, req.body.scan);
         res.status(result.status).json(result);
     }));
+    router.get('/runbooks', handle(async (req, res) => res.json(await (0, runbooks_1.runbooks)(ctx.pool, req.oidc?.user?.sub))));
+    router.post('/runbooks', handle(async (req, res) => res.json(await (0, runbooks_1.saveRunbook)(ctx.pool, req.oidc?.user?.sub, req.body))));
+    router.post('/runbooks/remove', handle(async (req, res) => res.json(await (0, runbooks_1.removeRunbook)(ctx.pool, req.oidc?.user?.sub, req.body))));
+    router.get('/ingest/mapping/:sourceId', handle(async (req, res) => res.json(await (0, ingest_1.ingestMapping)(ctx.pool, req.oidc?.user?.sub, req.params.sourceId) || { mapped: false })));
+    router.post('/ingest/mapping', handle(async (req, res) => res.json(await (0, ingest_1.saveIngestMapping)(ctx.pool, req.oidc?.user?.sub, req.body, await read('sources')))));
+    router.post('/ingest/alertmanager/:sourceId', handle(async (req, res) => res.status(202).json(await (0, ingest_1.ingestAlertmanager)(ctx.pool, req.oidc?.user?.sub, await read('sources'), req.params.sourceId, req.body))));
+    router.get('/topology/discovery', handle(async (req, res) => res.json(await (0, discovery_1.discoveryConfig)(ctx.pool, req.oidc?.user?.sub))));
+    router.post('/topology/discovery', handle(async (req, res) => res.json(await (0, discovery_1.saveDiscoveryConfig)(ctx.pool, req.oidc?.user?.sub, req.body, (await read('sources')).map(s => s.id)))));
     router.post('/topology/correlate', handle(async (req, res) => res.json(await (0, topology_store_1.correlateDeliveries)(ctx.pool, req.oidc?.user?.sub, req.body))));
     const engine = (0, detection_engine_1.detectionEngine)(ctx);
     router.get('/replays', handle(async (req, res) => res.json({ runs: (await read('replays')).sort((a, b) => b.completedAt.localeCompare(a.completedAt)).slice(0, 10), limit: 10 })));
@@ -221,9 +244,13 @@ function createOperationsExperienceRoutes(ctx) {
         res.json(await (0, telemetry_store_1.telemetryWindow)(ctx.pool, req.oidc?.user?.sub, source.id, req.body.resource, req.body.at));
     }));
     router.post('/telemetry/pin', handle(async (req, res) => res.json(await (0, telemetry_store_1.pinTelemetryEvidence)(ctx.pool, req.oidc?.user?.sub, req.body?.workId))));
+    router.get('/external-evidence/config', handle(async (req, res) => res.json(await (0, external_evidence_1.externalConfig)(ctx.pool, req.oidc?.user?.sub))));
+    router.post('/external-evidence/config', handle(async (req, res) => res.json(await (0, external_evidence_1.saveExternalConfig)(ctx.pool, req.oidc?.user?.sub, req.body, (await read('sources')).map(s => s.id)))));
+    router.get('/external-evidence', handle(async (req, res) => res.json(await (0, external_evidence_1.externalRecords)(ctx.pool, req.oidc?.user?.sub))));
+    router.get('/incidents/:ticketId/trace', handle(async (req, res) => res.json(await (0, incident_trace_1.incidentTrace)(ctx, req.oidc?.user?.sub, req.params.ticketId))));
     router.get('/pipeline/processing', handle(async (req, res) => res.json(await (0, processing_worker_1.processingRecords)(ctx.pool, req.oidc?.user?.sub))));
     router.post('/pipeline/processing-config', handle(async (req, res) => res.json(await (0, processing_worker_1.saveProcessingConfig)(ctx.pool, req.oidc?.user?.sub, req.body, (await read('sources')).map(s => s.id)))));
-    router.post('/pipeline/process', handle(async (req, res) => { const anomaly = await (0, anomaly_engine_1.runDetection)(ctx.pool, req.oidc?.user?.sub, await read('sources')); const result = await (0, processing_worker_1.processPending)(ctx.pool, engine, req.oidc?.user?.sub), evidence = await (0, evidence_worker_1.capturePendingEvidence)(ctx.pool, req.oidc?.user?.sub), failed = result.failed + evidence.failed + (anomaly.failed || 0); const correlation = await (0, correlation_tick_1.correlateAdmitted)(ctx.pool, req.oidc?.user?.sub, result.results); const investigation = await (0, auto_investigate_1.autoInvestigate)(ctx, req.oidc?.user?.sub); const notification = await notifyAttention(ctx, { investigations: investigation.started || 0, admitted: (result.results || []).filter(r => ['admitted', 'escalated'].includes(r.outcome)).length, candidates: anomaly.candidates || 0, captured: evidence.captured || 0, failed }); res.status(failed ? 503 : 200).json({ ...result, evidence, anomaly, correlation, investigation, notification, ...(failed ? { error: failed + ' processing, capture or detection attempts need attention; refresh processing status.' } : {}) }); }));
+    router.post('/pipeline/process', handle(async (req, res) => { const discovery = await (0, discovery_1.runDiscovery)(ctx, req.oidc?.user?.sub, await read('sources')); const anomaly = await (0, anomaly_engine_1.runDetection)(ctx.pool, req.oidc?.user?.sub, await read('sources')); const result = await (0, processing_worker_1.processPending)(ctx.pool, engine, req.oidc?.user?.sub); const refreshed = (result.results || []).some(r => ['admitted', 'escalated'].includes(r.outcome)) && discovery.enabled ? await (0, discovery_1.runDiscovery)(ctx, req.oidc?.user?.sub, await read('sources'), Date.now, true) : null; const evidence = await (0, evidence_worker_1.capturePendingEvidence)(ctx.pool, req.oidc?.user?.sub), failed = result.failed + evidence.failed + (anomaly.failed || 0); const correlation = await (0, correlation_tick_1.correlateAdmitted)(ctx.pool, req.oidc?.user?.sub, result.results); const investigation = await (0, auto_investigate_1.autoInvestigate)(ctx, req.oidc?.user?.sub); const notification = await notifyAttention(ctx, { investigations: investigation.started || 0, admitted: (result.results || []).filter(r => ['admitted', 'escalated'].includes(r.outcome)).length, candidates: anomaly.candidates || 0, captured: evidence.captured || 0, failed }); res.status(failed ? 503 : 200).json({ ...result, evidence, anomaly, correlation, investigation, notification, discovery, refreshed, ...(failed ? { error: failed + ' processing, capture or detection attempts need attention; refresh processing status.' } : {}) }); }));
     router.get('/commands', handle(async (req, res) => res.json(await (0, commands_1.commandRecords)(ctx.pool, req.oidc?.user?.sub))));
     router.post('/commands/runs', handle(async (req, res) => res.status(201).json(await (0, commands_1.recordCommand)(ctx.pool, req.oidc?.user?.sub, req.body))));
     router.get('/anomaly', handle(async (req, res) => res.json(await (0, anomaly_engine_1.anomalyRecords)(ctx.pool, req.oidc?.user?.sub))));
@@ -234,6 +261,7 @@ function createOperationsExperienceRoutes(ctx) {
     router.post('/ticket-sync/links', handle(async (req, res) => res.json(await (0, ticket_sync_1.saveSyncLink)(ctx, req.oidc?.user?.sub, req.body))));
     router.post('/ticket-sync/reserve', handle(async (req, res) => res.json(await (0, ticket_sync_1.reserveSync)(ctx, req.oidc?.user?.sub, req.body))));
     router.post('/ticket-sync/report', handle(async (req, res) => res.json(await (0, ticket_sync_1.reportSync)(ctx, req.oidc?.user?.sub, req.body))));
+    router.post('/ticket-sync/reconcile', handle(async (req, res) => res.json(await (0, ticket_sync_1.reconcileSync)(ctx, req.oidc?.user?.sub, req.body))));
     router.get('/investigations', handle(async (req, res) => res.json(await (0, investigations_1.investigationRecords)(ctx, req.oidc?.user?.sub))));
     router.post('/investigations', handle(async (req, res) => res.json(await (0, investigations_1.prepareInvestigation)(ctx, req.oidc?.user?.sub, req.body?.workId))));
     router.get('/executions', handle(async (req, res) => res.json(await (0, execution_1.responseRecords)(ctx, req.oidc?.user?.sub))));
@@ -247,6 +275,9 @@ function createOperationsExperienceRoutes(ctx) {
     router.post('/repo-links', handle(async (req, res) => res.json(await (0, repo_links_1.saveRepoLink)(ctx.pool, req.oidc?.user?.sub, req.body))));
     router.post('/repo-links/remove', handle(async (req, res) => res.json(await (0, repo_links_1.removeRepoLink)(ctx.pool, req.oidc?.user?.sub, req.body))));
     router.get('/attention', handle(async (req, res) => res.json(await (0, attention_1.attentionSummary)(ctx.pool, req.oidc?.user?.sub))));
+    router.get('/summary/systems', handle(async (req, res) => res.json(await (0, attention_1.systemsSummary)(ctx.pool, req.oidc?.user?.sub))));
+    router.get('/summary/responses', handle(async (req, res) => res.json(await (0, attention_1.responsesSummary)(ctx, req.oidc?.user?.sub))));
+    router.get('/summary/anomalies', handle(async (req, res) => res.json(await (0, attention_1.anomaliesSummary)(ctx.pool, req.oidc?.user?.sub))));
     router.get('/provisioning', handle(async (req, res) => res.json(await (0, provisioning_1.provisioningRecords)(ctx.pool, req.oidc?.user?.sub, await (0, promotion_1.promotionRecords)(ctx.pool, req.oidc?.user?.sub)))));
     router.post('/provisioning', handle(async (req, res) => res.json(await (0, provisioning_1.saveProvisioning)(ctx.pool, req.oidc?.user?.sub, req.body))));
     router.get('/delegations', handle(async (req, res) => res.json(await (0, delegations_1.delegationRecords)(ctx.pool, req.oidc?.user?.sub))));

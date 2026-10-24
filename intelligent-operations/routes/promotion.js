@@ -47,6 +47,8 @@ async function planAndFiles(c, owner, planId) {
     const plan = (await c.query('SELECT record FROM operations_action_plans WHERE user_sub=$1 AND id=$2', [owner, planId])).rows[0]?.record;
     if (!plan)
         fail(404, 'The owned response plan is unavailable.');
+    if (plan.answerVerifiedByServer !== true)
+        fail(409, 'This response plan predates server-verified accepted work. Prepare a new plan before Git promotion.');
     const rows = (await c.query('SELECT name, sha256, content FROM operations_action_artifacts WHERE user_sub=$1 AND plan_id=$2 ORDER BY name', [owner, planId])).rows;
     for (const r of rows)
         if (sha(Buffer.from(r.content)) !== r.sha256)

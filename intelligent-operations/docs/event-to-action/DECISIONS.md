@@ -137,3 +137,10 @@ implemented merely because its mockup or document was created.
 - [ADR0046: Jarvis in Operations](adr/0046-jarvis-in-operations.md) — read-only Jarvis tools for what waits on the person, swarm hand-offs and investigations; actions stay on the Operations pages with the person's confirmation.
 - [ADR0047: Host commands over SSH with the person's own key](adr/0047-ssh-host-commands.md) — the command helper runs a coached command on an administrator-selected, key-pinned host through the person's own SSH key, one confirmation per run (kernel ADR-195).
 - [ADR0048: Git explorer and cluster repository links](adr/0048-git-explorer.md) — browse every repository your GitHub connection reaches (branches, pull requests, runs, files, read-only); link each cluster to its GitOps repository; promotion preselects the cluster's repository.
+- [ADR0049: Scheduled live discovery](adr/0049-scheduled-live-discovery.md) — with the person's opt-in, the processing tick reads one cluster and namespace through their own Kubernetes connection (kernel `connector.read`, reads only) once per interval and saves it as a live scan.
+- [ADR0051: Ticket-centered incident trace](adr/0051-ticket-centered-incident-trace.md): one page follows a ticket from alert to verified recovery.
+- [ADR0052: Optional external evidence](adr/0052-optional-external-evidence.md): a bounded Splunk read beside the sealed packet.
+- [ADR0053: Exact incident lineage](adr/0053-exact-incident-lineage.md): bounded lineage by canonical ticket, beyond recent pages.
+- [ADR0054: Cloud cluster inventory](adr/0054-cloud-cluster-inventory.md): EKS, GKE and AKS clusters and node pools, plus Azure machines and networks, through the person's own connections.
+- [ADR0055: Server-verified response plans](adr/0055-server-verified-response-plans.md): approved plans use the kernel's accepted work.
+- [ADR0050: Unattended alert producers](adr/0050-unattended-alert-producers.md): Alertmanager delivers through the kernel producer door (ADR-197) into the same validated intake; owner runbooks and inventory facts reach the evidence packet.

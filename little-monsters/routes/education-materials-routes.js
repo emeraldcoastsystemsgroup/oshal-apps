@@ -3,6 +3,7 @@
  * Education material routes with private ownership and teacher-moderated sharing.
  *
  * CHANGE LOG
+ * 2026-10-23 | maintainer@emeraldcoastsystemsgroup.com | Ground uploads only in revocable per-material collections; study generation resolves currently approved material collections instead of retaining class copies.
  * ---------------------------------------------------------------------------
  * SEQ | AUTHOR                                      | DESCRIPTION
  * ---------------------------------------------------------------------------
@@ -378,11 +379,6 @@ async function uploadMaterial(ctx, req, res) {
         const shareStatus = row.share_status;
         const text = await (0, education_material_storage_1.extractMaterialText)(file);
         const collection = await groundUploadedMaterial(ctx, caller, row.material_id, text);
-        if (shareStatus === 'approved' && text && ctx.pool?.nativeExecutor) {
-            await (0, education_material_storage_1.ingestMaterialText)(text, `lm-class-${classId}-textbook`, {
-                classId, materialId: row.material_id, studentId: caller.studentId, source: row.title || row.original_name || 'material',
-            }, ctx.pool).catch(() => false);
-        }
         logger.info({ classId, materialId: row.material_id, shareStatus, grounded: Boolean(collection) }, 'Material uploaded');
         res.status(201).json({ success: true, material: row, grounded: Boolean(collection), shareStatus });
     }

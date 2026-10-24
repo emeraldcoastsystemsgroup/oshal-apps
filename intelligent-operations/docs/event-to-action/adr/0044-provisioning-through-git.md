@@ -2,8 +2,14 @@
 
 Status: implemented in source, 22 October 2026. Guarded with fixtures. A real Kubernetes API
 server accepted the rendered manifests in a server-side dry run
-(`deploy/evidence/provisioning-dry-run.json`). Live promotion needs a connected GitHub or
-GitLab account. Extends ADR0040.
+(`deploy/evidence/provisioning-dry-run.json`). Live promotion accepted 23 October 2026
+(`deploy/evidence/git-live.json`): the installed app committed a rendered team namespace (5 manifests)
+to a branch of the demo repository through the operator's own GitHub connection, opened
+[pull request #1](https://github.com/emeraldcoastsystemsgroup/triagenorth-provisioning-demo/pull/1) and
+dispatched `validate.yml`. GitHub did not start that pipeline: the account's Actions spending limit or
+payment blocks private-repository runs. The same five files pass the workflow's parse check locally and
+the lab API server accepted them (namespace server-side dry run, the rest strict client validation).
+Extends ADR0040.
 
 Roger listed provisioning among the things the application must do. Upper-level changes go
 through Git so a pipeline applies them, which is also the safe way to provision.

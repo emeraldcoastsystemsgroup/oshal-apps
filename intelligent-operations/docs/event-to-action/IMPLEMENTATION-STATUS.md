@@ -1,6 +1,6 @@
 # TriageNorth implementation status
 
-Updated 22 October 2026. This is the record of delivered behavior; the proposal and diagrams describe the target.
+Updated 23 October 2026. This is the record of delivered behavior; the proposal and diagrams describe the target.
 
 ## Current supervised runtime and delivery
 
@@ -36,11 +36,116 @@ workflow-generated remediation and verified execution, provider synchronization 
 live cloud discovery remain open. See [EXPORT-STATUS.md](EXPORT-STATUS.md) for current
 PowerPoint, Word, PDF and editable Visio artifacts.
 
+## The whole pipeline, unattended to verified recovery — 23 October 2026
+
+`lab/e2e_live.py` ran one bounded CPU-pressure drill through every stage on the owned lab. It
+passed in 283 s (`deploy/evidence/e2e-live.json`).
+
+- **Delivery.** Prometheus fired, and Alertmanager delivered through the kernel producer door
+  (kernel ADR-197, ADR0050). The alert was validated at 44 s.
+- **Processing.** The schedule reduced the alert, refreshed the inventory with a forced
+  discovery read, captured evidence and started the investigation at 88 s. The packet names the
+  pod, namespace, node and container, and carries the owner's runbook.
+- **Workflow.** Investigate, review and revise generated remediate.sh, verify.sh, rollback.md
+  and verify.md.
+- **Decisions.** The person approved the exact plan, which ran once through their own
+  connection (exit 0). The resolved alert came through the producer door at 277 s. Recovery was
+  verified healthy, and the person approved the report; the ticket is done.
+
+Each failed attempt found a real defect, and each is fixed and guarded:
+1. Investigations a tick started failed on their first phase (kernel ADR-198, PR 92).
+2. The evidence packet held only a pod UID, so the specialist rightly refused to act. Packets
+   now carry inventory facts and alert text, the tick forces a discovery read, and owner
+   runbooks were added.
+3. Graph reconstruction would have broken within a day of five-minute discovery; it now reads
+   only the scans since each collection's latest complete one.
+
+## Temporal correlation on the live feed — 23 October 2026
+
+R14's installed acceptance (`deploy/evidence/temporal-correlation-live.json`, nine checks, all
+passing). On the owned lab an operations-demo api pod was deleted, its ReplicaSet recreated it,
+and scheduled discovery saved the next live scan with no browser action.
+
+The graph now places the new pod on its real node, and the old pod is gone. The graph as of
+before still has the old pod and not the new one. A firing alert for the old pod is unresolved
+now, because no stale edge is used, and resolves as of before.
+
+Correlations on the live graph report status complete, so every edge used was fresh. Pods that
+share a node not itself affected stay separate incident groups, as the affected-dependency-path
+policy intends.
+
+## Data-first UX pass and Jarvis tools — 23 October 2026
+
+Modelled on the trading application's way of showing data:
+
+- **Overview** opens with a KPI strip. Each tile is a large tabular number, colour-toned by
+  state, and opens its page:
+  - what needs you;
+  - unverified recovery;
+  - anomalies firing;
+  - degraded systems;
+  - live inventory age;
+  - events recorded.
+- **Live context** leads with anomaly detection, then shows one compact table of every stream:
+  window, capacity, each bank's fill with the writing bank marked, and the last receipt. It had
+  been three large cards per stream (8,400 px tall); it is now about 2,900 px.
+- **Incident work** reads tickets when it opens and lists them as a sortable table. Response
+  plans show local times and list each verification separately.
+- **Topology** draws node labels without overlap: the selected and degraded nodes come first,
+  and every node stays in the list. Observation times are local.
+- **Forms** bottom-align their rows. Prose inputs keep their size. Credentials describe what is
+  actually built (Kubernetes, GitHub token guidance, Azure and Google reads, SSH, swarm
+  hand-off).
+
+Jarvis gains `ops-systems`, `ops-response-plans` and `ops-anomalies` (ADR0046). All six
+Operations tools were accepted live (`deploy/evidence/jarvis-tools.json`). Screenshots of the
+installed pages are in `deploy/evidence/ux-*.png`. Operations suite: 182/182.
+
+Every Operations test file is in the Test lab catalog. The installed portal lists all 40 cases
+with no catalog error. Running a case from the installed portal reports `runner_unavailable`.
+
+The kernel's test runner (`crates/host-process/src/test_runner.rs`) starts each case in a pinned
+test-runtime image through the host Docker daemon, with `--network none` and a read-only root.
+The Kubernetes lab has no Docker daemon in the kernel pod, so no case can start there.
+
+By design, the sandbox also withholds services. Of the 40 Operations cases:
+- 8 need only Node or Python and could run in that sandbox;
+- 32 need the disposable PostgreSQL, OpenSearch or Chromium, and would report those
+  prerequisites as unavailable even on a Docker host.
+
+All 40 run in the store gate on every push (182 checks, all passing). Running the 8 from the
+installed Kubernetes portal needs a Kubernetes-native runner, in which the kernel creates
+sandboxed pods. That is a platform security decision, held for Roger.
+
+## Scheduled live discovery — 23 October 2026
+
+Kernel ADR-196 adds `connector.read`: an application granted `connector.read.<connector>` at consent
+reads through the caller's own connection on the read path only; writes and confirmed effects are
+refused. On it, "Keep this cluster current" in the Systems live cluster panel (ADR0049) lets the
+processing schedule read the chosen cluster and namespace once per interval and save the live scan.
+Guards: `tests/discovery.test.cjs`, `tests/live-cluster.test.cjs` and the kernel
+`ssh::tests::native::an_application_reads_through_the_persons_connection_but_never_runs_a_command`.
+Accepted live on the lab (`deploy/evidence/scheduled-discovery.json`). The schedule read the
+cluster by itself and saved a 10-asset live scan, after kernel PRs 88 and 89 fixed the two
+refusals the first live runs exposed.
+The same kernel change moves the exec WebSocket's TLS into `egress`, which fixes the S-08 guard
+`the_tls_client_lives_in_one_crate` that was failing on kernel main.
+
 ## Git explorer — 23 October 2026
 
 GitHub explorer reads are on kernel main as PR 85, and the Git explorer page and cluster
 repository links are in place (ADR0048). Promotion preselects the cluster's linked repository.
 Guard: `tests/git-explorer.test.cjs`.
+
+Kernel PR 86 sends a `User-Agent` on every connector request; without it GitHub answered 403.
+23 October: with the operator's valid token saved, `lab/git_live.cjs` passed on the installed lab
+(`deploy/evidence/git-live.json`, `git-explorer.png`, `git-promotion-live.png`): repositories listed,
+the demo repository's `validate.yml` read as text, the lab cluster linked, a team namespace rendered
+and promoted as [pull request #1](https://github.com/emeraldcoastsystemsgroup/triagenorth-provisioning-demo/pull/1)
+with `validate.yml` dispatched. GitHub did not start the run (account spending limit or payment);
+the five manifests pass the same parse check locally and the lab API server's validation. The
+receipt's `repositories` field caught the loading text; the driver now waits for the final status.
+Reading a file needed kernel PR 102: the response scrubber had masked every base64 line of a blob.
 
 ## SSH host commands — 22 October 2026
 
@@ -781,3 +886,25 @@ Native Systems current-status read for the selected captured pod returned upstre
 Native application `fd4cb55c` and development kernel `fe10403` are installed. The failed live pod read was traced to a one-hour issuer credential stored without an expiry by the shared manual-connect path. Kernel ADR192 adds manual expiry admission and a standard `pod-connect` installer command; it renews the existing namespace-scoped account under the same portal login. An intentionally shortened local deadline produced `expired` and an actionable HTTP403 refusal; the actual installer then renewed the account with the issuer deadline. Native API and browser current-status reads show the original pod UID Running, container ready and zero restarts; bounded log retrieval completed with no lines. No exec or model request was made. The credential still expires in one hour; automatic renewal is not claimed.
 
 Systems filters now fit one compact desktop row, and searching preserves the observed cluster name without adding filtered resources. Eight focused projection/browser tests pass from the committed export; the normal Store gate reports83pass/0fail/6partial/12named skips. Shared connection tests7, installer24, namespace setup4, secret guard8 and strict workspace Clippy pass. Receipt: [pod connection recovery](../../deploy/evidence/pod-connection-expiry.json). Earlier failed-read receipts remain historical evidence, not current recovery claims. Full kernel certification and the remaining Event-to-Action requirements stay open.
+
+## Operator experience and cloud inventory — 23 October 2026
+
+- **Front end.** Glass styling and trading-app density across every page; one swipeable page
+  menu on narrow screens. Every page was checked live at 1440px and 685px: no horizontal overflow
+  and no page errors (app PRs 599, 600, 606).
+- **Ops console.** A cluster tree beside a terminal that plans, runs, assesses and explains
+  commands through the person's own connection. Accepted live: `deploy/evidence/console-live.json`,
+  11 s, healthy. Guarded by `tests/console.test.cjs`.
+- **Git explorer.** A compact tree and viewer, with tabs. GitHub was accepted live with 22
+  repositories and readable files; reading files needed kernel PR 102. GitLab is guarded (kernel
+  PR 100); the operator uses GitHub only. A token pasted for the wrong service is refused before
+  saving.
+- **Cloud clusters (ADR0054).** EKS, GKE and AKS clusters and node pools, plus Azure virtual
+  machines and networks (kernel PR 104), saved as inventory scans. Guarded by
+  `tests/cloud-inventory.test.cjs`. Live acceptance waits on the operator's cloud connections.
+- **Refused dispatch.** A dispatch the kernel refuses is recorded as refused (nothing ran), and the
+  plan can be approved again. The real kernel's answer for an expired connection was confirmed on
+  the lab.
+- **Sign-in return.** Signing in from a refused screen returns to that screen (kernel PR 97).
+
+The full list with statuses is in [FEATURES.md](FEATURES.md).

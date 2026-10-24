@@ -1,3 +1,7 @@
+# CHANGE LOG: 27 | maintainer@emeraldcoastsystemsgroup.com | Drop the routing phrase "inventory health": it tied Operations with Finance on "What's the health of my cluster?" (kernel jarvis_routing guard); "degraded systems" and "is the inventory current" keep systems questions routed.
+# CHANGE LOG: 26 | maintainer@emeraldcoastsystemsgroup.com | Routing words for hand-offs and investigations as people actually ask ("handed to us by another swarm", "my investigations"); the live Jarvis check missed the first.
+# CHANGE LOG: 25 | maintainer@emeraldcoastsystemsgroup.com | Jarvis tools ops-systems, ops-response-plans and ops-anomalies (reads of the caller's own summaries) and routing words for system health, remediation and anomalies.
+# CHANGE LOG: 24 | maintainer@emeraldcoastsystemsgroup.com | Scheduled live discovery: declare connector.read.kubernetes (kernel ADR-196, reads only, shown at consent) and say in the schedule offer that it refreshes the chosen cluster's inventory when turned on.
 # CHANGE LOG: 23 | maintainer@emeraldcoastsystemsgroup.com | Git explorer: repository-link migrations and the Git explorer navigation entry.
 # CHANGE LOG: 22 | maintainer@emeraldcoastsystemsgroup.com | Jarvis works inside Operations: read-only tools ops-attention, ops-handoffs and ops-investigations over the caller's own routes, and routing words for operations attention and swarm hand-offs (contract change).
 # CHANGE LOG: 21 | maintainer@emeraldcoastsystemsgroup.com | Provisioning: migrations and the Provisioning navigation entry.
@@ -65,6 +69,11 @@ uses:
   - app-dependencies
   - test-catalog
   - notify.send
+  - connector.read.kubernetes
+  - connector.read.splunk
+  - connector.read.jira
+  - connector.read.gitlab
+  - connector.read.servicenow
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -252,6 +261,42 @@ tools:
     usageInstructions: Call with {} when the person asks about investigations or RCA tickets. Starting or approving happens in Incident work.
     routingTags: [operations, incidents, investigations]
     tags: [operations, route-backed, read-only]
+  - name: ops-systems
+    displayName: Operations systems health
+    type: api
+    category: operations
+    description: The person's recorded inventory health - counts of healthy, degraded and unknown assets, the degraded and unknown assets themselves (name, kind, cluster scope, namespace, pressure) and whether scheduled discovery is keeping the inventory current.
+    executor: { executorType: api, apiEndpoint: "GET /api/intelligent-operations/summary/systems" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks which systems, nodes, pods or workloads are unhealthy or degraded, or whether the inventory is current. Read the summary sentence, name the degraded assets with their cluster and namespace, and offer to open Systems. Nothing here reads a cluster now or runs anything.
+    routingTags: [operations, systems, health, kubernetes]
+    tags: [operations, route-backed, read-only]
+  - name: ops-response-plans
+    displayName: Operations response plans
+    type: api
+    category: operations
+    description: The person's response plans - the ticket, the target pod, the generated files, whether the plan is approved, invalidated or expired, and each execution's result and verified recovery.
+    executor: { executorType: api, apiEndpoint: "GET /api/intelligent-operations/summary/responses" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks about remediation, response plans, what was executed or whether recovery was verified. Say which plans wait for approval and which executions lack verified recovery. Approving and running happen only in Incident work with the person's fresh confirmation; never claim Jarvis approved or ran anything.
+    routingTags: [operations, remediation, response, recovery]
+    tags: [operations, route-backed, read-only]
+  - name: ops-anomalies
+    displayName: Operations anomaly baselines
+    type: api
+    category: operations
+    description: The person's anomaly detection - whether it is on, and the metric baselines with readiness, last score and whether each is firing, firing first.
+    executor: { executorType: api, apiEndpoint: "GET /api/intelligent-operations/summary/anomalies" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks about anomalies, unusual metrics or what is firing. Name firing metrics with their resource and score, and offer to open Live context. Nothing here changes detection.
+    routingTags: [operations, anomalies, metrics]
+    tags: [operations, route-backed, read-only]
 bots:
   - agentId: a0000000-0000-0000-0000-000000000016
     name: ops-rca-specialist
@@ -263,6 +308,18 @@ bots:
       - delegation from another swarm
       - response plan
       - incident investigation
+      - degraded systems
+      - unhealthy pods
+      - is the inventory current
+      - remediation status
+      - response plans
+      - verified recovery
+      - anomalies firing
+      - handed to us by another swarm
+      - another swarm
+      - from another swarm
+      - operations investigations
+      - my investigations
     persona: personas/ops-rca-specialist.yaml
     role: incident/rca
     capabilities:
@@ -286,8 +343,8 @@ schedules:
     route: /api/intelligent-operations/pipeline/process
     method: POST
     body: {}
-    description: Evaluate admitted alerts and optionally preserve retained evidence from explicitly enabled source revisions, with durable retries under the activating person's authority.
-    offer: Process my enabled Operations sources every minute. This does not authorize infrastructure actions.
+    description: Evaluate admitted alerts and optionally preserve retained evidence from explicitly enabled source revisions, with durable retries under the activating person's authority. When the person turns on scheduled discovery, also read one chosen cluster and namespace through their own Kubernetes connection (reads only) and save it as a live scan.
+    offer: Process my enabled Operations sources every minute, and refresh my chosen cluster's live inventory if I turn that on. This does not authorize infrastructure actions.
     timeoutSeconds: 120
 
 migrations:
@@ -319,7 +376,13 @@ migrations:
   - migrations/026-provisioning-rls.sql
   - migrations/027-repo-links.sql
   - migrations/028-repo-links-rls.sql
+  - migrations/029-external-evidence.sql
+  - migrations/030-external-evidence-rls.sql
+  - migrations/031-incident-trace-indexes.sql
 nativeMigrations:
+  - id: migrations/030-external-evidence-rls.sql
+    native: skip
+    reason: "Forced PostgreSQL owner policy; native SQL preserves original-person scope for optional connector evidence."
   - id: migrations/028-repo-links-rls.sql
     native: skip
     reason: "Forced PostgreSQL owner policy; native SQL preserves original-person scope for repository links."

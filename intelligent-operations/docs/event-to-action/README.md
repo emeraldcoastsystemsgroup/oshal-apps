@@ -1,6 +1,6 @@
 # TriageNorth hackathon submission
 
-Updated 21 October 2026. TriageNorth is the proposed product name: **From signals to evidence to action.**
+Updated 23 October 2026. TriageNorth is the proposed product name: **From signals to evidence to action.**
 OSHAL is the existing platform foundation, installed separately as a Docker/OCI baseline. Its security, workflow, UX, connection and ticket services support the submitted application. Technical package/API IDs remain `intelligent-operations`.
 This documentation directory contains design drawings, maintained delivery records and generated submission artifacts; application installation uses the separate native package flow. The editable Visio deliverable is modern `.vsdx`; no legacy binary `.vsd` export is claimed.
 
@@ -18,6 +18,16 @@ hashes, reference-cost estimates and the read-only Workflow Studio graph.
 [Email & mailboxes](http://127.0.0.1:38081/utilities?category=email) exposes Gmail
 and Outlook. Human report approval and actual mailbox/notification delivery remain
 separate gates.
+
+**Every feature, its status and its proof are in the [feature catalog](FEATURES.md).** New on
+23 October:
+
+- **Ops console:** ask in plain words or type kubectl. Each command runs through your own
+  connection, prints its result, and is assessed and explained.
+- **Git explorer:** compact, with GitHub live and GitLab ready.
+- **Cloud clusters:** EKS, GKE and AKS inventory, plus Azure machines and networks.
+- **Look and layout:** a glass look across the app and a narrow-screen layout.
+- **Live GitHub promotion:** accepted on the lab.
 
 The [delivery audit](DELIVERY-AUDIT.md) separates demonstrated behavior from the full
 remaining product scope. The [resource review](RESOURCE-REVIEW.md) retains historical

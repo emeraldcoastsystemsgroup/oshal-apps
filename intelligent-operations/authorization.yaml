@@ -1,3 +1,10 @@
+# CHANGE LOG: 27 | maintainer@emeraldcoastsystemsgroup.com | Cloud clusters script: GET and HEAD under app.open.
+# CHANGE LOG: 26 | maintainer@emeraldcoastsystemsgroup.com | Ops console script and glass skin stylesheet: GET and HEAD under app.open.
+# CHANGE LOG: 25 | maintainer@emeraldcoastsystemsgroup.com | Admit server-side external ticket reconciliation under the existing records.write grant; the handler performs a pinned native read and records only bounded observed state.
+# CHANGE LOG: 24 | maintainer@emeraldcoastsystemsgroup.com | Owner runbooks: list and asset under app.open; save and remove under records.write.
+# CHANGE LOG: 23 | maintainer@emeraldcoastsystemsgroup.com | Unattended producers: read a source's Alertmanager mapping under app.open; save it and admit deliveries under records.write (ADR0050).
+# CHANGE LOG: 22 | maintainer@emeraldcoastsystemsgroup.com | Jarvis tools ops-systems, ops-response-plans and ops-anomalies and their summary routes: reads under app.open.
+# CHANGE LOG: 21 | maintainer@emeraldcoastsystemsgroup.com | Scheduled live discovery: read the choice under app.open, save it under records.write; the reads use the person's own Kubernetes connection through the granted connector.read.kubernetes.
 # CHANGE LOG: 20 | maintainer@emeraldcoastsystemsgroup.com | Git explorer asset and repository links: read under app.open, link and unlink under records.write.
 # CHANGE LOG: 19 | maintainer@emeraldcoastsystemsgroup.com | Jarvis tools ops-attention, ops-handoffs and ops-investigations (reads, app.open) and the attention route.
 # CHANGE LOG: 18 | maintainer@emeraldcoastsystemsgroup.com | Provisioning: read requests and the page asset under app.open; render requests under records.write.
@@ -55,6 +62,9 @@ bindings:
     - {id: ops-attention, allOf: [app.open]}
     - {id: ops-handoffs, allOf: [app.open]}
     - {id: ops-investigations, allOf: [app.open]}
+    - {id: ops-systems, allOf: [app.open]}
+    - {id: ops-response-plans, allOf: [app.open]}
+    - {id: ops-anomalies, allOf: [app.open]}
   http:
     - id: operator-workspace-get
       method: GET
@@ -63,6 +73,22 @@ bindings:
     - id: operator-workspace-head
       method: HEAD
       path: /assets/operator-workspace.js
+      allOf: [app.open]
+    - id: incident-trace-get
+      method: GET
+      path: /assets/incident-trace.js
+      allOf: [app.open]
+    - id: incident-trace-head
+      method: HEAD
+      path: /assets/incident-trace.js
+      allOf: [app.open]
+    - id: external-evidence-asset-get
+      method: GET
+      path: /assets/external-evidence.js
+      allOf: [app.open]
+    - id: external-evidence-asset-head
+      method: HEAD
+      path: /assets/external-evidence.js
       allOf: [app.open]
     - id: pod-console-get
       method: GET
@@ -115,6 +141,10 @@ bindings:
     - id: ticket-sync-report
       method: POST
       path: /ticket-sync/report
+      allOf: [records.write]
+    - id: ticket-sync-reconcile
+      method: POST
+      path: /ticket-sync/reconcile
       allOf: [records.write]
     - id: lifecycle-get
       method: GET
@@ -212,6 +242,30 @@ bindings:
       method: POST
       path: /executions/promotions/report
       allOf: [records.write]
+    - id: cloud-inventory-get
+      method: GET
+      path: /assets/cloud-inventory.js
+      allOf: [app.open]
+    - id: cloud-inventory-head
+      method: HEAD
+      path: /assets/cloud-inventory.js
+      allOf: [app.open]
+    - id: console-get
+      method: GET
+      path: /assets/console.js
+      allOf: [app.open]
+    - id: console-head
+      method: HEAD
+      path: /assets/console.js
+      allOf: [app.open]
+    - id: skin-get
+      method: GET
+      path: /assets/skin.css
+      allOf: [app.open]
+    - id: skin-head
+      method: HEAD
+      path: /assets/skin.css
+      allOf: [app.open]
     - id: command-helper-get
       method: GET
       path: /assets/command-helper.js
@@ -344,6 +398,14 @@ bindings:
       method: POST
       path: /investigations
       allOf: [records.write]
+    - id: incident-exact-trace-get
+      method: GET
+      path: /incidents/:ticketId/trace
+      allOf: [app.open]
+    - id: incident-exact-trace-head
+      method: HEAD
+      path: /incidents/:ticketId/trace
+      allOf: [app.open]
     - id: graph-space-get
       method: GET
       path: /assets/graph-space.js
@@ -457,6 +519,58 @@ bindings:
       path: /topology/scans
       allOf:
         - records.write
+    - id: summary-systems
+      method: GET
+      path: /summary/systems
+      allOf: [app.open]
+    - id: summary-responses
+      method: GET
+      path: /summary/responses
+      allOf: [app.open]
+    - id: summary-anomalies
+      method: GET
+      path: /summary/anomalies
+      allOf: [app.open]
+    - id: runbooks-list
+      method: GET
+      path: /runbooks
+      allOf: [app.open]
+    - id: runbooks-save
+      method: POST
+      path: /runbooks
+      allOf: [records.write]
+    - id: runbooks-remove
+      method: POST
+      path: /runbooks/remove
+      allOf: [records.write]
+    - id: runbooks-asset-get
+      method: GET
+      path: /assets/runbooks.js
+      allOf: [app.open]
+    - id: runbooks-asset-head
+      method: HEAD
+      path: /assets/runbooks.js
+      allOf: [app.open]
+    - id: ingest-mapping-get
+      method: GET
+      path: /ingest/mapping/:sourceId
+      allOf: [app.open]
+    - id: ingest-mapping-save
+      method: POST
+      path: /ingest/mapping
+      allOf: [records.write]
+    - id: ingest-alertmanager
+      method: POST
+      path: /ingest/alertmanager/:sourceId
+      allOf: [records.write]
+    - id: topology-discovery-get
+      method: GET
+      path: /topology/discovery
+      allOf: [app.open]
+    - id: topology-discovery-save
+      method: POST
+      path: /topology/discovery
+      allOf: [records.write]
     - id: topology-correlate
       method: POST
       path: /topology/correlate
@@ -577,6 +691,18 @@ bindings:
       path: /telemetry/pin
       allOf:
         - records.write
+    - id: external-evidence-config-read
+      method: GET
+      path: /external-evidence/config
+      allOf: [app.open]
+    - id: external-evidence-config-save
+      method: POST
+      path: /external-evidence/config
+      allOf: [records.write]
+    - id: external-evidence-list
+      method: GET
+      path: /external-evidence
+      allOf: [app.open]
     - id: telemetry-controls-get
       method: GET
       path: /assets/telemetry-controls.js

@@ -1,9 +1,10 @@
+/** CHANGE LOG: node-pool | maintainer@emeraldcoastsystemsgroup.com | A managed node pool (EKS node group, GKE node pool, AKS agent pool) is an inventory kind (ADR0054). */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Scoped immutable asset identities, source-owned scan generations and bounded dependency correlation. */
 // @ts-nocheck
 import {hash} from './intake';
 const Contract=require('../ui/source-contract.js');
 export const RELATIONS=['IN_REGION','IN_DATACENTER','IN_VPC','IN_SUBNET','IN_CLUSTER','IN_NAMESPACE','OWNED_BY','RUNS_ON','ROUTES_TO','SELECTS','FORWARDS_TO','REGISTERED_IN','IN_SECURITY_GROUP','ATTACHED_TO','ASSOCIATED_WITH','HAS_ATTACHMENT','PEERS_WITH','MEMBER_OF','DEPENDS_ON'];
-export const KINDS=['site','datacenter','region','zone','host','virtual-machine','account','network','subnet','security-group','route-table','load-balancer','target-group','gateway','peering','endpoint','business-service','service-group','service-unit','cluster','namespace','node','workload','replica-set','job','pod','container','service','ingress'];
+export const KINDS=['site','datacenter','region','zone','host','virtual-machine','account','network','subnet','security-group','route-table','load-balancer','target-group','gateway','peering','endpoint','business-service','service-group','service-unit','cluster','node-pool','namespace','node','workload','replica-set','job','pod','container','service','ingress'];
 const PROVIDERS=['kubernetes','aws','azure','gcp','redfish','import'];
 export const fail=(status,message)=>{throw Object.assign(Error(message),{status});};
 export const clean=(value,max=256)=>typeof value==='string'&&value.length>0&&value.length<=max&&value.trim()===value&&!/[\x00-\x1f\x7f-\x9f]/.test(value);

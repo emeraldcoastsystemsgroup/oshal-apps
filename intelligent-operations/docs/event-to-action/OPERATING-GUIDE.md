@@ -1,7 +1,11 @@
 # Operating TriageNorth
 
-Updated 22 October 2026. The native portal is http://127.0.0.1:38081.
+Updated 23 October 2026. The native portal is http://127.0.0.1:38081.
 Use the existing portal login. Application/API identity stays intelligent-operations.
+
+If a screen says "Sign in to open this screen", your session has ended (a kernel restart ends
+every session). Choose Sign in on that page: after signing in you return to the screen you asked
+for, or to the application inside the cockpit when it was refused there.
 
 ## Daily operator screens
 
@@ -84,6 +88,16 @@ The rule workbench at source7ed15232 was installed through native trust/preview/
 
 In **Data pipeline → Flow**, the existing cohort funnel shows unique evaluated events, rule matches, deduplication survivors and recorded correlation groups. Below it, **From evidence to an accepted report** links those same delivery IDs to pinned packets and canonical workflows. Expand **Evidence work** and click **Start AI investigation** on a capture reservation. The application pins a bounded preprocessed packet; the native workflow receives only that fixed file and its digest. It cannot inspect raw telemetry or the cluster. Refresh workflow progress to read actual completed native outputs and inference receipts. Open the canonical ticket for its workflow, shared workspace and report approval.
 
+### Ticket files and local downloads
+
+From **Incident work**, open the canonical ticket, then choose **Work Artifacts**. The core ticket workspace presents completed workflow outputs in an expandable folder tree, with search by file, folder, bot or phase, refresh, original producing-work provenance, individual Download links and **Save to My files**. The browser saves each Download to the operator's configured Downloads folder or asks for a location according to its own settings. Save to My files explicitly copies an accepted artifact of at most 10 MiB into the signed-in person's core Files; open **My files** to see that copy under Saved ticket files. Merely opening My files does not copy ticket files. Intelligent Operations declares that core Files screen in its application navigation, while the ticket's Work Artifacts tab is available on the canonical ticket without a second application file store.
+
+The installed ticket `ad8d1238-50e5-4f14-8b6f-559b8a16581f` returned three native workflow `answer.md` files for investigate, review and revise, and the signed-in browser displayed all three as authenticated downloads. Each authenticated download matched the accepted byte length and SHA-256 ([ticket-workspace-live.json](../../deploy/evidence/ticket-workspace-live.json)). On installed kernel `d8ac0437`, a signed-in API readback saved a completed 7,425-byte `answer.md` to personal Files, found one listed copy, downloaded identical bytes and confirmed that repeating Save did not duplicate it ([ticket-personal-files-live.json](../../deploy/evidence/ticket-personal-files-live.json)). The core explorer now also projects explicit `file=NAME` fenced sections from an accepted `answer.md` as `generated/` entries under the same producing work. Open each entry to see its source answer digest, download it to a local folder, or select **Save to My files**. On installed kernel `0fae6bc7`, authenticated readback of one ticket verified byte-exact `remediate.sh`, `verify.sh`, `rollback.md` and `verify.md` downloads against the accepted answer, then verified a personal Files copy of `remediate.sh` ([named-file receipt](../../deploy/evidence/ticket-named-artifacts-live.json)). The response planner separately retains its approved-plan copies for review and execution; the ticket tree is a read/download surface and grants no execution authority. Core ADR193 defines the explorer boundary; `deploy/evidence/incident-trace-exact-live.json` records the incident trace.
+
+On installed kernel `e94e2851` and application `f7253060`, a fresh alert's ticket `afd22d06` exposed 13 accepted files in that core explorer. Its five generated response files matched the server-verified plan's authenticated downloads byte for byte ([accepted-work receipt](../../deploy/evidence/accepted-work-live.json)). The test did not approve or execute the plan; the bounded pressure Job was removed afterward.
+
+For a bounded automatic-correlation rehearsal on the owned local Kubernetes lab, run `python3 intelligent-operations/lab/correlation_ticket_live.py` from the repository root. It enables correlation for the existing personal processing schedule, starts one capped CPU-pressure Job, waits for its actual Alertmanager delivery, exact ticket and cohort link, and deletes the Job even when the drill fails. It does not approve a ticket, execute remediation or contact an external provider. Its receipt is `intelligent-operations/deploy/evidence/incident-correlation-live.json`; the observed cohort was degraded and used exact-asset fallback, so it does not establish complete dependency coverage.
+
 Retrying an already linked reservation resumes its existing ticket. An uncertain creation remains held and says to reconcile the canonical board; it never silently creates a second ticket. Done means report accepted. Verified infrastructure recovery stays **Not connected** until a fresh check is implemented. The workflow currently produces its accepted answer.md report; this handoff does not certify generated executable remediation bundles.
 
 SMS service support is now committed in the separate kernel at92da94c, with actual loopback-TLS, native permission and installer checks. Full kernel gate and installation are still pending. Environment key presence was inspected without printing values; no live SMS/call/Telegram transmission was performed. Calling Assistant already has a separate guarded carrier path. Jira/GitLab status-transition catalog gaps and durable synchronization remain under active build.
@@ -148,14 +162,23 @@ instance state value and expected displayed value. **Save link only** sends noth
 **Confirm and push status** checks the service realm/account, reserves the snapshot,
 checks the canonical revision and uses the shared confirmed connector action. It
 reads remote state first; an already matching state needs no update. After a write,
-a new read checks the mapped state. The durable entry is your operator report,
-not a server-attested delivery receipt. It never changes canonical ticket status
+the server re-reads that same issue through your personal connection and the saved
+service revision. The durable entry records the state the server observed; it does
+not prove that this particular write was delivered. It never changes canonical ticket status
 or proves infrastructure recovery. A lost response holds the attempt. Use **Read
-remote state** to reconcile; it sends no transition and never blindly repeats a write.
+remote state** to ask the server to observe again; it sends no transition and never
+blindly repeats a write. A withdrawn connection or changed service target refuses
+the read without replacing the last observation.
 
 Requires the selected HTTP services in core ADR187. This manual workbench does not
 activate unattended two-way synchronization, webhook handling or external ticket
 creation. Splunk On-Call and GitHub handoff remain separate provider work.
+
+The [installed lab receipt](../../deploy/evidence/server-readback-admission-live.json) proves route admission and current ticket-file downloads. That account had no linked external issue, so it does not prove a live provider readback or delivery of an external write.
+
+### Optional Splunk context for new incidents
+
+An administrator selects the Splunk HTTPS API endpoint for the native connector. The signed-in operator connects a personal Splunk bearer account in portal Connections, then opens Operations → Connections → Optional Splunk evidence. Choose that account and an allowed index, check the named alert source revisions, and enable the mapping. The next captured alert from those revisions receives one fixed, time-bounded export read before investigation preparation. Incident work → Trace shows the external result status; `evidence/external.json` in new workflow input carries the exact source, time coverage and digest. Refused, unavailable, empty and unsupported searches remain visible while the captured packet and ticket proceed. This setting does not change existing tickets or grant ticket synchronization. Splunk On-Call incident writes are a separate integration.
 
 The selected Jira site and original-person primary account are configured in the
 development installation. Its read-only profile probe returns HTTP 404, so account
@@ -194,7 +217,11 @@ expand "Prepare a response plan from accepted work": choose a ticket at its repo
 completed phase with the accepted answer (the page previews which generated files it carries:
 `remediate.sh`, `verify.sh`, `rollback.md`, `verify.md`), the observed target pod from your
 inventory, its container and your Kubernetes account, and prepare the plan. Download and read
-the files; their digests are shown. Approve this exact action (thirty-minute expiry, bound to the
+the files; their digests are shown. The server reads the selected answer directly from the
+kernel accepted-work port and stores its receipt and digest; browser preview text is never a plan
+input. Older plans without this verification remain visible for review but must be recreated
+before approval, execution or Git promotion (ADR0055). Approve this exact action
+(thirty-minute expiry, bound to the
 digests, the target and the canonical revision). Execute approved action runs the script once
 through your own Kubernetes connection with a fresh confirmation. Verify recovery runs
 `verify.sh` and a pod readback; recovery is healthy only with a passing check, the same pod
@@ -298,6 +325,21 @@ Ask Jarvis "what needs my attention in operations?", "what did we hand off to an
 the Operations page to open. Jarvis never sends, files, approves or starts anything; those stay
 on the pages, with your confirmation.
 
+## See every cloud cluster in one place
+
+Open Systems and expand **Cloud clusters**. Choose your AWS, Google Cloud and Azure accounts (each
+one you have connected in Connections), type the Google Cloud project ID, and optionally one Azure
+subscription. Then choose **Read my cloud clusters**.
+
+- The table lists each EKS, GKE and AKS cluster with its region, Kubernetes version, status, node
+  count, and each node pool's machine type, size and autoscaling range.
+- Choose **Save as inventory scans** to put them in Systems and Topology. The console then answers
+  "which is the largest cluster" across clouds.
+- For Azure the read also lists your virtual machines (size, OS) and virtual networks with their
+  subnets, and saves them with the clusters.
+- Reading never changes anything in your clouds. AWS reads the region your administrator's EKS
+  service serves; the panel names it.
+
 ## Run Google Cloud and Azure reads through your own account
 
 An administrator registers the Google Cloud and Azure OAuth clients and selects the Google
@@ -318,8 +360,11 @@ vault as your own connection. The page clears it at once and keeps nothing.
 
 ## Browse repositories and link each cluster to its GitOps repository
 
-Open Git explorer. If you have no GitHub connection yet, paste your own access token there and
-choose Save as my GitHub connection. Then choose Load my repositories. Every repository your token can reach is
+Open Git explorer. The field "GitHub access token (save or replace)" is always there while the
+GitHub service is set up. With no connection, paste your token and choose Save as my GitHub
+connection; to change a token GitHub rejects or that has expired, paste the new one and choose
+Replace my GitHub token. Either way the page checks the token with GitHub at once and says
+"Connected to GitHub as <your login>", or names GitHub's refusal. Then choose Load my repositories. Every repository your token can reach is
 listed, including your organisation's; filter by name. Open one to see its branches, open pull
 requests, recent pipeline runs and files, and click a file to read it. To make a repository the
 home of a cluster's manifests, pick the recorded cluster, set the folder (and a workflow if a

@@ -21,6 +21,6 @@ export async function correlateAdmitted(pool,owner,results,clock=Date.now){
  if(!deliveries.length)return {enabled:true,correlated:false,reason:'no admitted firing delivery inside the policy window'};
  const asOf=deliveries.map(d=>d.normalized.time).sort().at(-1);
  try{const record=await correlateDeliveries(pool,owner,{deliveryIds:deliveries.map(d=>d.id),asOf,policy:{...policy}});
-  return {enabled:true,correlated:true,correlationId:record.id,retry:record.retry===true,deliveries:deliveries.length,groups:Array.isArray(record.groups)?record.groups.length:null,degraded:record.degraded===true||record.fallback===true||null,trigger:'scheduled-tick'};}
+  return {enabled:true,correlated:true,correlationId:record.id,retry:record.retry===true,deliveries:deliveries.length,groups:Array.isArray(record.groups)?record.groups.length:null,degraded:record.status==='degraded',trigger:'scheduled-tick'};}
  catch(error){return {enabled:true,correlated:false,error:error.status?String(error.message).slice(0,240):'Topology storage is unavailable.'};}
 }

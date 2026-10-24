@@ -1,4 +1,8 @@
 # CHANGE LOG
+# 17 | maintainer@emeraldcoastsystemsgroup.com | Register the owner runbook guard.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | Register the Alertmanager producer adapter guard.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Register the transactional intake guard, the one test file the catalog did not list.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Register the scheduled discovery guard.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Register the Git explorer guard.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Register the Jarvis attention guard.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register the provisioning guard.
@@ -135,8 +139,8 @@ cases:
     limits: { timeoutMs: 120000, maxMemoryMb: 512 }
     installation: never
   - id: jarvis-attention
-    name: Jarvis reads what waits on the operator
-    purpose: "Verify that the attention summary counts only the caller's own saved records in real SQL and names only what waits on them, and that every Jarvis tool the package declares is read-only, bound under app.open and backed by a served route."
+    name: Jarvis reads what waits on the operator, system health, response plans and anomalies
+    purpose: "Verify that the attention, systems, response-plan and anomaly summaries come only from the caller's own saved records in real SQL (degraded and unknown assets named with their scope, scheduled discovery's state stated, no plan claimed as approved or run), and that every Jarvis tool the package declares is read-only, bound under app.open and backed by a served route."
     level: integration
     runner: { kind: node-test, scope: package, files: [tests/attention.test.cjs] }
     expected:
@@ -565,4 +569,71 @@ cases:
     sideEffects: none
     isolation: { mode: disposable, cleanup: Close the local fixture server and browser. }
     limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
+    installation: never
+
+  - id: incident-trace
+    name: Ticket-centered incident trace
+    purpose: Prove exact joins from the canonical incident to alert, decision, packet, response, recovery and external handoff without claiming unavailable or operator-reported evidence as verified.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/incident-trace.test.cjs] }
+    expected:
+      - Only immutable IDs link records; an unrelated ticket's data never appears.
+      - Missing or paged records do not invent an alert, action or recovery.
+      - The browser renders downloadable artifacts, preserves provenance and clears private data.
+    prerequisites: [runner:node-test, browser:chromium, toolchain:playwright]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Close the browser. }
+    limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
+    installation: never
+  - id: scheduled-discovery
+    name: Scheduled live discovery under the person's own connection
+    purpose: "Verify that the server scan builder is identical to the Systems panel's; that the discovery setting rejects bad input and stale revisions and stays owner-scoped; and that the processing tick reads once per interval through kernel connector.read (exactly the node, pod and deployment reads for the chosen account and namespace, once even with concurrent ticks), saves a live scan that keeps the collector's routes, and records a refusal without retrying it before the next interval."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/discovery.test.cjs] }
+    expected:
+      - The tick only reads; no exec or write operation is requested.
+      - One read set per interval, even with concurrent ticks.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: intake-transactions
+    name: Transactional intake under concurrency, ownership and failure
+    purpose: "Verify in real SQL that 100 reordered retries across two pools admit one durable processing item and keep every attempt; a reused event ID keeps the original content and retains the conflicting input; missing identity, a forged source and the wrong environment are inspectable quarantine with no processing work; owner policies hide every table even when SQL omits owner predicates; a statement failure rolls back and an uncertain commit reconciles on retry; and the shipped experience shows retries, conflicts and quarantines."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/intake-postgres.test.cjs] }
+    expected:
+      - Exactly one processing item per delivery, whatever the retry order.
+      - Quarantined input is kept and never processed.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, toolchain:playwright-chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 180000, maxMemoryMb: 512 }
+    installation: never
+  - id: alertmanager-producer
+    name: Alertmanager deliveries through the producer door
+    purpose: "Verify that each Alertmanager alert becomes the Operations envelope with a stable id per fingerprint and status, and that a mapped source admits each alert through real SQL intake (validated, deduplicated on repeat notifications, quarantined without a resource id) while an unmapped source, another person's source, an oversized delivery and a malformed body admit nothing."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/ingest.test.cjs] }
+    expected:
+      - A repeated notification is the same delivery.
+      - Nothing is admitted for a source that is not mapped or not the caller's.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: owner-runbooks
+    name: Owner runbooks attached to investigations
+    purpose: "Verify that runbooks are one per alert type, revision-checked, bounded and the caller's own in real SQL, and that an automatic investigation for that alert type attaches the runbook as evidence/runbook.md with its digest sealed into the investigation input and the prompt naming it as the owner's guidance."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/runbooks.test.cjs] }
+    expected:
+      - Another person sees none of the caller's runbooks.
+      - The sealed input names the runbook revision it was given.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
     installation: never

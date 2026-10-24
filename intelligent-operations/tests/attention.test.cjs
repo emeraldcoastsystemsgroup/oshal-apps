@@ -1,7 +1,8 @@
+/* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Guard the Jarvis systems, response-plan and anomaly summaries: own records only, degraded assets named with scope, discovery state stated, nothing claimed as run. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the Jarvis attention summary and tools: counts come from the caller's own saved records in real SQL (another person sees nothing), the summary sentence names only what waits on the person, and every declared tool is read-only, bound under app.open and backed by a route the package serves. */
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{randomUUID}=require('node:crypto');
-const {fixture,dependency,root}=require('./fixtures/intake.cjs'),{attentionSummary}=require('../routes/attention.js');
+const {fixture,dependency,root}=require('./fixtures/intake.cjs'),{attentionSummary,systemsSummary,responsesSummary,anomaliesSummary}=require('../routes/attention.js'),{saveScan}=require('../routes/topology-store.js'),{saveDiscoveryConfig}=require('../routes/discovery.js'),{loadExperience}=require('./fixtures/intake.cjs');
 const yaml=dependency('js-yaml');
 test('the attention summary counts only the caller\'s own records and names only what waits on them',async()=>{
  const f=await fixture();try{const ins=(t,id,record)=>f.inspect.query('INSERT INTO '+t+'(user_sub,id,created_at,record) VALUES($1,$2,now(),$3)',['alice',id,JSON.stringify(record)]);
@@ -24,4 +25,19 @@ test('every Jarvis tool is read-only, bound under app.open and backed by a serve
  assert.deepEqual(manifest.tools.map(t=>t.name).sort(),Object.keys(bound).sort());
  for(const tool of manifest.tools){assert.equal(tool.requiresApproval,false);assert.deepEqual(bound[tool.name],['app.open']);const [method,endpoint]=tool.executor.apiEndpoint.split(' ');assert.equal(method,'GET',tool.name+' reads only');
   const route=endpoint.replace('/api/intelligent-operations','');assert.ok(http.includes('GET '+route),tool.name+' has an HTTP binding for '+route);}
+});
+
+test('Jarvis summaries name degraded systems, discovery state, plans and anomalies from the caller\'s own records only',async()=>{
+ const f=await fixture();
+ try{const pool=f.caller('alice'),source=loadExperience().sourceDefinition({name:'lab',environment:'lab',source:'https://kubernetes.lab.example/clusters/operations-lab'});
+  await saveScan(pool,'alice',source,{scanId:'s1',collectionId:'c/ns',observedAt:'2026-10-23T03:00:00.000Z',complete:true,assets:[{provider:'kubernetes',scope:'c',kind:'node',nativeId:'n1',name:'worker-1',health:'degraded',properties:{pressure:'MemoryPressure'}},{provider:'kubernetes',scope:'c',kind:'node',nativeId:'n2',name:'worker-2',health:'healthy'},{provider:'kubernetes',scope:'c',kind:'pod',nativeId:'p1',name:'api-1',health:'unknown',properties:{namespace:'ops'}}],relationships:[]});
+  let s=await systemsSummary(pool,'alice');
+  assert.deepEqual(s.counts,{assets:3,healthy:1,degraded:1,unknown:1});assert.deepEqual(s.issues.map(i=>[i.name,i.health,i.scope]),[['worker-1','degraded','c'],['api-1','unknown','c']]);assert.equal(s.issues[0].pressure,'MemoryPressure');
+  assert.match(s.summary,/Scheduled discovery is off/);assert.equal(s.executionAuthorized,false);
+  await saveDiscoveryConfig(pool,'alice',{enabled:true,account:'primary',sourceId:source.id,scope:'c',namespace:'ops',intervalMinutes:15,expectedRevision:0},[source.id]);
+  s=await systemsSummary(pool,'alice');assert.match(s.summary,/waiting for its first read/);assert.equal(s.discovery.namespace,'ops');
+  const bob=await systemsSummary(f.caller('bob'),'bob');assert.equal(bob.counts.assets,0);assert.equal(bob.issues.length,0);
+  const r=await responsesSummary({pool},'alice');assert.equal(r.plans.length,0);assert.match(r.summary,/^0 response plans/);assert.match(r.approveAndRunIn,/cannot approve or run/);
+  const a=await anomaliesSummary(pool,'alice');assert.equal(a.baselines.length,0);assert.match(a.summary,/0 baselines/);
+ }finally{await f.close();}
 });

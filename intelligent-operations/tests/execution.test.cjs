@@ -1,3 +1,4 @@
+/* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Guard a dispatch the kernel refuses before it runs (expired connection): recorded refused, nothing to verify, approval withdrawn with the reason and grantable again; the shipped panel keeps its plans and offers Approve again; a refusal without a kernel code stays uncertain. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the response stage: byte-exact generated-file extraction, plans bound to observed targets, approvals invalidated by a changed canonical revision or expiry, one dispatch per approval across concurrent callers and lost acknowledgements, operator reports that never change canonical state, recovery outcomes that need a resolved admitted signal, server-read ticket updates, owner isolation, and the actual shipped panel driving confirmed native exec fixtures. */
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),{createHash,randomUUID}=require('node:crypto');
@@ -17,24 +18,25 @@ test('generated response files are extracted byte-exact with digests and the app
  const dup=Artifacts.extract(ANSWER+'```sh file=remediate.sh\nrm -rf /\n```\n',sha);assert.equal(dup.artifacts.find(a=>a.name==='remediate.sh').content,': > /run/pressure/stop\n');assert.match(dup.problems[0],/Duplicate/);
  assert.equal(Artifacts.extract('plain prose with ```sh\necho\n```\n',sha).executable,false);assert.equal(Artifacts.extract('```sh file=../x.sh\nid\n```\n',sha).artifacts.length,0);
 });
-function port(status='awaiting_approval'){const current={id:randomUUID(),ticketType:'intelligent-operations',status,revision:7,position:{name:'queue-deliver',index:3}};return {current,async getTicket(id){return id===current.id?{...current}:null;}};}
+function port(status='awaiting_approval'){const current={id:randomUUID(),ticketType:'intelligent-operations',status,revision:7,position:{name:'queue-deliver',index:3}};let answer=ANSWER;return {current,setAnswer(value){answer=value;},async getTicket(id){return id===current.id?{...current}:null;},async getAcceptedWork(ticketId,workId){return ticketId===current.id?{ticketId,workId,phase:{index:2,name:'revise'},answer,answerSha256:sha(answer),receipt:'receipt-revise',source:'accepted-work-answer.md'}:null;}};}
 async function setup(f,owner='alice',intercept){
  const pool=f.caller(owner,intercept),source=loadExperience().sourceDefinition({name:'Response lab',source:'urn:triagenorth:test:'+randomUUID(),environment:'local-lab'});
  const pod={provider:'kubernetes',scope:'cluster-uid',kind:'pod',nativeId:UID,name:'cpu-pressure-abc',health:'degraded',properties:{namespace:'operations-demo'}},node={provider:'kubernetes',scope:'cluster-uid',kind:'node',nativeId:'node-1',name:'worker2',health:'healthy'};
  await saveScan(pool,owner,source,{scanId:'scan-'+randomUUID(),collectionId:'cluster-uid/operations-demo',observedAt:'2026-01-01T00:00:01.000Z',complete:true,assets:[pod,node],relationships:[{from:pod,to:node,type:'RUNS_ON',evidence:'observed'}]});
  const p=port(),ctx={pool,ticketService:p},target={namespace:'operations-demo',pod:'cpu-pressure-abc',uid:UID,container:'pressure'};
- return {pool,source,ctx,current:p.current,target,plan:()=>X.preparePlan(ctx,owner,{ticketId:p.current.id,workId:randomUUID(),phase:'revise',answer:ANSWER,target})};
+ return {pool,source,ctx,current:p.current,target,plan:()=>X.preparePlan(ctx,owner,{ticketId:p.current.id,workId:randomUUID(),target})};
 }
 async function resolved(pool,owner,source,status='resolved'){const event=example();event.id=randomUUID();event.source=source.source;event.data.status=status;event.data.alertType='LabNodeCpuPressure';event.data.resource={kind:'kubernetes-pod',scope:'cluster-uid',id:UID};return (await admit(pool,owner,source,event)).record;}
 test('a plan binds exact generated files to an observed pod and one canonical revision; approvals bind digests and expire; one dispatch per approval',async()=>{
  const f=await fixture();try{const x=await setup(f),plan=await x.plan();
-  assert.equal(plan.target.uid,UID);assert.deepEqual(plan.artifacts.map(a=>a.name),['remediate.sh','verify.sh','rollback.md','verify.md']);assert.deepEqual(plan.dispatch.input.argv,['/bin/sh','-eu','-c',': > /run/pressure/stop\n']);assert.equal(plan.executionAuthorized,false);assert.equal(plan.answerVerifiedByServer,false);assert.equal(plan.ticketRevision,7);
-  const again=await X.preparePlan(x.ctx,'alice',{ticketId:x.current.id,workId:randomUUID(),phase:'revise',answer:ANSWER,target:x.target});assert.notEqual(again.id,plan.id,'a different work record is a different plan');
-  const same=await X.preparePlan(x.ctx,'alice',{ticketId:x.current.id,workId:plan.workId,phase:'revise',answer:ANSWER,target:x.target});assert.equal(same.id,plan.id);
+  assert.equal(plan.target.uid,UID);assert.deepEqual(plan.artifacts.map(a=>a.name),['remediate.sh','verify.sh','rollback.md','verify.md']);assert.deepEqual(plan.dispatch.input.argv,['/bin/sh','-eu','-c',': > /run/pressure/stop\n']);assert.equal(plan.executionAuthorized,false);assert.equal(plan.answerVerifiedByServer,true);assert.equal(plan.answerProvenance,'kernel-accepted-work-answer.md');assert.equal(plan.answerSha256,sha(ANSWER));assert.equal(plan.ticketRevision,7);
+  const again=await X.preparePlan(x.ctx,'alice',{ticketId:x.current.id,workId:randomUUID(),target:x.target});assert.notEqual(again.id,plan.id,'a different work record is a different plan');
+  const same=await X.preparePlan(x.ctx,'alice',{ticketId:x.current.id,workId:plan.workId,target:x.target});assert.equal(same.id,plan.id);
   const file=await X.artifactContent(x.ctx,'alice',plan.id,'remediate.sh');assert.equal(file.content.toString(),': > /run/pressure/stop\n');assert.equal(file.sha256,plan.artifacts[0].sha256);
-  await assert.rejects(X.preparePlan(x.ctx,'alice',{ticketId:x.current.id,workId:randomUUID(),phase:'revise',answer:ANSWER,target:{...x.target,uid:'unobserved-uid'}}),{status:409});
-  await assert.rejects(X.preparePlan(x.ctx,'alice',{ticketId:x.current.id,workId:randomUUID(),phase:'revise',answer:'MODE: B\nno files',target:x.target}),{status:422});
-  await assert.rejects(X.preparePlan(x.ctx,'alice',{ticketId:x.current.id,workId:randomUUID(),phase:'revise',answer:ANSWER,target:x.target,kubeconfig:'x'}),{status:400});
+  await assert.rejects(X.preparePlan(x.ctx,'alice',{ticketId:x.current.id,workId:randomUUID(),target:{...x.target,uid:'unobserved-uid'}}),{status:409});
+  x.ctx.ticketService.setAnswer('MODE: B\nno files');await assert.rejects(X.preparePlan(x.ctx,'alice',{ticketId:x.current.id,workId:randomUUID(),target:x.target}),{status:422});x.ctx.ticketService.setAnswer(ANSWER);
+  await assert.rejects(X.preparePlan(x.ctx,'alice',{ticketId:x.current.id,workId:randomUUID(),answer:ANSWER,target:x.target}),{status:400},'browser answer text is not an accepted input');
+  await assert.rejects(X.preparePlan(x.ctx,'alice',{ticketId:x.current.id,workId:randomUUID(),target:x.target,kubeconfig:'x'}),{status:400});
   const bob={pool:f.caller('bob'),ticketService:x.ctx.ticketService};assert.equal((await X.responseRecords(bob,'bob')).items.length,0);await assert.rejects(X.artifactContent(bob,'bob',plan.id,'remediate.sh'),{status:404});await assert.rejects(X.approvePlan(bob,'bob',{planId:plan.id}),{status:404});
   const approval=await X.approvePlan(x.ctx,'alice',{planId:plan.id});assert.equal(approval.principal,'alice');assert.deepEqual(approval.artifacts.map(a=>a.sha256),plan.artifacts.map(a=>a.sha256));assert.ok(Date.parse(approval.expiresAt)-Date.now()>1700000);assert.equal((await X.approvePlan(x.ctx,'alice',{planId:plan.id})).id,approval.id);
   const calls=await Promise.allSettled(Array.from({length:12},()=>X.reserveExecution(x.ctx,'alice',{approvalId:approval.id,account:'primary'})));assert.equal(calls.filter(r=>r.status==='fulfilled').length,1);for(const r of calls)if(r.status==='rejected')assert.equal(r.reason.status,409);
@@ -46,6 +48,26 @@ test('a plan binds exact generated files to an observed pod and one canonical re
   const second=await X.approvePlan(x.ctx,'alice',{planId:again.id});await f.inspect.query("UPDATE operations_action_approvals SET record=jsonb_set(record,'{expiresAt}',to_jsonb('2000-01-01T00:00:00.000Z'::text)) WHERE id=$1",[second.id]);await assert.rejects(X.reserveExecution(x.ctx,'alice',{approvalId:second.id,account:'primary'}),/expired/);
   x.current.revision=8;await assert.rejects(X.approvePlan(x.ctx,'alice',{planId:again.id}),/revision changed/);const page=await X.responseRecords(x.ctx,'alice');assert.equal(page.items.find(i=>i.id===plan.id).invalidated,true);assert.equal(page.automaticExecution,false);
   const receipt=await X.executionReceipt(x.ctx,'alice',execution.id);assert.equal(receipt.execution.id,execution.id);assert.match(receipt.labels.actionAndVerificationCommands,/verifiedByServer=false/);
+ }finally{await f.close();}
+});
+test('plan preparation rejects browser answer text, missing or mismatched accepted work, and legacy plans cannot execute',async()=>{
+ const f=await fixture();try{const x=await setup(f),workId=randomUUID(),request={ticketId:x.current.id,workId,target:x.target};
+  const original=x.ctx.ticketService.getAcceptedWork.bind(x.ctx.ticketService);
+  await assert.rejects(X.preparePlan(x.ctx,'alice',{...request,answer:ANSWER}),{status:400});
+  x.ctx.ticketService.getAcceptedWork=undefined;
+  await assert.rejects(X.preparePlan(x.ctx,'alice',request),{status:503});
+  x.ctx.ticketService.getAcceptedWork=async()=>null;
+  await assert.rejects(X.preparePlan(x.ctx,'alice',request),{status:409});
+  x.ctx.ticketService.getAcceptedWork=async(...args)=>({...await original(...args),workId:randomUUID()});
+  await assert.rejects(X.preparePlan(x.ctx,'alice',request),{status:409});
+  x.ctx.ticketService.getAcceptedWork=async(...args)=>({...await original(...args),answerSha256:'0'.repeat(64)});
+  await assert.rejects(X.preparePlan(x.ctx,'alice',request),{status:409});
+  x.ctx.ticketService.getAcceptedWork=original;
+  const plan=await X.preparePlan(x.ctx,'alice',request),approval=await X.approvePlan(x.ctx,'alice',{planId:plan.id});
+  assert.equal(plan.answerReceipt,'receipt-revise');
+  await f.inspect.query("UPDATE operations_action_plans SET record=jsonb_set(record,'{answerVerifiedByServer}','false'::jsonb) WHERE id=$1",[plan.id]);
+  await assert.rejects(X.approvePlan(x.ctx,'alice',{planId:plan.id}),{status:409});
+  await assert.rejects(X.reserveExecution(x.ctx,'alice',{approvalId:approval.id,account:'primary'}),{status:409});
  }finally{await f.close();}
 });
 test('recovery is healthy only with a passing verification and a resolved admitted signal for the same resource; the ticket update is server-read',async()=>{
@@ -70,20 +92,52 @@ test('a lost reservation commit acknowledgement cannot authorize a second dispat
   await assert.rejects(X.reserveExecution(x.ctx,'alice',{approvalId:approval.id,account:'primary'}),/already has a reserved dispatch/);assert.equal((await X.responseRecords(x.ctx,'alice')).items[0].executions.length,1);
  }finally{await f.close();}
 });
+test('a dispatch the kernel refuses before it runs is refused, not uncertain: nothing to verify, and the plan can be approved again',async()=>{
+ const f=await fixture();try{const x=await setup(f),plan=await x.plan();
+  const first=await X.approvePlan(x.ctx,'alice',{planId:plan.id}),execution=await X.reserveExecution(x.ctx,'alice',{approvalId:first.id,account:'primary'});
+  const reported=await X.reportExecution(x.ctx,'alice',{executionId:execution.id,result:{outcome:'refused',refused:'capability_not_granted',exitCode:7,stderr:'the connection to kubernetes is expired; reconnect it'}});
+  assert.equal(reported.state,'refused');assert.equal(reported.action.refused,'capability_not_granted');assert.equal(reported.action.exitCode,null);assert.equal(reported.recovery.outcome,'not-run');
+  await assert.rejects(X.reserveVerification(x.ctx,'alice',{executionId:execution.id}),/nothing to verify/);
+  const page=await X.responseRecords(x.ctx,'alice'),item=page.items.find(i=>i.id===plan.id);
+  assert.equal(item.approval.state,'withdrawn');assert.match(item.approval.withdrawnReason,/capability_not_granted\): the connection to kubernetes is expired/);
+  const second=await X.approvePlan(x.ctx,'alice',{planId:plan.id});assert.notEqual(second.id,first.id,'a withdrawn approval is not handed back');assert.equal(second.state,'granted');
+  const retry=await X.reserveExecution(x.ctx,'alice',{approvalId:second.id,account:'primary'});assert.notEqual(retry.id,execution.id);
+  await assert.rejects(X.reserveExecution(x.ctx,'alice',{approvalId:first.id,account:'primary'}),{status:403},'the withdrawn approval dispatches nothing');
+  const uncoded=await X.reportExecution(x.ctx,'alice',{executionId:retry.id,result:{outcome:'refused',stderr:'no code'}});assert.equal(uncoded.state,'uncertain','a refusal without a kernel code is not proof that nothing ran');
+  assert.equal((await X.responseRecords(x.ctx,'alice')).items.find(i=>i.id===plan.id).approval.state,'granted');
+ }finally{await f.close();}
+});
+test('the shipped panel keeps its plans when the kernel refuses the connection at dispatch, says nothing ran, and runs once after approving again',async()=>{
+ const f=await browserFixture();try{const {page}=f;
+  await page.getByRole('button',{name:'Refresh response plans',exact:true}).click();await page.getByText('Plans bind exact generated files',{exact:false}).waitFor();
+  await page.getByText('Prepare a response plan from accepted work',{exact:true}).click();await page.locator('#response-preview').getByText('Generated response files: remediate.sh',{exact:false}).waitFor();
+  await page.locator('#response-container').fill('pressure');await page.getByRole('button',{name:'Prepare response plan',exact:true}).click();await page.locator('#response-plans .card').first().waitFor();
+  await page.getByRole('button',{name:'Approve this exact action',exact:true}).click();await page.getByText('Approved by you until',{exact:false}).waitFor();
+  f.expire(true);await page.getByRole('button',{name:'Execute approved action',exact:true}).click();await page.getByText('Nothing ran. The kernel refused the action',{exact:false}).waitFor();
+  assert.deepEqual(f.effects.map(e=>e.op),['kubernetes-inspect-pod'],'the refused pre-dispatch read stopped everything');
+  assert.equal(await page.locator('#response-plans .card').count(),1,'a refused connection is not a lost sign-in: the plans stay');
+  await page.getByText('Approval withdrawn',{exact:false}).waitFor();await page.getByText('refused by the kernel before it ran (capability_not_granted)',{exact:false}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Approve this exact action',exact:true}).isEnabled(),true);assert.equal(await page.getByRole('button',{name:'Execute approved action',exact:true}).isDisabled(),true);assert.equal(await page.getByRole('button',{name:'Verify recovery',exact:true}).isDisabled(),true);
+  f.expire(false);await page.getByRole('button',{name:'Approve this exact action',exact:true}).click();await page.getByText('Approved by you until',{exact:false}).waitFor();
+  await page.getByRole('button',{name:'Execute approved action',exact:true}).click();await page.getByText('Dispatch reported as completed',{exact:false}).waitFor();
+  assert.equal(f.effects.filter(e=>e.op==='kubernetes-exec').length,1,'exactly one command ran');assert.equal(await page.getByRole('button',{name:'Execute approved action',exact:true}).isDisabled(),true);assert.deepEqual(f.errors,[]);
+ }finally{await f.close();}
+});
 async function browserFixture(){
- const f=await fixture(),x=await setup(f),express=dependency('express'),app=express(),proofs=new Set(),effects=[];let denied=false;const work=[{id:randomUUID(),phase:{index:0,name:'investigate'},state:'completed',answer:'MODE: B\nneeds data',receipt:'r0'},{id:randomUUID(),phase:{index:2,name:'revise'},state:'completed',answer:ANSWER,receipt:'r2'}];
+ const f=await fixture(),x=await setup(f),express=dependency('express'),app=express(),proofs=new Set(),effects=[];let denied=false,expired=false;const work=[{id:randomUUID(),phase:{index:0,name:'investigate'},state:'completed',answer:'MODE: B\nneeds data',receipt:'r0'},{id:randomUUID(),phase:{index:2,name:'revise'},state:'completed',answer:ANSWER,receipt:'r2'}];
  app.use(express.json({limit:'1mb'}));
  app.get('/api/tickets',(_req,res)=>res.status(denied?403:200).json({tickets:[x.current]}));app.get('/tickets/:id/work',(req,res)=>res.json({work:req.params.id===x.current.id?work:[]}));
  app.get('/connectors',(_req,res)=>res.status(denied?403:200).json({connections:[{connector:'kubernetes',account:'primary',shared:false,status:'connected'}],httpServices:[{connector:'kubernetes',configured:true,capabilityLinked:true}]}));
  app.post('/confirmations',(_req,res)=>{const id=randomUUID();proofs.add(id);res.json({confirmation:id});});
  app.post('/connectors/kubernetes/actions/:operation',(req,res)=>{assert.ok(proofs.delete(req.headers['x-oshal-confirm']),'every native action needs a fresh confirmation');assert.equal(req.query.account,'primary');const op=req.params.operation;effects.push({op,body:req.body});
+  if(expired)return res.status(403).json({detail:'the connection to kubernetes is expired; reconnect it',refused:'capability_not_granted'});
   if(op==='kubernetes-inspect-pod')return res.json({transport:'native_kubernetes',operation:op,observedAt:'t',pod:{uid:UID,name:'cpu-pressure-abc',namespace:'operations-demo',phase:'Running',containers:[{name:'pressure',ready:true}]},executionAuthorized:false});
   assert.equal(op,'kubernetes-exec');res.json({transport:'native_kubernetes',operation:op,observedAt:'t',target:{namespace:'operations-demo',pod:'cpu-pressure-abc',observedUid:UID,container:'pressure'},outcome:'completed',exitCode:0,stdout:'',stderr:''});});
  app.post('/tickets/:id/approve',(req,res)=>{assert.ok(proofs.delete(req.headers['x-oshal-confirm']));effects.push({op:'approve'});x.current.status='done';x.current.revision++;res.json({ticket:{...x.current}});});
  app.use((req,_res,next)=>{req.oidc={user:{sub:'alice'}};next();});app.use('/api/intelligent-operations',loadExperience().createOperationsExperienceRoutes({...x.ctx,appPackageDir:root,authorization:{registerResource(){}},store:{query:async()=>[],put:async()=>{}}}));
  const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));const {chromium}=dependency('playwright'),browser=await chromium.launch({headless:true,args:['--disable-gpu']}),page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  const origin='http://127.0.0.1:'+server.address().port;await page.goto(origin+'/api/intelligent-operations/app#incidents');await page.getByText('Records refreshed',{exact:false}).waitFor();
- return {page,x,effects,errors,origin,deny(){denied=true;},async close(){await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r));await f.close();}};
+ return {page,x,effects,errors,origin,deny(){denied=true;},expire(on){expired=on;},async close(){await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r));await f.close();}};
 }
 test('the shipped panel plans from accepted work, approves exact files, dispatches once through confirmed native exec, verifies against a resolved signal and updates the canonical ticket',async()=>{
  const f=await browserFixture();try{const {page}=f;

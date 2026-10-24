@@ -1,6 +1,11 @@
 # ADR0046: Jarvis in Operations
 
-Status: implemented and accepted live, 22 October 2026. On the owned lab, Jarvis answered two
+Status: implemented and accepted live, 22 October 2026; three tools added and all six accepted live
+on 23 October 2026. On the owned lab, Jarvis answered one question per tool from the person's own
+records: attention, degraded systems, response plans, anomalies, hand-offs and investigations.
+Each answer handed off to Operations and carried the summary's facts
+(`deploy/evidence/jarvis-tools.json`, `lab/jarvis_tools_live.py`). The first run showed that
+"handed to us by another swarm" was not routed to Operations; routing words were added. On the owned lab, Jarvis answered two
 questions from these tools, each with correct counts and a link to Operations: "What needs my
 attention in operations?" and "What was handed to us by another swarm?"
 (`deploy/evidence/jarvis-operations.json`). Guarded. Extends ADR0043.
@@ -28,6 +33,19 @@ The package declares three read-only, route-backed Jarvis tools, all bound under
   state, and delegations from other swarms filed as investigations.
 - **`ops-investigations`** (`GET /investigations`). Evidence investigations with their
   canonical ticket state.
+
+Added 23 October 2026, so Jarvis can carry a DevOps triage conversation end to end:
+
+- **`ops-systems`** (`GET /summary/systems`). Inventory health: counts of healthy, degraded
+  and unknown assets, the degraded and unknown assets themselves (at most 25, with cluster
+  scope, namespace and pressure), and whether scheduled discovery (ADR0049) keeps the
+  inventory current.
+- **`ops-response-plans`** (`GET /summary/responses`). The newest 20 response plans: ticket,
+  target pod, generated files, approval state, and each execution's result and verified
+  recovery. Its answer says that approving and running happen only in Incident work, with a
+  fresh confirmation.
+- **`ops-anomalies`** (`GET /summary/anomalies`). Whether detection is on, and the baselines,
+  firing first, with readiness and last score.
 
 Routing words such as "needs my attention in operations", "swarm hand-off" and "delegation from
 another swarm" send those requests to the Operations specialist. Every action stays on the

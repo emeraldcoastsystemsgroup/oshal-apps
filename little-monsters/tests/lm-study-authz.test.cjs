@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 2026-10-23 | maintainer@emeraldcoastsystemsgroup.com | Model the live approved-material collection read in generation fixtures.
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -192,6 +193,7 @@ function handleAccessQuery(state, sql, params) {
     return result(state.classes.filter((cls) => cls.class_id === params[0] && cls.tenant_id === params[1]
       && (!ownerOnly || params[2] === 'admin' || cls.teacher_student_id === params[3])));
   }
+  if (/SELECT rag_collection FROM lm_materials/i.test(sql)) return result([]);
   return undefined;
 }
 

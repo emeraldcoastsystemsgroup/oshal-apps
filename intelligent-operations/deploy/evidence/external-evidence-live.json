@@ -1,0 +1,21 @@
+{
+  "observedAt": "2026-10-23T18:01:17Z",
+  "applicationSourceRevision": "b093545dd021ba68bb1a94cb99acbcaa1a295a80",
+  "applicationArtifact": "cde9225ba58f9da89629a8945c9771513a7a6bd7e736e2dca0f8461b47fb2606",
+  "kernelSourceRevision": "2ef381955a25ad048eba723ed55e41d9f36d3e78",
+  "kernelImage": "oshal-kernel:dev-2ef381955a25",
+  "surface": "/api/intelligent-operations/app#connections",
+  "method": "signed-in native browser observation and read-only caller-scoped Portal API check",
+  "passed": true,
+  "checks": [
+    "The installed Connections view shows Optional Splunk evidence, a link to standard Connections, personal account and index fields, named alert-source selection, and recent enrichment outcomes.",
+    "GET /api/intelligent-operations/external-evidence/config returned enabled=false, account=primary, index=main, revision=0 and sourceIds=[].",
+    "GET /api/intelligent-operations/external-evidence returned items=[] and truncated=false.",
+    "The Operations role and its processing schedule were active following package installation; the kernel rollout was ready."
+  ],
+  "limits": [
+    "The Splunk connector is in the installed catalog but no personal Splunk connection or selected service exists in this lab.",
+    "No credentialed Splunk export call or live enrichment outcome was attempted or claimed.",
+    "The default-off mapping was left unchanged; no incident or external provider was modified during this acceptance."
+  ]
+}

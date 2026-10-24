@@ -1,0 +1,16 @@
+{
+  "kind": "git-explorer-and-provisioning-promotion-acceptance",
+  "startedAt": "2026-10-23T20:25:24.062Z",
+  "kernel": "oshal-kernel:dev-d8ac0437b445",
+  "repository": "emeraldcoastsystemsgroup/triagenorth-provisioning-demo",
+  "repositories": "Reading your repositories…",
+  "files": "FILES ON MAIN · 2",
+  "branches": "Branches · 1",
+  "fileView": ".github / workflows / validate.yml\nmain · 707 B\n1\nname: validate\n2\non:\n3\n  workflow_dispatch:\n4\n  pull_request:\n5\npermissions:\n6\n  contents: read\n7\njobs:\n8\n  validate:\n9\n    runs-on: ubuntu-latest\n10\n    steps:\n11\n      - uses: actions/checkout@v4\n12\n      - name: Every committed manifest parses and",
+  "link": "Linked operations-lab to emeraldcoastsystemsgroup/triagenorth-provisioning-demo. Promotions for that cluster now target it.",
+  "promotion": "Provisioning request · github · triagenorth-provision-31a830c5ec05 · pipeline-started\n\nRequest https://github.com/emeraldcoastsystemsgroup/triagenorth-provisioning-demo/pull/1 · pipeline dispatched\n\nProvider results are your session's report; the files and manifest came from the server.Refresh status",
+  "status": "",
+  "pageErrors": [],
+  "result": "passed",
+  "finishedAt": "2026-10-23T20:25:43.566Z"
+}

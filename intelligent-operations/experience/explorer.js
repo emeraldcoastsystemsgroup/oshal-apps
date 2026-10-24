@@ -1,7 +1,9 @@
+/* CHANGE LOG: local times | maintainer@emeraldcoastsystemsgroup.com | Graph and observation times in the viewer's local time. */
 /* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Allow the bounded resource tree to inspect the complete returned graph while keeping the legacy card limit. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Explain bounded real pipeline cohorts and explore recorded graph nodes without inventing totals or correlation. */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Project current-caller graph observations into Systems, retaining native identity, event-time bounds and unknown health. */
 (function(root){
+const localTime=v=>{const d=new Date(v);return v&&!Number.isNaN(d.getTime())?d.toLocaleString():String(v);};
 'use strict';
 function cohort(records){
  const latest=new Map();
@@ -29,7 +31,7 @@ function flow(container,records,onInspect){
 }
 function correlations(container,records,onExplore){
  container.replaceChildren();if(!records.length){container.append(text('p','No saved correlation analyses. Run selected events through filtering and reduction, then correlate the surviving events.'));return;}
- for(const r of records.slice(0,20)){const card=text('article','','correlation-card');card.append(text('h3',r.groups.length+' groups from '+r.deliveryIds.length+' events'),text('p',r.method+' · '+r.status+' · graph as of '+r.asOf));
+ for(const r of records.slice(0,20)){const card=text('article','','correlation-card');card.append(text('h3',r.groups.length+' groups from '+r.deliveryIds.length+' events'),text('p',r.method+' · '+r.status+' · graph as of '+localTime(r.asOf)));
  if(r.status!=='complete')card.append(text('p','Graph evidence is incomplete. These are exact-asset fallback groups, not proven dependency correlations.','warning'));
  for(const [i,ids]of r.groups.entries()){const group=text('div','','correlation-group');group.append(text('h4','Group '+(i+1)+' · '+ids.length+' events'));
  for(const id of ids){const event=r.events?.find(e=>e.id===id),button=text('button',id.slice(0,12)+' · '+(event?.assetId?.slice(0,12)||'unresolved'));button.addEventListener('click',()=>onExplore(event?.assetId,r.asOf));group.append(button);}card.append(group);}
@@ -46,7 +48,7 @@ function graph(container,data,filter,onFocus){
  for(const [col,kind]of columns.entries()){const nodes=shown.filter(a=>a.kind===kind);maxRows=Math.max(maxRows,nodes.length);nodes.forEach((a,row)=>positions.set(a.id,{x:col*210+110,y:row*90+60}));}
  const drawing=svg('svg',{viewBox:`0 0 ${columns.length*210+20} ${maxRows*90+40}`,role:'group','aria-label':'Inventory graph explorer',class:'inventory-graph'});
  for(const edge of data.relationships){const from=positions.get(edge.from),to=positions.get(edge.to);if(!from||!to)continue;const line=svg('path',{d:`M ${from.x} ${from.y} L ${to.x} ${to.y}`,class:'inventory-edge'});line.append(svg('title',{},edge.type+' · '+edge.evidence));drawing.append(line);}
- for(const a of shown){const pos=positions.get(a.id),node=svg('g',{role:'button',tabindex:'0','aria-label':'Explore node '+a.name,class:'inventory-node '+a.health});node.append(svg('rect',{x:pos.x-95,y:pos.y-29,width:190,height:58,rx:9}),svg('text',{x:pos.x,y:pos.y-5,'text-anchor':'middle'},a.name.slice(0,23)),svg('text',{x:pos.x,y:pos.y+15,'text-anchor':'middle'},a.kind+' · '+a.health),svg('title',{},a.nativeId+' · observed '+a.observedAt));node.addEventListener('click',()=>onFocus(a.id));node.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onFocus(a.id);}});drawing.append(node);}
+ for(const a of shown){const pos=positions.get(a.id),node=svg('g',{role:'button',tabindex:'0','aria-label':'Explore node '+a.name,class:'inventory-node '+a.health});node.append(svg('rect',{x:pos.x-95,y:pos.y-29,width:190,height:58,rx:9}),svg('text',{x:pos.x,y:pos.y-5,'text-anchor':'middle'},a.name.slice(0,23)),svg('text',{x:pos.x,y:pos.y+15,'text-anchor':'middle'},a.kind+' · '+a.health),svg('title',{},a.nativeId+' · observed '+localTime(a.observedAt)));node.addEventListener('click',()=>onFocus(a.id));node.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onFocus(a.id);}});drawing.append(node);}
  const canvas=text('div','','graph-canvas');drawing.style.minWidth=Math.max(600,columns.length*210)+'px';canvas.append(drawing);container.append(canvas);
 }
 /**

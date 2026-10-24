@@ -1,0 +1,146 @@
+/* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Narrow screens and the cockpit frame: the page menu is one sticky, swipeable row (labels and footer hidden) instead of sixteen stacked links; tighter header and main padding. */
+/* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Glass skin over the whole Operations experience, loaded last: the platform's surface-glass variables on every card, the trading application's density (13px text and tables, uppercase muted labels, tabular numbers, status pills), a compact top bar and navigation, compact controls, the Ops console terminal and the compact Git explorer tree and viewer. Layout and behaviour are unchanged; only presentation. */
+:root{--skin-radius:12px;--skin-gap:14px;--skin-good:var(--status-success,#2fbf8f);--skin-warn:var(--status-warning,#e3bd6a);--skin-bad:var(--status-error,#ec7672);--skin-mono:ui-monospace,"JetBrains Mono","SFMono-Regular",Menlo,Consolas,monospace;
+ --skin-glass:var(--oshal-glass-bg,color-mix(in srgb,var(--bg-card,#172231) 86%,transparent));--skin-glass-strong:var(--oshal-glass-bg-strong,var(--bg-card,#172231));--skin-border:var(--oshal-glass-border,var(--border-color,#354559));--skin-shadow:var(--oshal-glass-shadow-soft,0 10px 30px rgba(0,0,0,.22));--skin-blur:var(--oshal-glass-blur,24px);--skin-control:var(--oshal-control-bg,var(--bg-secondary,#0d1520))}
+body{font:13.5px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:radial-gradient(1100px 480px at 55% -12%,color-mix(in srgb,var(--ops-accent) 13%,transparent) 0,transparent 70%),radial-gradient(900px 520px at -10% 110%,color-mix(in srgb,var(--ops-accent) 7%,transparent) 0,transparent 70%),var(--ops-bg);background-attachment:fixed}
+
+/* Top bar and navigation */
+.topbar{height:52px;padding:0 18px;background:color-mix(in srgb,var(--ops-bg) 70%,transparent);backdrop-filter:blur(var(--skin-blur)) saturate(140%);-webkit-backdrop-filter:blur(var(--skin-blur)) saturate(140%);position:sticky;top:0;z-index:20}
+.brand{font-size:16px;gap:9px}.brand-mark{width:26px;height:26px;border-radius:8px;font-size:13px}
+.shell{grid-template-columns:200px minmax(0,1fr);min-height:calc(100vh - 52px)}
+nav{padding:14px 10px;position:sticky;top:52px;align-self:start;max-height:calc(100vh - 52px);overflow:auto;border-right:1px solid var(--skin-border)}
+nav a{display:flex;align-items:center;min-height:30px;padding:4px 10px;margin:1px 0;border-radius:8px;font-size:13px;color:var(--ops-muted);text-decoration:none}
+nav a:hover{background:color-mix(in srgb,var(--ops-accent) 8%,transparent);color:var(--ops-text)}
+nav a[aria-current=page]{background:color-mix(in srgb,var(--ops-accent) 16%,transparent);color:var(--ops-text);box-shadow:inset 2px 0 0 var(--ops-accent)}
+.nav-label,.eyebrow{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--ops-muted);margin:12px 10px 4px}
+main{padding:18px 22px 40px;min-width:0}
+.page-heading{margin-bottom:12px}.page-heading h1,h1{font-size:20px;letter-spacing:-.2px;margin:2px 0 4px}.lead{font-size:13px;color:var(--ops-muted);margin:0;max-width:900px}
+h2{font-size:15px;margin:0 0 8px;letter-spacing:-.1px}h3{font-size:13.5px;margin:12px 0 6px}h4{font-size:13px;margin:10px 0 6px}
+p{margin:6px 0}
+
+/* Glass cards */
+.card,section>details,.live-cluster{background:var(--skin-glass);border:1px solid var(--skin-border);border-radius:var(--skin-radius);box-shadow:var(--skin-shadow);backdrop-filter:blur(var(--skin-blur)) saturate(145%);-webkit-backdrop-filter:blur(var(--skin-blur)) saturate(145%);padding:14px 16px}
+section>.card,section>details{margin:0 0 var(--skin-gap)}
+.metrics{gap:10px}.metrics .card{padding:12px 14px}.metrics .card p{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--ops-muted);margin:0}.metrics .card strong{display:block;font-size:22px;font-weight:800;letter-spacing:-.3px;font-variant-numeric:tabular-nums;margin:2px 0}
+summary{cursor:pointer;font-weight:600;font-size:13px}
+.operator-note,small,.muted{font-size:12px}
+
+/* Controls */
+input,select,textarea{font:inherit;font-size:13px;min-height:30px;padding:5px 9px;border-radius:8px;border:1px solid var(--skin-border);background:var(--skin-control);color:var(--ops-text)}
+textarea{min-height:64px}
+button{font:inherit;font-size:12.5px;min-height:30px;padding:4px 12px;border-radius:8px;border:1px solid var(--skin-border);background:color-mix(in srgb,var(--ops-accent) 10%,var(--skin-control));color:var(--ops-text);cursor:pointer}
+button:hover:not(:disabled){border-color:var(--ops-accent);background:color-mix(in srgb,var(--ops-accent) 18%,var(--skin-control))}
+button:disabled{opacity:.45;cursor:not-allowed}
+label{font-size:12px;color:var(--ops-muted)}
+form>button{margin-top:10px}
+
+/* Trading-style tables */
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th{color:var(--ops-muted);font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;padding:6px 8px;border-bottom:1px solid var(--skin-border);text-align:left;white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid color-mix(in srgb,var(--skin-border) 60%,transparent);vertical-align:top}
+tr:hover td{background:color-mix(in srgb,var(--ops-accent) 6%,transparent)}
+pre{font:12px/1.55 var(--skin-mono)}
+.pill,.badge,.status-pill{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid var(--skin-border)}
+
+/* Ops console */
+.console{display:grid;grid-template-columns:300px minmax(0,1fr);gap:var(--skin-gap);min-height:calc(100vh - 170px)}
+.console-side,.console-main{background:var(--skin-glass);border:1px solid var(--skin-border);border-radius:var(--skin-radius);box-shadow:var(--skin-shadow);backdrop-filter:blur(var(--skin-blur)) saturate(145%);-webkit-backdrop-filter:blur(var(--skin-blur)) saturate(145%);min-width:0}
+.console-side{padding:10px;display:flex;flex-direction:column;max-height:calc(100vh - 150px)}
+.console-side-head{display:flex;align-items:center;justify-content:space-between;padding:2px 4px 8px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--ops-muted)}
+.console-side-head button,.console-bar button{min-height:24px;padding:0 8px;font-size:12px;background:transparent}
+.console-tree{overflow:auto;flex:1;font-size:12.5px}
+.console-node>summary{display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:6px;font-weight:600;list-style:none}
+.console-node>summary::-webkit-details-marker{display:none}
+.console-node>summary::before{content:"▸";font-size:10px;color:var(--ops-muted);width:10px}.console-node[open]>summary::before{content:"▾"}
+.console-node .console-node{margin-left:10px}
+.console-leaf{display:flex;width:100%;align-items:center;gap:6px;min-height:24px;padding:2px 6px 2px 20px;border:0;border-radius:6px;background:transparent;font-size:12.5px;text-align:left}
+.console-leaf:hover:not(:disabled){background:color-mix(in srgb,var(--ops-accent) 10%,transparent)}
+.console-tname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.console-tmeta.tone-bad{color:var(--skin-bad)}.console-tmeta{color:var(--ops-muted);font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--ops-muted)}.dot.tone-good{background:var(--skin-good);box-shadow:0 0 6px color-mix(in srgb,var(--skin-good) 60%,transparent)}.dot.tone-warn{background:var(--skin-warn)}.dot.tone-bad{background:var(--skin-bad);box-shadow:0 0 6px color-mix(in srgb,var(--skin-bad) 60%,transparent)}
+.console-main{--term-bg:#0a1016;--term-panel:#111a23;--term-line:#22303c;--term-fg:#d8e2ec;--term-dim:#7d8b9c;--term-accent:#7fd4c1;--term-good:#4fd18b;--term-warn:#e8c06a;--term-bad:#ff7b72;background:linear-gradient(180deg,#0d141b,#0a1016);border-color:#22303c;color:var(--term-fg);display:flex;flex-direction:column;overflow:hidden;max-height:calc(100vh - 150px)}
+.console-bar{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--term-line);font-size:12px;color:var(--term-dim);background:#0e161e}.console-bar button{color:var(--term-dim);border-color:var(--term-line)}
+.console-bar #console-target{flex:1;font-family:var(--skin-mono)}
+.console-dots{display:inline-flex;gap:5px}.console-dots i{width:9px;height:9px;border-radius:50%;background:var(--skin-bad);opacity:.8}.console-dots i:nth-child(2){background:var(--skin-warn)}.console-dots i:nth-child(3){background:var(--skin-good)}
+.console-output{flex:1;overflow:auto;padding:12px 14px;font:12.5px/1.55 var(--skin-mono);background:transparent;color:var(--term-fg)}
+.console-line{white-space:pre-wrap;overflow-wrap:anywhere}
+.console-ask{color:var(--term-accent);font-weight:700;margin-top:12px}
+.console-cmd{color:#f2f6fa;margin-top:8px}
+.console-dim{color:var(--term-dim)}.console-warn{color:var(--term-warn)}.console-error{color:var(--term-bad);white-space:pre-wrap}
+.console-block{margin:4px 0 6px}
+.console-pre{margin:0;white-space:pre;overflow-x:auto;font:12px/1.5 var(--skin-mono);color:var(--term-fg)}
+.console-th{color:var(--term-dim)}.console-row.tone-bad{color:var(--term-bad)}.console-row.tone-warn{color:var(--term-warn)}
+.console-main .console-note{color:var(--term-dim)}.console-note{color:var(--ops-muted);font-size:11.5px}
+.console-report{margin:10px 0 14px;padding:12px 14px;border:1px solid var(--term-line);border-left:3px solid var(--term-accent);border-radius:10px;background:var(--term-panel);color:var(--term-fg);font:13px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+.console-report-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.console-verdict{padding:1px 9px;border-radius:999px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;border:1px solid currentColor}
+.console-verdict.tone-good{color:var(--term-good)}.console-verdict.tone-warn{color:var(--term-warn)}.console-verdict.tone-bad{color:var(--term-bad)}
+.console-facts{display:grid;grid-template-columns:max-content 1fr;gap:3px 14px;margin:0 0 8px;font-size:12.5px}.console-facts dt{color:var(--term-dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;padding-top:2px}.console-facts dd{margin:0;font-variant-numeric:tabular-nums}
+.console-prose p,.console-prose li{margin:3px 0}.console-prose h5{font-size:12px;margin:8px 0 3px;text-transform:uppercase;letter-spacing:.4px;color:var(--term-dim)}.console-prose ul,.console-prose ol{margin:3px 0;padding-left:18px}
+.console-prose code{font:12px var(--skin-mono);padding:0 4px;border-radius:4px;background:#1a2733;color:#e6edf3}
+.console-chips{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px 0}
+.console-report .console-chips{padding:6px 0 0}
+.console-main .console-chip{background:#132029;border-color:var(--term-line);color:var(--term-fg)}.console-main .console-chip:hover{border-color:var(--term-accent);background:#16303a}.console-chip{min-height:24px;padding:1px 10px;border-radius:999px;font-size:11.5px;font-family:var(--skin-mono)}
+.console-actions{display:flex;gap:8px;margin-top:6px}.console-main button.console-run,.console-main button.console-cancel{background:#132029;color:var(--term-fg);border-color:var(--term-line)}.console-main button.console-run{border-color:var(--term-warn)}
+.console-prompt{display:flex;align-items:center;gap:8px;margin:0;padding:10px 12px 12px}
+.console-prompt{border-top:1px solid var(--term-line);background:#0c131a}.console-prompt>span{font:700 14px var(--skin-mono);color:var(--term-accent)}
+.console-prompt input{flex:1;min-height:34px;font:13px var(--skin-mono);background:#080d12;color:var(--term-fg);border-color:var(--term-line)}.console-prompt input:focus{border-color:var(--term-accent);outline:none;box-shadow:0 0 0 2px color-mix(in srgb,#7fd4c1 25%,transparent)}.console-prompt input::placeholder{color:#5d6b7a}
+.console-more{margin-top:var(--skin-gap);font-size:12.5px}
+/* Narrow screens and the cockpit frame: one sticky, swipeable row of pages instead of a stacked menu. */
+@media(max-width:900px){.console{grid-template-columns:1fr}.console-side{max-height:240px}.console-main{max-height:none;min-height:70vh}
+ .shell{grid-template-columns:1fr;min-height:0}
+ nav{position:sticky;top:52px;z-index:15;display:flex;flex-wrap:nowrap;align-items:center;gap:4px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;max-height:none;padding:6px 10px;border-right:0;border-bottom:1px solid var(--skin-border);background:color-mix(in srgb,var(--ops-bg) 82%,transparent);backdrop-filter:blur(var(--skin-blur));-webkit-backdrop-filter:blur(var(--skin-blur))}
+ nav::-webkit-scrollbar{display:none}
+ nav .nav-label,nav .nav-foot{display:none}
+ nav a{flex:none;white-space:nowrap;min-height:30px;margin:0;padding:4px 12px;border-radius:999px;border:1px solid transparent}
+ nav a[aria-current=page]{box-shadow:none;border-color:color-mix(in srgb,var(--ops-accent) 45%,transparent)}
+ main{padding:12px 12px 32px}.page-heading .eyebrow{display:none}.page-heading h1{font-size:18px}.lead{font-size:12.5px}
+ .topbar{height:46px;padding:0 12px}.topbar .scope{display:none}
+ .git-head{flex-wrap:wrap}.git-toolbar label{flex:1;min-width:140px}.git-toolbar select{min-width:0;width:100%}
+}
+@media(max-width:900px){nav{top:46px}#status{font-size:11px;margin-bottom:10px}}
+@media (prefers-reduced-transparency:reduce){.card,.console-side,.console-main,.topbar{backdrop-filter:none;-webkit-backdrop-filter:none}}
+
+/* Git explorer: compact three panes */
+.git-card{padding:12px}
+.git-toolbar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}.git-toolbar label{display:grid;gap:3px;font-size:11px;text-transform:uppercase;letter-spacing:.4px}.git-toolbar select{min-width:180px}
+.git-connect{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;flex:1;min-width:320px}.git-connect label{flex:1;min-width:260px}.git-connect input{width:100%}
+.git-status{font-size:12px;color:var(--ops-muted);margin:8px 0}
+.git-layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:12px;align-items:start;min-height:560px}
+.git-repos-pane{display:flex;flex-direction:column;gap:6px;border:1px solid var(--skin-border);border-radius:10px;padding:8px;background:color-mix(in srgb,var(--ops-bg) 35%,transparent);max-height:calc(100vh - 220px)}
+.git-repos-pane input{width:100%}
+.git-repos{overflow:auto;display:flex;flex-direction:column;gap:1px}
+.git-repo{display:grid;grid-template-columns:14px minmax(0,1fr);grid-template-rows:auto auto;column-gap:6px;width:100%;min-height:0;padding:5px 8px;border:0;border-radius:7px;background:transparent;text-align:left}
+.git-repo:hover:not(:disabled){background:color-mix(in srgb,var(--ops-accent) 9%,transparent)}.git-repo[aria-current=true]{background:color-mix(in srgb,var(--ops-accent) 17%,transparent);box-shadow:inset 2px 0 0 var(--ops-accent)}
+.git-vis{grid-row:span 2;font-size:9px;color:var(--ops-muted);padding-top:3px}.git-vis.private{color:var(--skin-warn)}
+.git-repo-name{font-weight:600;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.git-repo-owner{font-size:11px;color:var(--ops-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.git-detail{min-width:0}
+.git-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.git-title{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:15px}.git-owner{color:var(--ops-muted)}
+.git-head a{font-size:12px;white-space:nowrap}
+.pill.tone-good{color:var(--skin-good);border-color:color-mix(in srgb,var(--skin-good) 50%,transparent)}.pill.tone-bad{color:var(--skin-bad);border-color:color-mix(in srgb,var(--skin-bad) 50%,transparent)}.pill.tone-warn{color:var(--skin-warn);border-color:color-mix(in srgb,var(--skin-warn) 50%,transparent)}
+.git-tabs{display:flex;gap:2px;border-bottom:1px solid var(--skin-border);margin-bottom:10px;overflow-x:auto}
+.git-tab{border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;min-height:30px;padding:4px 12px;color:var(--ops-muted);white-space:nowrap}
+.git-tab:hover:not(:disabled){background:transparent;color:var(--ops-text);border-color:transparent;border-bottom-color:var(--skin-border)}.git-tab[aria-selected=true]{color:var(--ops-text);border-bottom-color:var(--ops-accent)}
+.git-browser{display:grid;grid-template-columns:260px minmax(0,1fr);gap:10px;align-items:start}
+.git-tree-pane{display:flex;flex-direction:column;gap:6px;border:1px solid var(--skin-border);border-radius:10px;padding:8px;max-height:calc(100vh - 280px);background:color-mix(in srgb,var(--ops-bg) 35%,transparent)}
+.git-files-title{margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--ops-muted)}
+.git-file-list{overflow:auto;font-size:12.5px}
+.git-dir>summary{display:flex;align-items:center;gap:5px;min-height:24px;padding:2px 6px;border-radius:6px;font-weight:500;list-style:none}.git-dir>summary::-webkit-details-marker{display:none}
+.git-dir>summary::before{content:"▸";font-size:9px;color:var(--ops-muted);width:9px}.git-dir[open]>summary::before{content:"▾"}.git-dir>summary:hover{background:color-mix(in srgb,var(--ops-accent) 8%,transparent)}
+.git-file{display:flex;align-items:center;gap:6px;width:100%;min-height:24px;padding:2px 6px;border:0;border-radius:6px;background:transparent;font-size:12.5px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.git-file:hover:not(:disabled){background:color-mix(in srgb,var(--ops-accent) 9%,transparent);border-color:transparent}.git-file[aria-current=true]{background:color-mix(in srgb,var(--ops-accent) 17%,transparent)}
+.git-ficon{width:14px;text-align:center;color:var(--ops-muted);font:11px var(--skin-mono)}
+.git-file-view{min-width:0;border:1px solid var(--skin-border);border-radius:10px;background:color-mix(in srgb,var(--ops-bg) 45%,transparent);min-height:420px;max-height:calc(100vh - 280px);overflow:auto}
+.git-file-view>p{padding:12px}
+.git-crumb{position:sticky;top:0;display:flex;justify-content:space-between;gap:10px;padding:7px 12px;border-bottom:1px solid var(--skin-border);background:var(--skin-glass-strong);backdrop-filter:blur(12px);font:12px var(--skin-mono);z-index:1}
+.git-code{margin:0;padding:8px 0;font:12px/1.6 var(--skin-mono);white-space:pre;counter-reset:ln}
+.git-ln{display:flex}.git-n{flex:none;width:44px;padding-right:12px;text-align:right;color:var(--ops-muted);opacity:.6;user-select:none}.git-c{flex:1;padding-right:12px}
+.git-k{color:var(--ops-accent)}.git-v{color:var(--ops-text)}.git-cm{color:var(--ops-muted);font-style:italic}
+.git-markdown{padding:12px 18px;font-size:13.5px;line-height:1.6}.git-markdown h5{font-size:15px;text-transform:none;letter-spacing:0;color:var(--ops-text);margin:12px 0 6px}
+.git-link{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;align-items:end}.git-link p{grid-column:1/-1}
+.git-links-box{margin-top:12px;border:1px solid var(--skin-border);border-radius:10px;padding:8px 12px;background:transparent;box-shadow:none;backdrop-filter:none}
+@media(max-width:1100px){.git-browser{grid-template-columns:1fr}.git-layout{grid-template-columns:1fr}}
+.console-main pre.console-pre{background:#0d151d;border:1px solid #1a2631;border-radius:8px;padding:8px 12px;color:var(--term-fg);max-height:none}
+.git-file-view pre.git-code{max-height:none;background:transparent;border-radius:0;overflow:visible}
+.git-repos{min-height:0;flex:1}.git-repo{flex:none}
+.console-tree .console-leaf,.console-tree .console-node{flex:none}

@@ -5,6 +5,7 @@
  * boundary. Callers must resolve and authorize a class before using this module.
  *
  * CHANGE LOG
+ * 2026-10-23 | maintainer@emeraldcoastsystemsgroup.com | Ground uploads only in revocable per-material collections; study generation resolves currently approved material collections instead of retaining class copies.
  * ---------------------------------------------------------------------------
  * SEQ | AUTHOR                                      | DESCRIPTION
  * ---------------------------------------------------------------------------
@@ -116,6 +117,17 @@ async function retrieveClassMaterial(context: StudyClassContext, topic?: string,
     `lm-class-${context.classId}-textbook`,
     `lm-class-${context.classId}-lecture`,
   ];
+  // Read the material's live approval instead of keeping an unrevocable class copy.
+  if (pool) {
+    const materials = await pool.query(
+      `SELECT rag_collection FROM lm_materials
+        WHERE class_id = $1 AND shared = true AND share_status = 'approved'
+          AND rag_collection IS NOT NULL
+        ORDER BY created_at DESC LIMIT 50`,
+      [context.classId],
+    );
+    collections.push(...materials.rows.map((row: { rag_collection: string }) => String(row.rag_collection)));
+  }
   const query = topic
     ? `${topic} ${context.subject} ${context.className} key concepts definitions formulas important terms`
     : `${context.subject} ${context.className} key concepts definitions formulas important terms`;

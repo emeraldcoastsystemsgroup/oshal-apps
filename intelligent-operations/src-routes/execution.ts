@@ -1,3 +1,4 @@
+/** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | A dispatch the kernel refused before it ran (an expired or withdrawn connection, a missing grant) is recorded as refused, not uncertain: nothing ran, the approval is withdrawn with the kernel's reason, and the person approves again after reconnecting. A refused dispatch has nothing to verify. */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Include each plan's Git promotions (standard path or break-glass reconciliation) in the response page. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Response stage: persist workflow-generated response files byte-exact with provenance, bind an approval to exact artifact digests/target/principal/ticket revision with an expiry, reserve one exec dispatch per approval before the browser's confirmed native action, record operator-reported action/verification receipts without server proof, compute recovery outcomes from the verification result plus a resolved admitted signal, and re-read the canonical ticket to record its update. */
 // @ts-nocheck
@@ -38,19 +39,23 @@ async function observedPod(ctx,owner,t){
 const script=content=>['/bin/sh','-eu','-c',content];
 /** @description Freeze the exact response plan: artifacts, their digests, the target and the canonical revision they were generated under. */
 export async function preparePlan(ctx,owner,input){
- requireOwner(owner);closed(input,['ticketId','workId','phase','answer','target']);
- if(!uuid(input.ticketId)||!uuid(input.workId)||!clean(input.phase,40)||typeof input.answer!=='string'||!input.answer.length)fail(400,'Choose an owned ticket, its completed work record and the accepted answer.');
- if(Buffer.byteLength(input.answer)>262144)fail(413,'The accepted answer exceeds 256 KiB.');
+ requireOwner(owner);closed(input,['ticketId','workId','target']);
+ if(!uuid(input.ticketId)||!uuid(input.workId))fail(400,'Choose an owned ticket and its completed work record.');
+ if(typeof ctx.ticketService?.getAcceptedWork!=='function')fail(503,'Server-verified accepted work reads are unavailable.');
  const t=target(input.target),current=await ticket(ctx,input.ticketId);
  if(!['awaiting_approval','done'].includes(current.status))fail(409,'Plan a response only from a workflow that reached its report gate or acceptance.');
- const observed=await observedPod(ctx,owner,t),extracted=Artifacts.extract(input.answer,sha);
+ const accepted=await ctx.ticketService.getAcceptedWork(input.ticketId,input.workId);
+ if(!accepted||accepted.ticketId!==input.ticketId||accepted.workId!==input.workId||accepted.source!=='accepted-work-answer.md'||!clean(accepted.phase?.name,40)||typeof accepted.answer!=='string'||!accepted.answer.length||!id64(accepted.answerSha256)||!clean(accepted.receipt,256))fail(409,'The selected completed work has no server-verified accepted answer.');
+ if(Buffer.byteLength(accepted.answer)>262144)fail(413,'The accepted answer exceeds 256 KiB.');
+ if(sha(accepted.answer)!==accepted.answerSha256)fail(409,'The accepted answer no longer matches its recorded digest.');
+ const observed=await observedPod(ctx,owner,t),extracted=Artifacts.extract(accepted.answer,sha);
  if(!extracted.executable)fail(422,'The accepted answer has no complete generated response file set: '+[...extracted.missing.map(m=>'missing '+m),...extracted.problems].join('; '));
  const investigation=(await ctx.pool.query("SELECT record FROM operations_investigations WHERE user_sub=$1 AND record->>'ticketId'=$2 LIMIT 1",[owner,input.ticketId])).rows[0]?.record||null;
  const delivery=investigation?(await ctx.pool.query('SELECT record FROM operations_deliveries WHERE user_sub=$1 AND id=$2',[owner,investigation.deliveryId])).rows[0]?.record:null;
  const alert=delivery?.normalized?{deliveryId:delivery.id,alertType:delivery.normalized.data.alertType,resource:delivery.normalized.data.resource,time:delivery.normalized.time}:null;
  const files=extracted.artifacts.map(a=>({name:a.name,sha256:a.sha256,bytes:a.bytes,language:a.language,range:a.range,origin:'workflow-answer-section'}));
  const remediate=extracted.artifacts.find(a=>a.name==='remediate.sh'),verify=extracted.artifacts.find(a=>a.name==='verify.sh');
- const body={ticketId:current.ticketId||current.id||input.ticketId,ticketRevision:current.revision,ticketStatus:current.status,workId:input.workId,phase:input.phase,answerSha256:sha(input.answer),answerBytes:Buffer.byteLength(input.answer),target:t,targetObserved:observed,targetMatchesAlert:alert?alert.resource?.id===t.uid:null,alert,artifacts:files,
+ const body={ticketId:current.ticketId||current.id||input.ticketId,ticketRevision:current.revision,ticketStatus:current.status,workId:input.workId,phase:accepted.phase.name,answerSha256:accepted.answerSha256,answerBytes:Buffer.byteLength(accepted.answer),answerReceipt:accepted.receipt,target:t,targetObserved:observed,targetMatchesAlert:alert?alert.resource?.id===t.uid:null,alert,artifacts:files,
   dispatch:{operation:'kubernetes-exec',input:{...t,argv:script(remediate.content)}},verification:{operation:'kubernetes-exec',input:{...t,argv:script(verify.content)}},readback:{operation:'kubernetes-inspect-pod',input:{namespace:t.namespace,pod:t.pod,uid:t.uid}}};
  const planId=hash(['action-plan-v1',body]);
  return processingTransaction(ctx.pool,async c=>{
@@ -58,7 +63,7 @@ export async function preparePlan(ctx,owner,input){
   if(previous)return previous;
   const count=(await c.query('SELECT count(*)::int AS n FROM operations_action_plans WHERE user_sub=$1',[owner])).rows[0].n;
   if(count>=64)fail(409,'This workbench holds at most 64 response plans.');
-  const record={...body,id:planId,createdAt:new Date().toISOString(),answerProvenance:'operator-forwarded-canonical-work',answerVerifiedByServer:false,executionAuthorized:false,sourceLabel:'Generated by workflow phase '+input.phase+' of ticket '+body.ticketId};
+  const record={...body,id:planId,createdAt:new Date().toISOString(),answerProvenance:'kernel-accepted-work-answer.md',answerVerifiedByServer:true,executionAuthorized:false,sourceLabel:'Generated by workflow phase '+body.phase+' of ticket '+body.ticketId};
   await c.query('INSERT INTO operations_action_plans(user_sub,id,created_at,record) VALUES($1,$2,$3,$4)',[owner,planId,record.createdAt,JSON.stringify(record)]);
   for(const a of extracted.artifacts)await c.query('INSERT INTO operations_action_artifacts(user_sub,plan_id,name,sha256,content) VALUES($1,$2,$3,$4,$5)',[owner,planId,a.name,a.sha256,Buffer.from(a.content)]);
   return record;
@@ -68,6 +73,7 @@ async function plan(pool,owner,planId,c=pool){if(!id64(planId))fail(400,'Choose 
 /** @description Approval binds principal, exact artifact digests, target and canonical revision, and expires; a changed revision invalidates it before anything runs. */
 export async function approvePlan(ctx,owner,input){
  requireOwner(owner);closed(input,['planId']);const p=await plan(ctx.pool,owner,input.planId),current=await ticket(ctx,p.ticketId);
+ if(p.answerVerifiedByServer!==true)fail(409,'This plan predates server-verified accepted work. Prepare a new plan before approval.');
  if(current.revision!==p.ticketRevision)fail(409,'The canonical ticket revision changed since this plan was generated. Prepare a new plan; no approval was granted.');
  if(!['awaiting_approval','done'].includes(current.status))fail(409,'The canonical ticket is no longer at its report gate or accepted.');
  return processingTransaction(ctx.pool,async c=>{
@@ -90,6 +96,7 @@ export async function reserveExecution(ctx,owner,input){
   if(approval.principal!==owner||approval.state!=='granted')fail(403,'Only the approving person may dispatch this approval, and only while it is granted.');
   if(Date.parse(approval.expiresAt)<=Date.now())fail(409,'This approval expired. Review and approve the exact plan again.');
   const p=await plan(ctx.pool,owner,approval.planId,c),current=await ticket(ctx,p.ticketId);
+  if(p.answerVerifiedByServer!==true)fail(409,'This plan predates server-verified accepted work. Nothing was dispatched.');
   if(current.revision!==p.ticketRevision||p.artifacts.some((a,i)=>approval.artifacts[i]?.sha256!==a.sha256))fail(409,'The canonical revision or artifact digests changed after approval. Nothing was dispatched.');
   const executionId=hash(['action-execution-v1',{approvalId:approval.id}]);
   if((await c.query('SELECT 1 FROM operations_action_executions WHERE user_sub=$1 AND id=$2 FOR UPDATE',[owner,executionId])).rows.length)fail(409,'This approval already has a reserved dispatch. Reconcile its outcome; no repeat dispatch was authorized.');
@@ -100,9 +107,10 @@ export async function reserveExecution(ctx,owner,input){
 }
 function receipt(result){
  if(!result||typeof result!=='object'||Array.isArray(result))fail(400,'Supply the bounded native action result.');
- const outcome=['completed','failed','unknown'].includes(result.outcome)?result.outcome:'unknown';
- const exitCode=Number.isSafeInteger(result.exitCode)?result.exitCode:null;
- return {outcome,exitCode,stdout:clip(result.stdout,4000),stderr:clip(result.stderr,2000),observedAt:typeof result.observedAt==='string'?result.observedAt.slice(0,64):null,observedUid:typeof result.target?.observedUid==='string'?result.target.observedUid.slice(0,128):null,transport:typeof result.transport==='string'?result.transport.slice(0,64):null,reportedAt:new Date().toISOString(),provenance:'operator-report',verifiedByServer:false};
+ const refusal=typeof result.refused==='string'&&/^[a-z_]{1,64}$/.test(result.refused)?result.refused:null;
+ const outcome=['completed','failed','unknown'].includes(result.outcome)?result.outcome:result.outcome==='refused'&&refusal?'refused':'unknown';
+ const exitCode=outcome==='refused'?null:Number.isSafeInteger(result.exitCode)?result.exitCode:null;
+ return {outcome,exitCode,refused:outcome==='refused'?refusal:null,stdout:clip(result.stdout,4000),stderr:clip(result.stderr,2000),observedAt:typeof result.observedAt==='string'?result.observedAt.slice(0,64):null,observedUid:typeof result.target?.observedUid==='string'?result.target.observedUid.slice(0,128):null,transport:typeof result.transport==='string'?result.transport.slice(0,64):null,reportedAt:new Date().toISOString(),provenance:'operator-report',verifiedByServer:false};
 }
 async function execution(c,owner,executionId){if(!id64(executionId))fail(400,'Choose a reserved execution.');const row=(await c.query('SELECT record FROM operations_action_executions WHERE user_sub=$1 AND id=$2 FOR UPDATE',[owner,executionId])).rows[0]?.record;if(!row)fail(404,'The owned execution is unavailable.');return row;}
 /** @description The action receipt is the operator's report of the native answer; it never changes canonical status or counts as recovery. */
@@ -112,9 +120,13 @@ export async function reportExecution(ctx,owner,input){
   const row=await execution(c,owner,input.executionId);
   if(row.state!=='reserved-outcome-unknown')fail(409,'This dispatch already has a reported outcome.');
   const action=receipt(input.result),identity=action.observedUid===null||action.observedUid===row.dispatch.input.uid;
-  const state=action.outcome==='completed'&&action.exitCode===0&&identity?'completed':action.outcome==='unknown'||!identity?'uncertain':'failed';
-  const record={...row,state,action:{...action,targetIdentityMatched:identity},recovery:{outcome:'not-verified'}};
+  const state=action.outcome==='refused'?'refused':action.outcome==='completed'&&action.exitCode===0&&identity?'completed':action.outcome==='unknown'||!identity?'uncertain':'failed';
+  const record={...row,state,action:{...action,targetIdentityMatched:identity},recovery:{outcome:state==='refused'?'not-run':'not-verified'}};
   await c.query('UPDATE operations_action_executions SET record=$3 WHERE user_sub=$1 AND id=$2',[owner,row.id,JSON.stringify(record)]);
+  if(state==='refused'){
+   const approval=(await c.query('SELECT record FROM operations_action_approvals WHERE user_sub=$1 AND id=$2 FOR UPDATE',[owner,row.approvalId])).rows[0]?.record;
+   if(approval&&approval.state==='granted')await c.query('UPDATE operations_action_approvals SET record=$3 WHERE user_sub=$1 AND id=$2',[owner,approval.id,JSON.stringify({...approval,state:'withdrawn',withdrawnAt:action.reportedAt,withdrawnReason:'The kernel refused the dispatch before it ran ('+action.refused+'): '+(action.stderr.text||'no detail')})]);
+  }
   return record;
  });
 }
@@ -124,6 +136,7 @@ export async function reserveVerification(ctx,owner,input){
  return processingTransaction(ctx.pool,async c=>{
   const row=await execution(c,owner,input.executionId),p=await plan(ctx.pool,owner,row.planId,c);
   if(row.state==='reserved-outcome-unknown')fail(409,'Report the action outcome before verifying recovery.');
+  if(row.state==='refused')fail(409,'The kernel refused this dispatch before it ran; there is nothing to verify. Approve the plan again after reconnecting.');
   if(row.verifications.some(v=>v.state==='reserved-outcome-unknown'))fail(409,'A verification is already reserved. Report its outcome first.');
   if(row.verifications.length>=MAX_VERIFICATIONS)fail(409,'The verification budget for this execution is exhausted.');
   const verification={id:randomUUID(),index:row.verifications.length,createdAt:new Date().toISOString(),state:'reserved-outcome-unknown',dispatch:{...p.verification,account:row.dispatch.account},readback:row.readback};

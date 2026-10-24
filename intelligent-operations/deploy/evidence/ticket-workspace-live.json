@@ -1,0 +1,39 @@
+{
+  "observedAt": "2026-10-23T18:31:34Z",
+  "application": "intelligent-operations",
+  "ticketId": "ad8d1238-50e5-4f14-8b6f-559b8a16581f",
+  "surface": "canonical ticket \u2192 Work Artifacts \u2192 Ticket workspace",
+  "browserObserved": [
+    "expandable per-work folders",
+    "search by file/folder/bot/phase",
+    "three authenticated Download links",
+    "My files shortcut",
+    "configured Code Server shortcut"
+  ],
+  "nativeDownloadVerification": [
+    {
+      "name": "95f9b261-1793-4c47-94c3-74e15704bd48/answer.md",
+      "phase": "investigate",
+      "bot": "ops-rca-specialist",
+      "size": 8776,
+      "sha256": "981ed108b4d1a4ef58a59b217e868372e5c52ccc7a3bd912145f7c6e7df00aef"
+    },
+    {
+      "name": "6816e6a5-5e2d-43d6-8de6-212c2afa7719/answer.md",
+      "phase": "review",
+      "bot": "ops-incident-reviewer",
+      "size": 1892,
+      "sha256": "2dd9c5e2045a04c9db1923b2a43e5384aa25b520fd098d0f31e91d28e31e2fc8"
+    },
+    {
+      "name": "547498f1-ec73-43c2-984c-243de6263e74/answer.md",
+      "phase": "revise",
+      "bot": "ops-rca-specialist",
+      "size": 11586,
+      "sha256": "c585a9e9bc68bb1e388a703643bf3cfd04901db9fc989ade5b7a7bd064468685"
+    }
+  ],
+  "downloadDestination": "operator browser download preference; this check did not copy to portal My files",
+  "applicationResponseFiles": "remediate.sh, verify.sh, rollback.md and verify.md are separate authenticated plan downloads and not native folder entries",
+  "passed": true
+}

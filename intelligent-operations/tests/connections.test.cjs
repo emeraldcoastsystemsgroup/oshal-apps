@@ -1,3 +1,4 @@
+// CHANGE LOG: credentials current | maintainer@emeraldcoastsystemsgroup.com | Credentials cards match what is built: Kubernetes and SSH added, Azure reads, GitHub token guidance, swarm hand-off built.
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Verify actual service-standing UX distinguishes configured transport, original-person scope and provider delivery, clearing private rows on denied or stale reads. */
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),http=require('node:http');
@@ -37,13 +38,13 @@ test('credentials shortcuts route to native connections without collecting or tr
   await f.page.getByRole('link',{name:'Credentials & access',exact:true}).click();
   await f.page.locator('#credentials').waitFor({state:'visible'});
   assert.equal(await f.page.locator('#connections').isVisible(),false);
-  for(const name of ['GitHub','GitLab','Amazon Web Services','Google Cloud','Microsoft Azure','Email']){
+  for(const name of ['Kubernetes','GitHub','Amazon Web Services','Google Cloud','Microsoft Azure','SSH hosts','GitLab','Email']){
    const card=f.page.locator('#credentials article').filter({has:f.page.getByRole('heading',{name,exact:true})});
    assert.equal(await card.count(),1);assert.equal(await card.locator('a').getAttribute('target'),'_top');
    assert.match(await card.locator('a').getAttribute('href'),/^\/utilities(?:\?category=email)?$/);
   }
   const content=await f.page.locator('#credentials').innerText();
-  assert.match(content,/aws sso login/);assert.match(content,/gcloud auth login/);assert.match(content,/no Azure login control/);assert.match(content,/roadmap item/);
+  assert.match(content,/aws sso login/);assert.match(content,/gcloud auth login/);assert.match(content,/az login/);assert.match(content,/fine-grained token/);assert.match(content,/Swarm hand-off/);
   assert.equal(await f.page.locator('#credentials input,#credentials textarea').count(),0);assert.equal(f.sends,0);
   await f.page.setViewportSize({width:390,height:844});assert.equal(await f.page.locator('#credentials').isVisible(),true);
   await f.page.getByRole('link',{name:'Review current integration services'}).click();await f.page.locator('#connections').waitFor({state:'visible'});assert.equal(await f.page.locator('#connections').isVisible(),true);

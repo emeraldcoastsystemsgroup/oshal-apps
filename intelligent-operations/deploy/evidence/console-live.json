@@ -1,0 +1,15 @@
+{
+  "kind": "ops-console-live",
+  "at": "2026-10-23T21:30:34.046Z",
+  "kernel": "oshal-kernel:dev-59c7f603f6bb",
+  "question": "show me all the nodes in the largest cluster with their sizing and health",
+  "seconds": 11,
+  "commands": [
+    "$ kubectl get nodes -o wide"
+  ],
+  "verdict": "HEALTHY",
+  "headline": "operations-lab: 3 of 3 nodes Ready; 60 cores and 365.1 GiB allocatable",
+  "facts": "NODES\n3\nREADY\n3 of 3\nUNDER PRESSURE\nnone\nCORDONED\nnone\nALLOCATABLE CPU\n60 cores\nALLOCATABLE MEMORY\n365.1 GiB\nPOD SLOTS\n330",
+  "pageErrors": [],
+  "result": "passed"
+}

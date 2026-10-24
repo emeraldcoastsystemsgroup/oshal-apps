@@ -3,6 +3,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),{createHash,randomUUID}=require('node:crypto');
 const {fixture,loadExperience,dependency,root}=require('./fixtures/intake.cjs'),{admit}=require('../routes/intake'),{publishPolicy,evaluateDelivery}=require('../routes/pipeline'),{prepareInvestigation,investigationRecords}=require('../routes/investigations'),{metrics}=require('../experience/lifecycle.js'),{example}=require('../ui/source-contract');
+const {saveExternalConfig}=require('../routes/external-evidence');
 async function setup(f,owner='alice',intercept){const pool=f.caller(owner,intercept),source=loadExperience().sourceDefinition({name:'Investigations',source:'urn:triagenorth:test:'+randomUUID(),environment:'test'}),event=example();event.id=randomUUID();event.source=source.source;event.data.environment='test';const delivery=(await admit(pool,owner,source,event)).record
  // The production detection engine has its own actual OpenSearch tests. This boundary fixture returns a sealed exact rule and one actual match to exercise SQL handoff, never a live detector acceptance claim.
  const detection=async(op,_owner,input)=>op==='publish'?{revision:input.revision,count:input.rules.length,sealed:true}:{revision:input.revision,matches:[policy.policy.rules[0].id],total:1,complete:true};
@@ -17,6 +18,19 @@ test('one evidence reservation creates one canonical ticket across concurrent ca
 });
 test('uncertain canonical creation holds its reservation and never repeats the external side effect',async()=>{
  const f=await fixture();try{const x=await setup(f),port=ticketPort();let attempts=0;port.createTicket=async()=>{attempts++;throw Error('lost external response');};const ctx={pool:x.pool,ticketService:port};await assert.rejects(prepareInvestigation(ctx,'alice',x.workId),/uncertain/);await assert.rejects(prepareInvestigation(ctx,'alice',x.workId),/pending or uncertain/);assert.equal(attempts,1);const row=(await investigationRecords(ctx,'alice')).items[0];assert.equal(row.state,'creating');assert.equal(row.ticketId,undefined);assert.equal(row.executionAuthorized,false);
+ }finally{await f.close();}
+});
+test('a refused optional Splunk read remains an explicit sealed gap and the canonical investigation still starts',async()=>{
+ const f=await fixture();try{
+  const x=await setup(f),port=ticketPort();
+  await saveExternalConfig(x.pool,'alice',{enabled:true,account:'primary',index:'main',sourceIds:[x.source.id],expectedRevision:0},[x.source.id]);
+  const result=await prepareInvestigation({pool:x.pool,ticketService:port,intent:async()=>{throw Error('refused: connector.read.splunk is not linked for this package');}},'alice',x.workId);
+  assert.equal(result.ticket.status,'queued');assert.equal(port.creates,1);
+  const file=result.startInput.files.find(f=>f.path==='evidence/external.json');assert.ok(file);
+  assert.deepEqual(file.digest,[...createHash('sha256').update(Buffer.from(file.bytes)).digest()]);
+  const external=JSON.parse(Buffer.from(file.bytes));assert.equal(external.status,'refused');assert.deepEqual(external.items,[]);assert.equal(external.sourceId,x.source.id);
+  const retry=await prepareInvestigation({pool:x.pool,ticketService:port,intent:async()=>{throw Error('should not query again');}},'alice',x.workId);
+  assert.equal(retry.inputSha256,result.inputSha256);assert.equal(port.creates,1);
  }finally{await f.close();}
 });
 test('lost link commit acknowledgement reconciles the same canonical ticket without another create',async()=>{

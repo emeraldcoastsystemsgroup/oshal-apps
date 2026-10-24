@@ -1,3 +1,4 @@
+/** CHANGE LOG: bounded history | maintainer@emeraldcoastsystemsgroup.com | Reconstruct from each collection's scans since its latest complete scan, so periodic live discovery cannot outgrow the 200-scan budget (it would have within a day at five-minute intervals). */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Journal immutable topology scans and persist correlation against exact event-time observations. */
 // @ts-nocheck
 import {hash} from './intake';
@@ -18,10 +19,17 @@ export async function saveScan(pool,owner,source,input){
 }
 export async function readGraph(pool,owner,at=new Date().toISOString(),collectionId=null){
  ownerRequired(owner);at=instant(at);if(collectionId!==null&&!clean(collectionId))fail(400,'Invalid collection scope.');
- const values=[owner,at];let sql='SELECT record FROM operations_topology_scans WHERE user_sub=$1 AND observed_at<=$2';
+ const values=[owner,at];let sql="SELECT id, source_uri, collection_id, observed_at, record->>'complete' AS complete FROM operations_topology_scans WHERE user_sub=$1 AND observed_at<=$2";
  if(collectionId!==null){values.push(collectionId);sql+=' AND collection_id=$3';}
- sql+=' ORDER BY observed_at ASC, id ASC LIMIT 201';const scans=(await pool.query(sql,values)).rows.map(r=>r.record);
- if(scans.length>200)fail(503,'Topology history exceeds the 200-scan reconstruction budget. Select a narrower collection scope.');
+ // A complete scan replaces its collection, so only each collection's scans from its latest complete one onward
+ // shape the graph; periodic live discovery would otherwise outgrow the reconstruction budget within a day.
+ const index=(await pool.query(sql+' LIMIT 20001',values)).rows;if(index.length>20000)fail(503,'Topology history exceeds its index budget. Select a narrower collection scope.');
+ const time=v=>new Date(v).getTime(),key=row=>row.source_uri+'\u0000'+row.collection_id,base=new Map();
+ for(const row of index)if(row.complete==='true'&&(!base.has(key(row))||time(row.observed_at)>base.get(key(row))))base.set(key(row),time(row.observed_at));
+ const ids=index.filter(row=>!base.has(key(row))||time(row.observed_at)>=base.get(key(row))).map(row=>row.id);
+ if(ids.length>200)fail(503,'Topology history exceeds the 200-scan reconstruction budget. Select a narrower collection scope.');
+ const scans=ids.length?(await pool.query('SELECT record FROM operations_topology_scans WHERE user_sub=$1 AND id IN ('+ids.map((_,i)=>'$'+(i+2)).join(',')+')',[owner,...ids])).rows.map(r=>r.record):[];
+ scans.sort((a,b)=>a.observedAt.localeCompare(b.observedAt)||a.id.localeCompare(b.id));
  const graph=reconstruct(scans,at);return {...graph,revision:hash(scans.map(s=>[s.id,s.payloadHash])),scanIds:scans.map(s=>s.id),limits:{scans:200,assets:2000,relationships:5000}};
 }
 function eventAsset(record,graph){

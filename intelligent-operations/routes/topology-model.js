@@ -6,12 +6,13 @@ exports.identity = identity;
 exports.scanDefinition = scanDefinition;
 exports.reconstruct = reconstruct;
 exports.correlate = correlate;
+/** CHANGE LOG: node-pool | maintainer@emeraldcoastsystemsgroup.com | A managed node pool (EKS node group, GKE node pool, AKS agent pool) is an inventory kind (ADR0054). */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Scoped immutable asset identities, source-owned scan generations and bounded dependency correlation. */
 // @ts-nocheck
 const intake_1 = require("./intake");
 const Contract = require('../ui/source-contract.js');
 exports.RELATIONS = ['IN_REGION', 'IN_DATACENTER', 'IN_VPC', 'IN_SUBNET', 'IN_CLUSTER', 'IN_NAMESPACE', 'OWNED_BY', 'RUNS_ON', 'ROUTES_TO', 'SELECTS', 'FORWARDS_TO', 'REGISTERED_IN', 'IN_SECURITY_GROUP', 'ATTACHED_TO', 'ASSOCIATED_WITH', 'HAS_ATTACHMENT', 'PEERS_WITH', 'MEMBER_OF', 'DEPENDS_ON'];
-exports.KINDS = ['site', 'datacenter', 'region', 'zone', 'host', 'virtual-machine', 'account', 'network', 'subnet', 'security-group', 'route-table', 'load-balancer', 'target-group', 'gateway', 'peering', 'endpoint', 'business-service', 'service-group', 'service-unit', 'cluster', 'namespace', 'node', 'workload', 'replica-set', 'job', 'pod', 'container', 'service', 'ingress'];
+exports.KINDS = ['site', 'datacenter', 'region', 'zone', 'host', 'virtual-machine', 'account', 'network', 'subnet', 'security-group', 'route-table', 'load-balancer', 'target-group', 'gateway', 'peering', 'endpoint', 'business-service', 'service-group', 'service-unit', 'cluster', 'node-pool', 'namespace', 'node', 'workload', 'replica-set', 'job', 'pod', 'container', 'service', 'ingress'];
 const PROVIDERS = ['kubernetes', 'aws', 'azure', 'gcp', 'redfish', 'import'];
 const fail = (status, message) => { throw Object.assign(Error(message), { status }); };
 exports.fail = fail;

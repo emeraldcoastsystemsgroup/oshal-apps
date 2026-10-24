@@ -1,0 +1,27 @@
+{
+  "observedAt": "2026-10-23T17:27:01.000335+00:00",
+  "revision": "bed099724f54923cf4efaa88861930d45cc933cd",
+  "artifact": "5117a9e90570df9149a8bd9c68bd1832d9b0645d489576be6d0726cfddda967e",
+  "surface": "/api/intelligent-operations/app#incidents",
+  "method": "signed-in native browser observation plus read-only caller-scoped Portal cross-check",
+  "ticketId": "ad8d1238-50e5-4f14-8b6f-559b8a16581f",
+  "deliveryId": "f8d0f403ca0c30c730de69b8675b93d6b32506666f4f0c5e4ace54d8f874425a",
+  "evidenceReservationId": "5dbdc6a189be4d9450003da8a6e31600bf4a50d47b702dcbfbcd91187ff2ab20",
+  "planId": "3454775033569cb02db03409630e11ce548da9f4916be621d91c570c326760f1",
+  "executionId": "14e08fd13ff284f893ba137569eba802cda0c85c0d55c0df807ddf69564083e2",
+  "passed": true,
+  "checks": [
+    "Trace button on canonical ticket opened exact linked inbound alert and admitted filter/noise decision",
+    "Sealed packet digest matched the linked investigation and four generated file downloads were offered",
+    "Canonical ticket showed done at revision 5 and its exact response plan showed four stored files",
+    "Historical approval showed Used; later ticket revision changed and the actual grant time",
+    "Execution showed healthy with operator-reported command result and server-verified resolved signal",
+    "External handoff showed no link in the returned page and made no provider-sync claim",
+    "Operations assignment and processing schedule remained active after installation"
+  ],
+  "limits": [
+    "Pipeline decision page reached its 200-record cap; graph correlation is not linked in this returned page, so the trace does not infer a cohort",
+    "The browser trace is read-only; no action, approval, provider update or message was dispatched during acceptance",
+    "This accepts the ticket-centered trace, not external ticket synchronization or durable unbounded history"
+  ]
+}

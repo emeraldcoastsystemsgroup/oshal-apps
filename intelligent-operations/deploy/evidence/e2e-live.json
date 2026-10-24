@@ -1,0 +1,130 @@
+{
+  "kind": "event-to-action-end-to-end",
+  "startedAt": "2026-10-23T09:09:35Z",
+  "steps": [
+    {
+      "step": "setup:producer-wired",
+      "actor": "operator (earlier, lab/producer_wire.py)",
+      "seconds": 0.8,
+      "producerTokenRef": "3398c44cd864",
+      "mapping": {
+        "resourceKind": "kubernetes-pod",
+        "idLabel": "pod_uid"
+      }
+    },
+    {
+      "step": "setup:rule-published",
+      "actor": "operator",
+      "seconds": 1.1,
+      "policy": "31ca95634a19fc1cad774cb3d52f3f46939d2a2c52269946a7bd98fa2653eb56"
+    },
+    {
+      "step": "setup:runbook",
+      "actor": "operator (Your runbooks)",
+      "seconds": 1.1,
+      "alertType": "LabNodeCpuPressure",
+      "revision": 1,
+      "sha256": "1c5e83536e95"
+    },
+    {
+      "step": "setup:processing-on",
+      "actor": "operator",
+      "seconds": 1.3,
+      "revision": 18
+    },
+    {
+      "step": "fault:cpu-pressure-job",
+      "actor": "lab",
+      "seconds": 1.8,
+      "episode": "a28e17435a860cca",
+      "durationSeconds": 900
+    },
+    {
+      "step": "alert:admitted-via-producer-door",
+      "actor": "Prometheus \u2192 Alertmanager \u2192 kernel producer door",
+      "seconds": 44.0,
+      "eventId": "f8d0f403ca0c30c730de69b8675b93d6b32506666f4f0c5e4ace54d8f874425a",
+      "decision": "validated",
+      "podUid": "e089280c-d747-470d-b518-2ab8075df761"
+    },
+    {
+      "step": "investigation:started-by-tick",
+      "actor": "processing schedule",
+      "seconds": 88.0,
+      "state": "started",
+      "trigger": "scheduled-tick",
+      "ticketId": "ad8d1238-50e5-4f14-8b6f-559b8a16581f",
+      "packetSha256": "2bb58c4b850f95f836b543e3f379fec64e0281d90473609842dd2663d60c703d"
+    },
+    {
+      "step": "workflow:report-gate",
+      "actor": "canonical workflow (investigate, review, revise)",
+      "seconds": 254.7,
+      "position": {
+        "index": 3,
+        "name": "queue-deliver"
+      },
+      "revision": 4
+    },
+    {
+      "step": "target:from-live-inventory",
+      "actor": "Systems (scheduled discovery)",
+      "seconds": 254.9,
+      "target": {
+        "namespace": "operations-demo",
+        "pod": "cpu-pressure-a28e17435a860cca-zdhfs",
+        "uid": "e089280c-d747-470d-b518-2ab8075df761",
+        "container": "pressure"
+      }
+    },
+    {
+      "step": "plan:from-generated-files",
+      "actor": "operator reviews",
+      "seconds": 255.5,
+      "planId": "3454775033569cb02db03409630e11ce548da9f4916be621d91c570c326760f1",
+      "artifacts": [
+        "remediate.sh",
+        "verify.sh",
+        "rollback.md",
+        "verify.md"
+      ]
+    },
+    {
+      "step": "decision:approve-plan",
+      "actor": "operator (person)",
+      "seconds": 255.5,
+      "approvalId": "402f0b7879f7bedc2365d5a93d5aabfdb22171b879d242e8d6740459e67d34e2"
+    },
+    {
+      "step": "action:remediate.sh-once",
+      "actor": "operator (fresh confirmation, own Kubernetes connection)",
+      "seconds": 255.7,
+      "state": "completed",
+      "exitCode": 0
+    },
+    {
+      "step": "alert:resolved-via-producer-door",
+      "actor": "Prometheus \u2192 Alertmanager \u2192 kernel producer door",
+      "seconds": 277.0,
+      "eventId": "d9c6cf496bac047f9d374990121fa048da4ce82287f855e45ef9f1c47889e37a"
+    },
+    {
+      "step": "recovery:verified",
+      "actor": "verify.sh + resolved signal + same pod",
+      "seconds": 282.9,
+      "outcome": "healthy",
+      "reason": "verification command passed and a resolved signal for the same resource was admitted after the action"
+    },
+    {
+      "step": "decision:approve-report-and-close",
+      "actor": "operator (person)",
+      "seconds": 283.0,
+      "ticketStatus": "done",
+      "revision": 5,
+      "approved": "done"
+    }
+  ],
+  "result": "passed",
+  "finishedAt": "2026-10-23T09:14:18Z",
+  "totalSeconds": 283.1
+}

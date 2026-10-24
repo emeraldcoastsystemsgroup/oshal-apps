@@ -37,3 +37,30 @@ test('disable waits for the in-flight packet commit fence and prevents later cap
 test('automatic capture preserves bounded matching context and redacts credentials',async()=>{
  const x=await setup();try{const resource=x.delivery.normalized.data.resource;await configureStream(x.p,x.owner,x.source,{resourceKind:resource.kind,idAttribute:'resource.id',scopeAttribute:'resource.scope',maxBankRecords:3},0);const payload={resourceLogs:[{resource:{attributes:[{key:'resource.id',value:{stringValue:resource.id}},{key:'resource.scope',value:{stringValue:resource.scope}}]},scopeLogs:[{logRecords:[{timeUnixNano:String(BigInt(x.at-1000)*1000000n),body:{stringValue:'token=private-test-value connection refused'},attributes:[{key:'log.record.uid',value:{stringValue:'context'}}]}]}]}]};await ingestTelemetry(x.p,x.owner,x.source,'otlp-logs',payload);assert.equal((await capturePendingEvidence(x.p,x.owner)).captured,1);const packet=(await x.p.query('SELECT record FROM operations_telemetry_packets WHERE user_sub=$1 AND id=$2',[x.owner,x.id])).rows[0].record;assert.equal(packet.observations.length,1);assert.equal(packet.coverage,'available-observations-only');assert.match(packet.observations[0].message,/redacted/);assert.doesNotMatch(JSON.stringify(packet),/private-test-value/);}finally{await x.close();}
 });
+test('a packet quotes the alert and names the pod, namespace and node from recorded inventory, and says when it cannot',async()=>{
+ const f=await fixture(),owner='capture-'+randomUUID(),p=f.caller(owner),source=loadExperience().sourceDefinition({name:'Pod alerts',source:'urn:test:'+randomUUID(),environment:'local-lab'});
+ try{
+  await p.query('INSERT INTO operations_policy_bindings(user_sub,id,revision,record) VALUES($1,$2,$3,$4)',[owner,source.id,1,'{}']);
+  await saveProcessingConfig(p,owner,{enabled:true,captureEvidence:true,sourceIds:[source.id],batchSize:10,maxAttempts:2,retrySeconds:10,expectedRevision:0},[source.id]);
+  const {saveScan}=require('../routes/topology-store.js');
+  await saveScan(p,owner,source,{scanId:'live-1',collectionId:'live:c/ns',observedAt:new Date(Date.now()-60000).toISOString(),complete:true,
+   assets:[{provider:'kubernetes',scope:'c',kind:'node',nativeId:'node-1',name:'worker-1',health:'degraded',properties:{pressure:'MemoryPressure',allocatableCpu:'2'}},
+    {provider:'kubernetes',scope:'c',kind:'pod',nativeId:'pod-uid-1',name:'cpu-pressure-abc',health:'healthy',properties:{namespace:'operations-demo',nodeName:'worker-1',phase:'Running'}}],
+   relationships:[{from:{provider:'kubernetes',scope:'c',kind:'pod',nativeId:'pod-uid-1'},to:{provider:'kubernetes',scope:'c',kind:'node',nativeId:'node-1'},type:'RUNS_ON',evidence:'fixture'}]});
+  const pin=async(resourceId,extra)=>{
+   const event=example();Object.assign(event,{id:randomUUID(),source:source.source,time:new Date().toISOString()});
+   Object.assign(event.data,{resource:{kind:'kubernetes-pod',scope:'c',id:resourceId},...extra});
+   const delivery=(await admit(p,owner,source,event)).record,id=hash(['reservation',delivery.id]);
+   await p.query('INSERT INTO operations_evidence_work(user_sub,id,state,record,created_at) VALUES($1,$2,$3,$4,$5)',[owner,id,'pending',JSON.stringify({id,deliveryId:delivery.id,capture:true,state:'pending'}),new Date().toISOString()]);
+   await p.query('UPDATE operations_processing SET state=$3, record=$4 WHERE user_sub=$1 AND id=$2',[owner,delivery.id,'evidence-pending',JSON.stringify({sourceId:source.id,reduction:{workId:id},processing:{status:'completed'}})]);
+   await capturePendingEvidence(p,owner);
+   return (await p.query('SELECT record FROM operations_telemetry_packets WHERE user_sub=$1 AND id=$2',[owner,id])).rows[0].record;
+  };
+  const packet=await pin('pod-uid-1',{summary:'Workload over 0.45 CPU cores',labels:{alertname:'LabNodeCpuPressure',pod:'cpu-pressure-abc','bad key':'x'}});
+  assert.equal(packet.alert.summary,'Workload over 0.45 CPU cores');assert.equal(packet.alert.labels.pod,'cpu-pressure-abc');assert.equal('bad key' in packet.alert.labels,false);assert.match(packet.alert.trust,/not instructions/);
+  assert.equal(packet.inventory.status,'recorded');assert.equal(packet.inventory.asset.name,'cpu-pressure-abc');assert.equal(packet.inventory.asset.properties.namespace,'operations-demo');
+  assert.equal(packet.inventory.runsOn.name,'worker-1');assert.equal(packet.inventory.runsOn.properties.pressure,'MemoryPressure');assert.equal(packet.executionAuthorized,false);
+  const unknown=await pin('pod-uid-missing',{});
+  assert.equal(unknown.inventory.status,'not-in-recorded-inventory','an unrecorded pod is said to be unrecorded, never invented');
+ }finally{await f.close();}
+});

@@ -1,7 +1,11 @@
 # ADR0048: Git explorer and cluster repository links
 
-Status: implemented in source, 23 October 2026, on kernel PR 85 (GitHub explorer reads).
-Guarded. Live browsing needs the person's own GitHub token saved. Extends ADR0040 and ADR0044.
+Status: accepted live, 23 October 2026 (`deploy/evidence/git-live.json`): under the operator's own
+GitHub connection the installed explorer listed 22 repositories, opened the demo repository's files as
+readable text and linked the lab cluster to it. Kernel PR 85 (GitHub reads), PR 100 (GitLab reads) and
+PR 102 (a base64 text blob is decoded before the response scrubber; before it, every file arrived as
+masked lines). GitLab browsing is guarded with fixtures; no GitLab account is saved on the lab yet.
+Extends ADR0040 and ADR0044.
 
 Roger asked for "git integration and navigation". ADR0040 built the integration: promotion into
 one repository the person typed by name. He pointed out that a DevOps admin works across many

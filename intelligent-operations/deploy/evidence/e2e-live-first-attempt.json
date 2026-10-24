@@ -1,0 +1,55 @@
+{
+  "kind": "event-to-action-end-to-end",
+  "startedAt": "2026-10-23T08:20:22Z",
+  "steps": [
+    {
+      "step": "setup:producer-wired",
+      "actor": "operator (earlier, lab/producer_wire.py)",
+      "seconds": 0.7,
+      "mapping": {
+        "resourceKind": "kubernetes-pod",
+        "idLabel": "pod_uid"
+      },
+      "producerTokenRef": "3398c44cd864"
+    },
+    {
+      "step": "setup:rule-published",
+      "actor": "operator",
+      "seconds": 2.0,
+      "policy": "31ca95634a19fc1cad774cb3d52f3f46939d2a2c52269946a7bd98fa2653eb56"
+    },
+    {
+      "step": "setup:processing-on",
+      "actor": "operator",
+      "seconds": 2.2,
+      "revision": 15
+    },
+    {
+      "step": "fault:cpu-pressure-job",
+      "actor": "lab",
+      "seconds": 2.9,
+      "episode": "29a77b4ceae5bc55",
+      "durationSeconds": 900
+    },
+    {
+      "step": "alert:admitted-via-producer-door",
+      "actor": "Prometheus \u2192 Alertmanager \u2192 kernel producer door",
+      "seconds": 35.1,
+      "eventId": "5de7dfdb94f9ffd319d544d865d9de8efa489e55bd0391a234edd20aae392f53",
+      "decision": "validated",
+      "podUid": "533ba1f4-81bc-4711-a1e7-b73bb85a5cd2"
+    },
+    {
+      "step": "investigation:started-by-tick",
+      "actor": "processing schedule",
+      "seconds": 45.5,
+      "state": "started",
+      "trigger": "scheduled-tick",
+      "ticketId": "44fbaa10-f532-4dc1-8868-693f82932f5c",
+      "packetSha256": "165351cb917f58c7832e5415113a790c27ba3253ca231017d7f75704ba2d9528"
+    }
+  ],
+  "finishedAt": "2026-10-23T08:22:08Z",
+  "totalSeconds": 106.5,
+  "outcome": "The canonical workflow failed at investigate ~60 s after the tick started it: the worker was refused (deny_tier, application job deadline exceeded). Fixed by kernel ADR-198 (PR 92)."
+}

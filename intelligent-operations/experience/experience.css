@@ -1,3 +1,5 @@
+/* CHANGE LOG: 10 | maintainer@emeraldcoastsystemsgroup.com | Trading-style data presentation: the overview KPI strip (large tabular numbers, uppercase labels, status-toned accent), compact data tables with uppercase headers and tabular numbers, and the telemetry stream table. */
+/* CHANGE LOG: 9 | maintainer@emeraldcoastsystemsgroup.com | Frame the scheduled discovery setting inside the live cluster panel. */
 /* CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | Keep resource filters compact inside the native cockpit instead of inheriting tall setup-form margins. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Responsive observed topology and readable decision inspection. */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Give Systems bounded responsive inventory cards with readable identity and observation details. */
@@ -68,10 +70,43 @@
 /* CHANGE LOG: checkbox labels | maintainer@emeraldcoastsystemsgroup.com | Keep a checkbox beside its label instead of centred above it. */
 .card label:has(>input[type=checkbox]),.git-promotion label:has(>input[type=checkbox]){display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px;font-weight:600}.card label>input[type=checkbox]{width:auto;margin:0;order:-1}
 /* CHANGE LOG: live cluster | maintainer@emeraldcoastsystemsgroup.com | Live cluster tables. */
-.live-cluster{margin-top:14px}.live-cluster summary{cursor:pointer;font-weight:600}.live-table{border-collapse:collapse;font-size:12px;width:100%;margin:6px 0 14px}.live-table th,.live-table td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--ops-border);overflow-wrap:anywhere}.live-table th{color:var(--ops-muted);font-size:11px}
+.live-cluster{margin-top:14px}.live-discovery{border:1px solid var(--ops-border);border-radius:8px;padding:12px 14px;margin-top:12px}.live-discovery legend{font-weight:600;padding:0 4px}#live-discovery-on{width:auto}#live-discovery-status{color:var(--ops-muted)}.live-cluster summary{cursor:pointer;font-weight:600}.live-table{border-collapse:collapse;font-size:12px;width:100%;margin:6px 0 14px}.live-table th,.live-table td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--ops-border);overflow-wrap:anywhere}.live-table th{color:var(--ops-muted);font-size:11px}
 /* CHANGE LOG: swarms | maintainer@emeraldcoastsystemsgroup.com | Swarm hand-off rows and the once-shown token. */
 .swarm-row button{margin:6px 8px 0 0}#swarms-token-once pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}#swarms-detail pre{max-height:360px;overflow:auto;font-size:12px}
 /* CHANGE LOG: provisioning | maintainer@emeraldcoastsystemsgroup.com | Rendered manifest review. */
 .provision-file pre{max-height:320px;overflow:auto;font-size:12px;white-space:pre}.provision-file summary{cursor:pointer;font-size:13px}
 /* CHANGE LOG: git explorer | maintainer@emeraldcoastsystemsgroup.com | Repository list, detail and file viewer. */
 .git-layout{display:grid;grid-template-columns:minmax(220px,320px) 1fr;gap:16px;margin-top:10px}.git-repos{display:flex;flex-direction:column;gap:4px;max-height:640px;overflow:auto}.git-repo,.git-file{text-align:left;font-size:13px;overflow-wrap:anywhere}.git-repo[aria-current]{font-weight:700}.git-file-list{display:flex;flex-direction:column;gap:2px;max-height:260px;overflow:auto}.git-file-view pre{max-height:420px;overflow:auto;font-size:12px}.git-link select,.git-link input{margin:4px 6px 4px 0}@media (max-width:760px){.git-layout{grid-template-columns:1fr}}
+
+:root{--ops-good:var(--status-success,#2fbf8f);--ops-warn:var(--status-warning,#e3bd6a);--ops-bad:var(--status-error,#ec7672)}
+.ops-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 16px}
+.ops-kpi{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;min-height:104px;margin:0;padding:12px 14px;text-align:left;background:var(--ops-card);color:var(--ops-text);border:1px solid var(--ops-border);border-left:4px solid var(--ops-border);border-radius:11px;cursor:pointer;font:inherit}
+.ops-kpi:hover{border-color:var(--ops-accent)}
+.ops-kpi.good{border-left-color:var(--ops-good)}.ops-kpi.warn{border-left-color:var(--ops-warn)}.ops-kpi.bad{border-left-color:var(--ops-bad)}
+.ops-kpi-label{font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--ops-muted)}
+.ops-kpi-value{font-size:26px;line-height:1.15;font-weight:800;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+.ops-kpi.bad .ops-kpi-value{color:var(--ops-bad)}.ops-kpi.warn .ops-kpi-value{color:var(--ops-warn)}
+.ops-kpi-detail{font-size:11.5px;line-height:1.35;color:var(--ops-muted)}
+#overview .ops-secondary-metrics{margin-top:16px}#overview .ops-secondary-metrics .card{padding:12px 14px}#overview .ops-secondary-metrics strong{font-size:18px}
+.ops-table{width:100%;border-collapse:collapse;font-size:13px}
+.ops-table th{text-align:left;color:var(--ops-muted);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:7px 8px;border-bottom:1px solid var(--ops-border)}
+.ops-table td{padding:7px 8px;border-bottom:1px solid var(--ops-border);vertical-align:top}
+.ops-table .num,.live-table td,.ops-table td small{font-variant-numeric:tabular-nums}
+.ops-table tr:hover td{background:color-mix(in srgb,var(--ops-accent) 6%,transparent)}
+.ops-table-wrap{overflow-x:auto}
+.bank-cell{display:grid;gap:4px;min-width:120px}.bank-cell b{font-weight:700}.bank-cell.writing b::after{content:' · writing';color:var(--ops-accent);font-weight:600}
+.bank-bar{height:5px;border-radius:4px;background:color-mix(in srgb,var(--ops-border) 70%,transparent);overflow:hidden}.bank-bar i{display:block;height:100%;background:var(--ops-accent)}
+.live-table th{text-transform:uppercase;letter-spacing:.4px}
+.processing-settings label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600}
+.processing-settings label:has(> input[type=checkbox]){flex-direction:row;align-items:center;gap:8px}
+.external-source-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 18px;margin:12px 0}.external-source-list label{display:flex;gap:8px;align-items:start;font-size:13px}.external-source-list input{width:auto}
+.processing-settings label select,.processing-settings label input:not([type=checkbox]){width:100%}
+.operator-note{color:var(--ops-muted);font-size:13px;line-height:1.5}
+.credential-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}.credential-grid .card{margin:0;padding:16px}.credential-grid h2{font-size:15px;margin:0 0 6px}.credential-grid p{font-size:13px;line-height:1.5;color:var(--ops-muted)}
+.response-verifications{margin:8px 0 0;padding-left:18px;font-size:12.5px;color:var(--ops-muted)}.response-execution a{display:inline-block;margin:4px 0}
+/* Prose inputs with an explicit rows size stay that size; JSON editors keep the tall default. */
+textarea[rows][maxlength]{min-height:0;height:auto;font:14px/1.5 system-ui,sans-serif}
+#swarms-summary,#provision-reason{min-height:76px}
+.processing-settings{align-items:end}
+.live-discovery .processing-settings{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:end}.live-discovery .processing-settings label{flex:0 0 auto}.live-discovery #live-discovery-interval{min-width:160px}
+.incident-trace{margin:18px 0;padding:16px;border:1px solid var(--ops-border);border-radius:12px}.incident-trace h3{margin:0 0 6px}.incident-trace-list{display:grid;gap:8px;list-style:none;margin:12px 0 0;padding:0}.incident-trace-step{padding:12px;border:1px solid var(--ops-border);border-radius:9px;overflow-wrap:anywhere}.incident-trace-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.incident-trace-step p{margin:6px 0;font-size:13px}.incident-trace-step small{display:block;color:var(--ops-muted)}.incident-trace-step a{display:inline-block;margin:6px 12px 0 0}.incident-trace-state{font-size:12px;color:var(--ops-muted)}#incident-list td button{margin-left:8px}

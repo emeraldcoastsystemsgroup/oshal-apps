@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Drive the response stage on the owned lab exactly as the browser does, under the operator's portal session.
+CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Plan with ticket/work identity only; require the kernel-verified accepted answer instead of sending answer text from this driver.
 CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Plan from the accepted canonical answer, approve exact artifacts, reserve and run one confirmed in-container exec, import the resolved alert, verify recovery and update the ticket; every receipt is written privately.
 """
 import json
@@ -52,7 +53,12 @@ def run(directory,account='primary',container='pressure'):
         if not rows: raise RuntimeError('No completed canonical phase with a released answer.')
         target={'namespace':scope['namespace'],'pod':scope['pod'],'uid':scope['podUid'],'container':container};plan=None;refusals=[]
         for chosen in rows:
-            try: plan=portal.call(API+'/executions/plans',{'ticketId':ticket,'workId':chosen['id'],'phase':(chosen.get('phase') or {}).get('name','unknown'),'answer':chosen['answer'],'target':target});break
+            try:
+                candidate=portal.call(API+'/executions/plans',{'ticketId':ticket,'workId':chosen['id'],'target':target})
+                if candidate.get('answerVerifiedByServer') is not True or candidate.get('answerSha256')!=evidence.hashlib.sha256(chosen['answer'].encode()).hexdigest():
+                    raise RuntimeError('The plan does not match the kernel-verified accepted answer.')
+                plan=candidate
+                break
             except RuntimeError as error: refusals.append({'phase':(chosen.get('phase') or {}).get('name'),'refusal':str(error)})
         step('plan-candidates',refusals=refusals)
         if not plan: raise RuntimeError('No completed phase answer yields an executable response file set: '+json.dumps(refusals))

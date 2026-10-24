@@ -2,6 +2,7 @@
 """Configure measured, bounded CPU pressure in the owned Operations lab.
 CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Add CPU alert, credential-free workload and separate read-only collector authorization.
 CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Mount a writable in-container stop control and record the pressure pod's container name so a namespace-scoped exec executor can stop the pressure and a verification command can measure the flat counter.
+CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Give the CPU alert a runbook description (how the drill is stopped and verified), as production alert rules carry, so it reaches the evidence packet through Alertmanager and the producer door.
 CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Bound the drill to a configurable duration (default 900 s, Job deadline duration + 240 s) so the canonical workflow and a reviewed response can complete while the pressure pod still exists.
 """
 import json
@@ -61,7 +62,7 @@ def monitoring():
         expr: rate(operations_pressure_cpu_seconds_total[20s]) > 0.45
         for: 10s
         labels: {severity: warning, environment: operations-lab}
-        annotations: {summary: "Bounded workload consumes over 0.45 CPU cores on a lab worker"}
+        annotations: {summary: "Bounded workload consumes over 0.45 CPU cores on a lab worker", description: "Runbook: intentional bounded lab drill (Job cpu-pressure-<episode>, container pressure). To end it, create the file /run/pressure/stop inside the container. To verify, read http://127.0.0.1:8080/metrics inside the container twice a few seconds apart; operations_pressure_cpu_seconds_total no longer increases."}
 '''
     return base
 

@@ -1,8 +1,9 @@
+/* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Keep this cluster current: the panel saves scheduled discovery for the selected account, namespace, recorded cluster and source. */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Open the panel before the graph arrives, so the cluster list must fill when it does (the race the parallel gate exposed). */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the live cluster explorer: kernel-shaped list reads become a scan the topology validator accepts, in its own live collection, trimmed to the 64 KiB budget and partial when cut; the shipped Systems panel reads through three confirmed connector actions, saves a live scan that keeps the collector's services and routes, and clears on refusal. */
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
-const {fixture,loadExperience,dependency,root}=require('./fixtures/intake.cjs'),{scan}=require('../experience/live-cluster.js'),{scanDefinition}=require('../routes/topology-model.js'),{saveScan,readGraph}=require('../routes/topology-store.js');
+const {fixture,loadExperience,dependency,root}=require('./fixtures/intake.cjs'),{scan}=require('../experience/live-cluster.js'),{scanDefinition}=require('../routes/topology-model.js'),{saveScan,readGraph}=require('../routes/topology-store.js'),{discoveryConfig}=require('../routes/discovery.js');
 const AT='2026-10-22T21:03:11.123456789+00:00';
 // Row shapes exactly as crates/oshald/src/kubernetes/list.rs returns them.
 const node=(i,extra={})=>({uid:'node-uid-'+i,name:'worker-'+i,ready:'True',pressure:[],unschedulable:false,roles:i?[]:['control-plane'],taints:0,internalIp:'10.0.0.'+i,capacity:{cpu:'20',memory:'127598544Ki',pods:'110'},allocatable:{cpu:'20',memory:'127598544Ki',pods:'110'},kubelet:'v1.37.0',os:'Debian',runtime:'containerd://2.1',architecture:'arm64',providerId:'kind://docker/lab/worker-'+i,...extra});
@@ -43,6 +44,8 @@ test('the shipped Systems panel reads through three confirmed actions, saves a l
   await page.getByRole('button',{name:'Save as inventory scan',exact:true}).click();await page.getByText('Saved as a complete live inventory scan',{exact:false}).waitFor();
   const graph=await readGraph(pool,'alice');const live=graph.assets.filter(a=>a.kind==='node');assert.equal(live.length,2);assert.equal(live.find(a=>a.name==='worker-0').properties.allocatableCpu,'20');
   assert.ok(graph.assets.some(a=>a.kind==='service'&&a.name==='api'),'the collector\'s services survive a complete live scan');assert.ok(graph.relationships.some(e=>e.type==='ROUTES_TO'),'the collector\'s routes survive');assert.equal(graph.relationships.filter(e=>e.type==='RUNS_ON').length,2);
+  await page.locator('#live-discovery-on').check();await page.locator('#live-discovery-interval').selectOption('5');await page.getByRole('button',{name:'Save discovery setting',exact:true}).click();await page.getByText('Saved. On: operations-demo',{exact:false}).waitFor();
+  const d=await discoveryConfig(pool,'alice');assert.deepEqual([d.enabled,d.account,d.scope,d.sourceId,d.namespace,d.intervalMinutes],[true,'primary','cluster-uid',recorded.id,'operations-demo',5]);assert.equal(effects.length,3,'saving the setting reads nothing');
   denied=true;await page.getByRole('button',{name:'Read live cluster',exact:true}).click();await page.waitForFunction(()=>document.getElementById('live-results').childElementCount===0);assert.equal(effects.length,3,'a refused session reads nothing');assert.deepEqual(errors,[]);
  }finally{await browser?.close();if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await f.close();}
 });

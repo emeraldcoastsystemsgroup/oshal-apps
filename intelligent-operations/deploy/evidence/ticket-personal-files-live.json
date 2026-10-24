@@ -1,0 +1,13 @@
+{
+  "ticket": "09a0d5a8-6573-4d4e-9475-9730c2ad9572",
+  "work": "00fe4da2-49a5-4c3e-8bfd-32febb8ed505",
+  "artifactIndex": 0,
+  "size": 7425,
+  "sha256": "0eac3d1d02a47b7e0e3f4ca6c6f3896757845273b41239cec69bacf2cbcdf641",
+  "personalFilePath": "Tickets/09a0d5a8-6573-4d4e-9475-9730c2ad9572/00fe4da2-49a5-4c3e-8bfd-32febb8ed505/answer.md",
+  "saveIdempotent": true,
+  "listedInMyFiles": true,
+  "savedDownloadExact": true,
+  "kernelImage": "oshal-kernel:dev-d8ac0437b445",
+  "at": 1792787300.8834412
+}

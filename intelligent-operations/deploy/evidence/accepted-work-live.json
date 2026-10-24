@@ -1,0 +1,57 @@
+{
+  "ticketId": "afd22d06-4f85-44d9-914e-f19ccf592d32",
+  "workId": "66f5ec06-857a-4914-a117-66ea0cf14600",
+  "planId": "0f55bfc0174638cacb33f3c11583fa093efb7a302d10b14b94ffa50729b4962e",
+  "kernelRevision": "e94e2851ec7c4755e3eb976f4d988ab1dc7f4f32",
+  "answerSha256": "7785eefc2cb9b019809323184fd5f521c0e79e4e251a370d6d5263ee2921d883",
+  "answerReceipt": "b8bc87f4-1956-459a-8fbf-4359bbba1a75",
+  "answerVerifiedByServer": true,
+  "targetMatchesAlert": true,
+  "artifacts": [
+    {
+      "name": "diagnose.sh",
+      "sha256": "5da610d072a69eb422da4640d48ef6410d7c807d784917e9806129a673d39b11",
+      "bytes": 991
+    },
+    {
+      "name": "remediate.sh",
+      "sha256": "d254e178c2f2039f0190b4b69837aa9cfdd2e10e978de9d413fc4066a5e9806e",
+      "bytes": 33
+    },
+    {
+      "name": "verify.sh",
+      "sha256": "f4a07da4cf2fc068fc5b302e407f0008542d5174b0e657773cd4601a599b348d",
+      "bytes": 1115
+    },
+    {
+      "name": "rollback.md",
+      "sha256": "d5fcfc326c674a7f4c0577f6b6bb8bd3064474fabbce58e2608d4acce2d9258b",
+      "bytes": 266
+    },
+    {
+      "name": "verify.md",
+      "sha256": "72e52be09f6ea7cf5167c0a207dc5fd01d3d6fb80b83e7f4670d399fd61bfc53",
+      "bytes": 585
+    }
+  ],
+  "untrustedAnswerRefused": true,
+  "noApprovalOrExecution": true,
+  "recordedAt": "2026-10-23T21:34:44.712159+00:00",
+  "applicationRevision": "f725306049cea9b30dc4129a5bfcadb6ecdd9cf2",
+  "ticketWorkspace": {
+    "acceptedFileCount": 13,
+    "matchingGeneratedFiles": [
+      "diagnose.sh",
+      "remediate.sh",
+      "verify.sh",
+      "rollback.md",
+      "verify.md"
+    ],
+    "downloadsByteExact": true,
+    "personalSaveSelectorsPresent": true
+  },
+  "labCleanup": {
+    "cpuPressureJobRemaining": false
+  },
+  "scope": "One bounded lab alert and fresh canonical workflow; plan preparation and authenticated downloads only. No plan approval, Kubernetes exec, Git promotion or external notification."
+}
