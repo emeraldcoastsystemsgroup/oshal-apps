@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard compiled native board aliases and
  *   truthful status counters against real SQLite; identity/logger/unused services are scoped doubles.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Admit only the named public community-source JSON alongside existing static assets, never generic JSON storage files.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -64,4 +65,23 @@ test('compiled root aliases serve the existing native board asset', () => {
   }
   assert.equal(new Set(served).size, 1);
   assert.match(readFileSync(served[0], 'utf8'), /<title>[^<]*(?:Career|Job)/i);
+});
+
+test('compiled static route allowlists the public source directory without exposing other JSON files', () => {
+  const handler = routes(modules.surface.registerCareerSurfaceRoutes).get('/static/:file');
+  assert.equal(typeof handler, 'function');
+  function serve(file) {
+    const reply = { statusCode: 200, file: null, ended: false,
+      status(code) { this.statusCode = code; return this; }, end() { this.ended = true; return this; },
+      sendFile(file) { this.file = file; return this; } };
+    handler({ params: { file } }, reply); return reply;
+  }
+  const sources = serve('career-local-sources.json');
+  assert.equal(sources.statusCode, 200);
+  assert.ok(Array.isArray(JSON.parse(readFileSync(sources.file, 'utf8')).sources));
+  for (const file of ['career_db.json', 'linkedin-saved-jobs.json', 'config.json', 'career-local-sources.json.bak', 'secrets.JSON']) {
+    const rejected = serve(file); assert.equal(rejected.statusCode, 404, file); assert.equal(rejected.file, null); assert.equal(rejected.ended, true);
+  }
+  assert.equal(serve('../career-local-sources.json').file, sources.file, 'basename normalization can only return the same public file');
+  assert.match(serve('career-search-map.js').file, /career-search-map\.js$/);
 });

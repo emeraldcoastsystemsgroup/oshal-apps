@@ -4,9 +4,13 @@
 - Per-host rate limiting so we never hammer one employer.
 - Exponential-backoff retry on transient errors / 429 / 5xx.
 """
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Retain per-source pull health and guarded content deltas across existing ingestion paths.
 from __future__ import annotations
 import time
 import threading
+from contextlib import contextmanager
+from contextvars import ContextVar
 from urllib.parse import urlparse
 
 import requests
@@ -29,6 +33,34 @@ _session.headers.update({
 
 _lock = threading.Lock()
 _last_hit: dict[str, float] = {}
+_observed = ContextVar("career_source_http", default=None)
+_conditional = ContextVar("career_source_conditional", default=None)
+
+
+class NotModified(Exception):
+    """An exact employer listing was conditionally checked without downloading its body."""
+
+
+@contextmanager
+def conditional(url, headers):
+    """Validators belong to one exact GET URL and one source, never a shared host cache."""
+    state = {"url": url, "headers": headers, "validators": {}}
+    token = _conditional.set(state)
+    try:
+        yield state
+    finally:
+        _conditional.reset(token)
+
+
+@contextmanager
+def observe():
+    """Track final HTTP refusals without retaining URLs, headers or response bodies."""
+    outcomes = []
+    token = _observed.set(outcomes)
+    try:
+        yield outcomes
+    finally:
+        _observed.reset(token)
 
 
 class TransientHTTP(Exception):
@@ -56,7 +88,21 @@ def request(method: str, url: str, **kwargs) -> requests.Response:
     """Rate-limited, retrying HTTP request. Returns the Response (caller checks .ok)."""
     _throttle(url)
     kwargs.setdefault("timeout", config.REQUEST_TIMEOUT)
+    conditional_state = _conditional.get()
+    exact = conditional_state and method == "GET" and url == conditional_state["url"]
+    if exact and conditional_state["headers"]:
+        kwargs["headers"] = {**conditional_state["headers"], **kwargs.get("headers", {})}
     resp = _session.request(method, url, **kwargs)
+    if exact and (resp.ok or resp.status_code == 304):
+        for key in ("ETag", "Last-Modified"):
+            value = resp.headers.get(key)
+            if value and len(value) <= 1000 and "\r" not in value and "\n" not in value:
+                conditional_state["validators"][key] = value
+    observed = _observed.get()
+    # A retried transient error followed by a successful full response is not partial data.
+    # Exhausted retries raise and the source attempt is recorded as failed.
+    if observed is not None and not resp.ok and resp.status_code != 429 and resp.status_code < 500:
+        observed.append(resp.status_code)
     if resp.status_code == 429 or 500 <= resp.status_code < 600:
         raise TransientHTTP(f"{resp.status_code} for {url}")
     return resp
@@ -85,6 +131,8 @@ def post_once(url: str, **kwargs) -> requests.Response:
 
 def get_json(url: str, **kwargs):
     r = get(url, **kwargs)
+    if r.status_code == 304:
+        raise NotModified()
     if not r.ok:
         return None
     try:

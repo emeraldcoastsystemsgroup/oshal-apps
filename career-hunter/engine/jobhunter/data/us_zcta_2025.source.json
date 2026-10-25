@@ -1,0 +1,7 @@
+{
+  "source_url": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_Gaz_zcta_national.zip",
+  "source_archive_sha256": "51516a4283bab5cd2376eec75609ddc4b363a18297e8adeeaac7b03cf7c84dbe",
+  "source_member": "2025_Gaz_zcta_national.txt",
+  "derived_sha256": "3e306db0a80df18d09dbd538a1275af1062a3828684348e66c37a199415ef5e6",
+  "rows": 33791
+}

@@ -47,7 +47,16 @@ const career_engine_dispatch_1 = require("./career-engine-dispatch");
 const career_engine_response_1 = require("./career-engine-response");
 const career_engine_runner_1 = require("./career-engine-runner");
 const career_file_transaction_1 = require("./career-file-transaction");
+const career_linkedin_import_1 = require("./career-linkedin-import");
 const logger = (0, logger_1.createChildLogger)({ module: 'career-artifacts' });
+const NATIVE_BUFFERED_REQUESTS = (() => {
+    try {
+        return require('@/shared/package-runs')?.native === true;
+    }
+    catch {
+        return false;
+    }
+})();
 const ARTIFACT_KINDS = new Set(['resume-extra', 'linkedin-export', 'email', 'status-report', 'work-sample', 'other']);
 const ALLOWED_EXT = new Set(['.pdf', '.docx', '.txt', '.md', '.csv', '.tsv', '.html', '.htm', '.eml', '.json', '.zip']);
 const MAX_ARTIFACT_FILE_BYTES = 25 * 1024 * 1024;
@@ -242,6 +251,10 @@ function expireArtifactUpload(req, res) {
     }
     setImmediate(() => req.destroy());
 }
+/** Only the kernel-owned native port may identify its already-received, bounded protocol body. */
+function bufferedNativeUpload(req) {
+    return NATIVE_BUFFERED_REQUESTS && Buffer.isBuffer(req.body);
+}
 /** Reject per-user duplicates or global saturation before buffering, without taking engine capacity. */
 function admitArtifactUpload(req, res, next) {
     const userSub = (0, career_user_store_1.callerSub)(req);
@@ -253,6 +266,15 @@ function admitArtifactUpload(req, res, next) {
     if ((0, career_engine_response_1.rejectUploadClaim)(res, lease, 'artifact upload'))
         return;
     req[ARTIFACT_LEASE] = lease;
+    if (bufferedNativeUpload(req)) {
+        if (req.body.length > MAX_ARTIFACT_REQUEST_BYTES) {
+            releaseArtifactLease(req);
+            res.status(413).json({ error: 'artifact upload exceeds the combined byte limit' });
+            return;
+        }
+        next();
+        return;
+    }
     req[ARTIFACT_UPLOAD_TIMER] = setTimeout(() => expireArtifactUpload(req, res), artifactUploadTimeout());
     req[ARTIFACT_UPLOAD_TIMER]?.unref?.();
     req.once('aborted', () => releaseArtifactLease(req));
@@ -299,6 +321,25 @@ function validArtifactFiles(req, res) {
     res.status(413).json({ error: 'artifact upload exceeds the combined byte limit' });
     return null;
 }
+/** Handle only an explicitly selected Saved Jobs CSV with the already held user-store lease. */
+async function handleLinkedInJobs(userSub, files, res) {
+    if (files.length !== 1 || path.extname(files[0].originalname || '').toLowerCase() !== '.csv') {
+        res.status(400).json({ error: 'Choose one Saved Jobs CSV file, not a ZIP archive.' });
+        return;
+    }
+    try {
+        res.status(200).json(await (0, career_linkedin_import_1.importLinkedInSavedJobs)((0, career_user_store_1.userPaths)(userSub).userDir, files[0].buffer));
+    }
+    catch (error) {
+        const status = Number(error.status);
+        if (status === 400 || status === 413)
+            res.status(status).json({ error: error.message });
+        else {
+            logger.error({ err: error, userSub }, 'saved jobs import failed');
+            res.status(503).json({ error: 'Saved jobs import could not be confirmed. Refresh your private list before retrying.' });
+        }
+    }
+}
 /** Handle the leased write-to-child transaction for one authenticated artifact upload. */
 async function handleArtifactUpload(ctx, req, res) {
     const userSub = (0, career_user_store_1.callerSub)(req);
@@ -313,7 +354,7 @@ async function handleArtifactUpload(ctx, req, res) {
     const kindRaw = String((req.body?.kind || 'other')).trim();
     const kind = ARTIFACT_KINDS.has(kindRaw) ? kindRaw : 'other';
     const artifactReq = req;
-    const lease = (0, career_engine_runner_1.tryAcquireRun)(userSub, 'user-store');
+    const lease = kindRaw === 'linkedin-jobs' ? (0, career_engine_runner_1.tryAcquireStorageRun)(userSub, 'user-store') : (0, career_engine_runner_1.tryAcquireRun)(userSub, 'user-store');
     releaseArtifactLease(artifactReq);
     if ((0, career_engine_response_1.rejectEngineClaim)(res, lease, 'artifact absorb'))
         return;
@@ -322,6 +363,10 @@ async function handleArtifactUpload(ctx, req, res) {
     let handedOff = false;
     let rolledBack = false;
     try {
+        if (kindRaw === 'linkedin-jobs') {
+            await handleLinkedInJobs(userSub, files, res);
+            return;
+        }
         const dir = artifactsDir(userSub);
         await fs_1.promises.mkdir(dir, { recursive: true });
         if (!await artifactQuotaAvailable(dir, acceptedArtifactFootprint(files))) {
@@ -473,7 +518,15 @@ function registerCareerArtifacts(router, ctx) {
             if (error.code !== 'ENOENT')
                 logger.error({ err: error, userSub }, 'career enrichment log read failed');
         }
-        res.json({ uploaded, learned: learned.reverse() });
+        let importedJobs = [];
+        let importedJobsUnavailable = false;
+        try {
+            importedJobs = await (0, career_linkedin_import_1.readLinkedInSavedJobs)((0, career_user_store_1.userPaths)(userSub).userDir);
+        }
+        catch (error) {
+            importedJobsUnavailable = true;
+            logger.error({ err: error, userSub }, 'saved jobs listing failed');
+        }
+        res.json({ uploaded, learned: learned.reverse(), importedJobs, ...(importedJobsUnavailable ? { importedJobsUnavailable: true } : {}) });
     });
 }
-//# sourceMappingURL=career-artifacts.js.map

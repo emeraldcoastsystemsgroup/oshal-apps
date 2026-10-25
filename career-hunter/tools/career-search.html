@@ -25,12 +25,20 @@
   2 | maintainer@emeraldcoastsystemsgroup.com | The layout every job site uses — a left filter rail narrowing live results — plus separate title-contains and description-contains fields over the full-text index, removable filter chips, and an honest note that most postings publish no salary.
   3 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
   4 | maintainer@emeraldcoastsystemsgroup.com | Connect open search to the Job Board and keep mobile results above expandable filters without changing corpus queries.
+  5 | maintainer@emeraldcoastsystemsgroup.com | Add entered/GPS search centers, a real adjustable radius, approximate city pins, and account-scoped remembered browser searches.
+  6 | maintainer@emeraldcoastsystemsgroup.com | Load results ahead of optional map assets, overlap identity lookup, cancel obsolete requests and keep prior results visible during faster progressive search.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="search-ui"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Search Jobs</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<script>
+// Start the account lookup while the page loads; only its verified identity scopes memory.
+window.careerSearchIdentity = fetch('/api/auth/user', { signal: AbortSignal.timeout(3000) })
+  .then(async response => ({ ok: response.ok, identity: await response.json() }))
+  .catch(() => null);
+</script>
 <style>
 :root{
   --bg:var(--bg-primary); --panel:var(--bg-secondary); --card:var(--bg-card);
@@ -59,7 +67,7 @@ h1{font-size:21px;margin:0 0 2px}
 .grp:last-child{border-bottom:0}
 .grp > label,.grp .glabel{display:block;font-size:11px;color:var(--muted);
   text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px}
-.grp input[type=search],.grp select{
+.grp input[type=search],.grp input[type=number],.grp input[type=text],.grp select{
   width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);
   border-radius:8px;padding:7px 9px;font:inherit;font-size:13px}
 .grp .hint{display:block;color:var(--muted);font-size:11px;margin:5px 0 0;line-height:1.4}
@@ -107,10 +115,26 @@ details.adv[open] summary::before{content:"\25BE  "}
 .pager{display:flex;gap:9px;justify-content:center;align-items:center;margin:16px 0 0;
        color:var(--muted);font-size:12.5px}
 .note{color:var(--muted);font-size:11.5px}
+.location-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.location-note{font-size:12px;color:var(--muted);line-height:1.5;margin:8px 0 0}
+.map-panel{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:14px;background:var(--panel)}
+#jobMap{height:330px;background:var(--bg)}
+.map-note{font-size:12px;color:var(--muted);padding:10px 12px;margin:0;line-height:1.5}
+.map-job-link{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}.map-job-link .btn{text-align:left;white-space:normal}
+.view-controls{display:flex;gap:6px}.view-controls [aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+.saved-searches{margin:0 0 16px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.saved-search-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.saved-search-controls input,.saved-search-controls select{min-width:0;max-width:100%;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:7px;font:inherit}
+.saved-search-controls input{flex:1 1 190px}.saved-search-controls select{flex:1 1 190px}
+.saved-searches label{font-size:12px}.job:focus{outline:2px solid var(--accent);outline-offset:2px}
+html[data-career-surface="search-ui"] .career-view-nav{flex-wrap:wrap;flex-shrink:1;max-width:100%;min-width:0}
+html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){white-space:normal;min-width:0;flex:1 1 auto;text-align:center}
+[hidden]{display:none!important}
 @media(max-width:820px){
   .cols{grid-template-columns:1fr}
   .rail{position:static}
-  .grp input[type=search],.grp select{font-size:16px}
+  .grp input[type=search],.grp input[type=number],.grp select{font-size:16px}
+  #jobMap{height:260px}.saved-search-controls input,.saved-search-controls select{font-size:16px}
 }
 </style>
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
@@ -123,8 +147,22 @@ details.adv[open] summary::before{content:"\25BE  "}
     <nav class="career-view-nav" aria-label="Job search views">
       <a href="/api/career-hunter/board-native" data-career-tool="career-board">Job Board</a>
       <span aria-current="page">Open jobs search</span>
+      <a href="/api/career-hunter/settings" data-career-tool="career-settings">Configuration</a>
+      <a href="/api/career-hunter/companies-admin" data-career-tool="career-companies">Sources &amp; pull health</a>
     </nav>
   </header>
+
+  <section class="saved-searches" aria-label="Remembered job searches">
+    <div class="saved-search-controls">
+      <label for="savedSearchName">Save this search</label>
+      <input id="savedSearchName" maxlength="80" placeholder="Name, e.g. local IT management" disabled />
+      <button type="button" class="btn" id="saveSearch" disabled>Save search</button>
+      <select id="savedSearchList" aria-label="Saved searches" disabled><option value="">Choose a saved search</option></select>
+      <button type="button" class="btn" id="loadSearch" disabled>Open</button>
+      <button type="button" class="btn" id="deleteSearch" disabled>Remove</button>
+    </div>
+    <p class="location-note" id="savedSearchStatus" role="status">Named searches and your last successful search are remembered for your account in this browser.</p>
+  </section>
 
   <div class="cols">
     <!-- ── filter rail ────────────────────────────────────────────────── -->
@@ -136,6 +174,17 @@ details.adv[open] summary::before{content:"\25BE  "}
         <label for="q">Search</label>
         <input id="q" name="q" type="search" placeholder="title or employer"/>
         <span class="hint">Matches job titles and company names.</span>
+      </div>
+
+      <div class="grp">
+        <label for="near">Near a city or ZIP</label>
+        <input id="near" name="near" type="search" maxlength="160" placeholder="City, ST or ZIP code" />
+        <input id="lat" name="lat" type="hidden" /><input id="lon" name="lon" type="hidden" />
+        <div class="location-actions"><button type="button" class="btn" id="useLocation">Use my location</button>
+          <button type="button" class="btn" id="clearLocation">Clear location</button></div>
+        <label for="radius_miles" style="margin-top:10px">Radius (miles)</label>
+        <input id="radius_miles" name="radius_miles" type="number" min="1" max="250" value="25" step="1" />
+        <p class="location-note" id="locationStatus" role="status">Enter any US city and state or ZIP. Location is requested only when you choose Use my location.</p>
       </div>
 
       <details class="career-search-filters" id="jobSearchFilters" open>
@@ -151,7 +200,7 @@ details.adv[open] summary::before{content:"\25BE  "}
       </div>
 
       <div class="grp">
-        <label for="state">Location</label>
+        <label for="state">State (optional)</label>
         <input id="state" name="state" type="search" maxlength="2" placeholder="state code, e.g. FL"/>
         <span class="hint">About 6 in 10 postings record a state.</span>
       </div>
@@ -188,12 +237,13 @@ details.adv[open] summary::before{content:"\25BE  "}
           <option value="">Any</option>
           <option value="80000">$80,000</option>
           <option value="100000">$100,000</option>
+          <option value="140000">$140,000</option>
           <option value="150000">$150,000</option>
           <option value="200000">$200,000</option>
           <option value="250000">$250,000</option>
         </select>
-        <span class="hint">Only about <b>1 in 9</b> postings publishes a salary, so a
-          minimum hides every job that stayed quiet about pay — most of them.</span>
+        <label style="text-transform:none;letter-spacing:normal;margin-top:8px"><input id="include_unknown_pay" name="include_unknown_pay" type="checkbox" checked /> Include jobs without listed pay</label>
+        <span class="hint">Salary ranges that reach your target are included. Unlisted pay stays unknown; estimates are labeled. Hourly and monthly pay are not converted to annual pay.</span>
       </div>
 
       <details class="adv" id="adv">
@@ -219,6 +269,8 @@ details.adv[open] summary::before{content:"\25BE  "}
     <div>
       <div class="bar">
         <div class="count" id="count" role="status" aria-live="polite"></div>
+        <div class="view-controls" aria-label="Job views"><button type="button" class="btn" id="mapView" aria-pressed="true">Map + list</button>
+          <button type="button" class="btn" id="listView" aria-pressed="false">List only</button></div>
         <label class="sortwrap">Sort by
           <select id="sort" name="sort">
             <option value="recent">Newest first</option>
@@ -229,11 +281,18 @@ details.adv[open] summary::before{content:"\25BE  "}
         </label>
       </div>
       <div class="chips" id="chips"></div>
+      <section class="map-panel" id="mapPanel" aria-label="Job locations">
+        <div id="jobMap" aria-label="Map of job locations"></div>
+        <p class="map-note" id="mapNote" role="status">Map pins show approximate city/base locations for this page of results.</p>
+      </section>
+      <p id="searchStatus" class="location-note" role="status" hidden></p>
       <div id="list" aria-label="Open job results"></div>
       <div class="pager" id="pager"></div>
     </div>
   </div>
 </div>
+
+<script src="/api/career-hunter/static/career-search-memory.js"></script>
 
 <script>
 /** Keep existing screens inside the admitted ribbon; standalone links use their owning routes. */
@@ -266,18 +325,65 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
 const FILTERS = [
   ['q', 'Search'], ['remote', 'Remote'], ['state', 'Location'], ['type', 'Job type'],
   ['days', 'Posted'], ['min_pay', 'Min salary'], ['title', 'Title'],
-  ['description', 'Description'], ['company', 'Company'],
+  ['description', 'Description'], ['company', 'Company'], ['near', 'Near'],
+  ['lat', 'Center'], ['lon', 'Longitude'], ['radius_miles', 'Radius'], ['include_unknown_pay', 'Unlisted pay'],
 ];
 const FIELDS = FILTERS.map(([id]) => id).concat(['sort']);
 const ADVANCED = ['title', 'description', 'company'];
 const PER = 50;
 let page = 1;
+let requestController = null, mapLoading = false, mapFailed = false, mapData = null;
+let searchEpoch = 0, viewMode = 'map', memory = null, lastSuccessful = null;
+const browser = typeof window !== 'undefined';
+function note(id, text){ const node = $(id); if (node) node.textContent = text; }
+function persistLast(value){
+  if (!memory) return;
+  try { memory.remember(value); } catch (error) { note('savedSearchStatus', error.message); }
+}
+function searchStatus(text){
+  const node = $('searchStatus');
+  if (node) { node.textContent = text; node.hidden = !text; }
+}
+// Map downloads start after the first results, and only in map view.
+function paintMap(){
+  if (!browser || viewMode !== 'map' || !mapData) return;
+  if (window.CareerSearchMap && window.L) { window.CareerSearchMap.paint(mapData); return; }
+  if (mapLoading || mapFailed) return;
+  mapLoading = true; note('mapNote', 'Loading map… Job results are ready below.');
+  const asset = (tag, file) => new Promise((resolve, reject) => {
+    const element = document.createElement(tag);
+    if (tag === 'link') { element.rel = 'stylesheet'; element.href = '/api/career-hunter/static/' + file; }
+    else element.src = '/api/career-hunter/static/' + file;
+    element.onload = resolve; element.onerror = reject; document.head.append(element);
+  });
+  Promise.all([asset('link', 'career-leaflet.css'), asset('script', 'career-leaflet.js'),
+    asset('script', 'career-search-map.js')]).then(() => {
+      mapLoading = false; paintMap();
+    }).catch(() => {
+      mapLoading = false; mapFailed = true;
+      note('mapNote', 'The map could not load. Job listings remain available below.');
+    });
+}
+function cancelSearch(){
+  searchEpoch += 1;
+  if (requestController) requestController.abort();
+}
+function showMap(mode){
+  viewMode = mode === 'list' ? 'list' : 'map';
+  if ($('mapPanel')) $('mapPanel').hidden = viewMode !== 'map';
+  $('mapView')?.setAttribute('aria-pressed', String(viewMode === 'map'));
+  $('listView')?.setAttribute('aria-pressed', String(viewMode === 'list'));
+  if (viewMode === 'map') paintMap();
+}
 
 /** How a filter's raw value should read on its chip. */
 function chipText(id, value){
   if (id === 'remote') return value === '1' ? 'Remote' : 'On-site';
   if (id === 'days') return value === '1' ? 'Past 24 hours' : 'Past ' + value + ' days';
   if (id === 'min_pay') return '$' + Number(value).toLocaleString() + '+';
+  if (id === 'radius_miles') return value + ' miles';
+  if (id === 'lat') return 'Your location';
+  if (id === 'include_unknown_pay') return 'Included';
   if (id === 'type') return ($('type').selectedOptions[0] || {}).text || value;
   return value;
 }
@@ -286,23 +392,36 @@ function money(n){ return '$' + Math.round(n / 1000) + 'k'; }
 function salary(j){
   const hi = j.salary_max, lo = j.salary_min;
   if (!hi && !lo) return '';
-  if (lo && hi && lo !== hi) return money(lo) + '–' + money(hi);
-  return money(hi || lo);
+  const period = j.salary_period;
+  const suffix = period === 'hour' ? ' /hr' : period === 'month' ? ' /month' : '';
+  const amount = suffix ? n => '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 }) : money;
+  if (lo && hi && lo !== hi) return amount(lo) + '–' + amount(hi) + suffix;
+  return amount(hi || lo) + suffix;
 }
 
 /** The current search, as a plain object. Empty controls are omitted entirely. */
 function criteria(){
   const c = {};
-  FIELDS.forEach(k => { const v = $(k).value.trim(); if (v) c[k] = v; });
+  FIELDS.forEach(k => {
+    if (k === 'include_unknown_pay') return;
+    const v = $(k).value.trim(); if (v) c[k] = v;
+  });
+  if (!c.near && !c.lat && !c.lon) delete c.radius_miles;
+  if (c.min_pay && $('include_unknown_pay').checked) c.include_unknown_pay = '1';
+  c.view = viewMode;
   return c;
 }
 function fill(c){
-  FIELDS.forEach(k => { $(k).value = c[k] || ''; });
+  FIELDS.forEach(k => { if (k !== 'include_unknown_pay') $(k).value = c[k] || ''; });
+  $('radius_miles').value = c.radius_miles || '25';
+  $('include_unknown_pay').checked = c.include_unknown_pay === '1' || !c.min_pay;
   if (!$('sort').value) $('sort').value = 'recent';
   setRemote(c.remote || '');
+  showMap(c.view);
   // Advanced opens when it holds something, so a filter is never hidden from the person
   // who set it — including on a shared link.
   $('adv').open = ADVANCED.some(k => c[k]);
+  if ($('jobSearchFilters') && FILTERS.some(([key]) => c[key])) $('jobSearchFilters').open = true;
 }
 function setRemote(value){
   $('remote').value = value;
@@ -321,11 +440,11 @@ function remember(){
 }
 
 /** Re-run from the first page. Every control calls this; nothing is ever "submitted". */
-function refilter(){ page = 1; search(); }
+function refilter(){ clearTimeout(typing); page = 1; search(); }
 
 function renderChips(){
   const c = criteria();
-  const active = FILTERS.filter(f => c[f[0]]);
+  const active = FILTERS.filter(f => c[f[0]] && f[0] !== 'lon');
   $('clear').disabled = active.length === 0;
   chipsEl.innerHTML = active.map(f =>
     '<span class="chip">' + esc(f[1]) + ': ' + esc(chipText(f[0], c[f[0]])) +
@@ -335,15 +454,20 @@ chipsEl.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-drop]');
   if (!b) return;
   const id = b.dataset.drop;
-  if (id === 'remote') setRemote(''); else $(id).value = '';
+  if (id === 'remote') setRemote('');
+  else if (id === 'lat' || id === 'near') { $('lat').value = ''; $('lon').value = ''; $('near').value = ''; }
+  else if (id === 'radius_miles') { $('lat').value = ''; $('lon').value = ''; $('near').value = ''; $('radius_miles').value = '25'; }
+  else if (id === 'include_unknown_pay') $('include_unknown_pay').checked = false;
+  else $(id).value = '';
   refilter();
 });
 
 function jobCard(j){
   const pay = salary(j);
   const bits = [
-    pay ? '<span class="pay">' + pay + '</span>' : '',
+    pay ? '<span class="pay">' + pay + (['heuristic', 'ai_estimated'].includes(j.salary_source) ? ' · estimate' : '') + '</span>' : '<span>Pay not listed</span>',
     j.location ? '<span>' + esc(j.location) + '</span>' : '',
+    typeof j.distance_miles === 'number' ? '<span>' + esc(j.distance_miles.toFixed(1)) + ' mi · approximate</span>' : '',
     j.remote ? '<span class="tag">remote</span>' : '',
     j.job_type ? '<span class="tag">' + esc(j.job_type) + '</span>' : '',
     j.posted_date ? '<span>posted ' + esc(String(j.posted_date).slice(0, 10)) + '</span>' : '',
@@ -352,7 +476,7 @@ function jobCard(j){
   const title = j.url
     ? '<a href="' + esc(j.url) + '" target="_blank" rel="noopener">' + esc(j.title) + '</a>'
     : esc(j.title);
-  return '<div class="job">'
+  return '<div class="job" id="job-' + esc(j.id) + '" tabindex="-1">'
     + '<h2>' + title + '</h2>'
     + '<p class="co">' + esc(j.company || '') + '</p>'
     + '<div class="meta">' + bits + '</div>'
@@ -392,19 +516,26 @@ function renderPager(data){
 }
 
 async function search(){
+  cancelSearch();
+  const epoch = searchEpoch;
+  requestController = typeof AbortController === 'function' ? new AbortController() : null;
   const c = criteria();
   const params = new URLSearchParams(c);
   params.set('per', String(PER));
   params.set('page', String(page));
   remember(); renderChips();
-  listEl.innerHTML = '<div class="empty">Searching…</div>';
-  countEl.textContent = ''; pagerEl.innerHTML = '';
+  if (!lastSuccessful) listEl.innerHTML = '<div class="empty">Searching…</div>';
+  listEl.setAttribute?.('aria-busy', 'true');
+  searchStatus(lastSuccessful ? 'Updating results… Previous search results remain shown.' : 'Searching…');
+  pagerEl.innerHTML = '';
   try {
-    const response = await fetch('/api/career-hunter/browse?' + params);
+    const response = await fetch('/api/career-hunter/browse?' + params, requestController ? { signal: requestController.signal } : {});
     const data = await response.json();
-    if (data.error) throw new Error(data.error);
+    if (epoch !== searchEpoch) return;
+    if (data.error || response.ok === false) throw new Error(data.message || data.detail || data.error || 'Search could not complete.');
     if (data.empty){
       listEl.innerHTML = '<div class="empty">No jobs have been collected yet.</div>';
+      mapData = null; if (browser) window.CareerSearchMap?.clear(); searchStatus('');
       return;
     }
     const jobs = data.jobs || [];
@@ -412,17 +543,28 @@ async function search(){
       : '<div class="empty">Nothing matched.<br/>Remove a filter above, or try '
         + '<b>Job description contains</b> under Advanced.</div>';
     renderCount(data); renderPager(data);
+    if (data.location) note('locationStatus', data.location.label + ' · ' + data.location.radius_miles + ' mile radius. Distances use approximate city/base coordinates, not driving routes.');
+    else note('locationStatus', 'Enter a city and state or ZIP, or choose Use my location to narrow the search.');
+    mapData = data; paintMap();
+    lastSuccessful = c;
+    persistLast(c); searchStatus('');
   } catch(e){
-    listEl.innerHTML = '<div class="empty">Could not search: ' + esc(e.message) + '</div>';
+    if (epoch !== searchEpoch || e.name === 'AbortError') return;
+    if (!lastSuccessful) listEl.innerHTML = '<div class="empty">Could not search: ' + esc(e.message) + '</div>';
+    searchStatus('Could not update results: ' + e.message + (lastSuccessful ? ' Previous search results remain shown.' : ''));
+    note('locationStatus', e.message);
+  } finally {
+    if (epoch === searchEpoch) listEl.setAttribute?.('aria-busy', 'false');
   }
 }
 
 // Progressive filtering: a menu or a pill re-runs immediately, a text box waits until the
 // typing stops. Nothing here submits a form — the results are always already live.
 let typing;
-['q', 'state', 'title', 'description', 'company'].forEach(k =>
-  $(k).addEventListener('input', () => { clearTimeout(typing); typing = setTimeout(refilter, 350); }));
-['type', 'days', 'min_pay', 'sort'].forEach(k => $(k).addEventListener('change', refilter));
+['q', 'state', 'near', 'title', 'description', 'company'].forEach(k =>
+  $(k).addEventListener('input', () => { cancelSearch(); clearTimeout(typing); typing = setTimeout(refilter, 150); }));
+['type', 'days', 'min_pay', 'sort', 'radius_miles', 'include_unknown_pay'].forEach(k => $(k).addEventListener('change', refilter));
+$('near').addEventListener('input', () => { $('lat').value = ''; $('lon').value = ''; });
 const pills = document.querySelectorAll('.pill');
 for (let i = 0; i < pills.length; i += 1) {
   pills[i].addEventListener('click', function(){ setRemote(this.dataset.remote); refilter(); });
@@ -431,8 +573,65 @@ $('rail').addEventListener('submit', e => { e.preventDefault(); refilter(); });
 $('clear').onclick = () => { fill({}); refilter(); };
 
 const fromUrl = Object.fromEntries(new URLSearchParams(location.search));
-fill(fromUrl);
-page = Math.max(1, Number(fromUrl.page) || 1);
-search();
+function renderSaved(){
+  if (!memory) return;
+  const select = $('savedSearchList'), selected = select.value;
+  select.replaceChildren(new Option('Choose a saved search', ''), ...memory.list().map(row => new Option(row.name, row.id)));
+  select.value = selected;
+  $('loadSearch').disabled = !$('savedSearchList').value;
+  $('deleteSearch').disabled = !$('savedSearchList').value;
+}
+if (browser) {
+  function chooseView(mode){ showMap(mode); remember(); if (lastSuccessful) { lastSuccessful.view = viewMode; persistLast(lastSuccessful); } }
+  $('mapView').onclick = () => chooseView('map');
+  $('listView').onclick = () => chooseView('list');
+  $('clearLocation').onclick = () => { $('near').value = ''; $('lat').value = ''; $('lon').value = ''; refilter(); };
+  $('useLocation').onclick = () => {
+    if (!navigator.geolocation) return note('locationStatus', 'Location is unavailable in this browser. Enter a city and state or ZIP instead.');
+    note('locationStatus', 'Waiting for your location permission…'); $('useLocation').disabled = true;
+    navigator.geolocation.getCurrentPosition(position => {
+      $('useLocation').disabled = false; $('near').value = '';
+      $('lat').value = position.coords.latitude.toFixed(5); $('lon').value = position.coords.longitude.toFixed(5);
+      refilter();
+    }, () => {
+      $('useLocation').disabled = false;
+      note('locationStatus', 'Location was not available or permission was denied. Enter a city and state or ZIP instead.');
+    }, { timeout: 10000, maximumAge: 300000, enableHighAccuracy: false });
+  };
+  $('saveSearch').onclick = () => {
+    if (!memory) return;
+    if (!lastSuccessful || JSON.stringify(lastSuccessful) !== JSON.stringify(criteria())) return note('savedSearchStatus', 'Wait for a successful search before saving these criteria.');
+    try { memory.save($('savedSearchName').value, criteria()); renderSaved(); note('savedSearchStatus', 'Search saved for your account in this browser.'); }
+    catch (error) { note('savedSearchStatus', error.message); }
+  };
+  $('savedSearchList').onchange = renderSaved;
+  $('loadSearch').onclick = () => {
+    const row = memory?.list().find(item => item.id === $('savedSearchList').value);
+    if (row) { $('savedSearchName').value = row.name; fill(row.criteria); refilter(); }
+  };
+  $('deleteSearch').onclick = () => {
+    if (!memory) return;
+    try { memory.remove($('savedSearchList').value); renderSaved(); note('savedSearchStatus', 'Saved search removed.'); }
+    catch (error) { note('savedSearchStatus', error.message); }
+  };
+}
+async function startSearch(){
+  if (browser && window.CareerSearchMemory) {
+    try {
+      const account = await window.careerSearchIdentity;
+      const identity = account?.identity;
+      if (account?.ok && identity.authenticated && identity.tenant && identity.principal_id) {
+        memory = window.CareerSearchMemory.create(localStorage, identity.tenant + ':' + identity.principal_id);
+        ['savedSearchName', 'savedSearchList', 'saveSearch'].forEach(id => { $(id).disabled = false; });
+        renderSaved();
+      } else note('savedSearchStatus', 'Sign in to remember searches for your account in this browser.');
+    } catch (_) { note('savedSearchStatus', 'Remembered searches are unavailable in this browser. Search links still work.'); }
+  }
+  const explicit = FIELDS.some(key => fromUrl[key]) || fromUrl.page || fromUrl.view;
+  fill(explicit ? fromUrl : (memory?.last() || fromUrl));
+  page = Math.max(1, Number(fromUrl.page) || 1);
+  await search();
+}
+startSearch();
 </script>
 </body></html>

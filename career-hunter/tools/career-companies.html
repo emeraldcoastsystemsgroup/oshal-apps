@@ -5,6 +5,7 @@
   SEQ | AUTHOR | DESCRIPTION
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
+  2 | maintainer@emeraldcoastsystemsgroup.com | Show retained per-source attempts, complete pulls, failures, HTTP 304 checks and posting delta counts; unavailable history stays explicit.
 -->
 
 <html lang="en" data-theme="midnight" data-career-surface="companies-admin">
@@ -136,8 +137,10 @@
       <button type="button" class="flt active" id="fltAll" data-filter="all" aria-pressed="true">All <span id="cntAll"></span></button>
       <button type="button" class="flt" id="fltActive" data-filter="active" aria-pressed="false">Active ATS <span id="cntActive"></span></button>
       <button type="button" class="flt" id="fltNeeds" data-filter="needs" aria-pressed="false">Needs URL <span id="cntNeeds"></span></button>
+      <button type="button" class="flt" id="fltProblems" data-filter="problems" aria-pressed="false">Unconfirmed pulls <span id="cntProblems"></span></button>
     </div>
-    <label class="chk"><input type="checkbox" id="attn" /> needs attention only (no jobs / not found)</label>
+    <label class="chk"><input type="checkbox" id="attn" /> needs attention only (failed pull / no jobs / not found)</label>
+    <button type="button" class="pg" id="healthReload">Refresh status</button>
     <div class="pager">
       <span class="count" id="count" role="status" aria-live="polite"></span>
       <button type="button" class="pg" id="prevPage" disabled>Prev</button>
@@ -145,8 +148,10 @@
     </div>
   </div>
   <div class="wrap">
+    <p class="sub" id="healthNote" role="status">Checking source history…</p>
+    <p class="sub" id="healthSummary" role="status"></p>
     <table>
-      <thead><tr><th>Company</th><th style="text-align:right">Jobs</th><th>Platform</th>
+      <thead><tr><th>Company</th><th style="text-align:right">Jobs</th><th>Platform</th><th>Latest pull</th>
         <th>Careers / jobs URL — paste the real search URL &amp; Resolve</th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
@@ -159,7 +164,24 @@ let ALL = [];
 let statusFilter = 'all';
 let page = 1;
 
-function needsAttention(c) { return !c.ats_type || (c.active_jobs || 0) === 0 || (c.discover_status && c.discover_status !== 'found'); }
+function needsAttention(c) { return !c.ats_type || (c.active_jobs || 0) === 0 || (c.discover_status && c.discover_status !== 'found')
+  || ['failed', 'partial', 'empty_unconfirmed'].includes(c.pull_health?.status); }
+function unconfirmedPull(c) { return ['failed', 'partial', 'empty_unconfirmed', 'running'].includes(c.pull_health?.status); }
+
+function pullHealth(c) {
+  const h = c.pull_health;
+  if (!h || h.status === 'unavailable') return '<span class="sub">No pull recorded yet</span>';
+  const labels = { ok: 'Complete', not_modified: 'Unchanged · HTTP 304', running: 'Attempt unfinished', failed: 'Pull failed', partial: 'Partial · existing jobs kept', empty_unconfirmed: 'Empty result · existing jobs kept' };
+  const stamp = (value) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : 'not recorded';
+  const reason = { fetch_failed: 'The source could not be read.', http_refused: 'The source refused a request.', pagination_incomplete: 'Not every page was received.', completion_unverified: 'This connector has no complete-feed proof yet.', empty_unconfirmed: 'An empty response does not prove every job closed.', invalid_feed_rows: 'The source returned invalid or duplicate job records.' };
+  return '<strong>' + esc(labels[h.status] || 'Unknown outcome') + '</strong>'
+    + '<div class="sub">Attempt: ' + esc(stamp(h.last_attempt_at)) + '</div>'
+    + '<div class="sub">Last complete pull: ' + esc(stamp(h.last_success_at)) + '</div>'
+    + (h.last_error_code ? '<div class="sub">' + esc(reason[h.last_error_code] || 'Pull could not be confirmed.') + '</div>' : '')
+    + '<div class="sub">' + Number(h.new_count || 0) + ' new · ' + Number(h.changed_count || 0) + ' changed · '
+    + Number(h.unchanged_count || 0) + ' unchanged · ' + Number(h.closed_count || 0) + ' closed</div>'
+    + (h.consecutive_failures ? '<div class="sub">' + Number(h.consecutive_failures) + ' consecutive unconfirmed attempts</div>' : '');
+}
 
 function matchesSearch(c, q) {
   if (!q) return true;
@@ -173,6 +195,12 @@ function updateCounts() {
   $('#cntAll').textContent = ALL.length ? '(' + ALL.length.toLocaleString() + ')' : '';
   $('#cntActive').textContent = ALL.length ? '(' + active.toLocaleString() + ')' : '';
   $('#cntNeeds').textContent = ALL.length ? '(' + needs.toLocaleString() + ')' : '';
+  $('#cntProblems').textContent = '(' + ALL.filter(unconfirmedPull).length.toLocaleString() + ')';
+  const count = (statuses) => ALL.filter(c => statuses.includes(c.pull_health?.status)).length.toLocaleString();
+  $('#healthSummary').textContent = count(['failed']) + ' failed · ' + count(['partial']) + ' partial · '
+    + count(['empty_unconfirmed']) + ' empty/unconfirmed · ' + count(['running']) + ' unfinished · '
+    + count(['ok', 'not_modified']) + ' confirmed · '
+    + ALL.filter(c => !c.pull_health || c.pull_health.status === 'unavailable').length.toLocaleString() + ' unrecorded sources';
 }
 
 function setStatusFilter(next) {
@@ -193,6 +221,7 @@ function render() {
   const rows = ALL.filter(c => {
     if (!matchesSearch(c, q)) return false;
     if (statusFilter === 'active') return !needsAttention(c);
+    if (statusFilter === 'problems') return unconfirmedPull(c);
     if (statusFilter === 'needs' || $('#attn').checked) return needsAttention(c);
     return true;
   });
@@ -217,6 +246,7 @@ function render() {
       '<td class="jobs">' + (c.active_jobs || 0).toLocaleString() + '</td>' +
       '<td><span class="' + (c.ats_type ? 'pill' : 'pill none') + '">' + esc(c.ats_type || 'none') + '</span>' +
       (String(c.source_lists || '').includes('"user:') ? ' <span class="pill" title="added through a user\'s own target list">user-added</span>' : '') + '</td>' +
+      '<td>' + pullHealth(c) + '</td>' +
       '<td><div class="urlcell"><input class="url" value="' + esc(c.careers_url || '') + '" ' +
       'placeholder="paste careers / jobs search URL…" aria-label="Careers URL for ' + esc(c.name) + '" /><button type="button">Resolve</button></div>' +
       '<div class="msg" hidden></div></td>';
@@ -259,10 +289,17 @@ async function load() {
   try {
     const r = await fetch('/api/career-hunter/companies-admin/list');
     if (r.status === 403) { document.body.innerHTML = '<div class="empty">Admin only.</div>'; return; }
+    if (!r.ok) throw new Error('Source configuration could not be read (HTTP ' + r.status + ').');
     const d = await r.json();
     ALL = d.companies || [];
+    $('#healthNote').textContent = d.sourceHealth?.available
+      ? 'Source history records each employer separately. Boards may still be fetched in full; unchanged posting bodies are retained. Only verified complete results may close missing jobs.'
+      : 'This snapshot has no recorded pull history yet. Existing jobs and dates do not prove that every source was checked. History appears after the updated ingestion runs.';
     render();
-  } catch (e) { $('#empty').hidden = false; $('#empty').textContent = 'Failed to load companies.'; }
+  } catch (e) {
+    $('#healthNote').textContent = e.message || 'Source configuration could not be read.';
+    $('#empty').hidden = false; $('#empty').textContent = 'Failed to load companies. Try Refresh status.';
+  }
 }
 $('#companySearch').addEventListener('input', () => { $('#q').value = $('#companySearch').value; page = 1; render(); });
 $('#q').addEventListener('input', () => { $('#companySearch').value = $('#q').value; page = 1; render(); });
@@ -270,6 +307,7 @@ $('#attn').addEventListener('change', () => setStatusFilter($('#attn').checked ?
 document.querySelectorAll('button.flt').forEach(b => b.addEventListener('click', () => setStatusFilter(b.dataset.filter)));
 $('#prevPage').addEventListener('click', () => { if (page > 1) { page--; render(); } });
 $('#nextPage').addEventListener('click', () => { page++; render(); });
+$('#healthReload').addEventListener('click', load);
 load();
 </script>
 </body>

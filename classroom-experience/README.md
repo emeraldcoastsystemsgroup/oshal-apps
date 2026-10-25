@@ -5,8 +5,10 @@ Classwork, class schedules and personal learning through existing school roles a
 Owns the entry, configuration, layout assets and skin. Reuses the established platform rendering and transport; member APIs, authorization, relationships, records and provider credentials remain with their owners.
 
 One Learner, Teacher or School administrator application role includes Classroom,
-Little Monsters, the full AI Office suite and Circuit Lab automatically. These four
-applications form every version-2 composite; there are no optional component checkboxes.
+Little Monsters, the full AI Office suite and Circuit Lab plus personal Email automatically. These five
+applications form every version-3 composite; there are no optional component checkboxes.
+Email uses the existing package-scoped `@app-admin` role; each person still connects their
+own mailbox. Existing assignments need explicit review and replacement for this added role.
 The full Office package provides documents, spreadsheets and presentations, in addition
 to Little Monsters’ own lecture player and PowerPoint export. A missing component or
 invalid role blocks the complete reviewed assignment.

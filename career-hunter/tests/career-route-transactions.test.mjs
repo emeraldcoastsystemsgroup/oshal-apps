@@ -15,6 +15,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Prove a slow artifact request reaches a finite deadline and releases its upload reservation.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Pin runner leases to the disposable fixture so failed tests cannot strand locks in a checkout-local default store.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Prove the independent global upload ceiling rejects resume and artifact bodies with exact 429 semantics before parsing.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Keep the fifty-artifact metadata bound distinct from the single no-follow ownership probe for LinkedIn saved jobs.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,7 +26,7 @@ import {
   existsSync, mkdirSync, mkdtempSync, promises as fsPromises,
   readFileSync, readdirSync, rmSync, writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import Module from 'node:module';
 import { deploymentModeStub } from './helpers/deployment-mode-stub.mjs';
@@ -453,12 +454,18 @@ test('artifact listing stats only the bounded newest candidate window', async ()
   }
   const originalLstat = fsPromises.lstat;
   let statCalls = 0;
-  fsPromises.lstat = async (...args) => { statCalls += 1; return originalLstat(...args); };
+  const ownershipProbes = [];
+  fsPromises.lstat = async (...args) => {
+    if (dirname(args[0]) === dir) statCalls += 1;
+    else ownershipProbes.push(args[0]);
+    return originalLstat(...args);
+  };
   try {
     const response = responseRecorder();
     await artifactListHandler({ userSub }, response);
     assert.equal(response.body.uploaded.length, 50);
     assert.equal(statCalls, 50);
+    assert.deepEqual(ownershipProbes, [join(fixtureRoot, userSub)]);
   } finally {
     fsPromises.lstat = originalLstat;
   }

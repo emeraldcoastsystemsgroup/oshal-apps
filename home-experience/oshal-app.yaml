@@ -7,11 +7,13 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Add the owned ticket-attention first screen without changing member roles or data authority.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Include every functional member and required dependency in one reviewed application role; no component selections.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | The Home concierge is the required member purchasing's shopping-concierge (imported under dependencies.required.bots), which reads the person's own shopping lists and cart through purchasing's route-backed tools, instead of the platform general-bot, which answered "I cannot access your personal data, including information from a specific Home app" while the list showed an item. No member, role or authorization change. Guarded by scripts/check-store-bots.mjs (no general-bot concierge).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Map Little Monsters required Email component explicitly in every version-3 template; existing assignments require reviewed replacement.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Declare Email directly as required so the existing version-3 role member satisfies native import.
 name: home-experience
 displayName: Home
 description: Your schedule, shopping list, household updates and explicitly connected applications in the established
   Home layout.
-version: 1.0.3
+version: 1.0.5
 status: active
 suite: ai-home
 rating:
@@ -46,6 +48,7 @@ dependencies:
       - presentations
       - calendar
       - circuit-lab
+      - email-summarizer
     bots: [{ app: purchasing, name: shopping-concierge }]   # the screen's concierge (chatBot)
     tools: []
     connectors: []
@@ -134,7 +137,7 @@ experience:
       audience: family
   roleTemplates:
     - id: adult
-      version: 2
+      version: 3
       label: Household adult
       members:
         - app: home-experience
@@ -159,8 +162,10 @@ experience:
           role: '@app-admin'
         - app: circuit-lab
           role: '@app-admin'
+        - app: email-summarizer
+          role: '@app-admin'
     - id: child
-      version: 2
+      version: 3
       label: Household child
       members:
         - app: home-experience
@@ -185,8 +190,10 @@ experience:
           role: '@app-admin'
         - app: circuit-lab
           role: '@app-admin'
+        - app: email-summarizer
+          role: '@app-admin'
     - id: guest
-      version: 2
+      version: 3
       label: Household guest
       members:
         - app: home-experience
@@ -210,6 +217,8 @@ experience:
         - app: calendar
           role: '@app-admin'
         - app: circuit-lab
+          role: '@app-admin'
+        - app: email-summarizer
           role: '@app-admin'
 routes:
   - module: routes/experience.js

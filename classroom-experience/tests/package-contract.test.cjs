@@ -4,9 +4,11 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify owned entry/configuration and declared supported references without deployment credentials.
- * 2 | maintainer@emeraldcoastsystemsgroup.com | Pin every version-2 role to the complete functional component bundle without optional choices.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Pin every complete role to the complete functional component bundle without optional choices.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Guard that the entry loads the shared routine reader (live-views.js) before homebase-data.js; without it Routines answered routine_reader_missing.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the page title is the application's display name alone (it read '<name> · your swarm', which the concierge repeated as the screen's name).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Prove every template covers the actual transitive required application closure, including Little Monsters Email, with an exact reviewed role.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Mirror native import's direct declaration requirement for every role template member, independently of transitive closure coverage.
  */
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
@@ -18,7 +20,7 @@ test('entry handlers and display configuration parse',()=>{for(const file of ['r
 /** Complete shipped role membership is an independent consumer contract, not a catalog mirror. */
 test('each named application role includes the whole bundle without component selections', () => {
   const manifest = read('oshal-app.yaml');
-  const required = ["little-monsters", "presentations", "circuit-lab"];
+  const required = ["little-monsters", "presentations", "circuit-lab", "email-summarizer"];
   const dependencyBlock = manifest.slice(manifest.indexOf('dependencies:'), manifest.indexOf('authorization:'));
   const requiredRows = dependencyBlock.split('  optional:')[0].match(/^      - .+$/gm) || [];
   assert.deepEqual(requiredRows.map(row => row.trim().slice(2)), required);
@@ -27,7 +29,7 @@ test('each named application role includes the whole bundle without component se
   const bundles = roleBlock.split(/    - id: /).slice(1);
   assert.deepEqual(bundles.map(row => row.split(/\r?\n/)[0]), ["learner", "teacher", "administrator"]);
   for (const bundle of bundles) {
-    assert.match(bundle, /      version: 2/);
+    assert.match(bundle, /      version: 3/);
     const apps = [...bundle.matchAll(/        - app: ([a-z0-9-]+)/g)].map(match => match[1]);
     assert.deepEqual(apps, ['classroom-experience', ...required]);
     assert.equal(new Set(apps).size, apps.length);
@@ -50,4 +52,45 @@ test('the page title is the application display name, nothing more', () => {
   const name = fsx.readFileSync(px.join(dir, 'oshal-app.yaml'), 'utf8').match(/^displayName: *(.+)$/m)[1].trim();
   const title = fsx.readFileSync(px.join(dir, 'ui', 'index.html'), 'utf8').match(/<title>([^<]*)<\/title>/)[1];
   require('node:assert/strict').equal(title, name);
+});
+
+/** Required component changes must invalidate every incomplete enclosing role template. */
+test('every template maps the real transitive dependency closure including personal Email', async () => {
+  const { readManifestDependencies } = await import('../../scripts/manifest-dependencies.mjs');
+  const store = path.dirname(root), required = new Set();
+  const visit = (app) => {
+    if (required.has(app)) return;
+    required.add(app);
+    const source = fs.readFileSync(path.join(store, app, 'oshal-app.yaml'), 'utf8');
+    const parsed = readManifestDependencies(source, app);
+    assert.deepEqual(parsed.problems, [], `${app} has readable dependency declarations`);
+    for (const child of parsed.dependencies?.apps || []) visit(child);
+  };
+  visit(path.basename(root));
+  assert.ok(required.has('email-summarizer'), 'the actual Little Monsters dependency reaches Email');
+  const templates = read('oshal-app.yaml').split('  roleTemplates:')[1].split('routes:')[0].split(/    - id: /).slice(1);
+  for (const template of templates) {
+    const name = template.split(/\r?\n/)[0];
+    const members = [...template.matchAll(/        - app: ([a-z0-9-]+)\r?\n          role: ['"]?([^'"\r\n]+)['"]?/g)];
+    const mapped = members.map(member => member[1]);
+    assert.deepEqual([...mapped].sort(), [...required].sort(), `${name} maps every actual required application exactly once`);
+    assert.equal(members.find(member => member[1] === 'email-summarizer')?.[2], '@app-admin', `${name} reviews Email's existing package role`);
+    assert.match(template, /      version: 3\b/, `${name} advances the changed role contract`);
+  }
+});
+
+/** Native import accepts exact role members only from the owner's explicit declarations. */
+test('each template member is the owner or a directly declared application', async () => {
+  const { readManifestDependencies } = await import('../../scripts/manifest-dependencies.mjs');
+  const manifest = read('oshal-app.yaml');
+  const parsed = readManifestDependencies(manifest, path.basename(root));
+  assert.deepEqual(parsed.problems, []);
+  const declared = new Set([path.basename(root), ...(parsed.dependencies?.apps || []), ...(parsed.dependencies?.optional?.apps || [])]);
+  const templates = manifest.split('  roleTemplates:')[1].split('routes:')[0].split(/    - id: /).slice(1);
+  for (const template of templates) {
+    const name = template.split(/\r?\n/)[0];
+    const members = [...template.matchAll(/        - app: ([a-z0-9-]+)\r?\n          role: ['"]?([^'"\r\n]+)['"]?/g)];
+    for (const member of members) assert.ok(declared.has(member[1]), `${name}: ${member[1]} must be a directly declared application before native import`);
+    assert.equal(new Set(members.map(member => `${member[1]}:${member[2]}`)).size, members.length, `${name} has distinct exact roles`);
+  }
 });

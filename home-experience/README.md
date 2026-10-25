@@ -2,11 +2,13 @@
 
 Owns the Home entry, configuration and Cozy Sage skin. Reuses the established platform renderer and member APIs. Member records and provider credentials stay with their owners.
 
-Assign one Household adult, child or guest application role in Access. Each version-2
-composite includes Home plus all ten component applications: Purchasing, Home dashboard,
-Finance, Little Monsters, Movies, Spotify, Travel, AI Office, Calendar and Circuit Lab.
-Circuit Lab is included through Little Monsters’ complete learning bundle. There are no
-component-selection checkboxes. The review shows every exact package role and refuses the
+Assign one Household adult, child or guest application role in Access. Each version-3
+composite includes Home plus all eleven component applications: Purchasing, Home dashboard,
+Finance, Little Monsters, Movies, Spotify, Travel, AI Office, Calendar, Circuit Lab and personal Email.
+Circuit Lab and Email are included through Little Monsters’ complete learning bundle.
+Email uses the existing package-scoped `@app-admin` role; each person still connects their
+own mailbox. Existing assignments need explicit review and replacement for this added role.
+There are no component-selection checkboxes. The review shows every exact package role and refuses the
 whole assignment if a required component or role is unavailable.
 
 Little Monsters uses its actual `student` role for every household role; school teacher/admin

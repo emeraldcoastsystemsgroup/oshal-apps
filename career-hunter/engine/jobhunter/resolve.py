@@ -5,7 +5,11 @@ then wire + scrape it. No hand-fed URLs.
 HTTP-only (fast). Sites that hide the ATS behind JavaScript stay on the to-do list; the
 large majority expose it in the page HTML or a redirect.
 """
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Retain per-source pull health and guarded content deltas across existing ingestion paths.
 from __future__ import annotations
+
+from . import source_memory
 import re
 from urllib.parse import urlparse, urljoin
 
@@ -21,7 +25,7 @@ _CAREER_LINK = re.compile(r"search-jobs|search-results|careers-home|/search/?|/j
 # this tuple can never drift from the code below and no TypeScript copy of the patterns exists.
 PATTERN_ATS = ("workday", "icims", "eightfold", "greenhouse", "lever", "ashby", "smartrecruiters",
                "workable", "taleo", "oracle_orc", "phenom", "successfactors", "jibe", "avature",
-               "brassring", "gdcareers", "gsroles")
+               "brassring", "gdcareers", "gsroles", "pageup", "governmentjobs")
 
 
 
@@ -49,6 +53,14 @@ def classify_url(url: str):
     host = pu.netloc.lower()
     path = pu.path or "/"
     low = full.lower()
+
+    # Reviewed anonymous college/county boards; the adapters pin their supported hosts.
+    token = ats.PageUp.detect(full)
+    if token:
+        return ("pageup", token)
+    token = ats.GovernmentJobs.detect(full)
+    if token:
+        return ("governmentjobs", token)
 
     # ── Workday: {tenant}.{wdN}.myworkdayjobs.com/[locale/]{site} ───────────
     m = re.search(r"([a-z0-9-]+)\.(wd\d+)\.myworkdayjobs\.com", low)
@@ -422,21 +434,17 @@ def run_render(limit=None):
             if hit:
                 atype, token = hit
                 try:
-                    postings = ats.fetch(atype, token)
+                    postings = source_memory.fetch(r["id"], atype, token)
                 except Exception:
                     postings = None
-                if postings:
+                if postings or getattr(postings, "not_modified", False):
                     ct = db.companies_table()
                     with db.connect() as c:
                         c.execute(f"UPDATE {ct} SET ats_type=?, ats_token=?, discover_status='found' WHERE id=?",
                                   (atype, token, r["id"]))
                         seen = set()
-                        for p in postings:
-                            if p.get("ats_job_id") is None:
-                                continue
-                            db.upsert_posting(c, r["id"], p); seen.add(str(p["ats_job_id"]))
-                        db.deactivate_missing(c, r["id"], seen)
-                        c.execute(f"UPDATE {ct} SET last_scraped_at=? WHERE id=?", (db.now(), r["id"]))
+                        counts = source_memory.ingest(c, r["id"], postings)
+                        new, seen, skipped, closed = counts["new"], counts["changed"] + counts["unchanged"], counts["skipped"], counts["closed"]
                     unlocked += 1; total += len(postings)
                     print(f"  [{i}/{len(rows)}] UNLOCKED {r['name']} ({atype}): {len(postings)}", flush=True)
                     continue
@@ -467,26 +475,22 @@ def run_all(limit=None, workers=10):
             return r, None, None
         atype, token = hit
         try:
-            return r, hit, ats.fetch(atype, token)
+            return r, hit, source_memory.fetch(r["id"], atype, token)
         except Exception:
             return r, hit, None
 
     with cf.ThreadPoolExecutor(max_workers=workers) as ex:
         for r, hit, postings in ex.map(work, rows):
             done += 1
-            if hit and postings:
+            if hit and (postings or getattr(postings, "not_modified", False)):
                 atype, token = hit
                 ct = db.companies_table()
                 with db.connect() as c:
                     c.execute(f"UPDATE {ct} SET ats_type=?, ats_token=?, discover_status='found' WHERE id=?",
                               (atype, token, r["id"]))
                     seen = set()
-                    for p in postings:
-                        if p.get("ats_job_id") is None:
-                            continue
-                        db.upsert_posting(c, r["id"], p); seen.add(str(p["ats_job_id"]))
-                    db.deactivate_missing(c, r["id"], seen)
-                    c.execute(f"UPDATE {ct} SET last_scraped_at=? WHERE id=?", (db.now(), r["id"]))
+                    counts = source_memory.ingest(c, r["id"], postings)
+                    new, seen, skipped, closed = counts["new"], counts["changed"] + counts["unchanged"], counts["skipped"], counts["closed"]
                 unlocked += 1; total += len(postings)
                 print(f"  [{done}/{len(rows)}] UNLOCKED {r['name']} ({atype}): {len(postings)}", flush=True)
             elif done % 25 == 0:

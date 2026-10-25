@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FTS_TABLE = exports.MAX_OFFSET = exports.MAX_PER = exports.ARM_POOL = exports.BROWSE_POOL = exports.BROWSE_SORT_MAP = void 0;
+exports.FTS_TABLE = exports.CareerGeoIndexUnavailable = exports.CAREER_GEO_INDEX = exports.MAX_OFFSET = exports.MAX_PER = exports.ARM_POOL = exports.BROWSE_POOL = exports.BROWSE_SORT_MAP = void 0;
 exports.browseFilters = browseFilters;
 exports.browsePageGeometry = browsePageGeometry;
 exports.searchCandidateSql = searchCandidateSql;
@@ -8,6 +8,42 @@ exports.fetchBrowsePage = fetchBrowsePage;
 exports.hasFullText = hasFullText;
 exports.ftsMatchExpression = ftsMatchExpression;
 exports.ftsExpressionFor = ftsExpressionFor;
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Plan a corpus-only board feed so a signed-in user with no indexed resume can still search the openings.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Apply offline location/radius constraints inside every search arm before pools and pages, with exact distance and required geo-index readiness; expose real posting coordinates and salary provenance.
+ */
+/**
+ * Career Hunter — corpus-only browse feed.
+ *
+ * The scored board ({@link module:career-board-feed}) drives from `user_signals`: it walks the
+ * caller's AI-scored rows in sort-key order and joins the corpus to whatever that bounded pool
+ * returns. That is the right plan for a user who HAS a resume, and it returns nothing at all for a
+ * user who does not — a brand-new account has zero signal rows, so the board had nothing to render
+ * and the surface hid its own search bar behind the onboarding card.
+ *
+ * This module plans the other half: the shared corpus with **no signals table involved**, so the
+ * openings are searchable before a resume exists. It is deliberately NOT the scored feed with the
+ * join removed:
+ *
+ *   - There are no scores here, so there is no `fit` ranking to preserve. The default order is
+ *     `first_seen_at DESC`, which `idx_corpus_seen` serves as a bounded index walk.
+ *   - A keyword search matches **titles only**. `postings_corpus.description` is ~1.1GB of the
+ *     ~2.0GB live corpus and is stored inline, so `title LIKE ? OR description LIKE ?` drags every
+ *     row's description through the page cache — the exact shape that measured 50s on the scored
+ *     board before it was replanned. Titles alone fit in a covering index.
+ *   - That search runs as a bounded **candidate CTE** over `idx_corpus_browse (active, title)`.
+ *     Selecting only `id` keeps the statement covered by that index, so a leading-wildcard LIKE
+ *     scans ~65MB of title keys instead of ~2GB of rows, and the LIMIT lets a common term stop
+ *     early. The pool is unordered — every ordering the browse offers lives on the corpus side, so
+ *     ranking happens after the join and `pooled` reports that the ranking saw a bounded set.
+ *
+ * @module career-browse-feed
+ */
+const career_geo_1 = require("./career-geo");
 /**
  * @description ORDER BY expressions keyed by supported browse sort values. Every key is a corpus
  *   column — there are no signals to sort by, which is the whole point of this feed.
@@ -40,8 +76,26 @@ exports.MAX_PER = 100;
 exports.MAX_OFFSET = 2000;
 /** The browse card's columns. Deliberately excludes `p.description` (1.1GB of the corpus). */
 const SELECT_COLS = `p.id, p.title, c.name AS company, c.industry, p.location, p.url,
-        p.posted_date, p.first_seen_at, p.job_type, p.remote, p.state,
-        p.salary_min, p.salary_max, p.salary_currency, p.salary_period`;
+        p.posted_date, p.first_seen_at, p.job_type, p.remote, p.state, p.city, p.lat, p.lon,
+        p.salary_min, p.salary_max, p.salary_currency, p.salary_period, p.salary_source`;
+/** Project distance for the exact center used by SQL filtering. */
+function selectCols(location) {
+    return `${SELECT_COLS}, ${location ? (0, career_geo_1.careerDistanceSql)(location) : 'NULL'} AS distance_miles`;
+}
+exports.CAREER_GEO_INDEX = 'idx_corpus_geo';
+/** Old read-only corpora can browse nationally while geographic search waits for its writer. */
+class CareerGeoIndexUnavailable extends Error {
+    status = 503;
+    code = 'geo_index_unavailable';
+    constructor() { super('Local search is being prepared. The job corpus needs its geographic index; try again after its next update.'); this.name = 'CareerGeoIndexUnavailable'; }
+}
+exports.CareerGeoIndexUnavailable = CareerGeoIndexUnavailable;
+/** Refuse a radius scan without the covering index, rather than scan description-heavy rows. */
+function requireGeoIndex(db) {
+    const columns = db.prepare(`PRAGMA corpus.index_info(${exports.CAREER_GEO_INDEX})`).all();
+    if (columns.map(column => column.name).join(',') !== 'active,lat,lon,city')
+        throw new CareerGeoIndexUnavailable();
+}
 /**
  * @description Reads a trimmed string parameter off an Express query object.
  * @param query - The request query.
@@ -62,6 +116,7 @@ function param(query, key) {
  */
 function browseFilters(query) {
     const g = (k) => param(query, k);
+    const location = (0, career_geo_1.resolveCareerLocation)(query);
     const posting = ['p.active = 1'];
     const postingArgs = [];
     const company = [];
@@ -86,6 +141,12 @@ function browseFilters(query) {
         posting.push('p.state = ?');
         postingArgs.push(g('state').toUpperCase());
     }
+    if (g('city')) {
+        posting.push('lower(trim(p.city)) = ?');
+        postingArgs.push((0, career_geo_1.normalizeCareerCity)(g('city')));
+    }
+    if (location)
+        posting.push((0, career_geo_1.careerRadiusPredicate)(location));
     if (g('type')) {
         posting.push('p.job_type = ?');
         postingArgs.push(g('type'));
@@ -97,10 +158,13 @@ function browseFilters(query) {
     }
     const minPay = parseInt(g('min_pay'), 10);
     if (minPay > 0) {
-        posting.push('COALESCE(p.salary_max,p.salary_min,0) >= ?');
+        posting.push(g('include_unknown_pay') === '1'
+            ? '(COALESCE(p.salary_max,p.salary_min,0) >= ? OR (p.salary_min IS NULL AND p.salary_max IS NULL))'
+            : 'COALESCE(p.salary_max,p.salary_min,0) >= ?');
         postingArgs.push(minPay);
     }
     return {
+        location,
         where: [...posting, ...company].join(' AND '),
         args: [...postingArgs, ...companyArgs],
         postingWhere: posting.join(' AND '),
@@ -128,7 +192,7 @@ function browsePageGeometry(query) {
  * @param plan - Sort ordering and page geometry.
  * @returns The rows this page produced.
  */
-function searchCandidateSql(deep, postingWhere = 'active = 1') {
+function searchCandidateSql(deep, postingWhere = 'active = 1', geographic = false) {
     // EVERY arm is independently ordered and bounded, and that is the whole design.
     //
     // An unordered pool has to be materialised before the outer query can rank it, and each
@@ -155,8 +219,9 @@ function searchCandidateSql(deep, postingWhere = 'active = 1') {
     const arm = (body) => `SELECT cid AS id FROM (${body} ORDER BY cid + 0 DESC LIMIT ${exports.ARM_POOL})`;
     // Arm 1 — titles. Covered by idx_corpus_browse (active, title): a leading-wildcard
     // LIKE scans ~65MB of title keys rather than ~2GB of rows.
+    const indexHint = geographic ? ` INDEXED BY ${exports.CAREER_GEO_INDEX}` : '';
     const arms = [
-        arm(`SELECT id AS cid FROM corpus.postings_corpus p WHERE ${postingWhere} AND p.title LIKE ?`),
+        arm(`SELECT id AS cid FROM corpus.postings_corpus p${indexHint} WHERE ${postingWhere} AND p.title LIKE ?`),
     ];
     // Arm 2 — employer names. `companies` is a few thousand rows, so the scan is trivial,
     // and its postings come back through idx_corpus_company_active. This is what makes
@@ -175,7 +240,7 @@ function searchCandidateSql(deep, postingWhere = 'active = 1') {
     // (measured 8-21s on the live store when few rows match). It is therefore opt-in per
     // request and labelled as slow on the surface, never the default.
     if (deep) {
-        arms.push(arm(`SELECT id AS cid FROM corpus.postings_corpus p WHERE ${postingWhere} AND p.description LIKE ?`));
+        arms.push(arm(`SELECT id AS cid FROM corpus.postings_corpus p${indexHint} WHERE ${postingWhere} AND p.description LIKE ?`));
     }
     return { sql: arms.join('\n         UNION\n        '), arms: arms.length, parts: arms };
 }
@@ -189,11 +254,11 @@ function searchCandidateSql(deep, postingWhere = 'active = 1') {
  * @returns The rows this page produced.
  */
 function runSearch(db, term, deep, filters, plan) {
-    const candidates = searchCandidateSql(deep, filters.postingWhere);
+    const candidates = searchCandidateSql(deep, filters.postingWhere, !!filters.location);
     const sql = `WITH cand AS (
         ${candidates.sql}
          LIMIT ${exports.BROWSE_POOL})   /* backstop only — each arm is already bounded */
-      SELECT ${SELECT_COLS}
+      SELECT ${selectCols(filters.location)}
         FROM cand
         JOIN corpus.postings_corpus p ON p.id = cand.id
         JOIN corpus.companies c ON c.id = p.company_id
@@ -222,8 +287,8 @@ function runSearch(db, term, deep, filters, plan) {
  * @returns The rows this page produced.
  */
 function runFeed(db, filters, plan) {
-    const sql = `SELECT ${SELECT_COLS}
-        FROM corpus.postings_corpus p
+    const sql = `SELECT ${selectCols(filters.location)}
+        FROM corpus.postings_corpus p${filters.location ? ` INDEXED BY ${exports.CAREER_GEO_INDEX}` : ''}
         JOIN corpus.companies c ON c.id = p.company_id
        WHERE ${filters.where}
        ORDER BY ${plan.order}
@@ -257,19 +322,19 @@ function runFullText(db, expression, employer, filters, plan) {
          UNION
         SELECT id FROM (SELECT p2.id AS id FROM corpus.companies c2
                 CROSS JOIN corpus.postings_corpus p2 ON p2.company_id = c2.id
-               WHERE c2.name LIKE ? AND p2.active = 1
+               WHERE c2.name LIKE ? AND ${filters.postingWhere.replace(/\bp\./g, 'p2.')}
                ORDER BY p2.id DESC LIMIT ${exports.ARM_POOL})`;
     const candidates = `SELECT rowid FROM corpus.${exports.FTS_TABLE} WHERE ${exports.FTS_TABLE} MATCH ?`
         + (employer ? employerArm : '');
-    const sql = `SELECT ${SELECT_COLS}
-        FROM corpus.postings_corpus p
+    const sql = `SELECT ${selectCols(filters.location)}
+        FROM corpus.postings_corpus p${filters.location ? ` INDEXED BY ${exports.CAREER_GEO_INDEX}` : ''}
         JOIN corpus.companies c ON c.id = p.company_id
        WHERE p.id IN (${candidates}) AND ${filters.where}
        ORDER BY ${plan.order}
        LIMIT ? OFFSET ?`;
     const args = [expression];
     if (employer)
-        args.push(`%${employer}%`);
+        args.push(`%${employer}%`, ...filters.postingArgs);
     return db.prepare(sql).all(...args, ...filters.args, plan.per, plan.offset);
 }
 /**
@@ -284,10 +349,12 @@ function fetchBrowsePage(db, query) {
     const order = exports.BROWSE_SORT_MAP[sort] || exports.BROWSE_SORT_MAP.recent;
     const { page, per, offset, capped } = browsePageGeometry(query);
     const filters = browseFilters(query);
+    if (filters.location)
+        requireGeoIndex(db);
     const term = param(query, 'q');
     if (capped) {
         return {
-            jobs: [], page, per, browse: true, pooled: false, poolSize: null,
+            jobs: [], page, per, browse: true, pooled: false, poolSize: null, location: filters.location,
             fullText: false, deep: false,
             exhausted: true, capped,
         };
@@ -316,6 +383,7 @@ function fetchBrowsePage(db, query) {
     }
     return {
         jobs,
+        location: filters.location,
         page,
         per,
         browse: true,
@@ -391,4 +459,3 @@ function ftsExpressionFor(query) {
     ].filter(Boolean);
     return parts.join(' AND ');
 }
-//# sourceMappingURL=career-browse-feed.js.map

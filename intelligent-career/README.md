@@ -5,6 +5,16 @@ One front door for the job search. Intelligent Career is an **application group*
 a manifest with no code that binds four installed applications into one toolbar and
 gives them a shared setup page.
 
+Version **1.1.2** keeps **Career Settings** and **Companies** (job sources) together in
+the visible **Configuration** toolbar band. Both entries borrow the existing Career
+Hunter surfaces; their existing access checks still apply.
+
+Career Hunter 1.28.0 also declares the existing **Open jobs search** page as an
+actual native experience. It opens through `/api/ui/experiences/career-hunter/open`
+with its map, search criteria and remembered searches intact. The Intelligent
+Career group remains the four-member front door and setup page. It adds no new
+role, permission or required application.
+
 The group follows the portal's selected palette by default. Career Hunter 1.20.0 gives its
 thirteen existing screens a common token-based presentation, while member applications keep
 their own layouts and workflows. Cockpit Settings can optionally enable **Application colors**
@@ -18,7 +28,7 @@ the seven setup steps remain unchanged. See the member's
 
 | Member | What it brings |
 |---|---|
-| `career-hunter` | the job board, Search Jobs, Submissions, Recruiters, Approvals, Insights, Resume Studio, Strengthen, Profile Studio, Settings |
+| `career-hunter` | the job board, Search Jobs, Submissions, Recruiters, Approvals, Insights, Resume Studio, Strengthen, Profile Studio, Career Settings, Companies and source health |
 | `portrait-studio` | the profile picture |
 | `social` | LinkedIn Assistant, the Workspace, Signals, and the Accounts hub (LinkedIn / Facebook / X) |
 | `print-ingest` | the Print Inbox — documents printed into the swarm |

@@ -1,0 +1,12 @@
+{
+  "package": "leaflet",
+  "version": "1.9.4",
+  "source": "https://registry.npmjs.org/leaflet/-/leaflet-1.9.4.tgz",
+  "archiveSha256": "84c65a256e50657896f54c33bd857b6849ebe94c817803be818bf32a3dde0b77",
+  "files": {
+    "career-leaflet.css": "337bfca5cabd03b39815b2700febe2b3b7edf55921c59cd49f88ecb328212303",
+    "career-leaflet.js": "db49d009c841f5ca34a888c96511ae936fd9f5533e90d8b2c4d57596f4e5641a",
+    "career-leaflet-LICENSE.txt": "bbc959aaef7488b38942e7f05cfd1244351f8bce54261951ea17dd7cf60f894b"
+  },
+  "normalization": "CSS and license CRLF line endings are normalized to LF; JavaScript is unchanged."
+}

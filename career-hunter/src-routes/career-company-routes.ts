@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Denial log records req.path, not req.originalUrl — the query string on a DENIED request is unbounded caller-controlled input (seturl carries a whole URL) and was being written into the WARN line.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The admin list carries each company's source_lists so the portal table shows which rows arrived through a user's own target list (`user:<sub>` provenance) rather than the seeds.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | The administrator-only page speaks to the person: it told them an operator adds their subject to CAREER_HUNTER_ADMIN_SUBS 'and recreating the API container', a Docker-era step that does not exist on the native runtime. It now says to ask the person who runs the installation; the operator log line names the empty allow-list without the container step. Guard: tests/career-company-admin-copy.test.mjs.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Project retained source attempts and content-delta counts through the existing administrator list; older snapshots explicitly have no recorded health.
  */
 
 /**
@@ -16,11 +17,13 @@
  */
 import { type Request, type RequestHandler, type Response, type Router } from 'express';
 import { createChildLogger } from '@/shared/logger';
+import { isOperator } from '@/shared/middleware/authz';
 import type { AppContext } from '@/app/composition/app-context';
-import { callerSub, openUserDb } from './career-user-store';
+import { callerSub, openCorpusDb } from './career-user-store';
 import { runCareerCliAwait } from './career-engine-dispatch';
 import { rejectEngineStart } from './career-engine-response';
 import { createCareerToolFileHandler } from './career-surface-routes';
+const { sourceHealthByCompany } = require('../lib/career-source-health');
 
 const logger = createChildLogger({ module: 'career-company-routes' });
 const CAREER_ADMIN_SUBS = new Set(
@@ -112,7 +115,7 @@ function logAdminDenial(req: Request, authenticated: boolean): void {
 
 const requireCareerAdmin: RequestHandler = (req, res, next) => {
   const sub = callerSub(req);
-  if (isCareerAdmin(sub)) { next(); return; }
+  if (isOperator(req) || isCareerAdmin(sub)) { next(); return; }
   logAdminDenial(req, !!sub);
   // 403 either way — this is a real authorization boundary, only the representation is negotiated.
   // Never cached: once an operator configures the allow-list, a reload must re-evaluate the gate.
@@ -131,7 +134,7 @@ const requireCareerAdmin: RequestHandler = (req, res, next) => {
 
 function listCompanies(req: Request, res: Response): void {
   const userSub = callerSub(req);
-  const db = userSub && openUserDb(userSub);
+  const db = userSub && openCorpusDb();
   if (!db) { res.json({ companies: [] }); return; }
   try {
     const companies = db.prepare(
@@ -139,8 +142,11 @@ function listCompanies(req: Request, res: Response): void {
               (SELECT COUNT(*) FROM corpus.postings_corpus p WHERE p.company_id=c.id AND p.active=1) AS active_jobs
          FROM corpus.companies c
         ORDER BY active_jobs DESC, c.name`,
-    ).all();
-    res.json({ companies });
+    ).all() as Array<{ id: number; [key: string]: unknown }>;
+    const health = sourceHealthByCompany(db);
+    res.json({ companies: companies.map((company) => ({ ...company,
+      pull_health: health.states.get(company.id) ?? { status: 'unavailable', reason: 'not_recorded_yet' },
+    })), sourceHealth: { available: health.available, reason: health.reason } });
   } catch (err) {
     logger.error({ err, userSub }, 'company list failed');
     res.status(500).json({ error: 'read failed' });

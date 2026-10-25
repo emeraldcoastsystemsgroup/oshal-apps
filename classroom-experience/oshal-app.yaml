@@ -5,10 +5,12 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Own Classroom entry, display and exact reviewed roles using existing application hosting.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Release explicitly authorized installed readiness.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Include every functional member and required dependency in one reviewed application role; no component selections.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Map Little Monsters required Email component explicitly in every version-3 template; existing assignments require reviewed replacement.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Declare Email directly as required so the existing version-3 role member satisfies native import.
 name: classroom-experience
 displayName: Classroom
 description: Classwork, class schedules and personal learning through existing school roles and roster rules.
-version: 1.0.2
+version: 1.0.4
 status: active
 suite: ai-knowledge
 rating:
@@ -36,6 +38,7 @@ dependencies:
       - little-monsters
       - presentations
       - circuit-lab
+      - email-summarizer
     tools: []
     connectors: []
   optional:
@@ -105,7 +108,7 @@ experience:
       audience: classroom
   roleTemplates:
     - id: learner
-      version: 2
+      version: 3
       label: Learner
       members:
         - app: classroom-experience
@@ -116,8 +119,10 @@ experience:
           role: '@app-admin'
         - app: circuit-lab
           role: '@app-admin'
+        - app: email-summarizer
+          role: '@app-admin'
     - id: teacher
-      version: 2
+      version: 3
       label: Teacher
       members:
         - app: classroom-experience
@@ -128,8 +133,10 @@ experience:
           role: '@app-admin'
         - app: circuit-lab
           role: '@app-admin'
+        - app: email-summarizer
+          role: '@app-admin'
     - id: administrator
-      version: 2
+      version: 3
       label: School administrator
       members:
         - app: classroom-experience
@@ -139,6 +146,8 @@ experience:
         - app: presentations
           role: '@app-admin'
         - app: circuit-lab
+          role: '@app-admin'
+        - app: email-summarizer
           role: '@app-admin'
 routes:
   - module: routes/experience.js

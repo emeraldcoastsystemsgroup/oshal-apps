@@ -494,7 +494,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. Any document in the swarm can be sent here (ADR-139 Send to…) and absorbed into your profile. Single-tenant, multi-user (per-user isolation); multi-tenant ready.",
-      "version": "1.27.6",
+      "version": "1.28.1",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1827,7 +1827,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "One front door for your job search: the board, search, resume and strengthen tools, your profile picture, your LinkedIn and Facebook presence, and the documents you print into the swarm — with a setup page that shows what is connected and what still needs you. An ADR-141 application GROUP: no code of its own, four member apps bound by one toolbar of borrowed surfaces.",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "theme": "daylight",
       "dependencies": {
         "apps": [
@@ -2782,7 +2782,7 @@
       "suite": "ai-home",
       "displayName": "Home",
       "description": "Your schedule, shopping list, household updates and explicitly connected applications in the established Home layout.",
-      "version": "1.0.3",
+      "version": "1.0.5",
       "dependencies": {
         "apps": [
           "purchasing",
@@ -2794,7 +2794,8 @@
           "travel",
           "presentations",
           "calendar",
-          "circuit-lab"
+          "circuit-lab",
+          "email-summarizer"
         ],
         "tools": [],
         "connectors": [],
@@ -2815,7 +2816,8 @@
             "travel",
             "presentations",
             "calendar",
-            "circuit-lab"
+            "circuit-lab",
+            "email-summarizer"
           ],
           "bots": [
             {
@@ -2932,12 +2934,13 @@
       "suite": "ai-knowledge",
       "displayName": "Classroom",
       "description": "Classwork, class schedules and personal learning through existing school roles and roster rules.",
-      "version": "1.0.2",
+      "version": "1.0.4",
       "dependencies": {
         "apps": [
           "little-monsters",
           "presentations",
-          "circuit-lab"
+          "circuit-lab",
+          "email-summarizer"
         ],
         "tools": [],
         "connectors": [],
@@ -2945,7 +2948,8 @@
           "apps": [
             "little-monsters",
             "presentations",
-            "circuit-lab"
+            "circuit-lab",
+            "email-summarizer"
           ],
           "tools": [],
           "connectors": []

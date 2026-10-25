@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Rehearse the BACKEND-CUTOVER.md promotion and rollback on disposable stores with the real commands: load twice, converge, read-only PostgreSQL smoke through the engine, engine writes on PostgreSQL, a rollback gate that refuses while a claim is outstanding or the projector lags, reverse catch-up, convergence, and an engine read back on SQLite that holds every post-cutover write. Then take real observation samples: in bounds with an archived report, and reset by a missing nightly marker and by a sample gap.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve the first observation's timestamp precision so its inclusive activity cutoff cannot precede writes committed during the same wall-clock second. The observer formats archive names separately.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Use a low-entropy synthetic claim-token UUID. The random-looking value bound to a token name matched gitleaks' generic-api-key rule (entropy ~3.95), so gate C of the public store cut refused this fixture; the value is still a valid version-4 UUID and every comparison reads the same constant.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Keep generic HTML unverified, then attest only the owned loopback fixture's exact parsed enumeration to prove complete-feed closure is captured and projected during rollback.
 
 """Career cutover drill (disposable).
 
@@ -148,7 +149,22 @@ class Drill:
                 f"ats_token='{ats_url}')\n"
                 "cli.cmd_scrape(SimpleNamespace(company='Drill Ats Co', list=None, limit=None))")
             server.fixture_jobs = server.fixture_jobs[:1]
-            self.engine_write("cli.cmd_scrape(SimpleNamespace(company='Drill Ats Co', list=None, limit=None))")
+            self.engine_write(
+                "cli.cmd_scrape(SimpleNamespace(company='Drill Ats Co', list=None, limit=None))\n"
+                "from jobhunter import ats, source_memory\n"
+                "with db.connect() as conn:\n"
+                "    company_id = conn.execute(\"SELECT id FROM companies WHERE name='Drill Ats Co'\").fetchone()['id']\n"
+                "    kept = conn.execute(\"SELECT active FROM postings WHERE company_id=? AND ats_job_id='5002'\", (company_id,)).fetchone()\n"
+                "    assert int(kept['active']) == 1, 'unverified HTML must preserve absent jobs'\n"
+                # This test owns the one-page HTTP fixture. Its exact expected IDs
+                # supply completion evidence separately from generic HTML parsing.
+                f"parsed = ats.fetch('htmllist', {ats_url!r})\n"
+                "assert not parsed.complete\n"
+                f"expected_ids = {sorted(job['id'] for job in server.fixture_jobs)!r}\n"
+                "assert sorted(str(job['ats_job_id']) for job in parsed) == expected_ids\n"
+                "with db.connect() as conn:\n"
+                "    receipt = source_memory.ingest(conn, company_id, source_memory.Feed(parsed, complete=True, reason=None))\n"
+                "    assert receipt['closed'] == 1\n")
         self.engine_write(
             "with db.connect() as conn:\n"
             "    db.set_status(conn, 12, 'promoted')\n"

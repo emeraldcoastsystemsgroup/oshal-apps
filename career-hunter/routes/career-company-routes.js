@@ -9,12 +9,15 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Denial log records req.path, not req.originalUrl — the query string on a DENIED request is unbounded caller-controlled input (seturl carries a whole URL) and was being written into the WARN line.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The admin list carries each company's source_lists so the portal table shows which rows arrived through a user's own target list (`user:<sub>` provenance) rather than the seeds.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | The administrator-only page speaks to the person: it told them an operator adds their subject to CAREER_HUNTER_ADMIN_SUBS 'and recreating the API container', a Docker-era step that does not exist on the native runtime. It now says to ask the person who runs the installation; the operator log line names the empty allow-list without the container step. Guard: tests/career-company-admin-copy.test.mjs.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Project retained source attempts and content-delta counts through the existing administrator list; older snapshots explicitly have no recorded health.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isCareerAdmin = isCareerAdmin;
 exports.registerCareerCompanyRoutes = registerCareerCompanyRoutes;
 const logger_1 = require("@/shared/logger");
+const authz_1 = require("@/shared/middleware/authz");
 const career_user_store_1 = require("./career-user-store");
+const { sourceHealthByCompany } = require('../lib/career-source-health');
 const career_engine_dispatch_1 = require("./career-engine-dispatch");
 const career_engine_response_1 = require("./career-engine-response");
 const career_surface_routes_1 = require("./career-surface-routes");
@@ -99,7 +102,7 @@ function logAdminDenial(req, authenticated) {
 }
 const requireCareerAdmin = (req, res, next) => {
     const sub = (0, career_user_store_1.callerSub)(req);
-    if (isCareerAdmin(sub)) {
+    if ((0, authz_1.isOperator)(req) || isCareerAdmin(sub)) {
         next();
         return;
     }
@@ -120,7 +123,7 @@ const requireCareerAdmin = (req, res, next) => {
 };
 function listCompanies(req, res) {
     const userSub = (0, career_user_store_1.callerSub)(req);
-    const db = userSub && (0, career_user_store_1.openUserDb)(userSub);
+    const db = userSub && (0, career_user_store_1.openCorpusDb)();
     if (!db) {
         res.json({ companies: [] });
         return;
@@ -130,7 +133,10 @@ function listCompanies(req, res) {
               (SELECT COUNT(*) FROM corpus.postings_corpus p WHERE p.company_id=c.id AND p.active=1) AS active_jobs
          FROM corpus.companies c
         ORDER BY active_jobs DESC, c.name`).all();
-        res.json({ companies });
+        const health = sourceHealthByCompany(db);
+        res.json({ companies: companies.map((company) => ({ ...company,
+            pull_health: health.states.get(company.id) ?? { status: 'unavailable', reason: 'not_recorded_yet' },
+        })), sourceHealth: { available: health.available, reason: health.reason } });
     }
     catch (err) {
         logger.error({ err, userSub }, 'company list failed');

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Extract native surfaces, static assets, and the caller-scoped classic board from the composition root.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Retire the unbounded persistent classic-board process and redirect legacy links to the native board.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Admit only the named public community-source directory JSON beside existing static assets.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Serve the native board at the admitted package root as well as its existing named surface.
  */
 
@@ -43,7 +44,7 @@ export function createCareerToolFileHandler(fileName: string): RequestHandler {
 /** Serve one allowlisted static asset and log package/path drift. */
 function serveStatic(req: Request, res: Response): void {
   const file = path.basename(String(req.params.file));
-  if (!/\.(css|js|png|svg)$/.test(file)) { res.status(404).end(); return; }
+  if (file !== 'career-local-sources.json' && !/\.(css|js|png|svg)$/.test(file)) { res.status(404).end(); return; }
   res.sendFile(path.join(TOOL_DIR, file), (err: unknown) => {
     if (err) {
       logger.error({ err, file }, 'career static asset serve failed');

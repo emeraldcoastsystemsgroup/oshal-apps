@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Career worker rail: a manual run reports its run id and terminal state, a run that lost the Career worker answers 503 career-worker-unavailable (and the rail's other refusals keep their own status) instead of a generic 502, and a cancelled run answers 409. Add the caller's own run list (GET /runs) and owner-only cancellation (POST /run/:runId/cancel), where another user's run is indistinguishable from a missing one.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Map every failure code the rail records on a run: career-worker-queue-timeout (504, added to the rail with the slot-wait ceiling), not-entitled (403), career-worker-error (502) and run-cancelled (409) were missing, so a manual run that ended on one of them answered a generic 502 without its reason.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Return the successful chain completion marker separately from progressive corpus freshness.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Native refresh is installation-managed; expose capability and refuse a detached shared writer before acknowledging work.
  */
 
 /**
@@ -55,6 +56,11 @@ function refreshCallerSub(req: Request): string | null {
 function startRefresh(ctx: AppContext, req: Request, res: Response): void {
   const userSub = refreshCallerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (process.env.OSHAL_EGRESS === 'kernel') {
+    res.status(409).json({ ok: false, manualRefreshAvailable: false, refreshMode: 'installation-managed',
+      error: 'The installation refreshes the shared job sources. This screen cannot start a separate shared-corpus writer.' });
+    return;
+  }
   if (!isCareerAdmin(userSub)) { res.status(403).json({ error: 'admin only' }); return; }
   const cron = require('./career-hunter-cron') as typeof import('./career-hunter-cron');
   if (cron.isEveningChainRunning()) {
@@ -95,6 +101,8 @@ function getRefresh(req: Request, res: Response): void {
     running: cron.isEveningChainRunning(),
     corpusFreshAt: corpusFreshAt(userSub),
     lastCompletedAt: cron.lastEveningCompletedAt(userSub),
+    manualRefreshAvailable: process.env.OSHAL_EGRESS !== 'kernel' && isCareerAdmin(userSub),
+    refreshMode: process.env.OSHAL_EGRESS === 'kernel' ? 'installation-managed' : 'application-managed',
   });
 }
 

@@ -5,7 +5,11 @@ a schedule (e.g. hourly) and left alone until the whole list is done.
     python -m jobhunter run            # process this hour's small batch + report
     python -m jobhunter status         # print the current report
 """
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Retain per-source pull health and guarded content deltas across existing ingestion paths.
 from __future__ import annotations
+
+from . import source_memory
 import json
 import math
 from datetime import date, datetime, timezone
@@ -155,18 +159,11 @@ def run_batch(daily_budget: int = DEFAULT_DAILY, per_run: int | None = None, do_
             with db.connect() as conn:
                 co = conn.execute("SELECT name, ats_type, ats_token FROM companies WHERE id=?", (cid,)).fetchone()
             try:
-                postings = ats.fetch(co["ats_type"], co["ats_token"])
+                postings = source_memory.fetch(cid, co["ats_type"], co["ats_token"])
                 with db.connect() as conn:
                     seen = set()
-                    for p in postings:
-                        if p.get("ats_job_id") is None:
-                            continue
-                        db.upsert_posting(conn, cid, p); seen.add(str(p["ats_job_id"]))
-                    db.deactivate_missing(conn, cid, seen)
-                    # Base table again (see above). db.now() emits the ISO-8601 string
-                    # career_companies.last_scraped_at (TIMESTAMPTZ) parses without help.
-                    conn.execute(f"UPDATE {db.companies_table()} SET last_scraped_at=? WHERE id=?",
-                                 (db.now(), cid))
+                    counts = source_memory.ingest(conn, cid, postings)
+                    new, seen, skipped, closed = counts["new"], counts["changed"] + counts["unchanged"], counts["skipped"], counts["closed"]
                 print(f"    -> scraped {co['name']}: {len(postings)} jobs", flush=True)
             except Exception as e:
                 print(f"    -> scrape failed {co['name']}: {e}", flush=True)

@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise one real ATS/storage/nightly contract against SQLite and a disposable FORCE-RLS PostgreSQL database.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Take the disposable database and the loopback ATS from the shared tests/helpers modules (career_pg.py, career_fixture.py) and apply the cutover migration set, so every engine write in this contract also passes through the 106 outbox capture triggers as the NOBYPASSRLS owner role.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Prove unverified HTML preserves absent jobs, then attest the owned fixture's complete parsed enumeration explicitly to exercise the production SQL closure boundary in both backends.
 
 """Backend-neutral Career storage contract used by the Node release gate.
 
@@ -11,7 +12,9 @@ The suite deliberately calls production ``db``, ``cli`` and ``match`` functions.
 a real temporary database. PostgreSQL creates a short-lived database owned by a LOGIN,
 NOSUPERUSER, NOBYPASSRLS role, applies the package migrations, and connects through the same
 ``DATABASE_URL`` path as the engine. The local ATS is an actual HTTP server, not a patched
-fetch function, so pagination, parsing, refresh and deactivation all cross their real boundary.
+fetch function. Generic HTML remains unverified and cannot deactivate absent jobs. After
+proving that safety rule, the contract attests the controlled fixture's exact parsed IDs to
+exercise the complete-feed SQL boundary.
 """
 from __future__ import annotations
 
@@ -54,7 +57,7 @@ def _read_application(db, conn, posting_id: int) -> dict:
 
 def run_shared_contract(backend: str) -> dict:
     """Run the exact same observable contract against the configured production backend."""
-    from jobhunter import cli, db, match
+    from jobhunter import ats, cli, db, match, source_memory
 
     db.init_db()
     with deterministic_ats() as (ats_url, server):
@@ -102,6 +105,25 @@ def run_shared_contract(backend: str) -> dict:
             {"id": "1001", "title": "Principal Platform Engineer Contract", "location": "Austin, TX"},
         ]
         cli.cmd_scrape(SimpleNamespace(company="Fixture Systems", list=None, limit=None))
+        with db.connect() as conn:
+            preserved = conn.execute(
+                "SELECT active FROM postings WHERE company_id=? AND ats_job_id='1002'",
+                (company_id,),
+            ).fetchone()
+            assert int(preserved["active"]) == 1, "unverified HTML must preserve absent jobs"
+
+        # Only this owned one-page server has a fixture-known complete enumeration.
+        # Real HTTP parsing remains in use; production HtmlList stays unverified.
+        parsed = ats.fetch("htmllist", ats_url)
+        assert not parsed.complete
+        expected_ids = {job["id"] for job in server.fixture_jobs}
+        parsed_ids = [str(job["ats_job_id"]) for job in parsed]
+        assert len(parsed_ids) == len(expected_ids) and set(parsed_ids) == expected_ids
+        with db.connect() as conn:
+            receipt = source_memory.ingest(
+                conn, company_id, source_memory.Feed(parsed, complete=True, reason=None)
+            )
+            assert receipt["closed"] == 1
         indexed_second = match.rescore_recent(14)
 
     run_id = str(uuid.uuid4())

@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Drive the Search Jobs screen's own code: every control it advertises reaches the request, and nothing résumé-shaped appears on it.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Supply browser timers and abort controllers to exercise immediate filters cancelling pending debounce work.
  */
 /**
  * Guards for the Search Jobs screen (`tools/career-search.html`).
@@ -64,7 +65,7 @@ function boot(page = { jobs: [] }) {
   });
   const requests = [];
   const context = {
-    console, JSON, Math, Number, String, Object, Array, URLSearchParams,
+    console, JSON, Math, Number, String, Object, Array, URLSearchParams, setTimeout, clearTimeout, AbortController,
     location: { search: '', pathname: '/search' },
     history: { replaceState() {} },
     document: {
@@ -221,7 +222,7 @@ test('the filters sit in a rail beside the results, and narrow them live', () =>
   assert.match(html, /class="rail"/, 'the filter rail is gone');
   assert.match(html, /grid-template-columns:262px/, 'the two-column layout is gone');
   // Nothing is "submitted" — every control re-runs the search itself, from page one.
-  assert.match(script, /function refilter\(\)\{ page = 1; search\(\); \}/);
+  assert.match(script, /function refilter\(\)\{ clearTimeout\(typing\); page = 1; search\(\); \}/);
   assert.match(script, /addEventListener\('submit', e => \{ e\.preventDefault\(\)/);
 });
 
@@ -271,8 +272,21 @@ test('the advanced fields are title-contains and description-contains', () => {
   assert.match(html, /id="description"/);
 });
 
-test('the salary filter says what it actually hides', () => {
-  // ~11% of postings publish a salary, so a minimum silently drops the other 89% — which
-  // reads as an empty database rather than as a filter doing its job.
-  assert.match(html, /1 in 9/);
+test('target salary includes an explicit unlisted-pay choice and labels estimates', async () => {
+  assert.match(html, /value="140000"/);
+  assert.match(html, /Include jobs without listed pay/);
+  const { el, context, requests } = boot();
+  await settle();
+  el('min_pay').value = '140000';
+  el('include_unknown_pay').checked = true;
+  context.refilter(); await settle();
+  assert.equal(lastQuery(requests).get('min_pay'), '140000');
+  assert.equal(lastQuery(requests).get('include_unknown_pay'), '1');
+  el('include_unknown_pay').checked = false;
+  context.refilter(); await settle();
+  assert.equal(lastQuery(requests).has('include_unknown_pay'), false);
+  assert.match(context.jobCard({ id: 1, title: 'IT manager', salary_min: 140000, salary_max: 160000, salary_source: 'ai_estimated' }), /estimate/);
+  assert.match(context.jobCard({ id: 2, title: 'IT manager', salary_min: 140000, salary_source: 'heuristic' }), /estimate/);
+  assert.match(context.jobCard({ id: 3, title: 'County position', salary_min: 25.5, salary_max: 30, salary_period: 'hour' }), /\$25\.5–\$30 \/hr/);
+  assert.match(context.jobCard({ id: 4, title: 'College position', salary_min: 5000, salary_period: 'month' }), /\$5,000 \/month/);
 });

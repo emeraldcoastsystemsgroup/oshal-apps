@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Serve the corpus-only browse feed so a signed-in account without an indexed resume can still search the openings.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Return closed location and index-readiness refusals without logging coordinates; initialize the geographic index only for radius requests.
  */
 
 /**
@@ -22,7 +23,8 @@
  */
 import { type Request, type Response, type Router } from 'express';
 import { createChildLogger } from '@/shared/logger';
-import { fetchBrowsePage } from './career-browse-feed';
+import { fetchBrowsePage, CareerGeoIndexUnavailable, CAREER_GEO_INDEX } from './career-browse-feed';
+import { resolveCareerLocation, CareerLocationError } from './career-geo';
 import { callerSub, openCorpusDb } from './career-user-store';
 
 const logger = createChildLogger({ module: 'career-browse-routes' });
@@ -34,6 +36,10 @@ const logger = createChildLogger({ module: 'career-browse-routes' });
  * engine already has it; this exists for stores ingested before it was added.
  */
 const BROWSE_INDEXES = [
+  {
+    name: CAREER_GEO_INDEX,
+    sql: 'CREATE INDEX IF NOT EXISTS corpus.idx_corpus_geo ON postings_corpus(active, lat, lon, city)',
+  },
   {
     name: 'idx_corpus_browse',
     sql: 'CREATE INDEX IF NOT EXISTS corpus.idx_corpus_browse ON postings_corpus(active, title)',
@@ -112,8 +118,8 @@ export function resetBrowseIndexState(): void {
  * @param db - The caller's read-only corpus handle.
  * @returns True when the index is present and the search can plan against it.
  */
-export function ensureBrowseIndex(db: any): boolean {
-  if (browseIndexState !== 'unknown') return browseIndexState === 'ready';
+export function ensureBrowseIndex(db: any, geographic = false): boolean {
+  if (!geographic && browseIndexState !== 'unknown') return browseIndexState === 'ready';
   let missing: typeof BROWSE_INDEXES = [];
   try {
     const present = new Set(
@@ -121,7 +127,7 @@ export function ensureBrowseIndex(db: any): boolean {
         "SELECT name FROM corpus.sqlite_master WHERE type='index'",
       ).all() as { name: string }[]).map((row) => row.name),
     );
-    missing = BROWSE_INDEXES.filter((index) => !present.has(index.name));
+    missing = BROWSE_INDEXES.filter((index) => (geographic || index.name !== CAREER_GEO_INDEX) && !present.has(index.name));
     if (!missing.length) { browseIndexState = 'ready'; return true; }
   } catch (err) {
     logger.warn({ err }, 'career browse index probe failed');
@@ -170,12 +176,17 @@ export function ensureBrowseIndex(db: any): boolean {
 function getBrowse(req: Request, res: Response): void {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
-  const db = openCorpusDb();
-  if (!db) { res.json({ jobs: [], browse: true, empty: true }); return; }
-  const started = Date.now();
   const query = req.query as Record<string, unknown>;
+  let location;
+  try { location = resolveCareerLocation(query); } catch (err) {
+    if (err instanceof CareerLocationError) { res.status(400).json({ error: err.code, code: err.code, message: err.message }); return; }
+    throw err;
+  }
+  const db = openCorpusDb();
+  if (!db) { res.json({ jobs: [], browse: true, empty: true, location }); return; }
+  const started = Date.now();
   try {
-    ensureBrowseIndex(db);
+    ensureBrowseIndex(db, !!location);
     const result = fetchBrowsePage(db, query);
     logger.info({
       userSub,
@@ -188,7 +199,12 @@ function getBrowse(req: Request, res: Response): void {
     }, 'career browse feed served');
     res.json(result);
   } catch (err) {
-    logger.error({ err, userSub, ms: Date.now() - started }, 'career browse read failed');
+    if (err instanceof CareerLocationError || err instanceof CareerGeoIndexUnavailable) {
+      logger.warn({ userSub, code: err.code, ms: Date.now() - started }, 'career browse request refused');
+      res.status(err.status).json({ error: err.code, code: err.code, message: err.message });
+      return;
+    }
+    logger.error({ userSub, code: 'career_browse_read_failed', ms: Date.now() - started }, 'career browse read failed');
     res.status(500).json({ error: 'read failed' });
   } finally {
     try { db.close(); } catch (err) { logger.warn({ err }, 'career browse database close failed'); }

@@ -1,0 +1,57 @@
+{
+  "region": "Northwest Florida / Emerald Coast",
+  "sources": [
+    {
+      "name": "University of West Florida",
+      "url": "https://careers.uwf.edu/jobs/search",
+      "category": "College / university",
+      "status": "available-feed",
+      "feedUrl": "https://careers.uwf.edu/jobs/search"
+    },
+    {
+      "name": "Pensacola State College (staff and full-time faculty)",
+      "url": "https://pensacolastate.edu/employment/",
+      "category": "College / university",
+      "status": "available-feed",
+      "feedUrl": "https://pensacolastate.wd501.myworkdayjobs.com/PSC_Employment_Opportunities"
+    },
+    {
+      "name": "Pensacola State College (adjunct faculty)",
+      "url": "https://pensacolastate.edu/employment/",
+      "category": "College / university",
+      "status": "available-feed",
+      "feedUrl": "https://pensacolastate.wd501.myworkdayjobs.com/Adjunct_Faculty_Site"
+    },
+    {
+      "name": "Okaloosa County Board of County Commissioners",
+      "url": "https://www.myokaloosa.com/hr/application",
+      "category": "County government",
+      "status": "available-feed",
+      "feedUrl": "https://www.governmentjobs.com/careers/okaloosa"
+    },
+    {
+      "name": "Northwest Florida State College",
+      "url": "https://www.nwfsc.edu/about/human-resources/",
+      "category": "College / university",
+      "status": "external-only"
+    },
+    {
+      "name": "Okaloosa County School District",
+      "url": "https://www.okaloosaschools.com/page/employment",
+      "category": "School district",
+      "status": "external-only"
+    },
+    {
+      "name": "Walton County School District",
+      "url": "https://www.walton.k12.fl.us/page/employment",
+      "category": "School district",
+      "status": "external-only"
+    },
+    {
+      "name": "Walton County Board of County Commissioners",
+      "url": "https://www.mywaltonfl.gov/1189/Careers",
+      "category": "County government",
+      "status": "external-only"
+    }
+  ]
+}

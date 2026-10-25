@@ -35,7 +35,7 @@ description: >-
   tools, your profile picture, your LinkedIn and Facebook presence, and the
   documents you print into the swarm — with a setup page that shows what is
   connected and what still needs you.
-version: 1.1.1
+version: 1.1.2
 status: active
 scope: public
 theme: daylight
@@ -95,7 +95,8 @@ toolbar:
   - { app: social,          surface: social-signals,        group: Presence }
   - { app: print-ingest,    surface: print-ingest,          group: Documents }
   - { app: social,          surface: social-accounts,       section: bottom }
-  - { app: career-hunter,   surface: career-settings,       section: bottom }
+  - { app: career-hunter,   surface: career-settings,       group: Configuration }
+  - { app: career-hunter,   surface: career-companies,      group: Configuration }
 
 # ── Setup — the seven steps of ADR-141 D1 ─────────────────────────────────────
 # `readiness` names a probe the member declares; `fix` is the toolbar surface the

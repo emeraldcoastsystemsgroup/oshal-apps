@@ -6,6 +6,7 @@
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | Document that bulk auto-submit opt-in authorizes employer-site final submission without a per-job click.
   2 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
+  3 | maintainer@emeraldcoastsystemsgroup.com | Expose source configuration, refresh health and private LinkedIn saved-job imports separately from profile enrichment.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="settings"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Career Hunter — Settings</title>
@@ -13,6 +14,8 @@
 <script src="/shared/ui/js/surface-theme.js"></script>
 <link rel="stylesheet" href="/api/career-hunter/static/career-hunter.css">
 <style>
+#linkedinJobsList a,#communitySourceList a{overflow-wrap:anywhere}
+#linkedinJobsList{max-height:420px;overflow:auto}
 @media (max-width: 640px) {
   .row { flex-direction: column; align-items: flex-start; }
   input[type=text], input[type=password] { min-width: 0; width: 100%; font-size: 16px; }
@@ -25,7 +28,40 @@
 </head><body>
 <div class="wrap">
   <h1>Career Settings</h1>
-  <p class="lede">Scoring and writing run on your default OSHAL LLM. Add an optional web-search key, and run a refresh on demand.</p>
+  <p class="lede">Manage job sources, refreshes, private imports and your matching preferences.</p>
+
+  <div class="card" id="sourceConfiguration">
+    <h2>Sources &amp; pull health</h2>
+    <p class="hint">Review each employer's careers address, supported job board and last pull result. Add your own careers URLs under Target companies below. Source failures stay separate from a successful refresh.</p>
+    <div class="row">
+      <a class="btn" href="/api/career-hunter/search-ui">Open jobs &amp; map</a>
+      <a class="btn" href="/api/career-hunter/companies-admin">Source configuration &amp; pull health (administrator)</a>
+      <a class="btn" href="#targetUrl">Your target companies</a>
+    </div>
+    <p class="hint" id="refreshHealth" role="status">Checking refresh status…</p>
+    <button type="button" class="btn" id="checkRefreshHealth">Check refresh status</button>
+  </div>
+
+  <div class="card" id="linkedinJobs">
+    <h2>LinkedIn saved jobs · private to you</h2>
+    <p class="hint">Save matches you like on LinkedIn, then request your <b>Saved Jobs</b> data from
+      <a href="https://www.linkedin.com/help/linkedin/answer/a1339364" target="_blank" rel="noopener">LinkedIn's data download</a>.
+      Extract the Saved Jobs CSV and import it here. This imports saved leads; it does not automatically download LinkedIn recommendations or mark an application submitted.</p>
+    <div class="row">
+      <label for="linkedinJobsFile" class="hint">Saved Jobs CSV</label>
+      <input id="linkedinJobsFile" type="file" accept=".csv,text/csv" />
+      <button type="button" class="btn primary" id="linkedinJobsImport">Import saved jobs</button>
+    </div>
+    <p class="hint" id="linkedinJobsStatus" role="status">Loading your imported leads…</p>
+    <div id="linkedinJobsList"></div>
+  </div>
+
+  <div class="card" id="communitySources">
+    <h2>Schools, colleges &amp; community employers</h2>
+    <p class="hint">Local public employers often use separate hiring systems. Open their official vacancies below or add a supported feed to your targets. A linked careers page alone does not mean its jobs have been imported.</p>
+    <div id="communitySourceList" class="hint">Loading source directory…</div>
+    <p id="communitySourceStatus" class="hint" role="status"></p>
+  </div>
 
   <div class="card">
     <h2>AI model</h2>
@@ -48,7 +84,7 @@
 
   <div class="card">
     <h2>Refresh</h2>
-    <p class="hint">Pull the latest jobs into the shared corpus and keyword-index them, then AI-score your fresh in-lane roles. (Nightly + midday runs do this automatically.)</p>
+    <p class="hint">Pull the latest jobs into the shared corpus and keyword-index them, then AI-score your fresh in-lane roles. Review Sources &amp; pull health for individual employer outcomes.</p>
     <div class="row">
       <button class="btn" id="runPull">Pull jobs now</button>
       <button class="btn" id="runScore">Score fresh now</button>
@@ -313,4 +349,5 @@ refreshTitles();
 refreshAutomation();
 refreshTargets();
 </script>
+<script src="/api/career-hunter/static/career-settings-support.js"></script>
 </body></html>

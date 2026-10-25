@@ -5,6 +5,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Serve the corpus-only browse feed so a signed-in account without an indexed resume can still search the openings.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Return closed location and index-readiness refusals without logging coordinates; initialize the geographic index only for radius requests.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.resetBrowseIndexState = resetBrowseIndexState;
@@ -12,6 +13,7 @@ exports.ensureBrowseIndex = ensureBrowseIndex;
 exports.registerCareerBrowseRoutes = registerCareerBrowseRoutes;
 const logger_1 = require("@/shared/logger");
 const career_browse_feed_1 = require("./career-browse-feed");
+const career_geo_1 = require("./career-geo");
 const career_user_store_1 = require("./career-user-store");
 const logger = (0, logger_1.createChildLogger)({ module: 'career-browse-routes' });
 /**
@@ -21,6 +23,10 @@ const logger = (0, logger_1.createChildLogger)({ module: 'career-browse-routes' 
  * engine already has it; this exists for stores ingested before it was added.
  */
 const BROWSE_INDEXES = [
+    {
+        name: career_browse_feed_1.CAREER_GEO_INDEX,
+        sql: 'CREATE INDEX IF NOT EXISTS corpus.idx_corpus_geo ON postings_corpus(active, lat, lon, city)',
+    },
     {
         name: 'idx_corpus_browse',
         sql: 'CREATE INDEX IF NOT EXISTS corpus.idx_corpus_browse ON postings_corpus(active, title)',
@@ -95,13 +101,13 @@ function resetBrowseIndexState() {
  * @param db - The caller's read-only corpus handle.
  * @returns True when the index is present and the search can plan against it.
  */
-function ensureBrowseIndex(db) {
-    if (browseIndexState !== 'unknown')
+function ensureBrowseIndex(db, geographic = false) {
+    if (!geographic && browseIndexState !== 'unknown')
         return browseIndexState === 'ready';
     let missing = [];
     try {
         const present = new Set(db.prepare("SELECT name FROM corpus.sqlite_master WHERE type='index'").all().map((row) => row.name));
-        missing = BROWSE_INDEXES.filter((index) => !present.has(index.name));
+        missing = BROWSE_INDEXES.filter((index) => (geographic || index.name !== career_browse_feed_1.CAREER_GEO_INDEX) && !present.has(index.name));
         if (!missing.length) {
             browseIndexState = 'ready';
             return true;
@@ -161,15 +167,26 @@ function getBrowse(req, res) {
         res.status(401).json({ error: 'unauthorized' });
         return;
     }
+    const query = req.query;
+    let location;
+    try {
+        location = (0, career_geo_1.resolveCareerLocation)(query);
+    }
+    catch (err) {
+        if (err instanceof career_geo_1.CareerLocationError) {
+            res.status(400).json({ error: err.code, code: err.code, message: err.message });
+            return;
+        }
+        throw err;
+    }
     const db = (0, career_user_store_1.openCorpusDb)();
     if (!db) {
-        res.json({ jobs: [], browse: true, empty: true });
+        res.json({ jobs: [], browse: true, empty: true, location });
         return;
     }
     const started = Date.now();
-    const query = req.query;
     try {
-        ensureBrowseIndex(db);
+        ensureBrowseIndex(db, !!location);
         const result = (0, career_browse_feed_1.fetchBrowsePage)(db, query);
         logger.info({
             userSub,
@@ -183,7 +200,12 @@ function getBrowse(req, res) {
         res.json(result);
     }
     catch (err) {
-        logger.error({ err, userSub, ms: Date.now() - started }, 'career browse read failed');
+        if (err instanceof career_geo_1.CareerLocationError || err instanceof career_browse_feed_1.CareerGeoIndexUnavailable) {
+            logger.warn({ userSub, code: err.code, ms: Date.now() - started }, 'career browse request refused');
+            res.status(err.status).json({ error: err.code, code: err.code, message: err.message });
+            return;
+        }
+        logger.error({ userSub, code: 'career_browse_read_failed', ms: Date.now() - started }, 'career browse read failed');
         res.status(500).json({ error: 'read failed' });
     }
     finally {
@@ -203,4 +225,3 @@ function getBrowse(req, res) {
 function registerCareerBrowseRoutes(router) {
     router.get('/browse', getBrowse);
 }
-//# sourceMappingURL=career-browse-routes.js.map

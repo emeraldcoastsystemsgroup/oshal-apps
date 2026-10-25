@@ -26,6 +26,7 @@
 # 22 | maintainer@emeraldcoastsystemsgroup.com | Give the engine-native-background-run case the prerequisites, sideEffects and isolation fields the loader requires: without prerequisites the kernel's catalog loader refused the whole Career catalog, so insights-fast and every other case stayed unregistered.
 # 23 | maintainer@emeraldcoastsystemsgroup.com | Register recruiters-latest (sweep 10): the All view names the latest added recruiter and its bucket above the list, and the kernel's real screen snapshot carries that line before a long list.
 # 24 | maintainer@emeraldcoastsystemsgroup.com | Register native-read-facts: the specialist facts count the board's first page without running the board ranking, which timed out the kernel's 3 s specialist deadline.
+# 25 | maintainer@emeraldcoastsystemsgroup.com | Register local mapped search, account memory, configuration, private LinkedIn leads and real SQLite source-delta/community-feed contracts.
 version: 1
 cases:
   - id: package-readiness
@@ -1016,5 +1017,164 @@ cases:
       cleanup: The temporary Career mount is removed after the suite.
     limits:
       timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: local-search
+    name: Local search, remembered criteria and experience
+    purpose: Prove offline centers and exact radius before candidate bounds with real SQLite, plus account-scoped browser memory and the existing authenticated experience contract.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-geo.test.mjs
+        - tests/career-search-memory.test.mjs
+        - tests/career-vendored-map.test.mjs
+        - tests/career-search-screen.test.mjs
+        - tests/career-experience-contract.test.mjs
+    expected:
+      - Town, ZIP and explicit coordinates resolve offline; invalid inputs refuse without a nationwide fallback.
+      - Indexed exact distance filters every candidate path before bounds and paging; unknown coordinates are not invented.
+      - Remembered searches are bounded and account-scoped in one browser, and storage failures remain visible.
+      - The native experience reuses the admitted search page and existing role templates.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - fixture:store-toolchain
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close temporary SQLite handles and remove all temporary engine stores.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: local-search-browser
+    name: Local jobs map and configuration screens
+    purpose: Exercise actual Leaflet, HTML and CSS in Chromium using synthetic owner data, isolated HTTP and explicit location doubles.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/browser/career-search-local-proof.mjs
+        - tests/browser/career-configuration-proof.mjs
+    expected:
+      - Entered centers and radius reach browse; GPS runs only on request and denial leaves manual search usable.
+      - Real map points and radius have correct settled geometry, and phone layouts remain inside the viewport.
+      - Named searches restore and remain isolated between accounts in the same browser.
+      - Configuration distinguishes refresh errors, imported private leads and external-only community sources.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - core:shared-theme-assets
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/browser/career-theme-fixture.mjs
+      cleanup: Close browser contexts and loopback servers; uploads are intercepted fixtures. Only the bounded map geometry case may read public background tiles.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: linkedin-saved-jobs
+    name: Private LinkedIn saved-job import
+    purpose: Parse Saved Jobs CSV and exercise the existing compiled multipart route against real owner files without an engine or shared corpus write.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-linkedin-import.test.mjs
+    expected:
+      - Only bounded UTF-8 CSV and canonical LinkedIn HTTPS posting links are accepted.
+      - Reimported IDs merge without duplicates and identical imports do not rewrite the owner file.
+      - Owner files remain isolated; malformed, redirected or oversized storage is unavailable without replacement.
+      - The existing upload lease is released and no reasoning, profile enrichment or application submission is dispatched.
+    prerequisites:
+      - runner:node-test
+      - fixture:store-toolchain
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove temporary owner files and close the ephemeral multipart server.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: source-memory
+    name: Source pull memory and configuration health
+    purpose: Exercise production source ingestion on real temporary SQLite and project retained outcomes through the existing administrator route.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-source-health.test.mjs
+    expected:
+      - Per-source attempts, successes, failures and bounded receipts persist; changed source identities invalidate prior validators and hashes.
+      - Unchanged bodies are retained, changed nullable fields update, and valid HTTP 304 responses preserve active jobs and reset failure state.
+      - Partial, invalid and unconfirmed empty pulls cannot close existing jobs.
+      - Verified operators can inspect shared sources without a personal resume store; forged privilege claims are refused.
+      - Native refresh capability reports installation management instead of acknowledging an unsupported shared writer.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - harness:career-python-contracts
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove temporary SQLite stores and restore scoped module and environment doubles; no live source pulls.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: local-community-sources
+    name: Public college and county feeds
+    purpose: Parse reviewed public PageUp and GovernmentJobs listings and ingest them through production corpus writes on real SQLite.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-local-sources.test.mjs
+    expected:
+      - Reviewed source patterns resolve and pagination keeps exact source bindings; errors and changed markup remain partial.
+      - Ingested records have searchable FTS entries, advertised salary periods and actual posting-derived locations.
+      - Missing job coordinates remain unknown and external-only directory entries do not claim ingestion support.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - harness:career-python-contracts
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove temporary SQLite stores; HTTP responses are deterministic fixtures and no live sites are pulled.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: native-linkedin-upload
+    name: Native protocol Saved Jobs upload
+    purpose: Exercise the compiled route with the real native request constructor, router, multipart parser and response adapter from a verified bridge fixture.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/native/career-linkedin-bridge-proof.mjs
+    expected:
+      - Complete buffered native multipart requests import and deduplicate owner leads without IncomingMessage events or engine dispatch.
+      - Native multipart limits, owner isolation and upload/storage lease release remain enforced.
+    prerequisites:
+      - runner:node-test
+      - fixture:native-host-process-bridge
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove temporary private lead files; no live application data or provider requests.
+    limits:
+      timeoutMs: 60000
       maxMemoryMb: 256
     installation: never

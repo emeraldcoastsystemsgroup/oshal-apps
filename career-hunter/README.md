@@ -5,6 +5,72 @@ Node CLI wrapper, Python `jobhunter` engine, persona, migrations, and browser su
 package. The kernel supplies shared runtime capabilities and mounts the package; it does not own
 Career Hunter domain code.
 
+## Search responsiveness (1.28.1)
+
+Jobs load before optional map assets. List view downloads the map only when Map is
+selected. Typing waits 150 milliseconds before searching, cancels superseded requests,
+and keeps the previous cards and pins visible with an updating status. A failed update
+leaves those results explicitly labeled; only a successful search updates remembered criteria.
+
+## Local jobs and Career experience (1.28.0)
+
+Open `https://<your-host>/cockpit/?app=career-hunter` for the Career experience;
+`?app=intelligent-career` retains the grouped front door. The experience uses the
+existing authenticated Open jobs search page. Configuration and Sources & pull health
+are visible beside search, and the group also has a Configuration navigation band.
+Existing catalog permissions and role templates are unchanged.
+
+Enter a US town and state or a five-digit ZIP, or press **Use my location** to request
+browser location permission. Set a radius from 1 to 250 miles. The same filters drive
+the list and the map; radius filtering happens before candidate limits and pagination.
+Invalid locations produce an error rather than silently returning nationwide jobs.
+GPS is requested only when pressed, and a denied request leaves manual location usable.
+
+Map pins group postings at their recorded city/base coordinates. They are approximate,
+not exact workplaces. Radius distances are straight-line miles, not commuting routes.
+Listings without usable coordinates remain available outside radius searches. The map
+shows the current result page and uses locally packaged Leaflet with OpenStreetMap
+background tiles; the list remains usable when tiles cannot load. See
+[offline geo data and query contract](GEO-SOURCES.md) for provenance and index provisioning.
+
+Your last successful search and named searches are remembered for your signed-in account
+**in this browser**. They restore location, radius, filters, sorting and map/list choice.
+An explicit search URL takes precedence over browser memory. Clearing browser data removes
+these searches; they are not synchronized across devices. Storage failures are shown.
+
+The salary menu includes $140,000. **Include jobs without listed pay** keeps unknown pay
+visible when a minimum is selected; it does not treat unknown pay as meeting the target.
+Estimated salaries are labeled. Other filters continue to narrow the same feed.
+
+### Private LinkedIn leads
+
+In Configuration, import the **Saved Jobs CSV** extracted from your own
+[LinkedIn data download](https://www.linkedin.com/help/linkedin/answer/a1339364).
+Save recommended matches on LinkedIn first if you want them in that export. The private
+lead list is separate from résumé/profile enrichment and from the shared employer corpus;
+an imported lead is not marked applied and has no invented pay or location.
+This does not automatically retrieve LinkedIn's personalized recommendations.
+
+### Sources and pull health
+
+Configuration links to the shared administrator source list, including per-employer attempts,
+successes, unconfirmed pulls and new/changed/unchanged/closed counts. History starts when the
+updated ingest runs; older snapshots explicitly report missing history. Sites that supply
+HTTP validators can avoid downloading unchanged single-page feeds. Other sites still require
+full listing reads, while content hashes avoid rewriting unchanged posting bodies. See
+[source memory and completeness rules](SOURCE-MEMORY.md).
+
+The native installation manages shared-source refreshes through its corpus writer. Configuration
+reports that mode and disables the separate legacy refresh button. This preserves writer
+coordination and does not acknowledge a job the app cannot run. Per-person scoring remains
+separate.
+
+The [reviewed Emerald Coast directory](LOCAL-SOURCES.md) includes supported college and county
+feeds plus official school-district hiring links. Where the application manages source writes,
+Configuration offers **Add supported feed**. Native Configuration shows enrollment managed by
+the installation and identifies included feeds for administrators. Other sites are labeled external only. These are regional sources;
+location/radius searches themselves accept US towns, ZIP areas or explicit coordinates.
+
 The workflow is: shared employer ATS scrape → per-user keyword match → AI scoring → title pass →
 approval queue → apply-pipeline handoff. It also provides the morning digest, native board,
 recruiters, strengthen, insights, approvals, settings, Resume Studio, Profile Studio, mobile swipe,

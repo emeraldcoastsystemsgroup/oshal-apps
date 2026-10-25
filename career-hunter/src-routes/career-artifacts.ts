@@ -13,6 +13,8 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Keep slow multipart bodies out of engine capacity with a separate per-user upload lane and finite request deadline.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Enforce the independent cross-process upload-body ceiling before buffering artifact batches.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | ADR-139 "Send to Career": POST /artifacts/import takes {ref, kind?} — redeems the owner-bound artifact handle through the kernel relay (as THIS caller, over the service rail) and rides the SAME leased validate→quota→store→absorb transaction as a direct upload; the bytes just arrive by claim ticket instead of multipart. Registered as this app's accepts: destination in the manifest.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Import Saved Jobs CSV as bounded caller-private leads under the existing upload admission without launching an engine or mutating profile/application state.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Keep stream lifecycle listeners on real HTTP bodies; the verified native port already delivers a bounded complete Buffer and its request object has no IncomingMessage events.
  */
 /**
  * Career artifacts — upload MORE than a resume into your career profile.
@@ -40,11 +42,16 @@ import { callerSub, userPaths } from './career-user-store';
 import { runCareerCliAsync } from './career-engine-dispatch';
 import { rejectEngineClaim, rejectEngineStart, rejectUploadClaim } from './career-engine-response';
 import {
-  releaseRun, tryAcquireRun, tryAcquireUploadRun, type RunLease,
+  releaseRun, tryAcquireRun, tryAcquireStorageRun, tryAcquireUploadRun, type RunLease,
 } from './career-engine-runner';
 import { writeFileAtomicAsync } from './career-file-transaction';
+import { importLinkedInSavedJobs, readLinkedInSavedJobs } from './career-linkedin-import';
 
 const logger = createChildLogger({ module: 'career-artifacts' });
+const NATIVE_BUFFERED_REQUESTS = (() => {
+  try { return require('@/shared/package-runs')?.native === true; }
+  catch { return false; }
+})();
 
 const ARTIFACT_KINDS = new Set(['resume-extra', 'linkedin-export', 'email', 'status-report', 'work-sample', 'other']);
 const ALLOWED_EXT = new Set(['.pdf', '.docx', '.txt', '.md', '.csv', '.tsv', '.html', '.htm', '.eml', '.json', '.zip']);
@@ -263,6 +270,11 @@ function expireArtifactUpload(req: ArtifactRequest, res: Response): void {
   setImmediate(() => req.destroy());
 }
 
+/** Only the kernel-owned native port may identify its already-received, bounded protocol body. */
+function bufferedNativeUpload(req: ArtifactRequest): boolean {
+  return NATIVE_BUFFERED_REQUESTS && Buffer.isBuffer(req.body);
+}
+
 /** Reject per-user duplicates or global saturation before buffering, without taking engine capacity. */
 function admitArtifactUpload(req: ArtifactRequest, res: Response, next: NextFunction): void {
   const userSub = callerSub(req);
@@ -270,6 +282,13 @@ function admitArtifactUpload(req: ArtifactRequest, res: Response, next: NextFunc
   const lease = tryAcquireUploadRun(userSub);
   if (rejectUploadClaim(res, lease, 'artifact upload')) return;
   req[ARTIFACT_LEASE] = lease;
+  if (bufferedNativeUpload(req)) {
+    if (req.body.length > MAX_ARTIFACT_REQUEST_BYTES) {
+      releaseArtifactLease(req);
+      res.status(413).json({ error: 'artifact upload exceeds the combined byte limit' }); return;
+    }
+    next(); return;
+  }
   req[ARTIFACT_UPLOAD_TIMER] = setTimeout(
     () => expireArtifactUpload(req, res), artifactUploadTimeout(),
   );
@@ -315,6 +334,19 @@ function validArtifactFiles(req: Request, res: Response): ArtifactUploadFile[] |
   return null;
 }
 
+/** Handle only an explicitly selected Saved Jobs CSV with the already held user-store lease. */
+async function handleLinkedInJobs(userSub: string, files: ArtifactUploadFile[], res: Response): Promise<void> {
+  if (files.length !== 1 || path.extname(files[0].originalname || '').toLowerCase() !== '.csv') {
+    res.status(400).json({ error: 'Choose one Saved Jobs CSV file, not a ZIP archive.' }); return;
+  }
+  try { res.status(200).json(await importLinkedInSavedJobs(userPaths(userSub).userDir, files[0].buffer)); }
+  catch (error) {
+    const status = Number((error as { status?: number }).status);
+    if (status === 400 || status === 413) res.status(status).json({ error: (error as Error).message });
+    else { logger.error({ err: error, userSub }, 'saved jobs import failed'); res.status(503).json({ error: 'Saved jobs import could not be confirmed. Refresh your private list before retrying.' }); }
+  }
+}
+
 /** Handle the leased write-to-child transaction for one authenticated artifact upload. */
 async function handleArtifactUpload(ctx: AppContext, req: Request, res: Response): Promise<void> {
   const userSub = callerSub(req);
@@ -327,7 +359,7 @@ async function handleArtifactUpload(ctx: AppContext, req: Request, res: Response
   const kindRaw = String((req.body?.kind || 'other')).trim();
   const kind = ARTIFACT_KINDS.has(kindRaw) ? kindRaw : 'other';
   const artifactReq = req as ArtifactRequest;
-  const lease = tryAcquireRun(userSub, 'user-store');
+  const lease = kindRaw === 'linkedin-jobs' ? tryAcquireStorageRun(userSub, 'user-store') : tryAcquireRun(userSub, 'user-store');
   releaseArtifactLease(artifactReq);
   if (rejectEngineClaim(res, lease, 'artifact absorb')) return;
   const pending: PendingArtifact[] = [];
@@ -335,6 +367,7 @@ async function handleArtifactUpload(ctx: AppContext, req: Request, res: Response
   let handedOff = false;
   let rolledBack = false;
   try {
+    if (kindRaw === 'linkedin-jobs') { await handleLinkedInJobs(userSub, files, res); return; }
     const dir = artifactsDir(userSub);
     await fs.mkdir(dir, { recursive: true });
     if (!await artifactQuotaAvailable(dir, acceptedArtifactFootprint(files))) {
@@ -460,6 +493,10 @@ export function registerCareerArtifacts(router: Router, ctx: AppContext): void {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') logger.error({ err: error, userSub }, 'career enrichment log read failed');
     }
-    res.json({ uploaded, learned: learned.reverse() });
+    let importedJobs: Awaited<ReturnType<typeof readLinkedInSavedJobs>> = [];
+    let importedJobsUnavailable = false;
+    try { importedJobs = await readLinkedInSavedJobs(userPaths(userSub).userDir); }
+    catch (error) { importedJobsUnavailable = true; logger.error({ err: error, userSub }, 'saved jobs listing failed'); }
+    res.json({ uploaded, learned: learned.reverse(), importedJobs, ...(importedJobsUnavailable ? { importedJobsUnavailable: true } : {}) });
   });
 }

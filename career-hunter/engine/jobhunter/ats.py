@@ -12,11 +12,14 @@ A connector exposes:
 Normalized posting dict:
     {ats_job_id, title, location, remote, department, url, description, posted_at}
 """
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Retain per-source pull health and guarded content deltas across existing ingestion paths.
 from __future__ import annotations
 import re
 from html import unescape
 
 from . import http
+from .public_education_ats import GovernmentJobs, PageUp
 
 _TAG = re.compile(r"<[^>]+>")
 
@@ -315,10 +318,14 @@ class Workday:
         while True:
             r = http.post(cxs, json={"appliedFacets": {}, "limit": 20, "offset": offset, "searchText": ""})
             if not r.ok:
-                break
+                from .source_memory import Feed
+                return Feed(out, reason="http_refused")
             data = r.json()
             jobs = data.get("jobPostings", [])
             if not jobs:
+                if total and offset < total:
+                    from .source_memory import Feed
+                    return Feed(out, reason="pagination_incomplete")
                 break
             for j in jobs:
                 path = j.get("externalPath", "")
@@ -339,7 +346,9 @@ class Workday:
             offset += len(jobs)
             if total and offset >= total:
                 break
-        return out
+        from .source_memory import Feed
+        complete = isinstance(total, int) and total > 0 and offset == total
+        return Feed(out, complete=complete, reason=None if complete else "pagination_incomplete")
 
     @classmethod
     def detect(cls, url):
@@ -1648,7 +1657,7 @@ class Symphony:
 REGISTRY = [Greenhouse, Lever, Ashby, SmartRecruiters, Workable, Workday, Amazon, Microsoft,
             Radancy, Google, SuccessFactors, OracleORC, Phenom, Eightfold, Apple,
             Pinpoint, Jibe, Avature, ICIMS, Brassring, GDCareers, GSRoles, HtmlList,
-            Webflow, Symphony, Web]
+            Webflow, Symphony, PageUp, GovernmentJobs, Web]
 BY_NAME = {c.NAME: c for c in REGISTRY}
 # Order to try when slug-probing an unknown company (Workday excluded — not probeable):
 PROBE_ORDER = [Greenhouse, Lever, Ashby, SmartRecruiters, Workable]
@@ -1658,7 +1667,22 @@ def fetch(ats_type: str, token: str) -> list[dict]:
     conn = BY_NAME.get(ats_type)
     if not conn:
         raise ValueError(f"unknown ATS type: {ats_type}")
-    return conn.fetch(token)
+    from .source_memory import Feed
+    try:
+        with http.observe() as failures:
+            rows = conn.fetch(token)
+    except http.NotModified:
+        result = Feed(complete=True, reason=None)
+        result.not_modified = True
+        return result
+    if isinstance(rows, Feed):
+        return rows
+    # These whole-board JSON contracts and Workday's counted enumeration are audited.
+    # A legacy adapter returning a list is not evidence that pagination completed.
+    audited = ats_type in {"greenhouse", "lever", "ashby", "workday"}
+    complete = bool(rows) and audited and not failures
+    reason = "http_refused" if failures else "empty_unconfirmed" if not rows else "completion_unverified"
+    return Feed(rows, complete=complete, reason=None if complete else reason)
 
 
 def detect_from_url(url: str):

@@ -2,7 +2,11 @@
 
     python -m jobhunter dashboard        # opens http://127.0.0.1:5000
 """
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Retain per-source pull health and guarded content deltas across existing ingestion paths.
 from __future__ import annotations
+
+from . import source_memory
 import json
 import os
 import re
@@ -824,11 +828,11 @@ def create_app() -> Flask:
         if hit and hit[0] != "workday_host":
             atype, token = hit
             try:
-                postings = ats.fetch(atype, token)
+                postings = source_memory.fetch(cid, atype, token)
             except Exception:
                 postings = []
         # No ATS, or a detected one that yielded nothing → render the page in a real browser.
-        if len(postings) < 3 and atype != "web":
+        if len(postings) < 3 and atype != "web" and not getattr(postings, "not_modified", False):
             try:
                 rj = webscrape.scrape_careers(url)
             except Exception:
@@ -839,7 +843,7 @@ def create_app() -> Flask:
         # the migration-097 compat VIEW, whose columns are expressions, so it is not
         # auto-updatable and an UPDATE against it fails outright.
         ctab = db.companies_table()
-        if not postings:
+        if not postings and not getattr(postings, "not_modified", False):
             with db.connect() as conn:
                 conn.execute(f"UPDATE {ctab} SET careers_url=? WHERE id=?", (url, cid))
             flash(f"{name}: saved the link, but I couldn't extract jobs even with a render "
@@ -851,13 +855,8 @@ def create_app() -> Flask:
         new = 0
         with db.connect() as conn:
             ids = set()
-            for p in postings:
-                if p.get("ats_job_id") is None:
-                    continue
-                st = db.upsert_posting(conn, cid, p)
-                ids.add(str(p["ats_job_id"])); new += st == "new"
-            db.deactivate_missing(conn, cid, ids)
-            conn.execute(f"UPDATE {ctab} SET last_scraped_at=? WHERE id=?", (db.now(), cid))
+            counts = source_memory.ingest(conn, cid, postings)
+            new, seen, skipped, closed = counts["new"], counts["changed"] + counts["unchanged"], counts["skipped"], counts["closed"]
         flash(f"{name}: detected {atype} → scraped {len(postings)} jobs ({new} new). "
               f"They'll AI-score on the next pass.")
         return back

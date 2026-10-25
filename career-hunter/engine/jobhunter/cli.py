@@ -13,7 +13,11 @@
     python -m jobhunter classify --url URL                  (pattern-only ATS gate, JSON — no DB)
     python -m jobhunter add-target --url URL [--source TAG] (register one validated URL + scrape, JSON)
 """
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Retain per-source pull health and guarded content deltas across existing ingestion paths.
 from __future__ import annotations
+
+from . import source_memory
 import argparse
 import csv
 import json
@@ -199,40 +203,33 @@ def cmd_scrape(a):
     if a.limit:
         rows = rows[:a.limit]
     total_new = total_seen = total_closed = total_skipped = 0
+    confirmed_sources = unconfirmed_sources = 0
     # One short transaction per company so long runs don't lock the DB against the bot/dashboard.
     for r in rows:
         try:
-            postings = ats.fetch(r["ats_type"], r["ats_token"])
+            postings = source_memory.fetch(r["id"], r["ats_type"], r["ats_token"])
         except Exception as e:
             print(f"!! {r['name']} ({r['ats_type']}): {e}", flush=True)
+            unconfirmed_sources += 1
             continue
-        if not postings:
+        if not postings and not getattr(postings, "not_modified", False):
             # An empty fetch is almost always a transient error / rate-limit, NOT "all jobs
             # closed". Never wipe a company's existing jobs on an empty result.
             print(f"   {r['name']:<28}    0 live  (skipped — empty fetch, kept existing)", flush=True)
+            unconfirmed_sources += 1
             continue
         seen_ids, new, seen, skipped = set(), 0, 0, 0
         with db.connect() as conn:
-            for p in postings:
-                if p.get("ats_job_id") is None:
-                    continue
-                status = db.upsert_posting(conn, r["id"], p)
-                seen_ids.add(str(p["ats_job_id"]))
-                new += status == "new"; seen += status == "seen"
-                # postgres only: career_postings.title is NOT NULL, so db.upsert_posting
-                # drops a feed row with no title rather than inventing '(untitled)'. It
-                # returns neither 'new' nor 'seen', so without this counter the per-company
-                # line would claim an intake larger than what actually landed. Always 0 in
-                # sqlite mode (upsert_posting cannot return 'skipped' there).
-                skipped += status == "skipped"
-            closed = db.deactivate_missing(conn, r["id"], seen_ids)
-            conn.execute(f"UPDATE {db.companies_table()} SET last_scraped_at=? WHERE id=?",
-                         (db.now(), r["id"]))
+            counts = source_memory.ingest(conn, r["id"], postings)
+            new, seen, skipped, closed = counts["new"], counts["changed"] + counts["unchanged"], counts["skipped"], counts["closed"]
+        confirmed_sources += int(counts["complete"])
+        unconfirmed_sources += int(not counts["complete"])
         total_new += new; total_seen += seen; total_closed += closed; total_skipped += skipped
         skip_note = f", {skipped} skipped" if skipped else ""
-        print(f"   {r['name']:<28} {len(postings):>4} live  (+{new} new, {closed} closed{skip_note})", flush=True)
+        outcome = "complete" if counts["complete"] else "partial; existing jobs kept"
+        print(f"   {r['name']:<28} {len(postings):>4} received (+{new} new, {counts['changed']} changed, {counts['unchanged']} unchanged, {closed} closed{skip_note}; {outcome})", flush=True)
     tail = f" {total_skipped} skipped (no title)." if total_skipped else ""
-    print(f"\nScrape done: {total_new} new, {total_seen} refreshed, {total_closed} closed.{tail}")
+    print(f"\nScrape done: {total_new} new, {total_seen} refreshed, {total_closed} closed.{tail} Sources: {confirmed_sources} confirmed, {unconfirmed_sources} unconfirmed.")
     _report_dropped(dropped0)
 
 
@@ -298,10 +295,10 @@ def cmd_seturl(a):
     if hit and hit[0] != "workday_host":
         atype, token = hit
         try:
-            postings = ats.fetch(atype, token)
+            postings = source_memory.fetch(cid, atype, token)
         except Exception:
             postings = []
-    if len(postings) < 3 and atype != "web":
+    if len(postings) < 3 and atype != "web" and not getattr(postings, "not_modified", False):
         try:
             from . import webscrape
             rj = webscrape.scrape_careers(url)
@@ -312,7 +309,7 @@ def cmd_seturl(a):
     # Every write below names db.companies_table(): `companies` is a read-only compat VIEW
     # in postgres mode, and the same literal 'companies' under sqlite.
     ct = db.companies_table()
-    if not postings:
+    if not postings and not getattr(postings, "not_modified", False):
         with db.connect() as conn:
             conn.execute(f"UPDATE {ct} SET careers_url=? WHERE id=?", (url, cid))
         print(json.dumps({"ok": True, "company_id": cid, "jobs": 0,
@@ -324,20 +321,16 @@ def cmd_seturl(a):
     new = skipped = 0
     with db.connect() as conn:
         ids = set()
-        for p in postings:
-            if p.get("ats_job_id") is None:
-                continue
-            st = db.upsert_posting(conn, cid, p)
-            ids.add(str(p["ats_job_id"])); new += st == "new"; skipped += st == "skipped"
-        db.deactivate_missing(conn, cid, ids)
-        conn.execute(f"UPDATE {ct} SET last_scraped_at=? WHERE id=?", (db.now(), cid))
+        counts = source_memory.ingest(conn, cid, postings)
+        new, seen, skipped, closed = counts["new"], counts["changed"] + counts["unchanged"], counts["skipped"], counts["closed"]
     # This verb's stdout is parsed as JSON by the dashboard's per-company Resolve button,
     # so the loss report goes IN the object, never printed beside it. Both keys are omitted
     # when there is nothing to report, which is always the case in sqlite mode — the
     # emitted JSON there is byte-identical to before.
+    retained = counts["unchanged"] if getattr(postings, "not_modified", False) else len(postings)
     out = {"ok": True, "company_id": cid, "atype": atype, "token": token,
-           "jobs": len(postings), "new": new,
-           "message": "detected %s -> scraped %d jobs (%d new)" % (atype, len(postings), new)}
+           "jobs": retained, "new": new,
+           "message": "detected %s -> checked %d jobs (%d new)" % (atype, retained, new)}
     if skipped:
         out["skipped"] = skipped
     dropped = _dropped_since(dropped0)
@@ -405,12 +398,12 @@ def cmd_add_url(a):
                                         source_list="pasted")
         # scrape immediately
         try:
-            postings = ats.fetch(atype, token)
+            postings = source_memory.fetch(cid, atype, token)
         except Exception as e:
             print(f"   !! {name} [{atype}] fetch failed: {str(e)[:50]}", flush=True)
             postings = []
         # Detected a platform but it yielded nothing (false match / JS-only tenant) → render.
-        if len(postings) == 0 and atype != "web" and not a.no_render:
+        if len(postings) == 0 and atype != "web" and not a.no_render and not getattr(postings, "not_modified", False):
             print(f"   .. {name} [{atype}] returned 0 — falling back to headless render…", flush=True)
             try:
                 from . import webscrape
@@ -425,15 +418,8 @@ def cmd_add_url(a):
         new = seen = skipped = 0
         with db.connect() as conn:
             ids = set()
-            for p in postings:
-                if p.get("ats_job_id") is None:
-                    continue
-                st = db.upsert_posting(conn, cid, p)
-                ids.add(str(p["ats_job_id"])); new += st == "new"; seen += st == "seen"
-                skipped += st == "skipped"   # postgres: title is NOT NULL — see cmd_scrape
-            db.deactivate_missing(conn, cid, ids)
-            conn.execute(f"UPDATE {db.companies_table()} SET last_scraped_at=? WHERE id=?",
-                         (db.now(), cid))
+            counts = source_memory.ingest(conn, cid, postings)
+            new, seen, skipped, closed = counts["new"], counts["changed"] + counts["unchanged"], counts["skipped"], counts["closed"]
         ok += 1
         skip_note = f", {skipped} skipped" if skipped else ""
         print(f"   OK {name:<22} [{atype}] {len(postings):>4} jobs (+{new} new{skip_note})", flush=True)
@@ -533,23 +519,18 @@ def cmd_add_target(a):
         cid, name = _register_target(conn, _target_company_name(atype, token, url, a.name), atype, token, url, source)
     base = {"ok": True, "company_id": cid, "name": name, "ats_type": atype, "token": token}
     try:
-        postings = ats.fetch(atype, token)
+        postings = source_memory.fetch(cid, atype, token)
     except Exception as e:  # noqa: BLE001 — report the fetch failure, keep the registration
         print(json.dumps({**base, "scraped": False, "error": f"fetch failed: {str(e)[:120]}"}))
         return
     new = seen = 0
     with db.connect() as conn:
         ids = set()
-        for p in postings:
-            if p.get("ats_job_id") is None:
-                continue
-            st = db.upsert_posting(conn, cid, p)
-            ids.add(str(p["ats_job_id"]))
-            new += st == "new"
-            seen += st == "seen"
-        db.deactivate_missing(conn, cid, ids)
-        conn.execute(f"UPDATE {db.companies_table()} SET last_scraped_at=? WHERE id=?", (db.now(), cid))
-    print(json.dumps({**base, "scraped": True, "postings": len(postings), "new": new, "seen": seen}))
+        counts = source_memory.ingest(conn, cid, postings)
+        new, seen, skipped, closed = counts["new"], counts["changed"] + counts["unchanged"], counts["skipped"], counts["closed"]
+    print(json.dumps({**base, "scraped": counts["complete"],
+                      "postings": counts["unchanged"] if getattr(postings, "not_modified", False) else len(postings),
+                      "new": new, "seen": seen, "complete": counts["complete"]}))
 
 
 def cmd_enrich(a):

@@ -9,6 +9,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Make fresh SQLite schemas include every indexed corpus and lifecycle column before indexes and writes use them.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Index the corpus for the pre-resume title browse so its keyword search is covered rather than scanning descriptions.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | INSIGHTS_INDEX_SQL: idx_corpus_insights covers every column Career Insights reads from the lane (company, posted date, state, maximum pay). Without it Insights read each posting row past its inline description: 44.3 s on a cold page cache over a copy of the live corpus, past the native kernel's 10 s package deadline. It is kept out of CORPUS_SCHEMA because the native kernel binds the corpus read-only into every request sandbox, where a CREATE of a missing index would fail the whole schema step; _ensure_insights_index creates it on a writable corpus (the nightly ingest's private copy) and leaves a read-only one as it is.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Persist the geographic covering index on writable ingest copies; read-only older corpora keep ordinary browse available while radius search reports its missing index.
 
 """Storage layer. Two backends, selected by JOBHUNTER_STORE (see config.STORE).
 
@@ -883,6 +884,7 @@ def _ensure_multiuser(conn) -> None:
     if key not in _multiuser_inited:
         conn.executescript(CORPUS_SCHEMA)
         _ensure_insights_index(conn)
+        _ensure_geo_index(conn)
         conn.executescript(USER_SCHEMA)
         _ensure_user_columns(conn)   # backfill new columns onto pre-existing user DBs
         _ensure_planner_stats(conn)
@@ -909,6 +911,22 @@ def _ensure_insights_index(conn) -> None:
     """
     try:
         conn.execute(INSIGHTS_INDEX_SQL)
+    except sqlite3.OperationalError as err:
+        if "readonly" not in str(err).lower():
+            raise
+
+
+# Local search bounds latitude/longitude from index keys before touching description-heavy rows.
+GEO_INDEX_SQL = (
+    "CREATE INDEX IF NOT EXISTS corpus.idx_corpus_geo "
+    "ON postings_corpus(active, lat, lon, city)"
+)
+
+
+def _ensure_geo_index(conn) -> None:
+    """Publish the local-search index from writable ingests; leave read-only snapshots unchanged."""
+    try:
+        conn.execute(GEO_INDEX_SQL)
     except sqlite3.OperationalError as err:
         if "readonly" not in str(err).lower():
             raise

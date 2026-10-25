@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Career worker rail: a manual run that lost the Career worker answers 503 career-worker-unavailable with its run id and failed state, a cancelled run answers 409, the run list is the caller's own, and cancellation is owner-only (another user's run is a 404) against the real engine run registry.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A manual run that failed on the rail's slot-wait ceiling answers 504 career-worker-queue-timeout with its run id and state, and every failure code the COMPILED rail can record on a run (read from routes/career-worker-rail.js) answers with the rail's own status instead of the generic 502.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Guard the refresh status completion field separately from corpus freshness.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Include the explicit application-managed manual refresh capability in the persisted completion contract.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -233,5 +234,6 @@ test('refresh status separates the persisted successful completion from corpus f
   captureHandlers().get('GET /run/refresh')({ userSub: 'run-user' }, response);
   assert.deepEqual(response.body, {
     running: false, corpusFreshAt: null, lastCompletedAt: '2026-10-06T08:48:47.612Z',
+    manualRefreshAvailable: true, refreshMode: 'application-managed',
   });
 });
