@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Drive the Search Jobs screen's own code: every control it advertises reaches the request, and nothing résumé-shaped appears on it.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Supply browser timers and abort controllers to exercise immediate filters cancelling pending debounce work.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Pin three-page navigation and the desktop-only independently scrollable filter rail.
  */
 /**
  * Guards for the Search Jobs screen (`tools/career-search.html`).
@@ -159,9 +160,16 @@ test('the pager advances the search rather than re-asking for the first page', a
   next.onclick();
   await settle();
   assert.equal(lastQuery(requests).get('page'), '2');
+  assert.ok(el('next').onclick, 'page 2 rendered no Next button');
+  el('next').onclick();
+  await settle();
+  assert.equal(lastQuery(requests).get('page'), '3', 'the pager stopped after its second page');
   const prev = el('prev');
-  assert.ok(prev.onclick, 'page 2 rendered no Previous button');
+  assert.ok(prev.onclick, 'page 3 rendered no Previous button');
   prev.onclick();
+  await settle();
+  assert.equal(lastQuery(requests).get('page'), '2');
+  el('prev').onclick();
   await settle();
   assert.equal(lastQuery(requests).get('page'), '1');
 });
@@ -221,6 +229,13 @@ test('the filters sit in a rail beside the results, and narrow them live', () =>
   // predecessor was a header form you filled in and submitted.
   assert.match(html, /class="rail"/, 'the filter rail is gone');
   assert.match(html, /grid-template-columns:262px/, 'the two-column layout is gone');
+  const desktopRail = html.match(/\.rail\{[^}]*\}/)?.[0] || '';
+  assert.match(desktopRail, /max-height:calc\(100vh - 24px\)/,
+    'the desktop filter rail has no viewport-bounded height');
+  assert.match(desktopRail, /overflow-y:auto/,
+    'the desktop filter rail cannot scroll when its filters exceed the viewport');
+  assert.match(html, /@media\(max-width:820px\)\{[\s\S]*?\.rail\{position:static;max-height:none;overflow:visible/,
+    'the narrow layout must return scrolling to the page instead of trapping the rail');
   // Nothing is "submitted" — every control re-runs the search itself, from page one.
   assert.match(script, /function refilter\(\)\{ clearTimeout\(typing\); page = 1; search\(\); \}/);
   assert.match(script, /addEventListener\('submit', e => \{ e\.preventDefault\(\)/);

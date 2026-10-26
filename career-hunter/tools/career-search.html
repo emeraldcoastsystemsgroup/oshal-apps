@@ -27,6 +27,7 @@
   4 | maintainer@emeraldcoastsystemsgroup.com | Connect open search to the Job Board and keep mobile results above expandable filters without changing corpus queries.
   5 | maintainer@emeraldcoastsystemsgroup.com | Add entered/GPS search centers, a real adjustable radius, approximate city pins, and account-scoped remembered browser searches.
   6 | maintainer@emeraldcoastsystemsgroup.com | Load results ahead of optional map assets, overlap identity lookup, cancel obsolete requests and keep prior results visible during faster progressive search.
+  7 | maintainer@emeraldcoastsystemsgroup.com | Keep the desktop filter rail independently scrollable and explain when the current filters have no further pages.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="search-ui"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -56,7 +57,8 @@ h1{font-size:21px;margin:0 0 2px}
 /* ---- two columns: filter rail, results ---- */
 .cols{display:grid;grid-template-columns:262px minmax(0,1fr);gap:20px;align-items:start}
 .rail{background:var(--panel);border:1px solid var(--line);border-radius:12px;
-      padding:4px 14px 14px;position:sticky;top:12px}
+      padding:4px 14px 14px;position:sticky;top:12px;max-height:calc(100vh - 24px);
+      overflow-y:auto;overscroll-behavior:contain}
 .railhead{display:flex;align-items:center;justify-content:space-between;
           padding:12px 0 8px;border-bottom:1px solid var(--line)}
 .railhead b{font-size:13px}
@@ -132,7 +134,7 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){white-space:n
 [hidden]{display:none!important}
 @media(max-width:820px){
   .cols{grid-template-columns:1fr}
-  .rail{position:static}
+  .rail{position:static;max-height:none;overflow:visible;overscroll-behavior:auto}
   .grp input[type=search],.grp input[type=number],.grp select{font-size:16px}
   #jobMap{height:260px}.saved-search-controls input,.saved-search-controls select{font-size:16px}
 }
@@ -505,11 +507,14 @@ function renderCount(data){
 
 function renderPager(data){
   const more = !data.exhausted && !data.capped;
-  if (page === 1 && !more){ pagerEl.innerHTML = ''; return; }
+  const endNote = data.exhausted
+    ? '<span class="note">End of results for these filters. Broaden the search to find more.</span>' : '';
+  if (page === 1 && !more){ pagerEl.innerHTML = endNote; return; }
   pagerEl.innerHTML =
     (page > 1 ? '<button class="btn" id="prev">← Previous</button>' : '')
     + '<span>Page ' + page + '</span>'
-    + (more ? '<button class="btn" id="next">Next →</button>' : '');
+    + (more ? '<button class="btn" id="next">Next →</button>' : '')
+    + endNote;
   const prev = $('prev'), next = $('next');
   if (prev) prev.onclick = () => { page -= 1; search(); };
   if (next) next.onclick = () => { page += 1; search(); };

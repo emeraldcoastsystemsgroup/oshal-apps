@@ -1276,3 +1276,114 @@ cases:
     isolation: { mode: none }
     limits: { timeoutMs: 30000 }
     installation: never
+
+  - id: native-portfolio-research
+    name: Account coverage and reproducible historical portfolio research
+    purpose: Exercise pure capital/account models, NYSE coverage, caller-bound historical transport, and the shipped saved strategy, statement, backtest and research review routes using named synthetic provider and owner-aware SQL fixtures.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-portfolio-model.test.js, tests/native-portfolio-sim.test.js, tests/native-portfolio-history.test.js, tests/native-portfolio-routes.test.js] }
+    expected:
+      - Paper capital is excluded from real balances and concentration; all held names appear independently of watchlist status.
+      - Failed sources force partial totals, registration groups stay separate, and stale outside statements cannot establish complete concentration.
+      - Retirement and cash accounts refuse borrowed exposure; absent debt and settlement facts stay unknown.
+      - Saved strategies and exact price evidence remain owner-scoped, with prior-session signals, modeled costs, benchmark and drawdown.
+      - Missing sessions or unavailable data cannot produce a completed result, and changed balances invalidate a research approval.
+      - Research approval places zero orders and authorizes no borrowing; unclassified accounts, stale outside statements and expired confirmations refuse.
+      - Monday and holiday defaults end on the last completed session, independent of the browser clock.
+    prerequisites: [runner:node-test, dependency:express]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+  - id: native-portfolio-browser
+    name: Portfolio review and backtests on desktop and phone
+    purpose: Drive the actual native portfolio renderer and routes against named synthetic provider and SQL fixtures in Chromium.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/native-portfolio-browser.test.js] }
+    expected:
+      - Account classifications and strategies persist, and historical results display their price benchmark, costs, assumptions and exact retained receipt.
+      - A research envelope requires explicit confirmation; no live order, arming or borrowing control appears.
+      - Desktop and phone have no page errors or horizontal overflow.
+    prerequisites: [runner:node-test, dependency:express, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: native-strategy-navigation
+    name: Portfolio review preserves Futures research navigation
+    purpose: Drive the real Trading shell and view modules against explicit owner, API and cockpit-host fixtures in Chromium.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/native-strategy-navigation.test.js] }
+    expected:
+      - Portfolio review links to existing Futures studies and returns; both legacy Tuning bookmark shapes still open native Futures research.
+      - Native research calls no legacy optimizer endpoint and opening the screen makes only reads, without enabling, running or stopping a study.
+      - Native scheduling and source wording match the fixed New York Schwab study; legacy Tuning retains its optimizer controls.
+      - Desktop and phone have no page errors or horizontal overflow.
+    prerequisites: [runner:node-test, dependency:express, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: native-rebalance-preview
+    name: Concrete account rebalance previews and exact planning approval
+    purpose: Exercise the shipped planner and authenticated routes against explicit synthetic owner, broker and SQL fixtures. No broker writer is provided.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-rebalance-plan.test.js, tests/native-rebalance-routes.test.js] }
+    expected:
+      - All holdings participate, costs are reserved, and outside-strategy holdings are preserved unless whole-account scope is chosen explicitly.
+      - Cash and retirement funding cannot borrow or assume sale proceeds settled; margin uses measured provider capacity and never the compatibility fallback.
+      - Dollar/share/exposure exceptions and unmanaged sales need exact acknowledgements; missing facts, broker constraints, stale evidence or foreign ownership cannot be overridden.
+      - Completed-session targets exclude future prices; retained source evidence is fingerprint checked, and concurrent retries preserve the first approval receipt.
+      - No planning approval places an order, authorizes borrowing, applies a live strategy or changes a live limit.
+      - Account cards preserve measured broker balance facts without compatibility capacity fallbacks or inferred settlement.
+    prerequisites: [runner:node-test, dependency:express]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+  - id: native-rebalance-browser
+    name: Planning quantities, exceptions and blockers on desktop and phone
+    purpose: Drive actual portfolio/planning renderers and routes in Chromium using named synthetic broker, owner and storage fixtures.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/native-rebalance-browser.test.js] }
+    expected:
+      - Quantities, prices, funding and exact planning exceptions remain visible before acknowledgement.
+      - Planning acknowledgement persists across reload; missing broker facts leave the preview blocked with no approval button.
+      - No execute, borrowing or live-limit action exists, and desktop/phone show no page errors or horizontal overflow.
+    prerequisites: [runner:node-test, dependency:express, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: native-monthly-rotation
+    name: Calendar-month defensive rotation with complete fallback coverage
+    purpose: Exercise monthly trend and quarterly-rank targets, completed-month timing, missing data refusals and non-executing previews.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-monthly-rotation.test.js] }
+    expected:
+      - Version1 research remains unchanged; version2 rejects noncanonical knobs and excludes unfinished-month and fill-day data.
+      - BIL receives failed slots and participates in history, quote rosters and funding checks.
+      - No order, borrowing or account arming capability is added.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+  - id: native-congress-candidates
+    name: Source-bound Congress disclosed-stock candidate baskets
+    purpose: Verify both-chamber reads, conservative stock descriptions, primary filings, dates, deduplication and exact immutable basket provenance.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-congress-candidates.test.js] }
+    expected:
+      - Executive filers, uncertain instruments, derivatives, invalid dates and nonprimary filings cannot enter the candidate basket.
+      - Duplicate trades cannot invent distinct buyers; saturated source reads stay explicitly bounded.
+      - Server evidence validates selected symbols and equal weights; a current basket never claims historical Congress strategy performance.
+      - Stored filing identities and valid collector timestamps survive saving; unavailable timing is counted and never replaced with disclosure dates.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never

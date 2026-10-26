@@ -157,7 +157,7 @@ function bootBoard(resumeState, browse = {}) {
   // Every id the board resolves at parse time has to exist before the script runs.
   for (const id of ['list', 'tabs', 'toast', 'count', 'q', 'sort', 'min_score', 'min_pay', 'days',
     'remote', 'onboard', 'intent', 'sub', 'fitWrap', 'applyRules', 'autofillRules', 'nodeSel',
-    'workerHint', 'copyAutofill', 'subAll']) el(id);
+    'workerHint', 'copyAutofill', 'subAll', 'purgeTools', 'purgeReview', 'purgePreview']) el(id);
   el('sort').innerHTML = '<option value="ai">Best fit</option><option value="prob">P(land)</option>'
     + '<option value="salary">Salary</option><option value="recent">Newest</option>';
 

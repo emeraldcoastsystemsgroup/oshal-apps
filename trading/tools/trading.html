@@ -8,12 +8,14 @@
 
   This file is the SHELL: theme, styles, header, hosts. The runtime is ui/app.js (state, api(), the
   router) plus one module per view under ui/. Served by createTradingRoutes at /api/trading/ with
-  the modules at /api/trading/ui/*. All data is live from /api/trading/* — nothing is simulated.
+  the modules at /api/trading/ui/*. Data comes from /api/trading/*; historical research and paper accounts are explicitly simulated.
   Paper is one account like any other; live orders are gated server-side and need an explicit confirm.
 
   CHANGE LOG
   1 | maintainer@emeraldcoastsystemsgroup.com | The Settings button showed a bare letter 'C'; it shows a gear glyph (text presentation, hidden from
     assistive technology) and keeps its 'Settings' label. Guard: tests/research-handoff-summary.test.js.
+  2 | maintainer@emeraldcoastsystemsgroup.com | Load native portfolio research before the Strategies dispatcher.
+  3 | maintainer@emeraldcoastsystemsgroup.com | Load the non-executing rebalance planning component with portfolio review.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -287,6 +289,8 @@
 <script src="/api/trading/ui/view-accounts.js"></script>
 <script src="/api/trading/ui/view-account.js"></script>
 <script src="/api/trading/ui/native-paper.js"></script>
+<script src="/api/trading/ui/native-rebalance.js"></script>
+<script src="/api/trading/ui/native-portfolio.js"></script>
 <script src="/api/trading/ui/view-strategies.js"></script>
 <script src="/api/trading/ui/view-events.js"></script>
 <script src="/api/trading/ui/view-futures-review.js"></script>

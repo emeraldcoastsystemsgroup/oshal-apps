@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: in Chromium over the shipped tools/trading.html and ui scripts, served with the SHIPPED accounts, book-read, order-flow, research and chart routes on a native-kernel-shaped host (no broker, no market-data connector, the person's armed paper book holding UPCO, a World price archive). The landing shows the Paper tile with its $100,000 and a PAPER pill, the hero total is the paper book's (it said "$0 · No accounts yet - connect a Schwab login"), and the positions rollup lists UPCO in the paper book; opening the account and the UPCO row draws the archive's stored prices as a chart line with its note, and Allocation says the paper book needs no broker. Seams: the shell's shared theme assets are empty stand-ins and the kernel schedule list answers none. Needs declared Express, Playwright and Chromium dependencies, supplied by either the Store toolchain or the isolated native runtime.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Resolve declared dependencies in package-only native fixtures as well as Store checkouts.
+ * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Assert that the real-capital headline excludes the paper book while its separate balance and holdings remain visible.
  */
 'use strict';
 
@@ -85,7 +86,8 @@ test('with no Schwab the landing shows the paper book, and its chart draws the W
   const tile = page.locator('#tiles .tile', { hasText: 'Paper (reference book)' });
   await tile.waitFor();
   await page.waitForFunction(() => document.getElementById('heroTotal').textContent !== '…');
-  assert.equal(await page.locator('#heroTotal').textContent(), '$100,000', 'the hero total is the paper book, not $0');
+  assert.equal(await page.locator('#heroTotal').textContent(), '—', 'paper money cannot become real portfolio capital');
+  assert.match(await page.locator('#heroSub').textContent(), /Connected real capital.*paper \$100,000 shown separately/);
   assert.match(await tile.innerText(), /PAPER[\s\S]*\$100,000[\s\S]*Paper autopilot: armed/);
   assert.doesNotMatch(await page.locator('#tiles').innerText(), /No accounts yet/);
   const rollup = await page.locator('#rollup').innerText();

@@ -25,8 +25,10 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | Rail guard: the accounts summary and discovery reads ask railConfigured(reader) instead of calling reader.configured() directly, so a reader with no configured() probe (the native kernel bridge) reports broker_not_configured for that book instead of failing the request.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | The native paper book on the landing: on the native kernel the book store lists no books, so GET /accounts and GET /summary answered an empty roster and $0 ("No accounts yet - connect a Schwab login") while the person's paper book held $100,000. GET /accounts now lists that paper book (paper/landing.js rosterBook) and GET /summary carries its balances, day change and held names in the total and the positions rollup, or says it has not been started. A host that lists a stored paper book, or whose paper rail is connected, keeps its answers exactly.
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | GET /summary counts each native Schwab account's measured day change toward totalDayChange; the headline read "$0 today" while the account cards showed their Day P&L.
+ * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Expose separate real and paper capital in the consolidated summary; native research lives in the portfolio route module.
  */
 
+import { capitalSummary } from './trading-portfolio-model';
 import type { Router, Request, Response } from 'express';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
@@ -475,6 +477,7 @@ export function registerTradingAccountRoutes(router: Router, ctx: AppContext): v
       }
       res.json({
         totalValue, totalDayChange: sawDayChange ? totalDayChange : null,
+        capital: capitalSummary(rows),
         accounts: rows,
         positionsRollup: [...rollup.values()].sort((a, b) => b.marketValue - a.marketValue),
       });

@@ -27,6 +27,8 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Strict-CSP cleanup (ADR-136 D2 tail): the Discover button no longer carries a handler attribute - wireDiscovered() binds it by id right after the skeleton paints, alongside the delegated #discovered listener it already owned.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | The native paper book's tile: GET /accounts now lists it (bookId null, nativePaper {opened, armed}) and GET /summary carries its balances, or a notOpened row. The tile says PAPER and whether its autopilot is armed instead of a trading-book strategy line, and a paper book not started yet reads "Not started yet ..." in plain grey, never zeros or a red error.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Label daily-change coverage when real balances are known but their daily change is unavailable; no reporting accounts means n/a.
+ * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Keep paper capital and paper day change outside the real-capital headline.
+  * 8 | maintainer@emeraldcoastsystemsgroup.com | Label native day P&L as open-position scope; closed-trade results and cash flows are not reconstructed.
  */
 
 /* The tile models of the CURRENT paint, in display order — the delegated click handler resolves a
@@ -201,7 +203,7 @@ function tileHtml(m, i) {
   return '<div class="tile' + (m.enabled ? '' : ' view-only') + '" data-i="' + i + '" role="button" tabindex="0">' +
     '<div class="t-name"><span>' + esc(m.label) + '</span>' + pill + '</div>' + note +
     '<div class="t-eq">' + num(m.equity) + '</div>' +
-    '<div class="t-row"><span>Day P&amp;L</span><b>' + day + '</b></div>' +
+    '<div class="t-row"><span>' + (m.nativeReadOnly ? 'Open-position day P&amp;L' : 'Day P&amp;L') + '</span><b>' + day + '</b></div>' +
     '<div class="t-row"><span>Cash</span><b>' + num(m.cash) + '</b></div>' +
     '<div class="t-row"><span>Type</span><b>' + esc(m.accountType || m.kind) + '</b></div>' +
     '<div class="t-strat">' + strat + '</div>' +
@@ -340,6 +342,14 @@ function paintHero(j, err, models) {
     t.innerHTML = '<span class="err" style="font-size:16px">balances unavailable</span>';
     d.innerHTML = err ? '<span class="err">' + esc(err.message) + '</span>' : '';
     if (miss) { miss.hidden = true; miss.textContent = ''; }
+    return;
+  }
+  if (j.capital && j.capital.real) {
+    const real = j.capital.real, paper = j.capital.paper;
+    t.textContent = real.equity == null ? '—' : money(real.equity);
+    d.innerHTML = real.dayChange == null ? 'day change unavailable' : dollarPctCell(real.dayChange, null) + (real.dayChangeBasis === 'open-positions' ? ' · open-position day P&amp;L' : real.dayChangeBasis === 'mixed' ? ' · mixed-source day P&amp;L' : ' today') + (real.dayChangePartial ? ' · partial day change' : '');
+    if (s) s.textContent = 'Connected real capital' + (real.partial ? ' · partial balances' : '') + (paper.equity == null ? '' : ' · paper ' + money(paper.equity) + ' shown separately') + (real.dayChangeBasis === 'open-positions' ? '. Closed-trade results and cash flows are not reconstructed in this day P&L.' : '');
+    if (miss) { miss.hidden = !real.partial; miss.textContent = real.partial ? 'Some real account balances are unavailable. Review each account below.' : ''; }
     return;
   }
   const cov = heroCoverage(j, models || []);

@@ -14,6 +14,7 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Require every full-bleed mobile overlay to be grounded on the document's own opaque token so a stacked swipe card cannot show the role behind it.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Guard the one-click node installer: offered only when no computer is connected, announced before it downloads, and never a swarm-wide join code.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Keep the parallel feed-before-status invariant when status uses the bounded board read helper.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Preserve status persistence and reload assertions around the generated-queue preview reset.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -92,7 +93,7 @@ test('changing any filter re-queries AND re-remembers', () => {
   assert.match(body, /\$\('remote'\)\.addEventListener\('change',refilter\)/);
   assert.match(body, /qt=setTimeout\(refilter,300\)/);
   // The pipeline tabs are a filter too.
-  assert.match(body, /activeStatus=b\.dataset\.k;\s*rememberFilters\(\)/);
+  assert.match(body, /activeStatus=b\.dataset\.k;\s*clearGeneratedPurgePreview\(\);\s*updatePurgeVisibility\(\);\s*rememberFilters\(\);\s*loadStats\(\);\s*loadJobs\(\)/);
 });
 
 test('a remembered filter is escapable — the operator can see and clear it', () => {

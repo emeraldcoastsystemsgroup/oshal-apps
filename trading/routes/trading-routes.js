@@ -54,6 +54,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | Register the same book-and-market reader for every bot this package declares (futures-research-analyst, trading-research-analyst, weather-analyst beside trading-analyst). The kernel requires a selected bot of a specialist-context package to have its own reader, so each research concierge refused every question with 'required specialist reader is missing'.
  *
  * @module trading-routes
+ * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Register owner-scoped native portfolio review and historical research beside the account routes.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -105,6 +106,7 @@ const trading_engine_1 = require("@/app/trading-engine");
 const trading_routes_book_read_builders_1 = require("./trading-routes-book-read-builders");
 const trading_routes_order_flow_builders_1 = require("./trading-routes-order-flow-builders");
 const trading_routes_algo_builders_1 = require("./trading-routes-algo-builders");
+const trading_portfolio_routes_1 = require("./trading-portfolio-routes");
 const trading_accounts_routes_1 = require("./trading-accounts-routes");
 const trading_manual_order_routes_1 = require("./trading-manual-order-routes");
 const trading_event_plan_routes_1 = require("./trading-event-plan-routes");
@@ -216,6 +218,7 @@ function createTradingRoutes(ctx) {
     // preserved anyway so the mounted surface is exactly what it was before the decomposition.
     // ADR-134 PR3: the accounts/books/summary family registers FIRST (most-specific paths).
     (0, trading_accounts_routes_1.registerTradingAccountRoutes)(router, ctx);
+    (0, trading_portfolio_routes_1.registerTradingPortfolioRoutes)(router, ctx);
     // ADR-136 D2: the surface is a thin shell + per-view modules under tools/ui, served same-origin
     // behind the SAME auth posture as the surface (this router is mounted service-or-oidc). no-cache
     // so a redeploy is picked up on the next load without a cache-busting rename; ETags keep it cheap.
@@ -325,4 +328,3 @@ function createTradingRoutes(ctx) {
     (0, trading_routes_algo_builders_1.registerTradingTuningRoutes)(router, ctx);
     return router;
 }
-//# sourceMappingURL=trading-routes.js.map

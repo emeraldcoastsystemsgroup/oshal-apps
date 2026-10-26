@@ -26,12 +26,14 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | Rail guard: the accounts summary and discovery reads ask railConfigured(reader) instead of calling reader.configured() directly, so a reader with no configured() probe (the native kernel bridge) reports broker_not_configured for that book instead of failing the request.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | The native paper book on the landing: on the native kernel the book store lists no books, so GET /accounts and GET /summary answered an empty roster and $0 ("No accounts yet - connect a Schwab login") while the person's paper book held $100,000. GET /accounts now lists that paper book (paper/landing.js rosterBook) and GET /summary carries its balances, day change and held names in the total and the positions rollup, or says it has not been started. A host that lists a stored paper book, or whose paper rail is connected, keeps its answers exactly.
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | GET /summary counts each native Schwab account's measured day change toward totalDayChange; the headline read "$0 today" while the account cards showed their Day P&L.
+ * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Expose separate real and paper capital in the consolidated summary; native research lives in the portfolio route module.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PARITY_KNOBS = void 0;
 exports.parityKnobsOf = parityKnobsOf;
 exports.registerTradingAccountRoutes = registerTradingAccountRoutes;
 exports.routeBook = routeBook;
+const trading_portfolio_model_1 = require("./trading-portfolio-model");
 const logger_1 = require("@/shared/logger");
 const trading_1 = require("@/features/trading");
 const trading_routes_helpers_1 = require("@/app/routes/trading-routes-helpers");
@@ -604,6 +606,7 @@ function registerTradingAccountRoutes(router, ctx) {
             }
             res.json({
                 totalValue, totalDayChange: sawDayChange ? totalDayChange : null,
+                capital: (0, trading_portfolio_model_1.capitalSummary)(rows),
                 accounts: rows,
                 positionsRollup: [...rollup.values()].sort((a, b) => b.marketValue - a.marketValue),
             });

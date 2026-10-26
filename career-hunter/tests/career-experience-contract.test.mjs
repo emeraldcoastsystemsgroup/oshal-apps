@@ -2,6 +2,7 @@
  * CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Pin the native Career experience to its existing authenticated search, map and unchanged named-role contract.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Pin release1.28.1 and require deferred map assets instead of a render-blocking Leaflet tag; real Chromium guards prove map loading and waypoint behavior.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Follow the admitted1.29.1 patch while preserving every experience, map and role assertion.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,7 +21,7 @@ const manifest = yaml.load(readFileSync(resolve(root, 'oshal-app.yaml'), 'utf8')
 const catalog = yaml.load(readFileSync(resolve(root, 'authorization.yaml'), 'utf8'));
 
 test('Career declares a real page experience on the existing authenticated search route', () => {
-  assert.equal(manifest.version, '1.28.1');
+  assert.equal(manifest.version, '1.29.1');
   assert.notEqual(manifest.kind, 'group');
   assert.ok(manifest.uses.includes('application-authorization'));
   assert.ok(manifest.uses.includes('experience'));

@@ -811,6 +811,9 @@ CREATE INDEX IF NOT EXISTS idx_user_status_posting ON user_signals(status, posti
 CREATE INDEX IF NOT EXISTS idx_user_applied ON user_signals(status, applied_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_generated ON user_signals(generated_at DESC)
     WHERE generated_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_user_generated_status
+    ON user_signals(status, generated_at DESC)
+    WHERE status = 'generated' AND generated_at IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS recruiter_firms (
     id INTEGER PRIMARY KEY, firm TEXT NOT NULL, bucket TEXT, website TEXT,

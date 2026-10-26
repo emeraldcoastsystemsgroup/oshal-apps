@@ -1,5 +1,18 @@
 # Career Hunter — oshal app package
 
+## Fresh job-search cycle (1.29.0)
+
+On the Job Board's **Ready for submission** tab, **Review Ready items older than 7 days** previews
+the exact queue count and packet date range. The separate purge button permanently removes only
+those old generated packets and the caller's matching score/application rows. It leaves applications,
+Promoted, Needs you and Dismissed rows, other users' data, and the shared openings corpus intact.
+The server rechecks the seven-day cutoff and exact preview count before it commits, and restores
+packet folders if the database transaction fails. The store adds a partial composite index on
+`status, generated_at` for SQLite and `user_sub, generated_at` for PostgreSQL.
+
+This adds an owner-scoped `career.change` catalog binding. Installing it creates a catalog revision
+that needs the normal AUTH-07 review.
+
 The job-hunting application carved out of the oshal kernel under ADR-085. Its TypeScript routes,
 Node CLI wrapper, Python `jobhunter` engine, persona, migrations, and browser surfaces ship in this
 package. The kernel supplies shared runtime capabilities and mounts the package; it does not own

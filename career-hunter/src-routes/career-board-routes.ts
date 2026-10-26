@@ -12,6 +12,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Expose native summary counters from actual applied and interview status buckets.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | The Insights BY STATE label for a posting with no state showed a twice-encoded em dash (its UTF-8 bytes saved again as Latin-1 text). The SQL now names the em dash as an ASCII escape, so the label is "(remote/—)" whatever the file encoding. Guard: tests/career-insights-state-label.test.mjs.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | GET /analytics reads through career-insights.ts (covering indexes, one pass of the caller's scores); live 2026-10-12 the five corpus-row aggregates stalled past the kernel's 10 s frame deadline on a cold page cache (503, Insights all zeros). A corpus without the Insights index answers 503 with a plain reason at once instead of scanning.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Add an owner-scoped preview + count-checked permanent purge for generated packets older than seven days. The engine removes only that user's generated packet directories and match/application rows, leaving other statuses and the shared corpus intact.
  */
 
 /**
@@ -292,6 +293,73 @@ async function removePacket(ctx: AppContext, req: Request, res: Response): Promi
   res.json(json);
 }
 
+/** Preview this user's generated queue rows whose packet timestamp is at least seven days old. */
+async function previewGeneratedPurge(ctx: AppContext, req: Request, res: Response): Promise<void> {
+  const userSub = callerSub(req);
+  if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
+  const cutoffAt = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const result = await runCareerCliAwait(ctx.pool, userSub, ['packet-purge-preview'], {
+    CH_PURGE_CUTOFF: cutoffAt,
+  });
+  if (result.limitReason) {
+    rejectEngineStart(res, { started: false, limitReason: result.limitReason }, 'purge preview');
+    return;
+  }
+  const json = parseEngineJson(result.out);
+  if (!result.ok || !json) {
+    logger.error({ userSub, err: (result.err || '').slice(-200) }, 'career purge preview failed');
+    res.status(502).json({ error: 'the Ready queue could not be previewed' });
+    return;
+  }
+  if (json.ok !== true) {
+    res.status(400).json({ error: String(json.error || 'preview refused'), code: json.code });
+    return;
+  }
+  res.json(json);
+}
+
+/** Permanently purge exactly the previewed old generated rows after an explicit count phrase. */
+async function purgeGenerated(ctx: AppContext, req: Request, res: Response): Promise<void> {
+  const userSub = callerSub(req);
+  if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
+  const cutoffAt = typeof req.body?.cutoffAt === 'string' ? req.body.cutoffAt : '';
+  const expectedCount = Number(req.body?.expectedCount);
+  const confirmation = typeof req.body?.confirmation === 'string' ? req.body.confirmation : '';
+  const cutoffTime = Date.parse(cutoffAt);
+  if (!Number.isFinite(cutoffTime) || cutoffTime > Date.now() - 7 * 24 * 60 * 60 * 1000) {
+    res.status(400).json({ error: 'cutoff must be a valid timestamp at least seven days old' });
+    return;
+  }
+  if (!Number.isSafeInteger(expectedCount) || expectedCount < 0
+      || confirmation !== `PURGE ${expectedCount}`) {
+    res.status(400).json({ error: 'the exact preview count must be confirmed' });
+    return;
+  }
+  const result = await runCareerCliAwait(ctx.pool, userSub, ['packet-purge'], {
+    CH_PURGE_CUTOFF: cutoffAt,
+    CH_PURGE_EXPECTED_COUNT: String(expectedCount),
+  });
+  if (result.limitReason) {
+    rejectEngineStart(res, { started: false, limitReason: result.limitReason }, 'packet purge');
+    return;
+  }
+  const json = parseEngineJson(result.out);
+  if (!json) {
+    logger.error({ userSub, err: (result.err || '').slice(-200) }, 'career packet purge failed');
+    res.status(502).json({ error: 'the Ready queue could not be purged' });
+    return;
+  }
+  if (json.ok !== true) {
+    const status = json.code === 'count-changed' ? 409 : 400;
+    res.status(status).json({ error: String(json.error || 'purge refused'), code: json.code,
+      ...(Number.isSafeInteger(json.readyRows) ? { readyRows: json.readyRows } : {}) });
+    return;
+  }
+  logger.info({ userSub, purgedRows: json.purgedReadyRows,
+    packetDirectories: json.removedPacketDirectories }, 'career old generated queue purged');
+  res.json(json);
+}
+
 function setReferral(req: Request, res: Response): void {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
@@ -319,6 +387,8 @@ function setReferral(req: Request, res: Response): void {
 export function registerCareerBoardRoutes(router: Router, ctx: AppContext): void {
   router.get('/jobs', (req, res) => { void getJobs(ctx, req, res); });
   router.get('/jobs/stats', getJobStats);
+  router.get('/jobs/purge-generated', (req, res) => { void previewGeneratedPurge(ctx, req, res); });
+  router.delete('/jobs/purge-generated', (req, res) => { void purgeGenerated(ctx, req, res); });
   router.get('/analytics', getAnalytics);
   router.get('/resume', (req, res) => serveResumeFile(req, res, Number(req.query.id)));
   router.post('/jobs/:id/status', (req, res) => updateJobStatus(ctx, req, res));

@@ -31,9 +31,12 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Each unavailable research section prints the report's reason (`reasons[name]`: no market-data source connected, an EDGAR failure) instead of a bare "unavailable" (Major events follow the filings read they are decoded from; they had read an 'events' state the report never sets, so they always said unavailable), and a quote from the World archive says it is the last stored price with its own time, not a live quote. The watchlist's Last column marks an archive price the same way.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | The hand-off to another app (Finance) carried the screen's control text ('Buy AAPL / + Watchlist / Chart / 5Min / 1Hour ...'). researchLoad keeps the painted report in RS_REPORT and researchSummaryText(j) states it in plain sentences (price, fundamentals, earnings, headlines, filings, events, or each section's unavailable reason); connected-actions.js hands that on. Guard: tests/research-handoff-summary.test.js.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Show SEC financial periods, currencies, filing/fetch dates and missing metrics in the screen and research hand-off.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Let the person explicitly select up to ten disclosed-stock candidates; retain excluded original studies instead of silently dropping missing-history names.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Add a dedicated Congress tab with source-bound stock candidate baskets and a draft-only handoff to monthly portfolio research.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Congress chamber/party filters ask the server (GET /reports/congress?chamber=&party=) instead of filtering only the newest 50 trades in the page, which showed "no trades match" for Senate while the archive held hundreds; a filter with no match says so instead of showing the unfiltered summary.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | researchSummaryText ends an unavailable section's sentence once: a reason that already ends with a full stop read 'through the Schwab connection..'.
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.3 - this file predates the log and its earlier history is in git. Sub-tab race close-out (ADR-136 D2 tail): loadScoreboard and loadFeed now capture RENDER_TOKEN and tabGen() before their first await and bail after it, matching loadMovers and loadWatchlistPanel; loadAlgos is a plain function because it awaits nothing (its caller ignores the return). No handler attribute existed here and none is introduced - every action stays a delegated data-* listener.
+  * 12 | maintainer@emeraldcoastsystemsgroup.com | Show collector-time coverage and filing observation timestamps separately from disclosure dates; historical timing remains unvalidated.
  */
 
 let PENDING_RESEARCH = null;
@@ -356,6 +359,7 @@ let CG_PARTY = '';
 let CG_SORT_COL = 'disclosureDate';
 let CG_SORT_DIR = 'desc';
 let CG_DATA = null;
+let CG_CANDIDATES = null;
 
 /* The panel's read: the chamber/party choices travel to the server, which filters every stored trade. */
 function cgQuery() {
@@ -802,14 +806,32 @@ async function renderResearchView(token) {
     acctContextBar('buys, signals and decisions from this page act on this account') + '<div id="viewTabs"></div>';
   if (stale(token)) return;
   wireAcctContextBar();
-  subTabs('viewTabs', [['stock','Research a stock'],['movers','Market movers'],['reco','Recommendations'],['algos','Algorithms'],['capture','Capture & signals']], SUB || 'stock', (k) => {
+  subTabs('viewTabs', [['stock','Research a stock'],['congress','Congress'],['movers','Market movers'],['reco','Recommendations'],['algos','Algorithms'],['capture','Capture & signals']], SUB || 'stock', (k) => {
     // The stock tab's autocomplete outlives an in-place research but not a sub-tab switch — detach it
     // as the previous tab body is discarded so no debounce timer or dropdown leaks.
     if (RS_SEARCH && typeof detachSymbolSearch === 'function') { detachSymbolSearch(RS_SEARCH); RS_SEARCH = null; }
     if (k === 'stock') loadStockTab();
+    else if(k==='congress')loadCongressTab();
     else if (k === 'movers') loadMoversTab();
     else if (k === 'reco') loadReco();
     else if (k === 'algos') loadAlgos();
     else if (k === 'capture') { renderCapture(); loadFeed(); }
   });
+}
+
+/** A dedicated disclosure view; candidate loading creates a draft, never an account assignment. */
+function loadCongressTab(){
+ const host=$('tabbody');if(!host)return;
+ host.innerHTML='<section class="panel"><h2>Congress purchase research</h2><p>Use disclosed House and Senate stock purchases as a long-term candidate universe, then apply monthly trend exits. Publication can follow the transaction by weeks. Amounts are reported ranges, not exact position sizes.</p><p>The basket below excludes executive-branch filers and descriptions of options, funds, bonds and uncertain instruments. It uses up to200 recent purchases per chamber; any read limit remains visible.</p></section><section class="panel" id="cgCandidates">'+spinner('Reading both chambers…')+'</section><section class="panel" id="rsCongress">'+spinner('Reading disclosures…')+'</section>';
+ loadCongressPanel('rsCongress');loadCongressCandidates();
+}
+async function loadCongressCandidates(){
+ const token=RENDER_TOKEN,gen=tabGen();
+ try{
+  const data=await api('/reports/congress?candidate=long-term');if(stale(token)||tabStale(gen)||!$('cgCandidates'))return;CG_CANDIDATES=data;
+  const rows=data.candidates||[],timing=data.observationCoverage;
+  const collectionSummary='<p>Collector timestamps: '+(timing?esc(timing.withObservedAt)+' of '+esc(timing.filings)+' screened filings; '+esc(timing.unavailable)+' unavailable':'Unavailable from this response')+'. Collection time is separate from disclosure and transaction dates. This does not validate historical Congress-following performance.</p>';
+  $('cgCandidates').innerHTML='<h3>Long-term disclosed-stock candidate basket</h3><p>'+esc(String((data.candidates||[]).length))+' description-screened candidates · '+esc(String(data.inputRows))+' purchase records read · '+esc(String(data.excluded))+' excluded · read '+esc(data.readAt)+'</p>'+(data.possiblyTruncated?'<p class="err">A chamber reached its200-record read limit. This is a bounded sample, not a complete purchase census.</p>':'')+'<p>'+esc(data.note)+'</p>'+collectionSummary+(!rows.length?'<p>No qualifying stocks were found; no substitute basket was invented.</p>':'<p>Review up to10 stocks. The default selects the first10 ordered by distinct buyers, newest disclosure, then ticker. Equal slots; monthly10-month trend filter; failed slots go to BIL. No borrowing.</p><div style="overflow:auto"><table><thead><tr><th>Select</th><th>Stock</th><th>Distinct buyers</th><th>Latest disclosure</th><th>Filing evidence</th><th>Collected (UTC)</th></tr></thead><tbody>'+rows.map((c,i)=>'<tr><td><label><input type="checkbox" data-cg-stock value="'+esc(c.symbol)+'"'+(i<10?' checked':'')+' aria-label="Select '+esc(c.symbol)+'"></label></td><td>'+esc(c.symbol)+'</td><td>'+esc(c.distinctBuyers)+'</td><td>'+esc(c.latestDisclosure)+'</td><td>'+c.filings.slice(0,3).map(f=>'<a target="_blank" rel="noopener noreferrer" href="'+esc(f.ptrLink)+'">'+esc(f.representative)+'</a>').join(' · ')+'</td><td>'+c.filings.slice(0,3).map(f=>'<div>'+esc(f.observedAt||'Unavailable')+'</div>').join('')+'</td></tr>').join('')+'</tbody></table></div>'+(typeof NATIVE_PORTFOLIO!=='undefined'&&NATIVE_PORTFOLIO?'<p id="cgCandidateNotice" role="status" aria-live="polite"></p><button class="btn" id="cgBuildBasket">Load this basket into strategy review</button>':'<p>Saving this candidate basket requires native portfolio research.</p>'));
+  const button=$('cgBuildBasket');if(button)button.onclick=()=>{const chosen=[...$('cgCandidates').querySelectorAll('input[data-cg-stock]:checked')].map(el=>el.value);if(chosen.length<1||chosen.length>10){$('cgCandidateNotice').textContent='Select between1 and10 stocks for this review basket.';return;}PENDING_CONGRESS_BASKET={...CG_CANDIDATES,candidates:CG_CANDIDATES.candidates.filter(c=>chosen.includes(c.symbol))};navigate('strategies',{sub:'portfolio'});};
+ }catch(e){if(!stale(token)&&!tabStale(gen)&&$('cgCandidates'))$('cgCandidates').innerHTML='<h3>Congress candidate basket unavailable</h3><p class="err">'+esc(e.message)+'</p>';}
 }

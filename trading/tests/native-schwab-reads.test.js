@@ -1,4 +1,6 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Native landing amounts retain their open-position P&L scope and never imply reconstruction of closed trades or cash flows.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve measured and unknown broker balance facts across the named read and landing summary without adding owner or financial inputs.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify the shipped native Schwab summary and holdings view use actual owned balances, retain failed-read dispositions and offer no unsupported live book writes.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The kernel's measured account day change (Schwab per-position day P&L) reaches the landing row; an unmeasured one stays null, never zero.
  */
@@ -51,10 +53,25 @@ test('the actual account view offers holdings, preserves escaping and never fabr
   vm.runInContext(src+'\nthis.view={tileHtml,nativeAccountView};',context);
   const model = {nativeReadOnly:true,notTrading:true,state:'ok',label:'Schwab …1234',kind:'live',equity:12500,cash:2500,accountType:'margin',positions:[{symbol:'<NVDA>',qty:20,marketValue:10000}]};
   const tile = context.view.tileHtml(model,0);
-  assert.match(tile,/VIEW-ONLY/);assert.match(tile,/View holdings/);assert.doesNotMatch(tile,/Create book|Start trading/);
+  assert.match(tile,/VIEW-ONLY/);assert.match(tile,/View holdings/);assert.match(tile,/Open-position day P&amp;L/);assert.doesNotMatch(tile,/Create book|Start trading/);
   context.view.nativeAccountView(model);
   assert.match(nodes.main.innerHTML,/&lt;NVDA&gt;/);assert.match(nodes.main.innerHTML,/20/);assert.match(nodes.main.innerHTML,/10000/);
   assert.doesNotMatch(nodes.main.innerHTML,/Create book|Buy a stock/);
   context.view.nativeAccountView({...model,state:'error',note:'Schwab read failed.'});
   assert.match(nodes.main.innerHTML,/Schwab read failed/);assert.doesNotMatch(nodes.main.innerHTML,/no open positions|12500/);
+});
+test('native capital hero identifies open-position P&L and does not imply a full account day return',()=>{
+ const src=fs.readFileSync(path.join(__dirname,'../tools/ui/view-accounts.js'),'utf8');
+ const nodes={heroTotal:{},heroDay:{},heroSub:{},heroMissing:{}};
+ const context=vm.createContext({Date,console,BOOKS:[],ACCOUNTS:[],money:n=>'$'+n,esc:String,$:id=>nodes[id],dollarPctCell:()=>'$0'});
+ vm.runInContext(src+'\nthis.paint=paintHero;',context);
+ context.paint({capital:{real:{equity:1000,dayChange:0,dayChangeBasis:'open-positions'},paper:{equity:null}}},null,[]);
+ assert.match(nodes.heroDay.innerHTML,/open-position day P&amp;L/);assert.match(nodes.heroSub.textContent,/Closed-trade results/);
+});
+
+test('the named account read and summary retain the additive measured broker facts exactly',async()=>{
+ const native=helpers(),calls=[],facts={buyingPower:0,cashAvailableForTrading:900,cashAvailableForWithdrawal:700,unsettledCash:300,debitBalance:0,marginBalance:null,maintenanceRequirement:1200,longMarketValue:9000,shortMarketValue:null};
+ const response={accounts:[{accountId:'owned-fixture',connectionKey:'fixture-login',broker:'schwab',kind:'live',equity:10000,cash:1000,buyingPower:20000,balanceFacts:facts,positions:[]}],errors:[],readAt:'2026-10-25T06:00:00Z'};
+ const got=await native.readNativeAccounts({intent:async(name,input)=>{calls.push({name,input});return response;}}),rows=[];
+ native.appendNativeSummary(got,rows,new Map());assert.deepEqual(rows[0].balanceFacts,facts);assert.equal(rows[0].buyingPower,20000,'compatibility field remains distinct');assert.deepEqual(calls,[{name:'trading.accounts',input:{}}]);
 });

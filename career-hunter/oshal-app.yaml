@@ -39,6 +39,8 @@
 # 35 | maintainer@emeraldcoastsystemsgroup.com | 1.27.6: Jarvis's job questions no longer time out. The Career specialist facts ran the full AI board ranking (2.1 to 3.0 s on a 2.1M-signal store) inside the kernel's 3 s specialist deadline; they now count the board's first page in one query (0.6 s). Guarded by career-hunter/tests/career-native-read-facts.test.mjs.
 # 36 | maintainer@emeraldcoastsystemsgroup.com | Release local mapped search, remembered criteria and the existing search page as the Career experience in 1.28.0.
 # 37 | maintainer@emeraldcoastsystemsgroup.com | Release faster progressive search with deferred map assets and superseded-request cancellation in 1.28.1.
+# 38 | maintainer@emeraldcoastsystemsgroup.com | Release the owner-only seven-day generated-queue preview and permanent purge, plus a generated_at/status index for both store backends, as version 1.29.0. The purge count-checks the preview and removes only the caller's Ready packets and score/application rows; it leaves later statuses and shared postings untouched. Add DELETE /jobs/purge-generated to the authorization catalog; the catalog revision needs its AUTH-07 review.
+# 39 | maintainer@emeraldcoastsystemsgroup.com | Release date-indexed exact scoring for posted-date board filters as version 1.29.1. When a recent-posted window is sparse or empty, drive from the corpus date index instead of probing every historical résumé score.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -132,7 +134,7 @@ description: >-
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.28.1
+version: 1.29.1
 
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent
@@ -798,6 +800,8 @@ migrations:
   # mint that owner's callback grants for the signed engine rail (1.25.1). Nullable: a row saved
   # before 1.25.1 has none and the cron skips its model passes until the owner saves again.
   - migrations/107-career-automation-owner-issuer.sql
+  # 108: owner/status/generated_at access path for old Ready queue reads and purges.
+  - migrations/108-career-generated-queue-index.sql
   # 106: the reverse-synchronization outbox (BACKEND-CUTOVER.md). Operator-only FORCE-RLS change
   # log + checkpoint, and transaction-local AFTER ROW capture triggers on the eight mutable tables
   # above that have a SQLite counterpart. Must run AFTER 095-103 (it attaches to their tables).

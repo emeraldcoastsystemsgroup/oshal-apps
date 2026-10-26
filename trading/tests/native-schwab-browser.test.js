@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve the exact native daily amount while asserting its open-position scope on desktop and phone.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Render the shipped Schwab landing and holdings view on desktop and phone; native provider/SQL results are named fixture seams, no real orders execute.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A measured Schwab account day change shows on its tile and counts toward the headline total (it had read "$0 today").
  */
@@ -55,8 +56,8 @@ test('Schwab balances and holdings are usable on desktop and phone with no live-
     await tile.getByRole('button',{name:'View holdings'}).waitFor();
     assert.match(await tile.innerText(),/VIEW-ONLY[\s\S]*\$12,500/);
     assert.equal(await page.locator('#heroTotal').innerText(),'$12,500');
-    assert.match(await page.locator('#heroDay').innerText(),/-\$40[\s\S]*today/,'a measured Schwab day change counts toward the total');
-    assert.match(await tile.innerText(),/Day P&L[\s\S]*-\$40/);
+    assert.match(await page.locator('#heroDay').innerText(),/-\$40[\s\S]*open-position day P&L/,'a measured Schwab day change counts toward the total');
+    assert.match(await tile.innerText(),/Open-position day P&L[\s\S]*-\$40/);
     // Exercise the shipped renderer with mixed known/unknown day changes, independently of the provider seam.
     await page.evaluate(() => paintHero({totalValue:12510,totalDayChange:10,accounts:[{dayChange:10},{dayChange:null}]},null,[]));
     assert.match(await page.locator('#heroDay').innerText(),/1 of 2 accounts report day change/);

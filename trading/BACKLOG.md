@@ -1,8 +1,59 @@
 # Intelligent Trades — backlog and roadmap
 
-Current status for Trading 1.33.44 on the native kernel (b6dbe79), reviewed 2026-10-16.
+Current status for Trading 1.36.2 on the native kernel, reviewed 2026-10-25.
+
+Delivered evidence refinements: stored Congress filing IDs and collector timestamps with explicit timing coverage; separate accrued-interest/margin-equity facts; native open-position P&L scope labels. Historical point-in-time Congress performance and native brokerage execution remain unvalidated/unavailable respectively.
 Implementation, automated verification and signed-in acceptance are separate milestones.
 Earlier incident details remain in Git history; the entries below describe what remains now.
+
+## Calendar rotation and congressional purchase candidates
+
+Implemented fixed monthly trend and quarterly-rank research with BIL fallback, complete
+calendar warmup and exact monthly decision dates. A dedicated Research → Congress tab loads
+server-verified House/Senate disclosed-stock baskets into immutable strategy drafts, retaining
+primary filings and bounded source coverage. Price-only selected-universe backtests do not
+validate historical Congress-following performance. Owner acceptance and forward evidence
+remain separate from package/browser guards; no broker execution/protection is available.
+
+## Monday portfolio readiness — implemented; owner acceptance still required
+
+Native Strategies keeps both portfolio review and the existing Futures research view
+(including prior Tuning bookmarks). Native research does not show the unavailable legacy
+equity optimizer. Full-shell desktop/phone tests cover navigation and read-only opening.
+
+Portfolio review shows: every reported holding, watchlist coverage,
+owner-declared taxable/401(k)/IRA registration, separate cash/margin mechanics, and outside
+statement snapshots. Statement refresh and re-add preserve established account categories
+and assigned review strategies; these change only in the account settings. Paper capital is excluded from the landing real-capital headline. Combined reported real
+holdings show concentration and separate retirement/cash/margin totals. Failed sources
+force partial totals; outside statements older than seven days block complete concentration.
+
+Saved immutable allocation/trend/momentum strategies use a separate, explicit daily research
+model. Price-backed historical runs retain exact configuration, source prices, costs,
+financing assumptions, SPY price benchmark and drawdown. Missing sessions, warmup or source
+reads remain unavailable. Price returns exclude dividends/taxes/contributions; these are
+fresh-cash scenarios, not actual account returns or untouched out-of-sample evidence.
+
+The default historical end is the last completed NYSE session, including Monday mornings;
+verified 2024 history supports long warmups. Research-envelope approvals require explicit
+classification and a current outside statement, bind a current account snapshot and expire; they authorize no
+broker order or borrowing. The native kernel remains read-only for live brokerage execution.
+Legacy Strategy Lab placeholder writes/backtests now refuse instead of returning false success.
+
+Concrete non-executing previews now show per-instrument quantities, reference prices,
+modeled costs and funding, preserved holdings and explicitly acknowledged unmanaged sales.
+Planning-cap exceptions are one-preview acknowledgements, not live guardrail changes.
+Approvals are exact, owner-scoped, expiring and idempotent; missing cash/retirement/margin
+facts, stale evidence and broker capacity failures cannot be acknowledged away. Heavy
+current price evidence is retained separately from bounded recent listings. Existing
+research-envelope approvals cannot approve these concrete planning previews.
+
+Still required before claiming managed live portfolios: owner-signed-in provider/account
+coverage, confirmed registrations and outside statements, verified broker debt/maintenance/
+settlement data for the actual accounts (the approved kernel `4c073e8b` passthrough retains
+allowlisted provider measurements; missing fields remain unknown), product eligibility,
+real execution/protection capability with separately approved controls, and forward evidence.
+No strategy was assigned to the operator's accounts and no real risk limits were changed.
 
 ## Roadmap
 

@@ -22,6 +22,7 @@
   11 | maintainer@emeraldcoastsystemsgroup.com | Restore prominent open-job search navigation and prioritize results over optional desktop setup while retaining existing actions.
   12 | maintainer@emeraldcoastsystemsgroup.com | Bound board reads and show explicit retryable failures without automatic duplicate requests or false empty results.
   13 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the browse header read "60 open roles" for the first page of a corpus of 163,730 (the concierge repeated it). A full page reads "60 open roles shown" with "more roles match: search or filter to narrow"; a last page keeps its count.
+  14 | maintainer@emeraldcoastsystemsgroup.com | Add a seven-day preview and explicit permanent purge for only the caller's stale Ready queue, with a count-checked server cleanup that preserves every other status.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="board-native"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -37,6 +38,11 @@
   .tabs { display:flex; gap:7px; flex-wrap:wrap; margin:0 0 12px; }
   .tab { background:var(--panel2); border:1px solid var(--line); border-radius:16px; padding:5px 12px; font-size:12px; cursor:pointer; color:var(--text); }
   .tab .n { color:var(--muted); margin-left:5px; } .tab.active { background:var(--accent); color:#fff; border-color:var(--accent); } .tab.active .n { color:rgba(255,255,255,.8); }
+  .purge-tools { margin:-2px 0 14px; padding:12px 14px; border:1px solid var(--border-color); border-radius:10px; background:var(--bg-secondary); }
+  .purge-review,.purge-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .purge-preview { margin-top:10px; color:var(--text-secondary); font-size:12px; line-height:1.55; }
+  .purge-preview p { margin:0 0 9px; }
+  .btn.danger { border-color:var(--status-error); color:var(--status-error); }
   .bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0 0 14px; }
   .bar input, .bar select { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:12.5px; }
   .bar input[type=search] { flex:1; min-width:180px; }
@@ -246,6 +252,14 @@
     </nav>
   </header>
   <div class="tabs" id="tabs"></div>
+  <div class="purge-tools" id="purgeTools" hidden>
+    <div class="purge-review">
+      <b>Start a fresh job search</b>
+      <button class="btn" type="button" id="purgeReview">Review Ready items older than 7 days</button>
+      <span class="hint">Only the Ready queue is eligible.</span>
+    </div>
+    <div class="purge-preview" id="purgePreview" role="status" aria-live="polite" hidden></div>
+  </div>
   <div id="onboard" hidden></div>
   <div id="intent" hidden></div>
   <div class="bar career-board-filters" aria-label="Filter your job board">
@@ -333,6 +347,7 @@
 const $ = id => document.getElementById(id);
 const listEl=$('list'), tabsEl=$('tabs'), toastEl=$('toast'), countEl=$('count');
 let activeStatus='';
+let generatedPurgePreview=null;
 const guideProposals=new Map();
 // APPLICATION_PROVENANCE_START
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -371,6 +386,53 @@ function applicationProofHtml(record){
 }
 // APPLICATION_PROVENANCE_END
 function toast(m,err){ toastEl.textContent=m; toastEl.className='toast show'+(err?' err':''); setTimeout(()=>toastEl.className='toast',2400); }
+function updatePurgeVisibility(){ $('purgeTools').hidden = !(mode==='scored' && activeStatus==='generated'); }
+function clearGeneratedPurgePreview(){ generatedPurgePreview=null; const panel=$('purgePreview'); panel.hidden=true; panel.innerHTML=''; }
+async function reviewOldGenerated(){
+  const button=$('purgeReview'); button.disabled=true; button.textContent='Checking the queue…';
+  clearGeneratedPurgePreview();
+  try {
+    const response=await fetch('/api/career-hunter/jobs/purge-generated',{cache:'no-store'});
+    const preview=await response.json().catch(()=>({}));
+    if(!response.ok||preview.ok!==true) throw new Error(preview.error||('HTTP '+response.status));
+    generatedPurgePreview=preview;
+    const count=Number(preview.readyRows)||0;
+    const cutoff=new Date(preview.cutoffAt);
+    const before=Number.isFinite(cutoff.getTime())?cutoff.toLocaleString():'the seven-day cutoff';
+    const oldest=preview.oldestQueuedAt?new Date(preview.oldestQueuedAt).toLocaleDateString():'';
+    const newest=preview.newestQueuedAt?new Date(preview.newestQueuedAt).toLocaleDateString():'';
+    const range=oldest&&newest?` Queue dates: ${esc(oldest)}–${esc(newest)}.`:'';
+    const packets=Number(preview.packetDirectories)||0;
+    const panel=$('purgePreview'); panel.hidden=false;
+    panel.innerHTML=`<p><b>${count.toLocaleString()} Ready queue item${count===1?'':'s'}</b> were generated before ${esc(before)}; ${packets.toLocaleString()} verified packet director${packets===1?'y':'ies'} will be removed.${range}</p>
+      <p>This permanently deletes those Ready items' private packet files and match/application rows. Applications recorded, Promoted, Needs you, Dismissed, and the shared job postings are preserved.</p>
+      <div class="purge-actions"><button class="btn danger" type="button" id="purgeConfirm" ${count?'':'disabled'}>Permanently purge ${count.toLocaleString()} Ready item${count===1?'':'s'}</button><button class="btn" type="button" id="purgeCancel">Cancel</button></div>`;
+    $('purgeConfirm').onclick=purgeOldGenerated;
+    $('purgeCancel').onclick=clearGeneratedPurgePreview;
+  } catch(error) {
+    const panel=$('purgePreview'); panel.hidden=false;
+    panel.textContent='Could not preview the old Ready queue: '+error.message;
+  } finally { button.disabled=false; button.textContent='Review Ready items older than 7 days'; }
+}
+async function purgeOldGenerated(){
+  const preview=generatedPurgePreview; if(!preview) return;
+  const button=$('purgeConfirm'); button.disabled=true; button.textContent='Purging…';
+  try {
+    const response=await fetch('/api/career-hunter/jobs/purge-generated',{method:'DELETE',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({cutoffAt:preview.cutoffAt,expectedCount:preview.readyRows,confirmation:`PURGE ${preview.readyRows}`})});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||result.ok!==true) throw new Error(result.error||('HTTP '+response.status));
+    clearGeneratedPurgePreview();
+    const cleanupErrors=Number(result.packetCleanupErrors)||0;
+    toast(`Purged ${Number(result.purgedReadyRows||0).toLocaleString()} old Ready items; ${Number(result.removedPacketDirectories||0).toLocaleString()} packet folders removed${cleanupErrors?`; ${cleanupErrors} folder${cleanupErrors===1?'':'s'} need cleanup`:''}.`,cleanupErrors>0);
+    loadStats(); loadJobs();
+  } catch(error) {
+    const panel=$('purgePreview'); panel.hidden=false;
+    panel.textContent='Purge did not complete: '+error.message+'. Review the queue again before retrying.';
+    generatedPurgePreview=null;
+  }
+}
+$('purgeReview').onclick=reviewOldGenerated;
 /** Copy text during the click gesture, with a temporary textarea fallback for restricted iframes. */
 async function copyPrivateText(value){
   if(navigator.clipboard&&navigator.clipboard.writeText){ await navigator.clipboard.writeText(value); return; }
@@ -404,7 +466,8 @@ async function loadStats(){
     const order=['generated','applied','interview','offer','promoted','deferred','dismissed']; const map=Object.fromEntries(byStatus.map(s=>[s.status,s.n]));
     const tabs=[{k:'',label:'All'}].concat(order.filter(s=>map[s]).map(s=>({k:s,label:LABELS[s]||(s[0].toUpperCase()+s.slice(1)),n:map[s]})));
     tabsEl.innerHTML=tabs.map(t=>`<button class="tab${t.k===activeStatus?' active':''}" data-k="${t.k}">${t.label}${t.n!=null?`<span class="n">${t.n}</span>`:''}</button>`).join('');
-    tabsEl.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{ activeStatus=b.dataset.k; rememberFilters(); loadStats(); loadJobs(); });
+    updatePurgeVisibility();
+    tabsEl.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{ activeStatus=b.dataset.k; clearGeneratedPurgePreview(); updatePurgeVisibility(); rememberFilters(); loadStats(); loadJobs(); });
   } catch(e){ tabsEl.innerHTML=''; }
 }
 
@@ -921,6 +984,7 @@ function setMode(next){
   setVisible(document.querySelector('.countrow .bulk'), on && !browse);
   setVisible($('applyRules'), on && !browse);
   setVisible($('autofillRules'), on && !browse);
+  updatePurgeVisibility();
   $('q').placeholder = browse ? 'Search job titles…' : 'Search title or description…';
   const sub=$('sub');
   if(sub) sub.textContent = browse

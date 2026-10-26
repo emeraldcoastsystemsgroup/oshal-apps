@@ -103,7 +103,7 @@ description: >-
   Research stocks, track connected brokerage accounts and test strategies in a separate
   paper book, with a decision trail from signals to orders. Trading actions follow the
   connected account's supported controls. Cash equities. No crypto.
-version: 1.33.44
+version: 1.36.2
 status: active
 
 source:
@@ -546,6 +546,7 @@ migrations:
   - migrations/004-native-futures-research.sql
   - migrations/005-native-futures-reviews.sql
   - migrations/006-native-futures-predictions.sql
+  - migrations/007-native-portfolio.sql
 
 routes:
   - module: routes/home-summary.js

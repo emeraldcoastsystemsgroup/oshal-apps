@@ -21,9 +21,11 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | ADR-052 addendum: GET /knobs documents the three paper-to-live parity knobs the kernel's StrategyConfig carries (marketGapFilterPct, exitPlanSessions, yieldSleeveFloatPct). Each entry states what the knob does, that it is OFF by default, what 0 and blank mean (0 = explicit off; blank = inherit the account's mode-aware env arm, off unless armed; a Lab walk runs off unless the knob is set), the pre-registered value, and that it reaches an account only through a confirmed Apply. The Lab editor gains the same three fields. Rows only - no route, sim or apply behaviour changes.
  *
  * @module trading-strategy-lab-routes
+ * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Refuse legacy native Lab placeholders explicitly and direct callers to the implemented portfolio research surface.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createTradingStrategyLabRoutes = createTradingStrategyLabRoutes;
+const trading_native_reads_1 = require("./trading-native-reads");
 const express_1 = require("express");
 const logger_1 = require("@/shared/logger");
 const authz_1 = require("@/shared/middleware/authz");
@@ -191,6 +193,16 @@ function envDefaultsSummary(kind = 'paper') {
  */
 function createTradingStrategyLabRoutes(ctx) {
     const router = (0, express_1.Router)();
+    if ((0, trading_native_reads_1.nativeSchwabReads)()) {
+        router.use((req, res) => {
+            if (!callerSub(req)) {
+                res.status(401).json({ error: 'not_authenticated' });
+                return;
+            }
+            res.status(503).json({ error: 'native_lab_unavailable', message: 'Use Portfolio review under Strategies for saved native strategies and historical backtests. Legacy Lab execution is unavailable on this installation.', portfolioPath: '/api/trading/portfolio' });
+        });
+        return router;
+    }
     const pool = ctx.pool;
     const sub = (req, res) => {
         const s = callerSub(req);
@@ -683,4 +695,3 @@ function createTradingStrategyLabRoutes(ctx) {
     });
     return router;
 }
-//# sourceMappingURL=trading-strategy-lab-routes.js.map

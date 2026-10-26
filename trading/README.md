@@ -7,6 +7,89 @@ Signal-justified stock trading (ADR-052) — carved out of OSHAL core 2026-07-20
 `?app=intelligent-trades` URLs, the default tile, guest-tier records, and the
 `intelligent-trades` queue id survive unchanged.
 
+## Native portfolio review and research (1.36.2)
+
+**Evidence basis (1.36.2).** Congress candidates retain the stored filing identity and collector
+observation timestamp when supplied by the kernel. The screen reports timing coverage and keeps
+collection separate from disclosure and transaction dates. Missing, malformed, future or
+predisclosure timestamps remain unavailable. This is still a bounded current-universe study,
+not a validated historical Congress-following strategy.
+
+Broker accrued interest, margin equity and equity percentage are displayed separately from
+the signed margin balance and direct debit field; none is substituted for a settled loan payoff.
+Native day P&L is explicitly the reported open-position sum. It does not reconstruct closed-trade
+results or cash flows, and a zero for an empty account is not a full account return.
+
+**Calendar rotation and Congress candidates (1.36.1).** Research → Congress is a dedicated,
+bookmarkable screen (`?view=research&sub=congress`). The candidate basket reads up to200
+recent purchases from each chamber, requires primary House/Senate filing links and explicit
+stock descriptions, excludes ambiguous/fund/option instruments, and deduplicates records.
+Names rank by distinct disclosed buyers, newest disclosure and ticker. Review up to10 names using explicit stock checkboxes; the first10 are selected by default. Editing the draft basket saves its exact reviewed symbols and rechecks them server-side. A read
+that reaches its cap remains visibly bounded; these are neither exact holdings nor guaranteed winners.
+Loading a basket creates a draft in Strategies. Saving rechecks the server feed and retains the
+selected symbols, filings, source coverage and read time in immutable owner-scoped evidence.
+A price backtest of today's selected names is not a point-in-time Congress-following backtest;
+the source read supplies no exact collector first-seen timestamp. This limitation is retained
+in saved runs. No account is assigned or armed by loading/saving a basket.
+
+Two fixed version2 models complement the existing version1 models: monthly defensive trend
+holds each configured slot only above its10-month average of completed month-end closes;
+quarterly rotation selects up to3 qualifying names by63-session relative return against BIL,
+with one-third slots. Failed/vacant slots go to BIL. Initial allocation uses the last completed
+month; later rebalances use the first session of each new month, with next-session-close fills.
+Weekly monitoring is not an automatic protective exit. Both are cash-funded at100% exposure;
+session-count/borrowing knobs cannot silently alter these fixed rules. Full warmup and BIL
+history/quotes are mandatory. Planning receipts distinguish evidence coverage from the monthly
+decision date. Provider daily-price backtests exclude distributions and cannot reproduce a
+separate adjusted-total-return study exactly. Neither model adds live brokerage execution.
+
+Open **Strategies** for all reported holdings, confirmed account categories, combined holding
+concentration, and saved research strategies/backtests. Real account capital excludes paper.
+Outside statement snapshots preserve the established category and review strategy when refreshed.
+Missing account sources and stale statements remain partial; unknown money stays unknown.
+
+Allocation, trend and momentum research retain the exact daily prices/configuration, modeled
+costs and financing, SPY price comparison, drawdown and assumptions. These start from cash;
+they are separate from the native paper engine and do not establish actual account performance.
+Research-envelope approval changes no broker holding, borrowing, live limit or automation.
+
+**Buy/sell planning previews** derives quantities from a completed owned study, current
+holdings, completed-session targets and timestamped Schwab trade prices. The default keeps
+holdings outside the strategy. Whole-account scope shows their proposed sales explicitly;
+sales of unmanaged holdings need a separate acknowledgement. Targets reserve modeled costs.
+
+Cash/retirement buys require measured settled or withdrawable cash and do not assume sale
+proceeds are already settled. Taxable margin previews use measured provider buying power,
+debit and maintenance facts; the compatibility cash fallback cannot establish borrowing
+capacity. Missing facts, stale quotes, changed holdings or a changed signal session block
+approval. Kernel `4c073e8b` and later retain allowlisted broker balance facts as measured numbers
+or null. Earlier kernels or absent provider measurements leave the affected previews blocked. Outside statements cannot establish
+current broker funding authority.
+
+Account cards show broker buying power, debit and current maintenance separately from
+withdrawable, available-for-trading, unsettled and settled cash. A compatibility cash fallback
+is never displayed as measured native buying power. Missing facts stay unknown; withdrawable
+cash is not relabeled settled cash. A retirement account cannot borrow merely because its
+broker mechanics say MARGIN or its provider buying power is positive.
+
+Planning caps ($5,000 / 100 shares per action and 100% gross exposure) require explicit
+acknowledgement of exact exceptions. Exceptions never override account/broker blockers.
+Planning approval retains an immutable receipt and places no order, authorizes no borrowing,
+applies no strategy and changes no live limit. Instrument eligibility, tax lots and broker
+pretrade maintenance remain unverified; no executable order is offered. Recent listings keep
+heavy price/account evidence separate; an exact preview retrieves and fingerprints its receipt.
+
+**Futures research →** opens the existing saved Futures studies, walk-forward results and
+forward research calls. The existing `?view=strategies&sub=tuning` and `?tab=tuning` bookmarks
+remain valid. **Portfolio review** returns to the portfolio screen. Opening either view changes
+no schedule or account. Native Futures studies use Schwab directly and, when enabled, run at
+02:15 New York Tuesday through Saturday; the legacy equity optimizer is not offered there.
+
+The native kernel's live brokerage adapter remains read-only. Legacy Strategy Lab operations
+refuse explicitly instead of returning placeholder success. The engine application, Studio,
+and legacy optimizer sections below describe the legacy runtime unless explicitly marked native.
+Owner-signed-in account/provider coverage and product eligibility require separate acceptance.
+
 ## Native Schwab reads (1.33.1)
 
 On the new Rust kernel, Accounts reads every current caller-visible Schwab login through
@@ -80,7 +163,7 @@ and remain required before declaring the user's connected account verified.
   `trading-surface-live-gate.spec.ts` (the surface's live/confirm gates), and
   `trading-strategy-studio-refine.spec.ts` (the Studio refine-in-place contract).
 
-## Using the surface (ADR-136)
+## Using the legacy surface (ADR-136)
 
 The surface (`tools/trading.html` + `tools/ui/*.js`, served at `/api/trading/`) has four top-level
 views — **Accounts · Strategies · Research · Reports** — in the header nav, plus one account-detail

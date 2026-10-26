@@ -1,4 +1,6 @@
 /** CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Type additive accrued-interest and margin-equity measurements without deriving an interest-subject loan balance or changing broker reads.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Type the additive measured broker balance contract without changing the caller-owned read or compatibility summary.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Read the native caller's Schwab roster, balances and charts without legacy credentials, imported account bindings or live-order activation.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Carry the kernel's account day change (the sum of Schwab's per-position day P&L) to the landing; it was forced to null, so every Schwab card read "Day P&L n/a".
  * 3 | maintainer@emeraldcoastsystemsgroup.com | readNativeMovers: Schwab's whole-market movers (kernel trading.movers) for the Movers board.
@@ -12,7 +14,14 @@ export function nativeSchwabReads(): boolean {
   return (runtime as unknown as { nativeSchwabReads?: boolean }).nativeSchwabReads === true;
 }
 
+export interface NativeBalanceFacts {
+  buyingPower:number|null;cashAvailableForTrading:number|null;cashAvailableForWithdrawal:number|null;
+  unsettledCash:number|null;debitBalance:number|null;marginBalance:number|null;
+  maintenanceRequirement:number|null;longMarketValue:number|null;shortMarketValue:number|null;
+  accruedInterest?:number|null;marginEquity?:number|null;equityPercentage?:number|null;
+}
 export interface NativeAccount {
+  broker?:'schwab';balanceFacts?:NativeBalanceFacts;
   accountId: string; connectionKey: string; accountMasked: string; accountType: string | null;
   equity: number; cash: number; buyingPower: number; kind: string; notTrading: boolean;
   /** Schwab's own day P&L summed over the positions; null when any position does not report it. */

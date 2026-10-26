@@ -20,8 +20,10 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | ADR-052 addendum: GET /knobs documents the three paper-to-live parity knobs the kernel's StrategyConfig carries (marketGapFilterPct, exitPlanSessions, yieldSleeveFloatPct). Each entry states what the knob does, that it is OFF by default, what 0 and blank mean (0 = explicit off; blank = inherit the account's mode-aware env arm, off unless armed; a Lab walk runs off unless the knob is set), the pre-registered value, and that it reaches an account only through a confirmed Apply. The Lab editor gains the same three fields. Rows only - no route, sim or apply behaviour changes.
  *
  * @module trading-strategy-lab-routes
+ * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Refuse legacy native Lab placeholders explicitly and direct callers to the implemented portfolio research surface.
  */
 
+import { nativeSchwabReads } from './trading-native-reads';
 import { Router, type Request, type Response } from 'express';
 import { createChildLogger } from '@/shared/logger';
 import { getTrustedServiceUserSub } from '@/shared/middleware/authz';
@@ -200,6 +202,13 @@ function envDefaultsSummary(kind: 'paper' | 'live' = 'paper'): Record<string, un
  */
 export function createTradingStrategyLabRoutes(ctx: AppContext): Router {
   const router = Router();
+  if (nativeSchwabReads()) {
+    router.use((req:Request,res:Response)=> {
+      if (!callerSub(req)) { res.status(401).json({error:'not_authenticated'}); return; }
+      res.status(503).json({error:'native_lab_unavailable',message:'Use Portfolio review under Strategies for saved native strategies and historical backtests. Legacy Lab execution is unavailable on this installation.',portfolioPath:'/api/trading/portfolio'});
+    });
+    return router;
+  }
   const pool = ctx.pool;
 
   const sub = (req: Request, res: Response): string | null => {

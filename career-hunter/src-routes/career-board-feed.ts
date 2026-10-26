@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Document the exported query, ranking, filter, and page contracts consumed by route modules and tests.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Carry explicit application provenance and task correlation through every bounded board-feed plan.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Keep bounded pools outermost in SQLite's join order so the foreground 150-row page performs corpus primary-key lookups instead of scanning the corpus.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Drive posted-date-filtered scored pages from the corpus date index, so sparse or empty recent windows do not probe every historical user score.
  */
 /**
  * Career Hunter — board feed query planner
@@ -334,6 +335,38 @@ function countScored(db: SqliteDb, parts: BoardFilterParts): number {
 }
 
 /**
+ * @description Reads an exact scored page from the corpus when the caller has a posted-date
+ *   window. The score-first pool is fast for broad views, but when a date window contains no
+ *   postings it must otherwise probe every scored signal and randomly fetch each corpus row
+ *   before it can prove the page is empty. Driving from the existing posted-date index makes
+ *   that common empty-window case a short index seek, while sorting only the date-bounded rows.
+ * @param db - The user's signals DB with the shared corpus attached.
+ * @param parts - The composed user-signal and corpus filters.
+ * @param order - Exact requested board order.
+ * @param per - Page size.
+ * @param offset - Page offset.
+ * @returns The exact scored rows matching the posted-date window.
+ */
+function runDateBounded(
+  db: SqliteDb,
+  parts: BoardFilterParts,
+  order: string,
+  per: number,
+  offset: number,
+): Record<string, unknown>[] {
+  const sql = `SELECT ${SELECT_COLS}
+        FROM corpus.postings_corpus p INDEXED BY idx_corpus_posted
+        JOIN corpus.companies c ON c.id = p.company_id
+        JOIN user_signals s ON s.posting_id = p.id
+       WHERE ${parts.corpWhere} AND s.ai_fit_score IS NOT NULL AND ${parts.scoredWhere}
+       ORDER BY ${order}
+       LIMIT ? OFFSET ?`;
+  return db.prepare(sql).all(
+    ...parts.corpArgs, ...parts.scoredArgs, per, offset,
+  ) as Record<string, unknown>[];
+}
+
+/**
  * @description Plans and runs the board feed for one request. Walks the pool ladder until the page
  *   is full, then backfills from unscored postings if the scored candidates ran out.
  * @param db - The user's signals DB with the shared corpus ATTACHed.
@@ -348,6 +381,19 @@ export function fetchBoardPage(db: SqliteDb, query: BoardQuery): BoardPage {
   const page = Math.max(1, Number(query.page) || 1);
   const offset = (page - 1) * per;
   const parts = splitBoardFilters(query);
+
+  // A posted-date window can leave the user's scored set empty even when it contains 100K+
+  // historical scores. Probe only that bounded corpus range instead of walking every score and
+  // joining each signal to a random row in the multi-gigabyte corpus.
+  const hasPostedWindow = parseInt(param(query, 'days'), 10) > 0;
+  const includeUnscored = param(query, 'include_unscored') === '1';
+  if (hasPostedWindow && !includeUnscored) {
+    const jobs = runDateBounded(db, parts, order, per, offset);
+    return {
+      jobs, page, per, poolSize: null, exhausted: jobs.length < per,
+      pooled: false, scoredOnly: true,
+    };
+  }
 
   // Deep pages need a pool at least as large as the window they read from.
   const need = offset + per;
@@ -371,7 +417,7 @@ export function fetchBoardPage(db: SqliteDb, query: BoardQuery): BoardPage {
   // for the same filters over scored candidates. Since an unscored posting carries no fit score,
   // it has no position in a ranked board anyway; the surface reports `exhausted` instead, and the
   // caller who genuinely wants the exhaustive set can ask for it and wait.
-  if (exhausted && param(query, 'include_unscored') === '1') {
+  if (exhausted && includeUnscored) {
     // Rows [offset, offset+k) came from the scored run, so the tail resumes at 0 — except on a
     // page starting entirely past that run, where the page's own start has to be translated.
     const tailOffset = jobs.length === 0 && offset > 0

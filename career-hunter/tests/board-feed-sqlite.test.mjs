@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the actual ranked board SQL against engine schemas and guard bounded candidate-first corpus lookups.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Verify posted-date filters drive from the corpus date index.
  */
 import { before, after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,14 +29,15 @@ function seed() {
   db.exec('BEGIN');
   db.exec("INSERT INTO corpus.companies(id, name) VALUES (1, 'Fixture company')");
   const posting = db.prepare(`INSERT INTO corpus.postings_corpus
-    (id, company_id, ats_job_id, title, active, target_role, remote, state, salary_max)
-    VALUES (?, 1, ?, 'Platform engineer', ?, ?, ?, ?, 150000)`);
+    (id, company_id, ats_job_id, title, active, target_role, remote, state, salary_max, posted_date)
+    VALUES (?, 1, ?, 'Platform engineer', ?, ?, ?, ?, 150000,
+      CASE WHEN ? IN (4, 5) THEN date('now') ELSE NULL END)`);
   const signal = db.prepare(`INSERT INTO user_signals
     (posting_id, ai_fit_score, fit_score, status, application_source, application_task_id)
     VALUES (?, ?, 75, ?, 'worker-reported', ?)`);
   for (let id = 1; id <= 26001; id++) {
     posting.run(id, `job-${id}`, id === 1 ? 0 : 1, id === 2 ? 0 : 1,
-      id % 2, id >= 26000 ? 'WY' : 'CA');
+      id % 2, id >= 26000 ? 'WY' : 'CA', id);
     if (id <= 26000) signal.run(id, 100 - id / 1000,
       id === 3 ? 'dismissed' : id % 5 === 0 ? 'applied' : 'new', `task-${id}`);
   }
@@ -108,6 +110,19 @@ test('candidate-driven lookups retain filters, ranking, page offsets and return 
   const capped = fetchBoardPage(db, { sort: 'ai', per: '9999' });
   assert.equal(capped.per, 300);
   assert.equal(capped.jobs.length, 300);
+});
+
+test('posted-date windows drive from the date index instead of walking all scored signals', () => {
+  const { page, plans } = observedPage({ sort: 'ai', per: '150', days: '7' });
+  assert.equal(plans.length, 1);
+  assert.match(plans[0].detail.join('\n'), /SEARCH p USING INDEX idx_corpus_posted/);
+  assert.deepEqual(page.jobs.map(row => row.id), [4, 5]);
+  assert.equal(page.exhausted, true);
+  assert.equal(page.scoredOnly, true);
+
+  const noRecentRows = observedPage({ sort: 'ai', per: '150', days: '7', state: 'FL' });
+  assert.deepEqual(noRecentRows.page.jobs, []);
+  assert.match(noRecentRows.plans[0].detail.join('\n'), /SEARCH p USING INDEX idx_corpus_posted/);
 });
 
 test('narrow filters still escalate through both pools to exhaustive and optional unscored rows', () => {

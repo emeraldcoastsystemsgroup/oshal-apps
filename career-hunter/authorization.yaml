@@ -7,6 +7,8 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Bind the two owner-scoped removals 1.26.0 adds, each once, to career.change (a state write that spends nothing): DELETE /stories/test-lab/:tag removes only the caller's stories carrying that acceptance run's Test Lab mark, and DELETE /jobs/:id/packet discards the caller's own generated packet for one posting. Both exist so the story review's live acceptance can leave the owner's store exactly as it found it. A new catalog revision: the install needs its AUTH-07 review.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Bind the Test Lab application seam 1.27.0 adds, each route once, to career.change (a state write that spends nothing; the approve that follows is its own binding): POST /test-lab/applications plants one application marked with an acceptance run's tag on one untouched posting of the caller, and DELETE /test-lab/applications/:postingId/:tag removes only the caller's application whose ticket carries that tag. Both exist so the Career worker rail's live acceptance can drive a real approve -> draft and leave the owner's store as it found it. A new catalog revision: the install needs its AUTH-07 review.
 #
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Bind DELETE /jobs/purge-generated to career.change for the caller's previewed, seven-day-old generated packets. The existing GET /jobs/:id read binding covers the matching preview path; the purge cannot reach other users or shared postings. A new catalog revision: the install needs its AUTH-07 review.
+#
 # One resource with `own` scope only. Row ownership stays where it always was: every route reads
 # and writes the caller's own store, the Postgres tables are FORCE-RLS per user_sub, and the
 # operator-only handlers (cutover status, the portal companies table, the shared refresh) keep
@@ -84,6 +86,7 @@ bindings:
     - { id: jobs, method: GET, path: /jobs, allOf: [career.read] }
     - { id: job, method: GET, path: /jobs/:id, allOf: [career.read] }
     - { id: job-status, method: POST, path: /jobs/:id/status, allOf: [career.change] }
+    - { id: job-generated-purge, method: DELETE, path: /jobs/purge-generated, allOf: [career.change] }
     - { id: job-generate, method: POST, path: /jobs/:id/generate, allOf: [career.execute] }
     - { id: job-packet-remove, method: DELETE, path: /jobs/:id/packet, allOf: [career.change] }
     - { id: job-guide, method: POST, path: /jobs/:id/guide, allOf: [career.execute] }

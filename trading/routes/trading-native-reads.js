@@ -40,6 +40,8 @@ exports.readNativeChart = readNativeChart;
 exports.appendNativeSummary = appendNativeSummary;
 exports.readNativeHistory = readNativeHistory;
 /** CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Type additive accrued-interest and margin-equity measurements without deriving an interest-subject loan balance or changing broker reads.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Type the additive measured broker balance contract without changing the caller-owned read or compatibility summary.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Read the native caller's Schwab roster, balances and charts without legacy credentials, imported account bindings or live-order activation.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Carry the kernel's account day change (the sum of Schwab's per-position day P&L) to the landing; it was forced to null, so every Schwab card read "Day P&L n/a".
  * 3 | maintainer@emeraldcoastsystemsgroup.com | readNativeMovers: Schwab's whole-market movers (kernel trading.movers) for the Movers board.

@@ -26,6 +26,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | api() errors carry the HTTP status and the route's error code (err.status, err.code) beside the unchanged message, so the plan amend control can show a 428 confirm_required as the server's refusal - nothing changed, confirm to proceed - rather than as a failure.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | api() prints a refusal's `detail` (the native host's sentence, e.g. the symbol search naming the missing market-data connector) before its bare error code.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | api() errors carry person words: a server failure (5xx) or the native runtime's not-available refusal is one plain sentence, never its internal text. The paper book's Protected lots, Timed orders and Earnings rules panels had printed "(0 , trading_pinned_lots_1.pinnedQtyBySymbol) is not a function".
+ * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Retain the roster capability flag so Strategies opens the native portfolio research surface.
  */
 
 const $ = (id) => document.getElementById(id);
@@ -151,10 +152,12 @@ function bookLabel(ref) {
   if (ref === 'live') return 'Live' + (b.accountMasked ? ' ' + b.accountMasked : ' (legacy account)');
   return b.ref + (b.accountMasked ? ' ' + b.accountMasked : '');
 }
+let NATIVE_PORTFOLIO = false;
 async function loadBooks() {
   const j = await api('/accounts');
   BOOKS = j.books || [];
   ACCOUNTS = j.accounts || [];
+  NATIVE_PORTFOLIO = j.nativeReadOnly === true;
   const b = bookOf(BOOK); if (b) MODE = b.kind;
   return j;
 }

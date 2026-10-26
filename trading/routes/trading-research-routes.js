@@ -60,11 +60,13 @@
  *
  * 2026-10-15 | maintainer@emeraldcoastsystemsgroup.com | Expose authenticated SEC company-name lookup with public cache provenance and explicit unavailable reads.
  * 2026-10-15 | maintainer@emeraldcoastsystemsgroup.com | Native research reads coherent annual SEC financial statements independently of broker connectivity.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | Read source-bound long-term Congress stock candidates through the existing authenticated disclosure route.
  * @module trading-research-routes
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.projectCongressSignals = projectCongressSignals;
 exports.registerTradingResearchRoutes = registerTradingResearchRoutes;
+const trading_congress_candidates_1 = require("./trading-congress-candidates");
 const trading_native_reads_1 = require("./trading-native-reads");
 const logger_1 = require("@/shared/logger");
 const database_1 = require("@/shared/services/database");
@@ -536,7 +538,7 @@ async function congressDisclosures(limit, opts = {}) {
     }
 }
 /** GET /reports/congress — the disclosure feed's recent names; market-wide, no book, never a holding. */
-function registerCongressDisclosures(router) {
+function registerCongressDisclosures(router, ctx) {
     router.get('/reports/congress', async (req, res) => {
         const s = sub(req, res);
         if (!s)
@@ -549,6 +551,10 @@ function registerCongressDisclosures(router) {
         const direction = typeof req.query.direction === 'string' ? req.query.direction.trim() : undefined;
         const view = typeof req.query.view === 'string' ? req.query.view.trim() : undefined;
         try {
+            if (req.query.candidate === 'long-term') {
+                res.json(await (0, trading_congress_candidates_1.readCongressCandidates)(ctx));
+                return;
+            }
             res.json(await congressDisclosures(limit, { limit, view, politician, symbol, party, chamber, direction }));
         }
         catch (err) {
@@ -566,7 +572,7 @@ function registerTradingResearchRoutes(router, ctx) {
     registerResearchRead(router, ctx);
     registerSymbolSearch(router);
     registerMovers(router, ctx);
-    registerCongressDisclosures(router);
+    registerCongressDisclosures(router, ctx);
     registerWatchlist(router, ctx);
     registerLots(router, ctx);
 }

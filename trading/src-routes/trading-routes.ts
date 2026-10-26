@@ -53,6 +53,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | Register the same book-and-market reader for every bot this package declares (futures-research-analyst, trading-research-analyst, weather-analyst beside trading-analyst). The kernel requires a selected bot of a specialist-context package to have its own reader, so each research concierge refused every question with 'required specialist reader is missing'.
  *
  * @module trading-routes
+ * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Register owner-scoped native portfolio review and historical research beside the account routes.
  */
 
 import { Router, static as serveStatic, type Request, type Response } from 'express';
@@ -69,6 +70,7 @@ import { placeDecisionOrder, analyzeAndRecordDecision } from '@/app/trading-engi
 import { registerTradingBookReadRoutes } from './trading-routes-book-read-builders';
 import { registerTradingOrderFlowRoutes } from './trading-routes-order-flow-builders';
 import { registerTradingAlgoRoutes, registerTradingTuningRoutes } from './trading-routes-algo-builders';
+import { registerTradingPortfolioRoutes } from './trading-portfolio-routes';
 import { registerTradingAccountRoutes } from './trading-accounts-routes';
 import { registerTradingManualOrderRoutes } from './trading-manual-order-routes';
 import { registerTradingEventPlanRoutes } from './trading-event-plan-routes';
@@ -190,6 +192,7 @@ export function createTradingRoutes(ctx: AppContext): Router {
   // preserved anyway so the mounted surface is exactly what it was before the decomposition.
   // ADR-134 PR3: the accounts/books/summary family registers FIRST (most-specific paths).
   registerTradingAccountRoutes(router, ctx);
+  registerTradingPortfolioRoutes(router, ctx);
   // ADR-136 D2: the surface is a thin shell + per-view modules under tools/ui, served same-origin
   // behind the SAME auth posture as the surface (this router is mounted service-or-oidc). no-cache
   // so a redeploy is picked up on the next load without a cache-busting rename; ETags keep it cheap.

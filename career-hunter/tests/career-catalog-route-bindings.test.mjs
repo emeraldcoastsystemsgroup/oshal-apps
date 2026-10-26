@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Pin the two 1.26.0 removals by name: DELETE /stories/test-lab/:tag and DELETE /jobs/:id/packet each match exactly one binding, that binding needs career.change (a state write, never the execute permission that spends provider money), and no other route answers to either path.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Pin the 1.27.0 Test Lab application seam the same way: POST /test-lab/applications and DELETE /test-lab/applications/:postingId/:tag each match exactly one binding, that binding needs career.change, and both live in career-test-lab-applications.ts. The DELETE-binding census grows by exactly that one removal.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Prove JavaScript module import closure is inspected and the declared native tool-only reader has genuine registration source, without relaxing any HTTP authorization census.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Bind the owner-scoped generated-queue purge once to career.change and keep the DELETE-binding census exact.
  */
 
 import test from 'node:test';
@@ -71,11 +72,12 @@ test('the operator surfaces the ribbon opens are bound, page and data alike, to 
   assert.deepEqual(status.matches.map((m) => m.id), ['cutover-status']);
 });
 
-test('the 1.26.0 owner-scoped removals are each bound once, to career.change', () => {
+test('the owner-scoped packet removals are each bound once, to career.change', () => {
   const rows = bindings.resolvedRoutes();
   const expected = [
     ['DELETE', '/stories/test-lab/:tag', 'career-stories-routes.ts', 'stories-test-lab-remove'],
     ['DELETE', '/jobs/:id/packet', 'career-board-routes.ts', 'job-packet-remove'],
+    ['DELETE', '/jobs/purge-generated', 'career-board-routes.ts', 'job-generated-purge'],
   ];
   for (const [method, pattern, file, id] of expected) {
     const served = rows.filter((row) => row.method === method && row.pattern === pattern);
@@ -85,9 +87,9 @@ test('the 1.26.0 owner-scoped removals are each bound once, to career.change', (
   }
   const http = bindings.catalogHttpBindings();
   assert.deepEqual(http.filter((b) => b.method === 'DELETE').map((b) => b.id).sort(),
-    ['job-packet-remove', 'recruiter-delete', 'settings-key-delete', 'settings-target-delete', 'stories-test-lab-remove',
+    ['job-generated-purge', 'job-packet-remove', 'recruiter-delete', 'settings-key-delete', 'settings-target-delete', 'stories-test-lab-remove',
       'test-lab-application-remove'],
-    'the catalog grows by exactly these DELETE bindings (1.26.0 two, 1.27.0 one)');
+    'the catalog contains only its named DELETE bindings, including the 1.29.0 queue purge');
 });
 
 test('the 1.27.0 Test Lab application seam is bound once per route, to career.change', () => {

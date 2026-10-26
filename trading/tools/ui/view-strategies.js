@@ -30,6 +30,8 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com | ADR-052 addendum: the Strategy Lab editor gains the three paper-to-live parity knobs the kernel's StrategyConfig carries - market gap-down filter %, exit plan life in sessions and yield sleeve float % - each blank by default. Blank saves null (inherit the account's mode-aware env arm, off unless armed; a Lab walk runs off), 0 saves an explicit off, a number arms it; the kernel's normalizeConfig clamps. GET /lab/knobs explains each under Knobs & formulas. Only renderLabForm and saveLabStrategy change; the Futures sub-view is untouched.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | The native paper book (no stored book id) lists in the roster without a strategy picker: its Set button had no book to act on and did nothing. The row says it runs the paper autopilot's own rules and that its controls are on the account page.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | The Futures source list starts with the person's Schwab connection (schwab), the native study's only source.
+ * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Preserve native Futures research and the Tuning deep link, using the existing research controls without the unavailable legacy optimizer.
+ * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Open saved native portfolio strategies and actual historical backtests when the account service declares native read-only operation.
  */
 
 /* ── Account strategies roster — per-book strategy + trading control (ADR-134) ── */
@@ -774,23 +776,26 @@ async function loadLabKnobs() {
  * approved here. ── */
 const fmtExp = (n) => n==null ? '—' : (Number(n)>=0?'+':'') + Number(n).toFixed(2) + '%';
 const fmtWin = (n) => n==null ? '—' : Math.round(Number(n)*100) + '%';
-/* Not async: the paint is synchronous and refreshTuning()'s two loaders own their own capture/bail,
-   so there is no post-await paint here to guard. Its only caller (the subTabs onSelect below) ignores
-   the return value. */
-function loadTuning() {
+/**
+ * @description Paint the existing Futures controls and, on a legacy runtime, the equity optimizer.
+ * Async section readers retain their own navigation-token checks.
+ * @param {boolean} [futuresOnly=false] Native research omits the unavailable legacy optimizer.
+ * @returns {void} The controls paint synchronously; section readers refresh independently.
+ */
+function loadTuning(futuresOnly = false) {
   const host = $('tabbody'); if (!host) return;
-  host.innerHTML = '<div class="panel"><div class="panel head2"><h2 style="margin:0">Tuning — nightly optimizer &amp; approvals</h2>' +
+  host.innerHTML = (futuresOnly ? '' : '<div class="panel"><div class="panel head2"><h2 style="margin:0">Tuning — nightly optimizer &amp; approvals</h2>' +
       '<button class="btn ghost sm" id="optRunBtn" style="margin-left:auto">Run optimization now</button></div>' +
     '<div class="foot" style="margin-bottom:6px">Tuning proposals apply to the engine parameters shared by every account of this kind (' + MODE + ').</div>' +
     '<div class="sub" style="margin-bottom:8px">Each night the engine backtests small parameter tweaks against recent market history and proposes the ones that would have improved results. <strong>Nothing changes how the bot trades until you approve it here.</strong> Selected account: ' + esc(DISP) + '.</div>' +
     '<div id="optMsg" class="sub" style="min-height:18px"></div>' +
     '<div id="tunePending"><div class="spin"><span class="dot"></span></div></div>' +
     '<div id="tuneParams" style="margin-top:18px"></div>' +
-    '<div id="tuneHistory" style="margin-top:18px"></div></div>' +
+    '<div id="tuneHistory" style="margin-top:18px"></div></div>') +
     '<div class="panel" style="margin-top:12px"><div class="panel head2"><h2 style="margin:0">Futures research loop</h2><span class="pill hold" style="margin-left:auto">paper / research only</span></div>' +
-    '<div class="sub" style="margin-bottom:10px">Configure a bounded Futures permutation study. Cron is UTC. File archives need a path visible inside the API container; Schwab capture uses your private stored bars instead. Runs stay research-only and never place an order or promote a strategy.</div>' +
+    '<div class="sub" style="margin-bottom:10px">' + (futuresOnly ? 'Reads bounded dated-contract history from your Schwab connection for walk-forward research. When enabled, the study runs at 02:15 New York, Tuesday through Saturday. It never places an order or promotes a strategy.' : 'Configure a bounded Futures permutation study. Cron is UTC. File archives need a path visible inside the API container; Schwab capture uses your private stored bars instead. Runs stay research-only and never place an order or promote a strategy.') + '</div>' +
     '<div class="panel"><div class="panel head2"><h3 style="margin:0">Schwab forward bars</h3><button class="btn ghost sm" id="futSchwabProbe">Check ES/CL</button></div>' +
-    '<div class="foot">Use the connected account for genuine dated-contract 30-minute OHLCV. Capture is owner-private, paper/research-only and never sends an order. It does not replace the one-time historical backfill or automatically enable studies.</div>' +
+    '<div class="foot">' + (futuresOnly ? 'Check what your Schwab connection serves for the dated ES/CL contracts. The study reads history directly; capture and archive import are not needed.' : 'Use the connected account for genuine dated-contract 30-minute OHLCV. Capture is owner-private, paper/research-only and never sends an order. It does not replace the one-time historical backfill or automatically enable studies.') + '</div>' +
     '<div class="grid2"><label class="f">Roots<select id="futSchwabRoots"><option value="ES,CL">ES and CL</option><option value="ES">ES only</option><option value="CL">CL only</option></select></label>' +
     '<label class="f">Capture cadence<select id="futSchwabCadence"><option value="hourly">Hourly at :07 UTC</option><option value="half-hour">Every 30 minutes at :07/:37 UTC</option></select></label></div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="futSchwabStart">Start capture</button><button class="btn ghost" id="futSchwabRun">Capture now</button><button class="btn ghost" id="futSchwabStop">Stop capture</button></div>' +
@@ -816,7 +821,7 @@ function loadTuning() {
     futuresPredictionControls() + futuresArchiveControls() +
     '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="futSave">Save / enable nightly loop</button><button class="btn ghost" id="futRun">Run once now</button><button class="btn ghost" id="futPause">Pause</button><button class="btn ghost" id="futResume">Resume</button><button class="btn ghost" id="futStop">Stop</button></div>' +
     '<div id="futStatus" style="margin-top:12px"></div><div id="futRuns" style="margin-top:12px"></div><div id="futPredictions" style="margin-top:12px"></div></div>';
-  $('optRunBtn').onclick = runOptimizeNow;
+  if (!futuresOnly) $('optRunBtn').onclick = runOptimizeNow;
   $('futSave').onclick = saveFuturesResearch;
   $('futSchwabProbe').onclick = () => probeSchwabFuturesFromConsole($('futSchwabProbe'));
   $('futSchwabStart').onclick = () => schwabCaptureAction('enable', $('futSchwabStart'));
@@ -836,11 +841,21 @@ function loadTuning() {
   $('futStop').onclick = () => futuresAction('stop');
   $('futSource').onchange = syncFuturesResearchSource;
   syncFuturesResearchSource();
+  if (futuresOnly) {
+    $('futCron').closest('label').style.display = 'none';
+    $('futDir').closest('label').style.display = 'none';
+    $('futSource').value = 'schwab'; $('futSource').disabled = true;
+  }
   $('futEndMode').onchange = () => { $('futEnd').disabled = $('futEndMode').value !== 'fixed'; };
   $('futEnd').disabled = true;
-  refreshTuning();
+  refreshTuning(futuresOnly);
 }
-async function refreshTuning() { await Promise.all([loadTuneRecs(), loadTuneParams(), loadFuturesResearch(), loadFuturesPredictions(), loadFuturesArchiveImports(), loadSchwabCaptureStatus()]); }
+/**
+ * @description Refresh only the sections offered by the selected runtime.
+ * @param {boolean} [futuresOnly=false] Skip legacy equity optimizer reads on native Futures.
+ * @returns {Promise<void>} Resolves after the displayed sections finish their bounded reads.
+ */
+async function refreshTuning(futuresOnly = false) { await Promise.all([...(futuresOnly ? [] : [loadTuneRecs(), loadTuneParams()]), loadFuturesResearch(), loadFuturesPredictions(), loadFuturesArchiveImports(), loadSchwabCaptureStatus()]); }
 async function loadTuneRecs() {
   const token = RENDER_TOKEN, gen = tabGen();
   const host = $('tunePending'), hist = $('tuneHistory'); if (!host) return;
@@ -895,7 +910,21 @@ async function runOptimizeNow() {
 }
 
 /* ── view entry ──────────────────────────────────────────────── */
+/**
+ * @description Open native portfolio/Futures research or the legacy strategy roster.
+ * @param {number} token Current navigation token, checked before painting async results.
+ * @returns {Promise<void>} Resolves after the selected view has painted its initial content.
+ */
 async function renderStrategiesView(token) {
+  if (typeof NATIVE_PORTFOLIO !== 'undefined' && NATIVE_PORTFOLIO) {
+    if (SUB !== 'tuning') return renderNativePortfolioView(token);
+    main.innerHTML = '<div class="panel"><h2>Futures research</h2><p>Saved studies, walk-forward results and forward research calls. Research only; opening this screen changes no account or schedule.</p></div><div id="viewTabs"></div>';
+    if (stale(token)) return;
+    subTabs('viewTabs', [['portfolio','Portfolio review'],['tuning','Futures research']], 'tuning', (key) => {
+      if (key === 'portfolio') navigate('strategies', {sub:null}); else loadTuning(true);
+    });
+    return;
+  }
   main.innerHTML = '<div class="panel"><h2>Strategies</h2><div class="sub">Which strategy each account runs, and the lab where strategies are built, tested and refined. Every account always runs exactly one strategy — the <b>Production baseline</b> unless you set one.</div></div>' +
     acctContextBar('Lab “Set on…”, Apply/Revert and Tuning act on this account') + '<div id="viewTabs"></div>';
   if (stale(token)) return;

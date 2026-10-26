@@ -59,10 +59,12 @@
  *
  * 2026-10-15 | maintainer@emeraldcoastsystemsgroup.com | Expose authenticated SEC company-name lookup with public cache provenance and explicit unavailable reads.
  * 2026-10-15 | maintainer@emeraldcoastsystemsgroup.com | Native research reads coherent annual SEC financial statements independently of broker connectivity.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | Read source-bound long-term Congress stock candidates through the existing authenticated disclosure route.
  * @module trading-research-routes
  */
 
 import type { Router, Request, Response } from 'express';
+import {readCongressCandidates} from './trading-congress-candidates';
 import { nativeSchwabReads, readNativeMovers } from './trading-native-reads';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
@@ -569,7 +571,7 @@ async function congressDisclosures(limit: number, opts: Partial<CongressDisclosu
 }
 
 /** GET /reports/congress — the disclosure feed's recent names; market-wide, no book, never a holding. */
-function registerCongressDisclosures(router: Router): void {
+function registerCongressDisclosures(router: Router,ctx:AppContext): void {
   router.get('/reports/congress', async (req: Request, res: Response) => {
     const s = sub(req, res); if (!s) return;
     const limit = Math.min(CONGRESS_LIST_MAX, Math.max(1, Math.floor(Number(req.query.limit)) || CONGRESS_LIST_DEFAULT));
@@ -580,6 +582,7 @@ function registerCongressDisclosures(router: Router): void {
     const direction = typeof req.query.direction === 'string' ? req.query.direction.trim() : undefined;
     const view = typeof req.query.view === 'string' ? req.query.view.trim() : undefined;
     try {
+      if(req.query.candidate==='long-term'){res.json(await readCongressCandidates(ctx));return;}
       res.json(await congressDisclosures(limit, { limit, view, politician, symbol, party, chamber, direction }));
     } catch (err) { fail(res, err, 'congress-disclosures'); }
   });
@@ -595,7 +598,7 @@ export function registerTradingResearchRoutes(router: Router, ctx: AppContext): 
   registerResearchRead(router, ctx);
   registerSymbolSearch(router);
   registerMovers(router, ctx);
-  registerCongressDisclosures(router);
+  registerCongressDisclosures(router,ctx);
   registerWatchlist(router, ctx);
   registerLots(router, ctx);
 }
