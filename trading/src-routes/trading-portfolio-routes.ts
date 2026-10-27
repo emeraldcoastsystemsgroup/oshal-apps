@@ -15,6 +15,7 @@ import {fingerprint,getRecord,listRecords,saveRecord,removeRecord,type Data} fro
 import {portfolioHistory} from './trading-portfolio-history';
 import {congressStrategyEvidence} from './trading-congress-candidates';
 import {registerPortfolioPlanRoutes} from './trading-portfolio-plan-routes';
+import {registerNativeManagementRoutes} from './trading-native-management';
 import {validDay,portfolioResearchWindow} from './trading-portfolio-calendar';
 const running=new Set<string>();
 function label(value:unknown,name='Name'):string {
@@ -58,6 +59,7 @@ export function registerTradingPortfolioRoutes(router:Router,ctx:AppContext,opti
   });
  };
  registerPortfolioPlanRoutes(route,ctx,{clock,selected:(owner,binding,now)=>selected(ctx,owner,binding,now),witness:portfolioWitness});
+ registerNativeManagementRoutes(route,ctx,{clock,selected:(owner:string,binding:Data,now:Date)=>selected(ctx,owner,binding,now)});
  route('get','/portfolio',async(_req,owner,at)=>(await portfolioSnapshot(ctx,owner,at)).report);
  route('get','/portfolio/research',async(_req,owner,at)=>{
   const [strategies,runs,records]=await Promise.all([listRecords(ctx,owner,'strategy'),listRecords(ctx,owner,'run'),listRecords(ctx,owner,'review')]);

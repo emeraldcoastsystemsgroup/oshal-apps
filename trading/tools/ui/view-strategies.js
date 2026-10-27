@@ -284,15 +284,6 @@ async function loadLabApplied() {
     };
   } catch (e) { if (!stale(token) && !tabStale(gen)) el.innerHTML = '<div class="panel"><div class="foot err">' + esc(e.message) + '</div></div>'; }
 }
-function copyText(text, msgEl) {
-  const done = () => { if (msgEl) { msgEl.textContent = 'copied ✓'; setTimeout(() => { msgEl.textContent = ''; }, 1800); } };
-  try { navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done)); }
-  catch { fallbackCopy(text, done); }
-}
-function fallbackCopy(text, done) {
-  const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta);
-  ta.select(); try { document.execCommand('copy'); } catch {} document.body.removeChild(ta); done();
-}
 async function labApply(id) {
   const s = LAB.strategies.find(x => x.id === id); if (!s) return;
   const cfg = s.config || {};

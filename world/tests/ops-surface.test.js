@@ -40,7 +40,7 @@ const SOURCES = {
 };
 
 /** A DOM just big enough for the page: elements by id, delegated listeners, and a custom-cron input. */
-function runPage(script, answers) {
+function runPage(script, answers, inputs = {}) {
   const els = {};
   const listeners = {};
   const calls = [];
@@ -48,7 +48,7 @@ function runPage(script, answers) {
   const document = {
     getElementById: (id) => (els[id] ??= { innerHTML: '' }),
     addEventListener: (type, fn) => { listeners[type] = fn; },
-    querySelector: () => custom,
+    querySelector: (selector) => inputs[selector] || custom,
   };
   const fetch = async (url, opts) => {
     calls.push({ url, method: (opts && opts.method) || 'GET', body: opts && opts.body ? JSON.parse(opts.body) : undefined });
@@ -142,3 +142,46 @@ for (const rel of COPIES) {
     assert.match(page.els['src-note'].innerHTML, /Only a swarm operator/);
   });
 }
+
+for (const rel of COPIES) {
+ const script=inlineScript(fs.readFileSync(path.join(__dirname,'..',rel),'utf8'),rel);
+ const native={...SCHEDULES,schedules:[{id:'world-refresh',scope:'person',registered:true,configurationRequired:true,controllable:false,status:'unconfigured',cron:'0 */6 * * *',timezone:'UTC',configuration:null}]};
+ const answers=(url)=>url==='/api/swarm/apps/world/schedules'?{status:200,body:native}:okAnswers(url);
+ function inputs(values={}){return Object.fromEntries(Object.entries({collector:'congress-trades',tickers:'',days:'90','native-cron':'0 * * * *',...values}).map(([k,v])=>['[data-'+k+'="world-refresh"]',{value:v}]));}
+ test('native configuration is explicit, bounded and owner-scoped ('+rel+')',async()=>{
+  const page=runPage(script,answers,inputs());await page.settle();
+  assert.match(page.els.schedules.innerHTML,/Configure my collector/);assert.doesNotMatch(page.els.schedules.innerHTML,/off in manifest/);
+  await page.fire('click',{dataset:{configure:'world-refresh'}});
+  const call=page.calls.find(c=>c.method==='PATCH');assert.equal(call.url,'/api/swarm/apps/world/schedules/world-refresh');
+  assert.deepEqual(call.body,{enabled:true,configuration:{collectors:[{id:'congress-trades',tickers:[],days:90}],cron:'0 * * * *',timezone:'UTC',tickBudgetMicros:1000000,tickTimeoutMs:60000}});
+  assert.equal('owner' in call.body,false);
+ });
+ test('missing FINRA tickers, duplicates and invalid symbols send no setup ('+rel+')',async()=>{
+  for(const fields of [{collector:'short-interest'},{tickers:'SPY,SPY'},{tickers:'<script>'},{days:'366'}]){
+   const page=runPage(script,answers,inputs(fields));await page.settle();await page.fire('click',{dataset:{configure:'world-refresh'}});
+   assert.equal(page.calls.filter(c=>c.method==='PATCH').length,0);assert.match(page.els.banner.innerHTML,/valid collector/);
+  }
+ });
+ test('manual Congress pull retains partial result and refused pull stays visible ('+rel+')',async()=>{
+  for(const outcome of [{status:200,body:{feed:'partial',summary:{trades:42}}},{status:503,body:{error:'world_collector_unavailable'}}]){
+   const page=runPage(script,(url)=>url.endsWith('/congress-trades/run')?outcome:answers(url));await page.settle();
+   const target={dataset:{runCollector:'congress-trades'}};await page.fire('click',target);
+   const call=page.calls.find(c=>c.method==='POST');assert.equal(call.url,'/api/world/operations/collectors/congress-trades/run');assert.deepEqual(call.body,{days:7,tickers:[]});
+   assert.match(page.els.banner.innerHTML,outcome.status===200?/partial/:/world_collector_unavailable/);assert.equal(target.disabled,false);
+  }
+ });
+}
+
+for(const rel of COPIES){test('native executor metadata does not claim a configured periodic job is stopped ('+rel+')',async()=>{
+ const script=inlineScript(fs.readFileSync(path.join(__dirname,'..',rel),'utf8'),rel);
+ const nativeSources={...SOURCES,sources:[{...SOURCES.sources[3],blockedBy:'On-demand executor; no background collector claimed active'}]};
+ const page=runPage(script,(url)=>url==='/api/world/operations/sources'?{status:200,body:nativeSources}:okAnswers(url));await page.settle();
+ assert.match(page.els.sources.innerHTML,/Periodic activity is reported under Schedules/);assert.doesNotMatch(page.els.sources.innerHTML,/no background collector claimed active/);
+});}
+
+for(const rel of COPIES){test('active native jobs retain editable configuration and show their exact failed receipt ('+rel+')',async()=>{
+ const script=inlineScript(fs.readFileSync(path.join(__dirname,'..',rel),'utf8'),rel);
+ const active={...SCHEDULES,schedules:[{id:'world-refresh',scope:'person',registered:true,configurationRequired:false,controllable:true,enabled:true,status:'active',cron:'*/15 * * * *',configuration:{collectors:[{id:'congress-trades',days:7,tickers:[]}]},lastRun:{status:'failed',result:{collectors:[{collector:'congress-trades',feed:'failed',reason:'record bound <limit>'}]}}}]};
+ const page=runPage(script,(url)=>url==='/api/swarm/apps/world/schedules'?{status:200,body:active}:okAnswers(url));await page.settle();
+ assert.match(page.els.schedules.innerHTML,/Configure my collector/);assert.match(page.els.schedules.innerHTML,/Congress disclosures · 7 days/);assert.match(page.els.schedules.innerHTML,/Last job: failed/);assert.match(page.els.schedules.innerHTML,/record bound &lt;limit&gt;/);assert.doesNotMatch(page.els.schedules.innerHTML,/full stock-universe fan-out/);
+});}

@@ -22,6 +22,7 @@ function application(){
  const dates=sessionDates('2025-01-02','2026-10-23');let badHistory=false,sourceFailure=false,now='2026-10-25T06:00:00Z';
  const ctx={pool,intent:async(name,input)=>{
   calls.push({intent:name,input});
+  if(name==='trading.config')return{native:true,orderTickets:false};
   if(name==='trading.accounts')return{accounts,errors:sourceFailure?[{message:'Synthetic second login unavailable'}]:[],readAt:new Date().toISOString()};
   if(name==='trading.quotes')return{source:'schwab',quotes:input.symbols.map(symbol=>({symbol,tradePrice:100,tradeAt:'2026-10-23T19:59:00Z',source:'schwab',delayed:false,...quoteOverrides.get(symbol)}))};
   if(name==='trading.bars')return {symbol:input.symbol,source:'schwab',bars:dates.filter((_,i)=>!badHistory||i!==370).map((date,i)=>({t:Date.parse(date+'T05:00:00Z')/1000,c:input.symbol==='SPY'?100:100+i/10}))};

@@ -16,16 +16,18 @@ const styles=shell.match(/<style>([\s\S]*?)<\/style>/)[1];
 test('portfolio workflow works on desktop and phone with exact receipts and no real trade controls',async t=>{
  const fixture=application(),app=fixture.app;
  app.get('/rebalance.js',(_req,res)=>res.type('js').send(fs.readFileSync(path.join(PKG,'tools/ui/native-rebalance.js'),'utf8')));
+ app.get('/management.js',(_req,res)=>res.type('js').send(fs.readFileSync(path.join(PKG,'tools/ui/native-management.js'),'utf8')));
  app.get('/portfolio.js',(_req,res)=>res.type('js').send(ui));
  app.get('/boot.js',(_req,res)=>res.type('js').send(`
  const main=document.getElementById('main');const $=id=>document.getElementById(id);const stale=()=>false;
  const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const money=v=>'$'+Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
  const jbody=(method,obj)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});
+ const paperScheduleRow=async()=>null;
  const api=async(p,init)=>{const r=await fetch('/api/trading'+p,init),j=await r.json();if(!r.ok)throw Error(j.message||j.error);return j;};
  renderNativePortfolioView(1);
  `));
- app.get('/',(_req,res)=>{res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'");res.send('<!doctype html><meta name="viewport" content="width=device-width"><style>'+styles+'</style><div id="main"></div><script src="/rebalance.js"></script><script src="/portfolio.js"></script><script src="/boot.js"></script>');});
+ app.get('/',(_req,res)=>{res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'");res.send('<!doctype html><meta name="viewport" content="width=device-width"><style>'+styles+'</style><div id="main"></div><script src="/rebalance.js"></script><script src="/management.js"></script><script src="/portfolio.js"></script><script src="/boot.js"></script>');});
  const server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>resolve(s));});t.after(()=>new Promise(resolve=>server.close(resolve)));
  const browser=await chromium.launch();t.after(()=>browser.close());
  for(const width of [1280,390]){

@@ -26,6 +26,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | api() errors carry the HTTP status and the route's error code (err.status, err.code) beside the unchanged message, so the plan amend control can show a 428 confirm_required as the server's refusal - nothing changed, confirm to proceed - rather than as a failure.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | api() prints a refusal's `detail` (the native host's sentence, e.g. the symbol search naming the missing market-data connector) before its bare error code.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | api() errors carry person words: a server failure (5xx) or the native runtime's not-available refusal is one plain sentence, never its internal text. The paper book's Protected lots, Timed orders and Earnings rules panels had printed "(0 , trading_pinned_lots_1.pinnedQtyBySymbol) is not a function".
+ * 2026-10-27 | maintainer@emeraldcoastsystemsgroup.com | Clear account-page deep-link focus when navigating to a different view.
  * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Retain the roster capability flag so Strategies opens the native portfolio research surface.
  */
 
@@ -177,6 +178,7 @@ function syncUrl() {
    a stale in-flight response from the previous screen can never paint this one (surface-audit). */
 function navigate(view, opts) {
   opts = opts || {};
+  if (typeof clearNativeAccountAddress === 'function') clearNativeAccountAddress();
   VIEW = VIEWS.includes(view) ? view : 'accounts';
   SUB = opts.sub === undefined ? null : opts.sub;
   if (opts.book) {
@@ -326,11 +328,24 @@ function wireShell() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSettings(); });
 }
 async function boot() {
+  const token = RENDER_TOKEN;
   wireShell();
   try { await loadBooks(); } catch { /* accounts surface unavailable — views degrade to the paper book */ }
+  if (stale(token)) return;
   // A bookmark naming a book that no longer exists must not brick the surface: fall back to paper.
   if (BOOK !== 'paper' && BOOK !== 'live' && !bookOf(BOOK)) { BOOK = 'paper'; MODE = 'paper'; if (VIEW === 'account') VIEW = 'accounts'; syncUrl(); }
   render();
 }
 /* The shell has no inline bootstrap script (CSP): boot once every classic script has been parsed. */
 document.addEventListener('DOMContentLoaded', boot);
+
+// Shared clipboard utilities used by Strategy Lab.
+function copyText(text, msgEl) {
+  const done = () => { if (msgEl) { msgEl.textContent = 'copied ✓'; setTimeout(() => { msgEl.textContent = ''; }, 1800); } };
+  try { navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done)); }
+  catch { fallbackCopy(text, done); }
+}
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta);
+  ta.select(); try { document.execCommand('copy'); } catch {} document.body.removeChild(ta); done();
+}

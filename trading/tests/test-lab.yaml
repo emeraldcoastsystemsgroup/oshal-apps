@@ -1387,3 +1387,94 @@ cases:
     isolation: { mode: none }
     limits: { timeoutMs: 60000 }
     installation: never
+
+  - id: native-management-routes
+    name: Native strategy monitor and exact live ticket boundaries
+    purpose: Synthetic owner-bound study monitoring, retained failures and separate exact real-order confirmation; no brokerage I/O.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-management-routes.test.js] }
+    expected:
+      - Foreign or mismatched studies and forged live ticket confirmations refuse before any submit.
+      - Review-only watcher checks retain failures and never submit real orders without an activated live mandate.
+      - Stopping a monitor prevents later ticket submission.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: native-management-browser
+    name: Native monitor and exact order review on desktop and phone
+    purpose: Verify honest scheduler refusal, separate live-order review and canceling the confirmation over synthetic provider boundaries.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-management-browser.test.js] }
+    expected:
+      - A suspended watcher is not reported as running and monitor checks submit no orders.
+      - Real order review names the account, quantity, day limit and exact notional.
+      - Canceling confirmation sends nothing; a counted synthetic submission is never labeled filled.
+    prerequisites: [runner:node-test, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: native-automation-routes
+    name: Account-bound monthly execution and broker fill recovery
+    purpose: Validate explicit mandate activation, repeat-safe monthly cycles, sequential fills, stop and uncertain-result recovery using a synthetic broker.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-automation-routes.test.js] }
+    expected:
+      - Draft, forged, missing and foreign approvals cannot submit orders.
+      - Working allocation or uncertain orders prevent new submissions; exact native protective orders retain their share reservations.
+      - Stop works without successful broker account reads and leaves existing broker orders visible.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: native-position-backstops
+    name: Ratcheting position backstops and causal research
+    purpose: Validate every-position evidence, never-lower stop memory, prior-stop OHLC execution, gap fills, chronological research and owner-isolated expected funding without broker writes.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-backstops.test.js] }
+    expected:
+      - Stale quotes, changed quantities and missing candles cannot invent protection or reset stops.
+      - Today's high cannot retroactively tighten today's stop; a gap can fill below the trigger.
+      - Pending funds never become current cash and no model check submits broker orders.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: native-account-management-browser
+    name: Dedicated account management on desktop and phone
+    purpose: Exercise exact owner-roster deep links, account strategy evidence, modeled versus broker stops, retained studies and expected funding using synthetic prices and counted broker doubles.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-account-management-browser.test.js] }
+    expected:
+      - A foreign connection cannot resolve another account page.
+      - Tracking and backtests never claim broker orders or spend expected funding.
+      - Account pages remain usable on desktop and phone with no brokerage writes.
+    prerequisites: [runner:node-test, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: native-protective-execution
+    name: Source-bound sell-only protective authority and native coverage
+    purpose: Exercise exit-to-cash research, exact account review, native activation, bounded watcher protection, share reservations and uncertain-result recovery against a synthetic broker.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-protection.test.js] }
+    expected:
+      - Draft, forged, foreign, stopped, expired and source-changed authority dispatches no protection.
+      - Fresh native statuses reserve remaining shares when the order list lags; lost acknowledgements never trigger retries.
+      - Fractions, stale quotes and canceled stop floors stay visible as exceptions without silent replacement.
+      - Only exact retained native protection can coexist with allocation orders.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never

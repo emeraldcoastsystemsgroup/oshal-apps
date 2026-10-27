@@ -1496,7 +1496,7 @@
       "suite": "ai-finance",
       "displayName": "Intelligent Trades",
       "description": "Research stocks, track connected brokerage accounts and test strategies in a separate paper book, with a decision trail from signals to orders. Trading actions follow the connected account's supported controls. Cash equities. No crypto.",
-      "version": "1.36.2",
+      "version": "1.40.2",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -1537,7 +1537,7 @@
       "suite": "ai-knowledge",
       "displayName": "World Intelligence",
       "description": "Shared world intelligence (ADR-061 Layer B) - multi-source news feeds classified into a bias-aware sentiment graph read through oshal's own observed outlet ratings (each source's lean and reliability against the other sources, with the counts and dates behind it), entity co-mention graph, and historical series. Ask the analyst what the press is saying about X and get a structured, bias-contextualized read, not a misleading average. The Layer-B engine (src/features/world-data), the deterministic world-schedule dispatcher, scripts/oshal-world.js, the world-analyst registry entry, and the default tile stay framework-resident; this package is the /api/world surface (fail-closed header-authenticated writes, open reads), the world-analyst manifest, the seven world_* tools, and the refresh/pulse schedules.",
-      "version": "1.4.3",
+      "version": "1.4.5",
       "theme": "midnight",
       "dependencies": {
         "apps": [],

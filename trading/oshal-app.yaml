@@ -2,6 +2,8 @@
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Fresh native strategy authority, per-invocation submission receipts and exact protective-study evidence on account pages.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Account management pages, ratcheting position-backstop research and original-owner expected funding, with separate model and broker protection states.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | TRADE-01 native paper autopilot: migrations/002-native-paper.sql, the /api/trading/paper mount (routes/trading-paper-routes.js) and the person-activated paper-autopilot schedule. Version unchanged.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Declare www.sec.gov and data.sec.gov as outbound hosts: Research's SEC filings section was refused by the kernel egress ("www.sec.gov is not a declared outbound host") and showed unavailable. Version unchanged.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Declare chatBot: trading-analyst. The Intelligent Trades concierge opened on futures-research-analyst (the first declared bot), which answers a conversation with a json futures study; the analyst answers in prose. Version unchanged.
@@ -103,7 +105,7 @@ description: >-
   Research stocks, track connected brokerage accounts and test strategies in a separate
   paper book, with a decision trail from signals to orders. Trading actions follow the
   connected account's supported controls. Cash equities. No crypto.
-version: 1.36.2
+version: 1.40.2
 status: active
 
 source:
@@ -606,6 +608,17 @@ routes:
 # session. The tick refuses when the person has not armed, writes nothing outside the regular session,
 # and is idempotent per five-minute window. Deterministic: no model runs in the tick.
 schedules:
+  - id: portfolio-watcher
+    cron: "*/5 9-16 * * 1-5"
+    timezone: America/New_York
+    runsAs: user
+    target: service-route
+    route: /api/trading/portfolio/watch/tick
+    method: POST
+    body: {}
+    timeoutSeconds: 120
+    description: Check my assigned strategies, reconcile broker orders and fills, and execute only explicitly activated account-specific monthly mandates.
+    offer: Monitor my portfolios every five minutes; trade only accounts with an explicitly approved live strategy mandate.
   - id: paper-autopilot
     cron: "*/5 9-15 * * 1-5"
     timezone: America/New_York

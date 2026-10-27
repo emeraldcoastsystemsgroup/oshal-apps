@@ -6,6 +6,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: the operator's Sources & schedules page, served at /api/world/operations/app (operator-only mount). Two cards: World's schedules (from core GET /api/swarm/apps/world/schedules — on/off, cadence presets or a custom cron, reset to the manifest) and every place World pulls from (GET /api/world/operations/sources — per-subject feeds, the publisher firehose and the depth collectors, each with its switch, where it pulls from, which schedule uses it, the .env flags that govern it, its last-24-hour pulls or its last run).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Review fixes before release: a failed change keeps its error on screen (the refresh after it no longer clears the banner); a cadence preset tighter than the server's minimum interval is offered disabled; a source that is both switched off and off in .env says both, and every source names the .env flags that govern it.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Configure and run bounded native collectors under the signed-in owner; unconfigured is never labeled off in manifest.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A firehose feed whose own switch and flags are on says why it is not pulling while the whole firehose pass is switched off (core blockedBy), and a collector run that ended partial reads as a warning.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -86,7 +87,7 @@ var PRESETS = [
   ['Market hours, weekdays', [['*/5 8-23 * * 1-5', 'every 5 minutes', 5], ['*/10 8-23 * * 1-5', 'every 10 minutes', 10], ['*/15 8-23 * * 1-5', 'every 15 minutes', 15], ['*/30 8-23 * * 1-5', 'every 30 minutes', 30], ['0 8-23 * * 1-5', 'hourly', 60]]],
   ['All day, every day', [['0 * * * *', 'every hour', 60], ['0 */2 * * *', 'every 2 hours', 120], ['0 */3 * * *', 'every 3 hours', 180], ['0 */6 * * *', 'every 6 hours', 360], ['0 */12 * * *', 'every 12 hours', 720], ['0 6 * * *', 'daily at 06:00', 1440]]]
 ];
-var minIntervalMinutes = 5;
+var minIntervalMinutes = 5, nativeScheduleZones = {};
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
@@ -133,19 +134,40 @@ function freqControl(s) {
     + '<button data-apply="' + esc(s.id) + '">Apply</button>'
     + (s.override ? '<button data-reset="' + esc(s.id) + '">Reset to manifest</button>' : '') + '</div>';
 }
+function nativeConfiguration(s) {
+  if (s.scope !== 'person' || !s.registered) return '';
+  nativeScheduleZones[s.id]=(s.configuration||{}).timezone||s.timezone||'UTC';
+  var c = s.configuration || {}, first = (c.collectors || [])[0] || {id:'congress-trades',tickers:[],days:7};
+  var options = [['congress-trades','Congress disclosures'],['insider-trades','Insider disclosures'],['short-interest','FINRA short volume'],['market-events','Earnings calendar']];
+  return '<details><summary>Configure my collector</summary><p>This saves one explicit collector for this job under your identity. Recent pulls retain previously collected records and skip unchanged evidence; a large window can exceed the source record limit. Existing multi-collector configurations are replaced only when you save.</p>'
+    + '<label>Collector <select data-collector="'+esc(s.id)+'">'+options.map(function(o){return '<option value="'+o[0]+'"'+(o[0]===first.id?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></label> '
+    + '<label>Tickers (comma separated; blank Congress means all returned disclosures) <input type="text" data-tickers="'+esc(s.id)+'" value="'+esc((first.tickers||[]).map(function(t){return t.symbol;}).join(','))+'" /></label> '
+    + '<label>Lookback days <input type="number" min="1" max="365" data-days="'+esc(s.id)+'" value="'+esc(first.days||7)+'" /></label> '
+    + '<label>Cron ('+esc(c.timezone||s.timezone||'UTC')+') <input type="text" data-native-cron="'+esc(s.id)+'" value="'+esc(c.cron||s.cron)+'" /></label> '
+    + '<p>Budget ceiling: 1,000,000 micros per check; timeout: 60 seconds. Only the selected collector runs; this does not enable trading, sentiment analysis or other feeds.</p>'
+    + '<button data-configure="'+esc(s.id)+'">Save and start my collector</button></details>';
+}
+function nativeScheduleEvidence(s) {
+  if (s.scope !== 'person') return '';
+  var c=s.configuration, run=s.lastRun, names={'congress-trades':'Congress disclosures','insider-trades':'Insider disclosures','short-interest':'FINRA short volume','market-events':'Earnings calendar'};
+  var configured=c?'<div class="muted">Configured: '+esc((c.collectors||[]).map(function(r){return (names[r.id]||r.id)+' · '+r.days+' days · '+((r.tickers||[]).length?r.tickers.map(function(t){return t.symbol;}).join(', '):'all returned names');}).join('; '))+'</div>':'';
+  if (!run) return configured;
+  var reports=run.result&&run.result.collectors||[];
+  return configured+'<div class="'+(run.status==='failed'?'bad':'muted')+'">Last job: '+esc(run.status)+' '+esc(reports.map(function(r){return r.collector+': '+r.feed+(r.reason?' · '+r.reason:'')+(r.written!=null?' · '+r.written+' written, '+r.unchanged+' unchanged, '+r.pendingRecords+' pending':'');}).join('; '))+'</div>';
+}
 function scheduleRow(s) {
   var label = presetLabel(s.cron);
   var cronCell = '<code>' + esc(s.cron) + '</code>' + (label ? '<div class="muted">' + esc(label) + '</div>' : '')
     + (s.cron !== s.manifestCron ? '<div class="muted">manifest: <code>' + esc(s.manifestCron) + '</code></div>' : '');
   var on = s.controllable
     ? '<input type="checkbox" data-sched="' + esc(s.id) + '"' + (s.enabled ? ' checked' : '') + ' aria-label="Run ' + esc(s.id) + '" />'
-    : '<span class="pill">' + esc(s.scope === 'per-user' ? 'per user' : 'off in manifest') + '</span>';
-  var state = !s.controllable ? '<span class="muted">not controllable here</span>'
+    : '<span class="pill">' + esc(s.scope === 'person' ? (s.status || 'unconfigured') : s.scope === 'per-user' ? 'per user' : 'off in manifest') + '</span>';
+  var state = !s.controllable ? '<span class="muted">'+esc(s.configurationRequired ? 'Explicit collector configuration required' : 'not controllable here')+'</span>'
     : !s.registered ? '<span class="warn">not registered</span>'
     : s.enabled ? '<span class="ok">on</span>' : '<span class="bad">off</span>';
-  return '<tr><td>' + on + '</td><td><strong>' + esc(s.id) + '</strong><div class="muted">' + esc(s.description || '') + '</div></td>'
+  return '<tr><td>' + on + '</td><td><strong>' + esc(s.id) + '</strong><div class="muted">' + esc(s.scope==='person'&&s.configuration?'Runs only the collector inputs configured for your account.':s.description || '') + '</div>'+nativeScheduleEvidence(s)+'</td>'
     + '<td>' + state + '</td><td>' + cronCell + '</td><td>' + when(s.nextRunAt) + '</td><td>' + when(s.lastRunAt) + '</td>'
-    + '<td>' + (s.executionCount == null ? '&mdash;' : esc(s.executionCount)) + '</td><td>' + (s.controllable ? freqControl(s) : '') + '</td></tr>';
+    + '<td>' + (s.executionCount == null ? '&mdash;' : esc(s.executionCount)) + '</td><td>' + (s.controllable ? freqControl(s) : '') + nativeConfiguration(s) + '</td></tr>';
 }
 function paintSchedules(j) {
   if (Number(j.minIntervalMinutes) > 0) minIntervalMinutes = Number(j.minIntervalMinutes);
@@ -162,7 +184,8 @@ function gateText(s) {
   var parts = [];
   if (!s.switchedOn) parts.push('<span class="bad">switched off</span>');
   if (off.length) parts.push('<span class="warn">off in .env (' + esc(off.join(', ')) + ')</span>');
-  if (s.blockedBy) parts.push('<span class="warn">not pulling: ' + esc(s.blockedBy) + '</span>');
+  if (s.blockedBy && s.blockedBy.indexOf('On-demand executor;') === 0) parts.push('<span class="muted">Native collector available on request. Periodic activity is reported under Schedules; the latest pull result is shown separately.</span>');
+  else if (s.blockedBy) parts.push('<span class="warn">not pulling: ' + esc(s.blockedBy) + '</span>');
   return parts.length ? parts.join('<br>') : '<span class="ok">pulling</span>';
 }
 function activity(s) {
@@ -182,7 +205,7 @@ function sourceRow(s, group) {
   return '<tr' + (group ? ' class="group"' : '') + '><td><input type="checkbox" data-src="' + esc(s.id) + '"' + (s.switchedOn ? ' checked' : '') + ' aria-label="Pull from ' + esc(s.name) + '" /></td>'
     + '<td>' + esc(s.name) + '<div class="muted">' + esc(s.id) + '</div>' + (s.note ? '<div class="muted">' + esc(s.note) + '</div>' : '')
     + (s.gates.length ? '<div class="muted">.env: ' + esc(s.gates.map(function (g) { return g.name; }).join(', ')) + '</div>' : '') + '</td>'
-    + '<td>' + urls + '</td><td>' + esc(s.usedBy.join(', ')) + '</td><td>' + activity(s) + '</td><td>' + gateText(s) + '</td></tr>';
+    + '<td>' + urls + (s.kind === 'collector' && ['congress-trades','insider-trades'].includes(s.id) ? '<p><button data-run-collector="'+esc(s.id)+'">Pull last 7 days now</button></p>' : '') + '</td><td>' + esc(s.usedBy.join(', ')) + '</td><td>' + activity(s) + '</td><td>' + gateText(s) + '</td></tr>';
 }
 function sourceTable(title, rows) {
   if (!rows.length) return '';
@@ -227,7 +250,18 @@ document.addEventListener('change', function (ev) {
 });
 document.addEventListener('click', function (ev) {
   var t = ev.target;
-  if (t.dataset.apply) {
+  if (t.dataset.configure) {
+    var id=t.dataset.configure;
+    function value(field){var e=document.querySelector('[data-'+field+'="'+id+'"]');return e?e.value:'';}
+    var collector=value('collector'), tickers=value('tickers').split(',').map(function(s){return s.trim().toUpperCase();}).filter(Boolean), days=Number(value('days'));
+    if (!['congress-trades','insider-trades','short-interest','market-events'].includes(collector) || !Number.isInteger(days) || days<1 || days>365 || tickers.length>128 || new Set(tickers).size!==tickers.length || tickers.some(function(s){return !/^[A-Z][A-Z0-9.-]{0,13}$/.test(s);}) || (['short-interest','market-events'].includes(collector) && !tickers.length) || !value('native-cron').trim()) {banner('Choose a valid collector, days and cron. Earnings and FINRA require explicit tickers; duplicate tickers are refused.',true);return;}
+    change(scheduleUrl(id),{enabled:true,configuration:{collectors:[{id:collector,tickers:tickers.map(function(symbol){return {symbol:symbol};}),days:days}],cron:value('native-cron').trim(),timezone:nativeScheduleZones[id]||'UTC',tickBudgetMicros:1000000,tickTimeoutMs:60000}},'Configure '+id);
+  } else if (t.dataset.runCollector) {
+    var source=t.dataset.runCollector;
+    if (!['congress-trades','insider-trades'].includes(source)) {banner('Configure explicit tickers in a collector job before running earnings or FINRA.',true);return;}
+    t.disabled=true;
+    request('/api/world/operations/collectors/'+encodeURIComponent(source)+'/run','POST',{days:7,tickers:[]}).then(function(result){banner(esc(source)+': '+esc(JSON.stringify(result)));refresh();}).catch(function(e){banner(esc(source)+': '+esc(e.message),true);refresh();}).finally(function(){t.disabled=false;});
+  } else if (t.dataset.apply) {
     var input = document.querySelector('input[data-custom="' + t.dataset.apply + '"]');
     var cron = input ? input.value.trim() : '';
     if (cron) change(scheduleUrl(t.dataset.apply), { cron: cron }, 'Schedule ' + t.dataset.apply);

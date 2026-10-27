@@ -800,8 +800,6 @@ migrations:
   # mint that owner's callback grants for the signed engine rail (1.25.1). Nullable: a row saved
   # before 1.25.1 has none and the cron skips its model passes until the owner saves again.
   - migrations/107-career-automation-owner-issuer.sql
-  # 108: owner/status/generated_at access path for old Ready queue reads and purges.
-  - migrations/108-career-generated-queue-index.sql
   # 106: the reverse-synchronization outbox (BACKEND-CUTOVER.md). Operator-only FORCE-RLS change
   # log + checkpoint, and transaction-local AFTER ROW capture triggers on the eight mutable tables
   # above that have a SQLite counterpart. Must run AFTER 095-103 (it attaches to their tables).
@@ -809,6 +807,8 @@ migrations:
   # loader's operator replay session is not captured.
   - migrations/106-career-store-change-log.sql
   - migrations/native/001-career-hunter.sql
+  # 108 needs the native table created above; keep the same index on both backends.
+  - migrations/108-career-generated-queue-index.sql
 # The native kernel applies 031, 077, 082 and the native file above in place of 090-107, whose DO blocks, GRANTs and triggers are PostgreSQL-only.
 nativeMigrations:
   - id: migrations/090-career-rls.sql

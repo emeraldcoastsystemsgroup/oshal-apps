@@ -53,8 +53,8 @@ test('Schwab balances and holdings are usable on desktop and phone with no live-
     const page = await context.newPage();const errors=[];page.on('pageerror',e => errors.push(e.message));
     await page.goto(`http://127.0.0.1:${server.address().port}/api/trading/`);
     const tile = page.locator('#tiles .tile',{hasText:'Account …1234'});
-    await tile.getByRole('button',{name:'View holdings'}).waitFor();
-    assert.match(await tile.innerText(),/VIEW-ONLY[\s\S]*\$12,500/);
+    await tile.getByRole('button',{name:'Open account'}).waitFor();
+    assert.match(await tile.innerText(),/CONNECTED[\s\S]*\$12,500/);
     assert.equal(await page.locator('#heroTotal').innerText(),'$12,500');
     assert.match(await page.locator('#heroDay').innerText(),/-\$40[\s\S]*open-position day P&L/,'a measured Schwab day change counts toward the total');
     assert.match(await tile.innerText(),/Open-position day P&L[\s\S]*-\$40/);
@@ -63,7 +63,7 @@ test('Schwab balances and holdings are usable on desktop and phone with no live-
     assert.match(await page.locator('#heroDay').innerText(),/1 of 2 accounts report day change/);
     assert.match(await page.locator('#rollup').innerText(),/NVDA[\s\S]*20[\s\S]*\$10,000/);
     assert.doesNotMatch(await tile.innerText(),/Create book|Start trading/);
-    await tile.getByRole('button',{name:'View holdings'}).click();
+    await tile.getByRole('button',{name:'Open account'}).click();
     assert.match(await page.locator('#main').innerText(),/NVDA[\s\S]*20[\s\S]*\$10,000/);
     assert.doesNotMatch(await page.locator('#main').innerText(),/Buy a stock|Create book/);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth+1),'no phone-width overflow');

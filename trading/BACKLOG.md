@@ -1,6 +1,6 @@
 # Intelligent Trades — backlog and roadmap
 
-Current status for Trading 1.36.2 on the native kernel, reviewed 2026-10-25.
+Current status for Trading 1.37.0 on the native kernel, reviewed 2026-10-25.
 
 Delivered evidence refinements: stored Congress filing IDs and collector timestamps with explicit timing coverage; separate accrued-interest/margin-equity facts; native open-position P&L scope labels. Historical point-in-time Congress performance and native brokerage execution remain unvalidated/unavailable respectively.
 Implementation, automated verification and signed-in acceptance are separate milestones.
@@ -435,3 +435,13 @@ acceptance failures have not been certified resolved by these Trading checks. Th
 preview preserves 199 active role assignments and 95 active packages; rejected probe/test
 manifests are unchanged. Do not describe the entire kernel or application estate as flawless
 on the basis of the focused Trading results.
+
+## Native monthly live management — implementation pending installed acceptance
+
+Version1.38.0 implements account/model/source-bound cash-funded monthly mandates, durable
+cycles and broker attempt/fill recovery. Final acceptance requires the complete native kernel
+release gate, publication and installed original-owner monitor/schedule proof. Human real-money
+activation remains separate. Existing legacy multi-sleeve strategies, intraday position-protection
+families, non-flat account allocation review and retirement account enrollment are not ported by
+this bounded monthly executor. No claim of active real trading before a mandate and successful
+broker receipt are visible together.

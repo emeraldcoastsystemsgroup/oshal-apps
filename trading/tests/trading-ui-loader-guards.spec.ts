@@ -11,6 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Classify the owned archive receipt loader under both navigation fences.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Classify Schwab capture status as tab-scoped; it checks both navigation fences before painting.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Classify the Congress disclosures panel loader as tab-scoped; it paints into the stock tab and checks both navigation fences before painting.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Classify the guarded Congress candidate loader and accept the synchronous tuning wrapper’s optional parameter without weakening its async refusal.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Classify loadPositionPlans (position-plans.js, ADR-052 addendum P4) as view-scoped: it repaints the positions table the account view owns, so the render token alone is its guard, and it checks it after its await on both the answer and the failure path.
  */
 import { describe, it, expect } from 'vitest';
@@ -30,7 +31,7 @@ const all = files.map((f) => sources[f]).join('\n');
 const TAB_SCOPED = [
   'loadRosterTab', 'loadLabApplied', 'loadLabKnobs', 'loadTuneRecs', 'loadTuneParams', 'loadFuturesResearch',
   'loadFuturesPredictions', 'loadFuturesPredictionEvidence', 'loadFuturesArchiveImports', 'loadSchwabCaptureStatus',
-  'loadEventPlansTab', 'loadScoreboard', 'loadFeed', 'loadMovers', 'loadWatchlistPanel', 'loadCongressPanel', 'loadJournal',
+  'loadEventPlansTab', 'loadCongressCandidates', 'loadScoreboard', 'loadFeed', 'loadMovers', 'loadWatchlistPanel', 'loadCongressPanel', 'loadJournal',
 ];
 /** View-scoped loaders paint into a node the view owns; the render token alone is the guard. */
 const VIEW_SCOPED = [
@@ -178,7 +179,7 @@ describe('trading surface - every async load* loader bails when its render or su
   it('no loader is left as a bare async wrapper with a painting caller that ignores the guard', () => {
     // loadTuning and loadAlgos paint synchronously and delegate every awaited paint to guarded
     // loaders, so they must NOT be async (an async keyword here would demand a token capture).
-    expect(all).toContain('function loadTuning() {');
+    expect(all).toMatch(/function loadTuning\([^)]*\)\s*\{/);
     expect(all).not.toContain('async function loadTuning(');
     expect(all).toContain('function loadAlgos() {');
     expect(all).not.toContain('async function loadAlgos(');

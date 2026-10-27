@@ -30,6 +30,7 @@ const DECLARED = [
   ['marketing-engine', 'daily-metrics-ingest', 'system'],
   ['marketing-engine', 'weekly-campaign-review', 'system'],
   ['sports-edge', 'refresh-pass', 'user'],
+  ['trading', 'portfolio-watcher', 'user'],
   ['trading', 'paper-autopilot', 'user'],
   ['trading', 'futures-research', 'user'],
   ['venture-plan', 'rebaseline-policy-tick', 'system'],

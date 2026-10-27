@@ -9,6 +9,8 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: the operator Sources & schedules page (operator ask 2026-10-02): routes/world-operations.js mounted auth: operator at /api/world/operations, ahead of the public router. It shows the two schedules (changed through core's operator schedule routes) and every place World pulls from, with on/off switches.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: expose explicit bounded native collector requests through the existing operator mount, preserving current writer checks and actual partial outcomes.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Route-backed reads for world-analyst on the native kernel (world-entities, world-sentiment, world-metric, world-pulls, world-neighbors over this package's own GET /api/world routes). Every declared world_* tool is a legacy CLI the native kernel does not run, so the concierge printed a JSON tool call in prose with an invented id (world:topic:nvda) instead of reading the tracked world:ticker:nvda. Guarded by scripts/check-store-bots.test.mjs.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.5: keep active native collector settings and exact failed run receipts visible; use bounded seven-day manual pulls while retaining stored observations.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.4.4: native original-owner collector configuration and explicit Congress/insider pulls with retained partial/failure receipts.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: declare world-analyst as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
@@ -69,7 +71,7 @@ description: >-
   and reliability against the other sources, with the counts and dates behind it),
   entity co-mention graph, and historical series. Ask the analyst "what's the press
   saying about X" and get a structured, bias-contextualized read, not a misleading average.
-version: 1.4.3
+version: 1.4.5
 
 testing:
   version: 1

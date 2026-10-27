@@ -9,13 +9,14 @@ const {chromium}=require(path.join(TOOLCHAIN,'playwright'));
 test('concrete planning previews require exact exception review and stay blocked when broker facts are absent',async t=>{
  const f=application(),app=f.app;f.accounts[0].balanceFacts={buyingPower:20000,debitBalance:0,maintenanceRequirement:2000};
  const styles=fs.readFileSync(path.join(PKG,'tools/trading.html'),'utf8').match(/<style>([\s\S]*?)<\/style>/)[1];
- for(const file of ['native-portfolio','native-rebalance'])app.get('/'+file+'.js',(_req,res)=>res.type('js').send(fs.readFileSync(path.join(PKG,'tools/ui/'+file+'.js'),'utf8')));
+ for(const file of ['native-portfolio','native-rebalance','native-management'])app.get('/'+file+'.js',(_req,res)=>res.type('js').send(fs.readFileSync(path.join(PKG,'tools/ui/'+file+'.js'),'utf8')));
  app.get('/boot.js',(_req,res)=>res.type('js').send(`const main=document.getElementById('main');const $=id=>document.getElementById(id);const stale=()=>false;
  const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const money=v=>'$'+Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
  const jbody=(method,obj)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});
+ const paperScheduleRow=async()=>null;
  const api=async(p,init)=>{const r=await fetch('/api/trading'+p,init),j=await r.json();if(!r.ok)throw Error(j.message||j.error);return j;};renderNativePortfolioView(1);`));
- app.get('/',(_req,res)=>{res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'");res.send('<!doctype html><meta name="viewport" content="width=device-width"><style>'+styles+'</style><div id="main"></div><script src="/native-rebalance.js"></script><script src="/native-portfolio.js"></script><script src="/boot.js"></script>');});
+ app.get('/',(_req,res)=>{res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'");res.send('<!doctype html><meta name="viewport" content="width=device-width"><style>'+styles+'</style><div id="main"></div><script src="/native-rebalance.js"></script><script src="/native-management.js"></script><script src="/native-portfolio.js"></script><script src="/boot.js"></script>');});
  const server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>resolve(s));});t.after(()=>new Promise(resolve=>server.close(resolve)));const base='http://127.0.0.1:'+server.address().port;
  const request=async(path,body)=>{const r=await fetch(base+'/api/trading/portfolio'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});assert.equal(r.status,200);return r.json();};
  await request('/profiles',{accountId:'a',connectionKey:'owned-login',registration:'taxable',label:'Owned account'});
@@ -39,5 +40,5 @@ test('concrete planning previews require exact exception review and stay blocked
   assert.equal(await page.getByRole('button',{name:/Execute|Place order|Borrow now|Increase live limit/i}).count(),0);assert.deepEqual(errors,[]);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'no viewport overflow at '+width);
   await context.close();
  }
- assert.ok(f.calls.filter(c=>c.intent).every(c=>['trading.accounts','trading.bars','trading.quotes'].includes(c.intent)));
+ assert.ok(f.calls.filter(c=>c.intent).every(c=>['trading.config','trading.accounts','trading.bars','trading.quotes'].includes(c.intent)));
 });

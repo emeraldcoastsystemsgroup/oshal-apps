@@ -67,7 +67,7 @@ test('next-session trend/momentum targets include only completed data and fail o
 
 test('reported debit is not subtracted twice when cash is already net, and both explicit balance bases reconcile',()=>{
  const i=base();i.account.accountType='margin';i.account.positions=[{symbol:'ABC',qty:150,marketValue:15000,unmanaged:true}];i.account.balanceFacts.debitBalance=5000;
- for(const cash of [-5000,0]){const p=buildRebalancePlan({...i,account:{...i.account,cash}});assert.equal(codes(p).includes('account_reconciliation_required'),false);assert.equal(p.funding.modeledBorrowingBeforeUsd,5000);assert.equal(p.funding.modeledBorrowingAfterUsd,5,'selling 50 whole shares repays principal but leaves the modeled $5 transaction cost');assert.equal(p.modeledCostsUsd,5);assert.equal(p.funding.modeledAnnualInterestUsd,null,'interest remains unknown without an assumed APR');assert.equal(p.funding.reconciliationBasis,cash<0?'reported-cash-already-net':'reported-cash-minus-debit');}
+ for(const cash of [-5000,0]){const p=buildRebalancePlan({...i,account:{...i.account,cash}});assert.equal(codes(p).includes('account_reconciliation_required'),false);assert.equal(p.funding.modeledBorrowingBeforeUsd,5000);assert.equal(p.actions[0].changeQty,-51,'whole-share reduction also reserves the modeled selling cost');assert.equal(p.funding.modeledBorrowingAfterUsd,0);assert.equal(p.funding.derivedFinancingCashAfter,94.9);assert.equal(p.modeledCostsUsd,5.1);assert.equal(p.funding.modeledAnnualInterestUsd,0,'no remaining modeled loan accrues interest');assert.equal(p.funding.reconciliationBasis,cash<0?'reported-cash-already-net':'reported-cash-minus-debit');}
 });
 test('fractional previews conserve net financing and reserve costs without a spurious exposure exception',()=>{
  const i=base();i.account.positions=[];i.account.equity=100;i.account.cash=100;i.account.balanceFacts.cashAvailableForWithdrawal=100;i.config=cfg({fractionalShares:true});
@@ -82,4 +82,13 @@ test('quote transport is bounded to exact caller connection and instruments, wit
  for(const a of asked){assert.equal(a.name,'trading.quotes');assert.equal(a.input.connection,'owned-login');assert.ok(a.input.symbols.length<=50);assert.deepEqual(Object.keys(a.input).sort(),['connection','symbols']);}
  await assert.rejects(()=>readPlanQuotes({intent:async()=>({source:'schwab',quotes:[quote('WRONG')]})},'owned-login',['ABC']),e=>e.code==='plan_quotes_invalid');
  await assert.rejects(()=>readPlanQuotes({intent:async()=>({source:'schwab',quotes:[]})},'owned-login',['ABC']),e=>e.code==='plan_quotes_incomplete');
+});
+
+test('whole-share reductions stay below their target without selling fractional residuals',()=>{
+ for(const qty of [10,10.5]){
+  const b=base();b.account={...b.account,equity:100+qty*110,cash:100,positions:[{symbol:'ABC',qty,marketValue:qty*110}]};b.config=cfg({transactionCostBps:0});b.targets=[{symbol:'ABC',weightPct:75}];b.quotes=[quote('ABC',{tradePrice:110})];
+  const p=buildRebalancePlan(b),row=p.rows.find(r=>r.symbol==='ABC');assert.ok(row.afterMarketValue<=row.desiredValueUsd+0.000001,JSON.stringify(row));assert.ok(Number.isInteger(row.changeQty));
+ }
+ const b=base();b.account={...b.account,equity:155,cash:100,positions:[{symbol:'ABC',qty:0.5,marketValue:55}]};b.targets=[{symbol:'ABC',weightPct:0}];b.quotes=[quote('ABC',{tradePrice:110})];
+ const p=buildRebalancePlan(b);assert.equal(Math.abs(p.rows[0].changeQty),0);assert.equal(p.rows[0].afterQty,0.5);
 });

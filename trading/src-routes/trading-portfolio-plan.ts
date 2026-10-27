@@ -81,7 +81,7 @@ export function buildRebalancePlan(input:PlanInput) {
  const compute=(feeGuess:number)=>required.map(symbol=>{
   const p=held.get(symbol),qty=p?.qty??0,px=price(symbol),preserve=input.scope==='preserve-other-holdings'&&!configured.has(symbol);
   const targetValue=preserve?qty*px:Math.max(0,allocationBase-feeGuess)*config.grossExposurePct/100*(weights.get(symbol)??0)/100;
-  const delta=preserve?0:config.fractionalShares?units(targetValue/px-qty):Math.trunc(targetValue/px-qty);
+  const delta=preserve?0:config.fractionalShares?units(targetValue/px-qty):Math.max(-Math.floor(qty),Math.floor(targetValue/px-qty));
   const proposedQty=Math.max(-qty,delta),after=qty+proposedQty,notional=Math.abs(proposedQty*px),fee=notional*rate;
   return {symbol,currentQty:qty,changeQty:proposedQty,afterQty:after,referencePrice:px,tradeAt:quotes.get(symbol)!.tradeAt,
    action:preserve?'preserve':proposedQty>0?'buy':proposedQty<0?'sell':'hold',targetWeightPct:weights.get(symbol)??0,

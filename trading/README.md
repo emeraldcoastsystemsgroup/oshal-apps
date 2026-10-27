@@ -7,6 +7,32 @@ Signal-justified stock trading (ADR-052) — carved out of OSHAL core 2026-07-20
 `?app=intelligent-trades` URLs, the default tile, guest-tier records, and the
 `intelligent-trades` queue id survive unchanged.
 
+## Native monthly strategy management (1.38.0)
+
+The Strategies screen binds an owned completed backtest to its exact whole-share monthly model
+and a single Schwab account. A monitor is review-only until the person separately approves the
+kernel-held real-money mandate and activates their own watcher schedule. Initial enrollment
+requires a flat account and verified available cash. The reviewed mandate names the account,
+model and backtest fingerprints, allowed instruments, cash capital cap, daily turnover ceiling,
+30-day expiry and exact installed application revision. A source or model change needs reapproval.
+No borrowing, shorts, options, or intraday protective stops are enabled by this mandate.
+
+The watcher runs every five minutes, executes one regular-session day-limit order at a time,
+records each attempt before contacting the broker and reconciles actual working orders and fills
+before proceeding. It retains one immutable plan per completed monthly signal. Repeated ticks
+cannot re-trade a completed cycle. Unknown attempts, incomplete fills, expired/rejected orders,
+changed holdings, stale quotes, unavailable cash and authority withdrawal stop further submissions
+and remain visible. Orders are not an atomic basket; fill timing and slippage can differ from the
+price-only close-based backtest, which excludes dividends and taxes. Monthly model exits supply
+no intraday drawdown protection.
+
+Stop revokes future submissions even when the broker login is unavailable. Already submitted
+orders remain at the broker and need separate cancellation. Exact manual order review,
+cancellation and uncertain-attempt matching remain available. Kernel-only authority and ticket
+records cannot be forged through application SQL or package storage. The historical legacy
+multi-sleeve engine and its additional strategy families are not represented as restored by this
+monthly execution path.
+
 ## Native portfolio review and research (1.36.2)
 
 **Evidence basis (1.36.2).** Congress candidates retain the stored filing identity and collector
@@ -85,7 +111,7 @@ remain valid. **Portfolio review** returns to the portfolio screen. Opening eith
 no schedule or account. Native Futures studies use Schwab directly and, when enabled, run at
 02:15 New York Tuesday through Saturday; the legacy equity optimizer is not offered there.
 
-The native kernel's live brokerage adapter remains read-only. Legacy Strategy Lab operations
+The native exact-ticket rail above is separate from legacy live automation; older kernels remain read-only. Legacy Strategy Lab operations
 refuse explicitly instead of returning placeholder success. The engine application, Studio,
 and legacy optimizer sections below describe the legacy runtime unless explicitly marked native.
 Owner-signed-in account/provider coverage and product eligibility require separate acceptance.

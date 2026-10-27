@@ -53,7 +53,7 @@ test('the actual account view offers holdings, preserves escaping and never fabr
   vm.runInContext(src+'\nthis.view={tileHtml,nativeAccountView};',context);
   const model = {nativeReadOnly:true,notTrading:true,state:'ok',label:'Schwab …1234',kind:'live',equity:12500,cash:2500,accountType:'margin',positions:[{symbol:'<NVDA>',qty:20,marketValue:10000}]};
   const tile = context.view.tileHtml(model,0);
-  assert.match(tile,/VIEW-ONLY/);assert.match(tile,/View holdings/);assert.match(tile,/Open-position day P&amp;L/);assert.doesNotMatch(tile,/Create book|Start trading/);
+  assert.match(tile,/CONNECTED/);assert.match(tile,/Open account/);assert.match(tile,/Open-position day P&amp;L/);assert.doesNotMatch(tile,/Create book|Start trading/);
   context.view.nativeAccountView(model);
   assert.match(nodes.main.innerHTML,/&lt;NVDA&gt;/);assert.match(nodes.main.innerHTML,/20/);assert.match(nodes.main.innerHTML,/10000/);
   assert.doesNotMatch(nodes.main.innerHTML,/Create book|Buy a stock/);

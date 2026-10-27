@@ -11,6 +11,7 @@ const trading_portfolio_store_1 = require("./trading-portfolio-store");
 const trading_portfolio_history_1 = require("./trading-portfolio-history");
 const trading_congress_candidates_1 = require("./trading-congress-candidates");
 const trading_portfolio_plan_routes_1 = require("./trading-portfolio-plan-routes");
+const trading_native_management_1 = require("./trading-native-management");
 const trading_portfolio_calendar_1 = require("./trading-portfolio-calendar");
 const running = new Set();
 function label(value, name = 'Name') {
@@ -73,6 +74,7 @@ function registerTradingPortfolioRoutes(router, ctx, options = {}) {
         });
     };
     (0, trading_portfolio_plan_routes_1.registerPortfolioPlanRoutes)(route, ctx, { clock, selected: (owner, binding, now) => selected(ctx, owner, binding, now), witness: portfolioWitness });
+    (0, trading_native_management_1.registerNativeManagementRoutes)(route, ctx, { clock, selected: (owner, binding, now) => selected(ctx, owner, binding, now) });
     route('get', '/portfolio', async (_req, owner, at) => (await portfolioSnapshot(ctx, owner, at)).report);
     route('get', '/portfolio/research', async (_req, owner, at) => {
         const [strategies, runs, records] = await Promise.all([(0, trading_portfolio_store_1.listRecords)(ctx, owner, 'strategy'), (0, trading_portfolio_store_1.listRecords)(ctx, owner, 'run'), (0, trading_portfolio_store_1.listRecords)(ctx, owner, 'review')]);

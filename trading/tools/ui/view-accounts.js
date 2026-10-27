@@ -20,6 +20,8 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 2026-10-27 | maintainer@emeraldcoastsystemsgroup.com | Label connected accounts by connection rather than implying their strategy and protection controls are view-only.
+ * 2026-10-27 | maintainer@emeraldcoastsystemsgroup.com | Open bookmarkable original-owner account strategy and backstop panels from current broker holdings.
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — ADR-136 D1 landing view: hero total, one tile per book (+ notTrading discovered accounts), positions rollup, discovered-accounts roster + Discover action. Replaces the legacy "All accounts" summary tab and the discovered-accounts half of the old Accounts tab.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Adversarial-review fixes: 'Create book…' (tile) and 'create one →' (roster row) call makeBook(accountId, label) directly instead of navigating to a roster that has no create control; hero labels a partial total honestly ('Total of the N accounts that answered' + red 'Not included: …' line) whenever a summary row errored or a tile ended unavailable; a failed GET /accounts still paints the Paper tile beside the error panel; the re-connect copy points at the cockpit's Settings → Connections; matchSummaryRow never lets a notTrading row attach to a booked tile.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D6 event playbooks: ONE GET /events/plans after the tiles paint (allPlans, not a call per tile) marks every tile whose book has an active IPO plan with an 'IPO plan armed' pill under the strategy line; errors (older server) leave the tiles untouched.
@@ -184,19 +186,19 @@ function tileStrategyText(s) {
  */
 function tileHtml(m, i) {
   const loading = m.state === 'loading';
-  const pill = m.nativeReadOnly ? '<span class="pill foot">VIEW-ONLY</span>' : m.notTrading ? '<span class="pill" style="margin:0" title="Discovered account — no trading book yet">NO BOOK</span>'
+  const pill = m.nativeReadOnly ? '<span class="pill foot">CONNECTED</span>' : m.notTrading ? '<span class="pill" style="margin:0" title="Discovered account — no trading book yet">NO BOOK</span>'
     : m.nativePaper ? '<span class="pill ok" style="margin:0" title="Your own paper book: simulated fills at stored market prices, never a broker order">PAPER</span>'
     : (m.enabled ? '<span class="pill ok" style="margin:0">TRADING</span>' : '<span class="pill foot" style="margin:0">VIEW-ONLY</span>');
   const num = (v) => loading ? '…' : (m.state === 'ok' && v != null ? money(v) : '—');
   const day = loading ? '…' : (m.state !== 'ok' ? '—' : (m.dayChange == null ? '<span class="foot">n/a</span>' : dollarPctCell(m.dayChange, m.dayChangePct)));
   const note = (m.state === 'error' || m.state === 'unavailable') ? '<div class="err" style="font-size:12px">' + esc(m.note) + '</div>'
     : m.state === 'idle' ? '<div class="foot" style="font-size:12px;margin:0">' + esc(m.note) + '</div>' : '';
-  const strat = m.nativeReadOnly ? '<span class="foot">Schwab balances and holdings. Real trading is not enabled.</span>' : m.notTrading
+  const strat = m.nativeReadOnly ? '<span class="foot">Open account holdings, strategy, research and protection status.</span>' : m.notTrading
     ? '<span class="foot">No book yet — create one to trade this account (it starts disabled).</span>'
     : m.nativePaper ? 'Paper autopilot: ' + (m.nativePaper.armed ? '<span class="ok">armed</span>' : '<span class="foot">off</span>')
     : tileStrategyText(m.strategy) +
       (m.ref && ACCT_EVENT_REFS.has(m.ref) ? '<div style="margin-top:4px"><span class="pill warn" style="margin:0;border-color:var(--warn)" title="An event playbook (IPO plan) is armed on this account">IPO plan armed</span></div>' : '');
-  const actions = m.nativeReadOnly ? '<button class="btn sm primary" data-act="open">View holdings →</button>' : m.notTrading
+  const actions = m.nativeReadOnly ? '<button class="btn sm primary" data-act="open">Open account →</button>' : m.notTrading
     ? '<button class="btn sm ghost" data-act="create">Create book…</button>'
     : '<button class="btn sm primary" data-act="open">Open account →</button>' +
       (m.kind === 'live' && m.bookId ? '<button class="btn sm ghost" data-act="toggle">' + (m.enabled ? 'Stop trading' : 'Start trading…') + '</button>' : '');
@@ -391,7 +393,7 @@ function paintRollup(j, err) {
 function discoveredRow(a, i) {
   const book = a.book || null;
   const seen = a.lastSeenAt || a.lastSeen;
-  const bookCell = a.nativeReadOnly ? '<span class="foot">View-only Schwab account</span>' : book
+  const bookCell = a.nativeReadOnly ? '<span class="foot">Connected Schwab account</span>' : book
     ? '<a href="#" data-open-ref="' + esc(book.ref) + '">' + esc(bookLabel(book.ref)) + '</a>' + (book.enabled ? '' : ' <span class="foot">(disabled)</span>')
     : '<span class="foot">no book — <a href="#" data-act="create" data-i="' + i + '">create one →</a></span>';
   return '<tr><td><strong>' + esc(a.accountMasked || '?') + '</strong>' + (a.nickname ? ' <span class="foot">' + esc(a.nickname) + '</span>' : '') + '</td>' +
@@ -539,20 +541,27 @@ async function renderAccountsView(token) {
   if (stale(token)) return;
   mergeSummaryIntoTiles(models, summary);
   paintTiles(models); paintHero(summary, null, models); paintRollup(summary, null);
+  if (typeof showFocusedNativeAccount === 'function') showFocusedNativeAccount(models);
 }
 
 /** Show the current caller's real holdings without offering unsupported live order controls. */
 function nativeAccountView(model) {
+  if (typeof RENDER_TOKEN === 'number') RENDER_TOKEN += 1;
+  if (typeof setNativeAccountAddress === 'function') setNativeAccountAddress(model);
   if (model.state !== 'ok') {
     $('main').innerHTML = '<div class="panel"><button class="btn ghost sm" id="nativeAccountBack">← All accounts</button><h2>Schwab account unavailable</h2><p class="err">' + esc(model.note || 'The account read did not complete. Refresh or check your connection.') + '</p></div>';
     $('nativeAccountBack').onclick = () => navigate('accounts', {sub:null});
     return;
   }
   const rows = (model.positions || []).map(p => '<tr><td>' + esc(p.symbol) + '</td><td>' + esc(String(p.qty)) + '</td><td>' + money(p.marketValue) + '</td></tr>').join('');
-  $('main').innerHTML = '<div class="panel"><button class="btn ghost sm" id="nativeAccountBack">← All accounts</button><h2>' + esc(model.label) + '</h2><p class="foot">Schwab account · view only. Holdings are not managed by the paper autopilot.</p><div class="t-eq">' + money(model.equity) + '</div><p>Cash: ' + money(model.cash) + '</p><button class="btn sm" id="nativeHistoryOpen">View execution history</button> <button class="btn sm" id="nativeReconcileOpen">Reconcile ledger</button><div style="overflow-x:auto"><table><thead><tr><th>Symbol</th><th>Quantity</th><th>Market value</th></tr></thead><tbody>' + (rows || '<tr><td colspan="3">Schwab reports no open positions.</td></tr>') + '</tbody></table></div></div>';
+  $('main').innerHTML = '<div class="panel"><button class="btn ghost sm" id="nativeAccountBack">← All accounts</button><h2>' + esc(model.label) + '</h2><p class="foot">Connected Schwab account · strategy authority and protection status are shown below.</p><div class="t-eq">' + money(model.equity) + '</div><p>Cash: ' + money(model.cash) + '</p><button class="btn sm" id="nativeHistoryOpen">View execution history</button> <button class="btn sm" id="nativeReconcileOpen">Reconcile ledger</button><div style="overflow-x:auto"><table><thead><tr><th>Symbol</th><th>Quantity</th><th>Market value</th></tr></thead><tbody>' + (rows || '<tr><td colspan="3">Schwab reports no open positions.</td></tr>') + '</tbody></table></div></div>';
   $('nativeAccountBack').onclick = () => navigate('accounts', {sub:null});
   if ($('nativeHistoryOpen')) $('nativeHistoryOpen').onclick = () => nativeHistoryView(model);
   if ($('nativeReconcileOpen')) $('nativeReconcileOpen').onclick = () => nativeReconciliationView(model);
+  if (typeof loadNativeAccountManagement === 'function') {
+    $('main').insertAdjacentHTML('beforeend','<div id="nativeAccountManagement"><p>Loading this account’s strategy, backstops and management evidence…</p></div>');
+    loadNativeAccountManagement(model,RENDER_TOKEN);
+  }
 }
 
 /** Account-bound venue evidence; a failed chunk never becomes an empty or complete history. */
