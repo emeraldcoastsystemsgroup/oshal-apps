@@ -9,6 +9,7 @@ const {readPlanQuotes}=require('../trading-portfolio-plan-evidence');
 const {nyseSessionClock}=require('../trading-portfolio-calendar');
 const {backstopPolicy}=require('./backstop-model');
 const {submissionCount}=require('./execution-state');
+const {executeWatcherExitPass}=require('./watcher-exits');
 const terminal=new Set(['FILLED','CANCELED','CANCELLED','EXPIRED','REJECTED','REPLACED']);
 const fail=(code,message,status=409)=>{throw new PortfolioError(status,code,message);};
 const binding=a=>({connection:a.connectionKey,accountId:a.accountId});
@@ -75,18 +76,28 @@ function nextProtectiveAction(account,orders,tickets,policy,quotes,at){
 /** Source-bound native authority is checked again at each prepare and submit, independently of this UI store. */
 async function protectiveTick(ctx,owner,selected,at){
  let policy=await accountPolicy(ctx,owner,selected.account);
- if(!policy?.automatedBrokerProtection)return{status:'not-enabled',ordersSubmitted:0};
- const bound=binding(selected.account),outcome={status:'waiting',observedAt:at.toISOString(),ordersSubmitted:0,attempted:0,exceptions:[],tickets:[]};
+ if(!policy?.automatedBrokerProtection&&!policy?.automatedWatcherExits)return{status:'not-enabled',ordersSubmitted:0};
+ const bound=binding(selected.account),outcome={status:'waiting',observedAt:at.toISOString(),ordersSubmitted:0,attempted:0,exceptions:[],tickets:[],authorityActive:false};
  try{
   const mandate=await native(ctx,'protection.status',{...bound,protectionMandateId:policy.protectionMandateId});
   if(mandate.status!=='active'||mandate.effectiveStatus!=='active'||!Number.isFinite(mandate.expiresAtMs)||mandate.expiresAtMs<=at.getTime()){outcome.status='authority-not-active';return outcome;}
-  if(!nyseSessionClock(at).regular){outcome.status='waiting-regular-session';return outcome;}
+  outcome.authorityActive=true;
+  const watcher=policy.executionMode==='watcher';policy={...policy,mandate};
+  if(watcher?mandate.terms?.execution!=='watcher':mandate.terms?.execution==='watcher')throw Error('Protective execution mode changed.');
+  if(!watcher&&!nyseSessionClock(at).regular){outcome.status='waiting-regular-session';return outcome;}
   for(let pass=0;pass<4;pass++){
    const current=await selected.refresh(),account=current.account;
+   const authority={...bound,protectionMandateId:policy.protectionMandateId,policyFingerprint:fingerprint(policy.config)};
+   if(watcher){
+    const next=await executeWatcherExitPass(ctx,owner,current,policy,selected.clock());
+    outcome.exceptions=next.exceptions;outcome.tickets.push(...next.tickets);outcome.attempted+=next.attempted;
+    outcome.ordersSubmitted=next.ordersSubmitted===null?null:outcome.ordersSubmitted+next.ordersSubmitted;outcome.status=next.status;
+    if(next.done)break;continue;
+   }
    const [orderData,ticketData,quoteData]=await Promise.all([native(ctx,'list',bound),native(ctx,'refresh',bound),readPlanQuotes(ctx,account.connectionKey,[...new Set(account.positions.map(p=>canonical(p.symbol)))])]);
    const plan=nextProtectiveAction(account,orderData.orders,ticketData.tickets,policy,quoteData.quotes,selected.clock());outcome.exceptions=plan.exceptions;
    if(!plan.actions.length){outcome.status=plan.exceptions.length?'partial-coverage':'covered-or-flat';break;}
-   const action=plan.actions[0],authority={...bound,protectionMandateId:policy.protectionMandateId,policyFingerprint:fingerprint(policy.config)};
+   const action=plan.actions[0];
    const ticket=await native(ctx,'prepare',{...authority,...action,orderType:'TRAILING_STOP',side:'sell'});
    if(ticket.status!=='prepared'){outcome.status='attempt-requires-review';outcome.tickets.push(ticket);break;}
    outcome.attempted++;
@@ -109,19 +120,23 @@ async function protectiveTick(ctx,owner,selected,at){
 }
 function registerProtectiveExecutionRoutes(route,ctx,deps){
  route('post','/portfolio/backstops/review',async(req,owner,at)=>{
-  const b=req.body||{};fields(b,['accountId','connectionKey','researchRunId']);const selected=await deps.selected(owner,b,at),policy=await accountPolicy(ctx,owner,selected.account);
+  const b=req.body||{};fields(b,['accountId','connectionKey','researchRunId','execution']);const selected=await deps.selected(owner,b,at),policy=await accountPolicy(ctx,owner,selected.account);
+  if(b.execution!==undefined&&!['broker','watcher'].includes(b.execution))fail('protection_execution_invalid','Select broker-held or watcher-managed protection.');
   if(!policy)fail('protection_not_enrolled','Enroll this account in exit-to-cash model tracking first.');
   const config=backstopPolicy(policy.config);if(config.modelVersion!==2)fail('protection_model_mismatch','Broker protection uses the separately tested exit-to-cash model.');
   const study=await getRecord(ctx,owner,'backstop-run',b.researchRunId);
   if(accountKey(study)!==accountKey(selected.account)||study.source!=='schwab'||study.researchOnly!==true||!study.historyFingerprint||!study.candidates?.some(c=>fingerprint(c.config)===fingerprint(config)))fail('protection_research_mismatch','Choose a completed matching exit-to-cash study for this exact account.');
-  if(policy.automatedBrokerProtection)fail('protection_already_enabled','Stop existing protective authority before reviewing changed terms.');
+  if(policy.automatedBrokerProtection||policy.automatedWatcherExits)fail('protection_already_enabled','Stop existing protective authority before reviewing changed terms.');
   const nativeConfig=await ctx.intent('trading.config',{});if(nativeConfig.protectiveMandates!==true)fail('protection_release_required','The verified native protective-mandate release is not active.',503);
-  const mandate=await native(ctx,'protection.prepare',{...binding(selected.account),trailBps:Math.round(config.trailPct*100),policyFingerprint:fingerprint(config),backtestFingerprint:fingerprint(study)});
+  if(b.execution==='watcher'&&nativeConfig.watcherExitMandates!==true)fail('watcher_release_required','The verified native watcher-exit release is not active.',503);
+  const mandate=await native(ctx,'protection.prepare',{...binding(selected.account),...(b.execution?{execution:b.execution}:{}),trailBps:Math.round(config.trailPct*100),policyFingerprint:fingerprint(config),backtestFingerprint:fingerprint(study)});
   const candidate=study.candidates.find(c=>fingerprint(c.config)===fingerprint(config));
   const research={symbol:study.symbol,historyFingerprint:study.historyFingerprint,trainingWindow:study.trainingWindow,laterWindow:study.laterWindow,candidate,
    trainingSelected:!!study.selectedConfig&&fingerprint(study.selectedConfig)===fingerprint(config),hasPositiveTrainingCandidate:!!study.selectedConfig,selection:study.selection,
    untouchedHoldout:study.untouchedHoldout===true,currentHoldingsSelectionBias:study.currentHoldingsSelectionBias===true};
-  const review=await saveRecord(ctx,owner,'protection-review',{accountId:b.accountId,connectionKey:b.connectionKey,policyId:policy.id,policyFingerprint:fingerprint(config),researchRunId:study.id,research,mandate},mandate.protectionMandateId);
+  const observed=(await listRecords(ctx,owner,'backstop-state')).find(row=>accountKey(row)===accountKey(selected.account));
+  const initialBackstops=(observed?.rows||[]).map(row=>({symbol:row.symbol,quantity:row.quantity,peak:row.state?.peak??null,floor:row.state?.stop??null,observedAt:row.state?.observedAt??null}));
+  const review=await saveRecord(ctx,owner,'protection-review',{accountId:b.accountId,connectionKey:b.connectionKey,policyId:policy.id,policyFingerprint:fingerprint(config),researchRunId:study.id,research,mandate,initialBackstops},mandate.protectionMandateId);
   return{review,requiresHumanActivation:true};
  });
  route('post','/portfolio/backstops/activate',async(req,owner,at)=>{
@@ -130,13 +145,14 @@ function registerProtectiveExecutionRoutes(route,ctx,deps){
   if(!policy||accountKey(review)!==accountKey(selected.account)||review.policyId!==policy.id||review.policyFingerprint!==fingerprint(policy.config)||b.fingerprint!==review.mandate.fingerprint)fail('protection_review_changed','The protective review does not match this account and policy.');
   const mandate=await native(ctx,'protection.activate',{...binding(selected.account),protectionMandateId:review.mandate.protectionMandateId,fingerprint:b.fingerprint,confirm:true});
   if(mandate.status!=='active')fail('protection_activation_unverified','The native broker did not confirm active protective authority.');
-  return{policy:await saveRecord(ctx,owner,'backstop-policy',{...policy,modelOnly:false,automatedBrokerProtection:true,protectionMandateId:mandate.protectionMandateId,mandate},accountKey(policy)),requiresWatcherSchedule:true};
+  const watcher=mandate.terms?.execution==='watcher';
+  return{policy:await saveRecord(ctx,owner,'backstop-policy',{...policy,modelOnly:false,executionMode:watcher?'watcher':'broker',automatedWatcherExits:watcher,automatedBrokerProtection:!watcher,protectionMandateId:mandate.protectionMandateId,mandate},accountKey(policy)),requiresWatcherSchedule:true};
  });
  route('post','/portfolio/backstops/stop',async(req,owner,at)=>{
   const b=req.body||{};fields(b,['accountId','connectionKey']);const policy=await accountPolicy(ctx,owner,b);
   if(!policy)fail('protection_not_enrolled','This account has no protection policy.');
   if(policy.protectionMandateId)await native(ctx,'protection.stop',{connection:policy.connectionKey,accountId:policy.accountId,protectionMandateId:policy.protectionMandateId});
-  return{policy:await saveRecord(ctx,owner,'backstop-policy',{...policy,automatedBrokerProtection:false},accountKey(policy)),existingBrokerOrdersRemain:true};
+  return{policy:await saveRecord(ctx,owner,'backstop-policy',{...policy,automatedBrokerProtection:false,automatedWatcherExits:false},accountKey(policy)),existingBrokerOrdersRemain:true};
  });
  route('post','/portfolio/backstops/cancel',async(req,owner,at)=>{
   const b=req.body||{};fields(b,['accountId','connectionKey','ticketId','orderId','fingerprint','confirm']);if(b.confirm!==true)fail('protection_cancel_confirmation','Confirm cancellation of this exact real broker order.',428);

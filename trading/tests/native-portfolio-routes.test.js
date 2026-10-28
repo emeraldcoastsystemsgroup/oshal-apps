@@ -84,3 +84,13 @@ test('outside statement refresh and re-add remember the assigned strategy and es
  await h.req('/outside/'+first.id,{},'owner-a','DELETE');await h.req('/outside',statement);
  account=(await h.req('')).accounts.find(a=>a.accountId===first.account.accountId);assert.equal(account.strategyId,strategyRecord.id);assert.equal(account.constraints.group,'401k');
 });
+
+test('ordinary historical runs ignore conflicting or malformed prices after their requested end and retain in-window refusals',async t=>{
+ const h=await host(t),original=h.ctx.intent;h.setNow('2026-10-27T07:00:00Z');
+ const saved=await h.req('/strategies',{name:'Historical cutoff',config:strategy()});
+ h.ctx.intent=async(name,input)=>{const r=await original(name,input);if(name!=='trading.bars')return r;return{...r,bars:[...r.bars,{t:Date.parse('2026-10-26T04:00:00Z')/1000,c:200},{t:Date.parse('2026-10-26T05:00:00Z')/1000,c:201},{t:Date.parse('2026-10-27T04:00:00Z')/1000,c:-1}]};};
+ const body={...binding,strategyId:saved.strategy.id,startDate:'2026-01-02'},past=await h.req('/backtest',{...body,endDate:'2026-10-23'});
+ assert.equal(past.run.status,'completed',JSON.stringify(past));assert.equal(past.run.history.requestedEndDate,'2026-10-23');assert.equal(past.run.history.lastCompletedSession,'2026-10-26');
+ assert.ok(Object.values(past.run.history.series).every(rows=>rows.every(r=>r.date<='2026-10-23')));
+ const current=await h.req('/backtest',{...body,endDate:'2026-10-26'});assert.notEqual(current.run.status,'completed');assert.equal(current.run.error.code,'history_changed');
+});

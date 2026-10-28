@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Declare separate owner-bound combined allocation/protection studies.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Declare owner-isolated position-backstop policy/state/study and expected-funding record kinds.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep heavy planning evidence separate from recent preview listings, count records without loading payloads, and preserve the first concurrent planning approval with insert-once semantics.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Persist owner-isolated immutable portfolio research and bounded mutable account declarations through the native governed SQL port.
@@ -6,7 +7,7 @@
 import {createHash,randomUUID} from 'node:crypto';
 import type {AppContext} from '@/app/composition/app-context';
 import {PortfolioError} from './trading-portfolio-model';
-export type RecordKind='profile'|'outside'|'strategy'|'run'|'review'|'plan'|'plan-approval'|'plan-evidence'|'watch'|'live-ticket'|'live-mandate'|'live-cycle'|'backstop-policy'|'backstop-state'|'backstop-run'|'funding-plan'|'protection-review';
+export type RecordKind='profile'|'outside'|'strategy'|'run'|'review'|'plan'|'plan-approval'|'plan-evidence'|'watch'|'live-ticket'|'live-mandate'|'live-cycle'|'backstop-policy'|'backstop-state'|'backstop-run'|'funding-plan'|'protection-review'|'combined-run';
 export type Data=Record<string,any>;
 export function fingerprint(value: unknown): string {
  const canonical=(v:any):any=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;

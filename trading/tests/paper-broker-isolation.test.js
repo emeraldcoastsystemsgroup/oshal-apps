@@ -34,13 +34,13 @@ test('no paper engine module requires a broker, the platform engine or a network
   }
 });
 
-test('the only kernel intents the engine names are the two price reads', () => {
+test('paper and report modules name only explicit read-only market and authority intents', () => {
   const names = new Set();
   for (const file of ENGINE_FILES) {
     const src = fs.readFileSync(file, 'utf8');
     for (const m of src.matchAll(/intent\(\s*['"]([^'"]+)['"]/g)) names.add(m[1]);
   }
-  assert.deepEqual([...names].sort(), ['prices.latest', 'prices.series']);
+  assert.deepEqual([...names].sort(), ['prices.latest', 'prices.series','trading.bars','trading.config','trading.orders.mandate.status','trading.orders.protection.status','trading.quotes']);
 });
 
 test('a full trading tick completes with every network and broker path trapped', async () => {

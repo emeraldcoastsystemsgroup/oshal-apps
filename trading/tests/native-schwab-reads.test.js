@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Exercise the actual strategy navigation helpers when verifying native account rendering and escaped holdings.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Native landing amounts retain their open-position P&L scope and never imply reconstruction of closed trades or cash flows.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve measured and unknown broker balance facts across the named read and landing summary without adding owner or financial inputs.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify the shipped native Schwab summary and holdings view use actual owned balances, retain failed-read dispositions and offer no unsupported live book writes.
@@ -47,13 +48,14 @@ test('a measured Schwab day change reaches the landing row; an unmeasured one st
 
 test('the actual account view offers holdings, preserves escaping and never fabricates a failed empty portfolio',() => {
   const src = fs.readFileSync(path.join(__dirname,'../tools/ui/view-accounts.js'),'utf8');
-  const nodes = {main:{innerHTML:''},nativeAccountBack:{}};
+  const nodes = {main:{innerHTML:'',querySelectorAll:()=>[]},nativeAccountBack:{},nativeStrategyAccount:{}};
   const context = vm.createContext({Date,console,BOOKS:[],ACCOUNTS:[],money:n => '$'+n,esc:s => String(s).replace(/[<>&"]/g,c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])),
-    $:id => nodes[id],navigate() {},spinner:() => '',dollarPctCell:() => '',bookLabel:String});
+    main:nodes.main,$:id => nodes[id],navigate() {},spinner:() => '',dollarPctCell:() => '',bookLabel:String});
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../tools/ui/native-account-controls.js'),'utf8'),context);
   vm.runInContext(src+'\nthis.view={tileHtml,nativeAccountView};',context);
   const model = {nativeReadOnly:true,notTrading:true,state:'ok',label:'Schwab …1234',kind:'live',equity:12500,cash:2500,accountType:'margin',positions:[{symbol:'<NVDA>',qty:20,marketValue:10000}]};
   const tile = context.view.tileHtml(model,0);
-  assert.match(tile,/CONNECTED/);assert.match(tile,/Open account/);assert.match(tile,/Open-position day P&amp;L/);assert.doesNotMatch(tile,/Create book|Start trading/);
+  assert.match(tile,/CONNECTED/);assert.match(tile,/Manage strategy/);assert.match(tile,/Open-position day P&amp;L/);assert.doesNotMatch(tile,/Create book|Start trading/);
   context.view.nativeAccountView(model);
   assert.match(nodes.main.innerHTML,/&lt;NVDA&gt;/);assert.match(nodes.main.innerHTML,/20/);assert.match(nodes.main.innerHTML,/10000/);
   assert.doesNotMatch(nodes.main.innerHTML,/Create book|Buy a stock/);

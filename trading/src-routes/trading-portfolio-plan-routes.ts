@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Read monthly signals only through the exact completed-month cutoff; current quotes and assessment/approval freshness remain independent.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Retain completed monthly decision date separately from latest evidence coverage in planning receipts.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Owner-isolated concrete rebalance previews and exact planning approvals. Acknowledged planning exceptions never override broker facts and never authorize an order, borrowing or changed live limits.
  */
@@ -7,6 +8,7 @@ import type {AppContext} from '@/app/composition/app-context';
 import {PortfolioError,type PortfolioProfile} from './trading-portfolio-model';
 import {normalizePortfolioStrategy,portfolioNextTargets} from './trading-portfolio-sim';
 import {portfolioHistory} from './trading-portfolio-history';
+import {portfolioSignalHistoryEnd} from './trading-portfolio-rotation';
 import {lastCompletedSession} from './trading-portfolio-calendar';
 import {buildRebalancePlan,type HoldingsScope} from './trading-portfolio-plan';
 import {planSymbols,readPlanQuotes} from './trading-portfolio-plan-evidence';
@@ -42,7 +44,7 @@ export function registerPortfolioPlanRoutes(route:PlanRouteRegister,ctx:AppConte
   const symbols=planSymbols(initial.account,config),latest=lastCompletedSession(at),start=new Date(Date.parse(latest+'T00:00:00Z')-110*86400000).toISOString().slice(0,10);
   busy.add(owner);
   try {
-   const [historical,quoted]=await Promise.allSettled([portfolioHistory(ctx,connection,config,start,latest,at),readPlanQuotes(ctx,connection,symbols)]);
+   const [historical,quoted]=await Promise.allSettled([portfolioHistory(ctx,connection,config,start,portfolioSignalHistoryEnd(config,latest),at),readPlanQuotes(ctx,connection,symbols)]);
    if(historical.status==='rejected')throw historical.reason;if(quoted.status==='rejected')throw quoted.reason;
    const history=historical.value,quoteEvidence=quoted.value;
    const created=deps.clock();if(lastCompletedSession(created)!==latest)throw new PortfolioError(409,'signal_session_changed','A new session completed while reading evidence. Prepare a fresh preview.');
@@ -50,9 +52,9 @@ export function registerPortfolioPlanRoutes(route:PlanRouteRegister,ctx:AppConte
    if(fingerprint(currentSymbols)!==fingerprint(symbols))throw new PortfolioError(409,'holdings_changed','The instrument roster changed while reading prices. Prepare a fresh preview.');
    const signal=portfolioNextTargets(config,history.series,latest);
    const result=buildRebalancePlan({account:current.account,profile:current.profile as PortfolioProfile|undefined,config,targets:signal.targets,signalAsOf:latest,quotes:quoteEvidence.quotes,scope,now:created});
-   const snapshot={accountSnapshot:current.account,profileSnapshot:current.profile??null,history,quoteEvidence,targets:signal.targets,signalDecisionAsOf:signal.decisionAsOf,rebalanceCadence:signal.rebalanceCadence};
+   const snapshot={accountSnapshot:current.account,profileSnapshot:current.profile??null,history,quoteEvidence,targets:signal.targets,signalDecisionAsOf:signal.decisionAsOf,signalEvidenceThrough:history.requestedEndDate,rebalanceCadence:signal.rebalanceCadence};
    const snapshotRecord=await saveRecord(ctx,owner,'plan-evidence',snapshot);
-   const data={...result,signalDecisionAsOf:signal.decisionAsOf,rebalanceCadence:signal.rebalanceCadence,constraints:current.constraints,accountId:run.accountId,connectionKey:run.connectionKey,accountLabel:current.profile?.label||current.account.label||current.account.accountMasked,
+   const data={...result,signalDecisionAsOf:signal.decisionAsOf,signalEvidenceThrough:history.requestedEndDate,rebalanceCadence:signal.rebalanceCadence,constraints:current.constraints,accountId:run.accountId,connectionKey:run.connectionKey,accountLabel:current.profile?.label||current.account.label||current.account.accountMasked,
     strategyId:run.strategyId,strategyName:run.strategy.name,strategyFingerprint:fingerprint(config),runId:run.id,runEvidenceFingerprint:run.evidenceFingerprint,
     backtest:{window:run.result.window,metrics:run.result.metrics},portfolioCoverage:current.report.coverage,
     evidence:{accountWitness:deps.witness(current.account,current.profile),snapshotId:snapshotRecord.id,snapshotFingerprint:fingerprint(snapshot),quoteEvidence,targets:signal.targets}};

@@ -4,6 +4,7 @@ exports.registerPortfolioPlanRoutes = registerPortfolioPlanRoutes;
 const trading_portfolio_model_1 = require("./trading-portfolio-model");
 const trading_portfolio_sim_1 = require("./trading-portfolio-sim");
 const trading_portfolio_history_1 = require("./trading-portfolio-history");
+const trading_portfolio_rotation_1 = require("./trading-portfolio-rotation");
 const trading_portfolio_calendar_1 = require("./trading-portfolio-calendar");
 const trading_portfolio_plan_1 = require("./trading-portfolio-plan");
 const trading_portfolio_plan_evidence_1 = require("./trading-portfolio-plan-evidence");
@@ -44,7 +45,7 @@ function registerPortfolioPlanRoutes(route, ctx, deps) {
         const symbols = (0, trading_portfolio_plan_evidence_1.planSymbols)(initial.account, config), latest = (0, trading_portfolio_calendar_1.lastCompletedSession)(at), start = new Date(Date.parse(latest + 'T00:00:00Z') - 110 * 86400000).toISOString().slice(0, 10);
         busy.add(owner);
         try {
-            const [historical, quoted] = await Promise.allSettled([(0, trading_portfolio_history_1.portfolioHistory)(ctx, connection, config, start, latest, at), (0, trading_portfolio_plan_evidence_1.readPlanQuotes)(ctx, connection, symbols)]);
+            const [historical, quoted] = await Promise.allSettled([(0, trading_portfolio_history_1.portfolioHistory)(ctx, connection, config, start, (0, trading_portfolio_rotation_1.portfolioSignalHistoryEnd)(config, latest), at), (0, trading_portfolio_plan_evidence_1.readPlanQuotes)(ctx, connection, symbols)]);
             if (historical.status === 'rejected')
                 throw historical.reason;
             if (quoted.status === 'rejected')
@@ -58,9 +59,9 @@ function registerPortfolioPlanRoutes(route, ctx, deps) {
                 throw new trading_portfolio_model_1.PortfolioError(409, 'holdings_changed', 'The instrument roster changed while reading prices. Prepare a fresh preview.');
             const signal = (0, trading_portfolio_sim_1.portfolioNextTargets)(config, history.series, latest);
             const result = (0, trading_portfolio_plan_1.buildRebalancePlan)({ account: current.account, profile: current.profile, config, targets: signal.targets, signalAsOf: latest, quotes: quoteEvidence.quotes, scope, now: created });
-            const snapshot = { accountSnapshot: current.account, profileSnapshot: current.profile ?? null, history, quoteEvidence, targets: signal.targets, signalDecisionAsOf: signal.decisionAsOf, rebalanceCadence: signal.rebalanceCadence };
+            const snapshot = { accountSnapshot: current.account, profileSnapshot: current.profile ?? null, history, quoteEvidence, targets: signal.targets, signalDecisionAsOf: signal.decisionAsOf, signalEvidenceThrough: history.requestedEndDate, rebalanceCadence: signal.rebalanceCadence };
             const snapshotRecord = await (0, trading_portfolio_store_1.saveRecord)(ctx, owner, 'plan-evidence', snapshot);
-            const data = { ...result, signalDecisionAsOf: signal.decisionAsOf, rebalanceCadence: signal.rebalanceCadence, constraints: current.constraints, accountId: run.accountId, connectionKey: run.connectionKey, accountLabel: current.profile?.label || current.account.label || current.account.accountMasked,
+            const data = { ...result, signalDecisionAsOf: signal.decisionAsOf, signalEvidenceThrough: history.requestedEndDate, rebalanceCadence: signal.rebalanceCadence, constraints: current.constraints, accountId: run.accountId, connectionKey: run.connectionKey, accountLabel: current.profile?.label || current.account.label || current.account.accountMasked,
                 strategyId: run.strategyId, strategyName: run.strategy.name, strategyFingerprint: (0, trading_portfolio_store_1.fingerprint)(config), runId: run.id, runEvidenceFingerprint: run.evidenceFingerprint,
                 backtest: { window: run.result.window, metrics: run.result.metrics }, portfolioCoverage: current.report.coverage,
                 evidence: { accountWitness: deps.witness(current.account, current.profile), snapshotId: snapshotRecord.id, snapshotFingerprint: (0, trading_portfolio_store_1.fingerprint)(snapshot), quoteEvidence, targets: signal.targets } };

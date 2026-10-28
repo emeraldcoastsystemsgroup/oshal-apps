@@ -25,6 +25,8 @@
 
 const tick = require('./paper/tick');
 const store = require('./paper/store');
+const books = require('./paper/books');
+const reports = require('./paper/report');
 const { nativeHost } = require('./paper/screen');
 
 /**
@@ -69,7 +71,7 @@ function header(req, name) {
  * @returns {Object<string, Function>} Handlers.
  */
 function paperHandlers(ctx, clock = () => new Date()) {
-  const deps = { pool: ctx && ctx.pool, intent: ctx && typeof ctx.intent === 'function' ? (name, input) => ctx.intent(name, input) : undefined, newId: ctx && ctx.newId };
+  const deps = { pool: ctx && ctx.pool, intent: ctx && typeof ctx.intent === 'function' ? (name, input) => ctx.intent(name, input) : undefined, newId: ctx && ctx.newId,readMarket:require('./paper/native-market').nativePaperMarket };
   return {
     async status(req) {
       const sub = callerOf(req);
@@ -82,8 +84,30 @@ function paperHandlers(ctx, clock = () => new Date()) {
     async disarm(req) { return { status: 200, body: await tick.disarmPaper(deps, callerOf(req), clock()) }; },
     async tick(req) {
       const trigger = header(req, 'x-oshal-trigger') === 'schedule' ? 'schedule' : 'manual';
-      return tick.runTick(deps, callerOf(req), { now: clock(), trigger, runId: header(req, 'x-oshal-run-id') });
+      const opts={ now: clock(), trigger, runId: header(req, 'x-oshal-run-id') };
+      const out=await tick.runTick(deps,callerOf(req),opts);
+      const namedBooks=await books.tickBooks(deps,callerOf(req),opts);
+      return namedBooks.length?{status:200,body:{...out.body,namedBooks}}:out;
     },
+    async books(req){
+      const sub=callerOf(req),rows=await books.listBooks(deps.pool,sub);
+      const accounts=await Promise.all(rows.map(async b=>({...b,account:await store.loadAccount(books.bookPool(deps.pool,b.book_ref),sub),config:await store.loadConfig(books.bookPool(deps.pool,b.book_ref),sub)})));
+      return {status:200,body:{ok:true,accounts,simulated:true}};
+    },
+    async createBook(req){return {status:200,body:await books.createBook(deps,callerOf(req),req.body,clock())};},
+    async reset(req){return {status:200,body:await books.resetPaper(deps,callerOf(req),req.body,clock())};},
+    async book(req){
+      const sub=callerOf(req),book=await books.getBook(deps.pool,sub,req.params.ref),pool=books.bookPool(deps.pool,book.book_ref);
+      const [account,config,positions,orders,decisions,ticks,series]=await Promise.all([store.loadAccount(pool,sub),store.loadConfig(pool,sub),store.loadPositions(pool,sub),store.listOrders(pool,sub),store.listDecisions(pool,sub),store.listTicks(pool,sub),store.equitySeries(pool,sub)]);
+      return {status:200,body:{ok:true,book,account,config,positions,orders,decisions,ticks,series,simulated:true}};
+    },
+    async bookArm(req){const sub=callerOf(req),ref=req.params.ref,book=await books.getBook(deps.pool,sub,ref);if(book.archived===true||book.archived==='t')return {status:409,body:{error:'paper_archived',message:'Restore this archived account before starting it.'}};return {status:200,body:await tick.armPaper({...deps,pool:books.bookPool(deps.pool,ref)},sub,req.body,clock())};},
+    async bookDisarm(req){const sub=callerOf(req),ref=req.params.ref;await books.getBook(deps.pool,sub,ref);return {status:200,body:await tick.disarmPaper({...deps,pool:books.bookPool(deps.pool,ref)},sub,clock())};},
+    async bookArchive(req){return {status:200,body:await books.setArchived(deps,callerOf(req),req.params.ref,true,clock())};},
+    async bookRestore(req){return {status:200,body:await books.setArchived(deps,callerOf(req),req.params.ref,false,clock())};},
+    async reports(req){return {status:200,body:{ok:true,reports:await reports.listReports(deps.pool,callerOf(req))}};},
+    async report(req){return {status:200,body:{ok:true,report:await reports.generateReport(ctx,callerOf(req),clock(),{scheduled:header(req,'x-oshal-trigger')==='schedule'})}};},
+    async presenter(req){return {status:200,body:await reports.savePreferences(deps.pool,callerOf(req),req.body,clock())};},
     async orders(req) { return { status: 200, body: { ok: true, orders: await store.listOrders(deps.pool, callerOf(req)) } }; },
     async decisions(req) { return { status: 200, body: { ok: true, decisions: await store.listDecisions(deps.pool, callerOf(req)) } }; },
   };
@@ -128,6 +152,17 @@ function createTradingPaperRoutes(ctx, makeRouter) {
   router.post('/tick', route('tick', h.tick));
   router.get('/orders', route('orders', h.orders));
   router.get('/decisions', route('decisions', h.decisions));
+  router.get('/books',route('books',h.books));
+  router.post('/books',route('create-book',h.createBook));
+  router.post('/reset',route('reset',h.reset));
+  router.get('/books/:ref',route('book',h.book));
+  router.post('/books/:ref/arm',route('book-arm',h.bookArm));
+  router.post('/books/:ref/disarm',route('book-disarm',h.bookDisarm));
+  router.post('/books/:ref/archive',route('book-archive',h.bookArchive));
+  router.post('/books/:ref/restore',route('book-restore',h.bookRestore));
+  router.get('/reports',route('reports',h.reports));
+  router.post('/reports',route('report',h.report));
+  router.post('/presenter',route('presenter',h.presenter));
   return router;
 }
 

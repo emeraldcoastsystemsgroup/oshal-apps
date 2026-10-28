@@ -7,6 +7,7 @@ exports.saveRecord = saveRecord;
 exports.removeRecord = removeRecord;
 exports.savePlanApprovalOnce = savePlanApprovalOnce;
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Declare separate owner-bound combined allocation/protection studies.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Declare owner-isolated position-backstop policy/state/study and expected-funding record kinds.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep heavy planning evidence separate from recent preview listings, count records without loading payloads, and preserve the first concurrent planning approval with insert-once semantics.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Persist owner-isolated immutable portfolio research and bounded mutable account declarations through the native governed SQL port.

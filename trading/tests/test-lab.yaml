@@ -1420,13 +1420,18 @@ cases:
 
   - id: native-automation-routes
     name: Account-bound monthly execution and broker fill recovery
-    purpose: Validate explicit mandate activation, repeat-safe monthly cycles, sequential fills, stop and uncertain-result recovery using a synthetic broker.
+    purpose: Validate explicit existing-holding adoption, measured debt and capital sizing, bounded allocation chunks, partial fills, renewal namespaces, later-study disclosure and stopped or uncertain execution using a synthetic broker.
     level: integration
     runner: { kind: node-test, scope: package, files: [tests/native-automation-routes.test.js] }
     expected:
       - Draft, forged, missing and foreign approvals cannot submit orders.
       - Working allocation or uncertain orders prevent new submissions; exact native protective orders retain their share reservations.
       - Stop works without successful broker account reads and leaves existing broker orders visible.
+      - Whole-account sales can repay existing debt while buys wait for verified funding; chunks never exceed native limits.
+      - Protective exits and manual holding changes prevent silent same-cycle reentry or resizing.
+      - Renewal uses the exact native approval; losing later studies remain visible in the financial review.
+      - Holding-specific stale quotes remain deferred and visible while independent sales proceed, largest reviewed dollar sales first.
+      - Unverified quote sources remain globally blocking, and deferred holdings cannot authorize buys beyond the capital cap.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: none }
@@ -1434,7 +1439,7 @@ cases:
     installation: never
 
   - id: native-position-backstops
-    name: Ratcheting position backstops and causal research
+    name: Ratcheting backstops and combined allocation research
     purpose: Validate every-position evidence, never-lower stop memory, prior-stop OHLC execution, gap fills, chronological research and owner-isolated expected funding without broker writes.
     level: integration
     runner: { kind: node-test, scope: package, files: [tests/native-backstops.test.js] }
@@ -1442,6 +1447,8 @@ cases:
       - Stale quotes, changed quantities and missing candles cannot invent protection or reset stops.
       - Today's high cannot retroactively tighten today's stop; a gap can fill below the trigger.
       - Pending funds never become current cash and no model check submits broker orders.
+      - Combined next-open allocations retain stop floors across partial sales, abort on stops, and carry positions through the chronological evaluation split.
+      - Explicit historical ends exclude later candles before comparison; conflicts inside the requested history still refuse and retain the exact session.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: none }
@@ -1457,6 +1464,7 @@ cases:
       - A foreign connection cannot resolve another account page.
       - Tracking and backtests never claim broker orders or spend expected funding.
       - Account pages remain usable on desktop and phone with no brokerage writes.
+      - Whole-account review shows existing debt and fractional holdings before separate synthetic personal activation; canceling leaves the approval inactive.
     prerequisites: [runner:node-test, browser:chromium]
     sideEffects: none
     isolation: { mode: none }
@@ -1476,5 +1484,68 @@ cases:
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: native-review-recovery
+    name: Saved financial reviews survive account reloads
+    purpose: Recover exact original-owner account and broker-stop drafts read-only, preserving terms while refusing expired, changed or unavailable native authority.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-review-recovery.test.js] }
+    expected:
+      - A second tab receives the exact reviewed cap and proposal without writing or activating a mandate.
+      - Foreign owners and account bindings cannot receive another account's saved review.
+      - Expired, stopped, mismatched and unavailable native drafts retain terms with activation disabled.
+      - Protective drafts must match the current policy and retain their research evidence.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: local-paper-books
+    name: Independent local paper accounts, recoverable restart and private reports
+    purpose: Exercise the unchanged paper accounting across multiple books, full archive-before-reset rollback and private report evidence with a disposable PostgreSQL fixture; verify actual desktop and phone controls.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/local-paper-books.test.js, tests/local-paper-market.test.js, tests/local-paper-browser.test.js, tests/report-activity.test.js] }
+    expected:
+      - Owners and books retain independent balances, fills, tick idempotency and archive state.
+      - A failed archive rolls the reset back; a retry cannot reset or disarm the new reference twice.
+      - Stale archive prices use only explicit read-only native market intents and incomplete candles never create history.
+      - Private reports distinguish every connected account’s real/manual/partial executions, daily local-paper fills, effective authority and historical backtests; incomplete history is explicit.
+      - Desktop and phone iframe controls create a paper account, require an explicit simulated reset confirmation and present a report.
+    prerequisites: [runner:node-test, dependency:pg, browser:chromium]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Close fixture servers and browsers and drop only UUID-named test databases on the explicit loopback PostgreSQL fixture. }
+    limits: { timeoutMs: 120000 }
+    installation: never
+
+  - id: native-watcher-exits
+    name: OSHAL trailing floors trigger reconciled extended-session limit exits
+    purpose: Exercise the saved backstop crossing through the actual owner watcher routes and review controls using synthetic brokerage receipts.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-watcher-exits.test.js, tests/native-watcher-exits-browser.test.js] }
+    expected:
+      - An after-hours crossing submits one sell limit with extended-session eligibility and repeated checks do not duplicate it.
+      - Partial fills and cancellations retain the original floor and cap remaining sales; stale or uncertain facts refuse.
+      - Desktop and phone iframe reviews show exact watcher authority and cancelling confirmation leaves it off.
+    prerequisites: [runner:node-test, browser:chromium]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: native-account-selection
+    name: Account-bound strategy selection and activation states
+    purpose: Verify that changing an account strategy cannot use another account or connection’s study, inherit an older activation review, or enable live trading.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-account-selection-browser.test.js] }
+    expected:
+      - Each account displays its own strategy, effective live authority and independent watcher state.
+      - Saving requires a completed study for the exact account and connection and leaves live execution inactive.
+      - Unsaved changes disable activation of older reviews and cancel restores the assigned selection.
+    prerequisites: [runner:node-test, browser:chromium]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Close synthetic fixture servers and browsers. }
     limits: { timeoutMs: 60000 }
     installation: never

@@ -1,4 +1,37 @@
+1.42.12 gives account strategy and watcher controls clear boundaries in light and dark themes. Account totals and shared watcher status sit above the two control cards; review and activation actions are distinct, and detailed execution evidence expands beneath compact approval terms. Accounts remains the portfolio dashboard and management stays in Strategies. Execution rules, saved terms and personal confirmations are unchanged.
+
+1.42.11 restores the Accounts dashboard’s balance cards, watchlist and combined holdings. Strategies opens Account strategies directly, with per-account value, assignment, live authority and watcher status. Manage strategy stays under Strategies; an account selector, section navigation and bookmarkable exact account/connection keep the controls reachable. Strategy research and Futures research remain separate sections. This release changes presentation and navigation only; all execution and authorization rules are unchanged.
+
+1.42.8 includes every connected Schwab account in the OSHAL report’s trade recap, including manual and partially filled trades. Today’s executions are shown by account; recent broker history is retained with its 60-day order-entry coverage and missing-data exceptions. Realized tax-lot profit and fees are not inferred. Local paper fills remain separate.
+
 # Intelligent Trades (`trading/`)
+
+1.42.7 adds **Reports → Local paper accounts** and the private **OSHAL report**.
+Named paper accounts reuse the native paper engine, accounting and decision ledger.
+They keep cash and positions locally; no Alpaca trading account is required. Each
+account has separate capital, posture, holdings, fills and tick idempotency. The
+shared person-activated paper schedule visits armed accounts during regular US
+sessions. Archive and Restore retain history; restoring leaves a book stopped
+until Start is selected. The reference-book restart archives every old ledger row
+in one transaction before starting the new cash balance and performance window.
+
+Paper market reads use fresh platform archive data and, when its prices/history
+are inadequate, the connected native Schwab **read-only** quote/candle service.
+Fallback candle reads are bounded to 24 symbols per pass with held names first;
+unscanned, missing and stale data remain exceptions. The source is recorded on
+each tick. There is no simulated fill without an eligible observed price and
+enough indicator history. These are paper results, not evidence of broker fills.
+
+The OSHAL report saves private owner-scoped snapshots of real accounts, effective
+native strategy/exit authority, exact completed research windows and separate
+local-paper performance. Its optional person schedule runs at 5:05 p.m. Central
+on weekdays. Refresh creates a report directly; no satellite desktop worker is
+needed. The themed presentation has slides, an editable presenter name, a script,
+local-only browser narration and a private JSON download. An optional private Video
+Studio clip supplies reusable presenter footage, played silently alongside current
+results and narration. No account data is uploaded for voice generation or published
+to an external site.
+The older Daily Trade Recap video pipeline remains a separate application.
 
 Signal-justified stock trading (ADR-052) — carved out of OSHAL core 2026-07-20
 (ADR-085 Wave 3, "skill with a surface"). **Install by directory name:**
@@ -7,17 +40,40 @@ Signal-justified stock trading (ADR-052) — carved out of OSHAL core 2026-07-20
 `?app=intelligent-trades` URLs, the default tile, guest-tier records, and the
 `intelligent-trades` queue id survive unchanged.
 
+## Watcher-managed moving exits (1.42.5)
+
+The existing account watcher maintains the observed trailing peak and floor. A separately reviewed
+watcher-exit policy latches a fresh bid crossing and submits an ordinary sell-only DAY limit with
+extended-session eligibility. It checks every minute, including outside regular hours, while
+monthly allocation checks retain their five-minute cadence and regular-session authority.
+
+The crossing, floor and original quantity survive restarts, partial fills and repricing. Only the
+watcher's own acknowledged exit limits can be cancelled for repricing; cancellation must be
+confirmed before another sale. Existing broker stops and manual orders retain their reservations.
+Quantity changes need matching native fills or newly reviewed holdings; unexplained adjustments
+retain their prior floor and require reconciliation.
+Unknown acknowledgements prevent duplicate submissions. Fresh real-time bids, positive bid size,
+a 30-second quote age, a 1% spread ceiling and a 1% bid price allowance are required. Each ticket
+is capped at $50,000 and the policy retains the eight-attempts-per-five-minutes limit. Purchases,
+new borrowing and shorting require different authority and are unavailable through this policy.
+
+Broker-held trailing protection remains a separate execution option. Saved reviews state which
+mode is being approved. Observed floors are retained when the watcher starts; fractional shares,
+unavailable quotes and conflicting reservations remain visible exceptions. A limit can remain
+unfilled, and venue availability governs execution. Daily-bar research does not reconstruct
+extended-session quote paths or actual fills.
+
 ## Native monthly strategy management (1.38.0)
 
 The Strategies screen binds an owned completed backtest to its exact whole-share monthly model
 and a single Schwab account. A monitor is review-only until the person separately approves the
-kernel-held real-money mandate and activates their own watcher schedule. Initial enrollment
-requires a flat account and verified available cash. The reviewed mandate names the account,
+kernel-held real-money mandate and activates their own watcher schedule. Strategy-owned enrollment requires a flat account and verified cash; separately reviewed whole-account
+enrollment can adopt existing measured long holdings using net-equity capital. The reviewed mandate names the account,
 model and backtest fingerprints, allowed instruments, cash capital cap, daily turnover ceiling,
 30-day expiry and exact installed application revision. A source or model change needs reapproval.
 No borrowing, shorts, options, or intraday protective stops are enabled by this mandate.
 
-The watcher runs every five minutes, executes one regular-session day-limit order at a time,
+Monthly allocation runs every fifth minute and executes one regular-session day-limit order at a time,
 records each attempt before contacting the broker and reconciles actual working orders and fills
 before proceeding. It retains one immutable plan per completed monthly signal. Repeated ticks
 cannot re-trade a completed cycle. Unknown attempts, incomplete fills, expired/rejected orders,
@@ -68,6 +124,21 @@ session-count/borrowing knobs cannot silently alter these fixed rules. Full warm
 history/quotes are mandatory. Planning receipts distinguish evidence coverage from the monthly
 decision date. Provider daily-price backtests exclude distributions and cannot reproduce a
 separate adjusted-total-return study exactly. Neither model adds live brokerage execution.
+
+Account pages also compare the assigned strategy with six fixed moving-stop trails,
+allocation alone, SPY, DIA and cash. Training selects a trail before later evaluation;
+the later period carries forward positions, cash and stop ratchets. These whole-share,
+next-open daily simulations do not reconstruct current legacy holdings, continuous intraday
+broker ratchets, or order-replacement behavior. Historical study end dates are explicit;
+conflicting prices inside the requested history refuse the study. Candles after that end
+cannot enter or invalidate it, and the latest completed session remains separately visible.
+
+Monthly live reviews and monitoring read through the completed-month decision cutoff used
+by their next-session rule. They retain the latest assessment date and independently refresh
+quotes, holdings, funding, orders and native authority. A current-month candle is not an
+input to the prior-month signal. Daily models continue to require their latest daily inputs.
+Aggregate automatic-trading status counts only accounts with fresh effective native authority.
+Research, monitoring and saved proposals do not activate broker trading or protection.
 
 Open **Strategies** for all reported holdings, confirmed account categories, combined holding
 concentration, and saved research strategies/backtests. Real account capital excludes paper.
@@ -1324,3 +1395,7 @@ all passed without skips and with verified cleanup, artifact `756b740c5e78` befo
 documentation-only update. See BACKLOG.md T5 for remaining native market-data scope.
 Provider contract: https://finnhub.io/docs/api/company-news and the official client
 https://github.com/Finnhub-Stock-API/finnhub-go/blob/master/api/openapi.yaml.
+
+Whole-account transition reviews list eligibility for every action. Explicit stale-quote, timestamp, fractional and reserved-protection exceptions stay with the affected holding; unverified quote sources, unknown orders, authority failures and buy-funding checks remain blocking. Larger reviewed dollar sales run first, one broker request at a time after reconciliation. Deferred positions remain pending and visible; a cycle is not reported complete while they remain.
+
+Account management restores the original owner’s latest exact strategy and broker-stop reviews across reloads and cockpit tabs, including the reviewed capital cap and management scope. Expired or unavailable drafts stay visible with activation disabled and an explicit refresh action. Execution controls use the shared theme tokens and appear before research. A page read never prepares a new mandate, activates authority or submits an order.

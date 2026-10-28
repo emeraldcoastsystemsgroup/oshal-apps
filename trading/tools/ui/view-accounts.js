@@ -17,6 +17,7 @@
  * 'Total of the N accounts that answered' and names what is not included.
  *
  * CHANGE LOG
+ * 2026-10-27 | maintainer@emeraldcoastsystemsgroup.com | Preserve the Accounts dashboard and place exact account strategy controls under Strategies with consistent section navigation.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -193,12 +194,12 @@ function tileHtml(m, i) {
   const day = loading ? '…' : (m.state !== 'ok' ? '—' : (m.dayChange == null ? '<span class="foot">n/a</span>' : dollarPctCell(m.dayChange, m.dayChangePct)));
   const note = (m.state === 'error' || m.state === 'unavailable') ? '<div class="err" style="font-size:12px">' + esc(m.note) + '</div>'
     : m.state === 'idle' ? '<div class="foot" style="font-size:12px;margin:0">' + esc(m.note) + '</div>' : '';
-  const strat = m.nativeReadOnly ? '<span class="foot">Open account holdings, strategy, research and protection status.</span>' : m.notTrading
+  const strat = m.nativeReadOnly ? '<span class="foot">Strategy and watcher controls are in Strategies.</span>' : m.notTrading
     ? '<span class="foot">No book yet — create one to trade this account (it starts disabled).</span>'
     : m.nativePaper ? 'Paper autopilot: ' + (m.nativePaper.armed ? '<span class="ok">armed</span>' : '<span class="foot">off</span>')
     : tileStrategyText(m.strategy) +
       (m.ref && ACCT_EVENT_REFS.has(m.ref) ? '<div style="margin-top:4px"><span class="pill warn" style="margin:0;border-color:var(--warn)" title="An event playbook (IPO plan) is armed on this account">IPO plan armed</span></div>' : '');
-  const actions = m.nativeReadOnly ? '<button class="btn sm primary" data-act="open">Open account →</button>' : m.notTrading
+  const actions = m.nativeReadOnly ? '<button class="btn sm primary" data-act="open">Manage strategy →</button>' : m.notTrading
     ? '<button class="btn sm ghost" data-act="create">Create book…</button>'
     : '<button class="btn sm primary" data-act="open">Open account →</button>' +
       (m.kind === 'live' && m.bookId ? '<button class="btn sm ghost" data-act="toggle">' + (m.enabled ? 'Stop trading' : 'Start trading…') + '</button>' : '');
@@ -282,7 +283,7 @@ function requestBook(accountId, label) {
  */
 function tileAction(tile, action) {
   const m = ACCT_TILES[Number(tile.getAttribute('data-i'))]; if (!m) return;
-  if (m.nativeReadOnly) { nativeAccountView(m); return; }
+  if (m.nativeReadOnly) { NATIVE_STRATEGY_ACCOUNTS=ACCT_TILES.filter(a=>a.nativeReadOnly);nativeAccountView(m); return; }
   if (action === 'create' || m.notTrading) { requestBook(m.accountId, discoveredLabel(m.accountType, m.accountMasked, m.label)); return; }
   if (action === 'toggle') {
     if (typeof toggleBook === 'function') toggleBook(m.bookId, !m.enabled);
@@ -541,25 +542,28 @@ async function renderAccountsView(token) {
   if (stale(token)) return;
   mergeSummaryIntoTiles(models, summary);
   paintTiles(models); paintHero(summary, null, models); paintRollup(summary, null);
-  if (typeof showFocusedNativeAccount === 'function') showFocusedNativeAccount(models);
+  if (typeof showFocusedNativeAccount === 'function' && showFocusedNativeAccount(models)) return;
 }
 
 /** Show the current caller's real holdings without offering unsupported live order controls. */
 function nativeAccountView(model) {
   if (typeof RENDER_TOKEN === 'number') RENDER_TOKEN += 1;
+  main.onclick = null; main.onchange = null; main.onsubmit = null;
   if (typeof setNativeAccountAddress === 'function') setNativeAccountAddress(model);
   if (model.state !== 'ok') {
-    $('main').innerHTML = '<div class="panel"><button class="btn ghost sm" id="nativeAccountBack">← All accounts</button><h2>Schwab account unavailable</h2><p class="err">' + esc(model.note || 'The account read did not complete. Refresh or check your connection.') + '</p></div>';
-    $('nativeAccountBack').onclick = () => navigate('accounts', {sub:null});
+    $('main').innerHTML = nativeStrategyNavigation()+'<div class="panel"><button class="btn ghost sm" id="nativeAccountBack">← All account strategies</button><h2>Schwab account unavailable</h2><p class="err">' + esc(model.note || 'The account read did not complete. Refresh or check your connection.') + '</p></div>';
+    wireNativeStrategyNavigation();$('nativeAccountBack').onclick = () => navigate('strategies', {sub:'accounts'});
     return;
   }
   const rows = (model.positions || []).map(p => '<tr><td>' + esc(p.symbol) + '</td><td>' + esc(String(p.qty)) + '</td><td>' + money(p.marketValue) + '</td></tr>').join('');
-  $('main').innerHTML = '<div class="panel"><button class="btn ghost sm" id="nativeAccountBack">← All accounts</button><h2>' + esc(model.label) + '</h2><p class="foot">Connected Schwab account · strategy authority and protection status are shown below.</p><div class="t-eq">' + money(model.equity) + '</div><p>Cash: ' + money(model.cash) + '</p><button class="btn sm" id="nativeHistoryOpen">View execution history</button> <button class="btn sm" id="nativeReconcileOpen">Reconcile ledger</button><div style="overflow-x:auto"><table><thead><tr><th>Symbol</th><th>Quantity</th><th>Market value</th></tr></thead><tbody>' + (rows || '<tr><td colspan="3">Schwab reports no open positions.</td></tr>') + '</tbody></table></div></div>';
-  $('nativeAccountBack').onclick = () => navigate('accounts', {sub:null});
+  const choices=NATIVE_STRATEGY_ACCOUNTS.some(a=>nativeAccountsMatch(a,model))?NATIVE_STRATEGY_ACCOUNTS:[model];
+  $('main').innerHTML = nativeStrategyNavigation()+'<div class="panel native-account-breadcrumb"><button class="btn ghost" id="nativeAccountBack">← All account strategies</button><label>Manage strategy for<select id="nativeStrategyAccount">'+choices.map((a,i)=>'<option value="'+i+'"'+(nativeAccountsMatch(a,model)?' selected':'')+'>'+esc(a.label)+'</option>').join('')+'</select></label><strong>'+esc(model.label)+'</strong><span class="sub">Schwab · REAL MONEY</span></div><div id="nativeAccountManagement"><section class="panel">Reading this account’s strategy and watcher status…</section></div><details class="panel native-secondary" id="nativeAccountHoldings"><summary>Holdings &amp; execution history</summary><div class="native-form-actions"><button class="btn" id="nativeHistoryOpen">View execution history</button><button class="btn" id="nativeReconcileOpen">Reconcile ledger</button></div><div style="overflow-x:auto"><table><thead><tr><th>Symbol</th><th>Quantity</th><th>Market value</th></tr></thead><tbody>'+(rows||'<tr><td colspan="3">Schwab reports no open positions.</td></tr>')+'</tbody></table></div></details>';
+  wireNativeStrategyNavigation();
+  $('nativeAccountBack').onclick = () => navigate('strategies', {sub:'accounts'});
+  $('nativeStrategyAccount').onchange=e=>{const account=choices[Number(e.target.value)];if(account)nativeAccountView(account);};
   if ($('nativeHistoryOpen')) $('nativeHistoryOpen').onclick = () => nativeHistoryView(model);
   if ($('nativeReconcileOpen')) $('nativeReconcileOpen').onclick = () => nativeReconciliationView(model);
   if (typeof loadNativeAccountManagement === 'function') {
-    $('main').insertAdjacentHTML('beforeend','<div id="nativeAccountManagement"><p>Loading this account’s strategy, backstops and management evidence…</p></div>');
     loadNativeAccountManagement(model,RENDER_TOKEN);
   }
 }
@@ -568,7 +572,7 @@ function nativeAccountView(model) {
 async function nativeHistoryView(model) {
   const token = RENDER_TOKEN;
   $('main').innerHTML = '<div class="panel"><button class="btn ghost sm" id="historyBack">← Holdings</button><h2>' + esc(model.label) + ' execution history</h2><p id="nativeHistoryStatus">Reading the last year of Schwab equity fills…</p><div id="nativeHistoryBody"></div></div>';
-  $('historyBack').onclick = () => { ++RENDER_TOKEN; nativeAccountView(model); };
+  $('historyBack').onclick = () => { ++RENDER_TOKEN; nativeAccountView(model); $('nativeAccountHoldings').open=true; };
   const host = $('nativeHistoryBody');
   try {
     if (!model.accountId || !model.connectionKey) throw new Error('The account connection is unavailable. Refresh the Accounts page.');
@@ -611,7 +615,7 @@ async function nativeHistoryView(model) {
 async function nativeReconciliationView(model) {
   const token=RENDER_TOKEN;
   $('main').innerHTML='<div class="panel"><button class="btn ghost sm" id="reconcileBack">← Holdings</button><h2>'+esc(model.label)+' ledger reconciliation</h2><p>Compare the native historical ledger with current Schwab holdings and the last year of executions. Corrections record past sales; they do not place orders or turn on trading. Legacy automation has a separate ledger.</p><div id="nativeReconcileBody" role="status">Verifying account, book and execution history…</div></div>';
-  $('reconcileBack').onclick=()=>{++RENDER_TOKEN;nativeAccountView(model);};
+  $('reconcileBack').onclick=()=>{++RENDER_TOKEN;nativeAccountView(model);$('nativeAccountHoldings').open=true;};
   const host=$('nativeReconcileBody'),selector={accountId:model.accountId,connection:model.connectionKey};
   const current=()=>!stale(token)&&$('nativeReconcileBody')===host;
   try {

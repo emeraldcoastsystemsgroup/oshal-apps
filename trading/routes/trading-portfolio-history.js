@@ -29,11 +29,13 @@ async function portfolioHistory(ctx, connection, strategy, start, end, now = new
             if (answer.symbol !== symbol || answer.source !== 'schwab' || !Array.isArray(answer.bars) || answer.bars.length > 10000)
                 throw new trading_portfolio_model_1.PortfolioError(502, 'history_invalid', `${symbol} history did not provide the expected source and symbol.`);
             for (const bar of answer.bars) {
-                if ((0, trading_portfolio_model_1.measured)(bar.t) === null || (0, trading_portfolio_model_1.measured)(bar.c) === null || bar.c <= 0)
-                    throw new trading_portfolio_model_1.PortfolioError(502, 'history_invalid', `${symbol} contains malformed daily prices.`);
+                if ((0, trading_portfolio_model_1.measured)(bar.t) === null)
+                    throw new trading_portfolio_model_1.PortfolioError(502, 'history_invalid', `${symbol} contains a malformed daily timestamp.`);
                 const date = new Date(bar.t * 1000).toISOString().slice(0, 10);
-                if (date > latest)
+                if (date > end)
                     continue;
+                if ((0, trading_portfolio_model_1.measured)(bar.c) === null || bar.c <= 0)
+                    throw new trading_portfolio_model_1.PortfolioError(502, 'history_invalid', `${symbol} contains malformed daily prices.`);
                 const old = rows.get(date);
                 if (old !== undefined && old !== bar.c)
                     throw new trading_portfolio_model_1.PortfolioError(409, 'history_changed', `${symbol} history changed between reads. Retry the backtest.`);
@@ -48,5 +50,5 @@ async function portfolioHistory(ctx, connection, strategy, start, end, now = new
         if (failed)
             throw failed.reason;
     }
-    return { series, source: 'schwab', readAt: now.toISOString(), lastCompletedSession: latest, priceBasis: 'provider daily closes; no total-return adjustment asserted' };
+    return { series, source: 'schwab', readAt: now.toISOString(), lastCompletedSession: latest, requestedEndDate: end, priceBasis: 'provider daily closes; no total-return adjustment asserted' };
 }

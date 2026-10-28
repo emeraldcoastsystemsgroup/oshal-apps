@@ -17,7 +17,8 @@ async function host(t,native=true,congress=false){
   app.get('/api/trading/reports/congress',async(req,res)=>res.json(req.query.candidate==='long-term'?await require('../routes/trading-congress-candidates').readCongressCandidates(fixture.ctx,new Date('2026-10-25T12:00:00Z')):{status:'ok',rows:[],trades:[trade]}));
  }
 
- app.get('/api/trading/accounts',(_req,res)=>res.json({nativeReadOnly:native,accounts:[],books:[]}));
+ app.get('/api/trading/accounts',(_req,res)=>res.json({nativeReadOnly:native,accounts:native?fixture.accounts:[],books:[]}));
+ app.get('/api/trading/summary',(_req,res)=>res.json({accounts:fixture.accounts.map(a=>({...a,label:'Account '+a.accountMasked,nativeReadOnly:true,notTrading:true})),positions:[]}));
  app.get('/api/trading/status',(_req,res)=>res.json({liveEnabled:false,paperConfigured:false,liveConfigured:false,guardrails:{}}));
  app.get('/api/trading/autopilot/futures',(_req,res)=>res.json({native:true,schedule:null,runs:[],note:'Synthetic unsaved study fixture.'}));
  app.get('/api/trading/autopilot/futures/predictions',(_req,res)=>res.json({predictions:[],summary:{}}));
@@ -40,16 +41,39 @@ test('native Portfolio and Futures research remain reachable through buttons and
  for(const width of [1280,390]){
   const context=await browser.newContext({viewport:{width,height:900}}),page=await context.newPage(),errors=[],requests=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push({method:r.method(),path:new URL(r.url()).pathname}));
-  await page.goto(base+'/api/trading/?view=strategies');await page.getByRole('heading',{name:'Saved strategies',exact:true}).waitFor();
+  await page.goto(base+'/api/trading/?view=accounts');await page.locator('#tiles .tile').waitFor();
+  assert.equal(await page.locator('#nativeAccountOverview').count(),0,'dashboard keeps its balance tiles');
+  assert.match(await page.locator('#tiles').innerText(),/10,000/);
+  await page.locator('#nav').getByRole('button',{name:'Strategies',exact:true}).click();
+  await page.getByRole('heading',{name:'Account strategies',exact:true}).waitFor();
+  await page.getByRole('link',{name:'Manage strategy',exact:true}).click();
+  await page.getByRole('heading',{name:'Trading strategy',exact:true}).waitFor();
+  assert.equal(await page.locator('#nav button.on').innerText(),'Strategies');
+  assert.equal(new URL(page.url()).searchParams.get('view'),'strategies');
+  assert.equal(new URL(page.url()).searchParams.get('account'),'a');
+  await page.reload();await page.getByRole('heading',{name:'Trading strategy',exact:true}).waitFor();
+  assert.equal(await page.locator('#nav button.on').innerText(),'Strategies');
+  await page.getByRole('button',{name:'← All account strategies',exact:true}).click();
+  await page.getByRole('heading',{name:'Account strategies',exact:true}).waitFor();
+  assert.equal(new URL(page.url()).searchParams.has('account'),false);
+  await page.getByRole('button',{name:'Strategy research',exact:true}).click();
+  await page.getByRole('heading',{name:'Strategy research',exact:true}).waitFor();
   await page.getByRole('button',{name:'Futures research →',exact:true}).click();
   await page.getByText('No Futures study saved yet.',{exact:false}).waitFor();
   assert.equal(await page.locator('#futSave').isVisible(),true);assert.equal(await page.locator('#optRunBtn').count(),0);
   assert.equal(await page.locator('#futSource').inputValue(),'schwab');assert.equal(await page.locator('#futSource').isDisabled(),true);assert.equal(await page.locator('#futCron').isVisible(),false);assert.match(await page.locator('#tabbody').innerText(),/02:15 New York, Tuesday through Saturday/);assert.equal(new URL(page.url()).searchParams.get('sub'),'tuning');
-  await page.getByRole('button',{name:'Portfolio review',exact:true}).click();await page.getByRole('heading',{name:'Saved strategies',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Portfolio review',exact:true}).click();await page.getByRole('heading',{name:'Strategy research',exact:true}).waitFor();
   for(const query of ['?view=strategies&sub=tuning','?tab=tuning']){
    await page.goto(base+'/api/trading/'+query);await page.getByText('No Futures study saved yet.',{exact:false}).waitFor();
    assert.equal(await page.locator('#futSave').isVisible(),true);assert.equal(await page.locator('#optRunBtn').count(),0);
   }
+  await page.getByRole('button',{name:'Strategy research',exact:true}).click();
+  await page.getByRole('heading',{name:'Strategy research',exact:true}).waitFor();
+  await page.locator('#nav').getByRole('button',{name:'Accounts',exact:true}).click();await page.locator('#tiles .tile').waitFor();
+  await page.locator('#nav').getByRole('button',{name:'Strategies',exact:true}).click();await page.getByRole('heading',{name:'Account strategies',exact:true}).waitFor();
+  const beforeOpen=requests.filter(r=>r.path==='/api/trading/portfolio').length;
+  await page.getByRole('link',{name:'Manage strategy',exact:true}).click();await page.getByRole('heading',{name:'Trading strategy',exact:true}).waitFor();
+  assert.equal(requests.filter(r=>r.path==='/api/trading/portfolio').length-beforeOpen,1,'a handler from research cannot reopen the account with stale context');
   assert.equal(requests.some(r=>r.path==='/api/trading/recommendations-tuning'||r.path==='/api/trading/params'),false,'native research never calls the legacy optimizer');
   assert.ok(requests.every(r=>r.method==='GET'),'navigation cannot save, arm, run or stop a study');
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'no horizontal overflow at '+width);assert.deepEqual(errors,[]);await context.close();
@@ -75,7 +99,7 @@ test('dedicated Congress tab opens a source-bound candidate draft, saves it and 
   const saved=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/portfolio/strategies')&&r.request().method()==='POST');await f.getByRole('button').click();
   assert.equal(await page.locator('#portfolioNotice.err').count(),0,await page.locator('#portfolioNotice').innerText());assert.deepEqual(errors,[]);
   const sr=await saved;assert.equal(sr.status(),200);const strategy=(await sr.json()).strategy;assert.equal(strategy.universeEvidence.selectedFilings[0].symbol,'ABC');assert.equal(strategy.universeEvidence.historicalCongressStrategyValidated,false);
-  await page.getByText(/Saved\. No broker/).waitFor();const form=page.locator('form[data-portfolio="backtest"]');await form.locator('[name=strategyId]').selectOption(strategy.id);
+  await page.getByText(/Saved\. No broker/).waitFor();await page.getByText('Historical backtests & results',{exact:true}).click();const form=page.locator('form[data-portfolio="backtest"]');await form.locator('[name=strategyId]').selectOption(strategy.id);
   const response=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/portfolio/backtest')&&r.request().method()==='POST');await form.getByRole('button').click();
   const run=(await (await response).json()).run;assert.equal(run.status,'completed');assert.equal(run.result.model,'portfolio-monthly-v2');assert.equal(run.result.realOrdersPlaced,0);assert.match(run.result.assumptions.join(' '),/not a point-in-time backtest/);
   await page.locator('#portfolioRunDetail svg').waitFor();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.deepEqual(errors,[]);await context.close();

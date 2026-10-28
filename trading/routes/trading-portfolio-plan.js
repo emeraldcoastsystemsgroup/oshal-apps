@@ -4,6 +4,7 @@ exports.canonicalPlanSymbol = exports.PLANNING_CAPS = void 0;
 exports.planQuoteStatus = planQuoteStatus;
 exports.buildRebalancePlan = buildRebalancePlan;
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Optional internal buy-price sizing reserve keeps whole-share execution within its limit-price cap without changing reported trade prices.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Include the defensive fund and full calendar-month warmup in version2 rotation research and planning.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Calculate concrete, non-executing rebalance previews from measured holdings, completed-session targets and timestamped trade quotes. Separate planning exceptions from broker capacity and never authorize orders or borrowing.
  */
@@ -53,6 +54,7 @@ function planQuoteStatus(q, now, latest = (0, trading_portfolio_calendar_1.lastC
  */
 function buildRebalancePlan(input) {
     const config = (0, trading_portfolio_sim_1.normalizePortfolioStrategy)(input.config), account = input.account, now = input.now;
+    const buyPriceBufferBps = finite(input.buyPriceBufferBps ?? 0, 'Buy-price sizing reserve', 0, 1000);
     if (!['preserve-other-holdings', 'whole-account'].includes(input.scope))
         throw new trading_portfolio_model_1.PortfolioError(400, 'plan_scope_invalid', 'Choose whether to preserve holdings outside the strategy or rebalance the whole account.');
     if (input.signalAsOf !== (0, trading_portfolio_calendar_1.lastCompletedSession)(now))
@@ -119,7 +121,8 @@ function buildRebalancePlan(input) {
     const compute = (feeGuess) => required.map(symbol => {
         const p = held.get(symbol), qty = p?.qty ?? 0, px = price(symbol), preserve = input.scope === 'preserve-other-holdings' && !configured.has(symbol);
         const targetValue = preserve ? qty * px : Math.max(0, allocationBase - feeGuess) * config.grossExposurePct / 100 * (weights.get(symbol) ?? 0) / 100;
-        const delta = preserve ? 0 : config.fractionalShares ? units(targetValue / px - qty) : Math.max(-Math.floor(qty), Math.floor(targetValue / px - qty));
+        const rawDelta = (targetValue / px - qty) / (targetValue > qty * px ? 1 + buyPriceBufferBps / 10000 : 1);
+        const delta = preserve ? 0 : config.fractionalShares ? units(rawDelta) : Math.max(-Math.floor(qty), Math.floor(rawDelta));
         const proposedQty = Math.max(-qty, delta), after = qty + proposedQty, notional = Math.abs(proposedQty * px), fee = notional * rate;
         return { symbol, currentQty: qty, changeQty: proposedQty, afterQty: after, referencePrice: px, tradeAt: quotes.get(symbol).tradeAt,
             action: preserve ? 'preserve' : proposedQty > 0 ? 'buy' : proposedQty < 0 ? 'sell' : 'hold', targetWeightPct: weights.get(symbol) ?? 0,
@@ -207,7 +210,8 @@ function buildRebalancePlan(input) {
             assumedMarginAprPct: config.marginAprPct, modeledAnnualInterestUsd: modeledBorrowingAfter <= 0.005 ? 0 : config.marginAprPct === null ? null : money(modeledBorrowingAfter * config.marginAprPct / 100), projectedBrokerMaintenanceRequirement: null },
         execution: { available: false, realOrdersPlaced: 0, borrowingAuthorized: false, liveLimitsChanged: false,
             blockers: ['Native brokerage execution is unavailable.', 'Broker instrument eligibility, tax lots and any pretrade margin/maintenance assessment are not established by this planning preview.'] },
-        assumptions: ['Targets use completed-session signals from the saved research model; prices are timestamped reference trades, not executable quotes.',
+        ...(buyPriceBufferBps ? { buyPriceBufferBps } : {}),
+        assumptions: [...(buyPriceBufferBps ? [`Whole-share buy sizing reserves ${buyPriceBufferBps}bps above the measured trade; the reported trade price is unchanged.`] : []), 'Targets use completed-session signals from the saved research model; prices are timestamped reference trades, not executable quotes.',
             'Weights apply to the strategy allocation base after modeled transaction costs; holdings outside the strategy are preserved unless the whole-account scope is explicitly chosen.',
             'Whole-share rounding, current holdings and post-cost sizing can differ from the historical fresh-cash run.',
             'Derived financing cash is equity minus reported holding value, not an assertion of broker debit balance. Funding approval requires the measured broker facts shown above.',

@@ -1,7 +1,12 @@
 # CHANGE LOG
+# 17 | maintainer@emeraldcoastsystemsgroup.com | Clear account totals, visible form controls and compact strategy and watcher activation reviews in light and dark themes.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | Restore the Accounts dashboard and make strategy assignment and watcher controls directly reachable from Strategies.
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Explicit historical research ends and native-bound extended history; monthly signals use their actual completed-month cutoff while current broker checks stay fresh.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Combined next-open strategy and moving-stop studies with chronological selection, continuous later evaluation, allocation-only/SPY/DIA/cash comparisons and no new financial authority.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Exact account-page whole-account review, debt-aware sizing, later-study disclosure and fill-reconciled bounded allocation chunks.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Fresh native strategy authority, per-invocation submission receipts and exact protective-study evidence on account pages.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Account management pages, ratcheting position-backstop research and original-owner expected funding, with separate model and broker protection states.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | TRADE-01 native paper autopilot: migrations/002-native-paper.sql, the /api/trading/paper mount (routes/trading-paper-routes.js) and the person-activated paper-autopilot schedule. Version unchanged.
@@ -105,7 +110,7 @@ description: >-
   Research stocks, track connected brokerage accounts and test strategies in a separate
   paper book, with a decision trail from signals to orders. Trading actions follow the
   connected account's supported controls. Cash equities. No crypto.
-version: 1.40.2
+version: 1.42.12
 status: active
 
 source:
@@ -549,6 +554,9 @@ migrations:
   - migrations/005-native-futures-reviews.sql
   - migrations/006-native-futures-predictions.sql
   - migrations/007-native-portfolio.sql
+  - migrations/008-local-paper-books.sql
+  - migrations/009-native-oshal-reports.sql
+  - migrations/010-report-presenter-media.sql
 
 routes:
   - module: routes/home-summary.js
@@ -604,12 +612,23 @@ routes:
 
 # TRADE-01: the native paper autopilot. A PERSON job: each person who arms their paper book activates
 # it for themselves (the trading page makes the person's own POST /api/v1/agent/schedules/{id}/activate
-# with class person), and the kernel fires the tick as that person every five minutes of the New York
-# session. The tick refuses when the person has not armed, writes nothing outside the regular session,
-# and is idempotent per five-minute window. Deterministic: no model runs in the tick.
+# with class person). The same watcher checks explicitly approved trailing exits every minute;
+# monthly allocation work runs every fifth minute and retains its regular-session mandate.
+# Triggered exits retain their floor and native attempt ledger. No model inference runs in the tick.
 schedules:
+  - id: oshal-daily-report
+    cron: "5 17 * * 1-5"
+    timezone: America/Chicago
+    runsAs: user
+    target: service-route
+    route: /api/trading/paper/reports
+    method: POST
+    body: {}
+    timeoutSeconds: 120
+    description: Save your private OSHAL report from current account snapshots, local simulated results and assigned research. No publication, generation spend or broker orders.
+    offer: Prepare my private OSHAL report after the market closes.
   - id: portfolio-watcher
-    cron: "*/5 9-16 * * 1-5"
+    cron: "* * * * *"
     timezone: America/New_York
     runsAs: user
     target: service-route
@@ -617,8 +636,8 @@ schedules:
     method: POST
     body: {}
     timeoutSeconds: 120
-    description: Check my assigned strategies, reconcile broker orders and fills, and execute only explicitly activated account-specific monthly mandates.
-    offer: Monitor my portfolios every five minutes; trade only accounts with an explicitly approved live strategy mandate.
+    description: Check approved watcher trailing exits every minute; reconcile monthly account strategies every five minutes under their separate authorities.
+    offer: Monitor moving stops every minute, including outside regular hours; submit only orders covered by my exact activated account policies.
   - id: paper-autopilot
     cron: "*/5 9-15 * * 1-5"
     timezone: America/New_York

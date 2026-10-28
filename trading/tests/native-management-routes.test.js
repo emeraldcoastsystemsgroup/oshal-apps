@@ -34,3 +34,18 @@ test('exact live ticket is bound to monitored study and separate confirmation; f
  assert.equal((await h.req('/live/cancel',{watchId:watch.id,ticketId:'ticket-1',orderId:'12345',fingerprint:'exact-ticket'})).status,428);
  const canceled=await h.req('/live/cancel',{watchId:watch.id,ticketId:'ticket-1',orderId:'12345',fingerprint:'exact-ticket',confirm:true});assert.equal(canceled.ticket.cancelStatus,'requested');assert.equal(h.canceled(),1,'cancellation remains available while the monitor is stopped');
 });
+
+test('monthly monitoring ignores prices after its decision cutoff while preserving fresh assessments and relevant-history refusals',async t=>{
+ const h=await setup(t),original=h.ctx.intent;await h.req('/watch',{runId:h.runId,confirm:true});let relevantConflict=false;
+ h.ctx.intent=async(name,input)=>{
+  const r=await original(name,input);if(name!=='trading.bars')return r;
+  const date=relevantConflict?'2026-09-30':'2026-10-23';
+  return{...r,bars:[...r.bars,{t:Date.parse(date+'T04:00:00Z')/1000,c:100},{t:Date.parse(date+'T05:00:00Z')/1000,c:101}]};
+ };
+ const checked=await h.req('/watch/tick',{}),receipt=checked.receipts[0];assert.notEqual(receipt.status,'failed',JSON.stringify(receipt));
+ assert.equal(receipt.signal.decisionAsOf,'2026-09-30');assert.equal(receipt.signal.evidenceThrough,'2026-09-30');assert.equal(receipt.signal.signalAsOf,'2026-10-23');assert.equal(receipt.proposal.signalAsOf,'2026-10-23');
+ assert.equal(checked.ordersSubmitted,0);assert.equal(h.submitted(),0);assert.equal(h.canceled(),0);
+ relevantConflict=true;h.setNow('2026-10-27T16:00:00Z');
+ const failed=await h.req('/watch/tick',{});assert.equal(failed.receipts[0].status,'failed');assert.match(failed.receipts[0].message,/history changed/);
+ assert.equal(h.submitted(),0);assert.equal(h.canceled(),0);
+});

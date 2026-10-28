@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Assert dashboard tiles survive unavailable strategy reads and strategy controls use the correct navigation section.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve the exact native daily amount while asserting its open-position scope on desktop and phone.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Render the shipped Schwab landing and holdings view on desktop and phone; native provider/SQL results are named fixture seams, no real orders execute.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A measured Schwab account day change shows on its tile and counts toward the headline total (it had read "$0 today").
@@ -53,7 +54,7 @@ test('Schwab balances and holdings are usable on desktop and phone with no live-
     const page = await context.newPage();const errors=[];page.on('pageerror',e => errors.push(e.message));
     await page.goto(`http://127.0.0.1:${server.address().port}/api/trading/`);
     const tile = page.locator('#tiles .tile',{hasText:'Account …1234'});
-    await tile.getByRole('button',{name:'Open account'}).waitFor();
+    await tile.getByRole('button',{name:'Manage strategy →'}).waitFor();
     assert.match(await tile.innerText(),/CONNECTED[\s\S]*\$12,500/);
     assert.equal(await page.locator('#heroTotal').innerText(),'$12,500');
     assert.match(await page.locator('#heroDay').innerText(),/-\$40[\s\S]*open-position day P&L/,'a measured Schwab day change counts toward the total');
@@ -63,7 +64,12 @@ test('Schwab balances and holdings are usable on desktop and phone with no live-
     assert.match(await page.locator('#heroDay').innerText(),/1 of 2 accounts report day change/);
     assert.match(await page.locator('#rollup').innerText(),/NVDA[\s\S]*20[\s\S]*\$10,000/);
     assert.doesNotMatch(await tile.innerText(),/Create book|Start trading/);
-    await tile.getByRole('button',{name:'Open account'}).click();
+    assert.equal(await page.locator('#nativeAccountOverview').count(),0,'strategy-read failures cannot replace the Accounts dashboard');
+    await tile.getByRole('button',{name:'Manage strategy →'}).click();
+    assert.equal(await page.locator('#nav button.on').innerText(),'Strategies');
+    assert.equal(new URL(page.url()).searchParams.get('view'),'strategies');
+    await page.getByText('Account strategy evidence is unavailable for this exact connection. Refresh before reviewing actions.',{exact:true}).waitFor();
+    await page.getByText('Holdings & execution history',{exact:true}).click();
     assert.match(await page.locator('#main').innerText(),/NVDA[\s\S]*20[\s\S]*\$10,000/);
     assert.doesNotMatch(await page.locator('#main').innerText(),/Buy a stock|Create book/);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth+1),'no phone-width overflow');
@@ -88,7 +94,7 @@ test('Schwab balances and holdings are usable on desktop and phone with no live-
     await page.getByText('No filled engine ledger was found for this account.',{exact:false}).waitFor();
     assert.equal(await page.getByRole('button',{name:'Record verified closes'}).count(),0);
     await page.getByRole('button',{name:'Holdings',exact:false}).click();
-    await page.getByRole('button',{name:'All accounts'}).click();
+    await page.locator('#nav').getByRole('button',{name:'Accounts',exact:true}).click();
     await page.locator('#tiles .tile',{hasText:'Account …1234'}).waitFor();
     assert.deepEqual(errors,[]);await context.close();
   }
@@ -113,6 +119,7 @@ test('native historical correction preview and confirmation work on desktop and 
   await page.goto(`http://127.0.0.1:${server.address().port}/api/trading/`);
   await page.waitForFunction(()=>typeof nativeAccountView==='function');
   await page.evaluate(()=>nativeAccountView({state:'ok',accountId:'opaque',connectionKey:'login',label:'Account …1234',equity:1000,cash:400,positions:[{symbol:'ANET',qty:6,marketValue:600}]}));
+  await page.getByText('Holdings & execution history',{exact:true}).click();
   await page.getByRole('button',{name:'Reconcile ledger'}).click();
   const apply=page.getByRole('button',{name:'Record verified closes'});await apply.waitFor();assert.equal(await apply.isDisabled(),true);
   assert.match(await page.locator('#nativeReconcileBody').innerText(),/1 verified historical closes/);

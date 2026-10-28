@@ -14,6 +14,7 @@
  * sub-tab is loadEventPlansTab — all globals from that module, called from here at render time.
  *
  * CHANGE LOG
+ * 2026-10-27 | maintainer@emeraldcoastsystemsgroup.com | Preserve the Accounts dashboard and place exact account strategy controls under Strategies with consistent section navigation.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -908,11 +909,13 @@ async function runOptimizeNow() {
  */
 async function renderStrategiesView(token) {
   if (typeof NATIVE_PORTFOLIO !== 'undefined' && NATIVE_PORTFOLIO) {
+    if (SUB !== 'tuning' && SUB !== 'library' && SUB !== 'portfolio') return renderNativeStrategyAccounts(token);
     if (SUB !== 'tuning') return renderNativePortfolioView(token);
-    main.innerHTML = '<div class="panel"><h2>Futures research</h2><p>Saved studies, walk-forward results and forward research calls. Research only; opening this screen changes no account or schedule.</p></div><div id="viewTabs"></div>';
+    main.innerHTML = nativeStrategyNavigation('tuning')+'<div class="panel"><h2>Futures research</h2><p>Saved studies, walk-forward results and forward research calls. Research only; opening this screen changes no account or schedule.</p></div><div id="viewTabs"></div>';
     if (stale(token)) return;
+    wireNativeStrategyNavigation();
     subTabs('viewTabs', [['portfolio','Portfolio review'],['tuning','Futures research']], 'tuning', (key) => {
-      if (key === 'portfolio') navigate('strategies', {sub:null}); else loadTuning(true);
+      if (key === 'portfolio') navigate('strategies', {sub:'library'}); else loadTuning(true);
     });
     return;
   }

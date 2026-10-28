@@ -134,13 +134,14 @@ async function runTick(deps, sub, opts) {
     return { status: 503, body: { error: 'prices_unavailable', message: 'This host has no kernel price service; nothing was traded.' } };
   }
   const positions = await store.loadPositions(deps.pool, sub);
-  const symbols = [...new Set([...(config.universe || DEFAULT_UNIVERSE), ...positions.map((p) => p.symbol)])];
+  const symbols = [...new Set([...positions.map((p) => p.symbol), ...(config.universe || DEFAULT_UNIVERSE)])];
   let market;
-  try { market = await readMarket(deps.intent, symbols); }
+  try { market = await (deps.readMarket || readMarket)(deps.intent, symbols, now); }
   catch (err) {
     return { status: 503, body: { error: 'prices_unavailable', message: `The kernel price read failed; nothing was traded (${String(err && err.message || err).slice(0, 200)}).` } };
   }
   const plan = planTick({ config, account, positions, market, now });
+  if(market.source)Object.assign(plan.summary,{priceSource:market.source,marketErrors:market.errors||[],unscanned:market.unscanned||[]});
   const newId = deps.newId || randomUUID;
   const ids = plan.fills.map(() => ({ orderId: newId(), decisionId: newId() }));
   const result = await store.writeTick(deps.pool, sub, { window, trigger: opts.trigger, runId: opts.runId, at: now.toISOString(),

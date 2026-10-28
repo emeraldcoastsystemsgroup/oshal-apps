@@ -12,12 +12,12 @@
 /* ── view entry ──────────────────────────────────────────────── */
 async function renderReportsView(token) {
   main.innerHTML = '<div class="panel"><h2>Reports</h2>' +
-    '<div class="sub">Performance and the trade journal, per account. Positions across every account are on the Accounts page.</div></div>' +
+    '<div class="sub">Your OSHAL briefing and local paper accounts. Performance and the trade journal use the selected account.</div></div>' +
     acctContextBar('reports below are for this account') +
     '<div id="viewTabs"></div>';
   if (stale(token)) return;
   wireAcctContextBar();
-  subTabs('viewTabs', [['perf','Performance'],['journal','Trade journal']], SUB || 'perf', (k) => {
-    if (k === 'perf') loadPerformance(); else loadJournal();
+  subTabs('viewTabs', [['oshal','OSHAL report'],['paper','Local paper accounts'],['perf','Performance'],['journal','Trade journal']], SUB || 'oshal', (k) => {
+    if(k==='oshal')renderOshalReport();else if(k==='paper')renderLocalPaperAccounts();else if (k === 'perf') loadPerformance(); else loadJournal();
   });
 }

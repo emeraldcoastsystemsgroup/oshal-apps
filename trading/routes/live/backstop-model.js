@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Identify the exact session and conflicting timestamps in an OHLC refusal.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Ratcheting position backstops and a causal OHLC Donchian/SMA challenger simulation. Pure research; no brokerage I/O.
  */
 'use strict';
@@ -19,7 +20,9 @@ function advanceBackstop(previous,{price,observedAt,quantity},raw){
  if(previous&&(previous.trailPct!==policy.trailPct||previous.quantity!==quantity))return{...previous,status:'review-required',reason:'Position quantity or trail changed; review reenrollment before changing its backstop.'};
  if(previous&&at<Date.parse(previous.observedAt))return{...previous,ignoredEarlierObservation:true};
  const peak=Math.max(previous?.peak||price,price),stop=Math.max(previous?.stop||0,peak*(1-policy.trailPct/100));
- return{quantity,trailPct:policy.trailPct,peak,stop,observedAt,enrolledAt:previous?.enrolledAt||observedAt,triggered:!!previous?.triggered||price<=stop,
+ const crossing=price<=stop,first=crossing&&!previous?.triggeredAt;
+ return{quantity,trailPct:policy.trailPct,peak,stop,observedAt,enrolledAt:previous?.enrolledAt||observedAt,triggered:!!previous?.triggered||crossing,
+  ...(first?{triggeredAt:observedAt,triggerPrice:price,triggerStop:stop,triggerPeak:peak,triggerQuantity:Math.floor(quantity)}:previous?.triggeredAt?{triggeredAt:previous.triggeredAt,triggerPrice:previous.triggerPrice,triggerStop:previous.triggerStop,triggerPeak:previous.triggerPeak,triggerQuantity:previous.triggerQuantity}:{}),
   status:previous?.triggered||price<=stop?'model-triggered':'model-watching',brokerOrderPlaced:false};
 }
 /** Reject fabricated candles, missing NYSE sessions and unfinished daily observations. */
@@ -37,7 +40,7 @@ function dailyBackstopEvidence(raw,latest){
   if(!['o','h','l','c'].every(k=>finite(b[k])&&b[k]>0)||b.h<Math.max(b.o,b.c)||b.l>Math.min(b.o,b.c)||b.h<b.l)fail('Daily OHLC values are invalid or duplicated.');
   const previous=byDay.get(day);
   if(previous){
-   if(times.get(day).has(b.t)||previous.open!==b.o||previous.high!==b.h||previous.low!==b.l||previous.close!==b.c)fail('Daily OHLC values conflict or their timestamp is duplicated.');
+   if(times.get(day).has(b.t)||previous.open!==b.o||previous.high!==b.h||previous.low!==b.l||previous.close!==b.c)fail('Daily OHLC values conflict or their timestamp is duplicated on '+day+' ('+[...times.get(day)].join(',')+' vs '+b.t+').');
    equivalentSnapshots.push({date:day,timestamp:b.t,pricesIdentical:true});times.get(day).add(b.t);continue;
   }
   times.set(day,new Set([b.t]));

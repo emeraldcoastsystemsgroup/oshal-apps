@@ -32,7 +32,8 @@ async function readPlanQuotes(ctx, connection, symbols) {
             if (!requested.includes(symbol) || seen.has(symbol))
                 throw new trading_portfolio_model_1.PortfolioError(502, 'plan_quotes_invalid', 'The quote response contains a different or duplicated instrument.');
             seen.add(symbol);
-            quotes.push({ symbol, tradePrice: q.tradePrice, tradeAt: q.tradeAt, source: q.source, delayed: q.delayed });
+            quotes.push({ symbol, tradePrice: q.tradePrice, tradeAt: q.tradeAt, source: q.source, delayed: q.delayed,
+                ...(q.quoteAt !== undefined ? { quoteAt: q.quoteAt, bidPrice: q.bidPrice, askPrice: q.askPrice, bidSize: q.bidSize, askSize: q.askSize } : {}) });
         }
     }
     return { connection, quotes, source: 'schwab', readAt: new Date().toISOString() };

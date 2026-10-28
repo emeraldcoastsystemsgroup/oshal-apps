@@ -1,11 +1,12 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Validate monthly signal history through its actual decision cutoff while retaining latest assessment dates and complete required prior history.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Add fixed calendar-month defensive research without changing version1 models; retain decision dates and fallback coverage.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Freeze next-session targets using the same allocation/trend/momentum rules over complete completed-session history.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Reproducible native portfolio research: prior-session signals, explicit trading/financing costs, retirement leverage refusal, benchmark and drawdown over verified daily-price coverage.
  */
 import { PortfolioError, measured } from './trading-portfolio-model';
 import { sessionDates } from './trading-portfolio-calendar';
-import {validateMonthlyRotation,portfolioStrategySymbols,portfolioWarmupSessions,monthlyRotationTargets} from './trading-portfolio-rotation';
+import {validateMonthlyRotation,portfolioStrategySymbols,portfolioWarmupSessions,monthlyRotationTargets,portfolioSignalHistoryEnd} from './trading-portfolio-rotation';
 
 export interface PortfolioStrategy {
   modelVersion: 1 | 2;
@@ -225,7 +226,8 @@ export function portfolioNextTargets(raw:unknown,series:Record<string,DailyPrice
  if(calendar.at(-1)!==latest)return fail('signal_session_invalid','The signal date must be a completed NYSE session.');
  const needed=Math.max(1,portfolioWarmupSessions(config));
  if(calendar.length<needed)return fail('insufficient_history','The next rebalance lacks its complete signal warmup.');
- for(const [symbol,prices]of maps)if(calendar.slice(-needed).some(day=>!prices.has(day)))return fail('incomplete_history',`${symbol} is missing a required completed signal session.`);
+ const evidenceThrough=portfolioSignalHistoryEnd(config,latest);
+ for(const [symbol,prices]of maps)if(calendar.slice(-needed).filter(day=>day<=evidenceThrough).some(day=>!prices.has(day)))return fail('incomplete_history',`${symbol} is missing a required completed signal session.`);
  const monthly=config.modelVersion===2?monthlyRotationTargets(config,maps,calendar,calendar.length):null;
  return {signalAsOf:latest,decisionAsOf:monthly?.decisionAsOf??latest,rebalanceCadence:monthly?.rebalanceCadence??'session-count',model:config.modelVersion===2?'portfolio-monthly-v2':'portfolio-daily-v1',targets:monthly?.targets??targets(config,maps,calendar,calendar.length)};
 }

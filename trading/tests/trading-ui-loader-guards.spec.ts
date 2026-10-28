@@ -11,6 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Classify the owned archive receipt loader under both navigation fences.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Classify Schwab capture status as tab-scoped; it checks both navigation fences before painting.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Classify the Congress disclosures panel loader as tab-scoped; it paints into the stock tab and checks both navigation fences before painting.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Classify the native account management loader as view-scoped; it checks the render token before painting.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Classify the guarded Congress candidate loader and accept the synchronous tuning wrapper’s optional parameter without weakening its async refusal.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Classify loadPositionPlans (position-plans.js, ADR-052 addendum P4) as view-scoped: it repaints the positions table the account view owns, so the render token alone is its guard, and it checks it after its await on both the answer and the failure path.
  */
@@ -36,7 +37,7 @@ const TAB_SCOPED = [
 /** View-scoped loaders paint into a node the view owns; the render token alone is the guard. */
 const VIEW_SCOPED = [
   'loadKpisAndPositions', 'loadRealized', 'loadPerfSummary', 'loadSignalModel',
-  'loadEventPlanCard', 'loadLotsCard', 'loadDatedCard', 'loadEarningsRulesCard', 'loadPositionPlans',
+  'loadEventPlanCard', 'loadLotsCard', 'loadDatedCard', 'loadEarningsRulesCard', 'loadPositionPlans', 'loadNativeAccountManagement',
 ];
 /** State-only: writes module state and paints NOTHING, so it has no stale paint to guard against. */
 const STATE_ONLY = ['loadBooks'];

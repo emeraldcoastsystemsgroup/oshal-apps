@@ -18,6 +18,7 @@
  * renders into. stale(token) tells an async loader the operator navigated away: stop painting.
  *
  * CHANGE LOG
+ * 2026-10-27 | maintainer@emeraldcoastsystemsgroup.com | Clear prior view event handlers before navigation so research cannot reopen an account with stale context.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -278,6 +279,7 @@ async function render() {
   const token = RENDER_TOKEN;
   DISP = bookLabel(BOOK);
   renderNav();
+  main.onclick = null; main.onchange = null; main.onsubmit = null;
   main.innerHTML = spinner('Loading…');
   try {
     // /status is scoped to BOOK. Assign it only if THIS render is still current (a slow response for

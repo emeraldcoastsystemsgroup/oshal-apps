@@ -1496,7 +1496,7 @@
       "suite": "ai-finance",
       "displayName": "Intelligent Trades",
       "description": "Research stocks, track connected brokerage accounts and test strategies in a separate paper book, with a decision trail from signals to orders. Trading actions follow the connected account's supported controls. Cash equities. No crypto.",
-      "version": "1.40.2",
+      "version": "1.42.12",
       "theme": "midnight",
       "dependencies": {
         "apps": [],

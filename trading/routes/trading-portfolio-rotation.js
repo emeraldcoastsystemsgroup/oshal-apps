@@ -3,8 +3,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.validateMonthlyRotation = validateMonthlyRotation;
 exports.portfolioStrategySymbols = portfolioStrategySymbols;
 exports.portfolioWarmupSessions = portfolioWarmupSessions;
+exports.portfolioSignalHistoryEnd = portfolioSignalHistoryEnd;
 exports.monthlyRotationTargets = monthlyRotationTargets;
 /** CHANGE LOG
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Derive the exact completed monthly signal cutoff for the next exchange session; current-month candles do not enter that signal.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Calendar-month defensive research targets with complete month-end warmup, quarterly relative strength and explicit Treasury-bill vacancies. No execution.
  */
 const trading_portfolio_model_1 = require("./trading-portfolio-model");
@@ -31,6 +33,16 @@ function nextSession(day) {
     if (!next)
         throw new trading_portfolio_model_1.PortfolioError(422, 'insufficient_history', 'The next session is outside the supported calendar.');
     return next;
+}
+/** Historical evidence ends at the last completed month used by the next-session model. */
+function portfolioSignalHistoryEnd(s, latest) {
+    if (s.modelVersion !== 2)
+        return latest;
+    const month = nextSession(latest).slice(0, 7), start = new Date(Date.parse(latest + 'T00:00:00Z') - 40 * 86400000).toISOString().slice(0, 10);
+    const end = (0, trading_portfolio_calendar_1.sessionDates)(start, latest).filter(d => d.slice(0, 7) < month).at(-1);
+    if (!end)
+        throw new trading_portfolio_model_1.PortfolioError(422, 'insufficient_history', 'The completed monthly signal cutoff is unavailable.');
+    return end;
 }
 /** Exclude an unfinished month, including when the latest price is an intra-month Friday. */
 function monthlyRotationTargets(s, maps, calendar, index) {

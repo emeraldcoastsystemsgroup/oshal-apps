@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: every statement the native paper book runs, declared once as a constant over the tables of migrations/002-native-paper.sql, with the reads and the one transactional tick write built on them. Every statement filters or stamps user_sub with the caller's own subject, so person B can never read or write person A's book. A tick commits all of its fills, decisions, positions, account and equity snapshot together, after claiming its five-minute window (ON CONFLICT DO NOTHING RETURNING) and checking the account version the plan was computed from; a window already claimed, or a book that moved under the plan, rolls the whole tick back.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Review fix: arming and disarming now bump the account version in the same transaction as the configuration change (ACCOUNT_BUMP). Before, a disarm (or a re-arm with tighter guardrails) that landed while a tick was in flight left the version alone, so the tick's optimistic check passed and it still traded on the old configuration; now that tick rolls back as book_changed.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Read all daily report fills in the original owner/book scope with an explicit coverage bound.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Manual paper orders: DECISION_GET and ORDER_FOR_DECISION, recordManualDecision, loadDecision, orderForDecision and writeManualFill (one transaction: version-checked account, order, position, equity snapshot). Buy a stock on the native paper book had no native path.
  *
  * @module paper/store
@@ -38,6 +39,7 @@ const SQL = Object.freeze({
   ORDER_INSERT: `INSERT INTO trading_paper_orders (order_id, user_sub, tick_window, decision_id, symbol, side, qty, fill_price, notional, reason, realized_pl, status, quote_at, created_at)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'filled', $12, $13)`,
   ORDERS_LIST: 'SELECT order_id, tick_window, decision_id, symbol, side, qty, fill_price, notional, reason, realized_pl, status, quote_at, created_at FROM trading_paper_orders WHERE user_sub = $1 ORDER BY created_at DESC LIMIT 200',
+  REPORT_ORDERS: 'SELECT order_id, symbol, side, qty, fill_price, notional, realized_pl, reason, created_at FROM trading_paper_orders WHERE user_sub = $1 AND created_at >= $2 AND created_at <= $3 ORDER BY created_at DESC LIMIT 10000',
   DECISION_INSERT: `INSERT INTO trading_paper_decisions (decision_id, user_sub, tick_window, symbol, action, reason, score, confidence, regime, rationale, per_timeframe, created_at)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
   DECISIONS_LIST: 'SELECT decision_id, tick_window, symbol, action, reason, score, confidence, regime, rationale, per_timeframe, created_at FROM trading_paper_decisions WHERE user_sub = $1 ORDER BY created_at DESC LIMIT 200',
@@ -333,5 +335,5 @@ async function writeManualFill(pool, sub, w) {
   }).catch((err) => { if (err && err.bookChanged) return { written: false, reason: 'book_changed' }; throw err; });
 }
 
-module.exports = { SQL, loadConfig, loadAccount, loadPositions, arm, disarm, writeTick, listOrders, listDecisions, listTicks, equitySeries,
+module.exports = { SQL, inTransaction, loadConfig, loadAccount, loadPositions, arm, disarm, writeTick, listOrders, listDecisions, listTicks, equitySeries,
   recordManualDecision, loadDecision, orderForDecision, writeManualFill };

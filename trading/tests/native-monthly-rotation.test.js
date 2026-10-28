@@ -4,7 +4,7 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {normalizePortfolioStrategy,simulatePortfolio,portfolioNextTargets}=require('../routes/trading-portfolio-sim');
-const {portfolioStrategySymbols}=require('../routes/trading-portfolio-rotation');
+const {portfolioStrategySymbols,portfolioSignalHistoryEnd}=require('../routes/trading-portfolio-rotation');
 const {sessionDates}=require('../routes/trading-portfolio-calendar');
 const {buildRebalancePlan}=require('../routes/trading-portfolio-plan');
 const {planSymbols}=require('../routes/trading-portfolio-plan-evidence');
@@ -57,4 +57,14 @@ test('BIL participates in quote rosters, targets and concrete planning; no order
  const p=buildRebalancePlan({account,profile:{registration:'taxable'},config:s,targets:[{symbol:'BIL',weightPct:100}],signalAsOf:'2026-10-23',quotes,scope:'preserve-other-holdings',now:new Date('2026-10-25T12:00:00Z')});
  assert.equal(p.actions.length,1);assert.equal(p.actions[0].symbol,'BIL');assert.equal(p.status,'pending-review');assert.equal(p.execution.available,false);assert.equal(p.execution.realOrdersPlaced,0);assert.equal(p.execution.borrowingAuthorized,false);
  assert.throws(()=>buildRebalancePlan({account,profile:{registration:'taxable'},config:s,targets:[{symbol:'BIL',weightPct:100}],signalAsOf:'2026-10-23',quotes:quotes.slice(0,1),scope:'whole-account',now:new Date('2026-10-25T12:00:00Z')}),e=>e.code==='plan_quote_missing');
+});
+
+test('monthly signal reads stop at their actual completed-month cutoff while next-month boundaries and daily models stay current',()=>{
+ const original=series(),cut=portfolioSignalHistoryEnd(config(),'2026-10-23');assert.equal(cut,'2026-09-30');
+ const bounded=Object.fromEntries(Object.entries(original).map(([symbol,rows])=>[symbol,rows.filter(r=>r.date<=cut)]));
+ assert.deepEqual(portfolioNextTargets(config(),bounded,'2026-10-23'),portfolioNextTargets(config(),original,'2026-10-23'));
+ assert.equal(portfolioSignalHistoryEnd(config(),'2026-09-30'),'2026-09-30');
+ const missing=structuredClone(bounded);missing.ABC=missing.ABC.filter(r=>r.date!==cut);assert.throws(()=>portfolioNextTargets(config(),missing,'2026-10-23'),e=>e.code==='incomplete_history');
+ const daily={...config(),modelVersion:1,kind:'trend',lookbackSessions:20,rebalanceSessions:5};assert.equal(portfolioSignalHistoryEnd(daily,'2026-10-23'),'2026-10-23');
+ assert.throws(()=>portfolioNextTargets(daily,bounded,'2026-10-23'),e=>e.code==='incomplete_history');
 });

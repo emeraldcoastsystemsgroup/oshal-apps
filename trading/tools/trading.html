@@ -12,6 +12,9 @@
   Paper is one account like any other; live orders are gated server-side and need an explicit confirm.
 
   CHANGE LOG
+  6 | maintainer@emeraldcoastsystemsgroup.com | Strong control boundaries, readable theme fallbacks and compact account summary, schedule and approval cards.
+  5 | maintainer@emeraldcoastsystemsgroup.com | Persistent Strategies section navigation and account switcher, with the Accounts dashboard retained.
+  4 | maintainer@emeraldcoastsystemsgroup.com | Theme-aware native account KPIs, saved reviews and visible execution controls on desktop and phone.
   1 | maintainer@emeraldcoastsystemsgroup.com | The Settings button showed a bare letter 'C'; it shows a gear glyph (text presentation, hidden from
     assistive technology) and keeps its 'Settings' label. Guard: tests/research-handoff-summary.test.js.
   2 | maintainer@emeraldcoastsystemsgroup.com | Load native portfolio research before the Strategies dispatcher.
@@ -33,8 +36,8 @@
      from the theme too, with the old hex as a fallback so the surface stays legible if a theme omits
      one. Buy/sell BUTTONS (--buy2) keep a constant brand green by design. */
   :root {
-    --bg:var(--bg-primary); --panel:var(--bg-secondary); --panel2:var(--bg-tertiary); --line:var(--border-color);
-    --text:var(--text-primary); --muted:var(--text-secondary); --accent:var(--accent-primary, #7c6cff); --accent2:var(--status-success, #00d3a7);
+    --bg:var(--bg-primary, #111827); --panel:var(--bg-secondary, #1f2937); --panel2:var(--bg-tertiary, #283548); --line:var(--border-color, #536174);
+    --text:var(--text-primary, #f3f4f6); --muted:var(--text-secondary, #b9c3d2); --accent:var(--accent-primary, #7c6cff); --accent2:var(--status-success, #00d3a7);
     --scrollbar-thumb:rgba(255,255,255,.14);
     --buy:var(--status-success, #2fbf8f); --buy2:#1ba883; --sell:var(--status-error, #ec7672); --warn:var(--status-warning, #e3bd6a); --danger:var(--status-error, #f0908c);
   }
@@ -237,6 +240,90 @@
     .uni-list { max-height:300px; }
     .nav button { padding:8px 10px; font-size:12px; }
   }
+
+  /* Account controls retain clear boundaries even when shared theme assets are unavailable. */
+  :root{--native-border:color-mix(in srgb,var(--text) 26%,var(--bg));--native-control-border:color-mix(in srgb,var(--text) 48%,var(--bg));--native-soft:color-mix(in srgb,var(--panel2) 86%,var(--bg));--native-action:#5143b7;--native-confirm:#087660}
+  #nativeAccountManagement{display:grid;gap:18px;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+  #nativeAccountManagement>.panel{margin:0;min-width:0}
+  #nativeAccountManagement>.native-secondary,#nativeAccountManagement>.native-account-summary,#nativeAccountManagement>.native-schedule-bar{grid-column:1/-1}
+  .native-management-panel,.native-control-roster,.native-secondary,.native-account-summary,.native-account-breadcrumb{border:1px solid var(--native-border);box-shadow:0 3px 12px #00000008}
+  .native-management-panel{padding:24px;min-width:0;border-radius:14px}
+  .native-management-panel h2{font-size:21px;margin:0;letter-spacing:-.35px}
+  .native-management-panel h3{font-size:15px;margin:0 0 10px}
+  .native-management-panel p{line-height:1.55}
+  .native-section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .native-section-head h3{margin:0}
+  .native-eyebrow{margin:0 0 6px;color:var(--muted);font-size:11px;font-weight:750;letter-spacing:.06em;text-transform:uppercase}
+  .native-state{display:inline-flex;align-items:center;padding:6px 10px;border:1px solid var(--native-border);border-radius:7px;background:var(--native-soft);font-size:12px;font-weight:700;line-height:1.4}
+  .native-state.is-active{color:var(--buy);border-color:var(--buy);background:color-mix(in srgb,var(--buy) 10%,var(--panel))}
+  .native-account-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:20px 24px}
+  .native-account-summary .kpi{border:0;border-radius:0;box-shadow:none;background:none;padding:0 20px;min-width:0}
+  .native-account-summary .kpi:first-child{padding-left:0}
+  .native-account-summary .kpi+.kpi{border-left:1px solid var(--native-border)}
+  .native-account-summary .l{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:6px}
+  .native-account-summary .n{font-size:24px;font-weight:750;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+  .native-account-summary .kpi:last-child .n{font-size:19px;text-transform:capitalize}
+  .native-form-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(150px,1fr);gap:14px;margin:16px 0}
+  .native-form-grid label{display:flex;flex-direction:column;gap:8px;font-size:12px;font-weight:700;min-width:0}
+  .native-management-panel input,.native-management-panel select,.native-account-breadcrumb select{width:100%;min-width:0;min-height:44px;border:1px solid var(--native-control-border);border-radius:8px;background:var(--native-soft);color:var(--text);padding:11px 12px;font:500 13px/1.4 system-ui,sans-serif}
+  .native-management-panel select:disabled{opacity:1;color:var(--text)}
+  .native-management-panel .btn,.native-schedule-bar .btn,.native-account-breadcrumb .btn,.native-strategy-navigation .btn{font-family:inherit;min-height:42px;line-height:1.35;border:1px solid var(--native-control-border);border-radius:8px;padding:10px 15px;box-shadow:0 1px 2px #0000000d;background:var(--native-soft);color:var(--text)}
+  .native-management-panel .btn.primary,.native-schedule-bar .btn.primary,.native-strategy-navigation .btn.primary{background:var(--native-action);border-color:var(--native-action);color:#fff}
+  .native-management-panel .btn.native-activate{background:var(--native-confirm);border-color:var(--native-confirm);color:#fff;width:100%;min-height:46px;font-size:14px}
+  .native-management-panel .btn.danger{color:var(--sell);border-color:var(--sell);background:color-mix(in srgb,var(--sell) 7%,var(--panel))}
+  .native-management-panel .btn:disabled,.native-schedule-bar .btn:disabled{opacity:1;cursor:not-allowed;background:var(--native-soft);color:var(--muted);border-color:var(--native-border);box-shadow:none}
+  .native-management-panel .btn:not(:disabled):hover,.native-schedule-bar .btn:not(:disabled):hover{filter:brightness(.94)}
+  .native-management-panel :is(button,input,select):focus-visible,.native-account-breadcrumb :is(button,select):focus-visible,.native-strategy-navigation button:focus-visible,.native-schedule-bar button:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+  .native-form-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .native-strategy-picker{padding:4px 0}
+  .native-strategy-picker .native-form-grid{grid-template-columns:minmax(0,1fr) auto;align-items:end}
+  .native-control-actions{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 10px}
+  .native-execution-controls{border-top:1px solid var(--native-border);padding-top:18px;margin-top:18px}
+  .native-execution-controls>h3{font-size:15px}
+  .native-review-action{width:100%;min-height:44px}
+  .native-management-panel [role=status]{font-size:12px;color:var(--muted);line-height:1.5;margin:10px 0}
+  .native-management-panel [role=status]:empty{display:none}
+  .native-review-card{border:1px solid var(--accent);border-radius:10px;padding:18px;margin:18px 0 0;background:var(--panel2)}
+  .native-review-card .native-section-head{align-items:start}
+  .native-review-card h3{font-size:14px;line-height:1.4}
+  .native-review-card .native-state{font-size:11px;padding:4px 7px}
+  .native-confirm-identity{display:flex;flex-direction:column;gap:5px;margin:14px 0;font-size:13px}
+  .native-confirm-identity strong{font-size:14px}
+  .native-confirm-identity span{color:var(--muted);line-height:1.5}
+  .native-approval-terms{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:12px;padding:14px 0;border-block:1px solid var(--native-border)}
+  .native-approval-terms span{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+  .native-approval-terms strong{font-size:16px;font-variant-numeric:tabular-nums}
+  .native-review-expiry{font-size:11px;color:var(--muted);margin:9px 0 0}
+  .native-evidence{margin-top:16px;border-top:1px solid var(--native-border);padding-top:12px}
+  .native-evidence summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--accent);padding:5px 0;line-height:1.5}
+  .native-order-preview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px}
+  .native-order-preview>div,.native-order-preview>a{border:1px solid var(--native-border);background:var(--panel);padding:10px;border-radius:7px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:5px;font-size:12px}
+  .native-protection-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:20px 0 14px}
+  .native-protection-summary>div{padding:12px;border:1px solid var(--native-border);border-radius:8px;background:var(--native-soft)}
+  .native-protection-summary strong{display:block;font-size:15px;margin-top:6px;line-height:1.4}.native-protection-summary span{color:var(--muted);font-size:11px}
+  .native-schedule-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--native-border);border-left:4px solid var(--warn);border-radius:10px;padding:15px 20px;margin:0;font-size:13px}
+  .native-schedule-bar.is-active{border-left-color:var(--buy)}
+  .native-schedule-bar>div{flex:1;min-width:240px}.native-schedule-bar p:empty{display:none}
+  .native-last-check{color:var(--muted);font-size:11px;margin:14px 0}
+  .native-account-breadcrumb{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:4px 0 16px;padding:16px 20px}
+  .native-account-breadcrumb label{display:grid;gap:6px;font-size:12px;font-weight:650;flex:1;min-width:220px;max-width:440px}
+  .native-strategy-navigation{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
+  .native-control-roster{padding:24px}.native-control-roster h2{font-size:22px;margin:0}
+  .native-roster-scroll,.native-table-scroll{overflow-x:auto}.native-roster-scroll{margin-top:20px}
+  .native-control-roster td{padding:20px 12px;vertical-align:middle}.native-control-roster th{padding:10px 12px}
+  .native-account-link{font-weight:750;font-size:15px;text-decoration:none;color:var(--text)}
+  .native-cell-note{display:block;color:var(--muted);font-size:12px;margin-top:5px;line-height:1.5}
+  .native-research-account{text-decoration:none;color:var(--text);line-height:1.5}
+  .native-value{font-size:17px;font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap}.native-roster-strategy{max-width:300px;line-height:1.5}
+  .native-control-roster .native-state{display:inline-block;white-space:nowrap}.native-control-roster .btn{white-space:nowrap;text-decoration:none}
+  .native-secondary{padding:16px 22px}.native-secondary>summary{font-weight:700;font-size:14px;cursor:pointer;padding:5px 0}
+  .native-secondary>.panel{box-shadow:none;border:0;padding:12px 0;margin:0}.native-secondary p{font-size:13px;line-height:1.6}
+  .native-attention{border-left:3px solid var(--warn);padding:12px;background:var(--native-soft);font-size:13px;line-height:1.5}
+  .native-research-page{display:grid;gap:14px;min-width:0}.native-research-page .panel{min-width:0;overflow-wrap:anywhere}.native-research-page form>*{max-width:100%}.native-research-page input,.native-research-page select{max-width:100%}.native-research-page>.panel{margin:0}.native-research-page form{display:flex;align-items:end;gap:14px;flex-wrap:wrap}
+  .native-research-page form label{display:flex;flex-direction:column;gap:6px;font-size:12px;min-width:160px}.native-research-page input,.native-research-page select{min-height:40px}
+  @media(max-width:1000px){#nativeAccountManagement{grid-template-columns:minmax(0,1fr)}}
+  @media(max-width:640px){.native-management-panel{padding:18px}.native-account-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;padding:18px}.native-account-summary .kpi{padding:0}.native-account-summary .kpi+.kpi{border:0}.native-account-summary .n{font-size:21px}.native-form-grid,.native-strategy-picker .native-form-grid{grid-template-columns:1fr}.native-picker-action .btn{width:100%}.native-review-card{padding:12px}.native-protection-summary{grid-template-columns:1fr}.native-protection-summary>div{display:flex;align-items:center;justify-content:space-between;gap:12px}.native-protection-summary strong{margin:0}.native-secondary{padding:14px}.native-control-roster{padding:16px}.native-account-breadcrumb{gap:10px;padding:14px}.native-account-breadcrumb label{min-width:0;flex-basis:100%}.native-schedule-bar{padding:14px}.native-schedule-bar>div{min-width:0;flex-basis:100%}}
+
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
   <script src="/api/trading-charts/vendor/lightweight-charts.js?v=4.2.0"></script>
@@ -268,8 +355,9 @@
     <label for="researchTicker">Stock ticker</label><input id="researchTicker" maxlength="10" placeholder="Enter a stock ticker">
     <button class="btn" id="researchDraftGo">Research this stock</button><p class="sub" id="researchDraftStatus" role="status"></p>
   </section>
-  <section class="panel connected-app-actions" aria-label="Connected application actions" style="display:flex;gap:12px;flex-wrap:wrap"></section>
   <div id="main"><div class="spin"><span class="dot"></span> Loading…</div></div>
+  <section class="panel connected-app-actions" aria-label="Connected application actions" style="display:flex;gap:12px;flex-wrap:wrap"></section>
+
 </div>
 
 <div class="modal-overlay" id="settings" hidden>
@@ -293,6 +381,7 @@
 <script src="/api/trading/ui/native-management.js"></script>
 <script src="/api/trading/ui/native-portfolio.js"></script>
 <script src="/api/trading/ui/native-protection-controls.js"></script>
+<script src="/api/trading/ui/native-account-controls.js"></script>
 <script src="/api/trading/ui/native-account-management.js"></script>
 <script src="/api/trading/ui/view-strategies.js"></script>
 <script src="/api/trading/ui/view-events.js"></script>
@@ -303,6 +392,7 @@
 <script src="/api/trading/ui/view-earnings-rules.js"></script>
 <script src="/api/trading/ui/view-research.js"></script>
 <script src="/api/trading/ui/view-reports.js"></script>
+<script src="/api/trading/ui/native-paper-books.js"></script>
 <script type="module" src="/api/trading/ui/connected-actions.js"></script>
 <!-- boot() runs on DOMContentLoaded from app.js — no inline script (CSP). -->
 </body>

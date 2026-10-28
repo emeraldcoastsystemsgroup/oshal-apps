@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Bound study evidence by its requested end before comparing daily closes; later conflicting prices cannot enter or invalidate an earlier study.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Include the defensive fund and full calendar-month warmup in version2 rotation research and planning.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Read bounded caller-owned Schwab daily history, retain source snapshots, reject contradictory overlap, unfinished bars and future windows.
  */
@@ -27,9 +28,10 @@ export async function portfolioHistory(ctx:AppContext,connection:string,strategy
    if(answer.symbol!==symbol||answer.source!=='schwab'||!Array.isArray(answer.bars)||answer.bars.length>10000)
     throw new PortfolioError(502,'history_invalid',`${symbol} history did not provide the expected source and symbol.`);
    for(const bar of answer.bars){
-    if(measured(bar.t)===null||measured(bar.c)===null||bar.c<=0)throw new PortfolioError(502,'history_invalid',`${symbol} contains malformed daily prices.`);
+    if(measured(bar.t)===null)throw new PortfolioError(502,'history_invalid',`${symbol} contains a malformed daily timestamp.`);
     const date=new Date(bar.t*1000).toISOString().slice(0,10);
-    if(date>latest)continue;
+    if(date>end)continue;
+    if(measured(bar.c)===null||bar.c<=0)throw new PortfolioError(502,'history_invalid',`${symbol} contains malformed daily prices.`);
     const old=rows.get(date);if(old!==undefined&&old!==bar.c)throw new PortfolioError(409,'history_changed',`${symbol} history changed between reads. Retry the backtest.`);
     rows.set(date,bar.c);
    }
@@ -41,5 +43,5 @@ export async function portfolioHistory(ctx:AppContext,connection:string,strategy
   const failed=results.find(r=>r.status==='rejected') as PromiseRejectedResult|undefined;
   if(failed)throw failed.reason;
  }
- return {series,source:'schwab',readAt:now.toISOString(),lastCompletedSession:latest,priceBasis:'provider daily closes; no total-return adjustment asserted'};
+ return {series,source:'schwab',readAt:now.toISOString(),lastCompletedSession:latest,requestedEndDate:end,priceBasis:'provider daily closes; no total-return adjustment asserted'};
 }
