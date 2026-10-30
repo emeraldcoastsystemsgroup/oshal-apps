@@ -37,7 +37,7 @@ description: >-
   paper. Everything lands in one inbox with a recommended filing — a bot's corpus, the
   swarm's shared knowledge, or private to you — and nothing is written until you
   approve it. It cannot print to a home or office printer.
-version: 0.3.7
+version: 0.3.8
 
 # ADR-139 wave 1 — "Send to…" destination: any document becomes a print-inbox intake
 # (extracted to text on the kernel rail, then the normal dedupe/rules/approval queue).

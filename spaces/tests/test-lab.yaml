@@ -10,9 +10,23 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Phone layout case: a refused drone scan's toast is drawn inside the visible screen (it was under the screen, at the bottom of the viewer below the forms).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Phone layout case: nothing is drawn over the toast (the fixed diagnostic-brief panel covered it) and the hand-off panel is in the page flow; the "Choose a video first" toast is checked too.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register spaces-surfaces, which now also guards the empty viewer copy: it names the upload form's own labels instead of 'on the left', which was wrong at phone width.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register the scene-source case: GET /scenes answers the shared file picker's page (items, at most 100 ready scans) as well as artifacts.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
+  - id: scene-source-page
+    name: Scenes in the shared file picker
+    purpose: Drive the compiled sceneSourcePage() that GET /scenes answers with, over synthetic scans.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/spaces-embodied-scene.test.js] }
+    expected:
+      - The page has `items` of at most 100 ready scans (a scan still processing is not offered) and the same rows as `artifacts`.
+      - Each item is named <title>.scene.json, typed application/vnd.oshal.embodied-scene+json and sourced from its own /api/spaces/scans/<id>/scene route.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 20000 }
+    installation: never
   - id: audience-view
     name: Audience view contract
     purpose: >-

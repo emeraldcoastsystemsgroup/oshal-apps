@@ -9,6 +9,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: a .txt note is saved as plain text. storage-save-note's text says so, and routes/local-notes.js takes chat Markdown out of a .txt note before saving (a saved note kept "**Sweep10 Budget Note**"). Words and route only; no schema type, permission or binding change. Guarded by storage/tests/notes.test.cjs.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Review of sweep 10: storage-save-note's text says only ** bold is taken out of a .txt note and everything else is saved exactly as sent (routes/local-notes.js no longer rewrites #, *, _, ticks or links, which changed approved code and commands). Words only; no schema type, permission or binding change. Guarded by storage/tests/notes.test.cjs.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the approval-held note tools declare `cardText`, the people-facing sentence the kernel's approval card shows under its heading (the delete card read 'Delete note' then 'Remove Note', one action named twice in different words). Words only; no route, schema or binding change. Guarded by storage/tests/notes.test.cjs.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: the person's connected shares are sources for the shared OSHAL file picker (ADR-139), which Jarvis's "+ Add" opens. artifacts.provides declares Dropbox, Google Drive, GitHub and OSHAL-local, each a read-only listing with folder browsing and a `q` search under /api/storage/sources (routes/file-sources.js); egress adds *.dropboxusercontent.com with no credential (a Dropbox file's temporary link, since the Dropbox credential goes only to api.dropboxapi.com) and www.googleapis.com (Drive, under the person's google-drive grant). Guarded by storage/tests/file-sources.test.cjs.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — storage (Storage hub: targets + assistant)
@@ -41,7 +42,7 @@ description: >-
   Your storage hub: choose where OSHAL saves generated code vs files (GitHub / Dropbox /
   OSHAL-local), and browse your files. Generators (e.g. Presentations) save to the target you
   set here.
-version: 1.2.2
+version: 1.3.0
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -241,6 +242,10 @@ egress:
     credential: { connector: github, header: authorization, prefix: "Bearer " }
   - host: api.dropboxapi.com
     credential: { connector: dropbox, header: authorization, prefix: "Bearer " }
+  # A Dropbox file's temporary download link (files/get_temporary_link): no credential travels there.
+  - host: "*.dropboxusercontent.com"
+  - host: www.googleapis.com
+    credential: { connector: google-drive, header: authorization, prefix: "Bearer " }
 
 routes:
   - module: routes/home-summary.js
@@ -258,6 +263,15 @@ routes:
     requiresContext: true
     requiresAi: false
 
+  # The shared file picker's sources (artifacts.provides below): read-only listings and file bytes.
+  - module: routes/file-sources.js
+    factory: createFileSourceRoutes
+    mountPath: /api/storage/sources
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/storage-routes.js
     factory: createStorageRoutes
     mountPath: /api/storage
@@ -270,6 +284,23 @@ routes:
 # route calls it through the @/ alias.
 
 # Trim the ribbon to the storage surfaces + settings/logs. Hide the rest.
+# ADR-139: the person's connected shares in the shared OSHAL file picker (Jarvis "+ Add", and every other
+# application that asks for a file). Each listing is this package's own read-only route under the person's connection.
+artifacts:
+  provides:
+    - label: Dropbox
+      types: ["*/*"]
+      list: /api/storage/sources/dropbox
+    - label: Google Drive
+      types: ["*/*"]
+      list: /api/storage/sources/google-drive
+    - label: GitHub
+      types: ["*/*"]
+      list: /api/storage/sources/github
+    - label: OSHAL-local files
+      types: ["*/*"]
+      list: /api/storage/sources/local
+
 ribbon:
   hideFrameworkItems:
     - chat

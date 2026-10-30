@@ -1,11 +1,12 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Declare real bounded Publishing routes and original held agent contracts.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: automatically save inspector drafts and refresh the concierge document handoff.
 name: publishing-studio
 suite: ai-creative
 displayName: Publishing Studio
 description: >-
   Original-owned bounded English print layouts, linked stories, styles, masters and native Typst
   PDF/PNG output.
-version: 0.1.0
+version: 0.1.1
 runtime: process
 lastingStorage: true
 status: active

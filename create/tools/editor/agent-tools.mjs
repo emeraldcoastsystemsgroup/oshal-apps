@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Bounded declarative agent edits use the editor's immutable validator, locks and geometry, never code.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Describe nested group duplication and deterministic remapped descendant identifiers.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Describe bounded PSD inspection/import/source tools and distinguish editable subset from PSD export/full fidelity.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Support the shared automatic document save/read/refresh handoff and preserve concurrent drafts and editable layers.
  */
 import { applyOperation, createProject, validateProject } from './model.mjs';
 import { combinePaths } from './vector-geometry.mjs';
@@ -37,14 +38,14 @@ export function applyAgentOperations(value, operations) {
   return validateProject(next, { assetMode: 'reference' });
 }
 export function editingContract() {
-  return { editor: 'create', version: 1, sourceVersion: '1.15.0', maxOperations: 16, maxInputBytes: 16384,
+  return { editor: 'create', version: 1, sourceVersion: '1.15.2', maxOperations: 16, maxInputBytes: 16384,
     operations: forms, operationSchema,
     conventions: { coordinates: 'Canvas pixels; children use parent-local coordinates; path node x/y normalized 0..1, in/out offsets relative to node.',
       opacity: '0..1', masks: 'Original image source pixels; polygon points or additive/subtractive brush operations; feather 0..64.',
       adjustments: 'Add a layer type adjustment with scope stack or layer/targetId. exposure -8..8, black < white 0..255, gamma .1..10, saturation 0..300, curve ordered {x,y} 0..1.',
       vectors: 'Add/update path contours [{closed,nodes:[{x,y,in:{x,y},out:{x,y}}]}], fill, stroke, strokeWidth, dash, cap, join, gradient {from,to,stops:[{offset,color}]}, clip polygon.',
       assets: 'Only original-owner canonical uploaded image references. No URL fetching, filesystem paths, code, provider calls or inline data.',
-      saves: 'Read project id/revision first. One batch = one immutable revision; invalid batch saves nothing. A stale revision is a conflict. Existing open browser drafts must reload deliberately.',
+      saves: 'Read project id/revision first. One batch = one immutable revision; invalid batch saves nothing. A stale revision is a conflict. The editor automatically saves its current draft before the concierge reads it and refreshes the same project on return. A concurrent browser draft is preserved with a conflict message.',
       locks: 'Locked layers/ancestors are refused. Explicit unlocking is an edit, never silently unlock.',
       duplicate: 'Duplicate supports nested groups. Supply newId for the copied root; descendants receive deterministic newId-prefix:base36-index IDs (prefix at most96 characters), in existing layer order. Read the returned document for IDs. Child coordinates, masks, isolated opacity and owned image references stay unchanged; clipped targets inside the copy are remapped. Only the copied root receives offset. Locked descendants, ID collisions or existing resource ceilings refuse the whole operation.',
       booleans: 'One boolean per batch; at most256 total operand nodes. Larger paths use the browser worker. Two visible unlocked root paths, closed unclipped contours. 0.1 pixel flattening; originals hidden and retained. Mixed-winding nonzero contours refused.',

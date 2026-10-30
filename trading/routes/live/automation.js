@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Explain whole-account capital coverage using current measured net equity before requesting the native review; retain the kernel recheck.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Account-bound scheduled execution of an exact completed monthly model through kernel-kept mandates, durable cycles and reconciled broker fills.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Require effective native authority and distinguish new broker submissions, durable replays and unknown acknowledgments.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Explicit whole-account reviews, measured net-equity sizing, sell-first funding separation and fill-reconciled bounded allocation chunks.
@@ -93,6 +94,14 @@ function registerAutomationRoutes(route,ctx,deps){
   if(watch.automatedTrading)fail('live_mandate_active','Stop existing automatic execution before reviewing new terms.');
   const study=await boundStudy(ctx,owner,watch,at),{selected,config,run}=study;
   if(whole&&(await ctx.intent('trading.config',{})).wholeAccountMandates!==true)fail('whole_account_release_required','The verified native whole-account release is not active.',503);
+  if(whole){
+   const equity=selected.account.equity;
+   if(typeof equity!=='number'||!Number.isFinite(equity)||equity<=0)fail('live_equity_unavailable','Current positive net account equity could not be verified. Refresh this account before preparing an activation review.',503);
+   if(equity*100<b.capitalCents){
+    const usd=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
+    fail('live_cap_not_covered','The '+usd(b.capitalCents/100)+' capital cap exceeds current net account equity of '+usd(equity)+'. Lower Capital cap below the current account value, then refresh the activation review. No live trading was activated.');
+   }
+  }
   const mandate=await host(ctx,'mandate.prepare',{...binding(selected),capitalCents:b.capitalCents,...(whole?{scope}:{}),renewMandateId:watch.mandateId||null,strategyId:watch.strategyId,strategyFingerprint:fingerprint(config),backtestFingerprint:run.evidenceFingerprint,symbols:portfolioStrategySymbols(config)});
   if(whole&&(!wholeAccount(mandate)||!Array.isArray(mandate.adoptionReview?.positions)||!/^[a-f0-9]{64}$/i.test(mandate.adoptionReview?.holdingsFingerprint||'')))fail('whole_account_review_unverified','The native service did not retain the exact existing-holdings review.');
   const review=await strategyReview(ctx,owner,watch,study,b.capitalCents,scope,deps);

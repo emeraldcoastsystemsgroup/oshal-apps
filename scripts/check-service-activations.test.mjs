@@ -8,6 +8,8 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Pin kalshi's background-scan and sports-edge's refresh-pass (runsAs: user): each replaces an in-process timer whose work ran outside any admitted request, and each person activates it for their own scan / followed teams.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Pin trading's futures-research (runsAs: user, FUT-01): a person job each person activates to run their own saved Futures study nightly.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Pin Operations recorded-alert processing as a user-activated native schedule.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | Pin Intelligent Communication's mail-copy (runsAs: user): the person's own job that keeps their stored Gmail copy current.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | Pin Intelligent Communication's social-publish (runsAs: user): the person's own job that sends their scheduled social posts and stream announcements (1.6.0).
  */
 
 import test from 'node:test';
@@ -24,6 +26,8 @@ const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)
 const DECLARED = [
   ['calendar', 'calendar-meeting-briefs', 'system'],
   ['daily-trade-recap', 'daily-trade-recap-recorded-reports', 'system'],
+  ['email-summarizer', 'mail-copy', 'user'],
+  ['email-summarizer', 'social-publish', 'user'],
   ['intelligent-operations', 'operations-process-recorded-alerts', 'user'],
   ['kalshi', 'background-scan', 'user'],
   ['lora', 'lora-autonomous-overnight', 'system'],

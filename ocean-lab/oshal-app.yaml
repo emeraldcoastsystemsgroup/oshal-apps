@@ -1,5 +1,6 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare ocean-lab-guide (inline, personas/ocean-lab-guide.yaml) as the screen's concierge in place of the borrowed platform general-bot, which had none of the lab's tools and answered "harvest margin" as a generic agriculture term; the rating label names the concierge as the package's one model-touching feature. Guarded by scripts/check-store-bots.test.mjs.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.3.2: the Explorer vehicle saves its edited design before Jarvis or the concierge reads it and redraws the saved vehicle when their change returns (shared document handoff), keeping a field still being edited.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — ocean-lab ("Ocean Lab")
 #
@@ -61,7 +62,7 @@ description: >-
   recompute from its design vector, with its eleven parts as CAD Studio programs
   and a displacement budget that gates the stage. Every model runs in-process and
   deterministically; every site parameter is illustrative, not surveyed.
-version: 1.3.1
+version: 1.3.2
 status: active
 scope: person
 # Ocean Lab's own concierge: it reads the deterministic route-backed tools below and explains the lab's terms.

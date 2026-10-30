@@ -30,6 +30,12 @@
  *                     |                             | and back to the create card. Live 2026-10-11 the route existed
  *                     |                             | but the tile had no control, so a created explorer could only
  *                     |                             | be removed through the API.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Work side by side with the concierge: the open explorer registers with the
+ *                     |                             | shared document handoff. Before an assistant reads, prepare() waits for writes in
+ *                     |                             | flight and saves an unsaved stop angle or tether length through the existing PATCH
+ *                     |                             | /design, then hands over the vehicle id and its updated time; refresh() re-reads the
+ *                     |                             | record and redraws it when it changed. A field the person is still editing survives
+ *                     |                             | every redraw and the status line says it is kept.
  */
 
 /* global window, document, fetch */
@@ -41,7 +47,8 @@
   var HULL_DROP = '/api/embodied/physics/hull?medium=air';
   var SEMVER = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
   var SHA256 = /^[0-9a-f]{64}$/;
-  var state = { kinds: null, record: null };
+  var state = { kinds: null, record: null, shown: null, writes: [] };
+  var EDITED = [['stop-angle', function (v) { return v.wings.stopAngleDeg; }], ['tether-length', function (v) { return v.tether.lengthM; }]];
 
   /** @description The element with an id. @param {string} id Element id. @returns {HTMLElement} The element. */
   function el(id) { return document.getElementById(id); }
@@ -62,13 +69,18 @@
   /** @description JSON over fetch, same origin, never throwing on a status. @param {string} url URL. @param {object} [init] fetch init. @returns {Promise<{status:number, body:any}>} The answer. */
   function call(url, init) {
     var opts = Object.assign({ credentials: 'same-origin', headers: { 'content-type': 'application/json' } }, init || {});
-    return fetch(url, opts).then(function (res) {
+    var answer = fetch(url, opts).then(function (res) {
       return res.text().then(function (text) {
         var body = null;
         try { body = text ? JSON.parse(text) : null; } catch (err) { body = { error: 'not_json', detail: String(err) }; }
         return { status: res.status, body: body };
       });
     });
+    if (opts.method && opts.method !== 'GET') {
+      var settle = function () { state.writes = state.writes.filter(function (w) { return w !== answer; }); };
+      state.writes.push(answer); answer.then(settle, settle);
+    }
+    return answer;
   }
 
   /**
@@ -121,8 +133,16 @@
       var p = prov[r[0]];
       return '<tr><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td><td>' + (p ? '<span class="tag ' + esc(p.source) + '" title="' + esc(p.basis) + '">' + esc(p.source) + '</span>' : '') + '</td></tr>';
     }).join('');
-    el('stop-angle').value = vector.wings.stopAngleDeg;
-    el('tether-length').value = vector.tether.lengthM;
+    var kept = drafts();
+    EDITED.forEach(function (field) { if (kept.indexOf(field[0]) < 0) el(field[0]).value = field[1](vector); });
+    state.shown = { id: state.record.vehicle.vehicleId, values: EDITED.map(function (field) { return field[1](vector); }) };
+  }
+
+  /** @description The edited fields whose value differs from the one last drawn for this explorer. @returns {string[]} Field ids. */
+  function drafts() {
+    var shown = state.shown;
+    if (!shown || !state.record || shown.id !== state.record.vehicle.vehicleId) return [];
+    return EDITED.filter(function (field, i) { return Number(el(field[0]).value) !== shown.values[i]; }).map(function (field) { return field[0]; });
   }
 
   /** @description The sea-state table and the year, from the latest evaluation. @param {object} record The full record. @returns {void} */
@@ -323,6 +343,58 @@
     });
   }
 
+  /** @description Wait until every write this page started has answered. @returns {Promise<void>} Done. */
+  function settleWrites() {
+    if (!state.writes.length) return Promise.resolve();
+    return Promise.all(state.writes.map(function (w) { return w.catch(function () { return null; }); })).then(settleWrites);
+  }
+
+  /** @description The saved explorer's identity and version: what the assistant is told it is reading. @param {object} record The full record. @returns {object} The snapshot. */
+  function documentSnapshot(record) {
+    var v = record.vehicle;
+    return { app: 'ocean-lab', screen: 'surface', surface: 'ocean-lab-explorer', recordId: v.vehicleId, title: v.name || 'Explorer',
+      fields: { revision: v.updatedAt, updatedAt: v.updatedAt, stage: record.stage.stage, stopAngleDeg: v.designVector.wings.stopAngleDeg, tetherLengthM: v.designVector.tether.lengthM, readOnly: false, draft: false } };
+  }
+
+  /** @description Save an unsaved design change through the page's own save, then hand over the saved explorer. @returns {Promise<object|null>} The snapshot, or null when none is open. */
+  function prepareDocumentHandoff() {
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    return settleWrites().then(function () {
+      if (!state.record) return null;
+      var id = state.record.vehicle.vehicleId;
+      return (drafts().length ? saveDesign().then(settleWrites) : Promise.resolve()).then(function () {
+        if (!state.record || state.record.vehicle.vehicleId !== id) throw new Error('The open explorer changed while it was being saved. Ask again from the explorer you want to edit.');
+        if (drafts().length) throw new Error('Your design change could not be saved (' + el('status').textContent + ') It is still in the fields; correct it, then ask again.');
+        return documentSnapshot(state.record);
+      });
+    });
+  }
+
+  /** @description Re-read the handed-over explorer and redraw it when it changed, keeping a field the person is still editing. @param {object} [expected] The snapshot handed over. @returns {Promise<void>} Done. */
+  function refreshDocumentHandoff(expected) {
+    return settleWrites().then(function () {
+      var record = state.record;
+      if (!record || (expected && expected.recordId && expected.recordId !== record.vehicle.vehicleId)) return undefined;
+      var id = record.vehicle.vehicleId;
+      return call(BASE + '/' + encodeURIComponent(id)).then(function (a) {
+        if (!state.record || state.record.vehicle.vehicleId !== id) return;
+        if (a.status !== 200 || !a.body || !a.body.stage) { say('The explorer could not be read again (' + a.status + '); the page shows what you last saw.'); return; }
+        if (JSON.stringify(a.body) === JSON.stringify(state.record)) return;
+        render(a.body);
+        var kept = drafts();
+        say(kept.length ? 'The concierge saved a change; it is shown. Your unsaved ' + kept.join(' and ') + ' is kept; Save writes it on top.' : 'The concierge saved a change; it is shown.');
+      });
+    });
+  }
+
+  /** @description Offer this explorer to the conversation through the shared document handoff. @returns {void} */
+  function registerDocumentHandoff() {
+    var reported = function (fn) { return function (expected) { return fn(expected).catch(function (err) { say(err.message); throw err; }); }; };
+    import('/shared/ui/js/document-handoff.js').then(function (mod) {
+      mod.registerDocumentSession({ app: 'ocean-lab', prepare: reported(prepareDocumentHandoff), refresh: reported(refreshDocumentHandoff) });
+    }).catch(function (err) { say('The concierge cannot synchronize this explorer: ' + err.message); });
+  }
+
   /** @description Wire the buttons and load. @returns {void} */
   function start() {
     el('create-explorer').addEventListener('click', function () {
@@ -337,6 +409,7 @@
       var target = event.target && event.target.closest ? event.target.closest('[data-open-part]') : null;
       if (target) openInCadStudio(target.getAttribute('data-open-part')).catch(function (err) { el('cad-status').textContent = 'CAD Studio could not be reached: ' + err; });
     });
+    registerDocumentHandoff();
     load().catch(function (err) { say('The record could not be loaded: ' + err); });
   }
 

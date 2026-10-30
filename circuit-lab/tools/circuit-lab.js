@@ -55,6 +55,7 @@
  *                     |                             | context publish and the circuit_action handler) run only
  *                     |                             | when the kit renders no view, or when it is absent.
  * 11 | maintainer@emeraldcoastsystemsgroup.com  | Demo sweep 1: the engine-down banner and toasts showed the person the kernel's failure text three times with the host's install command. They now say the circuit engine is not answering on this installation (banner once, a short toast), never the address or install command; a solver refusal is still quoted.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com  | Shared document handoff: the open circuit registers with /shared/ui/js/document-handoff.js. Before Jarvis or the concierge reads, prepare() saves every pending edit through the lab's own routes (the autosave PUT, an inspector field not yet applied, a run setting not yet committed, an in-flight board PUT) and returns the design's id and updated_at as its revision; it refuses when a save was refused. After the turn refresh() re-reads GET /designs/:id and redraws a newer save, but keeps an edit the person is still making and says so in a toast. The poll no longer redraws over an unapplied inspector field.
  */
 (function () {
   'use strict';
@@ -63,11 +64,14 @@
   const ENGINE_DOWN = 'The circuit engine is not answering on this installation, so circuits cannot run right now. If this keeps happening, an administrator needs to set the engine up.';
   const ENGINE_SHORT = 'The circuit engine is not answering on this installation.';
   const Canvas = window.CircuitLabCanvas, Plot = window.CircuitLabPlot, Board = window.CircuitLabBoard;
-  const state = { view: 'schematic', caps: null, catalog: [], designs: [], design: null, runs: [], waveforms: null, report: null, picked: [], timeIndex: 0, playing: false, playStart: 0, lastSeen: '', pollTimer: null, saveTimer: null, saving: false, dirty: false, selection: null, epoch: 0, history: { past: [], future: [] }, snapshot: '', clipboard: null };
+  const state = { view: 'schematic', caps: null, catalog: [], designs: [], design: null, runs: [], waveforms: null, report: null, picked: [], timeIndex: 0, playing: false, playStart: 0, lastSeen: '', pollTimer: null, saveTimer: null, saving: false, dirty: false, selection: null, epoch: 0, history: { past: [], future: [] }, snapshot: '', clipboard: null, inspectorDirty: false, saveError: null, pending: new Set() };
 
   // ── Local history (undo / redo over circuit snapshots) ─────────────────────
   const snapshotNow = () => JSON.stringify(Canvas.circuit());
-  function syncCanvas(parts, wires) { Canvas.setCircuit(parts, wires); state.history = { past: [], future: [] }; state.snapshot = snapshotNow(); }
+  function syncCanvas(parts, wires) { Canvas.setCircuit(parts, wires); state.history = { past: [], future: [] }; state.snapshot = snapshotNow(); state.saveError = null; }
+  /** Every in-flight save is tracked so a document handoff can wait for it before reading the saved row. */
+  function track(promise) { state.pending.add(promise); const done = () => state.pending.delete(promise); promise.then(done, done); return promise; }
+  async function settle() { while (state.pending.size) await Promise.allSettled([...state.pending]); }
   function recordHistory() {
     const now = snapshotNow();
     if (now === state.snapshot) return;
@@ -235,7 +239,7 @@
   async function boardChanged(board) {
     if (!state.design) return;
     try {
-      const out = await api('/designs/' + state.design.design_id + '/board', { method: 'PUT', json: Object.assign({ run: $('auto-run').checked }, board) });
+      const out = await track(api('/designs/' + state.design.design_id + '/board', { method: 'PUT', json: Object.assign({ run: $('auto-run').checked }, board) }));
       syncCanvas(out.design.parts, out.design.wires); await adopt(out);
     } catch (e) {
       if (e.status === 400) toast(e.message + (e.body && e.body.field ? ' [' + e.body.field + ']' : ''), 'error');
@@ -406,6 +410,7 @@
   // ── Inspector ──────────────────────────────────────────────────────────────
   function renderInspector() {
     const sel = state.selection, box = $('inspector');
+    state.inspectorDirty = false;
     const form = $('props-form'); form.replaceChildren(); $('pin-list').replaceChildren();
     $('catalog-row').hidden = true; $('gear-to-cad').hidden = true;
     if (!sel || !state.design) { box.hidden = true; return; }
@@ -481,14 +486,20 @@
     state.dirty = true; clearTimeout(state.saveTimer);
     state.saveTimer = setTimeout(() => { flushSave().catch(() => {}); }, 500);
   }
-  async function flushSave() {
-    if (!state.design || !state.dirty || state.saving) return;
+  function flushSave() {
+    if (!state.design || !state.dirty || state.saving) return Promise.resolve();
+    return track(saveCircuit());
+  }
+  async function saveCircuit() {
     state.saving = true; state.dirty = false; clearTimeout(state.saveTimer);
     const designId = state.design.design_id;
     try {
       const out = await api('/designs/' + designId + '/circuit', { method: 'PUT', json: Object.assign({ run: $('auto-run').checked }, Canvas.circuit()) });
+      state.saveError = null;
       if (state.design && state.design.design_id === designId) await adopt(out);
     } catch (e) {
+      // A refused solve still saved the circuit (the reply carries the row); any other refusal left the canvas unsaved.
+      state.saveError = e.body && e.body.build && e.body.design ? null : e;
       if (e.status === 400) toast(e.message + (e.body && e.body.field ? ' [' + e.body.field + ']' : ''), 'error');
       else if (e.body && e.body.build) { showBuild(e.body.build); if (e.body.design) await adopt(e.body); }
       else toast(e.message, 'error');
@@ -499,17 +510,62 @@
   function startPoll() { stopPoll(); state.pollTimer = setInterval(poll, 5000); }
   function stopPoll() { if (state.pollTimer) clearInterval(state.pollTimer); state.pollTimer = null; }
   async function poll() {
-    if (!state.design || state.dirty || state.saving || Canvas.isDragging()) return;
+    if (!state.design || state.dirty || state.saving || state.inspectorDirty || Canvas.isDragging()) return;
     const designId = state.design.design_id;
     try {
       const out = await api('/designs/' + designId);
-      if (!state.design || state.design.design_id !== designId || out.design.updated_at === state.lastSeen || state.dirty) { renderEngine(out.engine); return; }
-      state.design = out.design; state.lastSeen = out.design.updated_at; state.runs = out.runs || [];
-      syncCanvas(out.design.parts, out.design.wires);
-      renderDesign(); renderEngine(out.engine);
-      await loadReport(out.design);
-      publishContext();
+      if (!state.design || state.design.design_id !== designId || out.design.updated_at === state.lastSeen || state.dirty || state.inspectorDirty) { renderEngine(out.engine); return; }
+      await showSaved(out);
     } catch (_) { /* transient */ }
+  }
+  /** Draw a design row read back from GET /designs/:id: canvas, settings, runs and the last run's readings. */
+  async function showSaved(out) {
+    state.design = out.design; state.lastSeen = out.design.updated_at; state.runs = out.runs || [];
+    syncCanvas(out.design.parts, out.design.wires);
+    renderDesign(); renderEngine(out.engine);
+    await loadReport(out.design);
+    publishContext();
+  }
+
+  // ── Document handoff (Jarvis and the concierge read the SAVED circuit) ──────
+  const SIM_KEYS = ['stopSeconds', 'stepSeconds', 'startFromRest', 'reltol', 'gmin', 'method'];
+  /** True when a run setting on screen differs from the one saved with the design. */
+  function simDraft() {
+    const d = state.design; if (!d) return false;
+    const now = simFromInputs(), was = d.sim || {};
+    return SIM_KEYS.some((k) => (k === 'startFromRest' ? was[k] !== false : (was[k] == null ? null : was[k])) !== (now[k] == null ? null : now[k]));
+  }
+  const hasDraft = () => state.dirty || state.saving || state.inspectorDirty || simDraft() || Canvas.isDragging();
+  function handoffSnapshot(d) {
+    return { app: 'circuit-lab', screen: 'surface', surface: 'circuit-lab', recordId: String(d.design_id), title: d.title,
+      fields: { revision: d.updated_at, readOnly: false, draft: false, view: state.view, runs: d.run_count, parts: d.parts.length, wires: d.wires.length } };
+  }
+  /** Save every pending edit through the lab's own routes, then name the saved design. */
+  async function prepareDocumentHandoff() {
+    // The inspector first: a run-setting save re-renders the inspector from the canvas and would drop its field.
+    if (state.design && state.inspectorDirty) applyProps();
+    document.activeElement?.blur?.();
+    await settle();
+    if (!state.design) return null;
+    const id = state.design.design_id, same = () => state.design && state.design.design_id === id;
+    if (state.inspectorDirty) applyProps();
+    if (simDraft()) await saveSim();
+    while (same() && (state.dirty || state.saving)) { await flushSave(); await settle(); }
+    await settle();
+    if (!same()) throw new Error('The open circuit changed while it was being saved. Ask again from the circuit you want to edit.');
+    if (state.saveError) throw new Error('The current circuit could not be saved: ' + state.saveError.message);
+    if (hasDraft()) throw new Error('The current circuit draft could not be saved.');
+    return handoffSnapshot(state.design);
+  }
+  /** Re-read the same design after the turn; a newer save is drawn unless the person is still editing. */
+  async function refreshDocumentHandoff(expected) {
+    await settle();
+    const d = state.design; if (!d || (expected && expected.recordId && expected.recordId !== String(d.design_id))) return;
+    const epoch = state.epoch, id = d.design_id, out = await api('/designs/' + id);
+    if (epoch !== state.epoch || !state.design || state.design.design_id !== id) return;
+    if (!(Date.parse(out.design.updated_at) > Date.parse(state.lastSeen))) return;
+    if (hasDraft()) throw new Error('The concierge saved a change to this circuit while you were editing. Your edit is still here and was not replaced; reopen the circuit from the list to see the saved version.');
+    await showSaved(out);
   }
 
   // ── The assistant rail (surface-bridge → Jarvis) ───────────────────────────
@@ -597,6 +653,9 @@
       applyAssistantActions(actions).catch((e) => toast(e.message, 'error'));
     });
     window.addEventListener('bridge-ready', publishContext);
+    const reported = (step) => async (...args) => { try { return await step(...args); } catch (e) { toast(e.message, 'error'); throw e; } };
+    import('/shared/ui/js/document-handoff.js').then(({ registerDocumentSession }) => registerDocumentSession({ app: 'circuit-lab', prepare: reported(prepareDocumentHandoff), refresh: reported(refreshDocumentHandoff) }))
+      .catch((e) => toast('The concierge cannot synchronize this circuit: ' + e.message, 'error'));
   }
   window.CircuitLabAssistant = { contextDigest, applyAssistantActions, publishContext, ACTION_DOC };
 
@@ -631,11 +690,15 @@
     else if (k === 'c') { copySelected(); }
     else if (k === 'v') { pasteClipboard(); e.preventDefault(); }
   });
-  ['sim-stop', 'sim-step', 'sim-rest', 'sim-reltol', 'sim-gmin', 'sim-method'].forEach((id) => $(id).addEventListener('change', async () => {
-    if (!state.design) return;
-    try { await adopt(await api('/designs/' + state.design.design_id, { method: 'PATCH', json: { sim: simFromInputs() } })); }
-    catch (e) { toast(e.message + (e.body && e.body.field ? ' [' + e.body.field + ']' : ''), 'error'); }
-  }));
+  function saveSim() {
+    if (!state.design) return Promise.resolve();
+    return track((async () => {
+      try { await adopt(await api('/designs/' + state.design.design_id, { method: 'PATCH', json: { sim: simFromInputs() } })); }
+      catch (e) { toast(e.message + (e.body && e.body.field ? ' [' + e.body.field + ']' : ''), 'error'); }
+    })());
+  }
+  ['sim-stop', 'sim-step', 'sim-rest', 'sim-reltol', 'sim-gmin', 'sim-method'].forEach((id) => $(id).addEventListener('change', saveSim));
+  ['input', 'change'].forEach((type) => $('props-form').addEventListener(type, () => { state.inspectorDirty = true; }));
   $('rename-design').addEventListener('click', async () => {
     if (!state.design) return;
     const title = window.prompt('Circuit name', state.design.title); if (!title) return;

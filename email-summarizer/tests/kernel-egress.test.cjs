@@ -9,6 +9,8 @@
  *   from the caller's connection metadata, answer a missing or lapsed connection with the same 409s, and send through the
  *   package's fenced MIME builder. Outside the kernel the broker token still travels as a Bearer header.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A sent body makes the installation's own /cockpit/ and /api/ links absolute from x-oshal-public-origin, leaves every other link and path as written, and never uses a non-https origin.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | A search (q) reaches Gmail as the person's words over the look-back window across all mail, a search that names its own date keeps it, a multi-line search is one line of at most 300 characters, and the email-messages tool declares query, days and max on its route (Roger, 2026-10-29: an ACT prep offer from the last 2 days could not be searched).
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | email-messages declares up to 180 days (the stored copy's reach; a live read still stops at 30).
  */
 'use strict';
 const test = require('node:test');
@@ -106,6 +108,26 @@ test('Gmail inbox reads go to gmail.googleapis.com with no credential and map to
   assert.equal(new URL(calls[0].url).searchParams.get('q'), 'in:inbox newer_than:2d');
   assertNoCredential(calls);
   assert.deepEqual(brokerCalls, [], 'the framework broker is never consulted under the kernel');
+});
+
+test('a Gmail search looks for the person\'s words over the window across all mail', async () => {
+  const searched = async (query) => {
+    const { res, calls } = await call('GET /messages', { meta: GOOGLE, query, answer: (url) => (url.includes('/messages?q=') ? json({ messages: [] }) : json({})) });
+    assert.equal(res.statusCode, 200);
+    assert.equal(new URL(calls[0].url).searchParams.get('maxResults'), String(query.max || 25));
+    return new URL(calls[0].url).searchParams.get('q');
+  };
+  assert.equal(await searched({ q: 'ACT prep', days: '2', max: '50' }), 'ACT prep newer_than:2d');
+  assert.equal(await searched({ q: 'from:kahoot after:2026/10/27', days: '2' }), 'from:kahoot after:2026/10/27');
+  assert.equal(await searched({ q: 'ACT\nprep  ', days: '90' }), 'ACT prep newer_than:30d', 'one line, the window at most 30 days');
+  assert.equal((await searched({ q: 'x'.repeat(400) })).length, 300 + ' newer_than:7d'.length);
+  assert.equal(await searched({ q: '   ', days: '3' }), 'in:inbox newer_than:3d', 'no words lists the inbox');
+});
+
+test('the email-messages tool sends its search, window and count to the route', () => {
+  const manifest = fs.readFileSync(path.join(__dirname, '..', 'oshal-app.yaml'), 'utf8');
+  assert.match(manifest, /apiEndpoint: "GET \/api\/email\/messages\?q=\{input\.query\}&days=\{input\.days\}&max=\{input\.max\}"/);
+  for (const field of ['query: { type: string, maxLength: 300', 'days: { type: integer, minimum: 1, maximum: 180', 'max: { type: integer, minimum: 1, maximum: 50']) assert.ok(manifest.includes(field), field);
 });
 
 test('My Day reads today from www.googleapis.com and the digest counts the mapped rows', async () => {

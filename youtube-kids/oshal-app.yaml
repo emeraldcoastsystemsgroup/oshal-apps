@@ -52,7 +52,7 @@ description: >-
   Upload your YouTube Takeout watch history and get a parent-friendly brief on
   what your kid is into — top interests, what the unfamiliar channels actually
   are, gift ideas, and conversation openers. Read-only; nothing is posted or sent.
-version: 1.2.2
+version: 1.2.4
 
 # ADR-139 wave 2 — "Send to…" destination: a Takeout watch-history.json from anywhere in the
 # swarm ingests straight into the parent brief (JSON only; zip archives use the Takeout spine).

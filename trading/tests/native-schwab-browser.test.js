@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.43.0: Manage strategy is a link beside Account details, and broker day amounts are withheld (after sales they omitted closed positions and showed a false daily return), so the tile shows open-position gain/loss and the headline says day change is unavailable.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Assert dashboard tiles survive unavailable strategy reads and strategy controls use the correct navigation section.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve the exact native daily amount while asserting its open-position scope on desktop and phone.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Render the shipped Schwab landing and holdings view on desktop and phone; native provider/SQL results are named fixture seams, no real orders execute.
@@ -54,18 +55,20 @@ test('Schwab balances and holdings are usable on desktop and phone with no live-
     const page = await context.newPage();const errors=[];page.on('pageerror',e => errors.push(e.message));
     await page.goto(`http://127.0.0.1:${server.address().port}/api/trading/`);
     const tile = page.locator('#tiles .tile',{hasText:'Account …1234'});
-    await tile.getByRole('button',{name:'Manage strategy →'}).waitFor();
+    await tile.getByRole('link',{name:'Manage strategy →'}).waitFor();
     assert.match(await tile.innerText(),/CONNECTED[\s\S]*\$12,500/);
     assert.equal(await page.locator('#heroTotal').innerText(),'$12,500');
-    assert.match(await page.locator('#heroDay').innerText(),/-\$40[\s\S]*open-position day P&L/,'a measured Schwab day change counts toward the total');
-    assert.match(await tile.innerText(),/Open-position day P&L[\s\S]*-\$40/);
+    assert.equal(await page.locator('#heroDay').innerText(),'day change unavailable','an ambiguous broker day amount is withheld, not shown as the daily return');
+    assert.doesNotMatch(await tile.innerText(),/day P&L/);
+    assert.match(await tile.innerText(),/Open-position gain \/ loss/);
+    await tile.getByRole('link',{name:'Account details →'}).waitFor();
     // Exercise the shipped renderer with mixed known/unknown day changes, independently of the provider seam.
     await page.evaluate(() => paintHero({totalValue:12510,totalDayChange:10,accounts:[{dayChange:10},{dayChange:null}]},null,[]));
     assert.match(await page.locator('#heroDay').innerText(),/1 of 2 accounts report day change/);
     assert.match(await page.locator('#rollup').innerText(),/NVDA[\s\S]*20[\s\S]*\$10,000/);
     assert.doesNotMatch(await tile.innerText(),/Create book|Start trading/);
     assert.equal(await page.locator('#nativeAccountOverview').count(),0,'strategy-read failures cannot replace the Accounts dashboard');
-    await tile.getByRole('button',{name:'Manage strategy →'}).click();
+    await tile.getByRole('link',{name:'Manage strategy →'}).click();
     assert.equal(await page.locator('#nav button.on').innerText(),'Strategies');
     assert.equal(new URL(page.url()).searchParams.get('view'),'strategies');
     await page.getByText('Account strategy evidence is unavailable for this exact connection. Refresh before reviewing actions.',{exact:true}).waitFor();

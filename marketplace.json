@@ -9,7 +9,7 @@
       "suite": "ai-productivity",
       "displayName": "Calling Assistant",
       "description": "Configurable phone tasks with a reusable tool, operator bot, workflow, audio tests and call reports.",
-      "version": "0.1.9",
+      "version": "0.1.10",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -123,7 +123,7 @@
       "suite": "ai-creative",
       "displayName": "Brand Graphics",
       "description": "On-brand OSHAL motion graphics — a short brief becomes the validated electric-\"oshal\" intro look via Google Vids on the operator's signed-in Chrome.",
-      "version": "1.1.3",
+      "version": "1.1.5",
       "theme": "midnight",
       "dependencies": {
         "apps": [
@@ -195,7 +195,7 @@
       "suite": "ai-home",
       "displayName": "Kid Lens",
       "description": "Upload your YouTube Takeout watch history and get a parent-friendly brief on what your kid is into — top interests, decoded channels, gift ideas, conversation openers. Read-only.",
-      "version": "1.2.2",
+      "version": "1.2.4",
       "theme": "sakura",
       "dependencies": {
         "apps": [],
@@ -346,7 +346,7 @@
       "suite": "ai-home",
       "displayName": "Spotify",
       "description": "AI music concierge — search your Spotify, see what's playing and your playlists, get recommendations from your taste, and build playlists on your account. Playback opens in your own Spotify app.",
-      "version": "1.1.4",
+      "version": "1.1.5",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -494,7 +494,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. Any document in the swarm can be sent here (ADR-139 Send to…) and absorbed into your profile. Single-tenant, multi-user (per-user isolation); multi-tenant ready.",
-      "version": "1.29.1",
+      "version": "1.29.3",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -589,7 +589,7 @@
       "suite": "ai-productivity",
       "displayName": "Storage",
       "description": "Your storage hub — choose where OSHAL saves generated code vs files (GitHub / Dropbox / OSHAL-local), manage targets by chat with the Storage Assistant, and browse your files. The storage-target kernel skill and /api/files browser stay framework-resident.",
-      "version": "1.2.2",
+      "version": "1.3.0",
       "theme": "graphite",
       "dependencies": {
         "apps": [],
@@ -781,7 +781,7 @@
       "suite": "ai-knowledge",
       "displayName": "Job Apply",
       "description": "Submit an approved, packet-ready job application by driving your real browser on a desktop worker node — push a ticket, it queues, the career-hunter worker submits it, and the ticket passes or fails. Workflow-only: the career-hunter worker bot and the apply-operator/apply-ingest submission engine stay framework-resident; this package is the ticket queue over them.",
-      "version": "1.1.4",
+      "version": "1.1.6",
       "dependencies": {
         "apps": [
           "career-hunter"
@@ -1009,7 +1009,7 @@
       "suite": "ai-home",
       "displayName": "Drone Ops",
       "description": "Drone fleet automation control - arm, take off, fly waypoint missions, and coordinate multi-drone fleet plans inside a hard geofence with deterministic separation checks. A flight-planning concierge drafts single or fleet missions from natural language; a human approves every flight (real hardware also needs the confirm rail). The drone engine, the drone-node server, and the drone-operator inline node stay framework-resident; this package is the surface over them (ADR-099: drones ARE swarm nodes).",
-      "version": "1.3.0",
+      "version": "1.3.1",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1042,7 +1042,7 @@
       "suite": "ai-home",
       "displayName": "Spaces",
       "description": "Turn a real space into an explorable 3D scene: film a walkthrough (or import an iPhone/LiDAR/drone capture) into a Gaussian-splat scene you walk in a WebGL viewer, get live walk/pan guidance while you film, mint a phone-pairing token for LiDAR ingest, paint Wi-Fi coverage onto the map, and fly a sim-drone scan orbit. The video->3D reconstruction engine + owner-scoped scan store stay framework-resident as the pinned 'spatial-mapping' kernel skill (declared in the package uses:), and the spaces-operator inline concierge stays core; this package is the surface over them (ADR-111, ADR-093).",
-      "version": "0.10.0",
+      "version": "0.10.1",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1108,7 +1108,7 @@
       "suite": "ai-creative",
       "displayName": "Pumpkin",
       "description": "Animated talking jack-o'-lantern Halloween prop - project a glowing procedural pumpkin face into an inflatable, with a lip-syncing mouth. The public browser demo has locally interactive control, projector, voice, saved looks, and same-device remote tabs without server writes or AI spend; signed-in mode adds owner-scoped cross-device pairing and autonomous pumpkin-bot replies.",
-      "version": "1.3.3",
+      "version": "1.3.5",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1141,7 +1141,7 @@
       "suite": "ai-creative",
       "displayName": "Creative Studio",
       "description": "A creative bot that just keeps making short kid-safe videos - it rotates a public-domain library (fables, fairytales, famous sayings), animates each ~100-word story across ~10 continuous Google Vids Extend scenes on the remote worker (ADR-080), downloads the finished MP4, and saves it to your content folder + Google Drive. The shared vids-operator desktop worker, its registry entries, and the oshal-vids CLI stay framework-resident; the /api/vids surface it tiles is owned by the vids app (declared dependency); this package is the manifest + tools + tile over them.",
-      "version": "1.2.4",
+      "version": "1.2.6",
       "theme": "midnight",
       "dependencies": {
         "apps": [
@@ -1195,7 +1195,7 @@
       "suite": "ai-creative",
       "displayName": "Create",
       "description": "One studio for everything you make: decks, documents and workbooks from AI Office, portraits, short videos, story episodes, LoRA characters, 3D scans and brand intro clips — a single home page that shows what you were working on and one tap to pick up where you left off, in every studio you already have.",
-      "version": "1.15.0",
+      "version": "1.15.2",
       "theme": "create",
       "dependencies": {
         "apps": [],
@@ -1242,7 +1242,7 @@
       "suite": "ai-finance",
       "displayName": "Daily Trade Recap",
       "description": "Review saved trade-recap work and receive owner-qualified recorded-report updates in Jarvis. The existing approval-gated media workflow renders and emails the after-close recap; briefing collection reads its report journal and does not generate reports or trade.",
-      "version": "1.3.4",
+      "version": "1.3.6",
       "dependencies": {
         "apps": [
           "vids"
@@ -1291,7 +1291,7 @@
       "suite": "ai-creative",
       "displayName": "Video Studio",
       "description": "Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from an idea - the director bot storyboards it and the studio renders a real .mp4 with voiceover and captions, saved to your Files storage; a series is written by the screenplay-writer, approval-gated on the script, then rendered one episode at a time on the remote Vids node. The series conductor engine, the video-generation slice, the video-director + screenplay-writer inline nodes, and the shared vids-operator desktop worker stay framework-resident; this package is the surface over them.",
-      "version": "1.11.0",
+      "version": "1.11.1",
       "theme": "sakura",
       "dependencies": {
         "apps": [
@@ -1377,8 +1377,8 @@
       "name": "email-summarizer",
       "suite": "ai-productivity",
       "displayName": "Intelligent Communication",
-      "description": "Your inbox, calendar, and day in one surface - the ADR-037 reference comms app. Reads your own connected Gmail + Google Calendar, Outlook / Microsoft 365 mail + calendar, or Yahoo Mail inbox (read-only), builds a prioritized My Day digest, and the communications bot summarizes your day and drafts replies on its own harness/model with cost captured per user; sending is a single explicit-confirm gated action. The communications-bot node, the kernel sendGmail/sendOutlookMail machinery (with the header-injection fence), the gmail/outlook/twilio connectors + CLIs, and the inbox-ingest Signals engine stay framework-resident; this package is the surface over them.",
-      "version": "1.4.7",
+      "description": "Your inbox, calendar, social channels and day in one surface. Reads the signed-in user's own connected Gmail + Google Calendar or Outlook / Microsoft 365 mail + calendar, builds a prioritized \"My Day\" digest, drafts replies with the communications bot, and publishes to the person's own X, LinkedIn, Facebook Page, Slack and Mastodon accounts from a Buffer-style desk: write once, customize per channel, add to the queue, schedule or post now, answer Slack and X mentions in place, and announce a live stream on every channel. Sending mail is a single explicit-confirm gated action; every social publish goes out on the person's own connection through the kernel. The bot does the reasoning on its own harness/model with cost captured per user.",
+      "version": "1.6.0",
       "theme": "gray",
       "dependencies": {
         "apps": [],
@@ -1388,7 +1388,12 @@
           "outlook",
           "yahoo",
           "twilio",
-          "facebook"
+          "facebook",
+          "meta-business",
+          "twitter",
+          "linkedin",
+          "slack",
+          "mastodon"
         ],
         "required": {
           "apps": [],
@@ -1403,7 +1408,12 @@
             "outlook",
             "yahoo",
             "twilio",
-            "facebook"
+            "facebook",
+            "meta-business",
+            "twitter",
+            "linkedin",
+            "slack",
+            "mastodon"
           ]
         }
       },
@@ -1423,8 +1433,8 @@
       "name": "kalshi",
       "suite": "ai-finance",
       "displayName": "Kalshi Prediction Markets",
-      "description": "Find mispriced event contracts on Kalshi (ADR-094). Every open market is evaluated like a poker hand - calibrated true probability (from Kalshi's own settled-market tape, no history means no edge) versus price plus fees - and playable hands are ranked with quarter-Kelly stakes and explicit risk flags. Portfolio + order placement ride the per-user connector, confirm-gated and demo-exchange-first (KALSHI_LIVE_ENABLED gates live money; every order and refusal audited). The prediction-markets engine, the kalshi connector + broker key, the calibration/forward-test CLIs, and the default tile stay framework-resident; this package is the surface + confirm-gated order routes over them. The scan runs in the BACKGROUND on a cadence configured in the manifest (default hourly) and posts new playable hands to the user's Jarvis feed; the surface serves the last snapshot instantly instead of waiting on a feed walk, and the cadence/alert thresholds are editable from the app's Settings tab.",
-      "version": "1.6.3",
+      "description": "Find mispriced event contracts on Kalshi (ADR-094). Every open market is evaluated like a poker hand - calibrated true probability (from Kalshi's own settled-market tape, no history means no edge) versus price plus fees - and playable hands are ranked with quarter-Kelly stakes and explicit risk flags. Portfolio + order placement ride the per-user connector, confirm-gated and demo-exchange-first (KALSHI_LIVE_ENABLED gates live money; every order and refusal audited). The prediction-markets engine, the kalshi connector + broker key, the calibration/forward-test CLIs, and the default tile stay framework-resident; this package is the surface + confirm-gated order routes over them. The scan runs in the BACKGROUND on a cadence configured in the manifest (default hourly) and, once you switch Tell Jarvis on in Settings, posts new playable hands to your Jarvis feed; the surface serves the last snapshot instantly instead of waiting on a feed walk, and the cadence/alert thresholds are editable from the app's Settings tab.",
+      "version": "1.6.5",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -1496,7 +1506,7 @@
       "suite": "ai-finance",
       "displayName": "Intelligent Trades",
       "description": "Research stocks, track connected brokerage accounts and test strategies in a separate paper book, with a decision trail from signals to orders. Trading actions follow the connected account's supported controls. Cash equities. No crypto.",
-      "version": "1.42.12",
+      "version": "1.46.1",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -1571,7 +1581,7 @@
       "suite": "ai-creative",
       "displayName": "Dungeon Master",
       "description": "Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. Open SRD 5.1 (CC-BY).",
-      "version": "0.21.6",
+      "version": "0.21.8",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1604,7 +1614,7 @@
       "suite": "ai-creative",
       "displayName": "Game Show",
       "description": "TV-style AI game night: Family Feud, Jeopardy, Wheel of Fortune and Whammy, each with its own television set — podium characters, sound cues and opening titles. Play solo against skill-tiered AI contestants, or hand everyone a phone as a buzzer.",
-      "version": "0.11.4",
+      "version": "0.11.6",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1680,7 +1690,7 @@
       "suite": "ai-engineering",
       "displayName": "AI Bake-Off",
       "description": "Race one job across every AI lane you already have, grade every output on the shared quality judge, and get the cheapest lane that still clears your quality bar.",
-      "version": "1.1.4",
+      "version": "1.1.6",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -1757,7 +1767,7 @@
       "suite": "ai-productivity",
       "displayName": "Switchboard",
       "description": "Every line, one board. Switchboard pulls your mail, DMs, texts, calls, and social mentions into a single prioritized stream — the Today board — so you triage your whole day in one place instead of app-hopping. The Streams desk manages your outbound posts CMS-style: drafts move through review, approval, scheduling, and publish with per-channel variants and revision history. Reads run on your own connector tokens; ranking and drafting run on the communications bot with cost captured per user. Nothing is sent or posted without your say-so.",
-      "version": "0.6.4",
+      "version": "0.6.5",
       "theme": "forest",
       "dependencies": {
         "apps": [
@@ -1994,7 +2004,7 @@
       "suite": "ai-engineering",
       "displayName": "Ocean Lab",
       "description": "Ambient-energy design lab — model a machine that moves on tidal and current flow or on the soil thermal gradient, size its rotor with real blade-element momentum theory, and export printable geometry. Three surfaces: a harvest siting console (energy budgets, seasonal gap analysis, storage sizing), a blade studio (NACA sections, panel-method polars, Cp sweeps, STL/OBJ/SCAD/DXF export), and the Explorer — the design study's 300 mm wave explorer as a saved vehicle whose sea-state table, year and stage recompute from its design vector, with its eleven parts as CAD Studio programs and a displacement budget that gates the stage. Every model runs in-process and deterministically; every site parameter is illustrative, not surveyed, and no hardware was built.",
-      "version": "1.3.1",
+      "version": "1.3.2",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -2031,7 +2041,7 @@
       "suite": "ai-productivity",
       "displayName": "Marketing Engine",
       "description": "Takes a built oshal product to traffic, users, and revenue: campaign board with stage-gated intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic metrics scorecard, experiment registry, budget proposals a human approves, and weekly review tickets worked by inline concierge bots only after human approval.",
-      "version": "0.5.4",
+      "version": "0.5.5",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -2276,7 +2286,7 @@
       "suite": "ai-knowledge",
       "displayName": "Print Ingest",
       "description": "An inbound virtual printer for the swarm: a document printed to the oshal virtual printer, or sent to its inbox, is filed into the swarm's knowledge, never printed on paper. Everything lands in one inbox with a recommended filing — a bot's corpus, the swarm's shared knowledge, or private to you — and nothing is written until you approve it. It cannot print to a home or office printer.",
-      "version": "0.3.7",
+      "version": "0.3.8",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2318,7 +2328,7 @@
       "suite": "ai-finance",
       "displayName": "Sports Edge",
       "description": "Follow a team and really know its next game. The odds maker builds a line from the ground up - Elo and schedule-adjusted power ratings from the season tape, a two-sided offence-versus-defence unit matchup, both injury reports weighted by each player's real share of team production, plus rest and travel - and measures it against the book's moneyline and spread. Every call is registered before kickoff and graded on closing-line value, so the model has to beat the market before it is allowed to stake anything. No order path. Fantasy leagues moved to their own app, Fantasy Football, grouped with this one as Intelligent Sports.",
-      "version": "0.11.1",
+      "version": "0.11.3",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -2354,7 +2364,7 @@
       "suite": "ai-home",
       "displayName": "Calendar Preparation",
       "description": "Sync your upcoming primary-calendar events explicitly, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting.",
-      "version": "1.1.5",
+      "version": "1.1.6",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -2392,7 +2402,7 @@
       "suite": "ai-engineering",
       "displayName": "Capability Ideator",
       "description": "Discover sourced tools and integration opportunities for business processes, grounded in installed applications and explicit connection requirements.",
-      "version": "1.1.3",
+      "version": "1.1.6",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -2496,7 +2506,7 @@
       "suite": "ai-engineering",
       "displayName": "CAD Studio",
       "description": "A real CAD kernel (Open CASCADE via CadQuery) the swarm can drive iteratively. Start from a box, a cylinder, a sketch, the outlines of a Scan to Print job or an uploaded STL; add holes, bosses, pockets, sketch extrusions, revolves, sweeps, lofts, fillets, chamfers, shells and cut planes as an ordered feature list; every edit rebuilds the part and re-exports STEP, STL, hidden-line drawing views and a report. Ask the concierge for a change in plain words and it edits the same list through the package's tools, so the person, the bot and any MCP client iterate on one model.",
-      "version": "0.2.5",
+      "version": "0.2.6",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2531,7 +2541,7 @@
       "suite": "ai-creative",
       "displayName": "Scene Studio",
       "description": "Build games and 3-D scenes in Godot and models in Blender, by hand or by asking the Scene Studio Director: it drives both through their own MCP servers (godot-mcp and the Blender Lab MCP) running in the package's sandboxed engine container. Every change is a revision you can undo; render a preview (a still plus a 3-D orbit view), run a Godot project headless to read its output, bring a Blender model into a Godot game, and export a Godot project zip or glTF, FBX, OBJ, STL or the .blend.",
-      "version": "0.2.3",
+      "version": "0.2.4",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2564,7 +2574,7 @@
       "suite": "ai-engineering",
       "displayName": "Circuit Lab",
       "description": "A local circuit and mechanism lab the swarm can drive. Place batteries, resistors, LEDs, capacitors, switches, transistors, op-amps, relays, regulators, a 555, a sequenced pin, an H-bridge, signal sources, DC motors, gears and loads on a schematic, wire them, and a real SPICE solver (ngspice, in the package's engine container) runs the transient: waveforms, per-part readings, warnings, and gears that turn on the canvas at their solved speed. Ask the concierge for a change in plain words and it edits the same circuit through the package's tools, so the person, the bot and any MCP client iterate on one design.",
-      "version": "0.8.8",
+      "version": "0.8.9",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2601,7 +2611,7 @@
       "suite": "ai-engineering",
       "displayName": "Drone Relay",
       "description": "Design a chain of mini drones that relays commands and telemetry drone to drone so one can work beyond the base link: size the hop from a link budget on ESP-NOW, Wi-Fi Direct, Wi-Fi mesh, BLE, LoRa or Wi-Fi HaLow, place the relay slots and spares, fail a relay in a simulated scenario and read how long the tip was out of reach and when the chain closed the gap and was restored — with the on-board and controller rules a companion firmware carries, and the signed, source-routed envelope shown hop by hop. Relays hover or perch, and a relay that never flew — a ground node on a short mast — holds an inner slot for days at no cost to the fleet; an out-of-band control channel (which, when it reaches, tells the far segment where to meet instead of leaving it to walk in blind) and a courier for bulk data are sized beside the chain, and every run states the buffer an outage costs. A chain may branch into a tree with a tip on each branch, or tile a survey area as a lattice the tip sweeps, and a saved formation drafts as a Drone Ops fleet mission that Drone Ops re-validates and a human approves there. A designer concierge sizes and explains through the same tools. Simulated; nothing here flies.",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2703,7 +2713,7 @@
       "suite": "ai-productivity",
       "displayName": "Fantasy Football",
       "description": "Manage the fantasy football team you actually have. It reads your own ESPN league with your own connection, scores ESPN's raw projections with your league's own scoring rules (ESPN publishes stats, not points, and this package holds no stat table), and sets the lineup with the best chance of beating the team you play this week - which starts the volatile player when you are an underdog and the steady one when you are favoured, always beside what the safest lineup would have won. It prices every roster move over the rest of the season: a waiver board with a bid and a drop on every row, trades both managers gain from, and a one-week streaming lane. A league typed in by hand works with no ESPN connection at all. Your team, your leagues and your ledger are yours alone: no other user, operator included, can see them. Every lineup is recorded before kickoff and graded against what was actually started. It advises; you act.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -3657,7 +3667,7 @@
       "suite": "ai-creative",
       "displayName": "Motion Studio",
       "description": "Edit original-owned motion compositions with layers, captions, keyframes, masks and photos. Preview frames, render verified MP4 or transparent PNG sequences, export editable native JSON, and link owned renders to Video with their exact editable source. Live installed acceptance and broader upstream fidelity remain separately tracked.",
-      "version": "0.1.1",
+      "version": "0.1.4",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -3690,7 +3700,7 @@
       "suite": "ai-creative",
       "displayName": "PDF Workbench",
       "description": "Owned PDF page organization, annotations, supported AcroForm filling and explicit OCR. Preserves original files and saves new derivative revisions.",
-      "version": "0.1.0",
+      "version": "0.1.6",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -3724,7 +3734,7 @@
       "suite": "ai-creative",
       "displayName": "Publishing Studio",
       "description": "Original-owned bounded English print layouts, linked stories, styles, masters and native Typst PDF/PNG output.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "theme": "midnight",
       "dependencies": {
         "apps": [],

@@ -691,8 +691,10 @@ model validation, owner/source checks, layer/track locks and optimistic concurre
 apply. Agent booleans permit one operation per batch and 256 total operand nodes;
 larger booleans use the editor worker. Both read and change permissions are rechecked before commit. The kernel's
 existing write approval cards show the exact proposed input; the agent reports
-success only after the real route response. Open browser drafts need a deliberate
-reload; no agent operation changes or discards an unsaved browser draft.
+success only after the real route response. In the 1.15.2 source, the editor automatically saves
+the current browser draft before the concierge reads it and refreshes the same project on return.
+The next manual change is saved at the next handoff. Concurrent browser drafts are preserved
+with an explicit conflict, and the concierge edit enters local undo history as one edit.
 
 The installed `/api/create/editing-contract` returns the supported forms, examples, units and limits.
 No shell, arbitrary code, remote fetching or new provider pipeline is exposed.
@@ -761,3 +763,18 @@ The supervised case passed in13.97s; strict fixture lint passed with warnings de
 Its sole model seam is deterministic tool choice. This exercises the bounded
 profile above; it does not certify installed capacity. Installed browser and
 natural-provider acceptance remain open, as does full PSD fidelity/parity.
+
+## Automatic document handoff — 1.15.2 source
+
+The shared kernel document handoff is used by Concierge and Jarvis. Create registers its
+existing authorized save and read functions: handing over automatically saves the current
+draft, including a focused field, and provides the saved project identity, revision and
+selection. A completed turn or approved edit refreshes the same project. No Save or Reload
+step is required. Failed saves stop the handoff. If the person edits while the concierge
+is working, refresh retains that draft and reports the conflict instead of replacing it.
+
+`tests/browser/create-handoff-proof.mjs` exercises the actual editor, original-owner project
+operations and a disposable PostgreSQL role with row security. It covers repeated manual/assistant
+turns, editable gray adjustment and text layers, failed saves, undo and concurrent drafts.
+Run it with the declared browser/runtime prerequisites; Test Lab recipe `document-handoff`.
+Source verification is separate from installed acceptance, which is pending for this release.

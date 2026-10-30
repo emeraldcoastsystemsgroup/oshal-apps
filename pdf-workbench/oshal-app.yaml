@@ -1,11 +1,16 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Declare exact original PDF contracts using supported native tool schema nodes.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: await actual automatic PDF saves before concierge reads and refresh the same document on return.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.1.3: bounded field lookup uses optional query on the existing canonical read-tool path.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 0.1.4: expose actual crop coordinates and valid native text placement; reject invalid annotations before queueing.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 0.1.5: the workbench page follows the portal theme contract and the kernel screen layout (one type scale, aligned labelled fields, glass cards, a document table, phone layout).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6: the workbench page is an editor layout: a top bar with the document actions, a left rail with documents and sources, the pages in the middle and a right inspector with the tools, each pane scrolling on its own.
 name: pdf-workbench
 suite: ai-creative
 displayName: PDF Workbench
 description: >-
   Owned PDF page organization, annotations, supported AcroForm filling and explicit OCR. Preserves
   original files and saves new derivative revisions.
-version: 0.1.0
+version: 0.1.6
 runtime: process
 lastingStorage: true
 status: active
@@ -201,7 +206,7 @@ tools:
     displayName: Read PDF revision receipt
     type: api
     category: creative
-    description: Read PDF revision receipt under current original-owner permission.
+    description: Read PDF revision receipt with actual page cropBox bounds and optional textAnnotationRect under current original-owner permission.
     executor:
       executorType: api
       apiEndpoint: GET /api/pdf-workbench/documents/{input.id}?revision={input.revision}&receipt=1
@@ -223,8 +228,12 @@ tools:
         - id
         - revision
     usageInstructions: >-
-      Pin this exact revision. Read individual model parts until complete; no truncated observation
-      is a complete model.
+      Pin this exact revision. This receipt includes saved page IDs, actual cropBox bounds and
+      optional textAnnotationRect. Use that placement for text when unspecified; never assume paper size. For a
+      requested form value use pdf-read-model-part with part form-fields and the optional query name fragment instead
+      of enumerating fields one at a time.
+      Additive annotations preserve untouched objects. Inspect only parts needed for the change
+      and reserve a tool step for its actual approval card; a receipt is not the full model.
     routingTags:
       - pdf
       - document
@@ -236,12 +245,17 @@ tools:
     displayName: Read PDF model part
     type: api
     category: creative
-    description: Read PDF model part under current original-owner permission.
+    description: >-
+      Read a saved native model part under current original-owner permission. For a requested form
+      value, set part to form-fields, query to the literal case-insensitive name fragment
+      (for example name), and offset to 0. This bounded lookup returns up to eight exact saved values
+      within 8192 bytes and explicit nextOffset. Use receipt page IDs for additive edits and reserve
+      a tool step for the real approval card; do not enumerate unrelated fields or annotations.
     executor:
       executorType: api
       apiEndpoint: >-
         GET
-        /api/pdf-workbench/documents/{input.id}/model/{input.part}/{input.offset}?revision={input.revision}
+        /api/pdf-workbench/documents/{input.id}/model/{input.part}/{input.offset}?revision={input.revision}&query={input.query}
     defaultAuthMode: auto
     requiresApproval: false
     inputSchema:
@@ -257,12 +271,17 @@ tools:
           minimum: 1
           maximum: 100
         part:
+          type: string
           enum:
             - pages
             - annotations
             - fields
             - form-fields
+        query:
           type: string
+          minLength: 1
+          maxLength: 128
+          description: Optional literal case-insensitive name fragment for bounded form-fields lookup; omit for legacy single-item reads.
         offset:
           type: integer
           minimum: 0
@@ -273,8 +292,11 @@ tools:
         - part
         - offset
     usageInstructions: >-
-      Offset zero starts one bounded descriptor/value at a time. Follow nextOffset; never mix
-      revisions.
+      Offset zero starts a saved part. The legacy pages/annotations/fields/form-fields selectors
+      return one value when query is omitted; form-fields with query returns bounded matching values.
+      Follow nextOffset only when more requested matches are needed; never mix revisions. Use
+      receipt page IDs directly, preserve untouched objects with native additive operations and
+      reserve the real approval step instead of enumerating unrelated parts.
     routingTags:
       - pdf
       - document
@@ -419,7 +441,7 @@ tools:
     displayName: Save PDF operations
     type: api
     category: creative
-    description: Save PDF operations under current original-owner permission.
+    description: Save native PDF operations under current original-owner permission; annotation rect must fit actual cropBox from pdf-read-document.
     executor:
       executorType: api
       apiEndpoint: POST /api/pdf-workbench/documents/{input.id}/revisions
@@ -557,7 +579,9 @@ tools:
         - requestKey
         - operations
     usageInstructions: >-
-      Explain exact edits and hold approval. Supply closed operations and latest baseRevision.202 is
+      Explain exact edits and hold approval. Read actual page cropBox bounds from pdf-read-document.
+      For unspecified text placement use its textAnnotationRect; every rect must fit that page.
+      Supply closed operations and latest baseRevision.202 is
       queued, not saved. Poll the returned job; only ready proves a new revision.
     routingTags:
       - pdf

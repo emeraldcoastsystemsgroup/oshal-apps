@@ -8,23 +8,33 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Edit exact keys and native curve/path geometry with original grants and stale gesture fencing.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Preview saved native work areas at exact rational frame ticks with cancellation and original read checks.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Edit saved native static masks and Bezier geometry while preserving animated values and exact references.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Save all retained inspector drafts automatically through native commands before concierge reads; refresh the same editable composition while preserving selection, historical views and concurrent fields.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Requests refused only because the project storage lock was busy are retried (busy-retry.mjs) instead of losing the edit: a manual edit right after a concierge change failed with "Your project storage is busy. Retry shortly." (installed handoff run, 2026-10-29).
  */
+import {createInspectorDrafts} from './editor-handoff.mjs';
 import {valueChange} from './value-patch.mjs';
 import {RenderClient} from './render-client.mjs';
+import {fetchRetryingBusy} from './busy-retry.mjs';
 import {BundleClient} from './bundle-client.mjs';
 import {parseNative,stringifyNative,readProject} from './native-json.mjs';
 const $=id=>document.getElementById(id),base='/api/motion-studio';
-const state={project:null,comp:null,layer:null,time:0,epoch:0,previewEpoch:0,busy:false,busyLease:0,ticks:0,ready:false,permissions:{},catalog:[],checked:new Set(),timingFields:{},effects:[],effect:null,effectInputs:[],fullEffectIntent:null,effectInfo:null,effectStamp:null,effectRenderedStamp:null,effectPending:null,effectEpoch:0,effectAbort:null,keyInfo:null,keyRef:null,keyEpoch:0,keyInitial:{},previewTick:null,workFields:{},playing:false,playEpoch:0,playAbort:null,playTask:Promise.resolve(),fonts:[],textInfo:null,textStamp:null,textEpoch:0,textAbort:null,textInitial:{},textColors:{},mask:null,maskVertex:0,maskInitial:{},maskVertexInitial:{},maskInfo:null,maskStamp:null,maskEpoch:0,maskAbort:null,featherIndex:0,featherInitial:{},propertiesInfo:null,propertiesStamp:null,propertiesEpoch:0,propertiesAbort:null,propertiesPending:null,propertiesInitial:{},sceneInputs:[]};
-async function api(path,options={}){const response=await fetch(base+path,{credentials:'same-origin',redirect:'error',...options});let body;try{body=parseNative(await response.text());if(body.project)body.project=readProject(body.project);}catch{throw new Error('The studio did not return a usable response.');}if(!response.ok&&body.error==='motion_effect_needs_owned_text_asset')throw new Error('This effect needs an owned source import. Paste inline data where supported.');if(!response.ok)throw new Error(typeof body.detail==='string'&&body.detail.length<=512?body.detail:body.error||'The request was refused.');return body;}
+const state={project:null,historical:false,comp:null,layer:null,time:0,epoch:0,previewEpoch:0,busy:false,busyLease:0,ticks:0,ready:false,permissions:{},catalog:[],checked:new Set(),timingFields:{},effects:[],effect:null,effectInputs:[],fullEffectIntent:null,effectInfo:null,effectStamp:null,effectRenderedStamp:null,effectPending:null,effectEpoch:0,effectAbort:null,keyInfo:null,keyRef:null,keyEpoch:0,keyInitial:{},previewTick:null,workFields:{},playing:false,playEpoch:0,playAbort:null,playTask:Promise.resolve(),fonts:[],textInfo:null,textStamp:null,textEpoch:0,textAbort:null,textInitial:{},textColors:{},mask:null,maskVertex:0,maskInitial:{},maskVertexInitial:{},maskInfo:null,maskStamp:null,maskEpoch:0,maskAbort:null,featherIndex:0,featherInitial:{},propertiesInfo:null,propertiesStamp:null,propertiesEpoch:0,propertiesAbort:null,propertiesPending:null,propertiesInitial:{},sceneInputs:[]};
+let handoffBusy=false, collectedEdits=null;
+function inspectorContext(){return {projectId:state.project?.id??null,comp:state.comp==null?null:String(state.comp),layer:state.layer==null?null:String(state.layer),time:state.time,tick:state.previewTick,mask:state.mask==null?null:String(state.mask),effect:state.effect==null?null:String(state.effect),vertex:state.maskVertex,feather:state.featherIndex,key:state.keyRef?{...state.keyRef}:null};}
+const inspectorDrafts=createInspectorDrafts({context:inspectorContext,revision:()=>state.project?.revision,
+ captureExtra:form=>form==='effectParams'?state.effectInputs.filter(field=>field.capture&&field.changed()).map(field=>({prop:String(field.prop),...field.capture()})):[],
+ restoreExtra:(form,values)=>{if(form==='effectParams')for(const value of values)state.effectInputs.find(field=>String(field.prop)===value.prop)?.restore?.(value);}
+});
+async function api(path,options={}){const {response,text}=await fetchRetryingBusy(()=>fetch(base+path,{credentials:'same-origin',redirect:'error',...options}));let body;try{body=parseNative(text);if(body.project)body.project=readProject(body.project);}catch{throw new Error('The studio did not return a usable response.');}if(!response.ok&&body.error==='motion_effect_needs_owned_text_asset')throw new Error('This effect needs an owned source import. Paste inline data where supported.');if(!response.ok)throw new Error(typeof body.detail==='string'&&body.detail.length<=512?body.detail:body.error||'The request was refused.');return body;}
 const post=(path,body)=>api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:stringifyNative(body)});
 function problem(error){$('error').hidden=false;$('error').textContent=error.message;}
-function guard(work){return async event=>{event?.preventDefault();$('error').hidden=true;try{await work(event);}catch(error){problem(error);}finally{controls();$('status').textContent=state.busy?'Applying…':state.ready?(state.project?'Saved':'Ready'):'Engine unavailable';}};}
+function guard(work){const run=async event=>{event?.preventDefault();$('error').hidden=true;try{await inspectorDrafts.action(work,event);}catch(error){problem(error);}finally{controls();$('status').textContent=state.busy?'Applying…':state.ready?(state.project?'Saved':'Ready'):'Engine unavailable';}};run.handoffWork=work;return run;}
 function busy(){stopPlayback();const lease=++state.busyLease;state.busy=true;$('status').textContent='Applying…';controls();return()=>{if(lease===state.busyLease){state.busy=false;controls();}};}
 function comp(){return state.project?.document.items[state.comp]?.kind;}
 function layer(){return comp()?.layers.find(value=>value.id===state.layer);}
 function property(value,path){let node=value?.props;for(const part of path.split('/'))node=node?.children?.find(child=>child.match===part);return node;}
 function value(path,fallback){return property(layer(),path)?.value?.v??fallback;}
-function controls(){const edit=Boolean(state.project&&state.permissions.change&&!state.busy),create=Boolean(state.permissions.create&&state.ready&&!state.busy);
+function controls(){const edit=Boolean(state.project&&state.permissions.change&&!state.historical&&!state.busy&&!handoffBusy),create=Boolean(state.permissions.create&&state.ready&&!state.busy&&!handoffBusy);
   for(const field of $('new').elements)field.disabled=!create;
   for(const field of $('importDocument').elements)field.disabled=!create||!state.permissions.read;
   $('duplicate').disabled=!create||!state.permissions.read||!state.project;
@@ -48,8 +58,11 @@ function controls(){const edit=Boolean(state.project&&state.permissions.change&&
   const textEdit=edit&&!state.playing&&state.textInfo&&!state.textInfo.locked&&state.textStamp===textStamp();for(const field of $('textEdit').elements)field.disabled=!textEdit;
   $('refreshText').disabled=!state.permissions.read||state.busy||state.playing;
   if(state.textInfo&&!state.playing&&!state.busy&&state.permissions.read){$('textEdit').elements.content.disabled=false;$('textEdit').elements.content.readOnly=!textEdit;}
+  $('comps').disabled=handoffBusy;for(const button of document.querySelectorAll('#layers button,#timeline .keyButton'))button.disabled=handoffBusy;
+  if(handoffBusy)for(const id of ['time','play','previousFrame','nextFrame','loop','savedMasks','maskVertices','featherPoints','layerEffects'])$(id).disabled=true;
 }
-function show(){const items=state.project?.document.items??{},comps=Object.values(items).filter(item=>item.kind.type==='Comp');if(!comps.some(item=>item.id===state.comp))state.comp=comps[0]?.id;
+function show(){return inspectorDrafts.paint(['layerSettings', 'layerTiming', 'workArea'],()=>showNow());}
+function showNow(){const items=state.project?.document.items??{},comps=Object.values(items).filter(item=>item.kind.type==='Comp');if(!comps.some(item=>item.id===state.comp))state.comp=comps[0]?.id;
   $('comps').replaceChildren(...comps.map(item=>{const option=document.createElement('option');option.value=item.id;option.textContent=item.name;return option;}));$('comps').value=state.comp??'';
   const layers=comp()?.layers??[];if(!layers.some(item=>item.id===state.layer))state.layer=layers[0]?.id;
   state.checked=new Set([...state.checked].filter(id=>layers.some(item=>item.id===id)));
@@ -72,23 +85,23 @@ function show(){const items=state.project?.document.items??{},comps=Object.value
   $('timeline').replaceChildren(...layers.map(item=>{const row=document.createElement('div');row.className='track';const title=document.createElement('strong');title.textContent=item.name;row.append(title);const keys=document.createElement('div');keys.className='keys';const found=[];function walk(node){for(const child of node.children??[]){if(child.keys?.length){const group=document.createElement('div'),name=document.createElement('span');name.textContent=child.name+': ';group.append(name);for(const key of child.keys){const button=document.createElement('button');button.type='button';button.className='keyButton';button.textContent=(Number(key.time)/state.ticks).toFixed(2)+'s ('+key.out_interp+')';button.dataset.layer=String(item.id);button.dataset.prop=String(child.uid);button.dataset.tick=String(key.time);button.setAttribute('aria-label',item.name+' '+child.name+' key '+String(key.time));button.onclick=guard(()=>chooseKey({layer:String(item.id),prop:String(child.uid),timeTicks:String(key.time)}));group.append(button);}keys.append(group);found.push(child.name);}walk(child);}}walk(item.props);if(!found.length)keys.textContent='No keyframes yet';row.append(keys);return row;}));showEffects();showMasks();controls();void refreshText();
 }
 async function refresh(){if(!state.permissions.read)return;const {projects}=await api('/projects');$('projects').replaceChildren(new Option('Open a composition',''),...projects.map(project=>new Option(project.title,project.id)));if(state.project)$('projects').value=state.project.id;const {assets}=await api('/assets');$('assets').replaceChildren(new Option('Choose a saved photo',''),...assets.map(asset=>new Option(asset.width+' × '+asset.height+' · '+asset.id.slice(0,8),asset.id)));controls();}
-async function open(id,revision){const epoch=++state.epoch;const done=busy();try{const {project}=await api('/projects/'+encodeURIComponent(id)+(revision?'/revisions/'+encodeURIComponent(revision):''));if(epoch!==state.epoch)return;state.project=project;clearKey();$('projects').value=project.id;state.comp=null;state.layer=null;state.checked.clear();state.time=0;show();await preview();}finally{done();}}
+async function open(id,revision){const epoch=++state.epoch;const done=busy();try{const {project}=await api('/projects/'+encodeURIComponent(id)+(revision?'/revisions/'+encodeURIComponent(revision):''));if(epoch!==state.epoch)return;const head=revision?await api('/projects/'+encodeURIComponent(id)):null;if(epoch!==state.epoch)return;state.project=project;state.historical=Boolean(head&&head.project.revision!==project.revision);clearKey();$('projects').value=project.id;state.comp=null;state.layer=null;state.checked.clear();state.time=0;show();await preview();}finally{done();}}
 async function preview(signal){if(!state.project||!state.permissions.read)return;const epoch=state.epoch,turn=++state.previewEpoch,document=state.project.document,selected=state.comp,current=()=>epoch===state.epoch&&turn===state.previewEpoch&&document===state.project?.document&&selected===state.comp;try{const result=await api('/projects/'+state.project.id+'/revisions/'+state.project.revision+(state.previewTick===null?'/preview/'+state.time:'/preview-ticks/'+state.previewTick)+'/'+(selected===undefined?'auto':String(selected))+'/1280/1',{signal});if(!current())return;$('preview').src='data:image/png;base64,'+result.png;$('preview').hidden=false;$('empty').hidden=true;if(!state.playing)refreshProperties().catch(problem);}catch(error){if(!current()||signal?.aborted)return;$('preview').hidden=true;$('empty').textContent='Preview unavailable for this revision.';$('empty').hidden=false;throw error;}}
-async function apply(commands,{previewTick}={}){if(!state.project||state.busy)return;const epoch=state.epoch,id=state.project.id,oldComps=new Set(Object.values(state.project.document.items).filter(item=>item.kind.type==='Comp').map(item=>item.id)),oldLayers=new Set(comp()?.layers.map(item=>item.id));const done=busy();try{const result=await post('/projects/'+id+'/operations',{baseRevision:state.project.revision,requestKey:crypto.randomUUID(),commandsJson:stringifyNative(commands),compId:String(state.comp)});if(epoch!==state.epoch||state.project?.id!==id)return;state.project=result.project;clearKey();if(previewTick!==undefined)state.previewTick=previewTick;const addedComp=Object.values(state.project.document.items).find(item=>item.kind.type==='Comp'&&!oldComps.has(item.id));if(addedComp)state.comp=addedComp.id;state.layer=comp()?.layers.find(item=>!oldLayers.has(item.id))?.id??state.layer;show();await refresh();await preview();return result;}finally{done();}}
-$('new').onsubmit=guard(async()=>{const form=$('new').elements,epoch=++state.epoch;const done=busy();try{const {project}=await post('/projects',{title:form.title.value,width:Number(form.width.value),height:Number(form.height.value),frameRate:Number(form.frameRate.value),duration:Number(form.duration.value),requestKey:crypto.randomUUID()});if(epoch!==state.epoch)return;state.project=project;clearKey();state.comp=null;state.layer=null;state.checked.clear();state.time=0;show();await refresh();await preview();}finally{done();}});
+async function apply(commands,{previewTick}={}){if(collectedEdits){if(commands.length)collectedEdits.push({commands,previewTick});return;}if(!state.project||state.busy)return;const epoch=state.epoch,id=state.project.id,previousRevision=state.project.revision,oldComps=new Set(Object.values(state.project.document.items).filter(item=>item.kind.type==='Comp').map(item=>item.id)),oldLayers=new Set(comp()?.layers.map(item=>item.id));const done=busy();try{const result=await post('/projects/'+id+'/operations',{baseRevision:state.project.revision,requestKey:crypto.randomUUID(),commandsJson:stringifyNative(commands),compId:String(state.comp)});if(epoch!==state.epoch||state.project?.id!==id)return;inspectorDrafts.advance(id,previousRevision,result.project.revision);state.project=result.project;state.historical=false;clearKey();if(previewTick!==undefined)state.previewTick=previewTick;const addedComp=Object.values(state.project.document.items).find(item=>item.kind.type==='Comp'&&!oldComps.has(item.id));if(addedComp)state.comp=addedComp.id;state.layer=comp()?.layers.find(item=>!oldLayers.has(item.id))?.id??state.layer;show();await refresh();await preview();return result;}finally{done();}}
+$('new').onsubmit=guard(async()=>{const form=$('new').elements,epoch=++state.epoch;const done=busy();try{const {project}=await post('/projects',{title:form.title.value,width:Number(form.width.value),height:Number(form.height.value),frameRate:Number(form.frameRate.value),duration:Number(form.duration.value),requestKey:crypto.randomUUID()});if(epoch!==state.epoch)return;state.project=project;state.historical=false;clearKey();state.comp=null;state.layer=null;state.checked.clear();state.time=0;show();await refresh();await preview();}finally{done();}});
 $('importDocument').onsubmit=guard(async()=>{
   const form=$('importDocument').elements,file=form.document.files[0];if(!file)throw new Error('Choose an editable native document.');
   if(file.size>4194304)throw new Error('Native document files may be up to 4 MiB.');
   const epoch=++state.epoch,done=busy();try{
     const body=new FormData();body.append('document',file);body.append('title',form.title.value);body.append('requestKey',crypto.randomUUID());
     const result=await api('/projects/import',{method:'POST',body});if(epoch!==state.epoch)return;
-    state.project=result.project;clearKey();state.comp=null;state.layer=null;state.checked.clear();state.time=0;form.document.value='';show();await refresh();await preview();
+    state.project=result.project;state.historical=false;clearKey();state.comp=null;state.layer=null;state.checked.clear();state.time=0;form.document.value='';show();await refresh();await preview();
   }finally{done();}
 });
 $('duplicate').onclick=guard(async()=>{
   const source=state.project,epoch=++state.epoch,done=busy();try{
     const result=await post('/projects/'+source.id+'/fork',{revision:source.revision,requestKey:crypto.randomUUID()});if(epoch!==state.epoch)return;
-    state.project=result.project;clearKey();state.comp=null;state.layer=null;state.checked.clear();state.time=0;show();await refresh();await preview();
+    state.project=result.project;state.historical=false;clearKey();state.comp=null;state.layer=null;state.checked.clear();state.time=0;show();await refresh();await preview();
   }finally{done();}
 });
 $('projects').onchange=guard(async()=>{if($('projects').value)await open($('projects').value);});$('refresh').onclick=guard(refresh);
@@ -128,7 +141,8 @@ async function chooseKey(ref){
   state.keyInfo=result.keyframe;state.keyRef=ref;state.layer=parseNative(ref.layer);state.previewTick=BigInt(result.keyframe.compTimeTicks)<0n?'0':result.keyframe.compTimeTicks;state.time=Number(state.previewTick)/state.ticks;
   show();showKeyEditor();await preview();
 }
-function showKeyEditor(){
+function showKeyEditor(){return inspectorDrafts.paint(['editKey'],()=>showKeyEditorNow());}
+function showKeyEditorNow(){
  const info=state.keyInfo;if(!info)return;const form=$('editKey').elements,key=info.key,raw=key.value?.v;
  $('keyEditor').hidden=false;$('keySummary').textContent=info.propertyName+' · '+info.layerTimeTicks+' layer ticks · '+info.compTimeTicks+' composition ticks';
  const fields={seconds:String(Number(info.layerTimeTicks)/state.ticks),ticks:info.layerTimeTicks,value:Array.isArray(raw)?raw.join(', '):raw===undefined?'Value needs full document inspection':String(raw),ease:'unchanged',inX:info.resolvedSpatialIn[0],inY:info.resolvedSpatialIn[1],outX:info.resolvedSpatialOut[0],outY:info.resolvedSpatialOut[1]};
@@ -164,13 +178,14 @@ $('deleteKey').onclick=guard(async()=>{if(!state.keyInfo||state.keyInfo.locked)r
 function effectGroups(){return layer()?.props.children.find(node=>node.match==='effects')?.children??[];}
 function effectGroup(){return effectGroups().find(group=>group.uid===state.effect);}
 function effectChoices(){const search=$('effectSearch').value.toLowerCase(),selected=$('effectCatalog').value;const list=state.effects.filter(effect=>(effect.name+' '+effect.category).toLowerCase().includes(search));$('effectCatalog').replaceChildren(...list.map(effect=>new Option(effect.category+' · '+effect.name,effect.id)));if(list.some(effect=>effect.id===selected))$('effectCatalog').value=selected;}
-function showEffects(){
+function showEffects(){return inspectorDrafts.paint(['effectParams'],()=>showEffectsNow());}
+function showEffectsNow(){
   const groups=effectGroups();if(!groups.some(group=>group.uid===state.effect))state.effect=groups[0]?.uid??null;
   $('layerEffects').replaceChildren(...groups.map(group=>new Option(group.name,String(group.uid))));$('layerEffects').value=state.effect===null?'':String(state.effect);
   const valid=state.effectStamp===effectStamp(),group=effectGroup(),schema=state.effects.find(effect=>effect.id===group?.match);$('effectEnabled').checked=group?.enabled??false;if(valid&&state.effectInfo&&state.effectRenderedStamp===state.effectStamp)return;state.effectInputs=[];
   const fields=[];for(const param of schema?.params??[]){
     const prop=valid?state.effectInfo?.properties.find(p=>p.path===param.id):null;if(!prop)continue;const actual=prop.value,box=document.createElement('fieldset'),title=document.createElement('legend');title.textContent=param.name;box.append(title);box.dataset.param=param.id;
-    let read,changed;const input=(type,name,value)=>{const field=document.createElement('input');field.type=type;field.name=name;field.value=value;field.setAttribute('aria-label',param.name+(name?' '+name:''));if(name&&name!=='color'){const label=document.createElement('label');label.textContent=name==='alpha'?'Alpha (0–1)':name;label.append(field);box.append(label);}else box.append(field);return field;};
+    let read,changed,capture,restore;const input=(type,name,value)=>{const field=document.createElement('input');field.type=type;field.name=name;field.value=value;field.setAttribute('aria-label',param.name+(name?' '+name:''));if(name&&name!=='color'){const label=document.createElement('label');label.textContent=name==='alpha'?'Alpha (0–1)':name;label.append(field);box.append(label);}else box.append(field);return field;};
     if(param.options){const select=document.createElement('select');select.setAttribute('aria-label',param.name);select.replaceChildren(...param.options.map(option=>new Option(option.label,String(option.value))));select.value=String(actual);box.append(select);const initial=select.value;read=()=>parseNative(select.value);changed=()=>select.value!==initial;}
     else if(param.type==='bool'){const field=input('checkbox','',actual);field.checked=Boolean(actual);read=()=>field.checked;changed=()=>field.checked!==Boolean(actual);}
     else if(param.type==='scalar'||param.type==='enum'||param.type==='layer'){const field=input('number','',String(actual));field.step=param.type==='scalar'?'any':'1';if(param.min!==undefined)field.min=String(param.min);if(param.max!==undefined)field.max=String(param.max);const initial=field.value;read=()=>parseNative(field.value);changed=()=>field.value!==initial;}
@@ -179,11 +194,11 @@ function showEffects(){
       const initialAlpha=alpha.value;read=()=>[...(color.value===hex?actual.slice(0,3):color.value.slice(1).match(/../g).map(v=>parseInt(v,16)/255)),Number(alpha.value)];changed=()=>color.value!==hex||alpha.value!==initialAlpha;
     }else if(param.type==='vec2'||param.type==='vec3'){
       const parts=actual.map((value,index)=>input('number',['X','Y','Z'][index],String(value)));for(const field of parts)field.step='any';const initial=parts.map(field=>field.value);read=()=>parts.map(field=>Number(field.value));changed=()=>parts.some((field,index)=>field.value!==initial[index]);
-    }else if(param.type==='string'){const text=effectTextEditor(box,param.name,actual);read=()=>{const value=text.read(),source=value.trim();if(['lut','file','shapeData','configFile'].includes(param.id)&&source){const inline=param.id==='lut'?value.includes('\n')||value.includes('LUT_'):param.id==='file'?value.includes('\n'):param.id==='shapeData'?source.startsWith('{')||source.startsWith('['):false;if(!inline)throw new Error('This effect needs an owned source import. Paste inline data where supported.');}return value;};changed=text.changed;
+    }else if(param.type==='string'){const text=effectTextEditor(box,param.name,actual);read=()=>{const value=text.read(),source=value.trim();if(['lut','file','shapeData','configFile'].includes(param.id)&&source){const inline=param.id==='lut'?value.includes('\n')||value.includes('LUT_'):param.id==='file'?value.includes('\n'):param.id==='shapeData'?source.startsWith('{')||source.startsWith('['):false;if(!inline)throw new Error('This effect needs an owned source import. Paste inline data where supported.');}return value;};changed=text.changed;capture=text.capture;restore=text.restore;
       if(['lut','file','shapeData','configFile'].includes(param.id)){const note=document.createElement('small');note.textContent=param.id==='configFile'?'Custom configuration import is not available yet.':'Paste inline data. Files need an owned source import.';box.append(note);}
     }
     else{const note=document.createElement('small');note.textContent='Use the advanced editing command for this parameter.';box.append(note);}
-    if(read)state.effectInputs.push({prop:prop.prop,value:actual,read,changed});
+    if(read)state.effectInputs.push({prop:prop.prop,value:actual,read,changed,capture,restore});
     if(prop.keyCount){const note=document.createElement('small');note.textContent='Native current-time value · '+prop.keyCount+' keys'+(prop.hasExpression?' · before expression':'');box.append(note);}
     fields.push(box);
   }
@@ -199,7 +214,7 @@ function effectTextEditor(box,name,initial){
  function show(){start=Math.min(start,value.length);if(pair(start))start--;end=Math.min(value.length,start+4096);if(pair(end))end--;shown=value.slice(start,end);field.value=shown;status.textContent=value.length>4096?'Text section '+start+'–'+end+' of '+value.length:'Complete text · '+value.length+' units';controls.hidden=value.length<=4096;}
  previous.onclick=()=>{commit();start=Math.max(0,start-4096);show();};next.onclick=()=>{const target=start+field.value.length;commit();start=Math.min(value.length,target);show();};find.onclick=()=>{commit();const at=value.indexOf(search.value);if(at<0){status.textContent='Text not found.';return;}start=at;show();};
  file.onchange=guard(async()=>{const selected=file.files?.[0];if(!selected)return;if(selected.size>2097152)throw new Error('Text exceeds the native document capacity.');const loaded=new TextDecoder('utf-8',{fatal:true}).decode(await selected.arrayBuffer());if(!box.isConnected)return;value=loaded;start=0;show();status.textContent+=' · file loaded; save to commit';});
- show();return {read:current,changed:()=>current()!==initial};
+ show();return {read:current,changed:()=>current()!==initial,capture:()=>({value:current(),start}),restore:stored=>{value=stored.value;start=stored.start;show();}};
 }
 $('effectSearch').oninput=effectChoices;
 $('addEffect').onsubmit=guard(async()=>{const before=new Set(effectGroups().map(group=>group.uid));if(!$('effectCatalog').value)return;await layerAction('effect.apply',{effect:$('effectCatalog').value});state.effect=effectGroups().find(group=>!before.has(group.uid))?.uid??state.effect;showEffects();controls();});
@@ -215,7 +230,8 @@ function effectControls(edit){
  const inspect=valid&&!state.busy&&!state.playing&&state.permissions.read;for(const field of $('effectParams').elements){if(field.tagName==='FIELDSET'||field.dataset.inspection)field.disabled=!inspect;else if(field.dataset.readText){field.disabled=!inspect;field.readOnly=!can;}else field.disabled=!can;}
  if(!state.busy&&!state.playing&&state.permissions.read&&stamp&&state.effectStamp!==stamp&&state.effectPending!==stamp)refreshEffect().catch(problem);
 }
-async function refreshEffect(){
+function refreshEffect(){const stamp=effectStamp();if(state.effectPending&&state.effectPending!==stamp)state.effectAbort?.abort();return inspectorDrafts.inspect('refreshEffect:'+stamp,()=>refreshEffectNow());}
+async function refreshEffectNow(){
  const stamp=effectStamp();if(!stamp||state.playing||!state.permissions.read||state.effectStamp===stamp||state.effectPending===stamp)return;
  state.effectAbort?.abort();const controller=new AbortController(),turn=++state.effectEpoch,project=state.project,tick=currentTick(),cid=String(state.comp),lid=String(state.layer),eid=String(state.effect);state.effectAbort=controller;state.effectPending=stamp;state.effectInfo=null;state.effectStamp=null;$('effectStatus').textContent='Inspecting current effect…';showEffects();controls();
  try{const result=await api('/projects/'+project.id+'/revisions/'+project.revision+'/effects/'+cid+'/'+lid+'/'+eid+'/'+tick+'/full',{signal:controller.signal});if(turn!==state.effectEpoch||stamp!==effectStamp())return;state.effectInfo=result.inspection;state.effectStamp=stamp;showEffects();controls();}
@@ -230,16 +246,18 @@ $('effectParams').onsubmit=guard(async()=>{
  else await saveFullEffectValues(info,fields.map(field=>({prop:field.prop,value:field.read()})));
 });
 async function saveFullEffectValues(info,changes){
+ if(collectedEdits){collectedEdits.push({effectInfo:info,changes});return;}
  const project=state.project,epoch=state.epoch,done=busy();try{
   const source={baseRevision:project.revision,compId:String(state.comp),layer:info.layer,effect:info.effect,compTimeTicks:info.compTimeTicks,changes},signature=project.id+'@'+stringifyNative(source);if(state.fullEffectIntent?.signature!==signature)state.fullEffectIntent={signature,requestKey:crypto.randomUUID()};const payload={...source,requestKey:state.fullEffectIntent.requestKey},form=new FormData();
   form.append('document',new Blob([stringifyNative(payload)],{type:'application/json'}),'effect-values.json');
-  const result=await api('/projects/'+project.id+'/effect-values',{method:'POST',body:form});if(epoch!==state.epoch||state.project?.id!==project.id)return;state.fullEffectIntent=null;
-  state.project=result.project;state.previewTick=info.compTimeTicks;clearKey();show();await refresh();await preview();
+  const result=await api('/projects/'+project.id+'/effect-values',{method:'POST',body:form});if(epoch!==state.epoch||state.project?.id!==project.id)return;state.fullEffectIntent=null;inspectorDrafts.advance(project.id,project.revision,result.project.revision);
+  state.project=result.project;state.historical=false;state.previewTick=info.compTimeTicks;clearKey();show();await refresh();await preview();
  }finally{done();}
 }
 // Native inspection supplies the held text value and layer-time mapping; no JS interpolation is substituted.
 function textStamp(){return state.project&&layer()&&property(layer(),'text/sourceText')?[state.project.id,state.project.revision,String(state.comp),String(state.layer),state.previewTick??secondsTicks(String(state.time))].join(':'):null;}
-async function refreshText(force=false){
+function refreshText(force=false){const stamp=textStamp();if(force||state.textStamp!==stamp)state.textAbort?.abort();return inspectorDrafts.inspect('refreshText:'+stamp+':'+force,()=>refreshTextNow(force));}
+async function refreshTextNow(force=false){
  const stamp=textStamp();if(!stamp){state.textEpoch++;state.textAbort?.abort();state.textInfo=null;state.textStamp=null;$('textPanel').hidden=true;return;}
  $('textPanel').hidden=false;if(state.playing||!state.permissions.read)return;if(!force&&stamp===state.textStamp)return;
  state.textAbort?.abort();const controller=new AbortController(),turn=++state.textEpoch;state.textAbort=controller;state.textStamp=stamp;state.textInfo=null;$('textStatus').textContent='Reading text at the current time…';controls();
@@ -261,7 +279,8 @@ const textFlags=new Set(['applyFill','applyStroke','fauxBold','fauxItalic','liga
 const justifications={Left:'left',Center:'center',Right:'right',JustifyLastLeft:'justifyLeft',JustifyLastCenter:'justifyCenter',JustifyLastRight:'justifyRight',JustifyAll:'justifyAll'};
 function textStyleAt(doc,index){let at=0;for(const run of doc.runs??[]){at+=Number(run.len);if(index<at)return run.style;}return doc;}
 function textFontStyles(font,selected){const styles=state.fonts.find(f=>f.family===font)?.styles??[];return [...new Set([...styles,selected].filter(Boolean))];}
-function showTextFields(){
+function showTextFields(){return inspectorDrafts.paint(['textEdit'],()=>showTextFieldsNow());}
+function showTextFieldsNow(){
  const info=state.textInfo;if(!info)return;const doc=info.value,form=$('textEdit').elements,range=form.selection.checked?selectedTextRange():null,index=range?.[0]??0,style=textStyleAt(doc,index),para=doc.paragraphs?.[[...doc.text].slice(0,index).filter(c=>c==='\n').length]??doc;
  const actual={...doc,...style,...para};actual.vertical=doc.vertical;form.perChar3d.checked=Boolean(property(layer(),'text/perChar3d')?.value.v);form.font.replaceChildren(...[...new Set([...state.fonts.map(f=>f.family),actual.font])].map(font=>new Option(font,font)));form.font.value=actual.font;
  form.style.replaceChildren(...textFontStyles(actual.font,actual.style).map(style=>new Option(style,style)));
@@ -301,7 +320,8 @@ function propertyControls(edit){
  if(valid){const paths=new Set(state.propertiesInfo.properties.map(p=>p.path));for(const [name,fields]of Object.entries(transformFields))for(const field of fields)$('transform').elements[field].disabled=!can||!paths.has('transform/'+name);}
  if(!state.busy&&!state.playing&&state.permissions.read&&propertiesStamp()&&state.propertiesStamp!==propertiesStamp()&&state.propertiesPending!==propertiesStamp())refreshProperties().catch(problem);
 }
-function showProperties(){
+function showProperties(){return inspectorDrafts.paint(['transform', 'sceneProperties'],()=>showPropertiesNow());}
+function showPropertiesNow(){
  const info=state.propertiesInfo;if(!info)return;const form=$('transform').elements;state.propertiesInitial={};
  for(const [name,fields]of Object.entries(transformFields)){const prop=info.properties.find(p=>p.path==='transform/'+name),values=Array.isArray(prop?.value)?prop.value:[prop?.value];for(let n=0;n<fields.length;n++){form[fields[n]].value=values[n]===undefined?'':String(values[n]);state.propertiesInitial[fields[n]]=form[fields[n]].value;}}
  const scale=info.properties.find(p=>p.path==='transform/scale')?.value;form.linkScale.checked=!!scale&&scale[0]===scale[1];$('threeDLayer').checked=info.threeD||['Camera','Light'].includes(info.source?.type);
@@ -314,7 +334,8 @@ function showProperties(){
  }
  $('sceneProperties').hidden=!state.sceneInputs.length;$('propertiesStatus').textContent='Native properties at tick '+info.compTimeTicks+' · before expressions'+(info.properties.some(p=>p.hasExpression)?' · an expression may change the rendered values':'');controls();
 }
-async function refreshProperties(force=false){
+function refreshProperties(force=false){const stamp=propertiesStamp();if(force||state.propertiesPending&&state.propertiesPending!==stamp)state.propertiesAbort?.abort();return inspectorDrafts.inspect('refreshProperties:'+stamp+':'+force,()=>refreshPropertiesNow(force));}
+async function refreshPropertiesNow(force=false){
  const stamp=propertiesStamp();if(!stamp||!state.permissions.read||state.playing||!force&&state.propertiesStamp===stamp)return;
  if(!force&&state.propertiesPending===stamp)return;
  state.propertiesAbort?.abort();const controller=new AbortController(),turn=++state.propertiesEpoch,project=state.project,compId=String(state.comp),layerId=String(state.layer),tick=currentTick();state.propertiesAbort=controller;state.propertiesPending=stamp;state.propertiesInfo=null;state.propertiesStamp=null;$('propertiesStatus').textContent='Inspecting current properties…';controls();
@@ -385,7 +406,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)stopPlaybac
 $('time').oninput=guard(async()=>{stopPlayback();state.time=Number($('time').value);state.previewTick=null;$('timeLabel').textContent=state.time.toFixed(2)+' s';void refreshText();void refreshMask();await preview();});
 $('image').onchange=guard(async()=>{const file=$('image').files[0];$('image').value='';if(!file)return;const epoch=state.epoch,id=state.project?.id,form=new FormData();form.append('file',file);const {asset}=await api('/assets',{method:'POST',body:form});if(epoch!==state.epoch||id!==state.project?.id)return;await apply([{command:'asset.import',params:{assetId:asset.id,name:file.name}}]);});
 $('assets').onchange=controls;$('reuse').onclick=guard(()=>apply([{command:'asset.import',params:{assetId:$('assets').value,name:'Saved photo'}}]));$('dropAsset').onclick=guard(async()=>{if(!confirm('Delete this unused photo? Photos in composition history are protected.'))return;await api('/assets/'+$('assets').value,{method:'DELETE'});await refresh();});
-$('undo').onclick=guard(async()=>{const id=state.project.id,epoch=state.epoch,previewTick=state.previewTick;const done=busy();try{const {project}=await post('/projects/'+id+'/restore',{revision:state.project.revision-1,baseRevision:state.project.revision,requestKey:crypto.randomUUID()});if(epoch!==state.epoch||state.project?.id!==id)return;state.project=project;clearKey();state.previewTick=previewTick;show();await preview();}finally{done();}});
+$('undo').onclick=guard(async()=>{const id=state.project.id,epoch=state.epoch,previewTick=state.previewTick;const done=busy();try{const {project}=await post('/projects/'+id+'/restore',{revision:state.project.revision-1,baseRevision:state.project.revision,requestKey:crypto.randomUUID()});if(epoch!==state.epoch||state.project?.id!==id)return;state.project=project;state.historical=false;clearKey();state.previewTick=previewTick;show();await preview();}finally{done();}});
 $('export').onclick=guard(async()=>{const response=await fetch(base+'/projects/'+state.project.id+'/revisions/'+state.project.revision+'/export',{credentials:'same-origin',redirect:'error'});if(!response.ok)throw new Error('Export is no longer permitted.');const blob=await response.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='composition.ecproj';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
 $('delete').onclick=guard(async()=>{stopPlayback();if(!confirm('Delete this composition and its revision history?'))return;const id=state.project.id,epoch=state.epoch;await api('/projects/'+id,{method:'DELETE'});if(epoch!==state.epoch||state.project?.id!==id)return;state.project=null;state.epoch++;$('preview').hidden=true;$('empty').hidden=false;show();await refresh();});
 function commandFields(){const entry=state.catalog.find(item=>item.id===$('commands').value),properties=entry?.schema?.properties??{};$('params').replaceChildren(...Object.entries(properties).map(([key,schema])=>{const label=document.createElement('label');label.textContent=schema.description||key;const input=document.createElement(schema.type==='object'||schema.type==='array'?'textarea':'input');input.name=key;input.dataset.type=schema.type??'string';input.placeholder=key;label.append(input);return label;}));}
@@ -399,7 +420,7 @@ async function bundleWork(kind,work){const epoch=++bundleEpoch,controller=new Ab
 $('importBundle').onsubmit=guard(()=>bundleWork('import',async(signal,current)=>{
  const form=$('importBundle').elements,epoch=state.epoch;await bundles.upload(form.bundle.files[0],form.title.value,{signal});if(!current())return;
  const receipt=await bundles.finish({signal});if(!current()||epoch!==state.epoch)return;const result=await api('/projects/'+receipt.id,{signal});if(!current()||epoch!==state.epoch)return;
- state.epoch++;state.project=result.project;clearKey();state.comp=null;state.layer=null;state.checked.clear();state.time=0;show();await refresh();await preview();$('bundleStatus').textContent='Imported editable composition.';bundleReceipt(bundles.importRecord.transfer);
+ state.epoch++;state.project=result.project;state.historical=false;clearKey();state.comp=null;state.layer=null;state.checked.clear();state.time=0;show();await refresh();await preview();$('bundleStatus').textContent='Imported editable composition.';bundleReceipt(bundles.importRecord.transfer);
 }));
 $('bundleStage').onclick=guard(()=>bundleWork('import',async(signal,current)=>{const form=$('importBundle').elements,transfer=await bundles.upload(form.bundle.files[0],form.title.value,{signal});if(current()){$('bundleStatus').textContent='Uploaded. Ask the agent to import this transfer.';bundleReceipt(transfer);}}));
 async function bundleSave(signal,current){const blob=await bundles.download({signal});if(!current())return;const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='composition.motionbundle.tar';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);$('bundleStatus').textContent='Verified bundle downloaded.';bundleReceipt(bundles.exportRecord.transfer);}
@@ -453,7 +474,8 @@ function maskControls(edit){
  $('maskVertices').disabled=!n;
  for(const f of $('addFeather').elements)f.disabled=!geometry||n<2;const feathers=path?.feather??[];for(const f of $('editFeather').elements)f.disabled=!geometry||!feathers.length;$('removeFeather').disabled=!geometry||!feathers.length;$('featherPoints').disabled=!feathers.length;
 }
-function showMasks(){
+function showMasks(){return inspectorDrafts.paint(['maskSettings'],()=>showMasksNow());}
+function showMasksNow(){
  const groups=maskGroups();if(!groups.some(g=>g.uid===state.mask)){state.mask=groups[0]?.uid??null;state.maskVertex=0;}
  $('savedMasks').replaceChildren(...groups.map(g=>new Option(g.name,String(g.uid))));$('savedMasks').value=String(state.mask??'');
  const g=maskGroup(),f=$('maskSettings').elements;state.maskInitial={};
@@ -464,7 +486,8 @@ function showMasks(){
  const path=maskProperty('path')?.value.v,vertices=path?.vertices??[];if(state.maskVertex>=vertices.length)state.maskVertex=0;
  $('maskVertices').replaceChildren(...vertices.map((v,i)=>new Option('Vertex '+(i+1),String(i))));$('maskVertices').value=String(state.maskVertex);$('maskClosed').checked=path?.closed??false;showMaskVertex();showFeatherFields(path);drawMaskPath(path);void refreshMask();
 }
-function showMaskVertex(){const p=maskProperty('path')?.value.v,i=state.maskVertex,v=p?.vertices[i]??[0,0],a=p?.in_tangents[i]??[0,0],b=p?.out_tangents[i]??[0,0];state.maskVertexInitial={};for(const [name,value]of Object.entries({x:v[0],y:v[1],inX:a[0],inY:a[1],outX:b[0],outY:b[1]})){$('maskVertex').elements[name].value=String(value);state.maskVertexInitial[name]=String(value);}}
+function showMaskVertex(){return inspectorDrafts.paint(['maskVertex'],()=>showMaskVertexNow());}
+function showMaskVertexNow(){const p=maskProperty('path')?.value.v,i=state.maskVertex,v=p?.vertices[i]??[0,0],a=p?.in_tangents[i]??[0,0],b=p?.out_tangents[i]??[0,0];state.maskVertexInitial={};for(const [name,value]of Object.entries({x:v[0],y:v[1],inX:a[0],inY:a[1],outX:b[0],outY:b[1]})){$('maskVertex').elements[name].value=String(value);state.maskVertexInitial[name]=String(value);}}
 function drawMaskPath(path){
  const svg=$('maskPath'),ns='http://www.w3.org/2000/svg';svg.replaceChildren();if(!path?.vertices.length)return;
  const v=path.vertices,n=v.length,ins=path.in_tangents,outs=path.out_tangents,points=v.flatMap((p,i)=>[p,[p[0]+ins[i][0],p[1]+ins[i][1]],[p[0]+outs[i][0],p[1]+outs[i][1]]]);
@@ -497,7 +520,8 @@ $('duplicateMask').onclick=guard(async()=>{const before=new Set(maskGroups().map
 $('removeMask').onclick=guard(async()=>{if(confirm('Remove this mask? Composition history keeps its previous version.'))await maskAction('mask.remove');});
 
 function maskStamp(){return state.project&&maskGroup()?[state.project.id,state.project.revision,String(state.comp),String(state.layer),String(state.mask),state.previewTick??secondsTicks(String(state.time))].join(':'):null;}
-async function refreshMask(force=false){
+function refreshMask(force=false){const stamp=maskStamp();if(force||state.maskStamp!==stamp)state.maskAbort?.abort();return inspectorDrafts.inspect('refreshMask:'+stamp+':'+force,()=>refreshMaskNow(force));}
+async function refreshMaskNow(force=false){
  const stamp=maskStamp();if(!stamp){state.maskEpoch++;state.maskAbort?.abort();state.maskInfo=null;state.maskStamp=null;return;}
  if(state.playing||!state.permissions.read)return;if(!force&&stamp===state.maskStamp)return;
  state.maskAbort?.abort();const controller=new AbortController(),turn=++state.maskEpoch;state.maskAbort=controller;state.maskStamp=stamp;state.maskInfo=null;controls();
@@ -510,7 +534,8 @@ async function exactMaskAction(command,params){requireMaskEdit(command==='layer.
 $('refreshMask').onclick=guard(()=>refreshMask(true));
 $('keyMaskPath').onclick=guard(async()=>{requireMaskEdit('path');const info=state.maskInfo;await apply([{command:'keys.addExact',params:{layer:info.layer,prop:info.properties.path.prop,timeTicks:info.layerTimeTicks}}],{previewTick:info.compTimeTicks});});
 
-function showFeatherFields(path){
+function showFeatherFields(path){return inspectorDrafts.paint(['editFeather'],()=>showFeatherFieldsNow(path));}
+function showFeatherFieldsNow(path){
  const vertices=path?.vertices??[],segments=path?.closed?vertices.length:Math.max(0,vertices.length-1),feathers=path?.feather??[],add=$('addFeather').elements,edit=$('editFeather').elements;
  const oldSegment=add.segment.value;for(const f of [add.segment,edit.segment])f.replaceChildren(...Array.from({length:segments},(_,i)=>new Option('Segment '+(i+1)+' (vertex '+(i+1)+' to '+((i+1)%vertices.length+1)+')',String(i))));add.segment.value=/^(0|[1-9][0-9]*)$/.test(oldSegment)&&Number(oldSegment)<segments?oldSegment:'0';
  if(state.featherIndex>=feathers.length)state.featherIndex=Math.max(0,feathers.length-1);$('featherPoints').replaceChildren(...feathers.map((f,i)=>new Option('Point '+(i+1)+' · segment '+(Number(f.segment)+1)+' · radius '+f.radius,String(i))));$('featherPoints').value=String(state.featherIndex);
@@ -521,3 +546,66 @@ $('featherPoints').onchange=()=>{state.featherIndex=Number($('featherPoints').va
 $('addFeather').onsubmit=guard(async()=>{requireMaskEdit('path');const before=maskProperty('path').value.v.feather?.length??0;await exactMaskAction('mask.featherPoint.add',featherParams($('addFeather').elements));state.featherIndex=before;showMasks();controls();});
 $('editFeather').onsubmit=guard(async()=>{requireMaskEdit('path');const params=featherParams($('editFeather').elements,true);if(Object.keys(params).length)await exactMaskAction('mask.featherPoint.set',{index:state.featherIndex,...params});});
 $('removeFeather').onclick=guard(()=>exactMaskAction('mask.featherPoint.remove',{index:state.featherIndex}));
+
+
+async function selectInspectorContext(value){
+ clearKey();state.comp=value.comp===null?null:parseNative(value.comp);state.layer=value.layer===null?null:parseNative(value.layer);
+ state.time=value.time;state.previewTick=value.tick;state.mask=value.mask===null?null:parseNative(value.mask);state.effect=value.effect===null?null:parseNative(value.effect);
+ state.maskVertex=value.vertex;state.featherIndex=value.feather;show();await inspectorDrafts.idle();
+ if(value.key){await chooseKey(value.key);await inspectorDrafts.idle();}
+}
+async function applyCollectedEdits(edits,current){
+ let commands=[],tick;
+ const flush=async()=>{if(!commands.length)return;await apply(commands,{previewTick:tick});current();commands=[];await inspectorDrafts.idle();current();};
+ for(const edit of edits){
+  if(edit.effectInfo){await flush();await saveFullEffectValues(edit.effectInfo,edit.changes);current();await inspectorDrafts.idle();current();continue;}
+  if(commands.length&&(commands.length+edit.commands.length>32||new TextEncoder().encode(stringifyNative([...commands,...edit.commands])).length>65536))await flush();
+  commands.push(...edit.commands);if(edit.previewTick!==undefined)tick=edit.previewTick;
+ }
+ await flush();
+}
+async function prepareDocumentHandoff(){
+ document.activeElement?.blur?.();stopPlayback();
+ const epoch=state.epoch,initialId=state.project?.id;
+ await inspectorDrafts.idle();
+ const current=()=>{if(state.epoch!==epoch||(initialId&&state.project?.id!==initialId))throw new Error('The open composition changed during the handoff. Ask again from the document you want to edit.');};current();
+ if(!state.project)return{app:'motion-studio',screen:'surface',surface:'motion-workbench'};
+ if(!state.permissions.read)throw new Error('Your access does not allow the concierge to read this composition.');
+ const retained=inspectorContext(),entries=inspectorDrafts.entries(state.project.id);if(state.historical&&entries.length)throw new Error('This is a historical composition. Open its current revision before editing.');if(entries.some(entry=>entry.baseRevision!==state.project.revision))throw new Error('This composition has a newer saved revision. Your inspector drafts are kept; review the saved changes before choosing which to keep.');handoffBusy=true;controls();
+ try{
+  for(let index=0;index<entries.length;){
+   const scope=JSON.stringify(entries[index].context),group=[];
+   while(index<entries.length&&JSON.stringify(entries[index].context)===scope)group.push(entries[index++]);
+   await selectInspectorContext(group[0].context);current();
+   if(JSON.stringify(inspectorContext())!==scope)throw new Error('An edited native layer, keyframe or inspector selection is no longer available. Your field draft is kept.');
+   for(const entry of group)inspectorDrafts.restore(entry);
+   let edits;collectedEdits=[];
+   try{for(const entry of group){const work=$(entry.formId).onsubmit?.handoffWork;if(!work)throw new Error('The native inspector cannot save this draft.');await work();current();}edits=collectedEdits;}
+   finally{collectedEdits=null;}
+   await applyCollectedEdits(edits,current);current();inspectorDrafts.forget(group);
+  }
+ }finally{
+  collectedEdits=null;
+  try{if(state.epoch===epoch&&state.project?.id===retained.projectId){await selectInspectorContext(retained);inspectorDrafts.restoreCurrent();}}
+  finally{handoffBusy=false;controls();}
+ }
+ current();
+ if(inspectorDrafts.has(state.project.id))throw new Error('The current composition field draft could not be saved.');
+ return{app:'motion-studio',screen:'surface',surface:'motion-workbench',recordId:state.project.id,title:state.project.title,
+  fields:{revision:state.project.revision,draft:false,readOnly:state.historical,compId:String(state.comp),...(state.layer==null?{}:{layerId:String(state.layer)}),compTimeTicks:currentTick()}};
+}
+async function refreshDocumentHandoff(expected){
+ await inspectorDrafts.idle();
+ const id=state.project?.id,epoch=state.epoch,revision=state.project?.revision;
+ if(!id||state.historical||(expected?.recordId&&expected.recordId!==id)||!state.permissions.read)return;
+ const {project}=await api('/projects/'+encodeURIComponent(id));
+ if(state.epoch!==epoch||state.project?.id!==id||state.project.revision!==revision||project.revision<=revision)return;
+ document.activeElement?.blur?.();
+ if(inspectorDrafts.has(id))throw new Error('The concierge saved an update while you were editing. Your composition field draft is still here; review the saved revision before choosing which to keep.');
+ stopPlayback();const retained=inspectorContext();state.project=project;state.historical=false;
+ await selectInspectorContext(retained);await refresh();await preview();
+}
+try{
+ const {registerDocumentSession}=await import('/shared/ui/js/document-handoff.js');
+ registerDocumentSession({app:'motion-studio',prepare:async()=>{try{return await prepareDocumentHandoff();}catch(error){problem(error);throw error;}},refresh:async expected=>{try{await refreshDocumentHandoff(expected);}catch(error){problem(error);throw error;}}});
+}catch(error){problem(new Error('The concierge cannot synchronize this composition: '+error.message));}

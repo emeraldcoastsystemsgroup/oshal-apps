@@ -9,6 +9,7 @@
 # 2026-09-28 12:31:00 | maintainer@emeraldcoastsystemsgroup.com    | 0.11.3, ADR-164 D6: the family audience view for the Home (Jarvis) shell. The shell opens the first surface, Game Show Review, with ?audience=family; the page now answers with the account's game nights in plain words, painted by the shared kit: the three hosted-room counts (waiting in the lobby, marked live, ended in the last 5 days), the three newest hosted rooms with their state and last update, and the hall of fame of best scores, from three plain GETs (/home-summary, the lobby's /leaderboard, the static /shows catalog for show names). It never reads /rooms (its listing runs the ended-room retention DELETE), a room's state, sync, cost, QR or camera stills, never opens, joins or starts a room, never calls the host bot, a voice or a model, never fetches connected-actions offers and writes nothing. The full page's start is gated on the kit's decision and runs unchanged without the parameter. Registers the audience-view Test Lab case (testing: + uses: test-catalog). No route, schema or authorization change.
 # 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com    | Declare migrations/002-game-show-seat-key.sql (no version bump): AI and house podiums keep their identity in seat_key with a NULL user_sub, because the native kernel refuses a synthetic subject in an owner field.
 # 2026-10-11 00:00:01 | maintainer@emeraldcoastsystemsgroup.com    | Declare migrations/003-game-show-podiums.sql (no version bump): AI and house podiums move to their own table, because on the native kernel a NULL owner is filled with the caller and collides with the host's seat under uq_gameshow_seat.
+# 2026-10-30 00:30:00 | maintainer@emeraldcoastsystemsgroup.com   | 0.11.6: the review page no longer forces color-scheme: dark, so its native form controls follow the portal theme like the rest of the page.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Game Show (AI game night, live at the table or across phones)
@@ -74,7 +75,7 @@ description: >-
   with the rehearsal view. Four shows ship on the one modular engine: Family Feud
   (with Fast Money), Jeopardy (with Double Jeopardy), Wheel of Fortune, and Whammy;
   the host can also play their OWN questions, no AI required.
-version: 0.11.4
+version: 0.11.6
 
 testing:
   version: 1

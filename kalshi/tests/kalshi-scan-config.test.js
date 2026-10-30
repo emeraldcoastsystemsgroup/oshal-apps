@@ -43,10 +43,11 @@ function hand(over) {
   }, over || {});
 }
 
-test('defaults are the operator-stated posture: hourly, jarvis on, outward off', () => {
+test('defaults are the operator-stated posture: hourly, jarvis off until switched on, outward off', () => {
   assert.equal(KALSHI_SCAN_DEFAULTS.scanIntervalMinutes, 60);
   assert.equal(KALSHI_SCAN_DEFAULTS.scanEnabled, true);
-  assert.equal(KALSHI_SCAN_DEFAULTS.notifyJarvis, true);
+  // The scan does its job; Jarvis hears nothing until the person switches Tell Jarvis on (Roger, 2026-10-29).
+  assert.equal(KALSHI_SCAN_DEFAULTS.notifyJarvis, false);
   // Outward delivery must never default on — an hourly job may not start texting on its own.
   assert.equal(KALSHI_SCAN_DEFAULTS.notifyOutward, false);
 });
@@ -66,9 +67,20 @@ test('scope authority is enforced in both directions', () => {
   const a = resolveScanConfig([{ patch: { scanIntervalMinutes: 5 }, scope: 'user' }]);
   assert.equal(a.scanIntervalMinutes, KALSHI_SCAN_DEFAULTS.scanIntervalMinutes);
   // ...and a deployment row must not mute one person's alert thresholds.
-  const b = resolveScanConfig([{ patch: { alertMinEdgeCents: 40, notifyJarvis: false }, scope: 'deployment' }]);
+  const b = resolveScanConfig([{ patch: { alertMinEdgeCents: 40, notifyJarvis: true }, scope: 'deployment' }]);
   assert.equal(b.alertMinEdgeCents, KALSHI_SCAN_DEFAULTS.alertMinEdgeCents);
-  assert.equal(b.notifyJarvis, true);
+  assert.equal(b.notifyJarvis, false, 'a deployment row must not switch one person\'s Jarvis alerts on');
+});
+
+test('a fresh person is never alerted until they switch Tell Jarvis on', () => {
+  // Turning the background-scan job on keeps the snapshot fresh and tells nobody: both notify switches are off.
+  const fresh = resolveScanConfig([]);
+  assert.equal(fresh.notifyJarvis, false);
+  assert.equal(selectAlertHands([hand({})], fresh, [], 0).suppressed, 'notify-off');
+  // The person's own Settings row is the one switch that turns Jarvis on.
+  const on = resolveScanConfig([{ patch: { notifyJarvis: true }, scope: 'user' }]);
+  assert.equal(on.notifyJarvis, true);
+  assert.deepEqual(selectAlertHands([hand({})], on, [], 0).hands.map((h) => h.ticker), ['KXTEST-26JUL30-A']);
 });
 
 test('bad values clamp instead of stopping the scan', () => {
@@ -130,8 +142,9 @@ test('freshness: no snapshot is stale, and nextRunAt follows the cadence', () =>
   assert.equal(scanFreshness(at.toISOString(), conf, at.getTime() + 200 * 60_000).stale, true);
 });
 
+// The alert-gate cases model a person who switched Tell Jarvis on; the default is off (see 'a fresh person').
 test('alert gate: strength floor, edge floor, ordering and top-N', () => {
-  const conf = clampScanConfig({ alertMinStrength: 'strong', alertMinEdgeCents: 3, alertTopN: 2 });
+  const conf = clampScanConfig({ notifyJarvis: true, alertMinStrength: 'strong', alertMinEdgeCents: 3, alertTopN: 2 });
   const hands = [
     hand({ ticker: 'WEAK', strength: 'playable', edgeNet: 0.09 }),   // below the strength floor
     hand({ ticker: 'THIN', strength: 'strong', edgeNet: 0.029 }),    // 2.9¢ — below the edge floor
@@ -145,7 +158,7 @@ test('alert gate: strength floor, edge floor, ordering and top-N', () => {
 });
 
 test('alert gate: a hand is announced ONCE (first-seen dedup by ticker)', () => {
-  const conf = clampScanConfig({});
+  const conf = clampScanConfig({ notifyJarvis: true });
   const hands = [hand({ ticker: 'SEEN' }), hand({ ticker: 'NEW' })];
   const out = selectAlertHands(hands, conf, ['SEEN'], 0);
   assert.deepEqual(out.hands.map((h) => h.ticker), ['NEW']);
@@ -154,19 +167,20 @@ test('alert gate: a hand is announced ONCE (first-seen dedup by ticker)', () => 
 });
 
 test('alert gate: the daily budget and the notify switches suppress before selection', () => {
-  const conf = clampScanConfig({ alertMaxPerDay: 2 });
+  const conf = clampScanConfig({ notifyJarvis: true, alertMaxPerDay: 2 });
   assert.equal(selectAlertHands([hand({})], conf, [], 2).suppressed, 'daily-budget');
   const off = clampScanConfig({ notifyJarvis: false, notifyOutward: false });
   assert.equal(selectAlertHands([hand({})], off, [], 0).suppressed, 'notify-off');
   // alertMaxPerDay: 0 is a real "mute" value, not a fall-through to the default.
-  assert.equal(selectAlertHands([hand({})], clampScanConfig({ alertMaxPerDay: 0 }), [], 0).suppressed, 'daily-budget');
+  assert.equal(selectAlertHands([hand({})], clampScanConfig({ notifyJarvis: true, alertMaxPerDay: 0 }), [], 0).suppressed, 'daily-budget');
 });
 
 test('alert gate FAILS CLOSED when the ledger or the budget cannot be read', () => {
+  // (opted in, so the switches are not what suppresses)
   // The regression this pins: v1 returned a SENTINEL STRING inside the dedup set and called itself
   // "fail closed". No real ticker matches a sentinel, so one DB blip would have re-announced every
   // hand the user had ever been told about. Unknown dedup state must mean NO alert, not every alert.
-  const conf = clampScanConfig({});
+  const conf = clampScanConfig({ notifyJarvis: true });
   const hands = [hand({ ticker: 'A' }), hand({ ticker: 'B' })];
   assert.deepEqual(selectAlertHands(hands, conf, null, 0), { hands: [], suppressed: 'ledger-unavailable' });
   assert.deepEqual(selectAlertHands(hands, conf, undefined, 0), { hands: [], suppressed: 'ledger-unavailable' });

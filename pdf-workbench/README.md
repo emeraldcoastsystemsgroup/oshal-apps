@@ -53,3 +53,57 @@ Container memory, MiB low / high: **32 / 768 (declared)**.
 |---|---|---|---|---|---|---|
 | pdf-editing-command | editing command | T1 | none | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->
+
+## Automatic concierge document handoff (source 0.1.1)
+
+The workbench applies changed form fields, saves pending page/form/annotation
+operations and waits for the genuine revision job to finish before the concierge
+reads. It refreshes that same saved PDF after the concierge returns. Page
+organization, form fields and annotations remain in the native PDF model.
+Failed saves stop the handoff; concurrent browser drafts and another opened
+document are retained. Historical questions retain the visible historical revision.
+
+`tests/browser/document-handoff.test.mjs` covers repeated manual/assistant edits,
+real SQL and PDF jobs, denied saves, concurrent fields and late jobs after a
+document switch. It uses actual Poppler/pypdf and disposable original-owner SQL;
+it does not prove installed provider acceptance, which remains pending.
+
+## Bounded form lookup (source 0.1.3)
+
+`pdf-read-model-part` accepts `part: "form-fields"`, the optional literal name
+fragment in `query`, and offset 0. It searches case-insensitively under the
+same current original-owner read permission. It returns up to eight exact saved
+values within 8192 bytes, their original model-part indexes, and an explicit
+matching-result `nextOffset`. Values are never clipped; an oversized single field
+is refused. This lets the concierge find a requested value without spending its
+whole tool budget enumerating fields. The revision receipt already supplies saved
+page IDs for an additive annotation. Native operations retain untouched objects;
+read only the parts needed and leave a step for the real approval card.
+
+Source checks cover a late field, literal punctuation, byte-bound pagination,
+exact values and mounted HTTP lookup against genuine disposable PostgreSQL,
+including another actor and withdrawn read permission. They do not qualify the
+installed 0.1.3 provider; that acceptance must follow deployment. The existing
+portal-theme CSS from the UX lane is retained verbatim.
+
+The existing authorization contract is retained byte-for-byte: this read selector
+uses the existing read tool and permissions, so adding a tool binding does not
+invalidate current composite role assignments. Installed promotion must verify
+those assignments and statuses are unchanged.
+
+The lookup travels in the tool's supported optional query parameter, leaving its
+path canonical. Omitting query retains existing single-item behavior and input
+requirements. The gateway keeps its percent-path restriction unchanged.
+
+### Actual annotation coordinates (source 0.1.4)
+
+The native revision receipt and pages model-part return each saved page's real
+pre-rotation cropBox and a textAnnotationRect suggestion within those bounds,
+avoiding existing native annotation rectangles when a free row is available.
+No paper size is assumed. A null suggestion requires choosing another valid
+placement. These read-only fields do not become properties of the engine model.
+New annotation bounds, color, supported text and ink points are checked before
+queueing a render, with the independent worker checks retained.
+
+Installed0.1.3 fixed the bounded field read but its actual full provider trial
+failed on geometry;0.1.4 has no installed-provider qualification yet.

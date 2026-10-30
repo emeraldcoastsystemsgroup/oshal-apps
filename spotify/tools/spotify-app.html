@@ -97,7 +97,7 @@
      daylight, ocean, …). Values here are only dark-midnight fallbacks before the bridge
      resolves / when opened standalone. Do NOT hardcode brand colors over the theme. */
   :root{
-    --bg:var(--bg-primary,#181a20); --bg2:var(--glass-bg-heavy,rgba(24,26,32,.92)); --card:var(--bg-card,rgba(24,26,32,.92)); --card-hover:var(--bg-card-hover,rgba(36,38,48,.98));
+    --bg:var(--bg-primary,#181a20); --bg2:var(--bg-card,rgba(24,26,32,.92)); --card:var(--bg-card,rgba(24,26,32,.92)); --card-hover:var(--bg-card-hover,rgba(36,38,48,.98));
     --border:var(--border-color,#23262f); --border2:var(--border-color-hover,#353945);
     --text:var(--text-primary,#f4f4f6); --muted:var(--text-secondary,#b1b5c3); --dim:var(--text-muted,#6e7380);
     --accent:var(--accent-primary,#5e8fff); --accent2:var(--accent-primary-hover,#3b6eea); --accent-glow:var(--accent-glow,rgba(94,143,255,.25));
@@ -121,7 +121,7 @@
   .brand{font-weight:800;letter-spacing:.3px;font-size:19px}
   .brand small{display:block;font-weight:500;color:var(--muted);font-size:11px;letter-spacing:.6px;text-transform:uppercase}
   .pill{margin-left:auto;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px;
-    background:rgba(255,255,255,.04);border:1px solid var(--border);padding:7px 12px;border-radius:999px}
+    background:color-mix(in srgb,var(--card) 70%,transparent);border:1px solid var(--border);padding:7px 12px;border-radius:999px}
   .dot{width:8px;height:8px;border-radius:50%;background:var(--dim)}
   .dot.on{background:var(--accent);box-shadow:0 0 10px var(--accent-glow)}
 
@@ -254,7 +254,7 @@
      shell) by copying its computed design-system variables into this surface, and re-sync
      whenever the operator changes the theme. Same pattern as the other framework surfaces. -->
 <script>(function(){
-  const M={'--bg':'--bg-primary','--bg2':'--glass-bg-heavy','--card':'--bg-card','--card-hover':'--bg-card-hover',
+  const M={'--bg':'--bg-primary','--bg2':'--bg-card','--card':'--bg-card','--card-hover':'--bg-card-hover',
     '--border':'--border-color','--border2':'--border-color-hover','--text':'--text-primary','--muted':'--text-secondary',
     '--dim':'--text-muted','--accent':'--accent-primary','--accent2':'--accent-primary-hover',
     '--accent-glow':'--accent-glow','--warn':'--status-warning'};

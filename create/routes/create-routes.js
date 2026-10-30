@@ -13,6 +13,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Serve the region selection module through the same exact allowlist; the existing editor-assets binding already admits it, so the authorization catalog is unchanged.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Serve the region edit panel module through the same exact allowlist.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Serve the three fixed PSD import/review/worker modules through the existing view-bound editor route.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Support the shared automatic document save/read/refresh handoff and preserve concurrent drafts and editable layers.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -104,7 +105,7 @@ function createCreateRoutes(ctx) {
     const modules = ['editor.mjs', 'editor-state.mjs', 'editor-view.mjs', 'editor-projects.mjs',
         'editor-files.mjs', 'editor-interactions.mjs', 'model.mjs', 'model-validation.mjs',
         'history.mjs', 'renderer.mjs', 'image-assets.mjs', 'hit-test.mjs', 'editor.css',
-        'templates.mjs', 'editor-templates.mjs', 'editor-context.mjs', 'brand-kit.mjs', 'brand-page.mjs', 'brand-editor.mjs', 'brand.css',
+        'templates.mjs', 'editor-templates.mjs', 'editor-context.mjs', 'editor-handoff.mjs', 'brand-kit.mjs', 'brand-page.mjs', 'brand-editor.mjs', 'brand.css',
         'region-select.mjs', 'region-edit-panel.mjs', 'group-geometry.mjs', 'vector-geometry.mjs', 'polygon-clipping.mjs', 'vector-worker.mjs', 'vector-editor.mjs', 'vector-svg.mjs',
         'editor-psd.mjs', 'psd-reader.mjs', 'psd-worker.mjs'];
     for (const file of modules) {

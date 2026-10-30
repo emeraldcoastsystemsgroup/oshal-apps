@@ -141,23 +141,18 @@
 })();
 </script>
 <style>
-  /* The theme bootstrap marks <html> with the skin's color-scheme. This page paints its own palette, so its native controls
-     keep the browser default they had before the bootstrap; the audience view (data-audience) follows the skin. */
-  html:not([data-audience]) { color-scheme: normal; }
+  /* Every colour derives from the portal theme tokens (kernel screen standard, docs/ux/screen-standard.md §1):
+     documents painted with --bg-card are raised as glass by the portal; the fixed light/dark palette is gone. */
   :root {
-    --bg: #f4f5f7; --card: #fff; --ink: #16181d; --ink-2: #555c68; --ink-3: #7c8493;
-    --rule: #dcdfe5; --accent: #0a6e7c; --accent-wash: #e2f0f2;
-    --warn: #8a5a0b; --warn-wash: #f8efdb; --danger: #9c2233;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #14171c; --card: #1b1f26; --ink: #e6e9ee; --ink-2: #b0b7c3; --ink-3: #838b99;
-      --rule: #2c323b; --accent: #4cb8c7; --accent-wash: #16292d;
-      --warn: #d8ab5c; --warn-wash: #2a2214; --danger: #e5808e;
-    }
+    --bg: var(--bg-primary, #14171c); --card: var(--bg-card, #1b1f26); --ink: var(--text-primary, #e6e9ee);
+    --ink-2: var(--text-secondary, #b0b7c3); --ink-3: var(--text-muted, #838b99);
+    --rule: var(--border-color, #2c323b); --accent: var(--accent-primary, #4cb8c7);
+    --accent-wash: color-mix(in srgb, var(--accent-primary, #4cb8c7) 14%, transparent);
+    --warn: var(--status-warning, #d8ab5c); --warn-wash: color-mix(in srgb, var(--status-warning, #d8ab5c) 14%, transparent);
+    --danger: var(--status-error, #e5808e); --on-accent: var(--text-on-accent, #fff);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink);
+  body { margin: 0; background-color: var(--bg); color: var(--ink);
          font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
   .wrap { max-width: 860px; margin: 0 auto; padding: 26px 20px 80px; }
   h1 { font-size: 21px; margin: 0 0 4px; letter-spacing: -0.01em; }
@@ -165,7 +160,7 @@
   .tabs { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; }
   .tab { border: 1px solid var(--rule); background: var(--card); color: var(--ink-2);
          padding: 6px 13px; border-radius: 999px; cursor: pointer; font-size: 13px; }
-  .tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
   .doc { background: var(--card); border: 1px solid var(--rule); border-radius: 8px;
          padding: 18px 20px; margin-bottom: 14px; }
   .doc h2 { font-size: 17px; margin: 0 0 6px; }
@@ -187,8 +182,8 @@
                 border: 1px solid var(--rule); border-radius: 5px;
                 background: var(--bg); color: var(--ink); }
   .actions { display: flex; gap: 9px; margin-top: 14px; flex-wrap: wrap; }
-  button { font: inherit; padding: 8px 16px; border-radius: 6px; cursor: pointer; border: 1px solid var(--rule); }
-  .approve { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button { font: inherit; padding: 8px 16px; border-radius: 6px; cursor: pointer; border: 1px solid var(--rule); background: var(--bg-tertiary, var(--card)); color: var(--ink); }
+  .approve { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
   .reject { background: transparent; color: var(--danger); border-color: var(--rule); }
   button[disabled] { opacity: .55; cursor: progress; }
   .empty { color: var(--ink-3); background: var(--card); border: 1px dashed var(--rule);

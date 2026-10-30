@@ -2,9 +2,9 @@
 
 # Intelligent Communication (`email-summarizer`) - database schema
 
-Postgres database `oshal`, schema `public` - shared with the platform and every other installed package. 1 table in the reference database.
+Postgres database `oshal`, schema `public` - shared with the platform and every other installed package. 4 tables in the reference database.
 
-**Migrations:** none declared in `oshal-app.yaml`.
+**Migrations:** `migrations/001-email-mail-store.sql`, `migrations/002-email-social-desk.sql` (declared in `oshal-app.yaml`).
 
 **Created at runtime by package code** (`CREATE TABLE IF NOT EXISTS`): `routes/email-app-routes.js`, `src-routes/email-app-routes.ts`
 
@@ -19,6 +19,18 @@ erDiagram
   oshal_email_digests {
     text user_sub PK "owner"
   }
+  oshal_email_social_posts {
+    text post_id PK
+    text user_sub "owner"
+  }
+  oshal_email_social_settings {
+    text settings_key PK
+    text user_sub "owner"
+  }
+  oshal_email_social_events {
+    text event_id PK
+    text user_sub "owner"
+  }
 ```
 
 ## Tables
@@ -32,3 +44,53 @@ Defined in `routes/email-app-routes.js`, `src-routes/email-app-routes.ts` · RLS
 | `user_sub` | text | no |  | PK · owner |
 | `summary` | text | yes |  |  |
 | `updated_at` | timestamp with time zone | no | now() |  |
+
+### `oshal_email_social_posts`
+
+Defined in `migrations/002-email-social-desk.sql` · RLS **forced** - owner `user_sub`
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `post_id` | text | no |  | PK |
+| `user_sub` | text | no |  | owner |
+| `status` | text | no | 'draft' | draft, scheduled, sending, sent, partial, failed |
+| `body` | text | no | '' | the shared text |
+| `variants` | text | no | '{}' | JSON: per-channel text where it differs |
+| `channels` | text | no | '[]' | JSON array of channel ids |
+| `media_url` | text | no | '' | https image link |
+| `event_id` | text | no | '' | the Go Live event this announces |
+| `scheduled_at` | timestamp with time zone | yes |  |  |
+| `sent_at` | timestamp with time zone | yes |  |  |
+| `outcomes` | text | no | '{}' | JSON: per-channel ok, id, url or refusal |
+| `created_at` | timestamp with time zone | no | now() |  |
+| `updated_at` | timestamp with time zone | no | now() |  |
+
+### `oshal_email_social_settings`
+
+Defined in `migrations/002-email-social-desk.sql` · RLS **forced** - owner `user_sub`
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `settings_key` | text | no |  | PK · the owner's subject |
+| `user_sub` | text | no |  | owner |
+| `plan` | text | no | '{}' | JSON: days and times of the posting plan |
+| `slack_channel` | text | no | '' | the Slack conversation id posts go to |
+| `slack_label` | text | no | '' |  |
+| `timezone` | text | no | '' | IANA zone |
+| `updated_at` | timestamp with time zone | no | now() |  |
+
+### `oshal_email_social_events`
+
+Defined in `migrations/002-email-social-desk.sql` · RLS **forced** - owner `user_sub`
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `event_id` | text | no |  | PK |
+| `user_sub` | text | no |  | owner |
+| `title` | text | no | '' |  |
+| `description` | text | no | '' |  |
+| `start_at` | timestamp with time zone | no |  |  |
+| `destinations` | text | no | '[]' | JSON array of destination ids |
+| `watch_url` | text | no | '' |  |
+| `status` | text | no | 'planned' |  |
+| `created_at` | timestamp with time zone | no | now() |  |

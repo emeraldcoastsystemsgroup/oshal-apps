@@ -20,12 +20,17 @@
  *                     |                             | a tool or Python call reports its outcome only after the studio has
  *                     |                             | refreshed, so a quick next click is not refused as busy; the preview
  *                     |                             | line marks an older revision even when the image is unchanged.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Work side by side with the concierge: the open project registers with the shared
+ *                     |                             | document handoff. Before an assistant reads, prepare() waits for the running action and
+ *                     |                             | saves an unsaved file edit through the existing PUT /files, then hands over the project
+ *                     |                             | id and revision; refresh() re-reads the project and the open file and redraws them,
+ *                     |                             | keeping text the person is still editing and saying so in the status line.
  */
 (function () {
   'use strict';
   const BASE = '/api/scene-studio';
   const $ = (id) => document.getElementById(id);
-  const state = { projects: [], project: null, detail: null, caps: null, viewer: null, filePath: '', epoch: 0, pollTimer: null, busy: false, previewShown: '' };
+  const state = { projects: [], project: null, detail: null, caps: null, viewer: null, filePath: '', epoch: 0, pollTimer: null, busy: false, acting: null, previewShown: '', fileBaseline: '' };
 
   /** One call to the package's routes; a non-2xx reply throws with the server's message. */
   async function api(method, path, body) {
@@ -78,7 +83,11 @@
     if (state.busy) { status('Still working on the last action…', 'bad'); return; }
     state.busy = true;
     status(label + '…');
-    try { await fn(); } catch (e) { status(label + ' failed: ' + e.message, 'bad'); } finally { state.busy = false; }
+    const run = (async () => {
+      try { await fn(); } catch (e) { status(label + ' failed: ' + e.message, 'bad'); } finally { state.busy = false; }
+    })();
+    state.acting = run;
+    await run;
   }
 
   // ── Engine ──────────────────────────────────────────────────────────────
@@ -146,6 +155,7 @@
     stopPoll();
     clearPreview();
     state.filePath = '';
+    state.fileBaseline = '';
     $('file-text').value = '';
     $('file-path').value = '';
     $('run-output').hidden = true;
@@ -351,6 +361,7 @@
     const out = await api('POST', '/projects/' + intent.projectId + '/files/read', { path }).catch((e) => { status(e.message, 'bad'); return null; });
     if (!out || !current(intent)) return;
     state.filePath = path;
+    state.fileBaseline = out.binary ? '' : out.text;
     $('file-path').value = path;
     $('file-text').value = out.binary ? '' : out.text;
     $('file-text').placeholder = out.binary ? 'Binary file (' + formatBytes(out.bytes) + ') — download it to open it.' : '';
@@ -365,10 +376,12 @@
     const intent = selection();
     const path = $('file-path').value.trim();
     if (!path) { status('Type a file path first.', 'bad'); return; }
+    const text = $('file-text').value;
     await act('Saving ' + path, async () => {
-      const out = await api('PUT', '/projects/' + intent.projectId + '/files', { path, text: $('file-text').value });
+      const out = await api('PUT', '/projects/' + intent.projectId + '/files', { path, text });
       if (!current(intent)) return;
       state.filePath = path;
+      state.fileBaseline = text;
       await refreshProject(true);
       status('Saved ' + path + ' as revision ' + out.project.revision + '.', 'ok');
     });
@@ -382,6 +395,7 @@
       await api('DELETE', '/projects/' + intent.projectId + '/files', { path });
       if (!current(intent)) return;
       state.filePath = '';
+      state.fileBaseline = '';
       $('file-text').value = '';
       $('file-path').value = '';
       await refreshProject(true);
@@ -492,6 +506,57 @@
     });
   }
 
+  // ── Side by side with the concierge (the shared document handoff) ─────
+
+  /** True when the editor holds text or a path the project does not have yet. */
+  function fileDraft() {
+    const path = $('file-path').value.trim(), text = $('file-text').value;
+    if (!state.project || $('file-text').disabled || !path) return false;
+    if (!state.filePath && !text) return false;
+    return path !== state.filePath || text !== state.fileBaseline;
+  }
+
+  async function settleActions() { while (state.busy && state.acting) await state.acting; }
+
+  /** The saved project's identity and revision: what the assistant is told it is reading. */
+  function documentSnapshot(p) {
+    return { app: 'scene-studio', screen: 'surface', surface: 'scene-studio', recordId: p.projectId, title: p.title,
+      fields: { revision: p.revision, updatedAt: p.updatedAt, kind: p.kind, openFile: state.filePath || null, readOnly: false, draft: false } };
+  }
+
+  /** Save the editor's unsaved file through the page's own save, then hand over the saved project. */
+  async function prepareDocumentHandoff() {
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    await settleActions();
+    if (!state.project) return null;
+    const id = state.project.projectId, path = $('file-path').value.trim();
+    if (fileDraft()) {
+      await saveFile(); await settleActions();
+      if (fileDraft()) throw new Error('Your edit to ' + path + ' could not be saved (' + $('status').textContent + '). It is still in the editor; correct it or save it, then ask again.');
+    }
+    if (!state.project || state.project.projectId !== id) throw new Error('The open project changed while it was being saved. Ask again from the project you want to edit.');
+    return documentSnapshot(state.project);
+  }
+
+  /** Re-read the project and the open file; text the person is still editing is kept and the status line says so. */
+  async function refreshDocumentHandoff(expected) {
+    await settleActions();
+    const p = state.project;
+    if (!p || (expected && expected.recordId && expected.recordId !== p.projectId)) return;
+    const intent = selection();
+    await refreshProject(false);
+    if (!current(intent) || !state.filePath) return;
+    if (fileDraft()) { status('The project is at revision ' + state.project.revision + '. Your unsaved edit to ' + state.filePath + ' is kept; Save file writes it on top.', 'bad'); return; }
+    if ((state.detail.files || []).some((f) => f.path === state.filePath)) await openFile(state.filePath);
+  }
+
+  function registerDocumentHandoff() {
+    const reported = (fn) => async (...args) => { try { return await fn(...args); } catch (e) { status(e.message, 'bad'); throw e; } };
+    import('/shared/ui/js/document-handoff.js')
+      .then(({ registerDocumentSession }) => registerDocumentSession({ app: 'scene-studio', prepare: reported(prepareDocumentHandoff), refresh: reported(refreshDocumentHandoff) }))
+      .catch((e) => status('The concierge cannot synchronize this project: ' + e.message, 'bad'));
+  }
+
   // ── Poll, wiring ────────────────────────────────────────────────────────
 
   function startPoll() {
@@ -534,6 +599,7 @@
 
   async function boot() {
     wire();
+    registerDocumentHandoff();
     await loadCapabilities();
     await loadProjects().catch((e) => status(e.message, 'bad'));
     const q = new URLSearchParams(location.search);

@@ -1,4 +1,10 @@
 # CHANGE LOG
+# 23 | maintainer@emeraldcoastsystemsgroup.com | 1.46.1: putting a strategy on a paper account computes its current targets first and refuses with the reason when a year of daily prices cannot be read (the archive serves 365 days, short of the monthly warmup; Schwab read-only history is what backtests use), and the reply shows the targets it will hold.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 1.46.0: a saved strategy runs on a paper account. trading_paper_strategy (POST /api/trading/paper/books/{ref}/strategy) assigns it and starts the account; each scheduled pass of a regular session rebalances the simulated book in whole shares to the strategy's current targets once per decision. The concierge designs, saves and runs a strategy on paper in one conversation; real accounts stay the owner's own steps.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 1.45.1: the Trading page switches the person's paper schedule on whenever they have an armed paper account (in their own session, as Start does), so a paper account the concierge creates in chat trades without a separate button. The analyst says so.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 1.45.0: the concierge sets up paper trading. Route tools over the local paper account routes list, create (armed), start and stop simulated accounts; the accounts read adds the reference book, each account's last tick and when the person's paper schedule last ran. Switching that schedule on stays the person's own consent on Reports → Local paper accounts. No broker path and no order code changed.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | Owner approvals bind to the declared order code (orderAuthority) instead of the whole package, so page, chart and concierge releases keep them; the concierge can save research strategies, backtest them on an account against SPY and compare them with the strategy the account runs.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | Account details page per connected account: holdings, recorded account value, value change vs a benchmark, gain/loss bars per holding and any holding's daily price vs a comparison symbol; separate Manage strategy and Account details dashboard links; clearer capital-cap refusal.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | Clear account totals, visible form controls and compact strategy and watcher activation reviews in light and dark themes.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Restore the Accounts dashboard and make strategy assignment and watcher controls directly reachable from Strategies.
 # -----------------------------------------------------------------------------
@@ -110,7 +116,7 @@ description: >-
   Research stocks, track connected brokerage accounts and test strategies in a separate
   paper book, with a decision trail from signals to orders. Trading actions follow the
   connected account's supported controls. Cash equities. No crypto.
-version: 1.42.12
+version: 1.46.1
 status: active
 
 source:
@@ -165,6 +171,16 @@ uses:
   # The package's tests are registered with the AI Test Lab (tests/test-lab.yaml). Declared so a
   # kernel that predates package catalogs refuses the package instead of silently ignoring them.
   - test-catalog
+
+# The code that decides real-money orders. An owner's strategy and watcher-exit approvals bind to these
+# modules and every package file they load (the kernel follows their literal requires), not to the whole
+# package: a page, chart, research or concierge release keeps them, and a change to any followed file
+# cancels them. Every Schwab order intent is made from routes/live/; keep it that way, and keep its loads
+# literal relative requires (a computed require makes approvals bind to the whole package again).
+orderAuthority:
+  sources:
+    - routes/trading-native-management.js
+    - routes/live/management.js
 
 # AI Test Lab catalog: the readiness smoke and the ADR-052 addendum parity suites (T1 in BACKLOG.md
 # tracks registering the rest).
@@ -529,6 +545,207 @@ tools:
     skills: [trading]
     tags: [intelligent-trades]
 
+  # Strategy research for the concierge (the same routes as Strategies → Change strategy). Saving and
+  # backtesting are research only: no tool here assigns a strategy to an account, activates live trading
+  # or places an order. Those stay the owner's own confirmed actions on the Strategies screen.
+  - name: trading_strategies
+    displayName: Saved Strategies and Backtests
+    type: api
+    category: trading
+    description: >-
+      The caller's saved portfolio strategies (id, name, model and assets), their completed account
+      backtests (total return, max drawdown, the SPY return over the same days and the excess return),
+      and each account's assigned strategy (accountId, connectionKey, label, strategyId). Read-only and
+      owner-scoped. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/portfolio/research" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    usageInstructions: Call first to see what exists and which strategy each account runs before proposing or comparing one.
+    routingTags: [trading, strategy, backtest, research]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_strategy_save
+    displayName: Save a Strategy
+    type: api
+    category: trading
+    description: >-
+      Save a new research strategy for the caller. It is immutable and research-only: saving never assigns
+      it to an account and never trades. A strategy live accounts can run uses modelVersion 2, kind
+      "monthly-trend" (any 1-20 assets, weights totalling 100, topN equal to the asset count) or
+      "quarterly-rotation" (at least 3 equally weighted assets, topN 3), lookbackSessions 63,
+      rebalanceSessions 20, grossExposurePct 100, transactionCostBps 0-100, marginAprPct null,
+      maintenancePct null, fractionalShares false, and never BIL as an asset (BIL is the separate cash
+      fund). The reply carries the saved strategy's id; an invalid configuration comes back with the reason.
+    executor: { executorType: api, apiEndpoint: "POST /api/trading/portfolio/strategies" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [name, config]
+      properties:
+        name: { type: string, description: "a short name the owner will recognise, 1-120 characters" }
+        config:
+          type: object
+          description: "modelVersion, kind, assets [{symbol, weightPct}], lookbackSessions, rebalanceSessions, topN, grossExposurePct, transactionCostBps, marginAprPct, maintenancePct, fractionalShares"
+        parentId: { type: string, description: "optional id of the saved strategy this one revises" }
+    usageInstructions: Save only after the owner agrees to the assets and weights you describe. Then backtest it on the account they name.
+    routingTags: [trading, strategy, create]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_strategy_backtest
+    displayName: Backtest a Strategy on an Account
+    type: api
+    category: trading
+    description: >-
+      Run a saved strategy over verified daily prices on one of the caller's accounts (its measured equity
+      is the starting capital) for a window of at most one year that ends no later than the last completed
+      session. Returns the run with total return, max drawdown, the SPY return over the same days and the
+      excess return, or a failed run with the reason. Research only; no order and no assignment. A completed
+      run is what Strategies → Change strategy → Save strategy requires for that account.
+    executor: { executorType: api, apiEndpoint: "POST /api/trading/portfolio/backtest" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    timeoutMs: 60000
+    inputSchema:
+      type: object
+      required: [strategyId, accountId, connectionKey, startDate, endDate]
+      properties:
+        strategyId: { type: string, description: "a saved strategy id from trading_strategies or trading_strategy_save" }
+        accountId: { type: string, description: "the account's accountId from trading_strategies or trading_accounts" }
+        connectionKey: { type: string, description: "the same account's connectionKey" }
+        startDate: { type: string, description: "YYYY-MM-DD, at most one year before endDate" }
+        endDate: { type: string, description: "YYYY-MM-DD, the last completed session or earlier" }
+    usageInstructions: Backtest the new strategy and, for a comparison, the account's assigned strategy over the same window.
+    routingTags: [trading, strategy, backtest]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  # Local paper accounts for the concierge (the same routes as Local paper accounts). Simulated cash and
+  # fills in the caller's own ledger; nothing here can reach a broker. Each armed account trades only on
+  # the person's paper-autopilot schedule, which the person activates on the page (a kernel consent the
+  # concierge cannot give).
+  - name: trading_paper_accounts
+    displayName: Paper Accounts
+    type: api
+    category: trading
+    description: >-
+      The caller's local paper accounts: each one's book_ref, label, archived flag, cash, equity, starting
+      cash, configuration (armed, posture, universe, maxShares, maxNotional, maxOrdersPerTick) and last tick
+      (time, trigger, outcome, orders); the reference paper book; and paperSchedule.lastScheduledTickAt, the
+      last time the person's paper schedule ran a tick. Simulated, read-only and owner-scoped. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/paper/books" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    usageInstructions: Call first for any paper question, and again after creating or starting an account to report what is armed and whether the schedule is running.
+    routingTags: [trading, paper, accounts]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_paper_create
+    displayName: Create a Paper Account
+    type: api
+    category: trading
+    description: >-
+      Open a new local paper account with simulated cash and arm it with its strategy: posture (the risk
+      policy of the multi-timeframe engine: conservative, balanced, active or aggressive), the symbols it
+      may trade, and per-order guardrails. It is armed on creation. Simulated only; it never places a
+      broker order. The reply carries the account's book_ref.
+    executor: { executorType: api, apiEndpoint: "POST /api/trading/paper/books" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [label, startingCash, posture]
+      properties:
+        label: { type: string, description: "the account's name, 1-100 characters" }
+        startingCash: { type: number, description: "simulated starting cash in dollars, 1,000 to 10,000,000" }
+        posture: { type: string, enum: [conservative, balanced, active, aggressive], description: "risk posture" }
+        universe: { type: array, items: { type: string }, description: "tickers it may trade (at most 200); omit for the engine's default universe" }
+        maxShares: { type: number, description: "most shares in one simulated order, 1-100,000 (default 100)" }
+        maxNotional: { type: number, description: "largest simulated order in dollars, 100-10,000,000 (default 5,000)" }
+        maxOrdersPerTick: { type: number, description: "most simulated orders per five-minute pass, 1-20 (default 8)" }
+    usageInstructions: Create only after the person agrees to the name, cash, posture and symbols you describe. Then read trading_paper_accounts.
+    routingTags: [trading, paper, create]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_paper_start
+    displayName: Start a Paper Account
+    type: api
+    category: trading
+    description: >-
+      Arm (start) one of the caller's paper accounts, optionally changing its posture, symbols or
+      guardrails. Its cash and positions are kept; starting cash cannot change. Simulated only.
+    executor: { executorType: api, apiEndpoint: "POST /api/trading/paper/books/{input.ref}/arm" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [ref]
+      properties:
+        ref: { type: string, description: "the account's book_ref from trading_paper_accounts" }
+        posture: { type: string, enum: [conservative, balanced, active, aggressive], description: "new risk posture" }
+        universe: { type: array, items: { type: string }, description: "new symbol list" }
+        maxShares: { type: number, description: "most shares in one simulated order" }
+        maxNotional: { type: number, description: "largest simulated order in dollars" }
+        maxOrdersPerTick: { type: number, description: "most simulated orders per pass" }
+    usageInstructions: Start or re-configure a paper account the person names.
+    routingTags: [trading, paper, start]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_paper_strategy
+    displayName: Run a Strategy on a Paper Account
+    type: api
+    category: trading
+    description: >-
+      Put a saved strategy into use on one of the caller's paper accounts and start the account. From the next
+      scheduled pass of a regular US session, the account is rebalanced in whole shares to the strategy's current
+      targets (the same targets a live account would get), and again each time the strategy makes a new monthly
+      decision. Send no strategyId to stop running a strategy (the account returns to its posture engine).
+      Simulated only; never a broker order.
+    executor: { executorType: api, apiEndpoint: "POST /api/trading/paper/books/{input.ref}/strategy" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [ref]
+      properties:
+        ref: { type: string, description: "the paper account's book_ref from trading_paper_accounts or trading_paper_create" }
+        strategyId: { type: string, description: "a saved strategy id from trading_strategies or trading_strategy_save; omit to clear" }
+    usageInstructions: After saving the strategy the person agreed to, create a paper account for it if needed, then call this with its book_ref and the strategy id.
+    routingTags: [trading, paper, strategy, activate]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_paper_stop
+    displayName: Stop a Paper Account
+    type: api
+    category: trading
+    description: >-
+      Disarm (stop) one of the caller's paper accounts. Positions and history stay; it makes no further
+      simulated trades until started again.
+    executor: { executorType: api, apiEndpoint: "POST /api/trading/paper/books/{input.ref}/disarm" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [ref]
+      properties:
+        ref: { type: string, description: "the account's book_ref from trading_paper_accounts" }
+    usageInstructions: Stop a paper account the person names.
+    routingTags: [trading, paper, stop]
+    skills: [trading]
+    tags: [intelligent-trades]
+
 # ─────────────────────────────────────────────────────────────────────────────
 # ROUTES — the packaged surface routers, dynamic-mounted on activation by the
 # ManifestRouteMounter. Auth per route matches EXACTLY what core server.ts
@@ -557,6 +774,7 @@ migrations:
   - migrations/008-local-paper-books.sql
   - migrations/009-native-oshal-reports.sql
   - migrations/010-report-presenter-media.sql
+  - migrations/011-native-account-values.sql
 
 routes:
   - module: routes/home-summary.js

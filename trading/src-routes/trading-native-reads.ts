@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Withhold ambiguous broker position day amounts after sales; they are not a verified account daily return.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Type additive accrued-interest and margin-equity measurements without deriving an interest-subject loan balance or changing broker reads.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Type the additive measured broker balance contract without changing the caller-owned read or compatibility summary.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Read the native caller's Schwab roster, balances and charts without legacy credentials, imported account bindings or live-order activation.
@@ -41,7 +42,8 @@ async function intent(ctx: AppContext, name: string, input: Record<string,unknow
 
 /** The kernel resolves the real current caller; no route-supplied subject or raw account number is sent. */
 export async function readNativeAccounts(ctx: AppContext): Promise<NativeAccounts> {
-  return await intent(ctx,'trading.accounts', {}) as unknown as NativeAccounts;
+  const answer=await intent(ctx,'trading.accounts', {}) as unknown as NativeAccounts;
+  return {...answer,accounts:answer.accounts.map(a=>({...a,dayChange:null,dayChangePct:null,dayChangeBasis:'unavailable',positions:a.positions.map(p=>({...p,dayPl:null,dayPlPct:null}))}))};
 }
 
 /** One Schwab movers row as the kernel normalizes it. */

@@ -11,6 +11,10 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Register the native-kernel egress case: mailbox, calendar, send and Social profile requests reach their declared hosts with no credential and map to the package's rows; missing or lapsed connections keep the 409s.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | surface-provider and audience-view: the surfaces no longer offer Yahoo (no Yahoo connector on this installation; its runtime answers a Yahoo read 501). No switch option, a saved Yahoo choice falls back to the server's pick, and the no-mailbox notices name Google and Outlook only.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register email-send-tool: the approval-held send tool and its persona rule.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.8: the kernel-egress case also expects a Gmail search to look for the person's words over the window across all mail, and the email-messages tool to send query, days and max.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: register mail-store: the stored Gmail copy (sync, deadline, failure, search, owner isolation, kernel-safe SQL, the /messages, /sync and /sync/status routes) on a disposable PostgreSQL with forced row security; and mail-store-browser: the Inbox's search box and copy line in Chromium.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: mail-store expects a pass to resume below and above the copy instead of re-reading it, and a filling copy to answer only windows it reaches.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: register the Social desk cases: social-rules (the posting plan's next slot, post normalization, every publish through the kernel egress with no credential, partial sends and retries, the due pass budget, Engage and replies), social-store (the three tables on a disposable PostgreSQL under forced owner row security) and social-desk-browser (the desk in Chromium over a loopback fixture at 1280 and 412).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -91,6 +95,7 @@ cases:
       - The default mailbox follows the caller's connection metadata (Google first); no or a lapsed connection answers the same 409s, and so does a kernel "not connected" refusal or a 401.
       - A confirmed Gmail send posts the fenced MIME (CRLF flattened); a confirmed Outlook send posts Graph sendMail JSON; neither uses the inert framework sender.
       - Outside the kernel the broker token still travels as a Bearer header.
+      - A search reaches Gmail as the person's words plus newer_than:<days>d over all mail (a search naming its own date keeps it; one line, at most 300 characters); no words list the inbox; email-messages declares query, days and max on its route.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -99,6 +104,52 @@ cases:
     limits:
       timeoutMs: 30000
       maxMemoryMb: 256
+    installation: never
+  - id: mail-store
+    name: Stored Gmail copy
+    purpose: Sync and search the person's stored mail copy with the compiled store and routes on a uniquely named disposable PostgreSQL database carrying the declared migration and forced owner row security; Gmail is a scripted reader and a recording fetch - no network or credentials.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/mail-store.test.cjs
+    expected:
+      - A first pass stores mail newest first back 180 days; a later pass fetches only new mail; a duplicate is skipped.
+      - A pass that reaches its deadline keeps what it stored; the next pass asks Gmail only for mail newer and older than the copy, never the stored range again; a state left by passes that did not resume picks up from its last run.
+      - A copy still filling answers only a window it reaches; a longer search reads Gmail live.
+      - A failed Gmail read keeps the stored mail, records the failure on the state and is reported.
+      - A search matches words at word starts (prep finds preparation, act is not found inside contact), honours OR, from: and newer_than:, and lists the closest matches marked matchedAll false when no message holds every word.
+      - Under forced row security one person never reads, describes or writes another person's copy.
+      - The store SQL has no ON CONFLICT, ORDER BY, DISTINCT or OFFSET.
+      - GET /messages reads Gmail live until a pass has run and when the copy is over 30 minutes old, and answers from the copy (source stored, up to 180 days, no Gmail request) once POST /sync has stored it; GET /sync/status reports the copy and the mail-copy schedule.
+    prerequisites: [runner:node-test, fixture:postgres-35689]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Drop only the suite's own uniquely named database and role; preserve the shared PostgreSQL server.
+    limits: { timeoutMs: 60000, maxMemoryMb: 256 }
+    installation: never
+  - id: mail-store-browser
+    name: Inbox stored-copy controls
+    purpose: Drive the Inbox page and email-store.js in Chromium over a loopback fixture of the email and schedule routes - no network, mailbox or credentials.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/mail-store-browser.test.cjs
+    expected:
+      - Before a copy exists the line says search reads Gmail directly (30 days) and offers Keep a copy.
+      - Keep a copy activates the person's mail-copy job with class person and runs one POST /api/email/sync; the line then gives the count, how far back, when it was updated and that it updates every 10 minutes, with Update now.
+      - Search all your mail asks GET /api/email/messages with the words and days=180, lists the stored matches, and a match opens in the reader.
+      - A failed pass shows its reason and keeps the button; at 412 px the page does not scroll sideways.
+    prerequisites: [runner:node-test, browser:chromium]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close the loopback fixture server and the browser.
+    limits: { timeoutMs: 60000, maxMemoryMb: 512 }
     installation: never
   - id: surface-provider
     name: Inbox and My Day mailbox switch
@@ -230,4 +281,69 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: social-rules
+    name: Social desk rules and publish paths
+    purpose: Exercise the posting plan, post normalization and every channel's publish, identity, Engage and reply path with a recording fetch under OSHAL_EGRESS=kernel - no network, database, accounts or credentials.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/social-rules.test.cjs
+    expected:
+      - Add to queue takes the next plan time in the person's zone, skipping off days and taken slots; an empty plan falls back to the default.
+      - A post needs a channel and text; a text over a channel's cap, a past time and a non-https image are refused; a variant equal to the shared text is not kept.
+      - X, LinkedIn, Slack, a Facebook Page and Mastodon each receive exactly their provider request with no Authorization header; a kernel not-connected refusal is the channel's 409, Slack without a chosen channel a 400, a provider error a 502 naming the status.
+      - Posting now to two channels where one refuses ends partial with the refusal recorded, and a retry sends only the channel that failed.
+      - The due pass sends what is due, leaves what is not, and stops at its budget for the next pass.
+      - Engage lists Slack DMs and mentions and X mentions newest first; a reply goes to the Slack thread or as an X reply.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits: { timeoutMs: 30000, maxMemoryMb: 256 }
+    installation: never
+  - id: social-store
+    name: Social desk tables under row security
+    purpose: Apply migration 002 to a disposable PostgreSQL and drive posts, settings and events through two people's pools under forced owner row security.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/social-store.test.cjs
+    expected:
+      - The migration and the store hold no ON CONFLICT, ORDER BY or DISTINCT; the migration applies twice.
+      - A post is stored, listed in send order, read by key, edited, found by the due read only when scheduled and due, and deleted; one person never reads, edits or deletes another's.
+      - Settings default, save, keep the fields not given, and a row stored between the read and the insert is updated rather than an error.
+      - Deleting an event removes its unsent announcements and keeps the sent ones.
+    prerequisites: [runner:node-test, env:OSHAL_TEST_POSTGRES]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Drop only the suite's own uniquely named database and role; preserve the shared PostgreSQL server.
+    limits: { timeoutMs: 60000, maxMemoryMb: 256 }
+    installation: never
+  - id: social-desk-browser
+    name: Social desk in the browser
+    purpose: Drive tools/email-social.html in Chromium over a loopback fixture of the desk routes, the schedules API and the connector list - no network, accounts or credentials.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/social-desk-browser.test.cjs
+    expected:
+      - The rail names the connected X and Slack accounts and shows LinkedIn as not connected; the queue starts empty.
+      - New post opens the composer with the connected channels on; the counter names the tightest channel; a channel tab keeps its own text; Add to queue sends one POST /posts with the shared text, the variant and when=queue, and the post lists under its day.
+      - The banner's Turn on activates the social-publish job with class person.
+      - Go Live's Plan a stream sends the event with its destinations and three announcements on the chosen channels; Channels offers Connect for an unconnected account and saving the Slack channel writes the settings.
+      - At 412 px the page does not scroll sideways and every rail action stays reachable.
+    prerequisites: [runner:node-test, browser:chromium]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close the loopback fixture server and the browser.
+    limits: { timeoutMs: 90000, maxMemoryMb: 512 }
     installation: never

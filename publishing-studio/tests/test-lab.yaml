@@ -1,3 +1,5 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register real browser/SQL automatic document handoff proofs with explicit prerequisites.
 version: 1
 cases:
   - id: model
@@ -198,4 +200,25 @@ cases:
     limits:
       timeoutMs: 120000
       maxMemoryMb: 1536
+    installation: never
+
+  - id: document-handoff
+    name: Manual and concierge publication handoff
+    purpose: Automatically apply and save the current editor fields before concierge reading and refresh the same native publication on return.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files: [tests/browser/document-handoff.test.mjs]
+    expected:
+      - Unapplied manual text saves without pressing Apply or Save before the assistant reads.
+      - The same original-owner native story refreshes, then the next manual change reaches the next handoff.
+      - Failed saves and concurrent focused fields preserve the browser draft.
+      - The embedded chat saves before sending its real request; a full manual batch saves before pending fields continue.
+    prerequisites: [runner:node, browser:chromium, runtime:publishing-pinned-python, runtime:typst-pinned, fixture:postgres-35689, core:shared-theme-assets]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only unique own fixture databases, roles, children and temporary directories; preserve shared PostgreSQL.
+    limits: { timeoutMs: 180000, maxMemoryMb: 1536 }
     installation: never

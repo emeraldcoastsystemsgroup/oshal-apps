@@ -12,6 +12,7 @@
   Paper is one account like any other; live orders are gated server-side and need an explicit confirm.
 
   CHANGE LOG
+  7 | maintainer@emeraldcoastsystemsgroup.com | Make failed account-review checks prominent beside their controls.
   6 | maintainer@emeraldcoastsystemsgroup.com | Strong control boundaries, readable theme fallbacks and compact account summary, schedule and approval cards.
   5 | maintainer@emeraldcoastsystemsgroup.com | Persistent Strategies section navigation and account switcher, with the Accounts dashboard retained.
   4 | maintainer@emeraldcoastsystemsgroup.com | Theme-aware native account KPIs, saved reviews and visible execution controls on desktop and phone.
@@ -283,6 +284,7 @@
   .native-review-action{width:100%;min-height:44px}
   .native-management-panel [role=status]{font-size:12px;color:var(--muted);line-height:1.5;margin:10px 0}
   .native-management-panel [role=status]:empty{display:none}
+  .native-management-panel [role=status].is-error{padding:12px;border-left:3px solid var(--sell);background:color-mix(in srgb,var(--sell) 7%,var(--panel));color:var(--text);font-size:13px;font-weight:600}
   .native-review-card{border:1px solid var(--accent);border-radius:10px;padding:18px;margin:18px 0 0;background:var(--panel2)}
   .native-review-card .native-section-head{align-items:start}
   .native-review-card h3{font-size:14px;line-height:1.4}
@@ -326,6 +328,7 @@
 
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+  <link rel="stylesheet" href="/api/trading/ui/native-account-details.css" />
   <script src="/api/trading-charts/vendor/lightweight-charts.js?v=4.2.0"></script>
 </head>
 <body>
@@ -383,6 +386,7 @@
 <script src="/api/trading/ui/native-protection-controls.js"></script>
 <script src="/api/trading/ui/native-account-controls.js"></script>
 <script src="/api/trading/ui/native-account-management.js"></script>
+<script src="/api/trading/ui/native-account-details.js"></script>
 <script src="/api/trading/ui/view-strategies.js"></script>
 <script src="/api/trading/ui/view-events.js"></script>
 <script src="/api/trading/ui/view-futures-review.js"></script>

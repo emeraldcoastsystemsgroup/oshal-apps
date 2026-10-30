@@ -4,18 +4,20 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Open the REAL editor screen served by the real compiled Video routes over a disposable PostgreSQL, with the core's real shared theme code, in real Chromium. Every request that leaves the loopback origin is refused and recorded; the named fixture prober and encoder stand in for ffprobe and FFmpeg (real FFmpeg is proved in video-edit-export.test.mjs).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Serve kernel shared document handoff code beside the actual editor routes in browser proofs.
  */
 import { resolve } from 'node:path';
-import { express, requireCore, coreRoot, startApi, fixtureEncoder } from './video-editor.fixture.mjs';
+import { express, requireCore, packageRoot, startApi, fixtureEncoder } from './video-editor.fixture.mjs';
 
 export const { chromium } = requireCore('playwright');
 export const PALETTES = ['midnight', 'daylight', 'ocean', 'sakura', 'forest', 'gray', 'black', 'light-blue', 'aurora', 'graphite', 'amber', 'workspace'];
 
 /** @description Add the core's shared theme stylesheet, bootstrap and palette files; nothing else from core is served. */
 function sharedAssets(app) {
-  app.use('/shared/ui/css', express.static(resolve(coreRoot, 'src/shared/ui/css')));
-  app.use('/shared/ui/js', express.static(resolve(coreRoot, 'src/shared/ui/js')));
-  app.use('/cockpit/css/themes', express.static(resolve(coreRoot, 'src/pages/cockpit/css/themes')));
+  const platform = resolve(process.env.OSHAL_PLATFORM_ROOT || resolve(packageRoot, '../../oshal-kernel/platform'));
+  app.use('/shared/ui/css', express.static(resolve(platform, 'src/shared/ui/css')));
+  app.use('/shared/ui/js', express.static(resolve(platform, 'src/shared/ui/js')));
+  app.use('/cockpit/css/themes', express.static(resolve(platform, 'src/pages/cockpit/css/themes')));
 }
 
 /**

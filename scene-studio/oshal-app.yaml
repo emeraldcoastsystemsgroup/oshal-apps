@@ -29,6 +29,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: the director's 22 tools run in-process as package tools (executor builtin/package) instead of loopback HTTP calls that the package's oidc mount refused; an ADR-149 catalog (authorization.yaml: app.open, scene.read, scene.edit, scene.run, scene.export; one creator role) binds every route, tool and the director. Adopting a catalog over the app-admin fallback is a breaking catalog change: the install refuses with authorization_catalog_migration_required until an administrator approves the review, the migration removes the fallback @app-admin grant, and a person then needs the creator role. The director runs on its own bot node (bots[].container: scene-studio-bot, port 5000; the core compose service scene-studio-bot, profile scene-studio-node), where its turns are protected direct turns that use these brokered package tools. A protected node turn runs on the generic protected prompt, so the director's working rules (the Godot 4.7 .tscn guide, the Blender 5.1 API notes, read-before-you-claim) ride in the tools' usage text, which the node's tool bridge forwards to the model as description plus usage, up to 1024 characters per tool. Input schemas stay open: core passes tool input raw and readToolInput closes it server-side. Engine tree unchanged (no engine reinstall).
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.2.1: the director no longer declares its own node. Core's shared concierge node (concierge-bot, profile concierge-node) serves every inline app bot for a caller whose brain is a CLI login (the operator's Antigravity), so `container: scene-studio-bot` and `port` are dropped and the core scene-studio-bot service folds into it (the oshal_bot pool stays at 40 nodes x 3). Other callers keep the inline hosted path. Turns stay protected direct turns over the same package tools; the persona now rides in the controller-signed dispatch.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Tool usage only (no version, catalog or engine change): scene-get-project returns the live engine status, so scene-capabilities is read only when it reports the engine disconnected or an upstream schema is needed (a turn has six tool calls); a project is created only when asked; a scene is read before it is edited; meshes and materials stay BoxMesh/StandardMaterial3D sub_resources inside the .tscn.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 0.2.4: the open project file saves before Jarvis or the concierge reads it, and the project and its open file are read again when their change returns (shared document handoff), keeping text still being edited.
 name: scene-studio
 suite: ai-creative   # ADR-097: primary catalog shelf — exactly one (games and models are creative deliverables)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -49,7 +50,7 @@ description: >-
   revision you can undo; render a preview (a still plus a 3-D orbit view), run a Godot
   project headless to read its output, bring a Blender model into a Godot game, and export
   a Godot project zip or glTF, FBX, OBJ, STL or the .blend.
-version: 0.2.3
+version: 0.2.4
 status: active
 scope: person
 

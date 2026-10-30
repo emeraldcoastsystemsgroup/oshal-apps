@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-09-14 01:30:00 | maintainer@emeraldcoastsystemsgroup.com   | Guard for the Spaces → embodied scene export against the COMPILED module: a synthetic room splat in Spaces' own +Y-up frame (floor, four walls, ceiling, one box) becomes a scene whose room spans the covered extent with the floor at z = 0, whose obstacle boxes cover the box and the walls and stay inside the room with positive volume (embodied's validateScene invariants), whose drone home sits on open floor away from the box; the same room stored −Y up (a 3DGS export) is detected and flipped so the floor is still at the bottom; a non-metric capture is fitted to the ceiling height; the box cap coarsens the covering instead of truncating the room; an empty buffer is refused with a RangeError; the query parser only admits known values.
+ * 2026-10-29 12:00:00 | maintainer@emeraldcoastsystemsgroup.com   | sceneSourcePage(): GET /scenes is the shared file picker's page (`items` of at most 100 ready scans, each named, typed as an embodied scene and sourced from its own owner-scoped /scene route) and keeps `artifacts`. Red before: the listing had no `items`, so Jarvis's + Files said "This source returned an invalid file listing" for Spaces.
  *
  * Dependency-free `node --test` suite, matching the store CI contract.
  */
@@ -13,7 +14,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 
-const { buildEmbodiedScene, sceneOptionsFromQuery, EMBODIED_SCENE_TYPE, DEFAULT_CEILING_M } = require(path.join(__dirname, '..', 'routes', 'embodied-scene.js'));
+const { buildEmbodiedScene, sceneOptionsFromQuery, sceneSourcePage, EMBODIED_SCENE_TYPE, DEFAULT_CEILING_M } = require(path.join(__dirname, '..', 'routes', 'embodied-scene.js'));
 
 /** Pack gaussians (position only matters here) into the 32-byte .splat record. */
 function packSplat(points) {
@@ -173,4 +174,22 @@ test('the query parser admits only known up values and positive numbers', () => 
   assert.equal(o.metric, true);
   assert.equal(sceneOptionsFromQuery({ up: '-y' }, 'scan:q', false).up, '-y');
   assert.equal(EMBODIED_SCENE_TYPE, 'application/vnd.oshal.embodied-scene+json');
+});
+
+test('the scene listing is the shared file picker page: ready scans only, at most 100, with items and artifacts', () => {
+  const scans = [
+    { id: 'a b', title: 'Kitchen', status: 'ready', gaussianCount: 9, updatedAt: '2026-10-29T00:00:00Z' },
+    { id: 'p1', title: 'Garage', status: 'processing', gaussianCount: null, updatedAt: '2026-10-29T00:00:00Z' },
+    ...Array.from({ length: 120 }, (_, i) => ({ id: 'r' + i, title: 'Room ' + i, status: 'ready', gaussianCount: 1, updatedAt: '2026-10-29T00:00:00Z' })),
+  ];
+  const page = sceneSourcePage(scans);
+  assert.ok(Array.isArray(page.items) && page.items.length === 100, 'the picker refuses a page of more than 100 items');
+  assert.deepEqual(page.artifacts, page.items);
+  assert.equal(page.nextCursor, null);
+  assert.ok(!page.items.some((item) => item.name === 'Garage.scene.json'), 'a scan still processing is not offered');
+  const kitchen = page.items[0];
+  assert.equal(kitchen.name, 'Kitchen.scene.json');
+  assert.equal(kitchen.type, EMBODIED_SCENE_TYPE);
+  assert.match(kitchen.type, /^[\w.+-]+\/[\w.+-]+$/, 'a type the picker accepts');
+  assert.equal(kitchen.source, '/api/spaces/scans/a%20b/scene');
 });

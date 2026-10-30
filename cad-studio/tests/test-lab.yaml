@@ -12,6 +12,7 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register sql-declared-keys: the create path's INSERTs and every INSERT target in routes/ checked against the primary keys the listed migration declares, the rule the native kernel enforces on insert.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register part-list-names: parts sharing a title carry 'made <date>' in the list (sweep 8: two identical rows read as one model).
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register engine-down-words: with no engine the page says once, in words, that the CAD engine is not answering on this installation, never the host's install command (demo sweep 1).
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Register document-handoff: the person and the concierge edit the same part in turn through the shared document handoff, over the compiled routes and a disposable PostgreSQL database.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -264,4 +265,36 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: document-handoff
+    name: Manual and concierge part handoff
+    purpose: >-
+      Drive the actual CAD page and the shared document-handoff module over the compiled routes, a disposable PostgreSQL
+      database built from the package migration and the real engine client against a loopback wire-protocol bridge: the
+      handoff saves the person's unsaved work before an assistant reads, and refresh draws the concierge's saved change.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/document-handoff.core.spec.mjs
+    expected:
+      - An unsaved hole in the feature form is saved as revision 2 before reading; the context carries the part id and revision 2.
+      - A feature change made through the routes is drawn by refresh as revision 3; the next unsaved density reaches revision 4 and the next context.
+      - A density the person is still typing survives refresh and the toast says it is kept; a refused feature save keeps the form and the part unchanged.
+    prerequisites:
+      - runner:playwright
+      - harness:oshal-core-root
+      - browser:chromium
+      - core:dependencies
+      - harness:core-test-fixtures
+      - core:shared-theme-assets
+      - fixture:postgres-35689
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Drop the uniquely named fixture database, close the loopback server, the fake bridge and the owned Chromium, and remove the temporary model directory; preserve shared PostgreSQL and never use live data.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1536
     installation: never

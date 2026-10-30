@@ -28,6 +28,7 @@
  * 2026-09-04 23:40:00 | roger.murphy@emeraldcoastsystemsgroup.com   | summarizeAlertRecord — the win/loss fold over alerts joined to their graded predictions (settled/won/one-contract P&L). Pure, so the plain-node suite pins the math: unsettled rows are "open", a record with no settled rows has NULL rates (never 0%), and P&L averages only over rows that were actually graded.
  * 2026-09-04 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | contrarianExtremeRow — the pre-registered "bet against ourselves at the extremes" forward test (operator, 2026-09-04): for a scan hand with our P >= .90 or <= .10, the OPPOSITE side at its own ask (= 1 - our bid, from the hand's spread), claimed +.10 over the market, zero stake. In-sample the 79 such flips made ~6c a contract after spread; that is a hypothesis, so it is registered as one and graded by the same judge. Pure, so the plain-node suite pins the rule.
  * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | openHands — GET /scan drops the hands whose market closed after the snapshot was taken (the table listed them as closed and the concierge recommended them from a 5.3 h old scan) and reports how many it dropped.
+ * 2026-10-30 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | notifyJarvis defaults to FALSE: a person who turns the background-scan job on gets a fresh snapshot and no Jarvis alerts until they switch Tell Jarvis on in Settings (Roger, 2026-10-29: the scan does its job, Jarvis maybe later). Outward stays off. Guard: tests/kalshi-scan-config.test.js.
  *
  * @module kalshi-scan-config
  */
@@ -47,7 +48,7 @@ exports.quadraticFeePerContract = quadraticFeePerContract;
 exports.contrarianExtremeRow = contrarianExtremeRow;
 /** Strongest → weakest. A minimum of 'playable' therefore admits monster + strong + playable. */
 exports.STRENGTH_ORDER = { monster: 0, strong: 1, playable: 2, fold: 3 };
-/** Layer 1: the in-code defaults. Hourly, alerts on, outward off. */
+/** Layer 1: the in-code defaults. Hourly; Jarvis and outward alerts both OFF until the person switches them on. */
 exports.KALSHI_SCAN_DEFAULTS = {
     scanEnabled: true,
     scanIntervalMinutes: 60,
@@ -55,7 +56,7 @@ exports.KALSHI_SCAN_DEFAULTS = {
     scanMaxMarketsPaged: 60_000,
     scanMaxMarketsKept: 1500,
     staleAfterMinutes: 180,
-    notifyJarvis: true,
+    notifyJarvis: false,
     notifyOutward: false,
     alertMinEdgeCents: 3,
     alertMinStrength: 'playable',

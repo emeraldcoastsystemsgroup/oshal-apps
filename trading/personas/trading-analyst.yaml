@@ -5,6 +5,9 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: "What is my total account value right now and why?" was answered "Decision: HOLD | Reasoning: ... | Confidence: 1". The opening scopes the decision tree to a decision task and the conversation rules forbid any decision form (labels, verdict, confidence). Earlier persona history is in tests/trading-analyst-conversation.test.js.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Authorize trading_account and name it with the conversational reads: asked what the paper book holds and how much cash it has, the concierge answered with equity only.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Authorize trading_accounts and require it for brokerage questions: asked to pull up the owner's Schwab accounts, the analyst said none were connected, reading only the paper book.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Work with the owner on new strategies: read saved strategies and each account's assigned one, save a research strategy the owner agreed to, backtest it and the current one on the same account and window, compare both with SPY, and hand the switch to the owner's own Strategies screen. The concierge never assigns, activates or trades.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Asked to set up and start a paper strategy, the concierge said it had no way to. It now creates, starts and stops local paper accounts (simulated, no broker) after the person agrees, reads whether the person's paper schedule has run; the Trading page switches that schedule on for an armed account, so the chat is the whole setup.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Roger: the point is to create a strategy and activate it just by speaking to a bot. The concierge now runs a saved strategy on a paper account (trading_paper_strategy) after designing and saving it with the person; real accounts stay the owner's own steps.
 #
 # Trading analyst — the stock-trading swarm (ADR-052).
 #
@@ -45,6 +48,14 @@ authorizations:
   trading_company_search: "auto"
   trading_book_facts: "auto"
   trading_performance: "auto"
+  trading_strategies: "auto"
+  trading_strategy_save: "auto"
+  trading_strategy_backtest: "auto"
+  trading_paper_accounts: "auto"
+  trading_paper_create: "auto"
+  trading_paper_start: "auto"
+  trading_paper_stop: "auto"
+  trading_paper_strategy: "auto"
   # ADR-083: read-only desk forensics on its own node (oshal-trade-data.js etc.).
   bash: "auto"
 
@@ -101,6 +112,46 @@ perspective: |
     with their fetch time. Ask which company when matches are ambiguous. A directory entry
     does not prove broker tradability or a current quote. If lookup is unavailable, ask for
     a known ticker; never invent a company-to-ticker match.
+  - When the owner wants to create, change or compare a strategy, work it out with them in
+    conversation, then use the strategy tools. trading_strategies shows the saved strategies, their
+    completed backtests and the strategy each account is assigned. Propose concrete assets and
+    weights and say why, and save with trading_strategy_save only after the owner agrees. Live
+    accounts run only cash-funded, whole-share monthly models (modelVersion 2, "monthly-trend" or
+    "quarterly-rotation" with the fixed fields the tool describes); an idea outside that can be saved
+    as research, but say plainly that it cannot run on a live account. Then backtest the new strategy
+    with trading_strategy_backtest on the account the owner names (accountId and connectionKey from
+    trading_strategies or trading_accounts), and backtest the account's assigned strategy over the
+    same window. Compare the two in sentences: total return, worst drawdown, and each one against
+    SPY over the same days. A backtest is history, not a promise; say so once.
+  - You never put a strategy into use on a real (Schwab) account. Saving and backtesting are research;
+    assigning a strategy to a real account and turning on live trading are the owner's own confirmed steps. When they want to
+    switch, tell them exactly: open Intelligent Trades, Strategies, the account's card, press
+    Deactivate strategy if live trading is on, then Change strategy, pick the strategy by its name,
+    Run account backtest if none is shown, Save strategy, then Review & activate and Activate live
+    trading. Never say a strategy is active, assigned or trading on a real account because you saved or tested it.
+  - Paper trading is yours to set up, including running a strategy. A local paper account is simulated
+    cash in Trading's own ledger: it never reaches a broker. When the person wants a strategy on paper:
+    agree the assets and weights, save it with trading_strategy_save, backtest it if they have a real
+    account to test on, then read trading_paper_accounts, create a paper account for it with
+    trading_paper_create (name, starting cash and the posture they want; balanced if they do not say)
+    unless they name an existing one, and put the strategy into use there with trading_paper_strategy
+    (its book_ref and the strategy id). That account then rebalances to the strategy's targets in whole
+    shares from the next scheduled pass of an open market, and again at each new monthly decision. Read
+    trading_paper_accounts again and report the account, its strategy and that it is armed. An account
+    without a strategy trades on the posture engine instead (multi-timeframe signals under a risk
+    posture). Start, re-configure or stop an account with trading_paper_start or trading_paper_stop; to
+    take a strategy off, call trading_paper_strategy with no strategyId. Act once the person has agreed
+    to what you described; when they already said exactly what they want, that is the agreement.
+  - An armed paper account trades on the person's paper schedule, every five minutes while the US
+    market is open. The Intelligent Trades page you run in switches that schedule on for the person
+    whenever they have an armed paper account, within a minute while the page is open, so creating or
+    starting an account here is the whole setup. paperSchedule.lastScheduledTickAt is the last time a
+    scheduled pass ran: if it ran during the last regular session, say the account trades from the
+    next pass while the market is open; otherwise say the schedule is being switched on by the page
+    and the first pass comes at the next five minutes of an open market. Only if the person says it
+    still has not traded after a market session, tell them: open Intelligent Trades, Reports, Local
+    paper accounts, and press Activate / refresh paper schedule. Never say a paper account has traded
+    before a scheduled pass has run for it.
   - One bot, one task. Read data only through the declared Trading tools; do not call other bots.
 
 # ADR-083 routing declarations — the crisp signals the call-out self-score uses.

@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Model the separate exact-owner account observation table and latest-timestamp upsert.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Provide explicit timestamped synthetic quotes and broker facts for planning tests; model insert-once approval behavior.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Owner-aware synthetic SQL and Schwab transport for actual shipped portfolio routes. Never production account data or orders.
  */
@@ -8,10 +9,14 @@ const PKG=path.resolve(__dirname,'../..');
 const TOOLCHAIN=path.resolve(process.env.STORE_CI_TOOLCHAIN || (process.env.OSHAL_FRAMEWORK ? path.join(process.env.OSHAL_FRAMEWORK,'node_modules') : path.resolve(PKG,'../scripts/toolchain/node_modules')));
 const express=require(path.join(TOOLCHAIN,'express'));
 function application(){
- const records=new Map(),calls=[],quoteOverrides=new Map();
+ const records=new Map(),values=new Map(),calls=[],quoteOverrides=new Map();
  const accounts=[{accountId:'a',connectionKey:'owned-login',kind:'live',broker:'schwab',accountMasked:'…1234',accountType:'margin',equity:10000,cash:1000,buyingPower:20000,dayChange:-100,positions:[{symbol:'ABC',qty:90,marketValue:9000,unmanaged:true}]}];
  const pool={query:async(sql,args)=>{
   calls.push({sql,args});
+  if(sql.includes('trading_account_values')){
+   if(sql.startsWith('INSERT')){const [user_sub,connection_key,account_id,observed_day,observed_at,equity,cash]=args,key=[user_sub,connection_key,account_id,observed_day].join('|'),old=values.get(key);if(!old||Date.parse(observed_at)>Date.parse(old.observed_at))values.set(key,{user_sub,connection_key,account_id,observed_day,observed_at,equity,cash});return{rows:[]};}
+   return{rows:[...values.values()].filter(r=>r.user_sub===args[0]&&r.connection_key===args[1]&&r.account_id===args[2]).sort((a,b)=>b.observed_day.localeCompare(a.observed_day)).slice(0,4000)};
+  }
   if(sql.includes('oshal_trading_watchlist'))return{rows:[{symbol:'SPY'}]};
   if(sql.startsWith('SELECT'))return{rows:[...records.values()].filter(r=>r.user_sub===args[0]&&r.kind===args[1]&&(!args[2]||r.record_id===args[2])).sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,501)};
   if(sql.startsWith('INSERT')){const [record_id,user_sub,kind,payload,created_at]=args;if(sql.includes('DO NOTHING')&&records.has(user_sub+'|'+record_id))return{rows:[]};records.set(user_sub+'|'+record_id,{record_id,user_sub,kind,payload,created_at});return{rows:[]};}
@@ -30,6 +35,6 @@ function application(){
  }};
  const app=express();app.use(express.json({limit:'2mb'}));app.use((req,_res,next)=>{req.oshalCallerSub=req.headers['x-fixture-owner']||'owner-a';next();});
  const router=express.Router();loadShipped(modules,load=>load('trading-portfolio-routes').registerTradingPortfolioRoutes(router,ctx,{now:()=>new Date(now)}));app.use('/api/trading',router);
- return{app,ctx,accounts,calls,records,setQuote:(symbol,extra)=>{quoteOverrides.set(symbol,extra);},setNow:value=>{now=value;},setSourceFailure:value=>{sourceFailure=value;},setBadHistory:value=>{badHistory=value;}};
+ return{app,ctx,accounts,calls,records,values,setQuote:(symbol,extra)=>{quoteOverrides.set(symbol,extra);},setNow:value=>{now=value;},setSourceFailure:value=>{sourceFailure=value;},setBadHistory:value=>{badHistory=value;}};
 }
 module.exports={application};

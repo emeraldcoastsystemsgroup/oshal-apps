@@ -27,6 +27,7 @@
 # 23 | maintainer@emeraldcoastsystemsgroup.com | Register recruiters-latest (sweep 10): the All view names the latest added recruiter and its bucket above the list, and the kernel's real screen snapshot carries that line before a long list.
 # 24 | maintainer@emeraldcoastsystemsgroup.com | Register native-read-facts: the specialist facts count the board's first page without running the board ranking, which timed out the kernel's 3 s specialist deadline.
 # 25 | maintainer@emeraldcoastsystemsgroup.com | Register local mapped search, account memory, configuration, private LinkedIn leads and real SQLite source-delta/community-feed contracts.
+# 26 | maintainer@emeraldcoastsystemsgroup.com | Register document-handoff: Resume Studio and Profile Studio save unsaved edits before an assistant reads, carry the record id and revision, show the assistant's saved change on refresh and keep a draft the person is still editing.
 version: 1
 cases:
   - id: package-readiness
@@ -893,6 +894,28 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: document-handoff
+    name: Manual and concierge resume and profile handoff
+    purpose: >-
+      Drive the shipped Resume Studio and Profile Studio with the shared document handoff in Chromium: edits not yet
+      saved are saved through the compiled routes before an assistant reads, and the assistant's saved change returns.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files: [tests/browser/document-handoff.test.mjs]
+    expected:
+      - An unsaved resume edit and unsaved profile fields, including a typed skill, are saved before the assistant reads.
+      - The context carries the record id and revision; the change saved through the same routes shows after refresh.
+      - The next manual edit reaches the next handoff; unsaved edits and the composer text survive a refresh.
+      - AI draft reads the saved plan with the on-screen edit; the bot turn is a named transport double.
+    prerequisites: [runner:node, browser:chromium, harness:oshal-core-root, harness:career-python-contracts, fixture:postgres-35689, core:shared-theme-assets]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove the temporary career store and the unique disposable database; preserve shared PostgreSQL 127.0.0.1:35689.
+    limits: { timeoutMs: 300000, maxMemoryMb: 1536 }
     installation: never
   - id: resume-studio-phone
     name: Resume Studio fits a phone

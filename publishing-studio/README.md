@@ -58,3 +58,19 @@ Container memory, MiB low / high: **384 / 1536 (declared)**.
 <!-- oshal-rating:end -->
 
 The reviewed source suite includes delayed create/render responses, unapplied field preservation, independent form drafts and dragging a frame on another facing page. The private image was also built and exercised as UID10001 with a read-only filesystem: genuine four-page PDF, all preview/output SHA checks and framed hello/open/close passed. This image proof does not establish installed app admission or configured-provider acceptance.
+
+## Automatic document handoff — 0.1.1 source
+
+Concierge and Jarvis use the shared kernel document handoff. Publishing Studio automatically
+applies valid visible inspector/story fields through their existing editor operations and saves
+the resulting revision before the assistant reads it. The same native publication refreshes on
+return, keeping its page and selection where they still exist. The embedded chat also performs
+this save automatically and stays available while a draft is present. No Save or Reload step
+is required. A full manual edit batch saves before continuing with pending fields; failed saves
+stop the handoff, and concurrent drafts remain intact with a conflict message. Historical
+read-only revisions remain visible when handing a question back.
+
+`tests/browser/document-handoff.test.mjs` uses the actual editor, original-owner PostgreSQL/RLS
+and real publication operations with the pinned Typst runtime. Its internal bot reply is an
+explicit transport seam; separate native-kernel and installed-provider acceptance are required.
+Installed acceptance for this source release is pending.

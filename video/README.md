@@ -420,3 +420,16 @@ It returns `sourceMetadata`; a separate approved `video-apply-edits` saves or re
 Existing trims and effects remain intact. A Reader cannot use the Writer-only discovery or import paths.
 Natural-language installed acceptance remains pending the matching native bridge and package rollout;
 named native port fixtures alone do not prove a deployed agent handoff.
+
+## Automatic document handoff — 1.11.1 source
+
+The editor saves the current timeline automatically before Concierge or Jarvis reads it,
+including a focused field and an in-flight save. Its document identity, saved revision
+and selected clip travel with the turn. The same timeline refreshes after a saved edit,
+with one undo step for the concierge result. Failed saves stop the handoff; concurrent
+browser drafts remain intact with a conflict message. The person does not press Save
+or Reload. Existing original-owner read/change routes and revision guards still apply.
+
+`tests/video-document-handoff.test.mjs` uses the actual editor, project operations and
+a disposable PostgreSQL role with row security to verify repeated handoffs, editable
+clip timing, failed saves and concurrent focused fields. Installed acceptance is pending.

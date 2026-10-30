@@ -17,6 +17,7 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-09-14 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Initial creation — buildEmbodiedScene(): .splat positions → up-axis mapping (Spaces is +Y up; 3DGS exports are often −Y up, `auto` picks the side the dense floor sits on) → metric or fitted scale → occupancy voxels with a noise gate → adaptive coarsening under the box cap → column runs merged along x into embodied `Obstacle` boxes → room from the covered extent, drone home / base park on the clearest open floor. Guarded by tests/spaces-embodied-scene.test.js.
+ * 2026-10-29 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | sceneSourcePage(): the GET /scenes listing in the shared file picker's ADR-139 shape. The route answered only `artifacts`, so the picker (which reads `items`) said "This source returned an invalid file listing" for Spaces in Jarvis's + Files; the page now carries `items` (at most 100) and keeps `artifacts` for existing readers.
  */
 
 /** Bytes per gaussian record in the .splat format (position float32[3] at offset 0). */
@@ -303,3 +304,20 @@ export function sceneOptionsFromQuery(q: Record<string, unknown>, name: string, 
 
 /** Exposed for tests: the finest resolution the ladder starts from. */
 export const SCENE_BASE_RESOLUTION_M = BASE_RESOLUTION_M;
+
+/** One ready scan as the scene listing needs it. */
+export interface SceneScan { id: string; title: string; status: string; gaussianCount?: number | null; updatedAt?: string }
+
+/**
+ * @description The caller's ready scans as the shared file picker's page (ADR-139 provides.list): `items` of at most 100
+ * `{name, type, source}` entries (the picker refuses more) plus the same rows as `artifacts` for existing readers.
+ * @param scans - The caller's scans, any status.
+ * @returns `{items, artifacts, nextCursor}`.
+ */
+export function sceneSourcePage(scans: SceneScan[]): { items: unknown[]; artifacts: unknown[]; nextCursor: null } {
+  const rows = scans.filter((s) => s.status === 'ready').slice(0, 100).map((s) => ({
+    id: s.id, name: `${s.title}.scene.json`, type: EMBODIED_SCENE_TYPE,
+    source: `/api/spaces/scans/${encodeURIComponent(s.id)}/scene`, gaussianCount: s.gaussianCount, updatedAt: s.updatedAt,
+  }));
+  return { items: rows, artifacts: rows, nextCursor: null };
+}

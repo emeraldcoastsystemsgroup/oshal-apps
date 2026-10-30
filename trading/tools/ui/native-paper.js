@@ -18,6 +18,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: arm/disarm the native paper book and activate/deactivate its person schedule from the account view.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Armed vs scheduled told apart: the header pill said "autopilot on" and the button offered only Stop for an armed book whose paper-autopilot job was not activated, so nothing traded and the page offered no way to schedule it. After the header paints, nativePaperSync reads the person's job (GET /api/v1/agent/schedules) and paperAutopilotState decides the pill, the button (Activate paper schedule / Stop / Start) and the line under it. A start whose job is not listed or not activated now repaints too, so the header never keeps the pre-arm state.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | The page keeps the paper schedule on: while the person has any armed paper account (one the concierge created in chat, or a Start pressed earlier) and their paper-autopilot job is not active, the page activates it in their own session, on open and every minute while visible. Before this, an account the concierge armed never traded until the person found the separate schedule button, and a Trading update that suspended the job left paper silently stopped.
  */
 
 /* The Jobs screen's own activation configuration (crates/api/src/jobs.js "Activate for me"). */
@@ -192,4 +193,52 @@ function wireNativePaper(host) {
     e.preventDefault();
     if (el.getAttribute('data-np') === 'start') nativePaperStart(); else nativePaperStop();
   });
+}
+
+/** One keeper pass at a time; a refused activation stops the keeper until the page is opened again. */
+const PAPER_KEEPER = { busy: false, refused: null };
+
+/**
+ * @description Whether the person has an armed paper account: the reference book or any named one not archived.
+ * @param {object} read - GET /api/trading/paper/books.
+ * @returns {boolean} Armed.
+ */
+function paperAnyArmed(read) {
+  const named = (read && read.accounts) || [];
+  return Boolean(read && read.reference && read.reference.config && read.reference.config.armed)
+    || named.some((b) => !(b.archived === true || b.archived === 't') && b.config && b.config.armed);
+}
+
+/**
+ * @description Activate the person's paper-autopilot job in their own session when an armed account needs it.
+ * Arming is the person's decision to paper trade (on the page or by asking the concierge); the job is what makes
+ * an armed account trade, so the page completes it the way Start does. Nothing here reaches a broker.
+ * @returns {Promise<string>} What the pass did: 'idle', 'active', 'activated' or 'refused'.
+ */
+async function paperScheduleKeep() {
+  if (PAPER_KEEPER.busy || PAPER_KEEPER.refused) return PAPER_KEEPER.refused ? 'refused' : 'idle';
+  PAPER_KEEPER.busy = true;
+  try {
+    const read = await api('/paper/books');
+    if (!paperAnyArmed(read)) return 'idle';
+    const row = await paperScheduleRow((read.paperSchedule && read.paperSchedule.name) ? read.paperSchedule : { app: 'intelligent-trades', name: 'paper-autopilot' });
+    if (!row) return 'idle';
+    if (paperScheduleActive(row)) return 'active';
+    try {
+      await paperKernel('/api/v1/agent/schedules/' + encodeURIComponent(row.id) + '/activate', { method: 'POST',
+        body: JSON.stringify({ ...PAPER_ACTIVATION, configuration: { ...PAPER_ACTIVATION.configuration, timeoutMs: 120000 } }) });
+    } catch (e) { PAPER_KEEPER.refused = e.message || 'refused'; return 'refused'; }
+    return 'activated';
+  } catch { return 'idle'; } finally { PAPER_KEEPER.busy = false; }
+}
+
+/**
+ * @description Run the keeper now and every minute while the page is visible.
+ * @returns {void}
+ */
+function startPaperScheduleKeeper() {
+  const pass = () => { if (!document.hidden) paperScheduleKeep(); };
+  pass();
+  setInterval(pass, 60000);
+  document.addEventListener('visibilitychange', pass);
 }

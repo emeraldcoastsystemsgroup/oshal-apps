@@ -13,9 +13,26 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | The notes case also expects a .txt note to be saved as plain text (sweep 10: a saved note kept the chat's **bold** and * bullets) while a .md note keeps its Markdown.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Review of sweep 10: the notes case expects only word-bounded **bold** taken out of a .txt note; dunders, globs, # lines, code ticks, a crontab line, x**2, bullets and links are saved exactly as approved.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | The notes case also expects every delete request to call the delete tool and a card named by what it does (sweep 13).
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: register the file-sources case (the shared file picker's Dropbox, Google Drive, GitHub and OSHAL-local sources, Jarvis's "+ Add").
 # -----------------------------------------------------------------------------
 version: 1
 cases:
+  - id: file-sources-picker
+    name: Connected shares as file picker sources
+    purpose: Drive the compiled /api/storage/sources listings and file routes with OSHAL_EGRESS=kernel, a recording fetch that enforces the kernel's forwarded headers and declared hosts, synthetic connection metadata and a storage.* intent double.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/file-sources.test.cjs] }
+    expected:
+      - Dropbox, Google Drive, GitHub and OSHAL-local each answer {items, folders, nextCursor} with folder cursors, next pages and a q search (Dropbox inside the open folder, Drive by name, GitHub repository names and paths under the open folder, OSHAL-local by name).
+      - Every item's listed type is exactly the type its file route serves, so the kernel's handle check holds; Google documents are exported (document and slides as PDF, sheet as CSV) and a form is not offered.
+      - Provider calls carry no Authorization header and only headers the kernel forwards; each credential goes only to its connector's API host, and a Dropbox file comes through its credential-free *.dropboxusercontent.com temporary link.
+      - A source the person has not connected answers an empty page that says so and calls no provider; a file over 4 MB is 413; traversal paths and invalid cursors are 400; a signed-out caller is 401.
+      - The manifest declares each source's list route inside /api/storage/, routed by routes/file-sources.js, and the egress hosts the routes call.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 20000 }
+    installation: never
   - id: notes-save-read
     name: Save a text note and read it back
     purpose: Drive the compiled /local/save, /local/read and /local/list handlers under the native kernel (a storage.* intent double answering like the kernel's file store) and on the legacy per-user directory.

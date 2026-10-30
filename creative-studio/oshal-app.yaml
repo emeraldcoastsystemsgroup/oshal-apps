@@ -1,6 +1,7 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Import the shared rendering worker from its single owner, vids, instead of overwriting bot ownership.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Name the screen's concierge (chatBot: vids-operator, the required vids bot this app already imports) so the shell offers a live conversation beside the Creative Studio screen; it declared no bot or chatBot, so its concierge panel was hidden.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.6: the review page no longer forces color-scheme: dark, so its native form controls follow the portal theme like the rest of the page.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — creative-studio ("Creative Studio")
@@ -47,7 +48,7 @@ description: >-
 scope: public
 ticketType: creative-story
 theme: amber
-version: 1.2.4
+version: 1.2.6
 testing:
   version: 1
   catalog: tests/test-lab.yaml

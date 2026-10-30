@@ -12,6 +12,8 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Allow only trusted portable-import raster input in the compositor validation callback; existing public routes remain unchanged.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Admit current original-reader effect inventory/schema queries without saved customer edits.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | Read exact native keyframe metadata and revision-pinned exact-tick frames under the original read grant.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Serve only the fixed new inspector-draft coordinator module alongside the native workbench.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | Serve tools/busy-retry.mjs, the workbench's retry of storage-busy refusals, under the existing /ui/:asset read.
  */
 import {mountPortableRoutes,binaryChunkParser} from './portable-http.mjs';
 import {mountRenderRoutes} from './render-http.mjs';
@@ -74,7 +76,7 @@ export function createMotionRoutes(ctx){
     }
   };
   router.get('/app',run('view',async()=>({send:res=>res.type('html').sendFile(resolve(root,'tools/workbench.html'))})));
-  for(const file of ['workbench.mjs','workbench.css','native-json.mjs','bundle-client.mjs','sha256-stream.mjs','value-patch.mjs','render-client.mjs'])router.get('/ui/'+file,run('view',async()=>({send:res=>res.type(file.endsWith('.css')?'text/css':'text/javascript').sendFile(resolve(root,'tools',file))})));
+  for(const file of ['workbench.mjs','editor-handoff.mjs','workbench.css','native-json.mjs','bundle-client.mjs','sha256-stream.mjs','value-patch.mjs','render-client.mjs','busy-retry.mjs'])router.get('/ui/'+file,run('view',async()=>({send:res=>res.type(file.endsWith('.css')?'text/css':'text/javascript').sendFile(resolve(root,'tools',file))})));
   mountPortableRoutes(router,run);
   mountValueRoutes(router,run);
   mountRenderRoutes(router,run,ctx,contextStore);

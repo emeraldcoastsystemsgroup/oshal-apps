@@ -1,4 +1,5 @@
 /** Genuine Chromium -> mounted app -> original-owner disposable SQL -> framed Typst.
+ * CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Keep the explicit host module seam and prove drafts no longer disable automatic-save chat.
  * Native bot/cards are an explicit browser transport seam here, not installed/provider proof.
  */
 import test from 'node:test';
@@ -13,7 +14,7 @@ test('real page editor saves/reopens drafts, renders exact PDF previews and hand
  page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(r.method()!=='GET')writes.push(r.url());});
  const proposal={id:'publishing-source-held-'+randomUUID(),app:'publishing-studio',toolName:'publishing-apply-edits',label:'Apply layout change',input:{operationsJson:'[{"op":"set-view","pageView":"single"}]'},mode:'ask',expiresAt:'2099-01-01T00:00:00Z'};
  let asks=0,approvals=0;
- await page.route('**/shared/ui/**',r=>r.fulfill({status:200,body:'',contentType:r.request().url().endsWith('.css')?'text/css':'text/javascript'}));
+ await page.route('**/shared/ui/**',r=>r.fulfill({status:200,body:r.request().url().includes('document-handoff.js')?'export function registerDocumentSession(){}':'',contentType:r.request().url().endsWith('.css')?'text/css':'text/javascript'}));
  await page.route('**/api/swarm/bots/publishing-editor/ask',r=>{asks++;const body=r.request().postDataJSON();assert.equal(body.context.app,'publishing-studio');assert.ok(body.context.documentId);assert.ok(body.message.includes('Current saved selection'));return r.fulfill({json:{reply:'A layout change is waiting for your approval.',sessionId:'source-session',packageToolProposal:proposal}});});
  await page.route('**/api/jarvis/package-tools/proposals/*',r=>r.fulfill({json:proposal}));
  await page.route('**/api/jarvis/package-tools/execute',r=>{approvals++;assert.equal(r.request().headers()['x-oshal-package-tool'],'1');assert.deepEqual(r.request().postDataJSON(),{proposalId:proposal.id});return r.fulfill({json:{status:200,result:{sourceTransportSeam:true}}});});
@@ -21,7 +22,7 @@ test('real page editor saves/reopens drafts, renders exact PDF previews and hand
   await page.goto(f.url+'/api/publishing-studio/app');await page.locator('#new-title').fill('Browser owned publication');await page.locator('#new-pages').fill('2');await page.locator('#new button').click();await page.waitForFunction(()=>document.querySelector('#revision').textContent==='Revision 1'&&!document.querySelector('#render').disabled);
   assert.equal(await page.locator('#page-rail button').count(),2);assert.equal(await page.locator('#spread svg').count(),2);
   const otherFrame=page.locator('.page-board').nth(1).locator('.selection-box').first(),bounds=await otherFrame.boundingBox();assert.ok(bounds);await page.mouse.move(bounds.x+20,bounds.y+20);await page.mouse.down();await page.mouse.move(bounds.x+32,bounds.y+20,{steps:3});await page.mouse.up();assert.ok(Number(await page.locator('#x').inputValue())>36,'drag selects and moves a frame on the other facing page');await page.locator('#undo').click();assert.equal(Number(await page.locator('#x').inputValue()),36);await page.getByRole('button',{name:'Page 1',exact:false}).click();
-  await page.locator('#story-text').fill('Actual human editor text saved in immutable SQL.');await page.locator('#replace-story').click();assert.match(await page.locator('#revision').innerText(),/unsaved/);assert.equal(await page.locator('#chat-send').isDisabled(),true);
+  await page.locator('#story-text').fill('Actual human editor text saved in immutable SQL.');await page.locator('#replace-story').click();assert.match(await page.locator('#revision').innerText(),/unsaved/);assert.equal(await page.locator('#chat-send').isDisabled(),false);
   await page.locator('#undo').click();assert.equal(await page.locator('#save').isDisabled(),true);await page.locator('#redo').click();await page.locator('#save').click();await page.waitForFunction(()=>document.querySelector('#revision').textContent==='Revision 2'&&!document.querySelector('#render').disabled);
   const documents=await (await fetch(f.url+'/api/publishing-studio/documents')).json(),id=documents.documents[0].id;const saved=await (await fetch(f.url+'/api/publishing-studio/documents/'+id)).json();assert.equal(saved.document.model.stories[0].paragraphs[0].runs[0].text,'Actual human editor text saved in immutable SQL.');
   await page.locator('#x').fill('40');await page.locator('#geometry button').click();assert.equal(await page.locator('#x').inputValue(),'40');await page.locator('#save').click();await page.waitForFunction(()=>document.querySelector('#revision').textContent==='Revision 3'&&!document.querySelector('#render').disabled);
@@ -38,7 +39,7 @@ test('real page editor saves/reopens drafts, renders exact PDF previews and hand
 
 test('pending field drafts and delayed create/render replies cannot overwrite another document',{timeout:120000},async()=>{
  const f=await fixture({http:true}),browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1440,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.route('**/shared/ui/**',r=>r.fulfill({status:200,body:'',contentType:r.request().url().endsWith('.css')?'text/css':'text/javascript'}));
+ await page.route('**/shared/ui/**',r=>r.fulfill({status:200,body:r.request().url().includes('document-handoff.js')?'export function registerDocumentSession(){}':'',contentType:r.request().url().endsWith('.css')?'text/css':'text/javascript'}));
  const api=async(path,body)=>{const response=await fetch(f.url+'/api/publishing-studio'+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});assert.equal(response.status,200);return response.json();};
  const a=(await api('/documents',{title:'Fence Alpha',pageCount:2,requestKey:randomUUID()})).document;
  const b=(await api('/documents',{title:'Fence Beta',pageCount:2,requestKey:randomUUID()})).document;

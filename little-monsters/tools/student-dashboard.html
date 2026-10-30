@@ -18,6 +18,7 @@
   7   | maintainer@emeraldcoastsystemsgroup.com   | The home page of the Little Monsters UX: one page, two honest views by real role (learner: progress, coming up, study actions, classes; teacher: classes you teach with rosters and quiz averages, lecture and class actions). Design system + shared theme bootstrap + page frame replace the per-page theme reader, glass and inline palettes; recording is offered only to teachers/admins because lecture writes are teacher-only; the streak tile shows only when a streak exists
   8   | maintainer@emeraldcoastsystemsgroup.com   | The greeting read 'Up late?. Little Monsters is ...': greetLine() ends 'Up late' with a question mark and every other part with a full stop, with or without a name.
   9   | maintainer@emeraldcoastsystemsgroup.com | Topic Study Pack and Textbook library (79 OpenStax, DK and training books) on the dashboard, and an optional library textbook when creating a class.
+  10  | maintainer@emeraldcoastsystemsgroup.com | Load the neural read-aloud helper (lm-voice.js): the textbook reader and Topic Study Pack notes always fell back to the browser's robotic speechSynthesis (the page never loaded lmSpeak, and the study pack called a nonexistent LMVoice.speak).
   ---------------------------------------------------------------------------
 -->
 <script>
@@ -421,6 +422,7 @@
 </main>
 
 <script src="/api/education/mascot.js?v=4"></script>
+<script src="/api/education/lm-voice.js"></script>
 <script>
 /**
  * Little Monsters home. One page, two honest views chosen by the caller's real role from
@@ -986,8 +988,8 @@ function renderTopicStudyPackResult(topic, classId, data) {
 function speakStudyPackNotes() {
   if (!LAST_STUDY_PACK || !LAST_STUDY_PACK.data || !LAST_STUDY_PACK.data.notes) return;
   var text = String(LAST_STUDY_PACK.data.notes).replace(/[#*_`>-]/g, ' ').slice(0, 1800);
-  if (window.LMVoice && typeof window.LMVoice.speak === 'function') {
-    window.LMVoice.speak(text);
+  if (window.lmSpeak) {
+    window.lmSpeak(text);
   } else if ('speechSynthesis' in window) {
     speechSynthesis.cancel();
     speechSynthesis.speak(new SpeechSynthesisUtterance(text));

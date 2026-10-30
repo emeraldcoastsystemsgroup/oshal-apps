@@ -1,4 +1,5 @@
 /* CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Retire the prior protective draft while its replacement is checked and end the progress message when review completes.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Give watcher review a compact activation card with visible limits and expandable execution evidence.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Restore read-only saved protection reviews above research and disable expired or unverifiable activation.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Separate native protective-authority review, personal activation, expiry, retained attempts and exact cancellation from model tracking.
@@ -33,9 +34,11 @@ async function nativeBrokerProtectionAction(action,button,host,context){
  const {account,policy}=context,bound={accountId:account.accountId,connectionKey:account.connectionKey};
  if(action==='broker-upgrade')await api('/portfolio/backstops/configure',jbody('POST',{...bound,confirm:true,upgrade:true,config:{...policy.config,modelVersion:2,reentry:'none'}}));
  if(action==='broker-review'){
+  nativeProtectionReviews.delete(host);host.querySelector('[data-native-protection-review]').replaceChildren();
   const answer=await api('/portfolio/backstops/review',jbody('POST',{...bound,researchRunId:host.querySelector('[data-native-protection-study]').value,execution:host.querySelector('[data-native-protection-execution]')?.value||'broker'}));
   if(stale(context.token)||!host.isConnected)return;
-  nativeProtectionReviews.set(host,answer.review);host.querySelector('[data-native-protection-review]').innerHTML=nativeProtectionReviewHtml(answer.review,account);return;
+  nativeProtectionReviews.set(host,answer.review);host.querySelector('[data-native-protection-review]').innerHTML=nativeProtectionReviewHtml(answer.review,account);
+  const notice=host.querySelector('[data-native-protection-notice]');if(notice)notice.textContent='Review saved. Protection remains inactive until you activate it.';return;
  }
  if(action==='broker-activate'){
   const review=nativeProtectionReviews.get(host);if(!review)throw Error('Prepare a fresh protective review first.');

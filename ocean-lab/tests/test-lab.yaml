@@ -12,6 +12,7 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register engine-explorer-delete: the Explorer tile's Delete asks first, a confirmed delete sends DELETE /vehicles/:id for the open record and returns to the create card, a refusal keeps the record and says why.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register harvest-console-crosscheck-refresh: a changed control drops the server's verdict for the previous design and asks about the current one once the controls settle; an older answer never lands.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register analysis-brief-labels: Blade Studio's and Harvest Console's analysis briefs label every line in the words on screen, not element ids (sweep 13).
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Register explorer-handoff: the person and the concierge edit the same Explorer in turn through the shared document handoff, the shipped tile over the compiled routes on the store double. Blade Studio and Harvest Console hold no saved record and are not wired.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -468,4 +469,35 @@ cases:
     limits:
       timeoutMs: 60000
       maxMemoryMb: 256
+    installation: never
+  - id: document-handoff
+    name: Manual and concierge Explorer handoff
+    purpose: >-
+      Drive the shipped Explorer tile and the shared document-handoff module in a real headless browser over the compiled
+      routes on the package's store double: the handoff saves the person's unsaved design change before an assistant reads,
+      and refresh draws the concierge's saved change.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/explorer-handoff.spec.mjs
+    expected:
+      - An unsaved stop angle is saved through PATCH /design before reading; the context carries the vehicle id and its updated time.
+      - A tether length saved through the routes is drawn by refresh; the next unsaved stop angle reaches the record and the next context.
+      - A stop angle the person is still editing survives refresh and the status line says it is kept; a refused vector keeps the field and the record unchanged.
+    prerequisites:
+      - runner:playwright
+      - browser:chromium
+      - fixture:core-checkout
+      - core:shared-theme-assets
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/vehicle-pool-double.ts
+      cleanup: The loopback server and the isolated browser are closed after the suite; the store is in memory.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
     installation: never

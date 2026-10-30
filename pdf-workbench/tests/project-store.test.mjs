@@ -7,7 +7,9 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';import {spawnSync} from 'node:child_process';import {randomUUID} from 'node:crypto';
 import {mkdtempSync,readFileSync,rmSync} from 'node:fs';import {tmpdir} from 'node:os';import {resolve,join} from 'node:path';
 import {LIMITS,digest} from '../routes/model.mjs';
-import {PdfStore} from '../routes/project-store.mjs';import {bindRequest} from '../routes/authorization.mjs';
+import {PdfStore} from '../routes/project-store.mjs';
+import {requireRuntime} from './fixtures/runtime.mjs';
+const {createPdfRoutes}=await import('../routes/application.mjs');import {bindRequest} from '../routes/authorization.mjs';
 import identity from '../routes/engine-identity.json' with {type:'json'};
 const root=resolve(import.meta.dirname,'..'),repository=resolve(root,'..');
 const require=createRequire(resolve(process.env.STORE_CI_TOOLCHAIN??join(repository,'scripts/toolchain'),'package.json')),{Pool}=require('pg');
@@ -30,6 +32,15 @@ test('immutable owned revisions, fresh grant/cancel denial and actual transactio
   const page=created.document.model.pages[0].id;
   const job=await alice.store.begin(document,{baseRevision:1,requestKey:randomUUID(),operations:[{op:'rotate',page,degrees:90},{op:'fill',name:uploaded.source.id+'.name',value:'ALICE'}]});await alice.store.produce(job.job.id);
   const saved=await alice.store.get(document);assert.equal(saved.document.revision,2);assert.equal(saved.document.model.pages[0].id,page);assert.equal(saved.document.model.pages[0].rotation,90);assert.equal(saved.history.length,2);
+  // Actual mounted HTTP lookup uses the genuine scoped store/worker; only actor/grant callbacks are the declared seam.
+  const express=requireRuntime('express'),http=express();http.use('/api/pdf-workbench',createPdfRoutes({...alice.ctx,authorization:{...alice.ctx.authorization,registerResource:()=>{}}}));const server=http.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
+  try{const receipt=await (await fetch('http://127.0.0.1:'+server.address().port+'/api/pdf-workbench/documents/'+document+'?revision=2&receipt=1')).json();assert.deepEqual(receipt.document.pages[0].cropBox,created.document.inspection.pages[0].cropBox);assert.ok(receipt.document.pages[0].textAnnotationRect);const lookup='http://127.0.0.1:'+server.address().port+'/api/pdf-workbench/documents/'+document+'/model/form-fields/0?revision=2&query=name';let response=await fetch(lookup);assert.equal(response.status,200);const body=await response.json();assert.equal(body.revision,2);assert.ok(body.fields.some(f=>f.name===uploaded.source.id+'.name'&&f.value==='ALICE'));assert.ok(Buffer.byteLength(JSON.stringify(body))<=8192);alice.state.sub='bob';assert.equal((await fetch(lookup)).status,404);alice.state.sub='alice';alice.state.denied.add('document.read');assert.equal((await fetch(lookup)).status,403);alice.state.denied.delete('document.read');}finally{alice.state.sub='alice';alice.state.denied.delete('document.read');await new Promise(r=>server.close(r));}
+  // Actual Jarvis failure: do not accept an A4-shaped annotation on a small saved PDF.
+  const jobsBeforeGeometry=(await db.query('SELECT count(*)::int AS n FROM pdf_jobs')).rows[0].n,requestsBeforeGeometry=(await db.query('SELECT count(*)::int AS n FROM pdf_requests')).rows[0].n;
+  await assert.rejects(alice.store.begin(document,{baseRevision:2,requestKey:randomUUID(),operations:[{op:'annotate',annotation:{id:randomUUID(),page,kind:'text',rect:[72,700,300,730],text:'Exact saved name'}}]}),/pdf_annotation_geometry/);
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM pdf_jobs')).rows[0].n,jobsBeforeGeometry,'Invalid geometry must not enqueue a render or persist a retry receipt');
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM pdf_requests')).rows[0].n,requestsBeforeGeometry);
+  assert.equal((await alice.store.get(document)).document.revision,2);
   const original=await alice.store.get(document,1);assert.equal(original.document.model.pages[0].rotation,0);assert.equal((await alice.store.content(document,2)).data.subarray(0,5).toString(),'%PDF-');
   await assert.rejects(alice.store.begin(document,{baseRevision:1,requestKey:randomUUID(),operations:[{op:'rotate',page,degrees:90}]}),/pdf_revision_conflict/);
   await assert.rejects(alice.store.removeSource(uploaded.source.id),/pdf_source_retained_by_history/);

@@ -15,6 +15,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Redirect a bare require to the framework checkout only when the package itself asks for it. Requires made inside node_modules resolve normally again: redirecting them to core's root broke in the Test Lab sandbox, where the image's pruned node_modules keeps semver only nested under sharp (Cannot find module 'semver'); a developer checkout hoists it, which is why no local run saw it.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | A setup that fails part-way no longer hangs the suite to its time limit: teardown is null-safe and closes the fake engine it did start. In the Test Lab sandbox a missing catalog file failed setup after the engine was listening, and the open socket held the run for 120 s.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Answer /favicon.ico with 204. The Test Lab runner image's Chromium requests the origin's favicon and logs the 404 as a console error, which the spec counts as a page error - so every no-errors assertion failed in the sandbox while passing on a host browser that does not ask. The page itself requests no favicon.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Serve the REAL shared document-handoff module (from OSHAL_PLATFORM_ROOT, else the framework checkout) so the page registers its open circuit and the handoff suite crosses the real module; fail loud when no checkout carries it instead of letting a 204 become a console MIME error.
  */
 import fs from 'node:fs';
 import net from 'node:net';
@@ -28,6 +29,14 @@ const CORE = process.env.OSHAL_CORE_ROOT || process.env.OSHAL_CORE_DIR;
 if (!CORE) throw new Error('Set OSHAL_CORE_ROOT (the Test Lab sets /app) or OSHAL_CORE_DIR to a framework checkout');
 const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HASH = 'd'.repeat(64);
+
+/** The shared UI folder that carries the document-handoff module: the kernel platform first, then the framework checkout. */
+export function sharedUiRoot() {
+  const roots = [process.env.OSHAL_PLATFORM_ROOT && path.join(process.env.OSHAL_PLATFORM_ROOT, 'src', 'shared', 'ui'), path.join(CORE, 'platform', 'src', 'shared', 'ui'), path.join(CORE, 'src', 'shared', 'ui')];
+  const found = roots.filter(Boolean).find((dir) => fs.existsSync(path.join(dir, 'js', 'document-handoff.js')));
+  if (!found) throw new Error('Set OSHAL_PLATFORM_ROOT to the kernel platform checkout: no src/shared/ui/js/document-handoff.js under it or OSHAL_CORE_ROOT');
+  return found;
+}
 
 /** Resolve bare requires (express, playwright) from the framework checkout; stub the `@/` logger. */
 export function frameworkRequire() {
@@ -106,6 +115,7 @@ export async function startFixture() {
   const coreRequire = frameworkRequire();
   const express = coreRequire('express');
   const { createCircuitLabRoutes } = coreRequire(path.join(PKG, 'routes', 'circuit-lab-routes.js'));
+  const sharedUi = sharedUiRoot();
   const engine = await fakeEngine();
   const pool = fakePool();
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'circuit-lab-surface-'));
@@ -117,6 +127,7 @@ export async function startFixture() {
   // The one shared asset the page imports as an ES module is the REAL core client (a 204 would log a
   // console MIME error, which the spec counts); every other shared asset stays a 204.
   app.get('/shared/ui/js/surface-bridge-client.js', (_req, res) => res.type('text/javascript').sendFile(path.join(CORE, 'src', 'shared', 'ui', 'js', 'surface-bridge-client.js')));
+  app.get('/shared/ui/js/document-handoff.js', (_req, res) => res.type('text/javascript').sendFile(path.join(sharedUi, 'js', 'document-handoff.js')));
   app.use('/shared/ui', (_req, res) => res.status(204).end());
   app.use('/api/circuit-lab', createCircuitLabRoutes({ pool, appPackageDir: PKG }, { dataRoot, env: { CIRCUIT_LAB_ENGINE_ADDR: `127.0.0.1:${engine.port}`, OSHAL_API_CONTAINER: 'oshal-local-api' }, engineBuild: HASH, runTimeoutMs: 5000 }));
   const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });

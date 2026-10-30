@@ -41,7 +41,10 @@
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Yahoo Mail leg: `?provider=yahoo` reads the caller's inbox through core's fixed read-only IMAP seam (AppContext `imapMail`), so the app password never reaches this package. List, digest and the bot summary work for Yahoo (the day window is applied here); opening a message, drafting a reply and sending answer 400 not_supported_for_provider without contacting Yahoo, and a core without the seam answers 501. A caller who names no provider and has no Google/Outlook grant falls through to Yahoo on list, digest and summary only (the operations Yahoo offers), where a missing grant is still no_mail_connection; message, draft and send never fall through, so a caller with no mailbox gets 409 no_mail_connection on every mail route. Mailbox refusals now travel as MailboxRefusal and are answered with their own status.
  *
  * 15 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: with OSHAL_EGRESS=kernel there is no token broker and no framework email module in the sandbox, so the mailbox, the senders and the Social profile go through the kernel egress (kernel-mail.ts). The manifest declares gmail.googleapis.com and www.googleapis.com (gmail / google-calendar), graph.microsoft.com (outlook) and graph.facebook.com (facebook) with Bearer credentials the kernel applies; requests carry no Authorization header. Which providers are connected comes from the connectors.metadata intent, so the provider choice, the 409 refusals and the Google-first default behave as before; a kernel "not connected" refusal is that same 409. Gmail summaries and sends use the package-local copies of the framework's summarizer and fenced MIME builder there. The legacy broker path is unchanged elsewhere.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | GET /messages searches by words within the look-back window (Roger, 2026-10-29: asked to find an ACT prep offer from the last 2 days, the assistant read only the 30 newest messages and said it could not search by keyword). A Gmail `q` is now combined with `newer_than:<days>d` unless it names its own date, it searches all mail outside spam and trash rather than the inbox only, and it is bounded to 300 characters without line breaks.
  * 16 | maintainer@emeraldcoastsystemsgroup.com | POST /send makes this installation's own /cockpit/ and /api/ links absolute (x-oshal-public-origin, else the https Host): a deck emailed from a Jarvis chain carried links that opened nowhere from an inbox. Guard: tests/email-send-tool.test.cjs.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com | A stored copy of the person's Gmail (Roger, 2026-10-29: "we shouldn't be hitting the api for emails when we access the tool... we should be storing a local copy"). POST /sync stores new mail and then older mail back 180 days (mail-store.ts; the manifest's mail-copy schedule fires it every 10 minutes as the person); GET /messages answers from that copy, over up to 180 days, whenever a pass caught up within the last 30 minutes, and says so (source "stored" with the copy's size and reach), otherwise it reads Gmail live as before (source "live"). GET /sync/status reports the copy; the Inbox loads email-store.js (its search box and copy line). Guard: tests/mail-store.test.cjs.
+ * 19 | maintainer@emeraldcoastsystemsgroup.com | GET /messages answers from the copy only when it is current and reaches back over the window asked for (a copy still filling answers a 2-day search but not a 30-day one, which reads Gmail live). Guard: tests/mail-store.test.cjs.
  *
  * @module email-app-routes
  */
@@ -80,6 +83,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ensureEmailSchema = ensureEmailSchema;
+exports.gmailSearch = gmailSearch;
 exports.createEmailRoutes = createEmailRoutes;
 const express_1 = require("express");
 const path = __importStar(require("path"));
@@ -96,6 +100,7 @@ const session_crypto_1 = require("./session-crypto");
 const outlook_mailbox_1 = require("./outlook-mailbox");
 const mail_provider_1 = require("./mail-provider");
 const kernel_mail_1 = require("./kernel-mail");
+const mail_store_1 = require("./mail-store");
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 const logger = (0, logger_1.createChildLogger)({ module: 'email-app-routes' });
@@ -125,7 +130,7 @@ function servePage(dir, file) {
 function gmailMailbox(token) {
     return {
         provider: 'google',
-        list: (days, max, query) => listInbox(token, query || `in:inbox newer_than:${days}d`, max),
+        list: (days, max, query) => listInbox(token, gmailSearch(days, query), max),
         message: async (id) => {
             const m = await gget(token, `${GMAIL}/messages/${encodeURIComponent(id)}?format=full`);
             return { ...summarizeMessage(id, m), to: header(m, 'To'), body: extractBody(m.payload).slice(0, 20000) };
@@ -133,6 +138,18 @@ function gmailMailbox(token) {
         eventsToday: () => eventsToday(token),
         ownAddress: async () => String((await gget(token, `${GMAIL}/profile`)).emailAddress || ''),
         send: (mail) => ((0, kernel_mail_1.kernelEgress)() ? (0, kernel_mail_1.kernelSendGmail)(mail) : (0, email_routes_1.sendGmail)(token, mail)),
+        reader: gmailReader(token),
+    };
+}
+/** The stored-copy sync's Gmail reads: one id page (100) of a search, and one message's metadata. */
+function gmailReader(token) {
+    return {
+        list: async (q, pageToken) => {
+            const page = await gget(token, `${GMAIL}/messages?q=${encodeURIComponent(q)}&maxResults=100${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`);
+            const next = typeof page.nextPageToken === 'string' ? page.nextPageToken : undefined;
+            return { ids: (page.messages || []).map((m) => m.id), next };
+        },
+        metadata: (id) => gget(token, `${GMAIL}/messages/${encodeURIComponent(id)}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`),
     };
 }
 /** The Outlook / Microsoft 365 mailbox: fixed Graph reads + the kernel's sendOutlookMail. */
@@ -433,7 +450,37 @@ function providerFailure(req, res, err, what, provider) {
     logger.error({ err, provider }, what);
     res.status(502).json({ error: err.message });
 }
-/** GET /messages — the caller's inbox (Gmail `q` honored on the google leg only). */
+/**
+ * @description The Gmail search for one listing: the inbox over the window, or the person's own words over the
+ * window across all mail (Gmail leaves spam and trash out), unless the words already name a date.
+ * @param days - The clamped look-back window.
+ * @param query - The person's search words, when any.
+ * @returns The Gmail `q`.
+ */
+function gmailSearch(days, query) {
+    const words = String(query ?? '').replace(/[\r\n]+/g, ' ').trim().slice(0, 300);
+    if (!words)
+        return `in:inbox newer_than:${days}d`;
+    return /\b(?:newer_than|older_than|after|before):/i.test(words) ? words : `${words} newer_than:${days}d`;
+}
+/** A stored-copy pass stops starting Gmail reads after this, inside the kernel's 60 s call. */
+const SYNC_BUDGET_MS = 40_000;
+/** A stored search's window: 1..STORE_DAYS days (default 7). */
+function clampStoredDays(value) {
+    const n = Math.trunc(Number(value));
+    return Math.min(Math.max(Number.isFinite(n) && n > 0 ? n : 7, 1), mail_store_1.STORE_DAYS);
+}
+/** The caller's stored-copy state; an unreadable state is logged and treated as no copy (the live read answers). */
+async function storeStateFor(ctx, sub) {
+    try {
+        return await (0, mail_store_1.readStoreState)(ctx.pool, sub);
+    }
+    catch (err) {
+        logger.error({ err }, 'Stored mail state unreadable; reading the mailbox live');
+        return null;
+    }
+}
+/** GET /messages — the caller's mail or a search of it: from the stored copy when it is current and reaches back over the window, else live. */
 function listMessages(ctx) {
     return async (req, res) => {
         const mailbox = await openMailbox(req, res, ctx, YAHOO_READ_ROUTE);
@@ -441,12 +488,48 @@ function listMessages(ctx) {
             return;
         try {
             const query = mailbox.provider === 'google' && typeof req.query.q === 'string' ? req.query.q : undefined;
+            const store = mailbox.provider === 'google' ? await storeStateFor(ctx, String(callerSub(req))) : null;
+            if (store && (0, mail_store_1.storeCovers)(store, (0, mail_store_1.searchWindow)(clampStoredDays(req.query.days), query))) {
+                const found = await (0, mail_store_1.searchStored)(ctx.pool, String(callerSub(req)), clampStoredDays(req.query.days), (0, outlook_mailbox_1.clampListSize)(req.query.max), query);
+                res.json({ provider: mailbox.provider, source: 'stored', store, ...found });
+                return;
+            }
             const messages = await mailbox.list((0, outlook_mailbox_1.clampDays)(req.query.days), (0, outlook_mailbox_1.clampListSize)(req.query.max), query);
-            res.json({ provider: mailbox.provider, messages });
+            res.json({ provider: mailbox.provider, source: 'live', store, messages });
         }
         catch (err) {
             providerFailure(req, res, err, 'Inbox list failed', mailbox.provider);
         }
+    };
+}
+/** POST /sync — one stored-copy pass for the caller's Gmail (the mail-copy schedule, or "Update now"). */
+function syncMail(ctx) {
+    return async (req, res) => {
+        const mailbox = await openMailbox(req, res, ctx);
+        if (!mailbox)
+            return;
+        if (!mailbox.reader) {
+            res.status(409).json({ provider: mailbox.provider, error: 'store_unsupported_provider', message: 'A stored copy is kept for Gmail; this mailbox is read live.' });
+            return;
+        }
+        try {
+            res.json({ provider: mailbox.provider, ...(await (0, mail_store_1.syncGmail)(ctx.pool, String(callerSub(req)), mailbox.reader, Date.now() + SYNC_BUDGET_MS)) });
+        }
+        catch (err) {
+            providerFailure(req, res, err, 'Stored mail sync failed', mailbox.provider);
+        }
+    };
+}
+/** GET /sync/status — the caller's stored copy (null before the first pass) and the schedule that keeps it current. */
+function syncStatus(ctx) {
+    return async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        const store = await storeStateFor(ctx, sub);
+        res.json({ store, fresh: (0, mail_store_1.storeIsFresh)(store), schedule: { app: 'email-summarizer', name: 'mail-copy' } });
     };
 }
 /** GET /message/:id — one message of the caller's own mailbox. */
@@ -566,8 +649,8 @@ function draftReply(ctx) {
  * @returns The body with each site-relative /cockpit/ or /api/ link prefixed by the origin.
  */
 function absoluteLinks(req, body) {
-    const declared = String((req.get && req.get('x-oshal-public-origin')) || '').trim();
-    const host = String((req.get && req.get('host')) || '').trim();
+    const declared = String(req.get?.('x-oshal-public-origin') || '').trim();
+    const host = String(req.get?.('host') || '').trim();
     const origin = /^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(declared) ? declared
         : /^[a-z0-9.-]+\.[a-z]{2,}(:\d+)?$/i.test(host) ? `https://${host}` : '';
     if (!origin)
@@ -718,8 +801,11 @@ function createEmailRoutes(ctx) {
     ensureEmailSchema(ctx.pool).catch((err) => logger.error({ err }, 'Failed to ensure email digest schema'));
     router.get('/inbox', servePage(assetRoot, 'email-inbox.html'));
     router.get('/my-day', servePage(assetRoot, 'email-my-day.html'));
+    router.get('/email-store.js', servePage(assetRoot, 'email-store.js'));
     router.get('/messages', listMessages(ctx));
     router.get('/message/:id', readMessage(ctx));
+    router.post('/sync', syncMail(ctx));
+    router.get('/sync/status', syncStatus(ctx));
     router.get('/digest', dayDigest(ctx));
     // The most recent stored digest (instant; what the bot pulled + reasoned last).
     router.get('/summary/cached', async (req, res) => {

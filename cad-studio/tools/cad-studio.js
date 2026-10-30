@@ -30,6 +30,12 @@
  *                     |                             | the part's short id when even that repeats). partNotes() is pure and
  *                     |                             | exposed as window.CadStudioParts for tests/part-list-names.test.js.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | Demo sweep 1: the engine-down banner and toasts showed the person the kernel's failure text three times with the host's install command ('on the kernel host run cad-studio/engine/install-engine.sh ...'). They now say the CAD engine is not answering on this installation (banner once, a short toast), never the address or install command; a modelling refusal is still the engine's own sentence.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | Work side by side with the concierge: the open part registers with the shared
+ *                     |                             | document handoff. Before an assistant reads, prepare() waits for writes in flight and
+ *                     |                             | saves the feature form (add or edit) and an unsaved density through the existing
+ *                     |                             | feature and settings routes, then hands over the part id, revision and updated time;
+ *                     |                             | refresh() re-reads the part and redraws it when it is newer. A density the person is
+ *                     |                             | still typing survives any redraw (the 3 s poll too) and the toast says the draft is kept.
  */
 (function () {
   'use strict';
@@ -37,7 +43,7 @@
   const $ = (id) => document.getElementById(id);
   const ENGINE_DOWN = 'The CAD engine is not answering on this installation, so parts cannot be built right now. If this keeps happening, an administrator needs to set the engine up.';
   const ENGINE_SHORT = 'The CAD engine is not answering on this installation.';
-  const state = { models: [], model: null, revisions: [], caps: null, viewer: null, editing: null, lastSeen: '', pollTimer: null, selection: 0, listRequest: 0, previewRequest: 0, building: {} };
+  const state = { models: [], model: null, revisions: [], caps: null, viewer: null, editing: null, lastSeen: '', pollTimer: null, selection: 0, listRequest: 0, previewRequest: 0, building: {}, writes: new Set(), densityShown: null, editBaseline: '' };
 
   /** Capture user selection without reconstructing or changing server authority. */
   const selection = () => ({ epoch: state.selection, modelId: state.model && state.model.model_id });
@@ -55,7 +61,7 @@
   /** Begin an explicit part selection; same-part background refresh never resets the draft form. */
   function clearSelection() {
     state.selection += 1; stopPoll(); clearPreview();
-    state.model = null; state.revisions = []; state.lastSeen = '';
+    state.model = null; state.revisions = []; state.lastSeen = ''; state.densityShown = null;
     $('model-panel').hidden = true; $('features-panel').hidden = true; $('empty-panel').hidden = false;
     $('feature-submit').disabled = false;
     endEdit(); renderStop();
@@ -66,7 +72,13 @@
   function trackRebuild(modelId, delta) { state.building[modelId] = Math.max(0, (state.building[modelId] || 0) + delta); renderStop(); }
   function renderStop() { $('cancel-rebuild').hidden = !(state.model && (state.building[state.model.model_id] || 0) > 0); }
 
-  async function api(path, opts) {
+  /** Every call to the package's routes; a write stays in `state.writes` until it settles, so a handoff can wait for it. */
+  function api(path, opts) {
+    const call = send(path, opts);
+    if (opts && opts.method && opts.method !== 'GET') { const settle = () => state.writes.delete(call); state.writes.add(call); call.then(settle, settle); }
+    return call;
+  }
+  async function send(path, opts) {
     const init = Object.assign({ credentials: 'same-origin', headers: {} }, opts || {});
     const rebuilds = init.rebuilds; delete init.rebuilds;
     if (init.json !== undefined) { init.body = JSON.stringify(init.json); init.headers['Content-Type'] = 'application/json'; delete init.json; }
@@ -211,7 +223,9 @@
     if (m.state === 'failed' && m.failure_reason) toast(m.failure_reason, 'error');
     renderBase(m); renderReport(m); renderViews(m); renderFeatures(m); renderRevisions(); renderStop();
     if (m.artifacts && m.artifacts.stl) loadStl(m); else clearPreview();
-    $('density').value = (m.settings && m.settings.densityGcm3) || (state.caps && state.caps.defaults.densityGcm3) || 1.24;
+    const density = (m.settings && m.settings.densityGcm3) || (state.caps && state.caps.defaults.densityGcm3) || 1.24;
+    if (!densityDirty()) $('density').value = density;
+    state.densityShown = { id: m.model_id, value: Number(density) };
   }
   function renderBase(m) {
     const b = m.base || {};
@@ -356,8 +370,9 @@
   function beginEdit(f) {
     state.editing = f.id; $('feature-type').value = f.type; renderParamsForm(f.params); $('feature-label').value = f.label || '';
     $('feature-submit').textContent = 'Save feature'; $('feature-cancel').hidden = false; renderFeatures(state.model);
+    state.editBaseline = featureFormState();
   }
-  function endEdit() { state.editing = null; $('feature-submit').textContent = 'Add feature'; $('feature-cancel').hidden = true; $('feature-label').value = ''; renderParamsForm({}); if (state.model) renderFeatures(state.model); }
+  function endEdit() { state.editing = null; state.editBaseline = ''; $('feature-submit').textContent = 'Add feature'; $('feature-cancel').hidden = true; $('feature-label').value = ''; renderParamsForm({}); if (state.model) renderFeatures(state.model); }
   /** Keep newer manual input when an earlier submitted feature finishes rebuilding. */
   function featureFormState() {
     return JSON.stringify({ editing: state.editing, type: $('feature-type').value, label: $('feature-label').value,
@@ -441,6 +456,56 @@
   }
   function stopPoll() { if (state.pollTimer) clearInterval(state.pollTimer); state.pollTimer = null; }
 
+  // ── Side by side with the concierge (the shared document handoff) ─────────
+  /** True when the feature form holds input the part does not have yet: a changed edit, or any value for a new feature. */
+  function featureDraft() {
+    if (!state.model) return false;
+    if (state.editing) return featureFormState() !== state.editBaseline;
+    return $('feature-label').value !== '' || Array.from($('params-form').querySelectorAll('[data-param]')).some((node) => node.value !== '');
+  }
+  /** True when the density field differs from the value last drawn for this part. */
+  function densityDirty() {
+    const shown = state.densityShown;
+    return Boolean(shown && state.model && shown.id === state.model.model_id && Number($('density').value) !== shown.value);
+  }
+  async function settleWrites() { while (state.writes.size) await Promise.allSettled(Array.from(state.writes)); }
+  const newerModel = (a, b) => a.revision > b.revision || Date.parse(a.updated_at) > Date.parse(b.updated_at);
+  const draftWords = () => [featureDraft() ? 'feature in the editor' : '', densityDirty() ? 'density' : ''].filter(Boolean).join(' and ');
+  /** The saved part's identity and revision: what the assistant is told it is reading. */
+  function documentSnapshot(m) {
+    return { app: 'cad-studio', screen: 'surface', surface: 'cad-studio', recordId: m.model_id, title: String(m.title).slice(0, 200),
+      fields: { revision: m.revision, updatedAt: m.updated_at, state: m.state, featureCount: m.features.length, readOnly: false, draft: false } };
+  }
+  /** Save every unsaved change through the page's own save paths, then hand over the saved part. */
+  async function prepareDocumentHandoff() {
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    await settleWrites();
+    if (!state.model) return null;
+    const id = state.model.model_id;
+    const unsaved = (what) => new Error('The ' + what + ' you are editing could not be saved (' + $('toast').textContent + '). It is still on the page; correct or clear it, then ask again.');
+    if (featureDraft()) { await submitFeature(); await settleWrites(); if (featureDraft()) throw unsaved('feature'); }
+    if (densityDirty()) { await saveSettings(); await settleWrites(); if (densityDirty()) throw unsaved('density'); }
+    if (!state.model || state.model.model_id !== id) throw new Error('The open part changed while it was being saved. Ask again from the part you want to edit.');
+    return documentSnapshot(state.model);
+  }
+  /** Re-read the handed-over part and redraw it when it is newer, keeping any field the person is still editing. */
+  async function refreshDocumentHandoff(expected) {
+    await settleWrites();
+    const model = state.model;
+    if (!model || (expected && expected.recordId && expected.recordId !== model.model_id)) return;
+    const intent = selection(), out = await api('/models/' + model.model_id);
+    if (!selected(intent) || !state.model || out.model.model_id !== state.model.model_id || !newerModel(out.model, state.model)) return;
+    state.model = out.model; state.revisions = out.revisions || []; state.lastSeen = out.model.updated_at;
+    renderEngine(out.engine); renderModel(); loadModels().catch(() => {});
+    if (draftWords()) toast('Revision ' + out.model.revision + ' from the concierge is shown. Your unsaved ' + draftWords() + ' is kept; save it to apply it on top.', 'info');
+  }
+  function registerDocumentHandoff() {
+    const reported = (fn) => async (...args) => { try { return await fn(...args); } catch (e) { toast(e.message, 'error'); throw e; } };
+    import('/shared/ui/js/document-handoff.js')
+      .then(({ registerDocumentSession }) => registerDocumentSession({ app: 'cad-studio', prepare: reported(prepareDocumentHandoff), refresh: reported(refreshDocumentHandoff) }))
+      .catch((e) => toast('The concierge cannot synchronize this part: ' + e.message, 'error'));
+  }
+
   // ── Entry points from elsewhere ────────────────────────────────────────────
   async function intakeArtifact(ref) {
     const intent = selection();
@@ -484,6 +549,7 @@
     $('mesh-upload').addEventListener('change', (ev) => { uploadMesh(ev.target.files[0]); ev.target.value = ''; });
     $('save-settings').addEventListener('click', saveSettings);
     window.addEventListener('pagehide', stopPoll);
+    registerDocumentHandoff();
     await loadModels().catch((e) => toast(e.message, 'error'));
     const q = new URLSearchParams(location.search);
     if (q.get('artifact')) await intakeArtifact(q.get('artifact'));

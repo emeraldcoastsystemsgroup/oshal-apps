@@ -48,7 +48,7 @@ description: >-
   intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic
   metrics scorecard, experiment registry, budget proposals a human approves, and weekly review
   tickets worked by inline concierge bots only after human approval.
-version: 0.5.4
+version: 0.5.5
 status: active
 suite: ai-productivity
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.

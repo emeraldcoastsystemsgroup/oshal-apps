@@ -18,6 +18,8 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: the native paper autopilot surface over routes/paper/ (arm, disarm, status, tick, fills, decisions).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | GET /books also returns the reference book, each book's last tick and when the person's paper schedule last ran a tick, so the concierge can say whether a paper account it started is trading.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | POST /books/:ref/strategy runs a saved portfolio strategy on a paper account (or clears it with no strategyId) and arms it; GET /books names each account's strategy.
  *
  * @module trading-paper-routes
  */
@@ -26,6 +28,7 @@
 const tick = require('./paper/tick');
 const store = require('./paper/store');
 const books = require('./paper/books');
+const paperStrategy = require('./paper/strategy');
 const reports = require('./paper/report');
 const { nativeHost } = require('./paper/screen');
 
@@ -65,6 +68,16 @@ function header(req, name) {
 }
 
 /**
+ * @description The newest recorded tick in plain fields, or null when the book has never ticked.
+ * @param {Array<object>} ticks - Ticks, newest first.
+ * @returns {{at:string, trigger:string, outcome:string, orders:number}|null} The tick.
+ */
+function lastTick(ticks) {
+  const t = ticks && ticks[0];
+  return t ? { at: t.created_at, trigger: t.trigger_kind, outcome: t.outcome, orders: t.order_count } : null;
+}
+
+/**
  * @description The route handlers as plain functions of (ctx, req) → {status, body}, so the router and the tests share them.
  * @param {object} ctx - Route context (pool, intent).
  * @param {() => Date} [clock] - Instant source.
@@ -91,8 +104,15 @@ function paperHandlers(ctx, clock = () => new Date()) {
     },
     async books(req){
       const sub=callerOf(req),rows=await books.listBooks(deps.pool,sub);
-      const accounts=await Promise.all(rows.map(async b=>({...b,account:await store.loadAccount(books.bookPool(deps.pool,b.book_ref),sub),config:await store.loadConfig(books.bookPool(deps.pool,b.book_ref),sub)})));
-      return {status:200,body:{ok:true,accounts,simulated:true}};
+      const read=async pool=>{const [account,config,ticks]=await Promise.all([store.loadAccount(pool,sub),store.loadConfig(pool,sub),store.listTicks(pool,sub)]);return {account,config,ticks};};
+      const [reference,...named]=await Promise.all([read(deps.pool),...rows.map(b=>read(books.bookPool(deps.pool,b.book_ref)))]);
+      const assigned=await Promise.all(rows.map(b=>paperStrategy.assignmentOf(deps,sub,b.book_ref)));
+      const accounts=rows.map((b,i)=>({...b,account:named[i].account,config:named[i].config,lastTick:lastTick(named[i].ticks),
+        strategy:assigned[i]?{strategyId:assigned[i].strategyId,strategyName:assigned[i].strategyName,symbols:assigned[i].symbols,assignedAt:assigned[i].assignedAt,lastDecisionAsOf:assigned[i].lastDecisionAsOf,lastResult:assigned[i].lastResult}:null}));
+      // Only the person's activated paper-autopilot schedule writes 'schedule' ticks, so the newest one says whether it runs.
+      const times=[reference,...named].flatMap(r=>r.ticks.filter(t=>t.trigger_kind==='schedule')).map(t=>new Date(t.created_at).getTime()).filter(Number.isFinite);
+      const scheduled=times.length?new Date(Math.max(...times)).toISOString():null;
+      return {status:200,body:{ok:true,accounts,reference:{account:reference.account,config:reference.config,lastTick:lastTick(reference.ticks)},paperSchedule:{...tick.PAPER_SCHEDULE,lastScheduledTickAt:scheduled},simulated:true}};
     },
     async createBook(req){return {status:200,body:await books.createBook(deps,callerOf(req),req.body,clock())};},
     async reset(req){return {status:200,body:await books.resetPaper(deps,callerOf(req),req.body,clock())};},
@@ -102,6 +122,15 @@ function paperHandlers(ctx, clock = () => new Date()) {
       return {status:200,body:{ok:true,book,account,config,positions,orders,decisions,ticks,series,simulated:true}};
     },
     async bookArm(req){const sub=callerOf(req),ref=req.params.ref,book=await books.getBook(deps.pool,sub,ref);if(book.archived===true||book.archived==='t')return {status:409,body:{error:'paper_archived',message:'Restore this archived account before starting it.'}};return {status:200,body:await tick.armPaper({...deps,pool:books.bookPool(deps.pool,ref)},sub,req.body,clock())};},
+    async bookStrategy(req){
+      const sub=callerOf(req),ref=req.params.ref,book=await books.getBook(deps.pool,sub,ref),id=req.body&&req.body.strategyId;
+      if(book.archived===true||book.archived==='t')return {status:409,body:{error:'paper_archived',message:'Restore this archived account before giving it a strategy.'}};
+      if(!id)return {status:200,body:{ok:true,cleared:await paperStrategy.clearStrategy(deps,sub,ref)}};
+      const assignment=await paperStrategy.assignStrategy(deps,sub,book,String(id),clock());
+      // Running a strategy is the decision to trade it: the account is armed with the strategy's symbols.
+      const armed=await tick.armPaper({...deps,pool:books.bookPool(deps.pool,ref)},sub,{universe:assignment.symbols},clock());
+      return {status:200,body:{ok:true,strategy:{strategyId:assignment.strategyId,strategyName:assignment.strategyName,symbols:assignment.symbols,targets:assignment.preview.targets,decisionAsOf:assignment.preview.decisionAsOf},config:armed.config,schedule:armed.schedule}};
+    },
     async bookDisarm(req){const sub=callerOf(req),ref=req.params.ref;await books.getBook(deps.pool,sub,ref);return {status:200,body:await tick.disarmPaper({...deps,pool:books.bookPool(deps.pool,ref)},sub,clock())};},
     async bookArchive(req){return {status:200,body:await books.setArchived(deps,callerOf(req),req.params.ref,true,clock())};},
     async bookRestore(req){return {status:200,body:await books.setArchived(deps,callerOf(req),req.params.ref,false,clock())};},
@@ -158,6 +187,7 @@ function createTradingPaperRoutes(ctx, makeRouter) {
   router.get('/books/:ref',route('book',h.book));
   router.post('/books/:ref/arm',route('book-arm',h.bookArm));
   router.post('/books/:ref/disarm',route('book-disarm',h.bookDisarm));
+  router.post('/books/:ref/strategy',route('book-strategy',h.bookStrategy));
   router.post('/books/:ref/archive',route('book-archive',h.bookArchive));
   router.post('/books/:ref/restore',route('book-restore',h.bookRestore));
   router.get('/reports',route('reports',h.reports));

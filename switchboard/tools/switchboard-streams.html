@@ -16,7 +16,12 @@
 <!-- CHANGE LOG
      1 | maintainer@emeraldcoastsystemsgroup.com | Draft per-platform variants leaves a variant the comms bot declined
        (failed:'bot_declined', no text) untouched and names it with the bot's words, instead of announcing every variant
-       drafted; the bot's refusals had been written into the variant text. -->
+       drafted; the bot's refusals had been written into the variant text.
+     2 | maintainer@emeraldcoastsystemsgroup.com | The open post joins the shared document handoff
+       (/shared/ui/js/document-handoff.js): before Jarvis or a concierge reads, unsaved title, body, tag and variant edits
+       are saved through the existing PATCH /posts/:id and the post's id and updatedAt revision become the turn context;
+       after the turn the page re-reads GET /posts/:id and redraws a changed post, but keeps an editor the person is still
+       changing and says so in the error bar. Save and open share those same request helpers. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
@@ -663,14 +668,22 @@
       state.selected=p||null; state.revisions=p&&p.revisionCount? [{revisionId:"r1",note:"sample revision",savedAt:p.createdAt}] : [];
       renderList(); renderEditor(); return;
     }
-    api("/posts/"+encodeURIComponent(id))
+    fetchPost(id)
+      .then(showPost)
+      .catch(function(e){ toast("Couldn't open the post — "+(e.message||e), false); });
+  }
+  // GET /posts/:id → {post, revisions}; a refusal becomes an Error carrying the server's words
+  function fetchPost(id){
+    return api("/posts/"+encodeURIComponent(id))
       .then(parse)
       .then(function(res){
         if(!res.ok) throw new Error((res.j&&(res.j.message||res.j.error))||("HTTP "+res.status));
-        state.selected=res.j.post||null; state.revisions=res.j.revisions||[];
-        renderList(); renderEditor();
-      })
-      .catch(function(e){ toast("Couldn't open the post — "+(e.message||e), false); });
+        return res.j;
+      });
+  }
+  function showPost(j){
+    state.selected=j.post||null; state.revisions=j.revisions||[];
+    renderList(); renderEditor();
   }
 
   // one variant card per storable platform; existing variant rows fill their card
@@ -942,18 +955,80 @@
     if(bodyV.length>MAX_BODY){ edErr("Master body is over "+MAX_BODY+" characters."); return; }
     edErrClear();
     btn.disabled=true; btn.innerHTML='<svg class="spin"><use href="#i-refresh"/></svg> Saving…';
-    api("/posts/"+encodeURIComponent(p.postId),{ method:"PATCH",
-      body:JSON.stringify({ title:$("eTitle").value.trim(), body:bodyV, tags:collectTags(), variants:collectVariants() }) })
-      .then(parse)
-      .then(function(res){
-        if(!res.ok){ edErr((res.j&&(res.j.message||res.j.error))||("Save failed ("+res.status+")")); return; }
+    patchPost(p)
+      .then(function(){
         toast("Saved");
         openPost(p.postId);        // re-fetch → fresh post + the new revision snapshot
         loadPosts(false);          // counts / list snippets may have changed
       })
-      .catch(function(){ edErr("Save request failed."); })
+      .catch(function(e){ edErr(e.message); })
       .finally(function(){ btn.disabled=false; btn.innerHTML='<svg><use href="#i-check"/></svg> Save'; });
   }
+  // PATCH the editor's title, body, tags and variants onto post p; resolves once the server stored them
+  function patchPost(p){
+    var bodyV=$("eBody").value;
+    if(!bodyV.trim()) return Promise.reject(new Error("The master body can't be empty."));
+    if(bodyV.length>MAX_BODY) return Promise.reject(new Error("Master body is over "+MAX_BODY+" characters."));
+    return api("/posts/"+encodeURIComponent(p.postId),{ method:"PATCH",
+      body:JSON.stringify({ title:$("eTitle").value.trim(), body:bodyV, tags:collectTags(), variants:collectVariants() }) })
+      .then(parse, function(){ throw new Error("Save request failed."); })
+      .then(function(res){
+        if(!res.ok) throw new Error((res.j&&(res.j.message||res.j.error))||("Save failed ("+res.status+")"));
+        return res.j.post;
+      });
+  }
+
+  // ── shared document handoff: save before a concierge reads, redraw what it saved after ──────
+  // The server trims bodies and drops empty variants, so both sides compare in that same shape.
+  function variantKey(list){
+    var byP={};
+    (list||[]).forEach(function(v){ var b=(v.body||"").trim(); if(b) byP[v.platform==="twitter"?"x":v.platform]=b; });
+    return VARIANT_PLATFORMS.map(function(pl){ return byP[pl]||""; });
+  }
+  function savedKey(p){ return JSON.stringify([(p.title||"").trim(), (p.body||"").trim(), p.tags||[], variantKey(p.variants)]); }
+  function editorDirty(){
+    var p=state.selected; if(!p||!$("eBody")||$("eBody").readOnly) return false;
+    var cards=Array.prototype.map.call(document.querySelectorAll("#vgrid .vcard"), function(card){
+      return { platform:card.dataset.platform, body:card.querySelector("textarea").value };
+    });
+    return JSON.stringify([$("eTitle").value.trim(), $("eBody").value.trim(), collectTags(), variantKey(cards)])!==savedKey(p);
+  }
+  function handoffContext(p){
+    return { app:"switchboard", screen:"surface", surface:"switchboard-streams", recordId:String(p.postId), title:snippet(p).text,
+      fields:{ revision:String(p.updatedAt||""), revisionCount:p.revisionCount||0, state:p.state, readOnly:!canEdit(p.state), draft:false,
+        platforms:(p.variants||[]).map(function(v){ return v.platform; }).join(",") } };
+  }
+  function prepareHandoff(){
+    var p=state.selected;
+    if(state.preview||!p) return Promise.resolve(null);
+    if(!editorDirty()) return Promise.resolve(handoffContext(p));
+    edErrClear();
+    return patchPost(p)
+      .then(function(){ return fetchPost(p.postId); })
+      .then(function(j){
+        if(!state.selected||state.selected.postId!==p.postId) throw new Error("The open post changed while it was being saved. Ask again from the post you want to edit.");
+        showPost(j); loadPosts(false);
+        return handoffContext(state.selected);
+      });
+  }
+  function refreshHandoff(expected){
+    var p=state.selected;
+    if(state.preview||!p||(expected&&expected.recordId&&expected.recordId!==String(p.postId))) return Promise.resolve();
+    var before=savedKey(p)+"|"+p.updatedAt+"|"+p.state;
+    return fetchPost(p.postId).then(function(j){
+      var cur=state.selected, fresh=j.post;
+      if(!cur||cur.postId!==p.postId||!fresh||savedKey(fresh)+"|"+fresh.updatedAt+"|"+fresh.state===before) return;
+      if(editorDirty()) throw new Error("The concierge saved a change to this post while you were editing. Your edits are still here: Save keeps yours, Refresh loads the saved post.");
+      showPost(j); loadPosts(false);
+      toast("Updated with the concierge's saved change");
+    });
+  }
+  function reportHandoff(e){ edErr(e.message||String(e)); throw e; }
+  import("/shared/ui/js/document-handoff.js").then(function(m){
+    m.registerDocumentSession({ app:"switchboard",
+      prepare:function(){ return prepareHandoff().catch(reportHandoff); },
+      refresh:function(expected){ return refreshHandoff(expected).catch(reportHandoff); } });
+  }).catch(function(e){ toast("The concierge cannot synchronize this post: "+(e.message||e), false); });
 
   // ── workflow transitions ───────────────────────────────────────────────────
   function openNotePrompt(action){

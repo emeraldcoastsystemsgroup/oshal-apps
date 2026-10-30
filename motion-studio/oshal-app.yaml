@@ -5,13 +5,16 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Declare bounded read-only actual effect inventory/schema tools.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Declare bounded original-read exact keyframe metadata.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: the paged list tools (projects, effects, fonts) describe their stamp: the exact word start for the first page, then the returned stamp. Asked from Jarvis to list Motion projects, the bot sent another first-page value, every page was refused motion_invalid_index_stamp, and it reported it could not list them. Guarded by motion-studio/tests/stamp-schema.test.mjs.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 0.1.2: synchronize native inspector drafts and concierge edits automatically without flattening layers/effects.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 0.1.3: motion-apply-edits and motion-apply-exact-edits say their optional title renames the project and is omitted unless the person asked for a rename (an installed handoff run put an action heading in it, which would have renamed the composition). Words only; no schema, permission or binding change. Guarded by tests/edit-title-guidance.test.mjs.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 0.1.4: the workbench retries a request refused only because the project storage lock was busy (503 motion_storage_busy, raised before any write); a manual edit right after a concierge change was lost with "Your project storage is busy. Retry shortly.". Guarded by tests/busy-retry.test.mjs.
 name: motion-studio
 suite: ai-creative
 displayName: Motion Studio
 description: >-
   Editable motion compositions with layers, captions, keyframes, masks and owned photos.
   Preview frames and export editable native JSON.
-version: 0.1.1
+version: 0.1.4
 runtime: process
 lastingStorage: true
 status: active
@@ -385,6 +388,7 @@ tools:
       revision; conflicts require re-read. Set response to receipt. The result includes id/revision
       and inspection instructions, never the full document or arbitrary command outputs. Inspect the
       returned immutable revision to obtain actual new composition/layer ids.
+      Optional title renames the whole composition project: omit it unless the person asked to rename the project, and never use it to describe or label the edit.
     routingTags:
       - motion
       - editing
@@ -808,6 +812,7 @@ tools:
       arguments remain16KiB and server validates the command array/fields. Preserve UUID and
       baseRevision for a retry; response=receipt. Inspect returned decimal integer pages for actual
       ids/ticks. Approval required, same read/change permission as ordinary edits.
+      Optional title renames the whole composition project: omit it unless the person asked to rename the project, and never use it to describe or label the edit.
     routingTags:
       - motion
       - editing

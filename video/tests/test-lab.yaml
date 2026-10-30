@@ -13,6 +13,7 @@
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Register editor-persona-grounding (tests/video-editor-persona.test.cjs): the editor concierge names no tool and offers a render only for clips on a saved revision, never prompted generation (sweep 10).
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Register video-storyboard-words: a one-scene storyboard and video say 1 scene, and the subtitle says the storyboard is not saved (sweep 13).
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Register closed owned-job discovery and approved internal typed mint source checks.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Register automatic document handoffs, save failures, concurrent drafts and delayed-save project switching.
 version: 1
 cases:
   - id: package-readiness
@@ -537,5 +538,27 @@ cases:
     prerequisites: [runner:node, runner:playwright, browser:chromium, harness:oshal-core-root, engine:ffprobe, engine:ffmpeg, harness:shared-disposable-postgres]
     sideEffects: fixture-write
     isolation: { mode: disposable, fixtures: [tests/video-editor-postgres.fixture.mjs], cleanup: Close browsers and pools; drop only each uniquely owned fixture database and role on127.0.0.1:35689; never remove its shared container. }
+    limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
+    installation: never
+
+  - id: document-handoff
+    name: Manual and concierge timeline handoff
+    purpose: Automatically save before concierge reading and refresh the same editable timeline on return.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/video-document-handoff.test.mjs]
+    expected:
+      - A focused manual change saves without pressing Save before the assistant reads the timeline.
+      - Original-owner project operations update the same editable timeline and hand-back refreshes it.
+      - The next manual trim is saved and read by the next handoff; the concierge result is undoable.
+      - A refused save stops the handoff and a concurrent focused-field draft remains intact.
+    prerequisites: [runner:node-test, browser:chromium, runtime:docker, image:postgres16-alpine, harness:oshal-core-root]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/video-editor-browser.fixture.mjs, tests/video-editor-postgres.fixture.mjs]
+      cleanup: Close owned servers and browser contexts and remove only the uniquely labelled disposable PostgreSQL container.
     limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
     installation: never

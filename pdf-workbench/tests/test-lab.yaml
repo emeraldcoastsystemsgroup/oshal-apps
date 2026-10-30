@@ -1,3 +1,5 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register genuine queued-save and refreshed-document browser proofs.
 version: 1
 cases:
   - id: model
@@ -133,5 +135,79 @@ cases:
         PostgreSQL35689; never use live data or remove its container.
     limits:
       timeoutMs: 120000
+      maxMemoryMb: 768
+    installation: never
+
+  - id: document-handoff
+    name: Automatic saved PDF concierge round trip
+    purpose: Wait for actual PDF save jobs before assistant reads; refresh native editable fields/annotations and retain concurrent or switched documents.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/browser/document-handoff.test.mjs
+    expected:
+      - Repeated manual and assistant revisions use the same original-owned native PDF.
+      - Rejected saves block reads; concurrent fields and another opened PDF survive.
+    prerequisites:
+      - runner:node
+      - runtime:pypdf-pinned
+      - runtime:poppler-tesseract-eng
+      - runtime:chromium
+      - service:postgres-disposable-35689
+      - runtime:kernel-shared-ui
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only this fixture's unique database, role, engine child and temporary paths; preserve shared PostgreSQL35689.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 768
+    installation: never
+
+  - id: form-lookup
+    name: Bounded exact saved form lookup
+    purpose: Find late fields without enumerating the model; retain complete values, literal queries and bounded pagination. Source proof does not qualify installed permissions or a provider.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/form-lookup-tools.test.mjs
+    expected:
+      - Late matching fields are found with exact saved values and native indexes.
+      - Byte and item bounds paginate without clipping, duplication or unbounded retry.
+    prerequisites:
+      - runner:node
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Remove only unique owned fixture resources; never alter shared PostgreSQL or live data.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 768
+    installation: never
+
+  - id: page-geometry
+    name: Actual saved PDF page geometry
+    purpose: Refuse the actual out-of-bounds Jarvis annotation and expose native crop coordinates before queuing work; source proof does not qualify a provider.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/page-geometry-tools.test.mjs
+    expected:
+      - Small, shifted and rotated pages retain actual crop bounds and stable native IDs.
+      - Invalid annotation bounds, ink and unsupported text are refused before publication.
+    prerequisites:
+      - runner:node
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: No persistent resources are created.
+    limits:
+      timeoutMs: 30000
       maxMemoryMb: 768
     installation: never

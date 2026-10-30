@@ -79,7 +79,7 @@ description: >-
   mission that Drone Ops re-validates and a human approves there.
   A designer concierge sizes and explains through the same tools. Simulated;
   nothing here flies.
-version: 0.4.2
+version: 0.4.3
 status: active
 scope: person
 

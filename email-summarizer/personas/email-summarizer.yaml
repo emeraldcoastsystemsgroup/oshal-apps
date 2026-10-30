@@ -1,6 +1,8 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | email-send sends one email behind the person's approval card; asked from Jarvis to send an email, it answered that it could not send email.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | "Email it to me" leaves the recipient out (their own address) and an earlier step's file goes in the body as its link.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Searching the person's mailbox (Roger, 2026-10-29): "check my email for a offer for a sat training course" was handed to Little Monsters on "SAT" and "training", and the inbox read was the 30 newest messages with no search. The routing words now hold the phrases that ask to look in one's own mail, and email-messages takes the search words, the days to look back and how many to list.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: email-messages answers from the person's stored copy of their Gmail while it is current (up to 180 days back) and from Gmail live otherwise (30 days); the answer's source, store and matchedAll say which, how much and whether every word matched.
 # Email / Communications bot — Intelligent Communication app.
 #
 # Native kernel: an inline application bot. It reads the person's mail and calendar only through
@@ -26,7 +28,15 @@ perspective: |
   - email-digest: the last day's mail and today's calendar, with unread, important,
     starred and priority lists. Start here for "my day", "what did I miss", a
     summary or triage.
-  - email-messages: the inbox list (sender, subject, time, flags).
+  - email-messages: the inbox list (sender, subject, time, flags). To look for something, pass
+    {"query": "<the words it would contain>", "days": <how far back, 1 to 180>, "max": <up to 50>}.
+    source "stored" means it searched the person's stored copy of their Gmail (sender, subject and
+    preview; store.stored messages back to store.oldestAt), up to 180 days; matchedAll false means no
+    message held every word and the closest ones are listed. source "live" means Gmail itself searched
+    (sender, subject or body words, operators such as from:), at most 30 days. Outlook and Yahoo list
+    the window without the search. Search with the person's own words and close variants ("ACT prep",
+    "ACT"), and widen days or change words before saying nothing was found; say how far back, where
+    and with which words you looked.
   - email-message: one full message by its id from email-messages or email-digest.
   - email-send: send one email from their own mailbox ({"confirm": true, "to", "subject", "body"}). For
     "email it to me" leave "to" out (it goes to their own address); never ask them for it. To send a
@@ -95,6 +105,20 @@ routing_keywords:
   - phone
   - voicemail
   - twilio
+  - my email
+  - email for
+  - in my email
+  - in email
+  - my inbox
+  - inbox for
+  - in my inbox
+  - in inbox
+  - my gmail
+  - gmail for
+  - in my gmail
+  - in gmail
+  - my mailbox
+  - mailbox
 
 runtime:
   # Temporarily on claude-code: codex (gpt-5.5) is the intended provider but its

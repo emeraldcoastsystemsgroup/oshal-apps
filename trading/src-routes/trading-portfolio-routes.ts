@@ -1,4 +1,6 @@
 /** CHANGE LOG
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | The research read names each account's assigned strategy, so the concierge can compare a new strategy with the one an account runs.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Record measured owner-bound account values and expose separate read-only account details.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Retain server-read congressional purchase provenance with immutable monthly candidate baskets; selected-universe studies never claim historical Congress performance.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Refreshing or re-adding an outside statement preserves its established account category and assigned review strategy.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Supply the last completed NYSE session as the historical window default, independent of the browser clock.
@@ -17,6 +19,7 @@ import {congressStrategyEvidence} from './trading-congress-candidates';
 import {registerPortfolioPlanRoutes} from './trading-portfolio-plan-routes';
 import {registerNativeManagementRoutes} from './trading-native-management';
 import {validDay,portfolioResearchWindow} from './trading-portfolio-calendar';
+import {recordAccountValues,registerAccountValueRoutes} from './trading-account-values';
 const running=new Set<string>();
 function label(value:unknown,name='Name'):string {
  if(typeof value!=='string'||!value.trim()||value.trim().length>120)throw new PortfolioError(400,'name_invalid',`${name} must contain 1 to 120 characters.`);
@@ -60,16 +63,18 @@ export function registerTradingPortfolioRoutes(router:Router,ctx:AppContext,opti
  };
  registerPortfolioPlanRoutes(route,ctx,{clock,selected:(owner,binding,now)=>selected(ctx,owner,binding,now),witness:portfolioWitness});
  registerNativeManagementRoutes(route,ctx,{clock,selected:(owner:string,binding:Data,now:Date)=>selected(ctx,owner,binding,now)});
- route('get','/portfolio',async(_req,owner,at)=>(await portfolioSnapshot(ctx,owner,at)).report);
+ registerAccountValueRoutes(route,ctx,{selected:(owner:string,binding:Data,now:Date)=>selected(ctx,owner,binding,now)});
+ route('get','/portfolio',async(_req,owner,at)=>{const snapshot=await portfolioSnapshot(ctx,owner,at);await recordAccountValues(ctx,owner,snapshot.native);return snapshot.report;});
  route('get','/portfolio/research',async(_req,owner,at)=>{
-  const [strategies,runs,records]=await Promise.all([listRecords(ctx,owner,'strategy'),listRecords(ctx,owner,'run'),listRecords(ctx,owner,'review')]);
+  const [strategies,runs,records,profiles]=await Promise.all([listRecords(ctx,owner,'strategy'),listRecords(ctx,owner,'run'),listRecords(ctx,owner,'review'),listRecords(ctx,owner,'profile')]);
   const approvals=new Map(records.filter(row=>row.status==='research-approved'&&row.reviewId).map(row=>[row.reviewId,row]));
   const reviews=records.filter(row=>!row.reviewId).map(row=>{
    const approval=approvals.get(row.id);
    return approval?{...row,status:'research-approved',approvedAt:approval.approvedAt,approvalId:approval.id}:
     {...row,status:at.getTime()>=Date.parse(row.expiresAt)?'expired':row.status};
   });
-  return {strategies,runs:runs.slice(0,100).map(({history,result,...row})=>({...row,metrics:result?.metrics,window:result?.window,costs:result?.costs,maintenanceTriggered:result?.maintenanceTriggered})),reviews,liveExecutionAvailable:false};
+  const accounts=profiles.map(p=>({accountId:p.accountId,connectionKey:p.connectionKey,label:p.label,strategyId:p.strategyId??null}));
+  return {strategies,runs:runs.slice(0,100).map(({history,result,...row})=>({...row,metrics:result?.metrics,window:result?.window,costs:result?.costs,maintenanceTriggered:result?.maintenanceTriggered})),reviews,accounts,liveExecutionAvailable:false};
  });
  route('post','/portfolio/profiles',async(req,owner,at)=>{
   const b=req.body||{},current=await selected(ctx,owner,b,at),reg=registration(b.registration);

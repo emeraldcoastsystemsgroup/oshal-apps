@@ -140,7 +140,7 @@
     font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 14px;
   }
   .btn, input, select { font: inherit; }
-  .app { height: 100vh; display: grid; grid-template-rows: auto 1fr; }
+  .app { height: 100vh; display: grid; grid-template-rows: auto auto 1fr; }
   .topbar {
     display: flex; align-items: center; gap: 14px; padding: 10px 16px;
     border-bottom: 1px solid var(--dr-line); background: var(--dr-surface);
@@ -154,7 +154,7 @@
   .pill.alert { color: var(--dr-bad); border-color: var(--dr-bad); }
   .pill.ok { color: var(--dr-ok); border-color: var(--dr-ok); }
   /* No drone connected (GET /fleet answered configured:false): the server's own reason, shown above the console. */
-  .nodrone { padding: 8px 14px; border-bottom: 1px solid var(--dr-bad); color: var(--dr-text, inherit); font-size: 13px; line-height: 1.4; }
+  .nodrone { padding: 8px 14px; border-bottom: 1px solid var(--dr-line); color: var(--dr-muted); font-size: 13px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .nodrone strong { color: var(--dr-bad); }
   .spacer { flex: 1; }
   .batt { display: flex; align-items: center; gap: 6px; color: var(--dr-muted); font-size: 12px; }

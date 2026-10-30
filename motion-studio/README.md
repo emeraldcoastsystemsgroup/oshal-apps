@@ -1754,3 +1754,33 @@ Container memory, MiB low / high: **32 / 1024 (declared)**.
 |---|---|---|---|---|---|---|
 | motion-editing-command | editing command | T1 | none | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->
+
+## Automatic document handoff (source 0.1.2)
+
+The editor retains unsubmitted changes to existing native inspector fields,
+including fields on another layer. Before an embedded concierge or Jarvis reads,
+it saves these fields through the same native command/property routes used by
+the manual Apply buttons. It then hands over the actual project identity, revision,
+composition, layer and exact composition tick. No manual Save or Reload is required.
+
+Saved assistant changes refresh that same native composition. Text, layers, effects,
+masks and keyframes remain editable; gray adjustment is a native saturation effect,
+not a flattened replacement image. Selection and historical views are retained.
+Failed saves block the read. Concurrent browser fields are kept for resolution, and
+a late save or preview cannot replace another project. An older inspector draft
+reopened over a newer saved revision keeps its original revision and requires
+resolution instead of silently overwriting the saved update. New-object and import forms
+keep their explicit action buttons; the handoff saves edits to existing objects.
+
+`tests/browser/document-handoff.test.mjs` uses actual Chromium, disposable
+original-owner PostgreSQL and the pinned native compositor. It proves repeated
+manual/concierge changes, native gray pixels and continued filter editing, effects,
+masks and selected keys, multiple-layer fields, full effect text whose hidden
+section changes, historical views, rejected saves, concurrent fields and delayed
+project switching. Assistant commands use real application routes; provider
+inference and installed configured-provider acceptance remain unverified.
+
+Run with `OSHAL_TEST_POSTGRES` pointing only at shared disposable PostgreSQL35689,
+`MOTION_ENGINE_BINARY` naming the reviewed built compositor, `MOTION_RASTER_DEPS`
+naming the pinned Sharp dependency root, and `OSHAL_PLATFORM_ROOT` naming the kernel
+platform source. The fixture never uses live application data.

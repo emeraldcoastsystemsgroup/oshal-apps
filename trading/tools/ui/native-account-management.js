@@ -1,4 +1,6 @@
 /* CHANGE LOG
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Resolve separate account detail bookmarks without changing strategy bookmarks or exact-account binding.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Remove the previous activation card before refreshing its review and make failed checks visibly actionable.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Put account totals and schedule above two clear control cards and keep activation summaries compact without changing reviewed terms.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Keep exact account controls in the Strategies section, including old account bookmarks.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Restore exact saved reviews and caps across reloads, surface both authorities above research, and use shared theme-aware dashboard controls.
@@ -26,7 +28,7 @@ function clearNativeAccountAddress(){
 function showFocusedNativeAccount(models){
  const p=new URLSearchParams(location.search),accountId=p.get('account'),connectionKey=p.get('connection');if(!accountId&&!connectionKey)return false;
  const model=models.find(m=>m.nativeReadOnly&&m.accountId===accountId&&m.connectionKey===connectionKey);
- if(model){NATIVE_STRATEGY_ACCOUNTS=models.filter(m=>m.nativeReadOnly);nativeAccountView(model);}
+ if(model){NATIVE_STRATEGY_ACCOUNTS=models.filter(m=>m.nativeReadOnly);if(p.get('view')==='accounts'&&p.get('sub')==='details')nativeAccountDetailsView(model);else nativeAccountView(model);}
  else{main.innerHTML='<section class="panel"><h2>Account page unavailable</h2><p>This account and connection could not be resolved in your current roster.</p><button class="btn" id="nativeFocusBack">All account strategies</button></section>';$('nativeFocusBack').onclick=()=>navigate('strategies',{sub:'accounts'});}
  return true;
 }
@@ -108,7 +110,7 @@ async function nativeAccountManagementAction(button,host,context){
  const action=button.dataset.nativeManagement,status=host.querySelector(action==='combined'?'[data-native-combined-status]':action.startsWith('strategy-')?'[data-native-allocation-status]':action.startsWith('broker-')?'[data-native-protection-notice]':'[data-native-status]'),binding={accountId:account.accountId,connectionKey:account.connectionKey};
  if(action.startsWith('account-')||action.startsWith('schedule-')){button.disabled=true;try{await nativeAccountControlAction(action,host,context);}finally{if(button.isConnected)button.disabled=false;}return;}
  if(action==='strategies'){navigate('strategies',{sub:'library'});return;}
- button.disabled=true;if(status)status.textContent='Reading and saving account evidence…';
+ button.disabled=true;if(status){status.classList.remove('is-error');status.textContent='Reading and saving account evidence…';}
  try{
   if(action==='combined'){
    const answer=await api('/portfolio/backstops/combined',jbody('POST',{...binding,strategyId:account.strategyId,endDate:host.querySelector('[data-native-combined-end]').value}));
@@ -134,13 +136,15 @@ async function nativeAccountManagementAction(button,host,context){
    if(status)status.textContent='Study saved. No broker orders placed.';return;
   }
   if(!stale(token))await loadNativeAccountManagement(model,token);
- }catch(e){if(!stale(token)&&status)status.textContent=e.message;}finally{if(button.isConnected)button.disabled=false;}
+ }catch(e){if(!stale(token)&&status){status.classList.add('is-error');status.textContent=e.message;}}finally{if(button.isConnected)button.disabled=false;}
 }
 async function nativeAccountStrategyAction(action,host,context){
  const {account,watch,model,token}=context;
  if(action!=='strategy-stop'&&host.querySelector('[data-native-account-edit]')?.hidden===false)throw Error('Save or cancel this strategy change before reviewing activation.');
  if(!watch?.enabled)throw Error('Start this account monitor before reviewing execution.');
  if(action==='strategy-review'){
+  nativeAccountStrategyReviews.delete(host);
+  host.querySelector('[data-native-allocation-review]').replaceChildren();
   const scope=host.querySelector('[data-native-strategy-scope]').value,capitalCents=Math.round(Number(host.querySelector('[data-native-strategy-cap]').value)*100);
   if(!Number.isSafeInteger(capitalCents)||capitalCents<10000||capitalCents>(scope==='whole-account'?100000000:5000000))throw Error('Choose a capital cap within the selected management scope.');
   const result=await api('/portfolio/live/mandate',jbody('POST',{watchId:watch.id,scope,capitalCents}));

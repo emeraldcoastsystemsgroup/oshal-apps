@@ -32,6 +32,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Label daily-change coverage when real balances are known but their daily change is unavailable; no reporting accounts means n/a.
  * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Keep paper capital and paper day change outside the real-capital headline.
   * 8 | maintainer@emeraldcoastsystemsgroup.com | Label native day P&L as open-position scope; closed-trade results and cash flows are not reconstructed.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Separate account detail and strategy links, show actual authority and open-position gain/loss.
  */
 
 /* The tile models of the CURRENT paint, in display order — the delegated click handler resolves a
@@ -194,19 +195,19 @@ function tileHtml(m, i) {
   const day = loading ? '…' : (m.state !== 'ok' ? '—' : (m.dayChange == null ? '<span class="foot">n/a</span>' : dollarPctCell(m.dayChange, m.dayChangePct)));
   const note = (m.state === 'error' || m.state === 'unavailable') ? '<div class="err" style="font-size:12px">' + esc(m.note) + '</div>'
     : m.state === 'idle' ? '<div class="foot" style="font-size:12px;margin:0">' + esc(m.note) + '</div>' : '';
-  const strat = m.nativeReadOnly ? '<span class="foot">Strategy and watcher controls are in Strategies.</span>' : m.notTrading
+  const strat = m.nativeReadOnly ? '<span class="foot">'+esc(m.executionLabel||'Checking trading status…')+'</span><br><span class="foot">'+esc(m.protectionLabel||'Checking watcher status…')+'</span>' : m.notTrading
     ? '<span class="foot">No book yet — create one to trade this account (it starts disabled).</span>'
     : m.nativePaper ? 'Paper autopilot: ' + (m.nativePaper.armed ? '<span class="ok">armed</span>' : '<span class="foot">off</span>')
     : tileStrategyText(m.strategy) +
       (m.ref && ACCT_EVENT_REFS.has(m.ref) ? '<div style="margin-top:4px"><span class="pill warn" style="margin:0;border-color:var(--warn)" title="An event playbook (IPO plan) is armed on this account">IPO plan armed</span></div>' : '');
-  const actions = m.nativeReadOnly ? '<button class="btn sm primary" data-act="open">Manage strategy →</button>' : m.notTrading
+  const actions = m.nativeReadOnly ? '<a class="btn sm primary" href="'+esc(nativeAccountHref(m))+'" data-act="strategy">Manage strategy →</a><a class="btn sm ghost" href="'+esc(nativeDetailsHref(m))+'" data-act="details">Account details →</a>' : m.notTrading
     ? '<button class="btn sm ghost" data-act="create">Create book…</button>'
     : '<button class="btn sm primary" data-act="open">Open account →</button>' +
       (m.kind === 'live' && m.bookId ? '<button class="btn sm ghost" data-act="toggle">' + (m.enabled ? 'Stop trading' : 'Start trading…') + '</button>' : '');
   return '<div class="tile' + (m.enabled ? '' : ' view-only') + '" data-i="' + i + '" role="button" tabindex="0">' +
     '<div class="t-name"><span>' + esc(m.label) + '</span>' + pill + '</div>' + note +
     '<div class="t-eq">' + num(m.equity) + '</div>' +
-    '<div class="t-row"><span>' + (m.nativeReadOnly ? 'Open-position day P&amp;L' : 'Day P&amp;L') + '</span><b>' + day + '</b></div>' +
+    '<div class="t-row"><span>' + (m.nativeReadOnly ? 'Open-position gain / loss' : 'Day P&amp;L') + '</span><b>' + (m.nativeReadOnly ? detailsMoney(m.state==='ok'?detailsGain(m.positions||[]):null) : day) + '</b></div>' +
     '<div class="t-row"><span>Cash</span><b>' + num(m.cash) + '</b></div>' +
     '<div class="t-row"><span>Type</span><b>' + esc(m.accountType || m.kind) + '</b></div>' +
     '<div class="t-strat">' + strat + '</div>' +
@@ -283,7 +284,7 @@ function requestBook(accountId, label) {
  */
 function tileAction(tile, action) {
   const m = ACCT_TILES[Number(tile.getAttribute('data-i'))]; if (!m) return;
-  if (m.nativeReadOnly) { NATIVE_STRATEGY_ACCOUNTS=ACCT_TILES.filter(a=>a.nativeReadOnly);nativeAccountView(m); return; }
+  if (m.nativeReadOnly) { NATIVE_STRATEGY_ACCOUNTS=ACCT_TILES.filter(a=>a.nativeReadOnly);if(action==='strategy')nativeAccountView(m);else nativeAccountDetailsView(m); return; }
   if (action === 'create' || m.notTrading) { requestBook(m.accountId, discoveredLabel(m.accountType, m.accountMasked, m.label)); return; }
   if (action === 'toggle') {
     if (typeof toggleBook === 'function') toggleBook(m.bookId, !m.enabled);
@@ -303,6 +304,7 @@ function wireTiles() {
   host.addEventListener('click', (e) => {
     const tile = e.target.closest('.tile'); if (!tile || !host.contains(tile)) return;
     const btn = e.target.closest('[data-act]');
+    if(btn?.tagName==='A'&&(e.ctrlKey||e.metaKey||e.shiftKey||e.altKey))return;
     if (btn) { e.stopPropagation(); e.preventDefault(); tileAction(tile, btn.getAttribute('data-act')); return; }
     tileAction(tile, 'open');
   });
@@ -543,6 +545,7 @@ async function renderAccountsView(token) {
   mergeSummaryIntoTiles(models, summary);
   paintTiles(models); paintHero(summary, null, models); paintRollup(summary, null);
   if (typeof showFocusedNativeAccount === 'function' && showFocusedNativeAccount(models)) return;
+  if (typeof loadNativeDashboardState === 'function') loadNativeDashboardState(token);
 }
 
 /** Show the current caller's real holdings without offering unsupported live order controls. */

@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Serve actual editor modules and shared themes over a disposable synthetic project and raster API.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Provide actual nonJSON gateway responses and held export requests for bounded error-recovery checks.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Let a companion fixture add its own synthetic routes (the brand kit) to the same server before the error handler.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Support the shared automatic document save/read/refresh handoff and preserve concurrent drafts and editable layers.
  */
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +16,7 @@ import { validateProject } from '../../tools/editor/model.mjs';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const coreRoot = resolve(process.env.OSHAL_CORE_ROOT || resolve(packageRoot, '../../oshal'));
+const platformRoot = resolve(process.env.OSHAL_PLATFORM_ROOT || resolve(packageRoot, '../../oshal-kernel/platform'));
 const requireCore = createRequire(resolve(coreRoot, 'package.json'));
 const express = requireCore('express'), multer = requireCore('multer'), sharp = requireCore('sharp');
 export const { chromium } = requireCore('playwright');
@@ -38,9 +40,9 @@ function staticRoutes(app) {
   app.get('/api/create/editor', (_req, res) => res.sendFile(resolve(packageRoot, 'tools/create-editor.html')));
   app.use('/api/create/editor', express.static(resolve(packageRoot, 'tools/editor')));
   app.get('/api/create/theme/create.css', (_req, res) => res.sendFile(resolve(packageRoot, 'ui/create.css')));
-  app.use('/shared/ui/css', express.static(resolve(coreRoot, 'src/shared/ui/css')));
-  app.use('/shared/ui/js', express.static(resolve(coreRoot, 'src/shared/ui/js')));
-  app.use('/cockpit', express.static(resolve(coreRoot, 'src/pages/cockpit')));
+  app.use('/shared/ui/css', express.static(resolve(platformRoot, 'src/shared/ui/css')));
+  app.use('/shared/ui/js', express.static(resolve(platformRoot, 'src/shared/ui/js')));
+  app.use('/cockpit', express.static(resolve(platformRoot, 'src/pages/cockpit')));
   app.get('/api/artifacts/picker.js', (_req, res) => res.sendFile(resolve(coreRoot, 'src/pages/cockpit/js/components/artifact-picker.js')));
   app.get('/api/artifacts/picker.css', (_req, res) => res.sendFile(resolve(coreRoot, 'src/pages/cockpit/js/components/artifact-picker.css')));
 }

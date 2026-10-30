@@ -27,6 +27,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | api() errors carry the HTTP status and the route's error code (err.status, err.code) beside the unchanged message, so the plan amend control can show a 428 confirm_required as the server's refusal - nothing changed, confirm to proceed - rather than as a failure.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | api() prints a refusal's `detail` (the native host's sentence, e.g. the symbol search naming the missing market-data connector) before its bare error code.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | api() errors carry person words: a server failure (5xx) or the native runtime's not-available refusal is one plain sentence, never its internal text. The paper book's Protected lots, Timed orders and Earnings rules panels had printed "(0 , trading_pinned_lots_1.pinnedQtyBySymbol) is not a function".
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | boot() starts the paper schedule keeper (native-paper.js), so an armed paper account trades without a separate schedule press.
  * 2026-10-27 | maintainer@emeraldcoastsystemsgroup.com | Clear account-page deep-link focus when navigating to a different view.
  * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Retain the roster capability flag so Strategies opens the native portfolio research surface.
  */
@@ -333,6 +334,7 @@ async function boot() {
   const token = RENDER_TOKEN;
   wireShell();
   try { await loadBooks(); } catch { /* accounts surface unavailable — views degrade to the paper book */ }
+  if (typeof startPaperScheduleKeeper === 'function') startPaperScheduleKeeper();
   if (stale(token)) return;
   // A bookmark naming a book that no longer exists must not brick the surface: fall back to paper.
   if (BOOK !== 'paper' && BOOK !== 'live' && !bookOf(BOOK)) { BOOK = 'paper'; MODE = 'paper'; if (VIEW === 'account') VIEW = 'accounts'; syncUrl(); }

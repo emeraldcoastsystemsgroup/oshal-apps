@@ -1,5 +1,9 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="midnight">
+<!-- CHANGE LOG
+  SEQ | AUTHOR | DESCRIPTION
+  1 | maintainer@emeraldcoastsystemsgroup.com | "Search all your mail" and the stored-copy line under the Inbox heading (email-store.js): search the person's stored Gmail copy, see how much it holds and how fresh it is, and turn on the job that keeps it current.
+-->
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -71,6 +75,12 @@
   .draft h4 { margin:0 0 8px; font-size:12px; color:var(--accent2); text-transform:uppercase; letter-spacing:.5px; }
   .draft textarea { width:100%; min-height:160px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:11px; font-family:inherit; font-size:13px; line-height:1.5; resize:vertical; }
   .spin { color:var(--muted); font-size:13px; }
+  .store-search { display:flex; gap:6px; padding:10px 16px 0; }
+  .store-search input { flex:1; min-width:0; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:8px 10px; font:inherit; font-size:13px; }
+  .store-search .refresh { margin-left:0; }
+  .store-line { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:8px 16px 10px; color:var(--muted); font-size:12px; border-bottom:1px solid var(--line); }
+  .store-line span { flex:1 1 100%; }
+  .store-line .refresh { margin-left:0; }
   @media (max-width:640px) {
     .wrap { grid-template-columns:1fr; grid-template-rows:minmax(0,40%) 1fr; }
     .list { border-right:none; border-bottom:1px solid var(--line); }
@@ -79,6 +89,7 @@
     .actions { flex-wrap:wrap; }
     .btn, select.btn { font-size:16px; padding:10px 14px; min-height:44px; }
     .draft textarea { font-size:16px; }
+    .store-search input { font-size:16px; }
   }
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
@@ -87,6 +98,8 @@
   <div class="wrap">
     <div class="list">
       <div class="list-head"><h2>📥 Inbox</h2><span class="count" id="count"></span><select class="refresh mailbox" id="provider" aria-label="Mailbox"><option value="">Any mailbox</option><option value="google">Google</option><option value="outlook">Outlook</option></select><button class="refresh" id="refresh">↻</button></div>
+      <form class="store-search" id="storeSearch" role="search"><input type="search" id="storeQuery" placeholder="Search all your mail" aria-label="Search all your mail" maxlength="300" /><button class="refresh" type="submit">Search</button></form>
+      <div class="store-line" id="storeLine" role="status" hidden></div>
       <div id="items"><div class="empty">Loading…</div></div>
     </div>
     <div class="reader" id="reader"><div class="empty">Select a message to read it.</div></div>
@@ -212,5 +225,6 @@ document.getElementById('refresh').onclick = load;
 providerEl.onchange = () => { rememberProvider(providerEl.value); load(); };
 load();
 </script>
+<script src="/api/email/email-store.js"></script>
 </body>
 </html>

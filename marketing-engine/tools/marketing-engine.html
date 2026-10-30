@@ -280,6 +280,18 @@
 
   /* ── cards / lists ────────────────────────────────────────────────────────────────────────── */
   .card { background:var(--card); border:1px solid var(--line); border-radius:var(--r-md); padding:16px 18px; margin-bottom:14px; }
+  /* The campaign board is a table: every campaign is a tbody with its summary row and a detail row (kernel screen standard §4). */
+  .table-scroll { overflow:auto; }
+  table.board { width:100%; border-collapse:collapse; font-size:13.5px; }
+  table.board th { text-align:left; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  table.board td { padding:10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  table.board tbody.card { display:table-row-group; background:none; border:0; border-radius:0; padding:0; margin:0; }
+  table.board tbody.card h3 { margin:0; font-size:14px; }
+  table.board tr.rowline { display:table-row; }
+  table.board tr.detail-row { display:none; }
+  table.board tr.detail-row.show { display:table-row; }
+  table.board tr.detail-row > td { background:color-mix(in srgb, var(--card) 60%, transparent); }
+  table.board .detail { border-top:0; margin-top:0; padding-top:0; }
   .card:hover { background:var(--cardh); }
   .card h3 { margin:0; font-size:15.5px; font-weight:650; letter-spacing:-.01em; }
   .rowline { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
@@ -863,20 +875,19 @@
       host.innerHTML = '<div class="empty">No campaigns yet — create one, or import a campaign definition (content only; nothing switches on).</div>';
       return;
     }
-    host.innerHTML = state.campaigns.map(function(c){
+    host.innerHTML = '<div class="table-scroll"><table class="board"><thead><tr><th>Campaign</th><th>Product</th><th>Motion</th><th>Status</th><th>Budget / mo</th><th>Channels</th><th>Updated</th></tr></thead>' + state.campaigns.map(function(c){
       var open = state.openCamp===c.campaign_id;
-      var h = '<div class="card" data-camp="'+escAttr(c.campaign_id)+'">';
-      h += '<div class="rowline" style="cursor:pointer" data-toggle="1">';
-      h += '<h3>'+esc(c.name)+'</h3>';
-      h += '<span class="badge acc">'+esc(c.product)+'</span>';
-      h += '<span class="badge">'+esc(c.motion)+'</span>';
-      h += statusBadge(c.status);
-      h += '<span style="flex:1"></span><span class="metaline" style="margin:0">updated '+esc(ago(c.updated_at))+'</span>';
-      h += '</div>';
-      h += '<div class="metaline">slug '+esc(c.slug)
-         + (c.budget_monthly_usd && Number(c.budget_monthly_usd)>0 ? ' · budget $'+esc(c.budget_monthly_usd)+'/mo' : ' · $0 budget')
-         + (c.target_cpa_usd ? ' · target CPA $'+esc(c.target_cpa_usd) : '')
-         + ' · channels: '+esc((c.channels&&c.channels.length? c.channels.join(", ") : "none")) + '</div>';
+      var h = '<tbody class="card" data-camp="'+escAttr(c.campaign_id)+'">';
+      h += '<tr class="rowline" style="cursor:pointer" data-toggle="1" aria-expanded="'+(open?'true':'false')+'">';
+      h += '<td><h3>'+esc(c.name)+'</h3><span class="metaline" style="margin:0">slug '+esc(c.slug)+'</span></td>';
+      h += '<td><span class="badge acc">'+esc(c.product)+'</span></td>';
+      h += '<td><span class="badge">'+esc(c.motion)+'</span></td>';
+      h += '<td>'+statusBadge(c.status)+'</td>';
+      h += '<td>'+(c.budget_monthly_usd && Number(c.budget_monthly_usd)>0 ? '$'+esc(c.budget_monthly_usd) : '$0')+(c.target_cpa_usd ? '<span class="metaline" style="margin:0">target CPA $'+esc(c.target_cpa_usd)+'</span>' : '')+'</td>';
+      h += '<td>'+esc((c.channels&&c.channels.length? c.channels.join(", ") : "none"))+'</td>';
+      h += '<td>'+esc(ago(c.updated_at))+'</td>';
+      h += '</tr>';
+      h += '<tr class="detail-row'+(open?' show':'')+'"><td colspan="7">';
       h += '<div class="detail'+(open?' show':'')+'">';
       // stage gate chips
       h += '<div class="rowline" style="margin-bottom:11px"><span class="badge">stage gate</span><div class="stages">';
@@ -927,11 +938,11 @@
         h += '<div class="inline-err" data-puberr="1"></div>';
         h += '</div>';
       });
-      h += '</div></div>';
+      h += '</div></td></tr></tbody>';
       return h;
-    }).join("");
+    }).join("") + '</table></div>';
 
-    // wire the cards
+    // wire the cards (each campaign is one tbody: its summary row toggles the detail row)
     Array.prototype.forEach.call(host.querySelectorAll(".card[data-camp]"), function(card){
       var id = card.getAttribute("data-camp");
       var camp = state.campaigns.find(function(c){ return String(c.campaign_id)===id; });

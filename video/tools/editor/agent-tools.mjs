@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Bounded agent timeline operations retain linked timing, lock checks and immutable revisions.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Describe automatic document saves and refreshes in the shared editing contract.
  */
 import { createTimeline, addSource, removeSource, renameTimeline, replaceMotionSource } from './timeline-model.mjs';
 import { validateTimeline } from './timeline-validation.mjs';
@@ -41,7 +42,7 @@ export function applyAgentOperations(value, operations) {
   return validateTimeline(next);
 }
 export function editingContract() {
-  return { editor: 'video', version: 1, sourceVersion: '1.11.0', maxOperations: 16, maxInputBytes: 16384, operations: Object.fromEntries(Object.entries(forms).map(([type,keys]) => [type,keys.map(key => key === 'source' ? (type === 'addClip' ? 'sourceKey' : 'sourceMetadata') : key)])), operationSchema,
+  return { editor: 'video', version: 1, sourceVersion: '1.11.1', maxOperations: 16, maxInputBytes: 16384, operations: Object.fromEntries(Object.entries(forms).map(([type,keys]) => [type,keys.map(key => key === 'source' ? (type === 'addClip' ? 'sourceKey' : 'sourceMetadata') : key)])), operationSchema,
     conventions: { timing: 'All timing in integer frames at 30fps. Clip in/out are source frames (out exclusive); start/split frame are timeline frames. Keys are clip-local.',
       clips: 'clip patch allows in/out/start/volume/x/y/scale/opacity/keys/transition/fadeIn/fadeOut/brightness/contrast/saturation/audioEnabled.',
       bounds: '4 video + 8 audio tracks, 32 clips, 60 seconds, 8 video + 8 audio sources; x/y -100..100 percent, scale10..200, opacity0..100, volume0..200.',
@@ -50,7 +51,7 @@ export function editingContract() {
       text: 'text track titles or captions, entry {text,start,end,position:top|center|bottom,size:small|medium|large}; plain text only.',
       sources: 'Video sourceMetadata is exactly {asset,kind,name,frames,width,height,audio}; audio is {asset,kind,name,frames}. Reuse actual project sources, or map a verified owned upload id to asset and hasAudio to audio. Do not include fps, codecs, URLs, paths or code. Metadata must match the owned upload. The optional motion lineage is copied verbatim only from a successful protected Motion import; never construct it.',
       motion: 'Import a verified Motion render handle with video-import-motion-render (approval). Returned sourceMetadata includes sealed motion lineage. Add it or replaceMotionSource with actual source key; refresh same project/comp/range/rate with equal/newer revision, no locked track. Open graph using sourceUrl returned by import. Full native graph stays editable in Motion; Video stores an immutable linked render cache. Existing cache survives source deletion but graph editing requires current Motion access.',
-      saves: 'Read project id/revision first. Explicit migrate upgrades v1. One batch saves one revision, stale conflicts require re-read. Open browser drafts are not overwritten.',
+      saves: 'Read project id/revision first. Explicit migrate upgrades v1. One batch saves one revision, stale conflicts require re-read. The editor automatically saves the current draft before concierge reading, then refreshes the same project on return. Concurrent browser drafts are preserved with a conflict message.',
       renders: 'Single-source browser preview is unavailable in v2. Use render preview/export job tools; report actual returned state. Never promise codecs or native support without a successful job.', },
     examples: [ {type:'migrate'}, {type:'addClip',track:'video1',sourceKey:'v1',start:30,in:0,out:90},
       {type:'clip',id:'clip-id',patch:{opacity:80,fadeIn:15,transition:'dissolve'}},

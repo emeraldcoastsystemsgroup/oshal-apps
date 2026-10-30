@@ -13,6 +13,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | video-editor routing words "video studio" and "video project": "Create a new project in Video Studio" scored Scene Studio's "studio" and never this app, so Jarvis offered Scene Studio for it. No route, tool, permission or binding change.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Sweep 13: the held editor tools read 'Video New Project' / 'Video Apply Edits' with no sentence on their approval cards; they are 'New video project' / 'Apply video edits' with a cardText each. Words only: no route, scope, schema or binding change.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Declare protected owned-job discovery and approval-held Motion job import with closed inputs.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.11.1: save the current timeline automatically before concierge reads and refresh its native document on return.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — video ("Video Studio")
@@ -72,7 +73,7 @@ description: >-
   Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from an idea.
   Shape the style, tone, length, captions and voiceover; the director storyboards it and the
   studio renders a real .mp4 with voiceover and captions, saved to your Files storage.
-version: 1.11.0
+version: 1.11.1
 status: active
 chatBot: video-editor
 
@@ -556,7 +557,7 @@ tools:
       additionalProperties: false
     usageInstructions: >-
       Read editing-contract and read-project first. Use returned revision exactly; at most16 operations/16KiB
-      total. One batch saves one revision. Existing open browser drafts need an explicit reload. On conflict
+      total. One batch saves one revision. The editor automatically saves the current draft before concierge reading and refreshes the saved edit on return. Concurrent browser drafts are preserved. On conflict
       re-read and reconsider intent; never retry blindly. The person approves the exact edit card before
       execution.
     routingTags:

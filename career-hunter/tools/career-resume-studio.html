@@ -5,6 +5,7 @@
   SEQ | AUTHOR | DESCRIPTION
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
+  2 | maintainer@emeraldcoastsystemsgroup.com | Register the open resume with the shared document handoff: before Jarvis or a concierge reads, edits not yet saved are saved through POST /resume/save and the context carries the resume id and a fingerprint of the saved document; after the turn the studio re-reads GET /resume/doc and redraws the assistant's saved change, or keeps the person's unsaved edits and says so in the status line.
 -->
 
 <html lang="en" data-theme="midnight" data-career-surface="resume-studio">
@@ -124,10 +125,29 @@
 // cockpit theme from localStorage, sets data-theme before paint, and live-follows changes.
 const API = '/api/career-hunter';
 let state = { postingId: null, resume: null, cover: null, history: [] };
+// Shared document handoff: the saved document's fingerprint, the count of edits applied in this page,
+// whether any of them is not yet saved, and the load or save in flight.
+let docRevision = null, edits = 0, dirty = false, opening = null, saving = null;
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
 function setStatus(t){ $('status').textContent = t || ''; }
+function markEdited(){ edits += 1; dirty = true; }
+// The resume routes carry no revision, so the handoff names the saved document by a fingerprint of
+// its content (a 64-bit string hash that works on plain http, where crypto.subtle is unavailable).
+function revisionOf(doc){
+  const text = JSON.stringify({ resume: doc.resume || {}, cover: doc.cover || {} });
+  let a = 0xdeadbeef, b = 0x41c6ce57;
+  for (let i = 0; i < text.length; i++) { const c = text.charCodeAt(i); a = Math.imul(a ^ c, 2654435761); b = Math.imul(b ^ c, 1597334677); }
+  a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909);
+  b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909);
+  return (b >>> 0).toString(16).padStart(8, '0') + (a >>> 0).toString(16).padStart(8, '0');
+}
+async function fetchDoc(id){
+  const res = await fetch(`${API}/resume/doc?id=${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error('This resume could not be read (HTTP ' + res.status + ').');
+  return res.json();
+}
 function add(role, text){ const d = document.createElement('div'); d.className = 'msg ' + role; d.textContent = text; $('log').appendChild(d); $('log').scrollTop = $('log').scrollHeight; }
 
 // ADR-141 D7: a bullet asserts, a story proves. The review records every story against the bullet
@@ -256,6 +276,7 @@ document.addEventListener('surface-bridge:custom', (evt) => {
     if (a && typeof a.op === 'string') { applyAction(a); applied += 1; }
   }
   if (!applied) return;
+  markEdited();
   renderPreview();
   publishContext();                                   // the assistant's next turn sees its own edit
   add('sys', `Jarvis edited this resume (${applied} change${applied === 1 ? '' : 's'}). Save to keep it.`);
@@ -281,13 +302,15 @@ async function loadList(){
   if (keep) sel.value = keep;
 }
 
+function openDoc(id){ opening = loadDoc(id); return opening; }
+
 async function loadDoc(id){
   setStatus('loading…');
   const isMaster = id === 'master';
-  const res = await fetch(`${API}/resume/doc?id=${encodeURIComponent(id)}`);
-  if (!res.ok) { setStatus('could not load'); return; }
-  const j = await res.json();
+  let j;
+  try { j = await fetchDoc(id); } catch (e) { setStatus('could not load'); return; }
   state = { postingId: isMaster ? 'master' : Number(id), resume: j.resume || {}, cover: j.cover || {}, history: [] };
+  docRevision = revisionOf(j); dirty = false;
   window.__meta = j.meta || {}; $('log').innerHTML = '';
   add('sys', isMaster
     ? 'Editing your MASTER resume — changes here update the durable profile every tailored resume is generated from.'
@@ -311,10 +334,26 @@ async function send(){
       body: JSON.stringify({ postingId: state.postingId, message: text, resume: state.resume, cover: state.cover, history: state.history }) });
     const j = await res.json();
     if (j.error) { add('bot', 'Sorry, that edit failed.'); }
-    else { (j.actions || []).forEach(applyAction); renderPreview(); publishContext(); add('bot', j.reply || 'Updated.'); state.history.push({ role: 'bot', text: j.reply || '' });
+    else { (j.actions || []).forEach(applyAction); if ((j.actions || []).length) markEdited(); renderPreview(); publishContext(); add('bot', j.reply || 'Updated.'); state.history.push({ role: 'bot', text: j.reply || '' });
       if ((j.actions || []).length) setStatus('edited — Save to re-render the PDF'); }
   } catch (e) { add('bot', 'Network error.'); }
   finally { $('send').disabled = false; setStatus(''); }
+}
+
+// Save through the one existing route, then re-read the saved document so the page and the handoff
+// name what is actually stored. An edit applied while the save was running stays unsaved.
+async function persist(){
+  const id = state.postingId, isMaster = id === 'master', mark = edits;
+  const body = isMaster ? { postingId: 'master', resume: state.resume } : { postingId: id, resume: state.resume, cover: state.cover };
+  const res = await fetch(`${API}/resume/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body) });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || !j.ok) throw new Error('Save failed' + (j.error ? ': ' + j.error : '.'));
+  const fresh = await fetchDoc(id);
+  if (state.postingId !== id) return j;
+  docRevision = revisionOf(fresh);
+  if (edits === mark) { state.resume = fresh.resume || {}; state.cover = fresh.cover || {}; dirty = false; renderPreview(); publishContext(); }
+  return j;
 }
 
 async function save(){
@@ -322,27 +361,64 @@ async function save(){
   const isMaster = state.postingId === 'master';
   setStatus(isMaster ? 'saving your master resume…' : 'saving + re-rendering…');
   try {
-    const body = isMaster
-      ? { postingId: 'master', resume: state.resume }
-      : { postingId: state.postingId, resume: state.resume, cover: state.cover };
-    const res = await fetch(`${API}/resume/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body) });
-    const j = await res.json();
+    saving = persist();
+    const j = await saving;
     if (isMaster) {
-      if (j.ok) {
-        const log = (j.changelog || []).join('; ');
-        setStatus(j.changed ? 'master resume updated' : 'no changes to save');
-        add('sys', j.changed ? ('Updated your master resume: ' + (log || 'saved.')) : 'No changes to save — your master resume already matches.');
-      } else { setStatus('save failed'); add('sys', 'Save failed' + (j.error ? ': ' + j.error : '.')); }
+      const log = (j.changelog || []).join('; ');
+      setStatus(j.changed ? 'master resume updated' : 'no changes to save');
+      add('sys', j.changed ? ('Updated your master resume: ' + (log || 'saved.')) : 'No changes to save — your master resume already matches.');
     } else {
-      setStatus(j.ok ? 'saved — PDF re-rendered' : 'save failed');
-      add('sys', j.ok ? 'Saved and re-rendered the PDF.' : 'Save failed.');
+      setStatus('saved — PDF re-rendered');
+      add('sys', 'Saved and re-rendered the PDF.');
     }
-  } catch (e) { setStatus('save failed'); }
-  finally { $('save').disabled = false; }
+  } catch (e) { setStatus('save failed'); add('sys', e.message); }
+  finally { saving = null; $('save').disabled = false; }
 }
 
-$('pick').addEventListener('change', (e) => { if (e.target.value) loadDoc(e.target.value); });
+// ── Shared document handoff: Jarvis and the concierge read the SAVED resume ──────────────────
+// prepare saves every edit applied here but not yet saved, through the same save path as the Save
+// button, and names the saved document; refresh re-reads it after the turn and redraws the
+// assistant's saved change, unless the person has unsaved edits, which are kept.
+async function settle(){
+  if (opening) await opening;
+  if (saving) await saving.catch(() => {});
+}
+
+async function prepareDocumentHandoff(){
+  await settle();
+  if (!state.postingId || !state.resume) return null;
+  for (let attempt = 0; dirty && attempt < 3; attempt++) {
+    $('save').disabled = true; setStatus('saving your edits before the assistant reads…');
+    try { saving = persist(); await saving; } finally { saving = null; $('save').disabled = false; }
+    setStatus('saved for the assistant');
+  }
+  if (dirty) throw new Error('Your latest resume edits could not be saved, so the assistant was not given this resume.');
+  const isMaster = state.postingId === 'master', meta = window.__meta || {};
+  return { app: 'career-hunter', screen: 'surface', surface: 'resume-studio', recordId: String(state.postingId),
+    title: (isMaster ? 'Master resume' : `Tailored resume — ${meta.title || ''} at ${meta.company || ''}`).slice(0, 200),
+    fields: { revision: docRevision, readOnly: false, draft: false, master: isMaster, roles: (state.resume.experience || []).length } };
+}
+
+async function refreshDocumentHandoff(expected){
+  await settle();
+  const id = state.postingId;
+  if (!id || (expected && expected.recordId && expected.recordId !== String(id))) return;
+  const fresh = await fetchDoc(id);
+  if (state.postingId !== id) return;
+  const revision = revisionOf(fresh);
+  if (revision === docRevision) return;
+  if (dirty) throw new Error('The assistant saved a change to this resume while you were editing. Your unsaved edits are still here: Save keeps yours, or pick the resume again to load the saved version.');
+  state.resume = fresh.resume || {}; state.cover = fresh.cover || {}; window.__meta = fresh.meta || window.__meta; docRevision = revision;
+  renderPreview(); publishContext();
+  add('sys', 'Updated with the change the assistant saved.'); setStatus('updated from the assistant');
+}
+
+import('/shared/ui/js/document-handoff.js').then(({ registerDocumentSession }) => registerDocumentSession({ app: 'career-hunter',
+  prepare: async () => { try { return await prepareDocumentHandoff(); } catch (e) { setStatus(e.message); throw e; } },
+  refresh: async (expected) => { try { await refreshDocumentHandoff(expected); } catch (e) { setStatus(e.message); throw e; } },
+})).catch((e) => setStatus('The assistant cannot synchronize this resume: ' + e.message));
+
+$('pick').addEventListener('change', (e) => { if (e.target.value) openDoc(e.target.value); });
 $('send').addEventListener('click', send);
 $('msg').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
 $('save').addEventListener('click', save);
@@ -353,7 +429,7 @@ loadList();
 const pre = new URLSearchParams(location.search).get('id');
 const initial = pre || 'master';
 $('pick').value = initial;
-loadDoc(initial);
+openDoc(initial);
 // The bridge is a module script, so it can resolve AFTER loadDoc's publish attempt. Publish again
 // once it is ready (no-op when the document hasn't loaded yet — loadDoc publishes on its own).
 window.addEventListener('bridge-ready', publishContext);

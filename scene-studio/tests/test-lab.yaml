@@ -8,6 +8,7 @@
 # -----------------------------------------------------------------------------
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Register bounded native transport and held revision transaction compatibility proof.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Register director-rules (persona and tool usage rules: named project, read before edit, BoxMesh sub_resources, no capabilities-first read); package-tools also proves scene-get-project reports the live engine.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register document-handoff: the person and the concierge edit the same project file in turn through the shared document handoff, over the compiled routes and the package's shared fixture.
 version: 1
 cases:
   - id: director-rules
@@ -309,4 +310,37 @@ cases:
     sideEffects: none
     isolation: {mode: disposable}
     limits: {timeoutMs: 30000, maxMemoryMb: 256}
+    installation: never
+  - id: document-handoff
+    name: Manual and concierge project file handoff
+    purpose: >-
+      Drive the actual Scene Studio page and the shared document-handoff module over the compiled routes with the package's
+      shared fixture (owner-keyed in-memory pool, fake wire-protocol engine bridge): the handoff saves the person's unsaved
+      file edit before an assistant reads, and refresh draws the concierge's saved change in the open editor.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/document-handoff.core.spec.mjs
+    expected:
+      - An unsaved edit to main.tscn is saved as the next revision before reading; the context carries the project id, that revision and the open file.
+      - A file written through PUT /files is drawn in the editor by refresh; the next unsaved edit reaches the next revision and the next context.
+      - Text the person is still editing survives refresh and the status line says it is kept; a refused path keeps the editor and writes nothing.
+    prerequisites:
+      - runner:playwright
+      - harness:oshal-core-root
+      - browser:chromium
+      - core:dependencies
+      - harness:core-test-fixtures
+      - core:shared-theme-assets
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/scene.fixture.cjs
+      cleanup: Close the loopback server, the fake engine bridge and the owned Chromium, and remove the temporary project directory; the pool is in memory and ends with the process.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1536
     installation: never

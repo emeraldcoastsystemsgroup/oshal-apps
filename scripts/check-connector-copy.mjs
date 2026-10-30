@@ -15,6 +15,8 @@
  *   cannot go stale.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The pending Intelligent Communication persona sentence moved to line 49 when its tool list gained email-send; same sentence, same violation.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The pending Intelligent Communication persona sentence moved to line 52 (its email-send rule grew); same sentence.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | The pending Intelligent Communication persona sentence moved from line 52 to 58 (email-summarizer 1.4.8 added mailbox search guidance above it); same sentence, same pending entry.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The same pending sentence moved from line 58 to 62 (email-summarizer 1.5.0 describes the stored mail copy above it); same sentence, same pending entry.
  *
  * Usage: node scripts/check-connector-copy.mjs [repositoryRoot]
  */
@@ -46,7 +48,7 @@ const FORBIDS = /\b(?:never|do not|don't)\b[^.\n]*\b(?:tell|ask|send|say|offer|s
 /** Known violators in other lanes' files: `<file>: <provider sentence>`; each must still violate. */
 export const PENDING = new Set([
   // Intelligent Communication's persona (Switchboard carries a copy) still names Yahoo Mail under Connections.
-  'email-summarizer/personas/email-summarizer.yaml:52',
+  'email-summarizer/personas/email-summarizer.yaml:62',
   'switchboard/personas/email-summarizer.yaml:44',
 ]);
 

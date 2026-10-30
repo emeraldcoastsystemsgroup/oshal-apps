@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Share only the current selected-layer summary through the existing read-only surface bridge, retiring unavailable context.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Add the current image region as bounded scalar fields (kind, target layer, source-pixel bounds, area, point count) and whether it is ready or must be reselected. Still read-only: no outline points, pixels or asset references.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Expose the current document identity and revision to the automatic save/refresh handoff; distinguish saved-project editing tools from read-only bridge messages.
  */
 import { state, subscribe, dirty } from './editor-state.mjs';
 import { resolveSelection, selectionSummary } from './region-select.mjs';
@@ -19,11 +20,11 @@ function regionFields() {
 }
 
 /** Context describes the visible selection, never image bytes, asset URLs or the whole document. */
-function snapshot(reason) {
+export function editorSnapshot(reason) {
   const base = { surface: 'create-editor', can: [], customOps: [], fields: { readOnly: true, available: false } };
   if (reason) return { ...base, digest: `Image editor context unavailable: ${reason}.` };
-  if (state.loading || !state.permissions.view || !(state.id ? state.permissions.read : state.permissions.create)) return snapshot('not readable');
-  if (document.querySelector('dialog[open]')) return snapshot('dialog open');
+  if (state.loading || !state.permissions.view || !(state.id ? state.permissions.read : state.permissions.create)) return editorSnapshot('not readable');
+  if (document.querySelector('dialog[open]')) return editorSnapshot('dialog open');
   const project = state.project;
   const selected = project.layers.find(layer => layer.id === state.selected && layer.visible);
   const fields = { readOnly: true, available: true, revision: state.revision, canvasWidth: project.width,
@@ -36,7 +37,7 @@ function snapshot(reason) {
     ? ` Region selected (${fields.regionKind}, ${fields.regionWidth} × ${fields.regionHeight} source pixels).` : ' The selected region must be reselected.';
   return { ...base, title: clipped(project.name, 160), ...(state.id ? { recordId: clipped(state.id, 120) } : {}),
     digest: (selected ? `Selected ${selected.type} layer.` : 'Image editor open. No visible layer selected.') + region
-      + (selected ? ' Context only; editing commands are unavailable.' : ' Editing commands are unavailable.'), fields };
+      + ' The concierge edits this saved project through its project tools; bridge messages only describe the screen.', fields };
 }
 
 /** Request refresh is the only accepted inbound action; generic field/custom mutation handlers are not attached. */
@@ -54,7 +55,7 @@ async function connect() {
   let previous = '', epoch = 0, stopped = false;
   const publish = (force = false, reason) => {
     if (stopped) return;
-    const value = snapshot(reason), signature = JSON.stringify(value);
+    const value = editorSnapshot(reason), signature = JSON.stringify(value);
     if (!force && signature === previous) return;
     previous = signature; value.fields.contextEpoch = ++epoch; bridge.emitContext(value);
   };

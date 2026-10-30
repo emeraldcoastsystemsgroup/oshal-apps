@@ -13,6 +13,7 @@
   2026-04-22     | roger.murphy@agenticfederal.us   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
   2026-09-26     | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass and the dark rgba palette; progress, answer buttons, stats, callouts, empty and done states use the system while the flip card stays page-specific. Role truth: "Generate from your textbook" appears only for the class's teacher/admin, students get an honest empty state; the learner id comes from the frame when localStorage has none so reviews and XP are never skipped; a set opened by id shows its real title; toast replaces alert()
   2026-10-18     | maintainer@emeraldcoastsystemsgroup.com     | The progress label updates after each answer: a finished deck read 5/6 beside "6 out of 6 correct".
+  2026-10-29     | maintainer@emeraldcoastsystemsgroup.com     | The end-of-deck message speaks through the neural read-aloud (lmSpeak) like every card; it called the browser's speechSynthesis directly and sounded robotic.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -500,9 +501,12 @@ function showDoneScreen() {
     document.getElementById('doneMessage').textContent = 'You reviewed ' + total + ' cards. That takes courage! Try the ones you missed again.';
   }
 
-  // Speak the result
-  if ('speechSynthesis' in window) {
-    var msg = document.getElementById('doneTitle').textContent + '. ' + document.getElementById('doneMessage').textContent;
+  // Speak the result with the same neural voice as the cards; the browser voice is only the fallback.
+  var doneSpeech = document.getElementById('doneTitle').textContent + '. ' + document.getElementById('doneMessage').textContent;
+  if (window.lmSpeak) {
+    window.lmSpeak(doneSpeech);
+  } else if ('speechSynthesis' in window) {
+    var msg = doneSpeech;
     var u = new SpeechSynthesisUtterance(msg);
     u.rate = 0.9;
     speechSynthesis.speak(u);

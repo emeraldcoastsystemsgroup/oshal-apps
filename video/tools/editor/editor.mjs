@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Delete project: the open saved project can be deleted (DELETE /editor/projects/:id, already bound to editor.delete) after a confirmation naming it; the button is disabled with the reason when the person's access does not include deleting. The editor had no way to remove a saved project.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | A held Motion import keeps a newly opened draft intact instead of attaching its old source to another project.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Automatically save and refresh the concierge's current editable timeline; fence delayed saves to their original project.
  */
 import { motionSourceUrl } from './motion-source.mjs';
 import { createMultitrackEditor } from './multitrack-editor.mjs';
@@ -22,6 +23,7 @@ const $ = id => document.getElementById(id);
 const state = { history: null, projectId: null, revision: null, savedText: '', selected: null, permissions: {}, busy: false, draftEpoch: 0 };
 let player, exporter, multitrack;
 let motionJobs = [], motionPending = null;
+let pendingSave = null;
 function renderMotion(current,canEdit) {
   const replace = $('motionReplace'), selected = replace.value;
   replace.replaceChildren(new Option('Add as a new source',''),...Object.entries(current.sources).filter(([,source]) => source.motion).map(([key,source]) => new Option(`Refresh ${source.name} · source revision ${source.motion.revision}`,key)));
@@ -140,14 +142,21 @@ async function open(id) {
   render(); await loadProjects();
 }
 
-async function save(asNew = false) {
+function save(asNew = false) {
+  pendingSave ??= saveNow(asNew).finally(() => { pendingSave = null; });
+  return pendingSave;
+}
+
+async function saveNow(asNew = false) {
   if (state.busy || (asNew ? !state.permissions.create : !editable())) return;
   hideError(); state.busy = true; setStatus('Saving…'); render();
   const current = doc(), body = { title: current.name, document: current }, previousKey = draftKey();
+  const sourceProject = state.projectId, sourceEpoch = state.draftEpoch;
   try {
     const { project } = asNew || !state.projectId
       ? await call('/projects', { method: 'POST', body })
       : await call(`/projects/${state.projectId}/revisions`, { method: 'POST', body: { baseRevision: state.revision, ...body } });
+    if (state.projectId !== sourceProject || state.draftEpoch !== sourceEpoch) return;
     try { localStorage.removeItem(previousKey); } catch { /* storage unavailable */ }
     state.projectId = project.id; state.revision = project.revision; state.savedText = JSON.stringify(current);
     try { localStorage.removeItem(draftKey()); history.replaceState(null, '', `?project=${project.id}`); } catch { /* storage or history unavailable */ }
@@ -331,7 +340,40 @@ async function init() {
   const id = new URLSearchParams(location.search).get('project');
   if (id && state.permissions.read) await open(id);
   else { startNew(); await loadProjects(); setStatus(state.permissions.create ? 'Ready. Add a clip to start.' : 'Your access does not include creating projects.'); }
+  try { await bindDocumentHandoff(); }
+  catch (failure) { showError(`The concierge cannot synchronize this document: ${failure.message}`); }
   document.documentElement.dataset.editorReady = 'true';
+}
+
+async function bindDocumentHandoff() {
+  const { registerDocumentSession } = await import('/shared/ui/js/document-handoff.js');
+  registerDocumentSession({ app: 'video', prepare: async () => {
+    document.activeElement?.blur?.();
+    const epoch = state.draftEpoch;
+    const current = () => { if(state.draftEpoch !== epoch) throw new Error('The open project changed during the handoff. Ask again from the document you want to edit.'); };
+    if (!state.permissions.read) throw new Error('Your access does not allow the concierge to read this project.');
+    if (pendingSave) await pendingSave;
+    current();
+    if (state.busy) throw new Error('Wait for the current project operation to finish.');
+    for (let attempt = 0; attempt < 3 && (!state.projectId || dirty()); attempt++) { await save(); current(); }
+    if (!state.projectId || dirty()) throw new Error($('error').textContent || 'The current video draft could not be saved.');
+    return { app: 'video', screen: 'surface', surface: 'video-editor', recordId: state.projectId, title: doc().name,
+      fields: { revision: state.revision, draft: false, ...(state.selected ? { clipId: state.selected } : {}) } };
+  }, refresh: async expected => {
+    const id = state.projectId, revision = state.revision;
+    if (!id || (expected?.recordId && expected.recordId !== id) || !state.permissions.read) return;
+    try {
+      if (pendingSave) await pendingSave;
+      if (state.busy || state.projectId !== id || state.revision !== revision) return;
+      const { project } = await call(`/projects/${encodeURIComponent(id)}`);
+      if (state.busy || state.projectId !== id || state.revision !== revision || project.revision <= revision) return;
+      document.activeElement?.blur?.();
+      if (dirty()) throw new Error('The concierge saved an update while you were editing. Your video draft is still here. Save a copy or reopen the saved project to choose which to keep.');
+      state.history.commit(project.document); state.revision = project.revision;
+      state.savedText = JSON.stringify(doc()); state.draftEpoch++;
+      hideError(); persistDraft(); render(); setStatus(`Saved · revision ${state.revision}`);
+    } catch (failure) { showError(failure.message); throw failure; }
+  } });
 }
 
 init();

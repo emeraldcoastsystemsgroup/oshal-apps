@@ -14,8 +14,31 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | lm-email-storage also pins that the two tabs keep the Little Monsters top bar (standard-view.html at /email and /storage, bound to app.open) and that every top tab opens a Little Monsters page.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Register lm-phone-layout: the shipped pages at 412 and 360px in Chromium (no sideways scroll, controls on screen).
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Register lm-book-chapters: the chapter finder and the book routes' read rule.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | Register lm-read-aloud: pages speak through the neural voice (lm-voice.js) with the browser voice only as fallback.
 version: 1
 cases:
+  - id: lm-read-aloud
+    name: Read-aloud uses the neural voice
+    purpose: Pin that every page that speaks goes through lmSpeak (the server's neural voice) and reaches the browser voice only as its fallback.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-read-aloud.test.cjs
+    expected:
+      - Every page that calls speechSynthesis loads lm-voice.js and calls it only after window.lmSpeak.
+      - In Chromium, lmSpeak plays the server's audio without the browser voice and falls back only when the server refuses.
+      - The Voice settings preview accepts the kernel's answer, which has no success field.
+    prerequisites:
+      - runner:node-test
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
   - id: lm-book-chapters
     name: Book chapters
     purpose: Pin the chapter finder and the read rule of the book routes behind lm-my-books and lm-book-chapter.

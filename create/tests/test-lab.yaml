@@ -928,6 +928,28 @@ cases:
 # editor-workspace recipes: invalid/locked masks and v2 persistence; actual crop,
 # rotation, invert/feather/export pixels; real UI save/reopen/undo/source preservation.
 
+  - id: document-handoff
+    name: Manual and concierge document handoff
+    purpose: Save the browser draft automatically before the concierge reads it and refresh real editable layers when it returns.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/browser/create-handoff-proof.mjs]
+    expected:
+      - A manual edit is saved without pressing Save before the assistant can read the current document.
+      - The actual original-owner operations route creates editable text and a gray adjustment layer, and the same canvas refreshes.
+      - A second manual adjustment is saved and read on the next handoff, preserving the project identity and revision.
+      - A failed save stops the handoff, and a concurrent browser draft survives a conflicting refresh.
+    prerequisites: [runner:node-test, browser:chromium, runtime:docker, image:postgres16-alpine, core:shared-theme-assets]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/browser/create-handoff-fixture.mjs, tests/project-postgres.fixture.mjs]
+      cleanup: Close the owned browser/server and remove only the uniquely labelled disposable PostgreSQL container.
+    limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
+    installation: never
+
   - id: agent-editing-contract
     name: Agent editing operations
     purpose: Verify immutable batch edits, declared fields, locks and the shipped editing contracts.

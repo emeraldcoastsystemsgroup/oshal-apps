@@ -10,6 +10,7 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Integrate version 3 brush and arithmetic masks plus editable stack/clipped color adjustments with existing project history.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Bind the automatic save-before-reading and refresh-on-return document handoff for Concierge and Jarvis.
  */
 import { $, state, edit, notify, subscribe, handle, api, error, openDocument } from './editor-state.mjs';
 import { render, fitCanvas, paint } from './editor-view.mjs';
@@ -18,6 +19,7 @@ import { bindFiles, acceptIncomingArtifact } from './editor-files.mjs';
 import { bindInteractions } from './editor-interactions.mjs';
 import { bindTemplates, acceptIncomingTemplate } from './editor-templates.mjs';
 import { bindEditorContext } from './editor-context.mjs';
+import { bindEditorHandoff } from './editor-handoff.mjs';
 import { bindBrand, loadBrand } from './brand-editor.mjs';
 import { bindVectors } from './vector-editor.mjs';
 import { parentGroup } from './group-geometry.mjs';
@@ -135,6 +137,7 @@ async function start() {
   const brandReady = loadBrand();
   subscribe(render); bindVectors(); bindInteractions(); subscribe(queueAutosave); render();
   void bindEditorContext().catch(() => console.warn('[Create] Shared screen context is unavailable. Manual editing remains available.'));
+  void bindEditorHandoff().catch(failure => error(`The concierge cannot synchronize this document: ${failure.message}`));
   try {
     const result = await api('/permissions'); state.permissions = result.permissions || {};
     const id = new URLSearchParams(location.search).get('project');

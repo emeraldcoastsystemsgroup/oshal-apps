@@ -53,6 +53,11 @@
 # never reads /status, /portfolio or /alerts/pops (each asks Kalshi live) and never writes; every start path of the
 # full page is gated on the kit's decision. No route, schema or manifest key changes beyond the version.
 #
+# 2026-10-30 — 1.6.5: THE SCAN DOES ITS JOB; JARVIS HEARS NOTHING UNTIL YOU SAY SO. notifyJarvis now defaults to
+# false (user scope, switchable on the Settings tab), so turning the background-scan job on keeps the snapshot fresh
+# and alerts nobody. The schedule's offer says only that. Roger, 2026-10-29: "i dont want kalshi to tell jarvis i want
+# kalshi to do its job .. and maybe later ill want it to tell jarvis".
+#
 # Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -70,7 +75,7 @@ description: >-
   playable hands are ranked with Kelly-sized stakes and explicit risk flags. Portfolio view and
   order placement ride the per-user connector, confirm-gated and demo-exchange-first
   (KALSHI_LIVE_ENABLED gates live money; every order and refusal is audited).
-version: 1.6.3
+version: 1.6.5
 status: active
 # This package owns deterministic surfaces and routes; the framework concierge owns its right rail.
 chatBot: general-bot
@@ -187,9 +192,9 @@ settings:
       label: Label the snapshot stale after (minutes)
     notifyJarvis:
       type: boolean
-      default: true
+      default: false        # off until the person switches it on: the scan does its job, Jarvis hears nothing
       scope: user
-      label: Tell Jarvis when new playable hands appear
+      label: Tell Jarvis when new playable hands appear (off until you switch it on)
     notifyOutward:
       type: boolean
       default: false        # opt-in: an hourly job may not start emailing/texting on its own
@@ -236,8 +241,8 @@ schedules:
     method: POST
     body: {}
     timeoutSeconds: 300
-    description: Scan Kalshi's open markets when the snapshot is due and alert you about new playable hands.
-    offer: Keep my Kalshi edge scan fresh and tell Jarvis about new playable hands.
+    description: Scan Kalshi's open markets when the snapshot is due. Jarvis hears about new hands only when Tell Jarvis is on in Settings.
+    offer: Keep my Kalshi edge scan fresh.
 
 # ROUTES — the packaged surface router, mounted /api/kalshi on activation. (In
 # core server.ts this was createKalshiRoutes behind serviceSecretOr(requiresAuth),

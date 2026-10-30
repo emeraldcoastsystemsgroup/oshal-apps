@@ -1,5 +1,42 @@
 # Intelligent Communication (email-summarizer) — OSHAL app package
 
+1.6.0 adds the **Social desk** (Roger, 2026-10-30: the Social tab was one profile card; he wants a publisher's tools a
+person can use to post or stream to two or three services, Slack included). The shape is the one Buffer, Later and
+Metricool share, kept casual:
+
+- **Channels** — X, LinkedIn, a Facebook Page, Slack and Mastodon, each on the person's own connection (Utilities &
+  Connectors). The rail shows who each account is; Connect opens the provider in its own window. Slack posts go to one
+  chosen channel of the workspace.
+- **Composer** — write once, customize per channel (each tab keeps its own text and counter against that channel's
+  cap: X 280, Mastodon 500, LinkedIn 3000, Slack 4000), an https image link, a live preview. **Add to queue** puts the
+  post at the next free time of the posting plan; **Post now** sends it; **Schedule…** picks a time; **Save draft**.
+- **Queue / Calendar / Drafts / Sent** — the queue by day, a week calendar (click a day to schedule), drafts, and sent
+  posts with a link to each one per channel. A post to several channels where one refuses stays *partly sent* with the
+  refusal named; Post now sends only the channel that failed.
+- **Engage** — Slack direct messages and @-mentions and X mentions, newest first, with Reply in place (a Slack thread
+  reply, an X reply).
+- **Go Live** — plan a stream (title, when, where: YouTube, Twitch, Facebook Live, Kick, LinkedIn Live, TikTok LIVE,
+  a watch link) and the desk writes three announcements (now, 15 minutes before, when it starts) on the chosen
+  channels as scheduled posts. Streaming itself runs in the person's encoder or the platform studio; the console links
+  open it. A relay that fans one ingest out to several platforms is not built.
+- **Settings** — the posting plan (days and times in the person's zone), the Slack channel, and the **publishing job**:
+  `social-publish` runs every five minutes *as the person* (Turn on in the queue banner or on the Jobs screen) and
+  sends due posts; Post now never needs it.
+
+Routes: `routes/social-desk.js` at `/api/email-social` (page, `/channels`, `/slack/channels`, `/settings`, `/posts`,
+`/posts/:id`, `/posts/:id/publish`, `/run-due`, `/engage`, `/engage/reply`, `/events`). Publishing:
+`routes/social-channels.js`, every provider call through the kernel egress with no credential in the package (the
+kernel applies the person's connection; hosts declared in the manifest). Store: `routes/social-store.js` over
+migration `002-email-social-desk.sql` (posts, settings, events; one-column keys, plain inserts, sorting in code).
+The communications bot can post for the person through the approval-held `social-post` tool. Guards:
+`tests/social-rules.test.cjs`, `tests/social-store.test.cjs`, `tests/social-desk-browser.test.cjs` (Test Lab cases
+`social-rules`, `social-store`, `social-desk-browser`).
+
+Known limits on 2026-10-30: Facebook Page posting needs the Pages permissions (Meta app review) on the installation's
+Facebook app; Mastodon, YouTube, Twitch and Discord appear only when an administrator has registered the provider app;
+LinkedIn's `ugcPosts` call goes out without the `X-Restli-Protocol-Version` header the egress does not forward.
+
+
 1.4.2 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
 
 **This is the ADR-037 reference comms implementation** — the app the

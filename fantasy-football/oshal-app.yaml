@@ -48,7 +48,7 @@ description: >-
   works with no ESPN connection at all. Your team, your leagues and your ledger are yours alone: no
   other user, operator included, can see them. Every lineup is recorded before kickoff and graded
   against what was actually started. It advises; you act.
-version: 0.2.1
+version: 0.2.2
 status: active
 # Fantasy Football packages no agent; the stable framework concierge owns its right rail.
 chatBot: general-bot

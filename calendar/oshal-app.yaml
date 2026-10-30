@@ -15,6 +15,7 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | The three approval-held tools declare `cardText`, the people-facing sentence the kernel's approval card shows (with displayName as its name) once @jarvis-cards-r16's card label change is deployed; until then the card keeps using the person-facing description. Guarded by calendar/tests/own-events.test.cjs.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: a removal request was answered with a Google sync card (calendar-sync offered while Google was not connected), and an add reply said 'I have proposed five events for your Denver trip' beside one card, then 'I have also added the remaining four events' after approving it. calendar-sync is never a step of adding, finding or removing an OSHAL event; calendar-add-event says each call is one card for one event and a reply names only the events it made a card for. Words only; no route, schema or binding change. Guarded by calendar/tests/own-events.test.cjs.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 2: an Add Event card carried the delegating model's routing text as the event's Notes ("The user's calendar summary indicates it is 'Not synced' ... report back that the calendar needs to be synced via Identity"), which approving would save on the person's event; the notes field had no description. It now says it is optional, only the note the person asked to keep in their own words, never an explanation, a sync status or failure instructions.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6: the review page paints with the portal theme tokens instead of its own fixed dark palette (page, panels, fields, buttons, accent ink), so it follows every portal theme; found when Today's calendar tile stayed dark on a light theme.
 name: calendar
 suite: ai-home
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -29,7 +30,7 @@ rating:
       degrade: disable
 displayName: Calendar Preparation
 description: Sync your upcoming primary-calendar events explicitly, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting.
-version: 1.1.5
+version: 1.1.6
 status: active
 scope: person
 source:

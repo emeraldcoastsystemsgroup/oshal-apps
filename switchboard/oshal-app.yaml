@@ -8,6 +8,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Import communications-bot from its single owning application, email-summarizer, instead of relying on global aliases or duplicate bot ownership.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Declare the Gmail, Calendar, Graph, Slack and X hosts for the native kernel's egress, each with the caller's own connection (gmail, google-calendar, outlook, slack, twitter) applied as a Bearer token by the kernel.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Declare migrations/003 (the content calendar's scheduled-posts table in its final shape, and the workspace tables a tagged post reads) so the native kernel provisions them with their keys; POST /calendar/posts answered "SQL inserts require a declared primary key" because these tables were only declared by a router-build-time bootstrap.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 0.6.5: the open Streams post saves its edited title, body, tags and variants before Jarvis or the concierge reads it, and redraws the saved post when their change returns (shared document handoff), keeping edits still in progress.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — switchboard (the merged comms + social command center)
@@ -64,7 +65,7 @@ description: >-
   whole day in one place instead of app-hopping. Reads run on your own connector
   tokens; ranking and drafting run on the communications bot with cost captured
   per user. Nothing is sent or posted without your say-so.
-version: 0.6.4
+version: 0.6.5
 testing:
   version: 1
   catalog: tests/test-lab.yaml

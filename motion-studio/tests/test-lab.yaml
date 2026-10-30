@@ -10,8 +10,39 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register actual effect schema and human/native rendered workflow evidence.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register guarded early continuation failures and content-free diagnostics with named source seams.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register stamp-schema: the stamp-paged tools describe the first-page word start.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Register real automatic inspector and concierge handoff proofs, including native gray effects, full text values and concurrent/switching drafts.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 0.1.3: register the edit-title guidance case (title renames the project; omitted unless asked).
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 0.1.4: register the storage-busy retry case.
 version: 1
 cases:
+  - id: storage-busy-retry
+    name: A busy project store does not lose the person's edit
+    purpose: Drive tools/busy-retry.mjs with scripted answers and read the workbench and route wiring as text.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/busy-retry.test.mjs] }
+    expected:
+      - A 503 motion_storage_busy is retried after the server's retryAfterMs (growing, 100 ms to 1 s) until the request goes through.
+      - Other refusals, other 503s and unreadable bodies are returned at once; a lock busy past the 8 s budget is reported.
+      - The workbench sends every request through the retry and the route serves busy-retry.mjs.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 20000 }
+    installation: never
+  - id: edit-title-guidance
+    name: Edit tools leave the project title alone
+    purpose: Read the manifest, persona and operations route as text.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/edit-title-guidance.test.mjs] }
+    expected:
+      - motion-apply-edits and motion-apply-exact-edits still accept title and say it renames the whole project, is omitted unless the person asked to rename it, and never labels the edit.
+      - The Motion editor persona carries the same rule.
+      - POST /projects/{id}/operations keeps the saved title when title is omitted.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 20000 }
+    installation: never
   - id: engine-core
     name: Actual pinned motion graph and compositor
     purpose: Render actual opacity and masked-footage pixels; reject graph/source/command violations.
@@ -1317,4 +1348,32 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+
+  - id: document-handoff
+    name: Automatic native inspector and concierge round trip
+    purpose: Save unsubmitted native inspector values before assistant reads and refresh the same editable composition, retaining selection and concurrent drafts.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/browser/document-handoff.test.mjs
+    expected:
+      - Manual text, transforms, effects, masks, keyframes and multiple layer drafts persist through actual native routes.
+      - A concierge-created gray effect stays adjustable and its rendered pixels are gray.
+      - Full hidden-section text changes save; denied saves stop reads and late replies preserve another opened composition.
+    prerequisites:
+      - runner:node
+      - runtime:motion-engine-reviewed
+      - runtime:sharp-playwright
+      - service:postgres-disposable-35689
+      - runtime:kernel-shared-ui
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close only the fixture's owned compositor/browser and remove its unique SQL schema/role; preserve the shared PostgreSQL35689 container.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1536
     installation: never

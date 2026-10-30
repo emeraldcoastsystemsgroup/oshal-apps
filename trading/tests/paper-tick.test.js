@@ -210,7 +210,7 @@ test('the router mounts the paper surface and refuses a caller with no admitted 
   const routes = [];
   const router = { get: (p, fn) => routes.push(['GET', p, fn]), post: (p, fn) => routes.push(['POST', p, fn]) };
   createTradingPaperRoutes(t.ctx, () => router);
-  assert.deepEqual(routes.map(([m, p]) => `${m} ${p}`), ['GET /', 'POST /arm', 'POST /disarm', 'POST /tick', 'GET /orders', 'GET /decisions', 'GET /books','POST /books','POST /reset','GET /books/:ref','POST /books/:ref/arm','POST /books/:ref/disarm','POST /books/:ref/archive','POST /books/:ref/restore','GET /reports','POST /reports','POST /presenter']);
+  assert.deepEqual(routes.map(([m, p]) => `${m} ${p}`), ['GET /', 'POST /arm', 'POST /disarm', 'POST /tick', 'GET /orders', 'GET /decisions', 'GET /books','POST /books','POST /reset','GET /books/:ref','POST /books/:ref/arm','POST /books/:ref/disarm','POST /books/:ref/strategy','POST /books/:ref/archive','POST /books/:ref/restore','GET /reports','POST /reports','POST /presenter']);
   const res = () => { const r = { code: 0, body: null, status(c) { r.code = c; return r; }, json(b) { r.body = b; return r; } }; return r; };
   const tick = routes.find(([, p]) => p === '/tick')[2];
   const anon = res();

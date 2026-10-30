@@ -1,3 +1,17 @@
+1.46.1: a strategy on paper needs a year of daily prices, which come from your connected Schwab login (read-only), the same as a backtest. Putting a strategy on a paper account now works out its current targets right away and shows them, or says plainly why it cannot.
+
+1.46.0 runs saved strategies on paper. Ask the concierge for a strategy: it agrees the assets and weights with you, saves it, creates a paper account and puts the strategy into use there (`trading_paper_strategy`). From the next scheduled pass of an open market the account is rebalanced in whole shares to the strategy's current targets (the same targets a live account would get), and again at each new monthly decision. Simulated only; real accounts are still switched by you on Strategies.
+
+1.45.1: while you have an armed paper account, the Trading page switches your paper schedule on in your own session (on open and every minute while visible), so an account the concierge creates in chat starts trading at the next five-minute pass of an open market without a separate button.
+
+1.45.0 lets the concierge set up paper trading: it lists local paper accounts with their last tick and when the person's paper schedule last ran (`trading_paper_accounts`), creates an armed account the person agreed to (`trading_paper_create`), and starts or stops one (`trading_paper_start`, `trading_paper_stop`). Paper accounts are simulated and never reach a broker. Switching the paper schedule on stays the person's own consent: Reports, Local paper accounts, **Activate / refresh paper schedule**.
+
+1.44.0 lets the concierge work on strategies with the owner: it reads saved strategies, their completed backtests and each account's assigned strategy (`trading_strategies`), saves a research strategy the owner agreed to (`trading_strategy_save`), and backtests it on a named account against SPY (`trading_strategy_backtest`). Saving and backtesting never assign a strategy, activate live trading or place an order; the concierge names the owner's Strategies steps instead. Owner approvals now bind to the declared order code (`orderAuthority`), so this kind of release no longer cancels them.
+
+1.43.0 adds separate **Manage strategy** and **Account details** dashboard links. Account details shows held stocks, quantity, price, average cost, market value, unrealized gain/loss and weight; measured account-value history and a bar comparison with SPY or another supported stock/index symbol. History uses actual owner/account/connection observations, never today's holdings projected backward. Comparisons use matching dates and are value changes, not cash-flow-adjusted returns. Older history is available only when previously recorded. Dashboard execution status reflects current authority and schedule; ambiguous broker position day amounts are withheld after sales.
+
+Native validation: `node --test tests/native-account-details.test.js tests/native-account-details-browser.test.js`. Fixtures are synthetic; the UI sends read-only requests and cannot activate orders.
+
 1.42.12 gives account strategy and watcher controls clear boundaries in light and dark themes. Account totals and shared watcher status sit above the two control cards; review and activation actions are distinct, and detailed execution evidence expands beneath compact approval terms. Accounts remains the portfolio dashboard and management stays in Strategies. Execution rules, saved terms and personal confirmations are unchanged.
 
 1.42.11 restores the Accounts dashboard’s balance cards, watchlist and combined holdings. Strategies opens Account strategies directly, with per-account value, assignment, live authority and watcher status. Manage strategy stays under Strategies; an account selector, section navigation and bookmarkable exact account/connection keep the controls reachable. Strategy research and Futures research remain separate sections. This release changes presentation and navigation only; all execution and authorization rules are unchanged.
@@ -70,7 +84,10 @@ and a single Schwab account. A monitor is review-only until the person separatel
 kernel-held real-money mandate and activates their own watcher schedule. Strategy-owned enrollment requires a flat account and verified cash; separately reviewed whole-account
 enrollment can adopt existing measured long holdings using net-equity capital. The reviewed mandate names the account,
 model and backtest fingerprints, allowed instruments, cash capital cap, daily turnover ceiling,
-30-day expiry and exact installed application revision. A source or model change needs reapproval.
+30-day expiry and the order code it was approved against. On a kernel with order authority (1.44.0 and later
+declare `orderAuthority`), that is the two declared modules and every package file they load: a change to the
+live strategy, allocation, watcher or model code needs reapproval, while a page, chart, research or concierge
+release keeps the approval. A model change always needs reapproval.
 No borrowing, shorts, options, or intraday protective stops are enabled by this mandate.
 
 Monthly allocation runs every fifth minute and executes one regular-session day-limit order at a time,

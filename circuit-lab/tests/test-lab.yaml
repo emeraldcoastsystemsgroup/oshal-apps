@@ -20,6 +20,7 @@
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 0.8.7: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | Register example-names: the examples dropdown has a visible Examples label and circuit-create-design pairs each example id with its on-screen title (sweep 13).
 # 18 | maintainer@emeraldcoastsystemsgroup.com | Register engine-down-words: with no engine the page says once, in words, that the circuit engine is not answering on this installation, never the host's install command (demo sweep 1).
+# 19 | maintainer@emeraldcoastsystemsgroup.com | Register document-handoff: the open circuit is saved through the lab's own routes before Jarvis or the concierge reads it, a concierge edit made through the part route is drawn on refresh, and an inspector field still being edited survives the refresh and the poll. The surface-editing fixture now serves the real shared document-handoff module, so that case also needs the kernel platform.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -150,6 +151,7 @@ cases:
     prerequisites:
       - runner:playwright
       - harness:oshal-core-root
+      - harness:oshal-platform-root
       - browser:chromium
       - core:dependencies
       - core:surface-bridge
@@ -365,4 +367,34 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: document-handoff
+    name: Manual and concierge circuit handoff
+    purpose: Drive the actual packaged page in Chromium over the compiled routes on loopback with the REAL shared /shared/ui/js/document-handoff.js module - pending edits are saved through the lab's own routes before the assistant reads, the same design is re-read and drawn after a concierge edit, and a field the person is still editing is kept.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/document-handoff.core.spec.mjs
+    expected:
+      - A part added on the canvas (autosave not yet sent), an inspector value never applied and a run setting still in its field are each saved before beginDocumentHandoff() returns; the context carries the design id as recordId and its updated_at as fields.revision.
+      - A part edit made through PATCH /designs/:id/parts/R1 (standing in for the concierge) is drawn in the open inspector and on the canvas after refresh(); the next manual edit is saved and carried by the next handoff with a newer revision.
+      - An inspector field typed after a handoff survives a refresh that finds a newer concierge save (the refresh is refused with "Your edit is still here" in the toast) and the five-second poll; nothing is saved behind the person, and the kept value reaches the next handoff. No page errors.
+    prerequisites:
+      - runner:playwright
+      - harness:oshal-core-root
+      - harness:oshal-platform-root
+      - browser:chromium
+      - core:dependencies
+      - core:surface-bridge
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/surface-editing.core.fixture.mjs
+      cleanup: Close the owned Chromium process, the loopback HTTP server and the fake engine bridge and remove the temporary run directory; synthetic designs stay in the disposable in-memory pool, with no live database or solver.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
     installation: never

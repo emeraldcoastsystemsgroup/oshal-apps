@@ -247,7 +247,9 @@
   .cat { color: var(--purple); font-size: 11px; }
   #empty, #error { margin: 40px auto; text-align: center; color: var(--dim); max-width: 620px; }
   #error { color: var(--red); }
-  footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--panel); border-top: 1px solid var(--border); color: var(--dim); font-size: 11px; padding: 6px 16px; }
+  footer { margin: 18px 16px 24px; color: var(--dim); font-size: 12px; line-height: 1.5; }
+  footer summary { cursor: pointer; color: var(--accent, var(--text)); font-weight: 600; }
+  footer details > p { margin: 8px 0 0; }
   .conf-bar { display: inline-block; width: 46px; height: 6px; background: var(--bg-tertiary, #21262d); border-radius: 3px; overflow: hidden; vertical-align: middle; }
   .conf-fill { height: 100%; background: var(--blue); }
   /* ── Phase 2: portfolio strip, bet dialog, positions ── */
@@ -555,13 +557,12 @@
   </form>
 </dialog>
 
-<footer>
-  How to read this: <b>True P</b> = calibrated probability from Kalshi's own settled history (beta-shrunk toward price; n = observations behind it).
+<footer><details><summary>How to read this</summary><p><b>True P</b> = calibrated probability from Kalshi's own settled history (beta-shrunk toward price; n = observations behind it).
   <b>Edge (net)</b> = True P − (ask + taker fee). <b>Stake</b> = quarter-Kelly, halved per risk flag, capped at 5% of bankroll.
   Orders are limit-only and confirm-gated; the LIVE exchange is refused unless explicitly enabled.
   <b>Stake is forced to 0% until a strategy out-scores the market on settled predictions</b> — the hand is still shown, it just hasn't earned a slice of the bankroll. Every hand here is recorded as a prediction and graded at settlement.
   This table is a <b>snapshot</b> kept warm by your background-scan job (turned on from the <b>Jobs</b> screen) on the cadence in <b>Settings</b> — opening this page never waits on a scan.
-</footer>
+</p></details></footer>
 <script>
 (function () {
   'use strict';

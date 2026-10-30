@@ -1,14 +1,113 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PDF workbench</title><link rel="stylesheet" href="/api/pdf-workbench/ui/workbench.css"></head>
-<body><header><h1>PDF workbench</h1><p>Keep your original. Save edits as a new PDF revision.</p></header><main>
-<aside><h2>Your documents</h2><button id="refresh">Refresh</button><ul id="documents"></ul>
-<h2>Original sources</h2><form id="upload"><label>PDF file <input id="file" type="file" accept="application/pdf,.pdf" required></label><label>Title <input id="source-title" maxlength="160" required></label><button>Upload original</button></form>
-<label>Source <select id="sources"></select></label><label>New document title <input id="title" maxlength="160"></label><button id="create">Create document</button><button id="delete-source">Delete unused original</button><p>Maximum 4 MiB combined source bytes and 32 pages. Originals used by saved history stay retained.</p></aside>
-<section id="editor"><h2 id="document-title">Open a document</h2><p id="revision"></p><div id="actions"><button id="undo">Undo draft</button><button id="redo">Redo draft</button><button id="save">Save new revision</button><button id="cancel-job">Cancel active job</button><a id="download">Download saved PDF</a><button id="delete-document">Delete document history</button></div>
-<p id="status" role="status" aria-live="polite"></p><div id="pages"></div><div class="controls">
-<fieldset><legend>Selected pages</legend><button id="rotate">Rotate 90°</button><button id="remove">Remove selected</button><button id="extract">Keep selected only</button><button id="split">Create selected-page copy</button><button id="merge">Append chosen source</button></fieldset>
-<fieldset><legend>Annotation on first selected page</legend><label>Kind <select id="annotation-kind"><option value="text">Text note</option><option value="highlight">Highlight</option><option value="ink">Ink stroke</option></select></label><label>Text <textarea id="annotation-text" maxlength="2000"></textarea></label><label>Rectangle: x0,y0,x1,y1 <input id="annotation-rect" value="20,20,180,60"></label><label>Ink points: x,y;x,y <input id="annotation-points" value="20,20;100,50;180,20"></label><label>Color <input id="annotation-color" type="color" value="#ffcc00"></label><button id="annotate">Add annotation</button><p>PDF crop-box units, origin at bottom left before page rotation. ASCII Helvetica text only.</p></fieldset>
-<fieldset><legend>Form fields</legend><div id="forms"></div><button id="fill">Apply field values to draft</button></fieldset>
-<fieldset><legend>Find and OCR</legend><label>Search saved selectable text <input id="search"></label><button id="search-button">Search</button><pre id="search-results"></pre><label>OCR language <select id="language"><option value="eng">English</option></select></label><button id="ocr">OCR selected saved pages</button><pre id="ocr-results"></pre><p>OCR is an uncertain, separate result. It never replaces the original.</p></fieldset>
-<fieldset><legend>Saved history</legend><select id="history"></select><button id="open-history">Open revision</button><button id="restore">Restore as a new revision</button></fieldset>
-</div><p>Encrypted/signed files, XFA, active actions, arbitrary text rewriting, redaction and digital signing are unsupported. A highlight or ink mark does not remove content.</p></section></main>
-<script type="module" src="/api/pdf-workbench/ui/workbench.mjs"></script></body></html>
+<!doctype html>
+<!--
+  CHANGE LOG
+  1 | maintainer@emeraldcoastsystemsgroup.com | Human PDF workbench: owned sources, drafts, revisions, annotations, forms, find and OCR.
+  2 | maintainer@emeraldcoastsystemsgroup.com | The portal theme contract and the kernel screen layout (docs/ux/screen-standard.md): one head with the document actions, glass cards on one grid, every control under an uppercase label on the same height, one type scale, a sortable document table, phone layout. Roger, 2026-10-29: the text was large and unformatted and the boxes were not aligned.
+  3 | maintainer@emeraldcoastsystemsgroup.com | An editor layout instead of a stack of cards (Roger, 2026-10-29: "this was about layout"): a top bar with the document and its actions, a left rail with documents and sources, the pages in the middle, a right inspector with the tools; the three panes fill the viewport and scroll on their own, and collapse to two columns, then one, on narrower screens.
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PDF workbench</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<link rel="stylesheet" href="/api/pdf-workbench/ui/workbench.css">
+<script src="/shared/ui/js/surface-theme.js"></script>
+<script src="/ui/kernel/table.js" defer></script>
+</head>
+<body>
+<main class="wb">
+  <header class="wb-bar">
+    <div class="wb-brand"><p class="kicker">Documents</p><h1>PDF workbench</h1></div>
+    <div class="wb-doc"><h2 id="document-title">Open a document</h2><p id="revision" class="help"></p></div>
+    <div id="actions" class="actions">
+      <button id="undo" type="button">Undo</button>
+      <button id="redo" type="button">Redo</button>
+      <button id="cancel-job" type="button">Cancel job</button>
+      <a id="download" class="btn">Download PDF</a>
+      <button id="delete-document" type="button" class="danger">Delete history</button>
+      <button id="save" type="button" class="primary">Save revision</button>
+    </div>
+  </header>
+
+  <aside class="pane wb-left" aria-label="Documents and sources">
+    <section class="pane-section">
+      <div class="pane-head"><h3>Your documents</h3><button id="refresh" type="button" class="btn-sm">Refresh</button></div>
+      <div class="table-wrap"><table data-sortable><thead><tr><th>Title</th><th class="num">Rev.</th></tr></thead><tbody id="documents"></tbody></table></div>
+    </section>
+    <section class="pane-section">
+      <div class="pane-head"><h3>Original sources</h3></div>
+      <form id="upload" class="form">
+        <div class="field wide"><label for="file">PDF file</label><input id="file" type="file" accept="application/pdf,.pdf" required></div>
+        <div class="field wide"><label for="source-title">Title</label><input id="source-title" maxlength="160" required></div>
+        <div class="actions"><button class="primary">Upload original</button></div>
+      </form>
+      <div class="form">
+        <div class="field wide"><label for="sources">Source</label><select id="sources"></select></div>
+        <div class="field wide"><label for="title">New document title</label><input id="title" maxlength="160" placeholder="Defaults to the source title"></div>
+        <div class="actions"><button id="delete-source" type="button" class="danger">Delete unused original</button><button id="create" type="button" class="primary">Create document</button></div>
+      </div>
+      <p class="help">Up to 4 MiB of sources and 32 pages per document. An original used by saved history stays retained.</p>
+    </section>
+  </aside>
+
+  <section class="pane wb-center" aria-label="Pages">
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+    <div id="pages" class="pages"></div>
+    <p class="pages-hint help">No document is open. Choose one under Your documents, or upload an original and create a document from it.</p>
+    <p class="help footnote">Encrypted or signed files, XFA, active actions, arbitrary text rewriting, redaction and digital signing are unsupported. A highlight or ink mark does not remove content.</p>
+  </section>
+
+  <aside class="pane wb-right" aria-label="Tools">
+    <section class="pane-section">
+      <div class="pane-head"><h3>Selected pages</h3></div>
+      <div class="btn-grid">
+        <button id="rotate" type="button">Rotate 90°</button>
+        <button id="remove" type="button">Remove selected</button>
+        <button id="extract" type="button">Keep selected only</button>
+        <button id="split" type="button">Create selected-page copy</button>
+        <button id="merge" type="button" class="wide">Append chosen source</button>
+      </div>
+      <p class="help">Tick pages to select them. Append adds the source chosen under Original sources to the end of the draft.</p>
+    </section>
+    <section class="pane-section">
+      <div class="pane-head"><h3>Annotation</h3><span class="help">on the first selected page</span></div>
+      <div class="form">
+        <div class="field"><label for="annotation-kind">Kind</label><select id="annotation-kind"><option value="text">Text note</option><option value="highlight">Highlight</option><option value="ink">Ink stroke</option></select></div>
+        <div class="field"><label for="annotation-color">Color</label><input id="annotation-color" type="color" value="#ffcc00"></div>
+        <div class="field wide"><label for="annotation-text">Text</label><textarea id="annotation-text" maxlength="2000" rows="3"></textarea><p class="help">ASCII Helvetica text only.</p></div>
+        <div class="field"><label for="annotation-rect">Rectangle</label><input id="annotation-rect" value="20,20,180,60"><p class="help">x0,y0,x1,y1</p></div>
+        <div class="field"><label for="annotation-points">Ink points</label><input id="annotation-points" value="20,20;100,50;180,20"><p class="help">x,y;x,y</p></div>
+        <div class="actions"><button id="annotate" type="button" class="primary">Add annotation</button></div>
+      </div>
+      <p class="help">PDF crop-box units, origin at the bottom left, before page rotation.</p>
+    </section>
+    <section class="pane-section">
+      <div class="pane-head"><h3>Form fields</h3></div>
+      <div id="forms" class="form"></div>
+      <div class="actions"><button id="fill" type="button" class="primary">Apply field values to draft</button></div>
+    </section>
+    <section class="pane-section">
+      <div class="pane-head"><h3>Find and OCR</h3></div>
+      <div class="form">
+        <div class="field wide"><label for="search">Search saved selectable text</label><div class="row"><input id="search" type="search"><button id="search-button" type="button">Search</button></div></div>
+      </div>
+      <pre id="search-results" class="result"></pre>
+      <div class="form">
+        <div class="field wide"><label for="language">OCR language</label><div class="row"><select id="language"><option value="eng">English</option></select><button id="ocr" type="button">OCR selected saved pages</button></div></div>
+      </div>
+      <pre id="ocr-results" class="result"></pre>
+      <p class="help">OCR is an uncertain, separate result. It never replaces the original.</p>
+    </section>
+    <section class="pane-section">
+      <div class="pane-head"><h3>Saved history</h3></div>
+      <div class="form">
+        <div class="field wide"><label for="history">Revision</label><div class="row"><select id="history"></select><button id="open-history" type="button">Open revision</button></div></div>
+        <div class="actions"><button id="restore" type="button">Restore as a new revision</button></div>
+      </div>
+    </section>
+  </aside>
+</main>
+<script type="module" src="/api/pdf-workbench/ui/workbench.mjs"></script>
+</body>
+</html>

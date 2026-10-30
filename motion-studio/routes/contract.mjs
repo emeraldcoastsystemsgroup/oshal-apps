@@ -3,6 +3,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve complete bounded agent observations with a compact registry index and exact per-command schema retrieval.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve exact native numeric text and original authority across the updated transport.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Include actual human effect schemas and bounded source agent lookup instructions.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Describe automatic inspector saves and native editable document refresh shared by human and concierge editing.
  */
 import { stringifyNative } from '../tools/native-json.mjs';
 import { LIMITS, MotionError } from './project-store.mjs';
@@ -12,6 +13,7 @@ import {fontInventory} from './text.mjs';
 const AGENT_RESPONSE_BYTES = 60 * 1024;
 function contract(ctx, engine) {
   return { schemaVersion: 1, format: 'effectcraft-native-project', limits: LIMITS, engine,
+    documentHandoff: 'The editor automatically saves retained inspector fields before assistant reads and refreshes the same native composition on return. Use CURRENT DOCUMENT identity, revision and selection; read actual owned data first. Preserve native layers/effects/keyframes; never substitute a flattened image. Historical views stay read-only. Never ask for Save or Reload.',
     operations: { create: { title: 'string', width: 'integer', height: 'integer', frameRate: 'number', duration: 'seconds', requestKey: 'uuid' },
       apply: { id: 'uuid', baseRevision: 'integer', requestKey: 'uuid', commands: '1..32 real catalog commands', comp: 'optional composition selector' },
       preview: { document: 'native object', comp: 'optional', time: 'seconds', max_side: '1..4096', transparent: 'boolean' } },

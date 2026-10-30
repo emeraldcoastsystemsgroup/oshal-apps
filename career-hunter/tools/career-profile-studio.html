@@ -5,6 +5,7 @@
   SEQ | AUTHOR | DESCRIPTION
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
+  2 | maintainer@emeraldcoastsystemsgroup.com | Register the profile plan with the shared document handoff: before Jarvis, a concierge or AI draft reads, unsaved headline, about, skills (including a typed skill not yet added) and custom URL are saved through POST /profile-studio/plan and the context carries the plan id and updatedAt; after the turn the studio re-reads GET /profile-studio/plan and shows the assistant's saved change, or keeps the person's unsaved edits and says so in a status line.
 -->
 
 <!--
@@ -84,6 +85,7 @@
       <button class="btn danger" id="btnAbandon" style="display:none">Abandon</button>
     </div>
     <p class="note" id="note" style="display:none"></p>
+    <p class="hint" id="sync" role="status" aria-live="polite"></p>
     <div class="hint" id="aiHintRow" style="margin-top:10px">
       <input type="text" id="aiHint" placeholder="Optional direction for the AI draft, e.g. 'aim at platform engineering leadership roles'"/>
     </div>
@@ -150,7 +152,7 @@
 (function(){
   'use strict';
   var API = '/api/career-hunter/profile-studio';
-  var plan = null; var skills = []; var pollTimer = null;
+  var plan = null; var skills = []; var pollTimer = null; var loading = null;
   var $ = function(id){ return document.getElementById(id); };
   function toast(m){ var t=$('toast'); t.textContent=m; t.classList.add('show'); setTimeout(function(){t.classList.remove('show');},2600); }
   function counts(){ $('cHeadline').textContent = $('headline').value.length + ' / 220'; $('cAbout').textContent = $('about').value.length + ' / 2600'; }
@@ -190,7 +192,7 @@
     $('headline').value = plan.headline||''; $('about').value = plan.about||'';
     $('customUrl').value = plan.customUrl||''; skills = (plan.skills||[]).slice(); renderSkills(); counts();
   }
-  function load(){ return fetch(API+'/plan').then(function(r){return r.json();}).then(function(d){ plan=d.plan; fill(); render(); }).catch(function(){ toast('load failed'); }); }
+  function load(){ loading = fetch(API+'/plan').then(function(r){return r.json();}).then(function(d){ plan=d.plan; fill(); render(); }).catch(function(){ toast('load failed'); }); return loading; }
   function post(pathname, body){
     return fetch(API+pathname, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) })
       .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.error||('HTTP '+r.status)); return d; }); });
@@ -206,7 +208,8 @@
   $('btnSave').onclick = function(){ save().then(function(){ toast('Plan saved'); }).catch(function(e){ toast(e.message); }); };
   $('btnDraftAi').onclick = function(){
     var b=$('btnDraftAi'); b.disabled=true; b.textContent='Drafting…'; toast('your career agent is drafting from your real career data…');
-    post('/draft', { message: $('aiHint').value }).then(function(d){
+    // The drafter reads the SAVED plan, so the edits on screen are saved first.
+    prepareHandoff().then(function(){ return post('/draft', { message: $('aiHint').value }); }).then(function(d){
       if(d.headline) $('headline').value=d.headline;
       if(d.about) $('about').value=d.about;
       if(d.skills && d.skills.length){ skills=d.skills.slice(0,15); renderSkills(); }
@@ -271,6 +274,49 @@
       if (!grid.children.length) grid.textContent = 'No finished portraits yet — generate one in Portrait Studio first.';
     }).catch(function(){ toast('Portrait Studio not reachable'); });
   };
+
+  // ── Shared document handoff: Jarvis and the concierge read the SAVED plan ──────────────────
+  // prepare saves every unsaved field through the Save plan route and names the saved plan; refresh
+  // re-reads it after the turn and shows the assistant's saved change unless the person has
+  // unsaved edits, which are kept and named in the status line.
+  function sync(m){ $('sync').textContent = m || ''; }
+  function commitSkill(){ var v=$('skillIn').value.trim(); if(v && skills.length<15 && skills.indexOf(v)<0) skills.push(v); $('skillIn').value=''; renderSkills(); }
+  function formValues(){
+    return { headline:$('headline').value.trim().slice(0,220), about:$('about').value.trim().slice(0,2600),
+      skills:skills.slice(0,15).map(function(s){ return String(s).trim().slice(0,80); }).filter(Boolean),
+      customUrl:$('customUrl').value.trim().replace(/[^a-zA-Z0-9-]/g,'').slice(0,100) };
+  }
+  function savedValues(){ var p=plan||{}; return { headline:p.headline||'', about:p.about||'', skills:(p.skills||[]).slice(), customUrl:p.customUrl||'' }; }
+  function unsaved(){ return JSON.stringify(formValues()) !== JSON.stringify(savedValues()) || !!$('skillIn').value.trim(); }
+  function snapshot(){
+    return { app:'career-hunter', screen:'surface', surface:'profile-studio', recordId:String(plan.id), title:'LinkedIn profile plan',
+      fields:{ revision:plan.updatedAt, readOnly:!editable(), draft:false, state:plan.state, skills:(plan.skills||[]).length } };
+  }
+  async function prepareHandoff(){
+    await loading;
+    if (editable()) {
+      if ($('skillIn').value.trim()) commitSkill();
+      if (!plan && !unsaved()) return null;
+      if (!plan || unsaved()) { sync('saving your edits before the assistant reads…'); await save(); }
+      if (!plan || unsaved()) throw new Error('Your latest profile edits could not be saved, so the assistant was not given this plan.');
+      sync('saved for the assistant');
+    }
+    return plan ? snapshot() : null;
+  }
+  async function refreshHandoff(expected){
+    await loading;
+    if (expected && expected.recordId && plan && expected.recordId !== String(plan.id)) return;
+    var r = await fetch(API+'/plan'), d = await r.json().catch(function(){ return {}; });
+    if (!r.ok) throw new Error(d.error || ('The profile plan could not be read (HTTP '+r.status+').'));
+    var fresh = d.plan;
+    if (!fresh || (plan && fresh.id === plan.id && !(Date.parse(fresh.updatedAt) > Date.parse(plan.updatedAt)))) return;
+    if (unsaved()) throw new Error('The assistant saved a change to your profile plan while you were editing. Your unsaved edits are still here: Save plan keeps yours, or reload the page to see the saved plan.');
+    plan = fresh; fill(); render(); sync('Updated with the change the assistant saved.');
+  }
+  import('/shared/ui/js/document-handoff.js').then(function(m){ m.registerDocumentSession({ app:'career-hunter',
+    prepare: async function(){ try { return await prepareHandoff(); } catch(e){ sync(e.message); throw e; } },
+    refresh: async function(expected){ try { await refreshHandoff(expected); } catch(e){ sync(e.message); throw e; } } }); })
+    .catch(function(e){ sync('The assistant cannot synchronize this plan: '+e.message); });
   load();
 })();
 </script>

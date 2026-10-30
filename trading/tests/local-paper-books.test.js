@@ -16,7 +16,7 @@ async function fixture(t){
  const name='paper_contract_'+randomUUID().replaceAll('-','');await admin.query('CREATE DATABASE '+name);base.pathname='/'+name;
  const pool=new Pool({connectionString:base.toString()});
  t.after(async()=>{await pool.end();await admin.query('DROP DATABASE '+name);await admin.end();});
- for(const file of ['002-native-paper.sql','008-local-paper-books.sql','009-native-oshal-reports.sql','010-report-presenter-media.sql'])await pool.query(fs.readFileSync(path.join(__dirname,'../migrations',file),'utf8'));
+ for(const file of ['002-native-paper.sql','007-native-portfolio.sql','008-local-paper-books.sql','009-native-oshal-reports.sql','010-report-presenter-media.sql'])await pool.query(fs.readFileSync(path.join(__dirname,'../migrations',file),'utf8'));
  return {pool};
 }
 const now=new Date('2026-10-27T15:00:00Z');

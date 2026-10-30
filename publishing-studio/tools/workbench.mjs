@@ -1,6 +1,7 @@
 /* Publishing Studio: local geometry drafts; the pinned renderer owns all text flow.
  * CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Preserve unapplied inspector buffers and pin asynchronous operations to their saved document context.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Apply and save inspector drafts before concierge reads; refresh the same native publication while retaining concurrent drafts and selection.
  */
 const $=id=>document.getElementById(id),base='/api/publishing-studio',copy=value=>structuredClone(value),uid=prefix=>prefix+'_'+crypto.randomUUID().replaceAll('-','');
 const state={document:null,model:null,ops:[],undo:[],redo:[],page:0,item:null,assets:[],previews:new Map(),busy:false,chatBusy:false,renderStarting:false,job:null,session:null,saveKey:null,viewGeneration:0,renderGeneration:0,createAttempt:null,restoreAttempt:null};
@@ -15,6 +16,8 @@ const fields={
  paragraph:['leading','space-after','indent','align'],object:['object-kind','object-asset','object-text','object-color']
 };
 const trackedFields=new Set(Object.values(fields).flat()),pendingFields=new Map(),fieldBaselines=new Map(),selectionValues=new Map();
+const boundActions=new Map();
+let workspaceIdle=null;
 function rememberField(node){
  if(!trackedFields.has(node.id))return;
  fieldBaselines.set(node.id,node.value);
@@ -51,14 +54,15 @@ function retireRender(){state.renderGeneration++;state.renderStarting=false;stat
 async function locked(work){
  if(state.busy)throw new Error('Wait for the current save or open to finish.');
  state.busy=true;controls();
- try{return await work();}finally{state.busy=false;controls();}
+ let release;workspaceIdle=new Promise(resolve=>{release=resolve;});
+ try{return await work();}finally{state.busy=false;controls();workspaceIdle=null;release();}
 }
 
 function status(message,error=false){$('status').textContent=message;$('status').dataset.error=String(error);}
 function headers(json=false){const out={};if(json)out['Content-Type']='application/json';const token=sessionStorage.getItem('oshal.token');if(token)out.Authorization='Bearer '+token;return out;}
 async function request(path,{method='GET',body,blob=false,native=false}={}){const response=await fetch(native?path:base+path,{method,headers:headers(body!==undefined&&!(body instanceof FormData)),credentials:'same-origin',...(body!==undefined?{body:body instanceof FormData?body:JSON.stringify(body)}:{})});if(!response.ok){let value;try{value=await response.json();}catch{}const error=new Error(value?.error??`Request failed (${response.status})`);error.details=value?.details;throw error;}return blob?response.blob():response.json();}
 function action(fn){return async event=>{event?.preventDefault();try{await fn(event);}catch(error){status(error.message,true);if(error.details)$('preflight').textContent=JSON.stringify(error.details,null,2);}};}
-function bind(id,event,fn){$(id).addEventListener(event,action(fn));}
+function bind(id,event,fn){boundActions.set(id+':'+event,fn);$(id).addEventListener(event,action(fn));}
 function requireDocument(){if(state.busy)throw new Error('Wait for the current save or open to finish.');if(!state.document)throw new Error('Create or open a publication first.');return state.document;}
 function editable(){const d=requireDocument();if(state.busy)throw new Error('Wait for the current save or open to finish.');if(d.revision!==d.currentRevision)throw new Error('Restore this historical revision or reopen the current revision before editing.');return d;}
 function page(){return state.model?.pages[state.page];}
@@ -83,12 +87,14 @@ function edit(op,consumed=[]){
 function layout(mutator,consumed=[]){const m=copy(state.model);mutator(m);edit({op:'replace-layout',...Object.fromEntries(['pages','masters','stories','assets'].map(k=>[k,m[k]]))},consumed);}
 function clearPreviews(){for(const url of state.previews.values())URL.revokeObjectURL(url);state.previews.clear();}
 function dirtyPrompt(){return !hasDraft()||confirm('Discard the unsaved draft and unapplied field edits and open the saved publication?');}
-async function loadDocument(id,revision){
- const result=await request('/documents/'+id+(revision?'?revision='+revision:''));
+async function loadDocument(id,revision,retained={}){
+ const result=retained.result??await request('/documents/'+id+(revision?'?revision='+revision:''));
  // Only callers holding the workspace lock adopt an HTTP response.
  clearPreviews();retireRender();state.viewGeneration++;clearFieldBuffers();
  state.document=result.document;state.model=copy(result.document.model);
- state.ops=[];state.undo=[];state.redo=[];state.saveKey=null;state.page=0;state.item=null;
+ state.ops=[];state.undo=[];state.redo=[];state.saveKey=null;
+ state.page=Math.max(0,state.model.pages.findIndex(page=>page.id===retained.pageId));
+ state.item=[...state.model.pages[state.page].frames,...state.model.pages[state.page].objects].some(item=>item.id===retained.item)?retained.item:null;
  $('preflight').textContent='';
  option($('history'),result.history.map(v=>[v.revision,`Revision ${v.revision}`]),result.document.revision);
  paint();status('Opened saved revision '+result.document.revision);await previews(viewSnapshot());
@@ -99,8 +105,8 @@ async function open(id,revision){
  return locked(()=>loadDocument(id,revision));
 }
 async function refresh(){const [docs,assets]=await Promise.all([request('/documents'),request('/assets')]);state.assets=assets.assets;$('documents').replaceChildren(...docs.documents.map(d=>{const b=document.createElement('button');b.textContent=d.title;b.onclick=action(()=>open(d.id));return b;}));$('asset-list').replaceChildren(...state.assets.map(a=>{const row=document.createElement('p');row.textContent=`${a.title} · ${a.bytes} bytes `;const remove=document.createElement('button');remove.textContent='Delete';remove.onclick=action(async()=>{if(confirm('Delete this unused asset? Saved revisions keep their asset references.')){await request('/assets/'+a.id,{method:'DELETE',body:{}});await refresh();}});row.append(remove);return row;}));option($('object-asset'),state.assets.map(a=>[a.id,a.title]),$('object-asset').value);}
-async function save(){
- const d=editable();requireAppliedFields();if(!state.ops.length)return;
+async function save({preserveFields=false}={}){
+ const d=editable();if(!preserveFields)requireAppliedFields();if(!state.ops.length)return;
  state.saveKey??=crypto.randomUUID();
  const body={baseRevision:d.revision,requestKey:state.saveKey,operations:copy(state.ops)};
  return locked(async()=>{
@@ -159,7 +165,7 @@ function controls(){
  $('undo').disabled=state.busy||!state.undo.length;$('redo').disabled=state.busy||!state.redo.length;
  $('render').disabled=blocked||hasDraft()||!!state.job||state.renderStarting;
  $('cancel-render').disabled=state.busy||!state.job;
- $('chat-send').disabled=state.busy||state.chatBusy||hasDraft()||!d;
+ $('chat-send').disabled=state.busy||state.chatBusy;
  $('export-pdf').disabled=state.busy||!d||hasDraft();$('export-layout').disabled=state.busy||!d||hasDraft();
  $('discard-fields').disabled=state.busy||!pendingFields.size;
  $('field-edits').textContent=pendingFields.size?'Unapplied field edits. Apply their form or discard field edits before saving.':'';
@@ -218,7 +224,18 @@ async function download(kind){
 }
 function chatLine(text,kind=''){const p=document.createElement('p');p.className=kind;p.textContent=text;$('chat-log').append(p);p.scrollIntoView({block:'nearest'});}
 async function heldCard(ref){const id=typeof ref==='string'?ref:ref?.id??ref?.proposalId;if(typeof id!=='string')return;const card=await request('/api/jarvis/package-tools/proposals/'+encodeURIComponent(id),{native:true});const proposal=card.proposal??card;if(proposal.app!=='publishing-studio')return;const section=document.createElement('div');section.className='approval';const title=document.createElement('strong');title.textContent=proposal.toolName??proposal.tool??'Proposed Publishing action';const pre=document.createElement('pre');pre.textContent=JSON.stringify(proposal,null,2);section.append(title,pre);for(const approve of [true,false]){const b=document.createElement('button');b.textContent=approve?'Approve action':'Decline';b.onclick=action(async()=>{requireDocument();requireAppliedFields();if(state.ops.length)throw new Error('Save or discard the local draft before acting on an assistant proposal.');const view=viewSnapshot();const fresh=await request('/api/jarvis/package-tools/proposals/'+encodeURIComponent(id),{native:true});if(!sameView(view)||state.busy||hasDraft())throw new Error('The workspace changed while reviewing the proposal. Review it again.');if(JSON.stringify(fresh.proposal??fresh)!==JSON.stringify(proposal))throw new Error('Proposal changed. Ask again to review a fresh card.');const response=await fetch('/api/jarvis/package-tools/'+(approve?'execute':'decline'),{method:'POST',credentials:'same-origin',headers:{...headers(true),'x-oshal-package-tool':'1'},body:JSON.stringify({proposalId:id})});const result=await response.json();if(!response.ok)throw new Error(result.error??'Proposal action failed');section.replaceChildren(document.createTextNode((approve?'Action result: ':'Declined: ')+JSON.stringify(result)));if(approve&&sameView(view)&&!state.busy&&!hasDraft()){await open(view.id);await refresh();}});section.append(b);}$('chat-log').append(section);}
-bind('chat-form','submit',async()=>{const d=requireDocument();if(state.chatBusy)throw new Error('Wait for the assistant to finish this turn.');requireAppliedFields();if(state.ops.length)throw new Error('Save your draft before sharing its context.');const text=$('chat-message').value.trim();if(!text)return;const view=viewSnapshot();const context={app:'publishing-studio',documentId:d.id,revision:d.revision,selectedPage:page().id,selectedFrame:selected()?.storyId?state.item:null};chatLine(text,'chat-you');$('chat-message').value='';state.chatBusy=true;controls();try{const result=await request('/api/swarm/bots/publishing-editor/ask',{native:true,method:'POST',body:{message:text+'\nCurrent saved selection: '+JSON.stringify(context),...(state.session?{sessionId:state.session}:{}),context}});if(!sameView(view)){chatLine('The assistant replied for a previous saved publication. Reopen that publication and ask again to review its actions.');return;}state.session=result.sessionId??state.session;chatLine(result.reply??result.error??'The assistant returned no text.');for(const ref of (Array.isArray(result.packageToolProposals)?result.packageToolProposals:[result.packageToolProposal]).filter(Boolean))await heldCard(ref);}finally{state.chatBusy=false;controls();}});
+bind('chat-form','submit',async()=>{
+ const text=$('chat-message').value.trim();if(!text)return;
+ if(state.chatBusy)throw new Error('Wait for the assistant to finish this turn.');
+ const context=await prepareDocumentHandoff(),view=viewSnapshot();
+ chatLine(text,'chat-you');$('chat-message').value='';state.chatBusy=true;controls();
+ try{
+  const result=await request('/api/swarm/bots/publishing-editor/ask',{native:true,method:'POST',body:{message:text+'\nCurrent saved selection: '+JSON.stringify(context),...(state.session?{sessionId:state.session}:{}),context}});
+  if(!sameView(view)){chatLine('The assistant replied for a previous saved publication. Return to that publication to review its actions.');return;}
+  state.session=result.sessionId??state.session;chatLine(result.reply??result.error??'The assistant returned no text.');
+  for(const ref of (Array.isArray(result.packageToolProposals)?result.packageToolProposals:[result.packageToolProposal]).filter(Boolean))await heldCard(ref);
+ }finally{state.chatBusy=false;controls();await refreshDocumentHandoff(context);}
+});
 bind('new','submit',async()=>{
  if(state.busy)throw new Error('Wait for the current save or open to finish.');if(!dirtyPrompt())return;
  const input={title:$('new-title').value,pageCount:number('new-pages')},signature=JSON.stringify(input);
@@ -293,3 +310,37 @@ bind('discard-fields','click',discardFields);
 
 window.addEventListener('beforeunload',event=>{if(hasDraft()){event.preventDefault();event.returnValue='';}});
 paint();action(async()=>{await refresh();const id=new URL(location.href).searchParams.get('document');if(id)await open(id);else status('Create a publication or choose one of your saved files.');})();
+
+async function prepareDocumentHandoff(){
+ if(workspaceIdle)await workspaceIdle;
+ if(!state.document)return{app:'publishing-studio',screen:'surface',surface:'publishing-workbench'};
+ document.activeElement?.blur?.();if(hasDraft())editable();
+ const groups=[['geometry','geometry:submit'],['link','link-frame:click'],['story','replace-story:click'],
+  ['master','apply-master:click'],['character','character-properties:submit'],['paragraph','paragraph-properties:submit'],
+  ['page','page-properties:submit'],['object','add-object:click']];
+ for(const[group,handler]of groups)if(fields[group].some(id=>pendingFields.has(id))){
+  if(state.ops.length>=64)await save({preserveFields:true});
+  await boundActions.get(handler)();
+ }
+ if(state.ops.length)await save();
+ if(hasDraft())throw new Error('The current publication draft could not be saved.');
+ const d=requireDocument();
+ return{app:'publishing-studio',screen:'surface',surface:'publishing-workbench',recordId:d.id,title:d.title,
+  documentId:d.id,revision:d.revision,selectedPage:page().id,selectedFrame:selected()?.storyId?state.item:null,
+  fields:{revision:d.revision,draft:false,readOnly:d.revision!==d.currentRevision,pageId:page().id,...(state.item?{itemId:state.item}:{})}};
+}
+async function refreshDocumentHandoff(expected){
+ if(workspaceIdle)await workspaceIdle;
+ const d=state.document;if(!d||(expected?.recordId&&expected.recordId!==d.id))return;
+ if(expected?.fields?.readOnly&&d.revision!==d.currentRevision)return;
+ const view=viewSnapshot(),result=await request('/documents/'+d.id);
+ if(!sameView(view)||result.document.revision<=d.revision)return;
+ document.activeElement?.blur?.();
+ if(hasDraft())throw new Error('The concierge saved an update while you were editing. Your publication draft is still here. Save a copy or choose the saved revision to decide which to keep.');
+ const retained={result,pageId:page().id,item:state.item};
+ await locked(()=>loadDocument(d.id,undefined,retained));
+}
+void import('/shared/ui/js/document-handoff.js').then(({registerDocumentSession})=>registerDocumentSession({
+ app:'publishing-studio',prepare:async()=>{try{return await prepareDocumentHandoff();}catch(error){status(error.message,true);throw error;}},
+ refresh:async expected=>{try{await refreshDocumentHandoff(expected);}catch(error){status(error.message,true);throw error;}}
+})).catch(error=>status('The concierge cannot synchronize this document: '+error.message,true));

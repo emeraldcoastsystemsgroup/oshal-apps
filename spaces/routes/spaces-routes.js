@@ -25,6 +25,7 @@
  * 2026-09-14 20:00:00 | maintainer@emeraldcoastsystemsgroup.com | POST /scans/import gates a `.ply` by size WHILE IT STREAMS. The import lane accepted 300 MB of anything and handed it to the kernel converter, which parsed the whole buffer on the api's event loop: a 44 MB `.ply` held the loop for about 14 s and a 117 MB one ran the 7 GB Docker VM out of memory and took the stack down (2026-09-14). multer's `limits.fileSize` is one number for every file and the extension only arrives with the part header, so the second, per-format gate is a storage engine (import-upload-gate.ts) that stops writing at the first chunk past `resolvePlyImportLimits().plyMaxBytes` (OSHAL_SPACES_PLY_MAX_BYTES, default 50 MiB — no number lives in this file) and answers 413 naming the limit. An oversized `.ply` is never fully received, written, or parsed; `.splat` keeps the 300 MB ceiling and both lanes keep their post-multer identity re-entry. Guarded by tests/ply-import-off-loop.core.test.js.
  * 2026-09-29 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | ADR-169 L7 (store half): anchorMap on capture. Both multipart lanes read two optional text fields, `captureSessionId` (the guided-capture session the clip or model came from) and `placeId`. The scan is registered naming its session, the kernel joins that session's capture GPS to the scan (captureAnchorForScan), and the location kernel skill's anchorMap records where the map was captured, so mapsNear finds it on a later visit. The answer carries `anchor` with ids and a reason only, never a coordinate, and nothing here logs one: a refusal is logged through locationSafeError. An upload with no session, a session with no GPS fix, or a refusal by the kernel (an owner whose precision class stores no coordinates, a place that is not theirs, a caller without a verified issuer) registers the scan exactly as before, without an anchor. Guarded by tests/capture-anchor.core.test.js.
  * 2026-10-10 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | GET /scans spreads the scan service's availability marker when it has one: the native runtime, which has no reconstruction engine and holds no scans, answers an empty list with { native: true, configured: false, reason, detail } instead of 503.
+ * 2026-10-29 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | GET /scenes answers through sceneSourcePage(): the picker's `items` (at most 100) beside the existing `artifacts`; the shared file picker refused the listing without `items`.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -647,14 +648,8 @@ function createSpacesRoutes(ctx) {
             return;
         }
         try {
-            const scans = (await service.listScans(sub)).filter((s) => s.status === 'ready');
             res.setHeader('Cache-Control', 'private, no-store');
-            res.json({
-                artifacts: scans.map((s) => ({
-                    id: s.id, name: `${s.title}.scene.json`, type: embodied_scene_1.EMBODIED_SCENE_TYPE,
-                    source: `/api/spaces/scans/${encodeURIComponent(s.id)}/scene`, gaussianCount: s.gaussianCount, updatedAt: s.updatedAt,
-                })),
-            });
+            res.json((0, embodied_scene_1.sceneSourcePage)(await service.listScans(sub)));
         }
         catch (err) {
             logger.error({ err }, 'scene list failed');

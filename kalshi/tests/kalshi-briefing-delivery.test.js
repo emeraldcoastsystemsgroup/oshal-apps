@@ -24,7 +24,8 @@ const hand = { ticker: 'KX-FIXTURE', title: 'Synthetic candidate', side: 'yes', 
 /** @description Provide synthetic engine storage while retaining the real config and alert decision code. */
 function enginePorts(state, preferences) {
   return {
-    resolveConfig: async () => ({ ...config.KALSHI_SCAN_DEFAULTS, ...preferences }),
+    // The fixtures model a person who switched Tell Jarvis on (the default is off); the opt-out case passes false.
+    resolveConfig: async () => ({ ...config.KALSHI_SCAN_DEFAULTS, notifyJarvis: true, ...preferences }),
     scanUnavailableReason: () => null,
     withScanLease: async (_pool, operation) => operation(),
     runScan: async () => ({ hands: [hand], generatedAt: '2026-09-11T12:00:00Z', evaluable: 1, mayStake: false }),

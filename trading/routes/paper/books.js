@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | tickBooks runs an account's assigned saved strategy (routes/paper/strategy.js) instead of the posture engine.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Named owner-scoped paper ledgers and an atomic archive-before-reset. Reuse the existing store, accounting and strategy engine; no broker writer.
  */
 'use strict';
@@ -6,6 +7,7 @@ const { randomUUID } = require('node:crypto');
 const store = require('./store');
 const tick = require('./tick');
 const { etParts } = require('./market');
+const strategy = require('./strategy');
 const REF = /^[a-z0-9][a-z0-9-]{0,79}$/;
 const META = {
  list: 'SELECT book_ref, label, archived, created_at, updated_at FROM trading_paper_books WHERE user_sub=$1 ORDER BY created_at DESC',
@@ -108,7 +110,10 @@ async function tickBooks(deps,sub,opts){
  for(const book of await listBooks(deps.pool,sub)){
   if(book.archived===true||book.archived==='t')continue;
   if(Date.now()-began>45000){results.push({bookRef:book.book_ref,skipped:'tick_budget'});continue;}
-  const out=await tick.runTick({...deps,intent,pool:bookPool(deps.pool,book.book_ref)},sub,opts);
+  const scoped={...deps,intent,pool:bookPool(deps.pool,book.book_ref)},assigned=await strategy.assignmentOf(deps,sub,book.book_ref);
+  // An account that runs a saved strategy rebalances to it; the posture engine trades only the others.
+  if(assigned){results.push({bookRef:book.book_ref,...await strategy.runStrategyTick(scoped,{pool:deps.pool},sub,assigned,opts)});continue;}
+  const out=await tick.runTick(scoped,sub,opts);
   results.push({bookRef:book.book_ref,...out.body});
  }
  return results;

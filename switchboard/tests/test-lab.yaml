@@ -11,6 +11,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | compose-variants-decline: a post opening like a refusal of something else ("I can't help but…", "Unable to make it…?", "I won't share…") is a rewrite; only a refusal of the drafting task is a decline.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | compose-variants-decline: real posts that say "cannot" or "publish" legitimately (carrying the source's topic words, a hashtag or link, an "Unable to …?" hook, or opening "Declined: …") keep their text; the live refusals stay declines against a real source too.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | compose-variants-decline: a refusal that names the author's topic, quotes the text or quotes its link stays a decline; post signs count only outside the refused clause and quotes.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Register document-handoff: the open Streams post is saved before a concierge reads it and redrawn from its own GET /posts/:id after, keeping a body the person is still editing.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -131,4 +132,27 @@ cases:
       cleanup: A stubbed router, a recording bot double and an in-memory pool; no model, database or provider is contacted.
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: document-handoff
+    name: Manual and concierge Streams post handoff
+    purpose: >-
+      Drive the Streams post editor in headless Chromium over the compiled Streams routes, a disposable PostgreSQL
+      database built from the declared migration and the shared document-handoff module: unsaved edits save before a
+      concierge reads, and the concierge's saved change is redrawn on return.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files: [tests/document-handoff.test.cjs]
+    expected:
+      - An unsaved body and channel variant are saved through PATCH /posts/:id before the handoff; the context carries the post id and its updatedAt revision.
+      - A change saved through the Streams API is redrawn by refresh, and the next manual change reaches the next handoff with a newer revision.
+      - With nothing open no snapshot is handed off; an unchanged editor hands off without another save.
+      - A body the person is still editing survives a refresh that found a concierge change and the page says so; a save the route would refuse stops the handoff and writes nothing.
+    prerequisites: [runner:node, browser:chromium, fixture:postgres-35689, core:shared-theme-assets]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Drop only the suite's own uniquely named database; preserve the shared PostgreSQL server.
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
     installation: never

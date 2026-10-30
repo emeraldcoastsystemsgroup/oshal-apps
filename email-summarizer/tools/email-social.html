@@ -1,86 +1,608 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="midnight">
+<!-- CHANGE LOG
+  SEQ | AUTHOR | DESCRIPTION
+  1 | maintainer@emeraldcoastsystemsgroup.com | The Social desk (Roger, 2026-10-30: the tab was one Facebook card; he wants a publisher's tools a person can use to post or stream to two or three services, Slack included). The shape is the one Buffer, Later and Metricool share: a channel rail with the connected accounts, a Queue and a week Calendar, a composer that writes once and customizes per channel with a live preview, "Add to queue" / "Post now" / "Schedule", Drafts and Sent, an Engage list (Slack DMs and mentions, X mentions, reply in place), Go Live events that announce a stream (the Restream Events idea) and one Settings panel (posting plan, Slack channel, the publishing job). Every colour derives from the portal theme tokens.
+-->
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Social — Intelligent Communication</title>
-<!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
-     Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
-     matters — without it the surface would have no colors at all. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
 <style>
-  /* Keep the surface's own short alias names, but DERIVE each from a framework theme token instead
-     of a literal — so all eleven themes work, not just the dark ones. --accent2 is a semantic
-     "connected" success color (theme status token + hex fallback); --fb is the Facebook brand blue
-     and stays a literal in every theme. */
   :root {
-    --bg: var(--bg-primary);
-    --panel: var(--bg-card);
-    --line: var(--border-color);
-    --text: var(--text-primary);
-    --muted: var(--text-secondary);
-    --accent: var(--accent-primary);
-    --accent2: var(--status-success, #00d3a7);
-    --fb: #1877f2;
+    --bg: var(--bg-primary, #0e0e16); --panel: var(--bg-secondary, #15151f); --panel2: var(--bg-tertiary, #1c1c28); --card: var(--bg-card, var(--bg-secondary, #15151f));
+    --line: var(--border-color, #2a2a3a); --text: var(--text-primary, #f0f0f6); --muted: var(--text-secondary, #9a9ab0); --accent: var(--accent-primary, #7c5cff);
+    --on-accent: var(--text-on-accent, #fff); --ok: var(--status-success, #00d3a7); --warn: var(--status-warning, #f5b800); --bad: var(--status-error, #ff5c7a);
+    --shadow: var(--card-shadow, 0 8px 30px rgba(0,0,0,.25)); --radius: 14px;
   }
-  * { box-sizing:border-box; }
-  body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
-  .page { max-width:680px; margin:0 auto; padding:34px 28px 60px; }
-  h1 { font-size:22px; margin:0 0 4px; }
-  .sub { color:var(--muted); font-size:13px; margin-bottom:26px; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px; display:flex; gap:18px; align-items:center; margin-bottom:20px; }
-  .card img { width:72px; height:72px; border-radius:50%; border:2px solid var(--fb); }
-  .card .ph { width:72px; height:72px; border-radius:50%; background:var(--bg-tertiary, #222); display:flex; align-items:center; justify-content:center; font-size:28px; }
-  .card .nm { font-size:18px; font-weight:600; }
-  .card .id { color:var(--muted); font-size:12px; margin-top:3px; }
-  .badge { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--accent2); margin-top:7px; }
-  .badge::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--accent2); }
-  .note { background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:10px; padding:14px 16px; font-size:13px; line-height:1.6; color:var(--text-secondary, #c8c8da); margin-bottom:16px; }
-  .note b { color:var(--text); }
-  .links a { color:var(--accent); font-size:13px; text-decoration:none; }
-  .links a:hover { text-decoration:underline; }
-  .notice { color:var(--muted); padding:50px 0; text-align:center; }
-  .notice a { color:var(--accent); }
-  .spin { color:var(--muted); font-size:14px; }
-  ::-webkit-scrollbar{width:10px;height:10px}
-  ::-webkit-scrollbar-track{background:transparent}
-  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
-  ::-webkit-scrollbar-thumb:hover{background:var(--text-secondary,rgba(255,255,255,.28))}
-  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
-  @media (max-width: 640px) {
-    .page { padding: 20px 14px 40px; }
-    .card { flex-wrap: wrap; padding: 16px; }
-    .note { font-size: 13px; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font-family: system-ui, -apple-system, Segoe UI, sans-serif; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 236px 1fr; overflow: hidden; }
+  button { font: inherit; cursor: pointer; }
+  button:disabled { opacity: .55; cursor: default; }
+  a { color: var(--accent); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; } ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text) 18%, transparent); border-radius: 6px; } ::-webkit-scrollbar-track { background: transparent; }
+  /* ── rail ── */
+  .rail { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  .rail .brand { display: flex; align-items: center; gap: 10px; padding: 18px 16px 10px; font-weight: 700; font-size: 17px; }
+  .rail .brand .mark { width: 28px; height: 28px; border-radius: 8px; background: var(--accent-gradient, var(--accent)); display: grid; place-items: center; color: var(--on-accent); font-size: 15px; }
+  .newpost { margin: 6px 14px 14px; padding: 11px 14px; border: 0; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-weight: 650; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .newpost svg { width: 16px; height: 16px; flex: none; }
+  .newpost:hover { filter: brightness(1.08); }
+  .nav { display: flex; flex-direction: column; padding: 0 8px; gap: 2px; }
+  .nav button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; background: transparent; color: var(--text); border-radius: 9px; font-size: 14px; text-align: left; }
+  .nav button svg { width: 17px; height: 17px; opacity: .8; }
+  .nav button .n { margin-left: auto; font-size: 12px; color: var(--muted); background: var(--panel2); padding: 1px 7px; border-radius: 10px; }
+  .nav button .n:empty { display: none; }
+  .nav button.on { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--text); font-weight: 600; }
+  .nav button.on svg { opacity: 1; color: var(--accent); }
+  .rail h4 { margin: 18px 18px 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .chlist { display: flex; flex-direction: column; padding: 0 8px; gap: 2px; overflow: auto; min-height: 0; flex: 1; }
+  .chrow { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 0; background: transparent; color: var(--text); border-radius: 9px; font-size: 13.5px; text-align: left; width: 100%; }
+  .chrow:hover { background: var(--panel2); }
+  .chrow .who { display: flex; flex-direction: column; min-width: 0; }
+  .chrow .who b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chrow .who span { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chrow .dot { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex: none; }
+  .chrow .dot.connected { background: var(--ok); } .chrow .dot.reconnect { background: var(--warn); }
+  .rail .foot { padding: 10px 8px 14px; border-top: 1px solid var(--line); }
+  /* avatars with a brand badge (the Buffer channel avatar) */
+  .av { position: relative; width: 34px; height: 34px; flex: none; }
+  .av img, .av .ph { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; background: var(--panel2); display: grid; place-items: center; color: var(--muted); font-size: 15px; }
+  .av .badge { position: absolute; right: -4px; bottom: -4px; width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 10px; font-weight: 800; border: 2px solid var(--panel); }
+  .av.dim { opacity: .4; filter: grayscale(1); }
+  .av.lg, .av.lg img, .av.lg .ph { width: 54px; height: 54px; } .av.lg .badge { width: 22px; height: 22px; font-size: 12px; }
+  /* ── main ── */
+  .main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .head { display: flex; align-items: center; gap: 12px; padding: 16px 22px 12px; border-bottom: 1px solid var(--line); }
+  .head h1 { margin: 0; font-size: 20px; }
+  .head .sub { color: var(--muted); font-size: 13px; }
+  .head .sp { flex: 1; }
+  .body { overflow: auto; padding: 18px 22px 40px; min-height: 0; min-width: 0; }
+  .btn { padding: 8px 13px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 13.5px; display: inline-flex; align-items: center; gap: 7px; }
+  .btn:hover { background: var(--panel2); }
+  .btn.primary { background: var(--accent); border-color: transparent; color: var(--on-accent); font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.08); background: var(--accent); }
+  .btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+  .btn.ghost:hover { color: var(--text); background: var(--panel2); }
+  .btn.danger { color: var(--bad); }
+  .btn svg { width: 15px; height: 15px; }
+  .banner { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line)); background: color-mix(in srgb, var(--warn) 10%, var(--panel)); border-radius: 12px; margin-bottom: 16px; font-size: 13.5px; }
+  .banner.ok { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); background: color-mix(in srgb, var(--ok) 9%, var(--panel)); }
+  .banner .sp { flex: 1; }
+  .day { margin: 18px 0 8px; font-size: 12.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); font-weight: 600; display: flex; gap: 8px; align-items: center; }
+  .day::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .post { display: grid; grid-template-columns: 64px 1fr auto; gap: 14px; padding: 14px 16px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 10px; align-items: start; }
+  .post .time { font-weight: 700; font-size: 14px; } .post .time small { display: block; color: var(--muted); font-weight: 500; font-size: 11.5px; }
+  .post .txt { white-space: pre-wrap; line-height: 1.5; font-size: 14px; overflow-wrap: anywhere; }
+  .post .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 9px; border-radius: 20px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); }
+  .chip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .chip.ok { border-color: color-mix(in srgb, var(--ok) 50%, var(--line)); } .chip.bad { border-color: color-mix(in srgb, var(--bad) 60%, var(--line)); color: var(--bad); }
+  .chip a { color: inherit; text-decoration: none; } .chip a:hover { text-decoration: underline; }
+  .post .acts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .post img.media { max-height: 120px; border-radius: 8px; margin-top: 8px; border: 1px solid var(--line); }
+  .empty { text-align: center; color: var(--muted); padding: 60px 20px; }
+  .empty .big { font-size: 40px; margin-bottom: 8px; }
+  .empty b { display: block; color: var(--text); font-size: 16px; margin-bottom: 6px; }
+  /* calendar */
+  .cal { display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)); gap: 8px; min-width: 860px; }
+  .cal .col { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; min-height: 420px; display: flex; flex-direction: column; }
+  .cal .col.today { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); }
+  .cal .colh { padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--muted); display: flex; justify-content: space-between; align-items: baseline; }
+  .cal .colh b { font-size: 18px; color: var(--text); }
+  .cal .col.today .colh b { color: var(--accent); }
+  .cal .slot { margin: 8px 8px 0; padding: 8px 10px; border-radius: 9px; background: var(--card); border: 1px solid var(--line); font-size: 12.5px; cursor: pointer; }
+  .cal .slot:hover { border-color: var(--accent); }
+  .cal .slot .t { font-weight: 700; display: flex; gap: 5px; align-items: center; } .cal .slot .t i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .cal .slot .x { color: var(--muted); margin-top: 3px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+  .cal .slot.sent { opacity: .7; } .cal .slot.failed { border-color: color-mix(in srgb, var(--bad) 60%, var(--line)); }
+  .cal .add { margin: auto 8px 8px; padding: 8px; border: 1px dashed var(--line); border-radius: 9px; background: transparent; color: var(--muted); font-size: 12.5px; }
+  .cal .add:hover { color: var(--text); border-color: var(--accent); }
+  .calwrap { overflow: auto; }
+  /* engage */
+  .msg { display: grid; grid-template-columns: 40px 1fr; gap: 12px; padding: 14px 16px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 10px; }
+  .msg .from { font-weight: 650; font-size: 14px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .msg .from span { color: var(--muted); font-weight: 500; font-size: 12.5px; }
+  .msg .txt { margin-top: 4px; white-space: pre-wrap; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+  .msg .acts { margin-top: 8px; display: flex; gap: 6px; align-items: center; }
+  .msg .reply { margin-top: 8px; display: none; gap: 8px; }
+  .msg .reply.open { display: flex; }
+  .msg .reply textarea { flex: 1; min-height: 44px; }
+  textarea, input[type=text], input[type=url], input[type=datetime-local], input[type=time], select { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; width: 100%; }
+  textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 110px; line-height: 1.5; }
+  label.f { display: block; font-size: 12.5px; color: var(--muted); margin: 12px 0 5px; font-weight: 600; }
+  /* channel cards + go live cards */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .ccard { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .ccard .top { display: flex; align-items: center; gap: 12px; }
+  .ccard .top .who { min-width: 0; } .ccard .top .who b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ccard .top .who span { color: var(--muted); font-size: 12.5px; }
+  .state { font-size: 12px; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); } .state i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); display: inline-block; }
+  .state.connected { color: var(--ok); } .state.connected i { background: var(--ok); } .state.reconnect { color: var(--warn); } .state.reconnect i { background: var(--warn); }
+  .ccard .acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+  .tog { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 20px; border: 1px solid var(--line); background: var(--panel2); color: var(--muted); font-size: 13px; }
+  .tog.on { border-color: var(--accent); color: var(--text); background: color-mix(in srgb, var(--accent) 14%, var(--panel2)); }
+  .tog .k { width: 10px; height: 10px; border-radius: 50%; background: var(--line); } .tog.on .k { background: var(--accent); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin-bottom: 16px; }
+  .panel h3 { margin: 0 0 4px; font-size: 15px; } .panel .hint { color: var(--muted); font-size: 12.5px; margin-bottom: 10px; }
+  .times { display: flex; flex-wrap: wrap; gap: 8px; } .times .chip button { border: 0; background: transparent; color: var(--muted); padding: 0 0 0 4px; font-size: 14px; line-height: 1; }
+  .status { font-size: 13px; color: var(--muted); min-height: 18px; } .status.bad { color: var(--bad); } .status.ok { color: var(--ok); }
+  /* composer */
+  .scrim { position: fixed; inset: 0; background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(3px); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 20; }
+  .scrim.open { display: flex; }
+  .composer { width: min(980px, 100%); max-height: 94vh; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }
+  .composer .ctop { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .composer .ctop h2 { margin: 0; font-size: 16px; margin-right: 8px; }
+  .composer .ctop .x { margin-left: auto; }
+  .avtog { border: 2px solid transparent; background: transparent; padding: 2px; border-radius: 50%; }
+  .avtog.on { border-color: var(--accent); } .avtog .av { width: 36px; height: 36px; } .avtog .av img, .avtog .av .ph { width: 36px; height: 36px; }
+  .cbody { display: grid; grid-template-columns: 1.15fr .85fr; min-height: 0; overflow: auto; }
+  .cwrite { padding: 16px 18px; border-right: 1px solid var(--line); min-width: 0; }
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
+  .tabs button { border: 1px solid var(--line); background: var(--panel2); color: var(--muted); border-radius: 20px; padding: 5px 11px; font-size: 12.5px; display: inline-flex; gap: 6px; align-items: center; }
+  .tabs button.on { color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--panel2)); }
+  .tabs button .c { font-variant-numeric: tabular-nums; } .tabs button .c.over { color: var(--bad); font-weight: 700; }
+  .counter { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 6px; } .counter .over { color: var(--bad); font-weight: 700; }
+  .cprev { padding: 16px 18px; background: var(--bg); min-width: 0; }
+  .cprev h5 { margin: 0 0 10px; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .pcard { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .pcard .ph2 { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; } .pcard .ph2 b { display: block; font-size: 14px; } .pcard .ph2 span { color: var(--muted); font-size: 12px; }
+  .pcard .pt { white-space: pre-wrap; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; min-height: 40px; }
+  .pcard img { width: 100%; border-radius: 9px; margin-top: 10px; border: 1px solid var(--line); }
+  .cfoot { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .cfoot .status { flex: 1; }
+  .when { display: none; gap: 8px; align-items: center; } .when.open { display: flex; }
+  .menu { position: relative; }
+  .menu .dd { position: absolute; right: 0; bottom: 110%; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); min-width: 200px; display: none; z-index: 2; overflow: hidden; }
+  .menu.open .dd { display: block; }
+  .menu .dd button { display: block; width: 100%; text-align: left; border: 0; background: transparent; color: var(--text); padding: 10px 14px; font-size: 13.5px; }
+  .menu .dd button:hover { background: var(--panel2); }
+  .menu .dd button small { display: block; color: var(--muted); font-size: 11.5px; }
+  .split { display: inline-flex; } .split .btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; } .split .btn:last-child { border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 8px 9px; border-left: 1px solid color-mix(in srgb, var(--on-accent) 30%, transparent); }
+  @media (max-width: 860px) {
+    body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .rail { border-right: 0; border-bottom: 1px solid var(--line); flex-direction: row; align-items: center; gap: 4px; padding: 8px 10px; overflow-x: auto; }
+    .rail .brand { padding: 0 6px; font-size: 15px; } .rail .brand .word { display: none; }
+    .newpost { margin: 0 4px; padding: 8px 12px; font-size: 13px; white-space: nowrap; }
+    .nav { flex-direction: row; padding: 0; } .nav button { padding: 7px 9px; white-space: nowrap; font-size: 13px; } .nav button .n { display: none; }
+    .rail h4, .chlist { display: none; } .rail .foot { border-top: 0; padding: 0; }
+    .head { padding: 12px 14px; flex-wrap: wrap; } .body { padding: 12px 14px 60px; }
+    .post { grid-template-columns: 1fr; gap: 8px; } .post .acts { justify-content: flex-start; }
+    .cbody { grid-template-columns: 1fr; } .cwrite { border-right: 0; border-bottom: 1px solid var(--line); }
+    .grid2 { grid-template-columns: 1fr; } .scrim { padding: 0; } .composer { max-height: 100vh; border-radius: 0; }
   }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
-  <div class="page">
-    <h1>👤 Social</h1>
-    <div class="sub">Your connected social accounts.</div>
-    <div id="content"><div class="spin">Checking your Facebook connection…</div></div>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-queue" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-draft" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+  <symbol id="i-sent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5a8.38 8.38 0 0 1-9 8 8.5 8.5 0 0 1-3.9-.9L3 20l1.4-4.1A8.38 8.38 0 0 1 12 3.5a8.5 8.5 0 0 1 9 8Z"/></symbol>
+  <symbol id="i-live" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M5 5a10 10 0 0 0 0 14M19 5a10 10 0 0 1 0 14M8 8a6 6 0 0 0 0 8M16 8a6 6 0 0 1 0 8"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></symbol>
+</svg>
+
+<aside class="rail">
+  <div class="brand"><span class="mark">✦</span><span class="word">Social</span></div>
+  <button class="newpost" id="newPost"><svg><use href="#i-plus"/></svg> New post</button>
+  <nav class="nav" id="nav">
+    <button data-view="queue" class="on"><svg><use href="#i-queue"/></svg> Queue <span class="n" id="nQueue"></span></button>
+    <button data-view="calendar"><svg><use href="#i-cal"/></svg> Calendar</button>
+    <button data-view="drafts"><svg><use href="#i-draft"/></svg> Drafts <span class="n" id="nDrafts"></span></button>
+    <button data-view="sent"><svg><use href="#i-sent"/></svg> Sent</button>
+    <button data-view="engage"><svg><use href="#i-chat"/></svg> Engage</button>
+    <button data-view="live"><svg><use href="#i-live"/></svg> Go Live</button>
+  </nav>
+  <h4>Channels</h4>
+  <div class="chlist" id="chlist"></div>
+  <div class="foot nav"><button data-view="channels" id="manageCh"><svg><use href="#i-plus"/></svg> Add a channel</button><button data-view="settings"><svg><use href="#i-gear"/></svg> Settings</button></div>
+</aside>
+
+<main class="main">
+  <div class="head"><h1 id="title">Queue</h1><span class="sub" id="subtitle"></span><span class="sp"></span><div class="row" id="headActions"></div></div>
+  <div class="body" id="body"><div class="empty">Loading your desk…</div></div>
+</main>
+
+<div class="scrim" id="scrim">
+  <div class="composer" role="dialog" aria-label="New post">
+    <div class="ctop"><h2 id="cTitle">New post</h2><div class="row" id="cChannels"></div><button class="btn ghost x" id="cClose" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
+    <div class="cbody">
+      <div class="cwrite">
+        <div class="tabs" id="cTabs"></div>
+        <textarea id="cText" placeholder="What do you want to say? Write it once; customize per channel if you like."></textarea>
+        <div class="counter"><span id="cCount"></span><span id="cHint"></span></div>
+        <label class="f">Image link (https)</label>
+        <input type="url" id="cMedia" placeholder="https://… a picture to show with the post" />
+      </div>
+      <div class="cprev"><h5 id="pLabel">Preview</h5><div class="pcard" id="pCard"></div></div>
+    </div>
+    <div class="cfoot">
+      <div class="status" id="cStatus"></div>
+      <div class="when" id="cWhen"><input type="datetime-local" id="cAt" /><button class="btn primary" id="cSchedule">Schedule</button><button class="btn ghost" id="cWhenX">Cancel</button></div>
+      <button class="btn" id="cDraft">Save draft</button>
+      <button class="btn" id="cNow">Post now</button>
+      <div class="menu split" id="cMenu"><button class="btn primary" id="cQueue">Add to queue</button><button class="btn primary" id="cMore" aria-label="More ways to send"><svg><use href="#i-chev"/></svg></button>
+        <div class="dd"><button data-send="queue">Add to queue<small>The next free time in your posting plan</small></button><button data-send="schedule">Schedule…<small>Pick a day and time</small></button><button data-send="now">Post now</button><button data-send="draft">Save as draft</button></div>
+      </div>
+    </div>
   </div>
+</div>
 
 <script>
-function esc(s){ return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-async function run(){
-  const content = document.getElementById('content');
-  const r = await fetch('/api/email/social/profile?surface=1');
-  if (!r.ok) { content.innerHTML = '<div class="notice">Could not load your Facebook profile ('+r.status+').</div>'; return; }
-  const p = await r.json();
-  if (p.connected === false) { content.innerHTML = '<div class="notice">No Facebook account connected.<br><a href="/utilities" target="_top">Connect Facebook →</a></div>'; return; }
-  const avatar = p.picture ? `<img src="${esc(p.picture)}" alt="">` : `<div class="ph">👤</div>`;
-  content.innerHTML = `
-    <div class="card">${avatar}
-      <div><div class="nm">${esc(p.name||'Connected')}</div><div class="id">Facebook ID: ${esc(p.id||'')}</div>
-      <div class="badge">Connected</div></div>
-    </div>
-    <div class="note"><b>What's available now:</b> with the current <code>public_profile</code> permission, OSHAL can read your basic profile (name, ID, picture). Reading your <b>feed</b>, <b>posts</b>, <b>comments</b>, or sending <b>messages</b> requires additional Meta permissions, which need <b>Meta App Review</b> before they can be enabled.</div>
-    <div class="links"><a href="/utilities" target="_top">Manage connection →</a></div>`;
-}
-run();
+(function () {
+  'use strict';
+  var API = '/api/email-social';
+  var S = { channels: [], settings: null, posts: [], events: [], job: null, jobs: [], view: 'queue', week: 0, editing: null, sel: [], variants: {}, tab: 'all', connectList: {} };
+  var LETTER = { x: 'X', linkedin: 'in', facebook: 'f', slack: '#', mastodon: 'm' };
+  var DEST_LETTER = { youtube: '▶', twitch: 'T', 'facebook-live': 'f', kick: 'K', 'linkedin-live': 'in', 'tiktok-live': '♪' };
+  var DEST_COLOR = { youtube: '#ff0000', twitch: '#9146ff', 'facebook-live': '#1877f2', kick: '#53fc18', 'linkedin-live': '#0a66c2', 'tiktok-live': '#000' };
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function el(html) { var t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; }
+  async function json(path, init) {
+    var r = await fetch(path, Object.assign({ credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json' } }, init || {}));
+    var body = await r.json().catch(function () { return {}; });
+    if (!r.ok && r.status !== 207) { var e = new Error(body.message || body.error || ('HTTP ' + r.status)); e.status = r.status; e.body = body; throw e; }
+    return body;
+  }
+  var api = function (p, init) { return json(API + p, init); };
+  function ch(id) { for (var i = 0; i < S.channels.length; i++) if (S.channels[i].id === id) return S.channels[i]; return null; }
+  function fmtTime(iso) { return iso ? new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''; }
+  function fmtDay(iso) { var d = new Date(iso), t = new Date(), m = new Date(t); m.setDate(t.getDate() + 1);
+    if (d.toDateString() === t.toDateString()) return 'Today'; if (d.toDateString() === m.toDateString()) return 'Tomorrow';
+    return d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }); }
+  function localInput(d) { var p = function (n) { return String(n).padStart(2, '0'); }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()); }
+  function avatar(c, size) {
+    var color = c.color || DEST_COLOR[c.id] || 'var(--accent)', letter = LETTER[c.id] || DEST_LETTER[c.id] || (c.label || '?')[0];
+    var inner = c.account && c.account.avatar ? '<img src="' + esc(c.account.avatar) + '" alt="" referrerpolicy="no-referrer" />' : '<div class="ph">' + esc((c.account && c.account.name ? c.account.name[0] : c.label[0]) || '?') + '</div>';
+    return '<span class="av' + (size ? ' ' + size : '') + (c.state && c.state !== 'connected' ? ' dim' : '') + '">' + inner + '<span class="badge" style="background:' + color + '">' + esc(letter) + '</span></span>';
+  }
+  function chip(id, outcome) {
+    var c = ch(id) || { id: id, label: id, color: 'var(--muted)' };
+    var cls = outcome ? (outcome.ok ? ' ok' : ' bad') : '', link = outcome && outcome.ok && outcome.url ? '<a href="' + esc(outcome.url) + '" target="_blank" rel="noopener">' + esc(c.label) + '</a>' : esc(c.label);
+    var why = outcome && !outcome.ok ? ' title="' + esc(outcome.message || outcome.error || 'failed') + '"' : '';
+    return '<span class="chip' + cls + '"' + why + '><i style="background:' + c.color + '"></i>' + link + (outcome && !outcome.ok ? ' · failed' : '') + '</span>';
+  }
+  function setView(v) {
+    S.view = v;
+    document.querySelectorAll('.nav button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-view') === v); });
+    render();
+  }
+  /* ── loads ── */
+  async function loadAll() {
+    var r = await Promise.all([api('/channels?identity=1').catch(function (e) { return { channels: [], error: e.message }; }), api('/settings').catch(function () { return null; }), api('/posts').catch(function () { return { posts: [] }; }), jobsRow(), connectList()]);
+    S.channels = r[0].channels || []; S.destinations = r[0].destinations || []; S.native = r[0].native !== false; S.settings = r[1]; S.posts = r[2].posts || [];
+    if (S.settings && !S.settings.timezone) { try { var tz = Intl.DateTimeFormat().resolvedOptions().timeZone; S.settings = await api('/settings', { method: 'PUT', body: JSON.stringify({ timezone: tz }) }); } catch (_) {} }
+    paintRail(); render();
+  }
+  async function jobsRow() {
+    try { var list = await json('/api/v1/agent/schedules'); S.jobs = list.schedules || list.jobs || []; } catch (_) { S.jobs = []; }
+    S.job = S.jobs.find(function (s) { return s.app === 'email-summarizer' && s.name === 'social-publish'; }) || null;
+    return S.job;
+  }
+  async function connectList() {
+    try { var d = await json('/api/connect/list'); (d.providers || []).forEach(function (p) { S.connectList[p.id] = p; }); } catch (_) {}
+  }
+  function configured(c) { var p = S.connectList[c.connect] || S.connectList[c.id]; return p ? p.configured !== false : true; }
+  async function reloadPosts() { S.posts = (await api('/posts')).posts || []; paintRail(); render(); }
+  /* ── rail ── */
+  function paintRail() {
+    var list = $('chlist'); list.innerHTML = '';
+    var shown = S.channels.filter(function (c) { return c.state === 'connected' || c.state === 'reconnect' || configured(c); });
+    shown.forEach(function (c) {
+      var who = c.account ? '<b>' + esc(c.account.name || c.label) + '</b><span>' + esc(c.account.handle || c.label) + '</span>' : '<b>' + esc(c.label) + '</b><span>' + (c.state === 'reconnect' ? 'Needs reconnecting' : c.state === 'connected' ? 'Connected' : 'Not connected') + '</span>';
+      var b = el('<button class="chrow">' + avatar(c) + '<span class="who">' + who + '</span><i class="dot ' + esc(c.state) + '"></i></button>');
+      b.onclick = function () { if (c.state === 'connected') openComposer({ channels: [c.id] }); else setView('channels'); };
+      list.appendChild(b);
+    });
+    var queued = S.posts.filter(function (p) { return p.status === 'scheduled'; }).length, drafts = S.posts.filter(function (p) { return p.status === 'draft'; }).length;
+    $('nQueue').textContent = queued || ''; $('nDrafts').textContent = drafts || '';
+  }
+  /* ── views ── */
+  var VIEWS = {
+    queue: { title: 'Queue', sub: 'What goes out next, in your posting plan.' }, calendar: { title: 'Calendar', sub: 'The week at a glance.' }, drafts: { title: 'Drafts', sub: 'Saved, not scheduled.' },
+    sent: { title: 'Sent', sub: 'What went out, with a link to each post.' }, engage: { title: 'Engage', sub: 'Direct messages and mentions, answered in place.' }, live: { title: 'Go Live', sub: 'Plan a stream and announce it on your channels.' },
+    channels: { title: 'Channels', sub: 'The accounts this desk posts to.' }, settings: { title: 'Settings', sub: 'Your posting plan and the publishing job.' },
+  };
+  function render() {
+    var v = VIEWS[S.view] || VIEWS.queue; $('title').textContent = v.title; $('subtitle').textContent = v.sub; $('headActions').innerHTML = '';
+    var body = $('body'); body.innerHTML = '';
+    ({ queue: paintQueue, calendar: paintCalendar, drafts: paintDrafts, sent: paintSent, engage: paintEngage, live: paintLive, channels: paintChannels, settings: paintSettings })[S.view](body);
+  }
+  function jobBanner(body) {
+    var scheduled = S.posts.some(function (p) { return p.status === 'scheduled'; });
+    if (!scheduled || !S.native) return;
+    var active = S.job && S.job.status === 'active';
+    var b = el('<div class="banner' + (active ? ' ok' : '') + '"><span class="sp">' + (active ? 'Your publishing job is on: scheduled posts go out within five minutes of their time.' : 'Scheduled posts go out when your publishing job is on. It runs every five minutes as you.') + '</span>' + (active ? '' : '<button class="btn primary" id="turnOn">Turn on</button>') + '</div>');
+    if (!active) b.querySelector('#turnOn').onclick = turnOnJob;
+    body.appendChild(b);
+  }
+  async function turnOnJob(ev) {
+    var btn = ev.currentTarget; btn.disabled = true; btn.textContent = 'Turning on…';
+    try {
+      var job = await jobsRow();
+      if (!job) throw new Error('The social-publish job is not offered on this installation.');
+      if (job.status !== 'active') await json('/api/v1/agent/schedules/' + encodeURIComponent(job.id) + '/activate', { method: 'POST', body: JSON.stringify({ class: 'person' }) });
+      await jobsRow(); render();
+    } catch (err) { btn.disabled = false; btn.textContent = 'Turn on'; alertLine(err.message); }
+  }
+  function alertLine(text) { var s = $('subtitle'); s.textContent = text; s.style.color = 'var(--bad)'; setTimeout(function () { s.style.color = ''; }, 6000); }
+  function postCard(p, opts) {
+    var when = p.status === 'sent' || p.status === 'partial' ? p.sentAt : p.scheduledAt;
+    var acts = '';
+    if (p.status === 'scheduled' || p.status === 'draft' || p.status === 'failed' || p.status === 'partial') acts += '<button class="btn" data-act="now">Post now</button><button class="btn ghost" data-act="edit">Edit</button>';
+    acts += '<button class="btn ghost danger" data-act="del">Delete</button>';
+    var meta = p.channels.map(function (id) { return chip(id, p.outcomes && p.outcomes[id]); }).join('');
+    var card = el('<div class="post" data-id="' + esc(p.id) + '"><div class="time">' + (when ? esc(fmtTime(when)) : (p.status === 'draft' ? 'Draft' : '—')) + '<small>' + esc(p.status === 'partial' ? 'partly sent' : p.status === 'failed' ? 'failed' : p.status === 'sent' ? 'sent' : when && opts && opts.day ? fmtDay(when) : '') + '</small></div><div><div class="txt">' + esc(p.text || Object.values(p.variants || {})[0] || '') + '</div>' + (p.mediaUrl ? '<img class="media" src="' + esc(p.mediaUrl) + '" alt="" />' : '') + '<div class="meta">' + meta + '</div></div><div class="acts">' + acts + '</div></div>');
+    card.addEventListener('click', function (e) { var b = e.target.closest('[data-act]'); if (b) act(b.getAttribute('data-act'), p, b); });
+    return card;
+  }
+  async function act(kind, p, btn) {
+    if (kind === 'edit') return openComposer(p);
+    if (kind === 'del') { if (!confirm('Delete this post?')) return; await api('/posts/' + encodeURIComponent(p.id), { method: 'DELETE' }); return reloadPosts(); }
+    if (kind === 'now') { btn.disabled = true; btn.textContent = 'Posting…'; try { var r = await api('/posts/' + encodeURIComponent(p.id) + '/publish', { method: 'POST', body: '{}' }); if (!r.ok) alertLine(firstFailure(r.post)); } catch (err) { alertLine(err.message); } return reloadPosts(); }
+  }
+  function firstFailure(post) { var o = post && post.outcomes || {}; for (var k in o) if (!o[k].ok) return (ch(k) || { label: k }).label + ': ' + (o[k].message || o[k].error); return 'Not posted.'; }
+  function grouped(body, posts, emptyHtml) {
+    if (!posts.length) { body.appendChild(el(emptyHtml)); return; }
+    var lastDay = '';
+    posts.forEach(function (p) { var when = p.scheduledAt || p.sentAt || p.createdAt, d = fmtDay(when); if (d !== lastDay) { body.appendChild(el('<div class="day">' + esc(d) + '</div>')); lastDay = d; } body.appendChild(postCard(p)); });
+  }
+  function paintQueue(body) {
+    jobBanner(body);
+    if (!S.channels.some(function (c) { return c.state === 'connected'; })) {
+      var e = el('<div class="empty"><div class="big">✦</div><b>Connect a channel to start posting</b>X, LinkedIn, a Facebook Page, Slack. One post, every channel you pick.<br><br><button class="btn primary" id="goCh">Add a channel</button></div>');
+      e.querySelector('#goCh').onclick = function () { setView('channels'); }; body.appendChild(e); return;
+    }
+    var q = S.posts.filter(function (p) { return p.status === 'scheduled' || p.status === 'sending' || p.status === 'failed' || p.status === 'partial'; });
+    grouped(body, q, '<div class="empty"><div class="big">📭</div><b>Your queue is empty</b>Write a post and add it to the queue: it goes out at the next time in your posting plan.</div>');
+  }
+  function paintDrafts(body) { grouped(body, S.posts.filter(function (p) { return p.status === 'draft'; }), '<div class="empty"><div class="big">✎</div><b>No drafts</b>Save a post as a draft to finish it later.</div>'); }
+  function paintSent(body) { grouped(body, S.posts.filter(function (p) { return p.status === 'sent'; }).slice().reverse(), '<div class="empty"><div class="big">✓</div><b>Nothing sent yet</b>Posts that went out show here, with a link to each.</div>'); }
+  function weekStart(offset) { var d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - d.getDay() + offset * 7); return d; }
+  function paintCalendar(body) {
+    var start = weekStart(S.week), end = new Date(start); end.setDate(start.getDate() + 7);
+    var h = $('headActions'); h.innerHTML = '';
+    var prev = el('<button class="btn ghost" aria-label="Previous week"><svg><use href="#i-left"/></svg></button>'), today = el('<button class="btn">Today</button>'), next = el('<button class="btn ghost" aria-label="Next week"><svg><use href="#i-right"/></svg></button>');
+    prev.onclick = function () { S.week--; render(); }; next.onclick = function () { S.week++; render(); }; today.onclick = function () { S.week = 0; render(); };
+    h.appendChild(prev); h.appendChild(today); h.appendChild(next);
+    $('subtitle').textContent = start.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' – ' + new Date(end - 1).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    var wrap = el('<div class="calwrap"><div class="cal"></div></div>'), cal = wrap.firstChild, now = new Date();
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(start); d.setDate(start.getDate() + i);
+      var col = el('<div class="col' + (d.toDateString() === now.toDateString() ? ' today' : '') + '"><div class="colh"><span>' + d.toLocaleDateString([], { weekday: 'short' }) + '</span><b>' + d.getDate() + '</b></div></div>');
+      var dayPosts = S.posts.filter(function (p) { var t = p.scheduledAt || p.sentAt; return t && new Date(t).toDateString() === d.toDateString() && p.status !== 'draft'; }).sort(function (a, b) { return Date.parse(a.scheduledAt || a.sentAt) - Date.parse(b.scheduledAt || b.sentAt); });
+      dayPosts.forEach(function (p) {
+        var s = el('<div class="slot ' + esc(p.status) + '"><div class="t">' + p.channels.map(function (id) { var c = ch(id); return '<i style="background:' + (c ? c.color : 'var(--muted)') + '"></i>'; }).join('') + ' ' + esc(fmtTime(p.scheduledAt || p.sentAt)) + '</div><div class="x">' + esc(p.text || Object.values(p.variants || {})[0] || '') + '</div></div>');
+        s.onclick = function () { if (p.status === 'sent') { setView('sent'); } else openComposer(p); }; col.appendChild(s);
+      });
+      (function (day) { var add = el('<button class="add">+ Schedule a post</button>'); add.onclick = function () { var at = new Date(day); at.setHours(9, 0, 0, 0); openComposer({ scheduledAt: at.toISOString(), status: 'draft' }, true); }; col.appendChild(add); })(d);
+      cal.appendChild(col);
+    }
+    body.appendChild(wrap);
+  }
+  /* ── engage ── */
+  async function paintEngage(body) {
+    body.innerHTML = '<div class="empty">Reading your Slack and X…</div>';
+    var r; try { r = await api('/engage'); } catch (err) { body.innerHTML = '<div class="empty">' + esc(err.message) + '</div>'; return; }
+    body.innerHTML = '';
+    var notes = [];
+    ['slack', 'x'].forEach(function (id) { var s = r.sources[id]; var c = ch(id); if (s && (s.state === 'none' || s.state === 'reconnect') && c && configured(c)) notes.push((ch(id) || { label: id }).label + ': ' + (s.state === 'none' ? 'not connected' : 'needs reconnecting')); else if (s && s.message) notes.push((ch(id) || { label: id }).label + ': ' + s.message); });
+    if (notes.length) { var b = el('<div class="banner"><span class="sp">' + esc(notes.join(' · ')) + '</span><button class="btn" id="toCh">Channels</button></div>'); b.querySelector('#toCh').onclick = function () { setView('channels'); }; body.appendChild(b); }
+    if (!r.items.length) { body.appendChild(el('<div class="empty"><div class="big">💬</div><b>Nothing waiting for you</b>Direct messages and mentions from Slack and X show here; reply without leaving.</div>')); return; }
+    r.items.forEach(function (m) {
+      var c = ch(m.channel) || { label: m.channel, color: 'var(--muted)' };
+      var card = el('<div class="msg"><div>' + avatar({ id: m.channel, label: c.label, color: c.color, account: { name: m.from } }) + '</div><div><div class="from">' + esc(m.from) + '<span>' + esc(m.where) + ' · ' + esc(m.at ? new Date(m.at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '') + '</span></div><div class="txt">' + esc(m.text) + '</div><div class="acts"><button class="btn" data-r="open">Reply</button>' + (m.url ? '<a class="btn ghost" href="' + esc(m.url) + '" target="_blank" rel="noopener">Open <svg><use href="#i-ext"/></svg></a>' : '') + '<span class="status"></span></div><div class="reply"><textarea placeholder="Your reply"></textarea><button class="btn primary" data-r="send">Send</button></div></div></div>');
+      card.addEventListener('click', async function (e) {
+        var b = e.target.closest('[data-r]'); if (!b) return;
+        var box = card.querySelector('.reply'), st = card.querySelector('.status');
+        if (b.getAttribute('data-r') === 'open') { box.classList.toggle('open'); box.querySelector('textarea').focus(); return; }
+        var text = box.querySelector('textarea').value.trim(); if (!text) return;
+        b.disabled = true; st.textContent = 'Sending…';
+        try { var o = await api('/engage/reply', { method: 'POST', body: JSON.stringify({ channel: m.channel, replyTo: m.replyTo, text: text }) }); st.textContent = o.ok ? 'Replied' : (o.message || 'Not sent'); st.className = 'status ' + (o.ok ? 'ok' : 'bad'); if (o.ok) { box.classList.remove('open'); box.querySelector('textarea').value = ''; } }
+        catch (err) { st.textContent = err.message; st.className = 'status bad'; }
+        b.disabled = false;
+      });
+      body.appendChild(card);
+    });
+  }
+  /* ── go live ── */
+  function destLabel(id) { var d = (S.destinations || []).find(function (x) { return x.id === id; }); return d ? d.label : id; }
+  function announcementTexts(f) {
+    var when = f.startAt ? new Date(f.startAt) : null, day = when ? fmtDay(when.toISOString()) : '', time = when ? fmtTime(when.toISOString()) : '';
+    var where = f.destinations.map(destLabel).join(', ') || 'my stream', link = f.watchUrl ? ' ' + f.watchUrl : '';
+    return [
+      { key: 'announce', label: 'Announce it now', text: '🎥 Going live ' + (day === 'Today' ? 'today' : day === 'Tomorrow' ? 'tomorrow' : day) + ' at ' + time + ': ' + f.title + ' — on ' + where + '.' + link, offsetMin: null },
+      { key: 'soon', label: '15 minutes before', text: 'Starting in 15 minutes: ' + f.title + '. Come hang out on ' + where + '.' + link, offsetMin: -15 },
+      { key: 'live', label: 'When it starts', text: "We're live now: " + f.title + (f.watchUrl ? ' 👉 ' + f.watchUrl : ' — on ' + where + '.'), offsetMin: 0 },
+    ];
+  }
+  async function paintLive(body) {
+    body.innerHTML = '';
+    var h = $('headActions'); var plan = el('<button class="btn primary"><svg><use href="#i-plus"/></svg> Plan a stream</button>'); h.appendChild(plan);
+    var listEl = el('<div></div>'); body.appendChild(listEl);
+    var form = el('<div class="panel" id="liveForm" hidden><h3>Plan a stream</h3><div class="hint">Say where you go live and the desk announces it on your channels at the right times. Streaming itself runs in your usual app (OBS, Streamlabs, the platform studio); the console links open it.</div>'
+      + '<div class="grid2"><div><label class="f">Title</label><input type="text" id="lvTitle" placeholder="Friday build night" /><label class="f">When</label><input type="datetime-local" id="lvAt" /><label class="f">Watch link (optional)</label><input type="url" id="lvUrl" placeholder="https://… where people watch" /></div>'
+      + '<div><label class="f">Where you stream</label><div class="row" id="lvDest"></div><label class="f">Announce on</label><div class="row" id="lvCh"></div></div></div>'
+      + '<label class="f">Announcements</label><div id="lvAnn"></div><div class="row" style="margin-top:12px"><button class="btn primary" id="lvSave">Save and announce</button><button class="btn ghost" id="lvCancel">Cancel</button><span class="status" id="lvStatus"></span></div></div>');
+    body.insertBefore(form, listEl);
+    var f = { title: '', startAt: '', watchUrl: '', destinations: [], channels: S.channels.filter(function (c) { return c.state === 'connected'; }).map(function (c) { return c.id; }), ann: {} };
+    var def = new Date(Date.now() + 2 * 3600000); def.setMinutes(0, 0, 0); form.querySelector('#lvAt').value = localInput(def); f.startAt = def.toISOString();
+    (S.destinations || []).forEach(function (d) { var t = el('<button class="tog"><span class="k"></span>' + esc(d.label) + '</button>'); t.onclick = function () { t.classList.toggle('on'); f.destinations = t.classList.contains('on') ? f.destinations.concat(d.id) : f.destinations.filter(function (x) { return x !== d.id; }); paintAnn(); }; form.querySelector('#lvDest').appendChild(t); });
+    S.channels.filter(function (c) { return c.state === 'connected'; }).forEach(function (c) { var t = el('<button class="tog on">' + avatar(c) + esc(c.account && c.account.name ? c.account.name : c.label) + '</button>'); t.onclick = function () { t.classList.toggle('on'); f.channels = t.classList.contains('on') ? f.channels.concat(c.id) : f.channels.filter(function (x) { return x !== c.id; }); }; form.querySelector('#lvCh').appendChild(t); });
+    function paintAnn() {
+      var box = form.querySelector('#lvAnn'); box.innerHTML = '';
+      announcementTexts(f).forEach(function (a) {
+        if (!(a.key in f.ann)) f.ann[a.key] = { on: true, text: '' };
+        var row = el('<div class="row" style="margin-bottom:8px;align-items:flex-start"><label class="tog' + (f.ann[a.key].on ? ' on' : '') + '" style="min-width:170px"><span class="k"></span>' + esc(a.label) + '</label><textarea style="min-height:52px;flex:1">' + esc(f.ann[a.key].text || a.text) + '</textarea></div>');
+        row.querySelector('label').onclick = function () { f.ann[a.key].on = !f.ann[a.key].on; row.querySelector('label').classList.toggle('on', f.ann[a.key].on); };
+        row.querySelector('textarea').oninput = function (e) { f.ann[a.key].text = e.target.value; };
+        box.appendChild(row);
+      });
+    }
+    ['lvTitle', 'lvUrl', 'lvAt'].forEach(function (id) { form.querySelector('#' + id).oninput = function (e) { if (id === 'lvTitle') f.title = e.target.value; if (id === 'lvUrl') f.watchUrl = e.target.value; if (id === 'lvAt') f.startAt = e.target.value ? new Date(e.target.value).toISOString() : ''; Object.keys(f.ann).forEach(function (k) { f.ann[k].text = ''; }); paintAnn(); }; });
+    paintAnn();
+    plan.onclick = function () { form.hidden = false; form.querySelector('#lvTitle').focus(); };
+    form.querySelector('#lvCancel').onclick = function () { form.hidden = true; };
+    form.querySelector('#lvSave').onclick = async function () {
+      var st = form.querySelector('#lvStatus'); st.textContent = 'Saving…'; st.className = 'status';
+      var start = Date.parse(f.startAt);
+      var announcements = announcementTexts(f).filter(function (a) { return f.ann[a.key].on; }).map(function (a) { return { key: a.key, text: f.ann[a.key].text || a.text, channels: f.channels, at: a.offsetMin == null ? new Date().toISOString() : new Date(start + a.offsetMin * 60000).toISOString() }; });
+      try { await api('/events', { method: 'POST', body: JSON.stringify({ title: f.title, startAt: f.startAt, watchUrl: f.watchUrl, destinations: f.destinations, announcements: announcements }) }); form.hidden = true; await reloadPosts(); }
+      catch (err) { st.textContent = err.message; st.className = 'status bad'; }
+    };
+    var r; try { r = await api('/events'); } catch (err) { listEl.innerHTML = '<div class="empty">' + esc(err.message) + '</div>'; return; }
+    S.events = r.events || [];
+    if (!S.events.length) { listEl.innerHTML = '<div class="empty"><div class="big">📡</div><b>No streams planned</b>Plan a stream: pick where you go live, and the desk announces it on your channels before and when you start.</div>'; return; }
+    S.events.forEach(function (ev) {
+      var dests = ev.destinations.map(function (id) { var d = (S.destinations || []).find(function (x) { return x.id === id; }) || { id: id, label: id }; return '<a class="chip" href="' + esc(d.console || '#') + '" target="_blank" rel="noopener"><i style="background:' + (DEST_COLOR[id] || 'var(--muted)') + '"></i>' + esc(d.label) + ' console</a>'; }).join('');
+      var posts = ev.posts.map(function (p) { return '<span class="chip ' + (p.status === 'sent' ? 'ok' : p.status === 'failed' ? 'bad' : '') + '">' + esc(p.status === 'sent' ? 'sent ' + fmtTime(p.sentAt) : p.status === 'scheduled' ? 'announces ' + fmtDay(p.scheduledAt) + ' ' + fmtTime(p.scheduledAt) : p.status) + '</span>'; }).join('');
+      var card = el('<div class="post"><div class="time">' + esc(fmtTime(ev.startAt)) + '<small>' + esc(fmtDay(ev.startAt)) + '</small></div><div><div class="txt"><b>' + esc(ev.title) + '</b>' + (ev.watchUrl ? ' · <a href="' + esc(ev.watchUrl) + '" target="_blank" rel="noopener">watch link</a>' : '') + '</div><div class="meta">' + dests + '</div><div class="meta">' + posts + '</div></div><div class="acts"><button class="btn ghost danger" data-act="del">Delete</button></div></div>');
+      card.querySelector('[data-act=del]').onclick = async function () { if (!confirm('Delete this stream and its unsent announcements?')) return; await api('/events/' + encodeURIComponent(ev.id), { method: 'DELETE' }); reloadPosts(); };
+      listEl.appendChild(card);
+    });
+  }
+  /* ── channels ── */
+  function connectUrl(c) { return '/api/connect/' + encodeURIComponent(c.connect) + '/start?return=' + encodeURIComponent('/utilities?connected=' + encodeURIComponent(c.connect) + '&window=connect'); }
+  function paintChannels(body) {
+    var cards = el('<div class="cards"></div>');
+    S.channels.forEach(function (c) {
+      if (!configured(c) && c.state !== 'connected' && c.state !== 'reconnect') return;
+      var who = c.account ? '<b>' + esc(c.account.name || c.label) + '</b><span>' + esc(c.account.handle || c.label) + '</span>' : '<b>' + esc(c.label) + '</b><span>' + (c.kind === 'chat' ? 'Post to a channel of your workspace' : 'Post to your ' + c.label + (c.id === 'facebook' ? '' : ' profile')) + '</span>';
+      var state = c.state === 'connected' ? 'Connected' : c.state === 'reconnect' ? 'Needs reconnecting' : 'Not connected';
+      var acts = c.state === 'connected' ? '<button class="btn" data-c="post">New post</button><a class="btn ghost" href="/utilities" target="_blank" rel="noopener">Manage <svg><use href="#i-ext"/></svg></a>' : '<button class="btn primary" data-c="connect">' + (c.state === 'reconnect' ? 'Reconnect' : 'Connect ' + c.label) + '</button>';
+      var slack = c.id === 'slack' && c.state === 'connected' ? '<label class="f">Posts go to</label><select data-c="slackch"><option value="">Choose a channel…</option></select>' : '';
+      var card = el('<div class="ccard"><div class="top">' + avatar(c, 'lg') + '<div class="who">' + who + '</div></div><span class="state ' + esc(c.state) + '"><i></i>' + state + (c.note ? ' · ' + esc(c.note) : '') + '</span>' + slack + '<div class="acts">' + acts + '</div></div>');
+      card.addEventListener('click', function (e) { var b = e.target.closest('[data-c]'); if (!b || b.tagName === 'SELECT') return; if (b.getAttribute('data-c') === 'post') openComposer({ channels: [c.id] }); else connect(c, b); });
+      if (slack) fillSlack(card.querySelector('select'), c);
+      cards.appendChild(card);
+    });
+    body.appendChild(cards);
+    var more = S.channels.filter(function (c) { return !configured(c) && c.state !== 'connected' && c.state !== 'reconnect'; });
+    if (more.length) body.appendChild(el('<p class="hint" style="color:var(--muted);font-size:12.5px;margin-top:16px">Not offered on this installation yet: ' + esc(more.map(function (c) { return c.label; }).join(', ')) + '. An administrator registers the provider app under Utilities &amp; Connectors.</p>'));
+  }
+  async function fillSlack(sel, c) {
+    sel.onchange = async function () { var o = sel.options[sel.selectedIndex]; S.settings = await api('/settings', { method: 'PUT', body: JSON.stringify({ slackChannel: sel.value, slackLabel: o ? o.textContent : '' }) }); c.slackChannel = sel.value; c.slackLabel = o ? o.textContent : ''; };
+    try { var r = await api('/slack/channels'); (r.channels || []).forEach(function (x) { var o = document.createElement('option'); o.value = x.id; o.textContent = (x.isPrivate ? '🔒 ' : '#') + x.name; if (x.id === (S.settings && S.settings.slackChannel)) o.selected = true; sel.appendChild(o); }); }
+    catch (err) { var o = document.createElement('option'); o.textContent = 'Could not list channels: ' + err.message; sel.appendChild(o); }
+  }
+  function connect(c, btn) {
+    btn.disabled = true; btn.textContent = 'Waiting for ' + c.label + '…';
+    var w = window.open(connectUrl(c), '_blank', 'noopener');
+    if (!w) { window.top.location.href = connectUrl(c); return; }
+    var started = Date.now(), timer = setInterval(async function () {
+      if (Date.now() - started > 600000) { clearInterval(timer); btn.disabled = false; btn.textContent = 'Connect ' + c.label; return; }
+      var r = await api('/channels?identity=1').catch(function () { return null; }); if (!r) return;
+      var fresh = (r.channels || []).find(function (x) { return x.id === c.id; });
+      if (fresh && fresh.state === 'connected') { clearInterval(timer); S.channels = r.channels; paintRail(); render(); }
+    }, 4000);
+  }
+  /* ── settings ── */
+  function paintSettings(body) {
+    var s = S.settings || { plan: { days: [1, 2, 3, 4, 5], times: ['09:00', '12:30', '17:00'] }, timezone: '' };
+    var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    var plan = el('<div class="panel"><h3>Posting plan</h3><div class="hint">"Add to queue" puts a post at the next free time here, in ' + esc(s.timezone || 'your time zone') + '.</div><label class="f">Days</label><div class="row" id="plDays"></div><label class="f">Times</label><div class="times" id="plTimes"></div><div class="row" style="margin-top:10px"><input type="time" id="plNew" style="width:150px" /><button class="btn" id="plAdd">Add time</button><span class="status" id="plStatus"></span></div></div>');
+    days.forEach(function (d, i) { var t = el('<button class="tog' + (s.plan.days.indexOf(i) >= 0 ? ' on' : '') + '"><span class="k"></span>' + d + '</button>'); t.onclick = function () { var on = s.plan.days.indexOf(i) >= 0; s.plan.days = on ? s.plan.days.filter(function (x) { return x !== i; }) : s.plan.days.concat(i); savePlan(); }; plan.querySelector('#plDays').appendChild(t); });
+    s.plan.times.forEach(function (t) { var c = el('<span class="chip">' + esc(new Date('2000-01-01T' + t + ':00').toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })) + '<button aria-label="Remove">×</button></span>'); c.querySelector('button').onclick = function () { s.plan.times = s.plan.times.filter(function (x) { return x !== t; }); savePlan(); }; plan.querySelector('#plTimes').appendChild(c); });
+    plan.querySelector('#plAdd').onclick = function () { var v = plan.querySelector('#plNew').value; if (!v) return; if (s.plan.times.indexOf(v) < 0) s.plan.times.push(v); savePlan(); };
+    async function savePlan() { var st = plan.querySelector('#plStatus'); st.textContent = 'Saving…'; try { S.settings = await api('/settings', { method: 'PUT', body: JSON.stringify({ plan: s.plan }) }); render(); } catch (err) { st.textContent = err.message; st.className = 'status bad'; } }
+    body.appendChild(plan);
+    var active = S.job && S.job.status === 'active';
+    var job = el('<div class="panel"><h3>Publishing job</h3><div class="hint">Scheduled posts and announcements go out from a job that runs every five minutes as you. Post now never needs it.</div><div class="row"><span class="state ' + (active ? 'connected' : '') + '"><i></i>' + (S.job ? (active ? 'On' : 'Off') : 'Not offered on this installation') + '</span>' + (S.job && !active ? '<button class="btn primary" id="jobOn">Turn on</button>' : '') + '<a class="btn ghost" href="/swarm-admin/jobs" target="_blank" rel="noopener">All jobs <svg><use href="#i-ext"/></svg></a></div></div>');
+    if (S.job && !active) job.querySelector('#jobOn').onclick = turnOnJob;
+    body.appendChild(job);
+    var slack = ch('slack');
+    if (slack && slack.state === 'connected') { var sp = el('<div class="panel"><h3>Slack</h3><div class="hint">Posts to Slack go to this channel of your workspace.</div><select id="setSlack"><option value="">Choose a channel…</option></select></div>'); body.appendChild(sp); fillSlack(sp.querySelector('select'), slack); }
+  }
+  /* ── composer ── */
+  function openComposer(p, keepDate) {
+    S.editing = p && p.id ? p : null;
+    S.sel = (p && p.channels ? p.channels.slice() : []).filter(function (id) { var c = ch(id); return c && c.state === 'connected'; });
+    if (!S.sel.length && !(p && p.channels && p.channels.length)) S.sel = S.channels.filter(function (c) { return c.state === 'connected'; }).map(function (c) { return c.id; });
+    S.variants = Object.assign({}, p && p.variants || {}); S.tab = 'all';
+    $('cTitle').textContent = S.editing ? 'Edit post' : 'New post';
+    $('cText').value = p && p.text || ''; S.base = $('cText').value; $('cMedia').value = p && p.mediaUrl || ''; $('cStatus').textContent = ''; $('cStatus').className = 'status';
+    $('cWhen').classList.remove('open'); $('cMenu').classList.remove('open');
+    var at = p && p.scheduledAt ? new Date(p.scheduledAt) : new Date(Date.now() + 3600000); $('cAt').value = localInput(at);
+    if (keepDate) { $('cWhen').classList.add('open'); }
+    paintComposerChannels(); paintTabs(); paintPreview();
+    $('scrim').classList.add('open'); $('cText').focus();
+  }
+  function closeComposer() { $('scrim').classList.remove('open'); }
+  function paintComposerChannels() {
+    var box = $('cChannels'); box.innerHTML = '';
+    S.channels.filter(function (c) { return c.state === 'connected' || configured(c); }).forEach(function (c) {
+      var on = S.sel.indexOf(c.id) >= 0, b = el('<button class="avtog' + (on ? ' on' : '') + '" title="' + esc(c.account ? c.account.name + ' · ' + c.label : c.state === 'connected' ? c.label : 'Connect ' + c.label) + '" aria-pressed="' + on + '">' + avatar(c) + '</button>');
+      b.onclick = function () { if (c.state !== 'connected') { closeComposer(); setView('channels'); return; } if (on) S.sel = S.sel.filter(function (x) { return x !== c.id; }); else S.sel.push(c.id); if (S.tab !== 'all' && S.sel.indexOf(S.tab) < 0) S.tab = 'all'; paintComposerChannels(); paintTabs(); paintPreview(); };
+      box.appendChild(b);
+    });
+    if (!S.channels.some(function (c) { return c.state === 'connected'; })) box.appendChild(el('<span class="status">Connect a channel first (Channels).</span>'));
+  }
+  function activeText(id) { return (id && S.variants[id]) || $('cText').value; }
+  function paintTabs() {
+    var tabs = $('cTabs'); tabs.innerHTML = '';
+    if (S.sel.length < 1) { $('cCount').textContent = ''; $('cHint').textContent = ''; return; }
+    var all = el('<button' + (S.tab === 'all' ? ' class="on"' : '') + '>All channels</button>'); all.onclick = function () { S.tab = 'all'; $('cText').value = $('cText').value; paintTabs(); paintPreview(); }; tabs.appendChild(all);
+    S.sel.forEach(function (id) { var c = ch(id), n = activeText(id).length, over = n > c.limit;
+      var b = el('<button' + (S.tab === id ? ' class="on"' : '') + '><i style="width:8px;height:8px;border-radius:50%;background:' + c.color + ';display:inline-block"></i>' + esc(c.label) + ' <span class="c' + (over ? ' over' : '') + '">' + n + '/' + c.limit + '</span>' + (S.variants[id] ? ' ✎' : '') + '</button>');
+      b.onclick = function () { S.tab = id; paintTabs(); paintPreview(); }; tabs.appendChild(b); });
+    var ta = $('cText');
+    if (S.tab === 'all') { ta.placeholder = 'What do you want to say? Write it once; customize per channel if you like.'; ta.value = S.base != null ? S.base : ta.value; }
+    else { ta.placeholder = 'Customize this for ' + ch(S.tab).label + ' (leave as is to use the shared text).'; ta.value = S.variants[S.tab] || S.base || ''; }
+    paintCount();
+  }
+  function paintCount() {
+    var text = $('cText').value, n = text.length;
+    if (S.tab === 'all') { var tight = S.sel.map(function (id) { return ch(id); }).sort(function (a, b) { return a.limit - b.limit; })[0]; $('cCount').innerHTML = tight ? '<span class="' + (n > tight.limit ? 'over' : '') + '">' + n + '</span> / ' + tight.limit + ' (' + esc(tight.label) + ' is the tightest)' : n + ' characters'; $('cHint').textContent = S.sel.length > 1 ? 'Click a channel tab to customize its text' : ''; }
+    else { var c = ch(S.tab); $('cCount').innerHTML = '<span class="' + (n > c.limit ? 'over' : '') + '">' + n + '</span> / ' + c.limit; $('cHint').textContent = S.variants[S.tab] ? 'Custom text for ' + c.label : 'Using the shared text'; }
+  }
+  function paintPreview() {
+    var id = S.tab !== 'all' ? S.tab : S.sel[0], c = id ? ch(id) : null, text = c ? activeText(c.id) : $('cText').value, media = $('cMedia').value.trim();
+    $('pLabel').textContent = c ? c.label + ' preview' : 'Preview';
+    var who = c ? avatar(c) + '<div><b>' + esc(c.account && c.account.name ? c.account.name : c.label) + '</b><span>' + esc(c.account && c.account.handle ? c.account.handle : 'now') + '</span></div>' : '<div><b>Your post</b><span>Pick a channel</span></div>';
+    $('pCard').innerHTML = '<div class="ph2">' + who + '</div><div class="pt">' + (esc(text) || '<span style="color:var(--muted)">Your words show here as people will see them.</span>') + '</div>' + (/^https:\/\//i.test(media) ? '<img src="' + esc(media) + '" alt="" />' : '');
+  }
+  $('cText').addEventListener('input', function () { if (S.tab === 'all') S.base = $('cText').value; else { var v = $('cText').value; if (v === S.base || !v) delete S.variants[S.tab]; else S.variants[S.tab] = v; } paintCount(); paintTabs(); paintPreview(); });
+  $('cMedia').addEventListener('input', paintPreview);
+  function payload(when) { if (S.tab === 'all') S.base = $('cText').value; return { text: S.base != null ? S.base : $('cText').value, channels: S.sel, variants: S.variants, mediaUrl: $('cMedia').value.trim(), when: when }; }
+  async function send(when) {
+    var st = $('cStatus'); st.className = 'status'; st.textContent = when === 'now' ? 'Posting…' : 'Saving…';
+    var body = payload(when);
+    try {
+      var r = S.editing ? await api('/posts/' + encodeURIComponent(S.editing.id), { method: 'PATCH', body: JSON.stringify(body) }) : await api('/posts', { method: 'POST', body: JSON.stringify(body) });
+      if (S.editing && when === 'now') r = await api('/posts/' + encodeURIComponent(S.editing.id) + '/publish', { method: 'POST', body: '{}' });
+      if (when === 'now' && r.post && r.post.status !== 'sent') { st.className = 'status bad'; st.textContent = firstFailure(r.post); await reloadPosts(); return; }
+      closeComposer(); S.base = null; await reloadPosts();
+      if (when === 'draft') setView('drafts'); else if (when === 'now') setView('sent'); else setView('queue');
+    } catch (err) { st.className = 'status bad'; st.textContent = err.message + (err.body && err.body.channel ? ' (' + (ch(err.body.channel) || {}).label + ')' : ''); }
+  }
+  $('cQueue').onclick = function () { send('queue'); }; $('cNow').onclick = function () { send('now'); }; $('cDraft').onclick = function () { send('draft'); };
+  $('cMore').onclick = function (e) { e.stopPropagation(); $('cMenu').classList.toggle('open'); };
+  $('cMenu').querySelector('.dd').addEventListener('click', function (e) { var b = e.target.closest('[data-send]'); if (!b) return; $('cMenu').classList.remove('open'); var k = b.getAttribute('data-send'); if (k === 'schedule') { $('cWhen').classList.add('open'); $('cAt').focus(); } else send(k); });
+  $('cSchedule').onclick = function () { var v = $('cAt').value; if (!v) return; send(new Date(v).toISOString()); }; $('cWhenX').onclick = function () { $('cWhen').classList.remove('open'); };
+  $('cClose').onclick = closeComposer; $('scrim').addEventListener('click', function (e) { if (e.target === $('scrim')) closeComposer(); });
+  document.addEventListener('click', function () { $('cMenu').classList.remove('open'); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeComposer(); });
+  $('newPost').onclick = function () { S.base = null; openComposer(null); };
+  document.querySelectorAll('.nav button').forEach(function (b) { b.addEventListener('click', function () { setView(b.getAttribute('data-view')); }); });
+  var want = new URLSearchParams(location.search).get('view'); if (want && VIEWS[want]) S.view = want;
+  document.querySelectorAll('.nav button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-view') === S.view); });
+  loadAll();
+})();
 </script>
 </body>
 </html>

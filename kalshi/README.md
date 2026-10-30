@@ -134,7 +134,7 @@ always-on scan.
 | `scanMaxMarketsPaged` | deployment | `60000` | feed-walk bound (markets paged) |
 | `scanMaxMarketsKept` | deployment | `1500` | feed-walk bound (evaluable kept) |
 | `staleAfterMinutes` | deployment | `180` | when the served snapshot is labelled STALE |
-| `notifyJarvis` | user | `true` | post new hands to your Jarvis feed |
+| `notifyJarvis` | user | `false` | post new hands to your Jarvis feed; off until you switch it on in Settings |
 | `notifyOutward` | user | `false` | also send to your notification channel |
 | `alertMinEdgeCents` | user | `3` | net-edge floor for an alert |
 | `alertMinStrength` | user | `playable` | strength floor (`monster`/`strong`/`playable`) |

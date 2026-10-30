@@ -1,3 +1,7 @@
+/** CHANGE LOG
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Retain owner-bound account observations and register the separate read-only account detail surface.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The research read names each account's assigned strategy, so the concierge can compare a new strategy with the one an account runs.
+ */
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.portfolioWitness = portfolioWitness;
@@ -14,6 +18,7 @@ const trading_portfolio_plan_routes_1 = require("./trading-portfolio-plan-routes
 const trading_native_management_1 = require("./trading-native-management");
 const trading_portfolio_calendar_1 = require("./trading-portfolio-calendar");
 const running = new Set();
+const accountValues = require('./trading-account-values');
 function label(value, name = 'Name') {
     if (typeof value !== 'string' || !value.trim() || value.trim().length > 120)
         throw new trading_portfolio_model_1.PortfolioError(400, 'name_invalid', `${name} must contain 1 to 120 characters.`);
@@ -75,16 +80,22 @@ function registerTradingPortfolioRoutes(router, ctx, options = {}) {
     };
     (0, trading_portfolio_plan_routes_1.registerPortfolioPlanRoutes)(route, ctx, { clock, selected: (owner, binding, now) => selected(ctx, owner, binding, now), witness: portfolioWitness });
     (0, trading_native_management_1.registerNativeManagementRoutes)(route, ctx, { clock, selected: (owner, binding, now) => selected(ctx, owner, binding, now) });
-    route('get', '/portfolio', async (_req, owner, at) => (await portfolioSnapshot(ctx, owner, at)).report);
+    accountValues.registerAccountValueRoutes(route, ctx, { selected: (owner, binding, now) => selected(ctx, owner, binding, now) });
+    route('get', '/portfolio', async (_req, owner, at) => {
+        const snapshot=await portfolioSnapshot(ctx, owner, at);
+        await accountValues.recordAccountValues(ctx, owner, snapshot.native);
+        return snapshot.report;
+    });
     route('get', '/portfolio/research', async (_req, owner, at) => {
-        const [strategies, runs, records] = await Promise.all([(0, trading_portfolio_store_1.listRecords)(ctx, owner, 'strategy'), (0, trading_portfolio_store_1.listRecords)(ctx, owner, 'run'), (0, trading_portfolio_store_1.listRecords)(ctx, owner, 'review')]);
+        const [strategies, runs, records, profiles] = await Promise.all([(0, trading_portfolio_store_1.listRecords)(ctx, owner, 'strategy'), (0, trading_portfolio_store_1.listRecords)(ctx, owner, 'run'), (0, trading_portfolio_store_1.listRecords)(ctx, owner, 'review'), (0, trading_portfolio_store_1.listRecords)(ctx, owner, 'profile')]);
         const approvals = new Map(records.filter(row => row.status === 'research-approved' && row.reviewId).map(row => [row.reviewId, row]));
         const reviews = records.filter(row => !row.reviewId).map(row => {
             const approval = approvals.get(row.id);
             return approval ? { ...row, status: 'research-approved', approvedAt: approval.approvedAt, approvalId: approval.id } :
                 { ...row, status: at.getTime() >= Date.parse(row.expiresAt) ? 'expired' : row.status };
         });
-        return { strategies, runs: runs.slice(0, 100).map(({ history, result, ...row }) => ({ ...row, metrics: result?.metrics, window: result?.window, costs: result?.costs, maintenanceTriggered: result?.maintenanceTriggered })), reviews, liveExecutionAvailable: false };
+        const accounts = profiles.map(p => ({ accountId: p.accountId, connectionKey: p.connectionKey, label: p.label, strategyId: p.strategyId ?? null }));
+        return { strategies, runs: runs.slice(0, 100).map(({ history, result, ...row }) => ({ ...row, metrics: result?.metrics, window: result?.window, costs: result?.costs, maintenanceTriggered: result?.maintenanceTriggered })), reviews, accounts, liveExecutionAvailable: false };
     });
     route('post', '/portfolio/profiles', async (req, owner, at) => {
         const b = req.body || {}, current = await selected(ctx, owner, b, at), reg = (0, trading_portfolio_model_1.registration)(b.registration);

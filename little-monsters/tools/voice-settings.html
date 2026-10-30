@@ -11,6 +11,7 @@
   ---------------------------------------------------------------------------
   2026-08-05     | maintainer@emeraldcoastsystemsgroup.com     | Replace retired kernel-manifest advice with the installed package manifest and current package-install workflow.
   2026-09-26     | maintainer@emeraldcoastsystemsgroup.com     | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, cockpit theme links and glass; the page used --lm-border/--lm-panel/--lm-code tokens that were defined nowhere plus a dark hex palette, now mapped onto the real tokens (--lm-line, --lm-card, --lm-input-bg, semantic pills); hero, settings card, fields and the provider list use the system; it says plainly that the choices are device-local and that engine status is read from /voice-config only; toasts replace the inline "Saved" flag and the alert
+  2026-10-29     | maintainer@emeraldcoastsystemsgroup.com     | The provider preview reads the HTTP status, not a success field: the kernel answers {data:{audioData,format}} with no success flag, so every working preview said "Preview failed".
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -202,7 +203,7 @@
         body: JSON.stringify({ text: 'Hello from Little Monsters!', providerId: providerId }),
       });
       const body = await res.json();
-      if (!body.success) throw new Error(body.error && body.error.message || 'unknown error');
+      if (!res.ok || !body.data) throw new Error((body.error && (body.error.message || body.error)) || body.detail || ('HTTP ' + res.status));
       if (body.data.fallback === 'browser') {
         if (window.speechSynthesis) {
           const u = new SpeechSynthesisUtterance('Hello from Little Monsters!');
@@ -217,7 +218,7 @@
         audio.src = 'data:' + (body.data.format || 'audio/wav') + ';base64,' + body.data.audioData;
         audio.hidden = false;
         audio.play().catch(function () {});
-        msg.textContent = 'Synthesized by ' + body.data.providerId + '.';
+        msg.textContent = 'Synthesized by ' + (body.data.providerId || providerId) + '.';
       } else {
         msg.textContent = 'Empty response.';
       }

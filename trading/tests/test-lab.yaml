@@ -18,6 +18,8 @@
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Register paper-landing and paper-landing-browser: with no Schwab and no market-data connector the landing shows the native paper book (balances, day change, holdings) instead of $0 and "No accounts yet", the chart draws the World archive's stored prices as a line, the movers board and the watchlist's Today read the archive's day closes, and the paper book's Allocation/Exits say it needs no broker.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Register off-notes: the earnings watcher and armed event-plan notes say in words what is off, never an environment-variable name (sweep 14).
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Register coherent SEC annual financial statements and desktop/phone route-renderer acceptance.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | Register strategy-concierge: the concierge's research-only strategy tools, the analyst's hand-off to the Strategies screen, and the order authority that owner approvals bind to.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | Register paper-concierge: the concierge creates, starts and stops local paper accounts through the paper routes only, and its accounts read says whether the person's paper schedule has run.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -1547,5 +1549,54 @@ cases:
     prerequisites: [runner:node-test, browser:chromium]
     sideEffects: fixture-write
     isolation: { mode: disposable, cleanup: Close synthetic fixture servers and browsers. }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: native-account-details
+    name: Account holdings, measured history and comparison dashboard
+    purpose: Verify separate exact-account dashboard links, retained balance observations and honest benchmark/empty/error states without financial writes.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-account-details.test.js, tests/native-account-details-browser.test.js] }
+    expected:
+      - Owner and connection bindings isolate historical balances and reject unresolved accounts.
+      - History never reconstructs old equity from present holdings or presents account value change as a cash-flow-adjusted return.
+      - Dashboard links, symbol comparison, reload and cash-only accounts work on desktop and phone.
+      - Ambiguous broker position day amounts cannot become account daily returns.
+    prerequisites: [runner:node-test, browser:chromium]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Close synthetic fixture servers and browsers. }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: strategy-concierge
+    name: The concierge drafts and backtests strategies; approvals bind to the order code
+    purpose: Verify the concierge's strategy tools stay research-only, the analyst hands any switch to the owner, and the declared order authority covers every module that submits or manages broker orders while pages and the persona stay outside it.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-strategy-concierge.test.js] }
+    expected:
+      - The strategy tools read, save and backtest through the research routes only; no tool assigns a strategy, activates authority or touches orders.
+      - The analyst is authorized for them, saves only after the owner agrees, compares with the assigned strategy and SPY, and names the owner's Strategies steps.
+      - The research read names each owner account's assigned strategy and no other owner's accounts.
+      - Every module that submits or manages broker orders is inside the literal-require closure of the declared order sources; pages, research routes and the persona are not.
+    prerequisites: [runner:node-test]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Close synthetic fixture servers. }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: paper-concierge
+    name: The concierge sets up and starts paper accounts; the schedule stays the person's consent
+    purpose: Verify the concierge's paper tools reach only the local paper account routes, the analyst creates after agreement and names the schedule button, and the accounts read reports armed accounts, last ticks and the last scheduled pass per owner.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-paper-concierge.test.js] }
+    expected:
+      - The paper tools list, create, start and stop through /api/trading/paper/books only; no tool resets, archives or ticks a ledger.
+      - The analyst is authorized for them, creates only after the person agrees, and names Reports, Local paper accounts, Activate / refresh paper schedule.
+      - A created account is armed, trades on a scheduled pass, and the read reports that pass; another owner sees none of it.
+      - A saved strategy assigned to a paper account arms it, rebalances it to the strategy's targets once per decision on a scheduled pass, is named in the read, and can be cleared.
+      - The page activates the paper schedule only for an armed, unarchived account whose job is not active.
+    prerequisites: [runner:node-test]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Drop the disposable PostgreSQL database. }
     limits: { timeoutMs: 60000 }
     installation: never

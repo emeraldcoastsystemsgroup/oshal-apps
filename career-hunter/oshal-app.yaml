@@ -41,6 +41,7 @@
 # 37 | maintainer@emeraldcoastsystemsgroup.com | Release faster progressive search with deferred map assets and superseded-request cancellation in 1.28.1.
 # 38 | maintainer@emeraldcoastsystemsgroup.com | Release the owner-only seven-day generated-queue preview and permanent purge, plus a generated_at/status index for both store backends, as version 1.29.0. The purge count-checks the preview and removes only the caller's Ready packets and score/application rows; it leaves later statuses and shared postings untouched. Add DELETE /jobs/purge-generated to the authorization catalog; the catalog revision needs its AUTH-07 review.
 # 39 | maintainer@emeraldcoastsystemsgroup.com | Release date-indexed exact scoring for posted-date board filters as version 1.29.1. When a recent-posted window is sparse or empty, drive from the corpus date index instead of probing every historical résumé score.
+# 40 | maintainer@emeraldcoastsystemsgroup.com | 1.29.3: Resume Studio and Profile Studio save their unsaved edits before Jarvis or the Career concierge reads them and redraw the saved resume or plan when the change returns (shared document handoff); AI draft reads the plan with the latest edit saved.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -134,8 +135,7 @@ description: >-
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.29.1
-
+version: 1.29.3
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent
 # to Career: the handle is redeemed through the kernel relay and rides the SAME

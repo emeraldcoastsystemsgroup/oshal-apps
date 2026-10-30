@@ -36,6 +36,7 @@
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 0.8.6 (ADR-164 D6): the company audience view for the Business shells beside the classroom one — the surface's ?audience=company paints the saved circuits as a ledger (each one's last run, runs kept, parts and wires, warnings of the last solve, the failed runs named by their code) from GET /designs and GET /capabilities only; no solve, no write, no engine request, and the lab's own start paths stay off under it. No route, schema or manifest key changes beyond the version.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Sweep 13: the concierge listed the examples by id (led-switch, rc-charge, ...) and called the dropdown "unlabelled list under engine: idle". circuit-create-design pairs each example id with the title the Examples list shows and says to name an example by its title; the dropdown has a visible Examples label. Words only: no route, scope or binding change.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 0.8.8: on the native kernel the engine link counts as connected until a request through it fails. Status read "engine.connected: false" before the first simulation, so Jarvis asked the person to start the engine instead of designing the circuit. Guarded by circuit-lab/tests/engine-client.test.js.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 0.8.9: the open design saves unapplied inspector fields, run settings and pending autosaves before Jarvis or the concierge reads it, and redraws the saved design when their change returns (shared document handoff), keeping a field still being edited.
 name: circuit-lab
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -56,7 +57,7 @@ description: >-
   transient: waveforms, per-part readings, warnings, and gears that turn on the canvas at their
   solved speed. Ask the concierge for a change in plain words and it edits the same circuit
   through the package's tools, so the person, the bot and any MCP client iterate on one design.
-version: 0.8.8
+version: 0.8.9
 status: active
 scope: person
 

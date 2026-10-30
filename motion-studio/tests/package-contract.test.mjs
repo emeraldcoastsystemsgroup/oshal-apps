@@ -8,6 +8,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Register saved manual/native layer workflow source evidence.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Validate actual read-only effect tools and register rendered effect workflow evidence.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Validate exact keyframe read/tool bindings and register native curve/path workflows.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Require the automatic document handoff browser recipe in the actual source catalog.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -313,9 +314,9 @@ test('Test Lab catalog is loaded by the actual framework catalog reader and regi
   assert.ok(framework, 'Explicit framework source required for catalog loader proof');
   const loader = createRequire(resolve(framework, 'package.json'))('./scripts/oshal-test-catalog.js');
   const result = loader.loadPackageTestCatalog(root, source);
-  assert.equal(result.catalog.cases.length, 42);
+  assert.equal(result.catalog.cases.length, 45);
   const registered = new Set(result.catalog.cases.flatMap(testCase => testCase.runner.files));
   for (const file of ['engine/src/lib.rs', 'tests/project-store.test.mjs', 'tests/engine-bridge.test.mjs',
-    'tests/application.test.mjs', 'tests/workbench.test.mjs', 'tests/native-runner.test.mjs',
+    'tests/application.test.mjs', 'tests/browser/document-handoff.test.mjs', 'tests/workbench.test.mjs', 'tests/native-runner.test.mjs',
     'tests/native-sql.test.mjs', 'tests/bounded-json-wire.test.mjs', 'tests/package-contract.test.mjs', 'tests/project-inspection.test.mjs', 'tests/engine-container.test.mjs', 'tests/document-exchange.test.mjs','tests/lossless-json.test.mjs','tests/lossless-documents.test.mjs','tests/owned-blobs.test.mjs','tests/durable-assets.test.mjs','tests/durable-revisions.test.mjs','tests/crash-recovery.test.mjs','tests/portable-bundle.test.mjs','tests/portable-store.test.mjs','tests/render-export.test.mjs','tests/layer-workflows.test.mjs','tests/effects.test.mjs','tests/keyframe-workflows.test.mjs','tests/playback-workflows.test.mjs','tests/text-workflows.test.mjs','tests/point-text.test.mjs','tests/candidate-package.test.mjs','tests/mask-workflows.test.mjs','tests/animated-mask-workflows.test.mjs','tests/per-character-text.test.mjs','tests/variable-feather.test.mjs','tests/bundle-transfers.test.mjs','tests/bundle-http.test.mjs','tests/bundle-workbench.test.mjs','tests/sha256-stream.test.mjs','tests/bundle-streaming.test.mjs','tests/properties-workflows.test.mjs']) assert.ok(registered.has(file), file);
 });

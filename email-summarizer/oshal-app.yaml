@@ -13,6 +13,10 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.4.5: email-send (POST /api/email/send, held for approval, confirm const true) so Jarvis can send an email; it answered "I cannot send emails directly". Guarded by email-summarizer/tests/email-send-tool.test.cjs.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.6: email-send takes no recipient for "email it to me" (the route sends to the person's own address) and puts an earlier step's file link in the body; asked to email a deck to the person, it asked for their address. Guarded by email-summarizer/tests/email-send-tool.test.cjs.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.4.7: a sent email makes this installation's own /cockpit/ and /api/ links absolute (the kernel's x-oshal-public-origin), so a deck emailed from a Jarvis chain opens from the inbox. Guarded by email-summarizer/tests/kernel-egress.test.cjs.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.4.8: email-messages searches (query, days, max): on Gmail the person's words over the look-back window across all mail; the bot's routing words hold the phrases that ask to look in one's own mail (Roger, 2026-10-29: an offer search went to Little Monsters and read only the 30 newest messages).
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: a stored copy of the person's Gmail (Roger, 2026-10-29: "we shouldn't be hitting the api for emails when we access the tool... we should be storing a local copy"). Migration 001 adds oshal_email_messages (sender, subject, preview, labels, time; no bodies) and oshal_email_sync; the mail-copy schedule (every 10 minutes, as the person) runs POST /api/email/sync, which stores new mail and then older mail back 180 days; email-messages answers from the copy while it is current (source "stored", up to 180 days) and reads Gmail live otherwise. Guarded by email-summarizer/tests/mail-store.test.cjs.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: the Social desk (Roger, 2026-10-30: the Social tab was one profile card; he wants a publisher's tools a person can use to post or stream to two or three services, Slack included). routes/social-desk.js at /api/email-social: channels (X, LinkedIn, Facebook Page, Slack, Mastodon) on the person's own connections through the kernel egress, a composer that writes once and customizes per channel, Add to queue (the posting plan's next free slot) / Post now / Schedule, Drafts and Sent, Engage (Slack DMs and mentions, X mentions, reply), Go Live events whose announcements are posts, one Settings panel. Migration 002 adds the posts, settings and events tables; the social-publish schedule (every 5 minutes, as the person) sends due posts; the social-post tool lets the communications bot post for the person behind an approval. Guarded by tests/social-rules.test.cjs, social-store.test.cjs and social-desk-browser.test.cjs.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: a mail-copy pass resumes where the last stopped (Roger's first live passes stored 290, then only 73 more: every pass re-read the stored week before reaching new mail, so the copy stalled). email-messages answers from the copy only over a window the copy reaches. Guarded by email-summarizer/tests/mail-store.test.cjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — email-summarizer (Intelligent Communication, ADR-037)
@@ -67,14 +71,17 @@ rating:
       degrade: disable
 displayName: Intelligent Communication
 description: >-
-  Your inbox, calendar, and day in one surface. Reads the signed-in user's own
-  connected Gmail + Google Calendar, Outlook / Microsoft 365 mail + calendar, or
-  Yahoo Mail inbox (read-only), builds a prioritized "My Day" digest, and drafts
-  replies with the
-  communications bot — sending is a single explicit-confirm gated action ("email
-  me a copy"). The bot does the reasoning on its own harness/model with cost
-  captured per user.
-version: 1.4.7
+  Your inbox, calendar, social channels and day in one surface. Reads the signed-in
+  user's own connected Gmail + Google Calendar or Outlook / Microsoft 365 mail +
+  calendar, builds a prioritized "My Day" digest, drafts replies with the
+  communications bot, and publishes to the person's own X, LinkedIn, Facebook
+  Page, Slack and Mastodon accounts from a Buffer-style desk: write once,
+  customize per channel, add to the queue, schedule or post now, answer Slack
+  and X mentions in place, and announce a live stream on every channel. Sending
+  mail is a single explicit-confirm gated action; every social publish goes out
+  on the person's own connection through the kernel. The bot does the reasoning
+  on its own harness/model with cost captured per user.
+version: 1.6.0
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -110,7 +117,7 @@ dependencies:
   optional:
     apps: []
     tools: []
-    connectors: [google, outlook, yahoo, twilio, facebook]
+    connectors: [google, outlook, yahoo, twilio, facebook, meta-business, twitter, linkedin, slack, mastodon]
 
 # Outbound hosts (native kernel): the sandbox has no network and no token broker, so every mailbox,
 # calendar, send and profile request goes through the kernel's fenced egress, which applies the
@@ -124,6 +131,15 @@ egress:
     credential: { connector: outlook, header: authorization, prefix: "Bearer " }
   - host: graph.facebook.com
     credential: { connector: facebook, header: authorization, prefix: "Bearer " }
+  # The Social desk's publish channels: each request carries the caller's own connection, applied by the kernel.
+  - host: api.twitter.com
+    credential: { connector: twitter, header: authorization, prefix: "Bearer " }
+  - host: api.linkedin.com
+    credential: { connector: linkedin, header: authorization, prefix: "Bearer " }
+  - host: slack.com
+    credential: { connector: slack, header: authorization, prefix: "Bearer " }
+  - host: mastodon.social
+    credential: { connector: mastodon, header: authorization, prefix: "Bearer " }
 
 # Per-app skin (approved palette) — gray so the comms workspace reads distinct.
 theme: gray
@@ -206,12 +222,23 @@ tools:
     displayName: Inbox
     type: api
     category: communication
-    description: The person's recent inbox messages (sender, subject, time, unread/important/starred).
-    executor: { executorType: api, apiEndpoint: "GET /api/email/messages" }
+    description: The person's mail (sender, subject, preview, time, unread/important/starred), or a search of it by words over a number of days, from their stored copy of Gmail when it is current.
+    executor: { executorType: api, apiEndpoint: "GET /api/email/messages?q={input.query}&days={input.days}&max={input.max}" }
     defaultAuthMode: auto
     requiresApproval: false
-    inputSchema: { type: object, properties: {} }
-    usageInstructions: Call with {} to list recent mail. Use a returned id with email-message to read one in full.
+    inputSchema:
+      type: object
+      properties:
+        query: { type: string, maxLength: 300, description: "Words the wanted mail would contain (sender, subject or preview); OR between alternatives; from:, subject: and newer_than: work. Gmail only." }
+        days: { type: integer, minimum: 1, maximum: 180, description: "How many days back to look (default 7; up to 180 on the stored copy, 30 when read live)." }
+        max: { type: integer, minimum: 1, maximum: 50, description: How many messages to list (default 25). }
+    usageInstructions: >-
+      Call with {} to list recent mail. To find something ("an offer for ACT prep in the last 2 days"), call with
+      {"query":"ACT prep","days":2}; try close variants of the words and a wider window before saying nothing was found,
+      and say which words and how many days you searched. The answer's source says where it came from: "stored" is the
+      person's copy of their Gmail (store.stored messages back to store.oldestAt, current to store.syncedThrough; matchedAll
+      false means no message held every word and the closest are listed), "live" is Gmail itself (at most 30 days). Use a
+      returned id with email-message to read one in full.
     tags: [email, route-backed]
   - name: email-message
     displayName: Read Message
@@ -253,6 +280,31 @@ tools:
       an insufficient_scope answer means their mailbox connection does not allow sending: say to reconnect it with send access.
     tags: [email, route-backed, approval-required]
 
+  - name: social-post
+    displayName: Post to social channels
+    cardText: Posts this on your connected social channels.
+    type: api
+    category: communication
+    description: Publish one text on the person's own connected channels (X, LinkedIn, Facebook Page, Slack, Mastodon) now, or add it to their posting queue. Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/email-social/posts" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        confirm: { type: boolean, const: true }
+        text: { type: string, minLength: 1, maxLength: 3000, description: The post, written for the person in their voice; X allows 280 characters. }
+        channels: { type: array, minItems: 1, maxItems: 5, items: { type: string, enum: [x, linkedin, facebook, slack, mastodon] }, description: Where to post. }
+        when: { type: string, enum: [now, queue], description: now posts immediately; queue takes the next time in the person's posting plan. }
+      required: [confirm, text, channels, when]
+    usageInstructions: >-
+      Call once with {"confirm":true,"text","channels","when"} when the person asks to post, share, tweet or announce something
+      on their social channels; write the text from what they asked and keep it inside each channel's length (X: 280). Use
+      "now" only when they say now; otherwise "queue". The approval card is their confirmation. Say it was posted only when the
+      answer's post.status is "sent"; a "partial" or "failed" status names which channel refused and why in post.outcomes; a
+      no_<channel>_connection outcome means that account is not connected yet (the Social desk's Channels view connects it).
+    tags: [social, route-backed, approval-required]
+
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — ribbon icons open the email client pages (served by the
 # packaged createEmailRoutes at /api/email/*) in the main stage. Read-only
@@ -272,10 +324,21 @@ ui:
       icon: codicon codicon-mail
       iframeUrl: /api/email/inbox
       section: top
+    # The Social desk (1.6.0): queue, calendar, composer, drafts, sent, channels and settings in one surface.
     - toolName: email-social
       label: Social
-      icon: codicon codicon-account
-      iframeUrl: /api/email/social
+      icon: codicon codicon-megaphone
+      iframeUrl: /api/email-social/
+      section: top
+    - toolName: email-engage
+      label: Engage
+      icon: codicon codicon-comment-discussion
+      iframeUrl: /api/email-social/?view=engage
+      section: top
+    - toolName: email-golive
+      label: Go Live
+      icon: codicon codicon-broadcast
+      iframeUrl: /api/email-social/?view=live
       section: top
 
 summary:
@@ -307,8 +370,41 @@ routes:
     requiresAuth: true
     requiresContext: true
 
-# No migrations: oshal_email_digests is lazy DDL at the route's ensureEmailSchema
-# chokepoint (owner-RLS appended). Uninstall/toggle never touches the digests.
+  - module: routes/social-desk.js
+    factory: createSocialDeskRoutes
+    mountPath: /api/email-social
+    auth: oidc   # the desk exposes the caller's own channels, posts and mentions
+    requiresAuth: true
+    requiresContext: true
+
+# oshal_email_digests stays lazy DDL at the route's ensureEmailSchema chokepoint (owner-RLS appended).
+# The stored mail copy is declared: the native kernel provisions only declared tables.
+migrations:
+  - migrations/001-email-mail-store.sql
+  - migrations/002-email-social-desk.sql
+
+# The stored copy is kept current by the person's own job: every 10 minutes, as the person who turned it on.
+schedules:
+  - id: mail-copy
+    cron: "*/10 * * * *"
+    runsAs: user
+    target: service-route
+    route: /api/email/sync
+    method: POST
+    body: {}
+    timeoutSeconds: 60
+    description: Keep a searchable copy of your Gmail (sender, subject, preview and time; never the full message) so Intelligent Communication searches it without asking Gmail each time.
+    offer: Keep a searchable copy of my Gmail so Intelligent Communication can search all of it.
+  - id: social-publish
+    cron: "*/5 * * * *"
+    runsAs: user
+    target: service-route
+    route: /api/email-social/run-due
+    method: POST
+    body: {}
+    timeoutSeconds: 60
+    description: Send the social posts and stream announcements you scheduled, on your own connected accounts, within five minutes of their time.
+    offer: Send my scheduled social posts and stream announcements when their time comes.
 
 # When /cockpit?app=email-summarizer is requested, show this app's surfaces and
 # hide the generic framework tabs (settings stays so config is always reachable).

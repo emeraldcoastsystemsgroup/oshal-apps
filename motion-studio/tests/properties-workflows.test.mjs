@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify real exact-time native3Dproperties, independent axes, camera/light pixels and original human/agent authority.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Honor the explicit reviewed native fixture binary so source verification never relies on another lane's Cargo target.
  */
 import {test,before,after} from 'node:test';import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';import {resolve} from 'node:path';import {randomUUID} from 'node:crypto';
@@ -54,7 +55,7 @@ test('Reader, locked layer, stale time and foreign/withdrawn original authority 
 });
 
 test('declared native scene read tool is read-only and duplicate/forged property edits append no revision',async()=>{
- const {execFile}=await import('node:child_process'),{promisify}=await import('node:util'),exec=promisify(execFile),definition=resolve(import.meta.dirname,'..','oshal-app.yaml'),binary='/tmp/oshal-creative-motion-native-target/debug/oshal-motion-native-fixture';
+ const {execFile}=await import('node:child_process'),{promisify}=await import('node:util'),exec=promisify(execFile),definition=resolve(import.meta.dirname,'..','oshal-app.yaml'),binary=process.env.MOTION_NATIVE_BINARY||'/tmp/oshal-creative-motion-native-target/debug/oshal-motion-native-fixture';
  const report=JSON.parse((await exec(binary,['--package-contract',definition])).stdout),tool=report.tools.find(t=>t.name==='motion-read-properties');assert.equal(tool.bound,true);assert.equal(tool.mutating,false);assert.equal(tool.approvalRequired,false);assert.deepEqual(tool.permissions,['project.view','project.read']);
  let project=await seed('Read-only scene tool');try{const input={id:project.id,revision:project.revision,compId:String(composition(project).id),layer:String(layer(project).id),compTimeTicks:'0'};await exec(binary,['--tool-input',definition,'motion-read-properties',JSON.stringify(input)]);const observed=await observation(project),opacity=prop(observed,'transform/opacity');
  for(const changes of [[{prop:opacity.prop,value:10},{prop:opacity.prop,value:20}],[{prop:opacity.prop,value:10,owner:'other'}],[{prop:'999999',value:10}]])await call('/projects/'+project.id+'/operations',{method:'POST',body:{baseRevision:project.revision,requestKey:key(),compId:String(composition(project).id),commandsJson:stringifyNative([{command:'properties.patchAt',params:{layer:String(layer(project).id),compTimeTicks:'0',changes}}])}},400);

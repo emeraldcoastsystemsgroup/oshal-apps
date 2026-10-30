@@ -2,10 +2,11 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 0.1.7: bind native callback and audio work to original durable authority; register the proof-boundary regression suite.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.8: authorize declared readiness with the existing caller read grant.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.1.9: calling-operator declares routing words (phone call, make a call, calling assistant, phone task, IVR, ...). It declared none, so a request had to name the application to reach it. Guarded by scripts/tool-apps-routing-words.test.mjs.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 0.1.10: the page paints with the portal theme tokens (--bg-primary, --bg-card, --bg-tertiary, --border-color, --text-primary, --text-muted, the accent and --status-error). Its styles read --surface-* aliases nothing defined, so the dark fallbacks always won and the page stayed dark under every light theme; found by the applications sweep under daylight and workspace.
 name: calling-assistant
 displayName: Calling Assistant
 description: Configurable phone tasks with a reusable tool, operator bot, workflow, audio tests and call reports.
-version: 0.1.9
+version: 0.1.10
 suite: ai-productivity
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
 # After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
